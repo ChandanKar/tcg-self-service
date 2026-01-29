@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Dev VM Control Platform (Mock)</title>
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Material Icons -->
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <!-- Material UI CSS -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <!-- jQuery -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+  <style>
+    /* Base Styling */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      width: 100%;
+    }
+    body { 
+      background: linear-gradient(135deg, #DCDCDC 0%, #e8e8e8 100%);
+      font-family: 'Roboto', sans-serif;
+      overflow: hidden;
+    }
+    .container-fluid {
+      height: calc(100vh - 60px);
+      width: 100%;
+      padding: 0;
+      display: flex;
+    }
+    .row {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      margin: 0;
+    }
+    /* Override for dashboard cards row - don't stretch */
+    #landingDashboard .row {
+      height: auto;
+    }
+    .col-2, .col-10 {
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+    }
+    .col-2 {
+      flex: 0 0 16.66%;
+      max-width: 16.66%;
+    }
+    .col-10 {
+      flex: 0 0 83.34%;
+      max-width: 83.34%;
+    }
+    .main-container {
+      height: calc(100vh - 60px);
+      width: 100%;
+      display: flex;
+    }
+    .navbar {
+      background: #0F2864 !important;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      height: 60px;
+      flex-shrink: 0;
+      padding: 0 20px !important;
+      display: flex;
+      align-items: center;
+    }
+    .navbar-logo {
+      height: 32px;
+      width: auto;
+      display: block;
+    }
+    .navbar-brand {
+      font-size: 22px !important;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: #fff !important;
+      margin: 0 !important;
+    }
+    .text-white { 
+      font-size: 13px; 
+      font-weight: 500;
+      color: #fff !important;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 !important;
+    }
+    
+    /* Containers */
+    .sidebar {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      padding: 24px;
+      margin: 0;
+      flex: 1;
+      overflow-y: auto;
+      min-width: 0;
+    }
+    .main-panel {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      padding: 28px;
+      margin: 0;
+      flex: 1;
+      overflow-y: auto;
+      min-width: 0;
+    }
+    #landingDashboard {
+      display: block;
+      width: 100%;
+    }
+    #vmDetailView {
+      display: none;
+      width: 100%;
+    }
+    
+    /* Typography */
+    .sidebar h6 {
+      font-weight: 700;
+      color: #0F2864;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 16px;
+      margin-top: 0;
+    }
+    .main-panel h5 {
+      font-weight: 700;
+      color: #0F2864;
+      font-size: 28px;
+      margin-bottom: 24px;
+      margin-top: 0;
+    }
+    .main-panel h6 {
+      font-weight: 700;
+      color: #047F64;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 16px;
+      margin-top: 0;
+    }
+    
+    /* List Items */
+    .list-group-item {
+      border: none;
+      background: #f5f5f5;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      padding: 14px 16px;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: pointer;
+      color: #333;
+      list-style: none;
+    }
+    .list-group {
+      display: flex;
+      flex-direction: column;
+      padding-left: 0;
+    }
+    .list-group-item:hover {
+      background: linear-gradient(90deg, #047F64 0%, #068772 100%);
+      transform: translateX(6px);
+      box-shadow: 0 3px 12px rgba(4, 127, 100, 0.25);
+      color: #fff;
+    }
+    
+    /* Cards */
+    .card {
+      border: none;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+      background: #fff;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      overflow: hidden;
+    }
+    .card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 12px 28px rgba(0,0,0,0.12);
+    }
+    .card-body {
+      padding: 28px 24px;
+    }
+    .card h3 {
+      font-weight: 700;
+      color: #0F2864;
+      font-size: 36px;
+      margin-top: 12px;
+      margin-bottom: 0;
+    }
+    .card small {
+      color: #666;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      display: block;
+      margin-top: 4px;
+    }
+    
+    /* Tables */
+    .table-responsive {
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    .table {
+      margin-bottom: 0;
+      font-size: 14px;
+    }
+    .table thead {
+      background: linear-gradient(90deg, #0F2864 0%, #0a1b47 50%, #0F2864 100%);
+    }
+    .table thead th {
+      color: #F4B64A;
+      font-weight: 700;
+      border: none;
+      padding: 16px 12px;
+      font-size: 12px;
+      text-transform: capitalize;
+      letter-spacing: 0.4px;
+    }
+    .table tbody tr {
+      transition: all 0.2s ease;
+      border-bottom: 1px solid #e8e8e8;
+    }
+    .table tbody tr:hover {
+      background-color: #f9fafb;
+    }
+    .table tbody td {
+      padding: 14px 12px;
+      vertical-align: middle;
+      color: #333;
+    }
+    .table-primary {
+      background: linear-gradient(90deg, #e8f3f0 0%, #f0faf8 100%);
+    }
+    .table-info {
+      background: linear-gradient(90deg, #f5f5f5 0%, #fafafa 100%);
+    }
+    .table-light {
+      background: linear-gradient(90deg, #047F64 0%, #0F2864 100%);
+    }
+    
+    /* Buttons */
+    .btn-secondary {
+      background: linear-gradient(90deg, #047F64 0%, #036b53 100%);
+      border: none;
+      border-radius: 8px;
+      padding: 8px 18px;
+      transition: all 0.3s ease;
+      font-weight: 600;
+      font-size: 13px;
+      color: #fff;
+    }
+    .btn-secondary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(4, 127, 100, 0.25);
+      background: linear-gradient(90deg, #036b53 0%, #025244 100%);
+    }
+    
+    /* Status Colors */
+    .group-item {
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .group-item:hover {
+      background-color: #e8f3f0;
+    }
+    .locked { 
+      font-weight: 700; 
+      color: #dc2626; 
+    }
+    .running { 
+      color: #10b981;
+      font-weight: 700; 
+    }
+    .stopped { 
+      color: #ef4444;
+      font-weight: 700; 
+    }
+    .starting { 
+      color: #f59e0b;
+      font-weight: 700; 
+    }
+    
+    /* Collapse */
+    .collapsible-row {
+      cursor: pointer;
+      user-select: none;
+    }
+    .collapsible-row:hover {
+      background-color: #f9f9f9;
+    }
+    .material-icons {
+      vertical-align: middle;
+      font-size: 20px;
+    }
+    .collapse-icon {
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: pointer;
+    }
+    .collapse-icon.collapsed {
+      transform: rotate(-90deg);
+    }
+    
+    /* Animations */
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .spinning {
+      animation: spin 2s linear infinite;
+    }
+  </style>
+</head>
+
+<body>
+
+<!-- TOP NAVBAR -->
+<nav class="navbar navbar-dark bg-dark">
+  <div style="padding: 0 20px; width: 100%; display: flex; align-items: center; justify-content: space-between; height: 60px;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <img src="logo/tcg_white_logo.png" alt="Company Logo" class="navbar-logo">
+      <span class="navbar-brand" style="margin: 0;">⬢ Dev VM Control</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 20px;">
+      <span style="color: #ffffff; font-size: 13px; font-weight: 500; margin: 0;">Payments-Team</span>
+      <div style="display: flex; align-items: center; gap: 8px; color: #ffffff;">
+        <span class="material-icons" style="font-size: 24px; margin: 0;">account_circle</span>
+        <span style="font-size: 13px; font-weight: 500; margin: 0;">Chandan</span>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<div class="main-container">
+  <div class="row">
+
+    <!-- LEFT PANEL -->
+    <div class="col-2 sidebar">
+      <h6>📊 Groups</h6>
+      <ul class="list-group" id="groupList"></ul>
+    </div>
+
+    <!-- MAIN PANEL -->
+    <div class="col-10 main-panel">
+      <!-- Landing Page Dashboard -->
+      <div id="landingDashboard">
+        <h5>📈 System Overview</h5>
+        
+        <!-- Summary Cards -->
+        <div class="row mb-4">
+          <div class="col-3">
+            <div class="card">
+              <div class="card-body text-center">
+                <span class="material-icons" style="font-size: 40px; color: #2196f3;">computer</span>
+                <h3 id="totalVMs">0</h3>
+                <small>Total VMs</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-3">
+            <div class="card">
+              <div class="card-body text-center">
+                <span class="material-icons" style="font-size: 40px; color: #10b981;">check_circle</span>
+                <h3 id="runningVMs">0</h3>
+                <small>Running VMs</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-3">
+            <div class="card">
+              <div class="card-body text-center">
+                <span class="material-icons" style="font-size: 40px; color: #f59e0b;">attach_money</span>
+                <h3 id="costPerHour">$0.00</h3>
+                <small>Cost / Hour</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-3">
+            <div class="card">
+              <div class="card-body text-center">
+                <span class="material-icons" style="font-size: 40px; color: #06b6d4;">calendar_month</span>
+                <h3 id="costPerMonth">$0.00</h3>
+                <small>Est. Monthly</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cost/Usage Per Group -->
+        <h6>💰 Cost & Usage per Group</h6>
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Group</th>
+                <th>Status</th>
+                <th>Total VMs</th>
+                <th>Running VMs</th>
+                <th>Cost/Hour</th>
+                <th>Session Cost</th>
+                <th>Daily Cost</th>
+                <th>Monthly Cost</th>
+              </tr>
+            </thead>
+            <tbody id="groupCostTable"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- VM Detail View (hidden by default) -->
+      <div id="vmDetailView" style="display: none;">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h5 id="mainTitle">📋 Group Details</h5>
+          <button class="btn btn-secondary" id="backToDashboard">
+            <span class="material-icons" style="font-size: 18px; vertical-align: middle;">arrow_back</span> Dashboard
+          </button>
+        </div>
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>VM Name</th>
+                <th>Status</th>
+                <th>Uptime</th>
+                <th>Cores</th>
+                <th>CPU</th>
+                <th>Memory</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="vmAccordion"></tbody>
+          </table>
+        </div>
+        
+        <div class="mt-4" id="contextSection">
+          <h6>📌 Context Information</h6>
+          <div id="contextPanel" class="p-3 bg-light border rounded" style="background: #f9fafb !important; border: 1px solid #e5e7eb !important; border-radius: 8px;">Nothing selected</div>
+        </div>
+      </div>
+    <!-- End VM Detail View -->
+
+  </div>
+</div>
+
+<script>
+/* ---------------- MOCK DATA ---------------- */
+
+let data = [
+  {
+    name: "Payments-Core",
+    running: true,
+    lock: "Chandan",
+    vms: [
+      { name: "pay-core-dev-01", running: true, cores: 4, cpu: 42, mem: 55, uptime: 120 },
+      { name: "pay-core-dev-02", running: true, cores: 8, cpu: 35, mem: 62, uptime: 75 },
+      { name: "pay-core-dev-03", running: false, cores: 4, cpu: 18, mem: 30, uptime: 0 }
+    ],
+    subgroups: [
+      { 
+        name: "Fraud-Service", 
+        running: true,
+        vms: [
+          { name: "fraud-dev-01", running: true, cores: 2, cpu: 22, mem: 38, uptime: 45 },
+          { name: "fraud-dev-02", running: false, cores: 2, cpu: 12, mem: 28, uptime: 0 }
+        ]
+      },
+      { 
+        name: "Ledger-Service", 
+        running: false,
+        vms: [
+          { name: "ledger-dev-01", running: false, cores: 4, cpu: 20, mem: 40, uptime: 0 },
+          { name: "ledger-dev-02", running: false, cores: 4, cpu: 18, mem: 35, uptime: 0 },
+          { name: "ledger-dev-03", running: false, cores: 2, cpu: 22, mem: 42, uptime: 0 }
+        ]
+      }
+    ]
+  },
+  {
+    name: "Search-Core",
+    running: true,
+    lock: "Ops",
+    vms: [
+      { name: "search-dev-01", running: true, cores: 8, cpu: 48, mem: 58, uptime: 90 },
+      { name: "search-dev-02", running: true, cores: 8, cpu: 40, mem: 50, uptime: 60 }
+    ],
+    subgroups: [
+      { 
+        name: "Indexer", 
+        running: true,
+        vms: [
+          { name: "indexer-dev-01", running: true, cores: 4, cpu: 30, mem: 46, uptime: 80 },
+          { name: "indexer-dev-02", running: false, cores: 4, cpu: 18, mem: 40, uptime: 0 }
+        ]
+      }
+    ]
+  },
+  {
+    name: "Auth-Core",
+    running: false,
+    lock: null,
+    vms: [
+      { name: "auth-dev-01", running: false, cores: 4, cpu: 30, mem: 60, uptime: 0 },
+      { name: "auth-dev-02", running: false, cores: 2, cpu: 25, mem: 55, uptime: 0 }
+    ],
+    subgroups: []
+  },
+  {
+    name: "Analytics-Core",
+    running: true,
+    lock: "Data-Eng",
+    vms: [
+      { name: "analytics-dev-01", running: true, cores: 16, cpu: 52, mem: 70, uptime: 110 },
+      { name: "analytics-dev-02", running: true, cores: 16, cpu: 48, mem: 72, uptime: 110 },
+      { name: "analytics-dev-03", running: false, cores: 8, cpu: 28, mem: 55, uptime: 0 }
+    ],
+    subgroups: [
+      { 
+        name: "ETL-Service", 
+        running: true,
+        vms: [
+          { name: "etl-dev-01", running: true, cores: 8, cpu: 36, mem: 64, uptime: 95 },
+          { name: "etl-dev-02", running: true, cores: 4, cpu: 32, mem: 60, uptime: 65 }
+        ]
+      }
+    ]
+  },
+  {
+    name: "Notification-Core",
+    running: false,
+    lock: null,
+    vms: [
+      { name: "notify-dev-01", running: false, cores: 2, cpu: 10, mem: 25, uptime: 0 },
+      { name: "notify-dev-02", running: false, cores: 2, cpu: 12, mem: 28, uptime: 0 }
+    ],
+    subgroups: []
+  }
+];
+
+let selectedGroup = null;
+
+// Cost per hour based on cores
+function getVMCost(cores) {
+  const costMap = { 2: 0.10, 4: 0.20, 8: 0.40, 16: 0.80 };
+  return costMap[cores] || 0.05;
+}
+
+// Calculate group total cost per hour
+function getGroupCost(group) {
+  let cost = 0;
+  group.vms.forEach(vm => {
+    if (vm.running) cost += getVMCost(vm.cores);
+  });
+  group.subgroups.forEach(sg => {
+    sg.vms.forEach(vm => {
+      if (vm.running) cost += getVMCost(vm.cores);
+    });
+  });
+  return cost;
+}
+
+// Calculate total system cost
+function getTotalCost() {
+  let total = 0;
+  data.forEach(g => { total += getGroupCost(g); });
+  return total;
+}
+
+// Calculate group session cost (accumulated cost based on uptime)
+function getGroupSessionCost(group) {
+  let cost = 0;
+  group.vms.forEach(vm => {
+    if (vm.uptime > 0) {
+      cost += getVMCost(vm.cores) * (vm.uptime / 60);
+    }
+  });
+  group.subgroups.forEach(sg => {
+    sg.vms.forEach(vm => {
+      if (vm.uptime > 0) {
+        cost += getVMCost(vm.cores) * (vm.uptime / 60);
+      }
+    });
+  });
+  return cost;
+}
+
+// Re-evaluate group running state from its VMs and subgroups
+function recalcGroupState(group) {
+  const anyGroupVmRunning = group.vms.some(vm => vm.running || vm.starting);
+  const anySubVmRunning = group.subgroups.some(sg => sg.vms.some(vm => vm.running || vm.starting));
+  const anySubgroupRunning = group.subgroups.some(sg => sg.running || sg.starting);
+  group.running = anyGroupVmRunning || anySubVmRunning || anySubgroupRunning;
+  if (!group.running && !group.starting) {
+    group.lock = null;
+  }
+}
+
+/* ---------------- UI RENDER ---------------- */
+
+function renderGroups() {
+  $("#groupList").empty();
+  
+  // Calculate totals
+  let totalVMs = 0;
+  let runningVMs = 0;
+  data.forEach(g => {
+    totalVMs += g.vms.length;
+    g.subgroups.forEach(sg => { totalVMs += sg.vms.length; });
+    runningVMs += g.vms.filter(vm => vm.running).length;
+    g.subgroups.forEach(sg => { runningVMs += sg.vms.filter(vm => vm.running).length; });
+  });
+  
+  let totalCost = getTotalCost();
+  $("#totalVMs").text(totalVMs);
+  $("#runningVMs").text(runningVMs);
+  $("#costPerHour").text("$" + totalCost.toFixed(2));
+  $("#costPerMonth").text("$" + (totalCost * 24 * 30).toFixed(2));
+  
+  // Populate group list sidebar
+  data.forEach((g, i) => {
+    let status = g.running ? "🟢" : "🔴";
+    let lock = g.lock ? " 🔒" : "";
+    let item = `<li class="list-group-item group-item" data-index="${i}">
+                  ${status} ${g.name}${lock}
+                </li>`;
+    $("#groupList").append(item);
+  });
+  
+  // Populate group cost table
+  $("#groupCostTable").empty();
+  data.forEach((g, i) => {
+    let totalGroupVMs = g.vms.length;
+    g.subgroups.forEach(sg => { totalGroupVMs += sg.vms.length; });
+    
+    let runningGroupVMs = g.vms.filter(vm => vm.running).length;
+    g.subgroups.forEach(sg => { runningGroupVMs += sg.vms.filter(vm => vm.running).length; });
+    
+    let groupCost = getGroupCost(g);
+    let sessionCost = getGroupSessionCost(g);
+    let statusClass = g.running ? 'running' : 'stopped';
+    let statusIcon = g.running ? 'check_circle' : 'cancel';
+    let statusText = g.running ? 'Running' : 'Stopped';
+    let costColor = groupCost === 0 ? 'text-muted' : (groupCost < 1 ? 'text-success' : (groupCost < 2 ? 'text-warning' : 'text-danger'));
+    let sessionCostColor = sessionCost === 0 ? 'text-muted' : (sessionCost < 1 ? 'text-success' : (sessionCost < 5 ? 'text-warning' : 'text-danger'));
+    
+    let row = `
+      <tr class="group-row" data-index="${i}">
+        <td><strong>${g.name}</strong></td>
+        <td class="${statusClass}">
+          <span class="material-icons" style="font-size: 16px;">${statusIcon}</span>
+          ${statusText}
+        </td>
+        <td>${totalGroupVMs}</td>
+        <td>${runningGroupVMs}</td>
+        <td class="${costColor} fw-bold">$${groupCost.toFixed(2)}</td>
+        <td class="${sessionCostColor} fw-bold">$${sessionCost.toFixed(2)}</td>
+        <td class="${costColor}">$${(groupCost * 24).toFixed(2)}</td>
+        <td class="${costColor}">$${(groupCost * 24 * 30).toFixed(2)}</td>
+      </tr>
+    `;
+    $("#groupCostTable").append(row);
+  });
+}
+
+function renderMain(group) {
+  // Hide dashboard, show detail view
+  $("#landingDashboard").hide();
+  $("#vmDetailView").show();
+  
+  $("#mainTitle").text("Group: " + group.name);
+
+  let tbody = $("#vmAccordion");
+  tbody.empty();
+
+  // Group level row (collapsible header)
+  let groupActionBtn;
+  if (group.starting) {
+    groupActionBtn = `<button class="btn btn-link text-warning p-0" disabled title="Starting..." style="text-decoration: none;"><span class="material-icons" style="font-size: 24px;">hourglass_empty</span></button>`;
+  } else if (group.running) {
+    groupActionBtn = `<button class="btn btn-link text-danger p-0 stop-group" data-type="group" title="Stop Group" style="text-decoration: none;"><span class="material-icons" style="font-size: 24px;">stop_circle</span></button>`;
+  } else {
+    groupActionBtn = `<button class="btn btn-link text-success p-0 start-group" data-type="group" title="Start Group" style="text-decoration: none;"><span class="material-icons" style="font-size: 24px;">play_circle</span></button>`;
+  }
+
+  let groupStatusClass = group.starting ? 'starting' : (group.running ? 'running' : 'stopped');
+  let groupStatusIcon = group.starting ? 'pending' : (group.running ? 'check_circle' : 'cancel');
+  let groupStatusText = group.starting ? 'STARTING' : (group.running ? 'RUNNING' : 'STOPPED');
+
+  tbody.append(`
+    <tr class="table-primary fw-bold collapsible-row">
+      <td>
+        <span class="material-icons collapse-icon" data-target=".group-content">expand_more</span>
+        GROUP
+      </td>
+      <td>${group.name}</td>
+      <td class="${groupStatusClass}">
+        <span class="material-icons ${group.starting ? 'spinning' : ''}" style="font-size: 18px;">${groupStatusIcon}</span>
+        ${groupStatusText}
+      </td>
+      <td colspan="3">-</td>
+      <td>-</td>
+      <td>${groupActionBtn}</td>
+    </tr>
+  `);
+
+  // Group VMs (collapsible content)
+  group.vms.forEach((vm, vmIdx) => {
+    let vmActionBtn;
+    if (vm.starting) {
+      vmActionBtn = `<button class="btn btn-link text-warning p-0" disabled title="Starting..." style="text-decoration: none;"><span class="material-icons" style="font-size: 22px;">hourglass_empty</span></button>`;
+    } else if (vm.running) {
+      vmActionBtn = `<button class="btn btn-link text-danger p-0 stop-vm" data-type="group-vm" data-vm="${vmIdx}" title="Stop VM" style="text-decoration: none;"><span class="material-icons" style="font-size: 22px;">stop_circle</span></button>`;
+    } else {
+      vmActionBtn = `<button class="btn btn-link text-success p-0 start-vm" data-type="group-vm" data-vm="${vmIdx}" title="Start VM" style="text-decoration: none;"><span class="material-icons" style="font-size: 22px;">play_circle</span></button>`;
+    }
+
+    let vmStatusClass = vm.starting ? 'starting' : (vm.running ? 'running' : 'stopped');
+    let vmStatusIcon = vm.starting ? 'pending' : (vm.running ? 'check_circle' : 'cancel');
+    let vmStatusText = vm.starting ? 'STARTING' : (vm.running ? 'RUNNING' : 'STOPPED');
+
+    tbody.append(`
+      <tr class="collapsible-content group-content">
+        <td>&nbsp;&nbsp;<span class="material-icons" style="font-size: 16px;">computer</span> VM</td>
+        <td>${vm.name}</td>
+        <td class="${vmStatusClass}">
+          <span class="material-icons ${vm.starting ? 'spinning' : ''}" style="font-size: 18px;">${vmStatusIcon}</span>
+          ${vmStatusText}
+        </td>
+        <td>${vm.running ? vm.uptime + " min" : "-"}</td>
+        <td><span class="material-icons" style="font-size: 16px;">memory</span> ${vm.cores}</td>
+        <td><span class="material-icons" style="font-size: 16px;">speed</span> ${vm.cpu}%</td>
+        <td><span class="material-icons" style="font-size: 16px;">storage</span> ${vm.mem}%</td>
+        <td>${vmActionBtn}</td>
+      </tr>
+    `);
+  });
+
+  // Subgroups and their VMs
+  group.subgroups.forEach((subgroup, sgIdx) => {
+    let subgroupActionBtn;
+    if (!group.running) {
+      subgroupActionBtn = `<button class="btn btn-link text-secondary p-0" disabled title="Start the group first" style="text-decoration: none;"><span class="material-icons" style="font-size: 22px;">play_circle</span></button>`;
+    } else if (subgroup.starting) {
+      subgroupActionBtn = `<button class="btn btn-link text-warning p-0" disabled title="Starting..." style="text-decoration: none;"><span class="material-icons" style="font-size: 22px;">hourglass_empty</span></button>`;
+    } else if (subgroup.running) {
+      subgroupActionBtn = `<button class="btn btn-link text-danger p-0 stop-subgroup" data-sg="${sgIdx}" title="Stop SubGroup" style="text-decoration: none;"><span class="material-icons" style="font-size: 22px;">stop_circle</span></button>`;
+    } else {
+      subgroupActionBtn = `<button class="btn btn-link text-success p-0 start-subgroup" data-sg="${sgIdx}" title="Start SubGroup" style="text-decoration: none;"><span class="material-icons" style="font-size: 22px;">play_circle</span></button>`;
+    }
+
+    let subgroupStatusClass = subgroup.starting ? 'starting' : (subgroup.running ? 'running' : 'stopped');
+    let subgroupStatusIcon = subgroup.starting ? 'pending' : (subgroup.running ? 'check_circle' : 'cancel');
+    let subgroupStatusText = subgroup.starting ? 'STARTING' : (subgroup.running ? 'RUNNING' : 'STOPPED');
+    const subgroupTarget = `.subgroup${sgIdx}-content`;
+
+    tbody.append(`
+      <tr class="table-info fw-bold collapsible-row">
+        <td>
+          <span class="material-icons collapse-icon collapsed" data-target="${subgroupTarget}">expand_more</span>
+          SUBGROUP
+        </td>
+        <td>${subgroup.name}</td>
+        <td class="${subgroupStatusClass}">
+          <span class="material-icons ${subgroup.starting ? 'spinning' : ''}" style="font-size: 18px;">${subgroupStatusIcon}</span>
+          ${subgroupStatusText}
+        </td>
+        <td colspan="3">-</td>
+        <td>-</td>
+        <td>${subgroupActionBtn}</td>
+      </tr>
+    `);
+
+    // Subgroup VMs (collapsible content)
+    subgroup.vms.forEach((vm, vmIdx) => {
+      let vmActionBtn;
+      if (vm.starting) {
+        vmActionBtn = `<button class="btn btn-link text-warning p-0" disabled title="Starting..." style="text-decoration: none;"><span class="material-icons" style="font-size: 22px;">hourglass_empty</span></button>`;
+      } else if (vm.running) {
+        vmActionBtn = `<button class="btn btn-link text-danger p-0 stop-vm" data-type="subgroup-vm" data-sg="${sgIdx}" data-vm="${vmIdx}" title="Stop VM" style="text-decoration: none;"><span class="material-icons" style="font-size: 22px;">stop_circle</span></button>`;
+      } else {
+        vmActionBtn = `<button class="btn btn-link text-success p-0 start-vm" data-type="subgroup-vm" data-sg="${sgIdx}" data-vm="${vmIdx}" title="Start VM" style="text-decoration: none;"><span class="material-icons" style="font-size: 22px;">play_circle</span></button>`;
+      }
+
+      let vmStatusClass = vm.starting ? 'starting' : (vm.running ? 'running' : 'stopped');
+      let vmStatusIcon = vm.starting ? 'pending' : (vm.running ? 'check_circle' : 'cancel');
+      let vmStatusText = vm.starting ? 'STARTING' : (vm.running ? 'RUNNING' : 'STOPPED');
+
+      tbody.append(`
+        <tr class="collapsible-content subgroup${sgIdx}-content d-none">
+          <td>&nbsp;&nbsp;&nbsp;&nbsp;<span class="material-icons" style="font-size: 16px;">computer</span> VM</td>
+          <td>${vm.name}</td>
+          <td class="${vmStatusClass}">
+            <span class="material-icons ${vm.starting ? 'spinning' : ''}" style="font-size: 18px;">${vmStatusIcon}</span>
+            ${vmStatusText}
+          </td>
+          <td>${vm.running ? vm.uptime + " min" : "-"}</td>
+          <td><span class="material-icons" style="font-size: 16px;">memory</span> ${vm.cores}</td>
+          <td><span class="material-icons" style="font-size: 16px;">speed</span> ${vm.cpu}%</td>
+          <td><span class="material-icons" style="font-size: 16px;">storage</span> ${vm.mem}%</td>
+          <td>${vmActionBtn}</td>
+        </tr>
+      `);
+    });
+  });
+  
+  // Toggle collapse only when clicking the icon
+  $('.collapse-icon').off('click').on('click', function(e) {
+    e.stopPropagation();
+    const target = $(this).data('target');
+    const isVisible = $(target).first().is(':visible');
+
+    // Collapse all sections
+    $('.collapsible-content').addClass('d-none');
+    $('.collapse-icon').addClass('collapsed');
+
+    // Expand the requested section if it was not visible
+    if (!isVisible) {
+      $(target).removeClass('d-none');
+      $(this).removeClass('collapsed');
+    }
+  });
+
+  // Initialize - only group expanded
+  $('.collapsible-content').addClass('d-none');
+  $('.group-content').removeClass('d-none');
+  $('.collapse-icon').addClass('collapsed');
+  $('.collapse-icon[data-target=".group-content"]').removeClass('collapsed');
+}
+
+function renderContext(group) {
+  $("#contextPanel").html(`
+    <b>Group:</b> ${group.name}<br>
+    <b>Status:</b> ${group.running ? "Running" : "Stopped"}<br>
+    <b>Lock:</b> ${group.lock || "None"}<br><br>
+    <b>Sub-Groups:</b>
+    <ul>
+      ${group.subgroups.map(s => `
+        <li>${s.name} - ${s.running ? "🟢" : "🔴"}</li>
+      `).join("")}
+    </ul>
+  `);
+}
+
+/* ---------------- EVENTS ---------------- */
+
+// Back to dashboard button
+$(document).on("click", "#backToDashboard", function () {
+  $("#vmDetailView").hide();
+  $("#landingDashboard").show();
+  renderGroups();
+  selectedGroup = null;
+});
+
+// Click on sidebar group OR table row
+$(document).on("click", ".group-item, .group-row", function () {
+  let index = $(this).data("index");
+  if (index === undefined || index === null) {
+    console.error("Index not found on clicked element");
+    return;
+  }
+  selectedGroup = data[parseInt(index)];
+  if (!selectedGroup) {
+    console.error("Group not found at index", index);
+    return;
+  }
+  $("#landingDashboard").hide();
+  $("#vmDetailView").show();
+  renderMain(selectedGroup);
+  renderContext(selectedGroup);
+});
+
+// Start/Stop Group
+$(document).on("click", ".start-group", function () {
+  if (selectedGroup.lock) {
+    alert("Group is locked by another user");
+    return;
+  }
+  
+  // Set group and all VMs to starting state
+  selectedGroup.starting = true;
+  selectedGroup.vms.forEach(vm => { vm.starting = true; });
+  renderGroups();
+  renderMain(selectedGroup);
+  renderContext(selectedGroup);
+  
+  // Simulate startup delay (2 seconds)
+  setTimeout(() => {
+    selectedGroup.starting = false;
+    selectedGroup.running = true;
+    selectedGroup.lock = "Chandan";
+    selectedGroup.vms.forEach(vm => { 
+      vm.starting = false;
+      vm.running = true; 
+      vm.uptime = 0; 
+    });
+    renderGroups();
+    renderMain(selectedGroup);
+    renderContext(selectedGroup);
+  }, 2000);
+});
+
+$(document).on("click", ".stop-group", function () {
+  if (selectedGroup.subgroups.some(s => s.running)) {
+    alert("Stop sub-groups first!");
+    return;
+  }
+  selectedGroup.running = false;
+  selectedGroup.lock = null;
+  selectedGroup.vms.forEach(vm => { vm.running = false; vm.uptime = 0; });
+  recalcGroupState(selectedGroup);
+  renderGroups();
+  renderMain(selectedGroup);
+  renderContext(selectedGroup);
+});
+
+// Start/Stop Subgroup
+$(document).on("click", ".start-subgroup", function () {
+  if (!selectedGroup || !selectedGroup.running) {
+    alert("Start the group first");
+    return;
+  }
+  let sgIdx = $(this).data("sg");
+  let subgroup = selectedGroup.subgroups[sgIdx];
+  
+  // Set subgroup and all VMs to starting state
+  subgroup.starting = true;
+  subgroup.vms.forEach(vm => { vm.starting = true; });
+  renderMain(selectedGroup);
+  renderContext(selectedGroup);
+  
+  // Simulate startup delay (2 seconds)
+  setTimeout(() => {
+    subgroup.starting = false;
+    subgroup.running = true;
+    subgroup.vms.forEach(vm => { 
+      vm.starting = false;
+      vm.running = true; 
+      vm.uptime = 0; 
+    });
+    recalcGroupState(selectedGroup);
+    renderMain(selectedGroup);
+    renderContext(selectedGroup);
+  }, 2000);
+});
+
+$(document).on("click", ".stop-subgroup", function () {
+  let sgIdx = $(this).data("sg");
+  let subgroup = selectedGroup.subgroups[sgIdx];
+  subgroup.running = false;
+  subgroup.vms.forEach(vm => { vm.running = false; vm.uptime = 0; });
+  recalcGroupState(selectedGroup);
+  renderMain(selectedGroup);
+  renderContext(selectedGroup);
+});
+
+// Start/Stop Individual VM
+$(document).on("click", ".start-vm", function () {
+  let type = $(this).data("type");
+  let vmIdx = $(this).data("vm");
+  
+  let vm;
+  if (type === "group-vm") {
+    vm = selectedGroup.vms[vmIdx];
+  } else if (type === "subgroup-vm") {
+    let sgIdx = $(this).data("sg");
+    vm = selectedGroup.subgroups[sgIdx].vms[vmIdx];
+  }
+  
+  // Set VM to starting state
+  vm.starting = true;
+  renderMain(selectedGroup);
+  renderContext(selectedGroup);
+  
+  // Simulate startup delay (2 seconds)
+  setTimeout(() => {
+    vm.starting = false;
+    vm.running = true;
+    vm.uptime = 0;
+    recalcGroupState(selectedGroup);
+    renderMain(selectedGroup);
+    renderContext(selectedGroup);
+  }, 2000);
+});
+
+$(document).on("click", ".stop-vm", function () {
+  let type = $(this).data("type");
+  let vmIdx = $(this).data("vm");
+  
+  if (type === "group-vm") {
+    selectedGroup.vms[vmIdx].running = false;
+    selectedGroup.vms[vmIdx].uptime = 0;
+  } else if (type === "subgroup-vm") {
+    let sgIdx = $(this).data("sg");
+    selectedGroup.subgroups[sgIdx].vms[vmIdx].running = false;
+    selectedGroup.subgroups[sgIdx].vms[vmIdx].uptime = 0;
+  }
+  recalcGroupState(selectedGroup);
+  
+  renderMain(selectedGroup);
+  renderContext(selectedGroup);
+});
+
+/* ---------------- MOCK UPTIME ---------------- */
+
+setInterval(() => {
+  data.forEach(g => {
+    g.vms.forEach(vm => {
+      if (vm.running) vm.uptime++;
+    });
+    g.subgroups.forEach(s => {
+      s.vms.forEach(vm => {
+        if (vm.running) vm.uptime++;
+      });
+    });
+  });
+  if (selectedGroup) renderMain(selectedGroup);
+}, 60000);
+
+/* ---------------- INIT ---------------- */
+
+$(document).ready(function() {
+  $("#landingDashboard").show();
+  $("#vmDetailView").hide();
+  renderGroups();
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,609 @@
+/* Base Styling */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  width: 100%;
+}
+body { 
+  background: linear-gradient(135deg, #DCDCDC 0%, #e8e8e8 100%);
+  font-family: 'Roboto', sans-serif;
+  overflow: hidden;
+}
+
+/* Material Design Tables - Global Styling */
+.table {
+  background-color: #fff;
+  border-collapse: collapse;
+  margin-bottom: 16px;
+}
+
+.table thead {
+  background: linear-gradient(135deg, #f5f5f5 0%, #eeeeee 100%);
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.table thead th {
+  color: #424242;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 8px 6px !important;
+  vertical-align: middle;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.table th,
+.table td {
+  padding: 6px 6px;
+  vertical-align: middle;
+  font-size: 12px;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.table tbody tr {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background-color: #fff;
+}
+
+.table tbody tr:hover {
+  background-color: #fafafa;
+  box-shadow: inset 0 0 10px rgba(33, 150, 243, 0.05);
+}
+
+/* Status Badge Colors */
+.table .running {
+  color: #2e7d32;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.table .stopped {
+  color: #c62828;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Table Containers */
+.table-responsive {
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.container-fluid {
+  height: calc(100vh - 60px);
+  width: 100%;
+  padding: 0;
+  display: flex;
+}
+.row {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  margin: 0;
+}
+/* Override for dashboard cards row - don't stretch */
+#landingDashboard .row {
+  height: auto;
+}
+.col-2, .col-10 {
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+}
+.col-2 {
+  flex: 0 0 calc(16.66% + 20px);
+  max-width: calc(16.66% + 20px);
+}
+.col-10 {
+  flex: 0 0 calc(83.34% - 20px);
+  max-width: calc(83.34% - 20px);
+}
+.main-container {
+  height: calc(100vh - 60px);
+  width: 100%;
+  display: flex;
+}
+.navbar {
+  background: #2b2b2b !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  height: 60px;
+  flex-shrink: 0;
+  padding: 0 20px !important;
+  display: flex;
+  align-items: center;
+}
+.navbar-logo {
+  height: 32px;
+  width: auto;
+  display: block;
+}
+.navbar-brand {
+  font-size: 22px !important;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #fff !important;
+  margin: 0 !important;
+}
+.text-white { 
+  font-size: 13px; 
+  font-weight: 500;
+  color: #fff !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 !important;
+}
+
+/* Containers */
+.sidebar {
+  background: linear-gradient(180deg, #f8f9fa 0%, #eef0f5 100%);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  padding: 16px 12px;
+  margin: 12px;
+  flex: 1;
+  overflow-y: auto;
+  min-width: 0;
+  max-height: calc(100vh - 84px);
+  border: 1px solid #e5e7eb;
+}
+
+/* Active/Focused state for menu items */
+.list-group-item.active,
+.list-group-item.group-item.active {
+  background: #dcdcdc !important;
+  color: #333 !important;
+  font-weight: 600 !important;
+  border-color: #aaa !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+  transform: translateX(2px);
+  transition: all 0.3s ease;
+}
+
+.list-group-item.group-item {
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-left: 3px solid transparent;
+}
+
+.list-group-item.group-item:hover {
+  background-color: #f0f0f0;
+  border-left-color: #999;
+  transform: translateX(2px);
+}
+
+/* My VMs Page - Groups Table with Material Design */
+.groups-table-container {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-width: 100%;
+  max-height: 240px;
+  margin-bottom: 10px;
+  border: none;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+  background-color: #fff;
+}
+
+.groups-table {
+  min-width: 750px;
+  margin-bottom: 0;
+  white-space: nowrap;
+  background-color: #fff;
+}
+
+.groups-table thead {
+  position: sticky;
+  top: 0;
+  background: linear-gradient(135deg, #f5f5f5 0%, #eeeeee 100%);
+  z-index: 10;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.groups-table thead th {
+  color: #424242;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 8px 4px !important;
+  vertical-align: middle;
+}
+
+.groups-table th,
+.groups-table td {
+  padding: 6px 4px;
+  vertical-align: middle;
+  font-size: 12px;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.groups-table tbody tr {
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background-color: #fff;
+}
+
+.groups-table tbody tr:hover {
+  background-color: #fafafa;
+  box-shadow: inset 0 0 10px rgba(33, 150, 243, 0.05);
+}
+
+.groups-table tbody tr.active-group {
+  background-color: #e3f2fd !important;
+  border-left: 3px solid #2196f3;
+  box-shadow: inset 0 0 15px rgba(33, 150, 243, 0.1);
+}
+
+.groups-table tbody tr.active-group:hover {
+  background-color: #bbdefb !important;
+  box-shadow: inset 0 0 20px rgba(33, 150, 243, 0.15);
+}
+
+/* Material Design Status Badge */
+.groups-table .running,
+.groups-table .stopped {
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.groups-table .running {
+  color: #2e7d32;
+}
+
+.groups-table .stopped {
+  color: #c62828;
+}
+
+/* VMs table styling with Material Design */
+#vmsTableContainer {
+  margin-top: 10px;
+  background-color: #fff;
+  border-radius: 8px;
+  padding: 0;
+  border: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+#vmsTableContainer .table {
+  margin-bottom: 0;
+}
+
+#vmsTableContainer thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+}
+
+#vmsTableContainer tbody tr:hover {
+  background-color: #fafafa;
+  box-shadow: inset 0 0 10px rgba(33, 150, 243, 0.05);
+}
+
+/* Material Design status colors */
+#vmsTableContainer .running {
+  color: #2e7d32;
+  font-weight: 600;
+}
+
+#vmsTableContainer .stopped {
+  color: #c62828;
+  font-weight: 600;
+}
+
+/* VM type icon styling */
+#vmsTableContainer .material-icons {
+  vertical-align: middle;
+  font-size: 16px !important;
+  margin-right: 2px;
+  color: #666;
+}
+
+.main-panel {
+  background: linear-gradient(180deg, #f8f9fa 0%, #eef0f5 100%);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  padding: 20px;
+  margin: 12px;
+  flex: 1;
+  overflow-y: auto;
+  min-width: 0;
+  max-height: calc(100vh - 84px);
+  border: 1px solid #e5e7eb;
+}
+#landingDashboard {
+  display: block;
+  width: 100%;
+}
+#vmDetailView {
+  display: none;
+  width: 100%;
+}
+
+/* Typography */
+.sidebar h6 {
+  font-weight: 700;
+  color: #333;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 16px;
+  margin-top: 0;
+}
+.main-panel h5 {
+  font-weight: 700;
+  color: #333;
+  font-size: 28px;
+  margin-bottom: 8px;
+  margin-top: 0;
+}
+.main-panel h6 {
+  font-weight: 700;
+  color: #333;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 6px;
+  margin-top: 0;
+}
+
+/* Sidebar Sections */
+.sidebar-section {
+  margin-bottom: 16px;
+}
+
+.sidebar-title {
+  font-weight: 700;
+  font-size: 11px;
+  margin-bottom: 10px;
+  color: #1f2937;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
+.sidebar-item {
+  padding: 8px 12px;
+  margin-bottom: 6px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.sidebar-item:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+.sidebar-item.active {
+  background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+  font-weight: 600;
+  border-color: #1976d2;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+}
+
+/* List Items */
+.list-group-item {
+  border: none;
+  background: #f5f5f5;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  padding: 10px 5px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  color: #333;
+  list-style: none;
+}
+.list-group {
+  display: flex;
+  flex-direction: column;
+  padding-left: 0;
+}
+.list-group-item:hover {
+  background: #e0e0e0;
+  transform: translateX(4px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  color: #333;
+}
+
+/* Cards */
+.card {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  background: #ffffff;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  background: #ffffff;
+  border-color: #d1d5db;
+}
+.card-body {
+  padding: 16px 12px;
+}
+.card h3 {
+  font-weight: 700;
+  color: #333;
+  font-size: 36px;
+  margin-top: 12px;
+  margin-bottom: 0;
+}
+.card small {
+  color: #666;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  display: block;
+  margin-top: 4px;
+}
+
+/* Tables */
+.table-responsive {
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  max-height: 350px;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+}
+.table {
+  margin-bottom: 0;
+  font-size: 14px;
+  background: #ffffff;
+}
+.table thead {
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.table thead th {
+  color: #374151;
+  font-weight: 600;
+  border: none;
+  padding: 12px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  background: transparent;
+  border-bottom: 2px solid #d1d5db;
+}
+.table tbody tr {
+  transition: all 0.2s ease;
+  border-bottom: 1px solid #f3f4f6;
+}
+.table tbody tr:hover {
+  background-color: #f9fafb;
+  box-shadow: inset 0 0 10px rgba(33, 150, 243, 0.03);
+}
+.table tbody td {
+  padding: 5px;
+  vertical-align: middle;
+  color: #374151;
+  border: none;
+  background: transparent;
+}#e0e0e0 !important;
+}
+.table-info {
+  background: #e8e8e8 !important;
+}
+.table-light {
+  background: #d0d0d0 !important
+.table-light {
+  background: linear-gradient(90deg, #047F64 0%, #0F2864 100%);
+}
+
+/* Buttons */
+.btn-secondary {
+  background: #e5e7eb;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 8px 16px;
+  transition: all 0.2s ease;
+  font-weight: 500;
+  font-size: 13px;
+  color: #374151;
+}
+.btn-secondary:hover {
+  background: #d1d5db;
+  border-color: #9ca3af;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.btn-link {
+  background: none !important;
+  border: none !important;
+  padding: 4px !important;
+  color: #2196f3;
+  text-decoration: none;
+}
+
+.btn-link:hover {
+  color: #1976d2;
+  text-decoration: none;
+}
+
+.btn-link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Status Colors */
+.group-item {
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.group-item:hover {
+  background-color: #e8f3f0;
+}
+.locked { 
+  font-weight: 700; 
+  color: #dc2626; 
+}
+.running { 
+  color: #10b981;
+  font-weight: 700; 
+}
+.stopped { 
+  color: #ef4444;
+  font-weight: 700; 
+}
+.starting { 
+  color: #f59e0b;
+  font-weight: 700; 
+}
+
+/* Collapse */
+.collapsible-row {
+  cursor: pointer;
+  user-select: none;
+}
+.collapsible-row:hover {
+  background-color: #f9f9f9;
+}
+.material-icons {
+  vertical-align: middle;
+  font-size: 20px;
+}
+.collapse-icon {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+.collapse-icon.collapsed {
+  transform: rotate(-90deg);
+}
+
+/* Animations */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.spinning {
+  animation: spin 2s linear infinite;
+}

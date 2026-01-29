@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Dev VM Control Platform (Mock)</title>
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Material Icons -->
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <!-- Material UI CSS -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <!-- jQuery -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="main.css">
+</head>
+
+<body>
+
+<!-- TOP NAVBAR -->
+<nav class="navbar navbar-dark bg-dark">
+  <div style="padding: 0 20px; width: 100%; display: flex; align-items: center; justify-content: space-between; height: 60px;">
+    <div id="logoHome" style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
+      <img src="logo/tcg_white_logo.png" alt="Company Logo" class="navbar-logo">
+      <span class="navbar-brand" style="margin: 0;">VM Self-Service Platform</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 20px;">
+      <span style="color: #ffffff; font-size: 13px; font-weight: 500; margin: 0;">MCUBE - NBL/100037/CDMC</span>
+      <div style="display: flex; align-items: center; gap: 8px; color: #ffffff;">
+        <span class="material-icons" style="font-size: 24px; margin: 0;">account_circle</span>
+        <span style="font-size: 13px; font-weight: 500; margin: 0;">Chandan</span>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<div class="main-container">
+  <div class="row">
+
+    <!-- LEFT PANEL -->
+    <div class="col-2 sidebar">
+      <!-- NAVIGATION SECTIONS -->
+      <div class="sidebar-section">
+        <div class="sidebar-title">OPERATION</div>
+        <div class="sidebar-item active" data-page="dashboard">Dashboard</div>
+        <div class="sidebar-item" data-page="myvms">My VMs</div>
+        <div class="sidebar-item" data-page="requests">Requests</div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-title">GOVERNANCE</div>
+        <div class="sidebar-item" data-page="audit">Audit Logs</div>
+        <div class="sidebar-item" data-page="cost">Cost & Usage</div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-title">ADMIN</div>
+        <div class="sidebar-item" data-page="access">Access Management</div>
+        <div class="sidebar-item" data-page="registry">VM Registry</div>
+        <div class="sidebar-item" data-page="automation">Automation Rules</div>
+      </div>
+
+    </div>
+
+    <!-- MAIN PANEL -->
+    <div class="col-10 main-panel">
+      <!-- Landing Page Dashboard -->
+      <div id="landingDashboard">
+        <h5>📈 System Overview</h5>
+        
+        <!-- Summary Cards -->
+        <div class="row mb-4">
+          <div class="col-3">
+            <div class="card">
+              <div class="card-body text-center">
+                <span class="material-icons" style="font-size: 40px; color: #2196f3;">computer</span>
+                <h3 id="totalVMs">0</h3>
+                <small>Total VMs</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-3">
+            <div class="card">
+              <div class="card-body text-center">
+                <span class="material-icons" style="font-size: 40px; color: #10b981;">check_circle</span>
+                <h3 id="runningVMs">0</h3>
+                <small>Running VMs</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-3">
+            <div class="card">
+              <div class="card-body text-center">
+                <span class="material-icons" style="font-size: 40px; color: #f59e0b;">attach_money</span>
+                <h3 id="costPerHour">$0.00</h3>
+                <small>Cost / Hour</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-3">
+            <div class="card">
+              <div class="card-body text-center">
+                <span class="material-icons" style="font-size: 40px; color: #06b6d4;">calendar_month</span>
+                <h3 id="costPerMonth">$0.00</h3>
+                <small>Est. Monthly</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cost/Usage Per Group -->
+        <h6>💰 Cost & Usage per Group</h6>
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Group</th>
+                <th>Status</th>
+                <th>Total VMs</th>
+                <th>Running VMs</th>
+                <th>Cost/Hour</th>
+                <th>Session Cost</th>
+                <th>Daily Cost</th>
+                <th>Monthly Cost</th>
+              </tr>
+            </thead>
+            <tbody id="groupCostTable"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- VM Detail View (hidden by default) -->
+      <div id="vmDetailView" style="display: none;">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h5 id="mainTitle">📋 Group Details</h5>
+          <button class="btn btn-secondary" id="backToDashboard">
+            <span class="material-icons" style="font-size: 18px; vertical-align: middle;">arrow_back</span> Dashboard
+          </button>
+        </div>
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>VM Name</th>
+                <th>Status</th>
+                <th>Uptime</th>
+                <th>Cores</th>
+                <th>CPU</th>
+                <th>Memory</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="vmAccordion"></tbody>
+          </table>
+        </div>
+        
+        <div class="mt-4" id="contextSection">
+          <h6>📌 Context Information</h6>
+          <div id="contextPanel" class="p-3 bg-light border rounded" style="background: #f9fafb !important; border: 1px solid #e5e7eb !important; border-radius: 8px;">Nothing selected</div>
+        </div>
+      </div>
+      <!-- End VM Detail View -->
+
+      <!-- MY VMs PAGE -->
+      <div id="myvms" class="page" style="display: none;">
+        <h5 style="margin-bottom: 4px;">📋 My VMs</h5>
+        <p class="text-muted" style="margin-bottom: 8px; font-size: 12px;">VM Groups / Sub-Groups you are authorized to operate</p>
+
+        <!-- Groups Table -->
+        <h6 style="margin-bottom: 4px;">Groups</h6>
+        <div class="groups-table-container">
+          <table class="table table-hover groups-table">
+            <thead>
+              <tr>
+                <th>Group</th>
+                <th>Sub-Group</th>
+                <th>Cloud</th>
+                <th>Region</th>
+                <th>Status</th>
+                <th>Locked By</th>
+                <th>Owner</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="groupsTableBody">
+              <tr><td colspan="8" class="text-center">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- VMs Table (Hidden by default) -->
+        <div id="vmsTableContainer" style="display: none;">
+          <div class="d-flex justify-content-between align-items-center" style="margin-bottom: 4px;">
+            <h6 style="margin: 0;">VMs in: <span id="selectedGroupName">-</span></h6>
+            <button class="btn btn-sm btn-secondary" id="clearGroupSelection" style="padding: 2px 6px; font-size: 12px;">
+              <span class="material-icons" style="font-size: 14px; vertical-align: middle; margin-right: 2px;">close</span> Clear
+            </button>
+          </div>
+          <div style="overflow-x: auto; max-height: 200px; border: 1px solid #dee2e6; border-radius: 4px;">
+            <table class="table table-hover" style="margin-bottom: 0;">
+              <thead style="position: sticky; top: 0; background-color: #f8f9fa; z-index: 10;">
+                <tr>
+                  <th>Type</th>
+                  <th>VM Name</th>
+                  <th>Status</th>
+                  <th>Uptime</th>
+                  <th>Cores</th>
+                  <th>CPU</th>
+                  <th>Memory</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="vmsTableBody">
+                <tr><td colspan="8" class="text-center">Select a group to view VMs</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="font-size: 11px; color: #555; margin-top: 6px;">
+          • Click on a group to view its VMs<br>
+          • Start / Stop allowed here only<br>
+          • Locks visible but not releasable
+        </div>
+      </div>
+
+      <!-- REQUESTS PAGE -->
+      <div id="requests" class="page" style="display: none;">
+        <h5>📝 Requests</h5>
+        <p class="text-muted">Request governed actions</p>
+
+        <div class="row mb-3">
+          <div class="col-4">
+            <div class="box" style="border: 1px solid #999; background: #eaeaea; padding: 12px; margin-bottom: 12px;">Request Group / Sub-Group Access</div>
+          </div>
+          <div class="col-4">
+            <div class="box" style="border: 1px solid #999; background: #eaeaea; padding: 12px; margin-bottom: 12px;">Request VM Registration</div>
+          </div>
+          <div class="col-4">
+            <div class="box" style="border: 1px solid #999; background: #eaeaea; padding: 12px; margin-bottom: 12px;">Request Lock Release</div>
+          </div>
+        </div>
+
+        <div class="box" style="border: 1px solid #999; background: #eaeaea; padding: 12px; margin-bottom: 12px;">Request Details Form Area</div>
+      </div>
+
+      <!-- AUDIT LOGS PAGE -->
+      <div id="audit" class="page" style="display: none;">
+        <h5>📋 Audit Logs</h5>
+        <p class="text-muted">Start / Stop / Lock / Automation actions</p>
+
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Action</th>
+                <th>VM / Scope</th>
+                <th>Timestamp</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="4">&nbsp;</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- COST & USAGE PAGE -->
+      <div id="cost" class="page" style="display: none;">
+        <h5>💰 Cost & Usage</h5>
+        <div class="box" style="border: 1px solid #999; background: #eaeaea; padding: 12px; margin-bottom: 12px;">Cost charts / tables placeholder</div>
+      </div>
+
+      <!-- ACCESS MANAGEMENT PAGE -->
+      <div id="access" class="page" style="display: none;">
+        <h5>🔐 Access Management</h5>
+
+        <div class="row">
+          <div class="col-md-4">
+            <div class="box" style="border: 1px solid #999; background: #eaeaea; padding: 12px; margin-bottom: 12px;">VM Group / Sub-Group Tree</div>
+          </div>
+          <div class="col-md-8">
+            <div class="table-responsive">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>User / Group</th>
+                    <th>Role</th>
+                    <th>Scope</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td colspan="4">&nbsp;</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="box" style="border: 1px solid #999; background: #eaeaea; padding: 12px; margin-bottom: 12px; text-align: center;">Grant Access</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VM REGISTRY PAGE -->
+      <div id="registry" class="page" style="display: none;">
+        <h5>📝 VM Registry</h5>
+        <div class="box" style="border: 1px solid #999; background: #eaeaea; padding: 12px; margin-bottom: 12px;">Register VM Form (Group / Sub-Group / Metadata)</div>
+      </div>
+
+      <!-- AUTOMATION RULES PAGE -->
+      <div id="automation" class="page" style="display: none;">
+        <h5>⚙️ Automation Rules</h5>
+        <div class="box" style="border: 1px solid #999; background: #eaeaea; padding: 12px; margin-bottom: 12px;">Auto Start / Stop Rules</div>
+        <div class="box" style="border: 1px solid #999; background: #eaeaea; padding: 12px; margin-bottom: 12px;">Email Notifications</div>
+      </div>
+
+    </div>
+    <!-- End Main Panel -->
+</div>
+
+<!-- Custom JavaScript -->
+<script src="main.js"></script>
+</body>
+</html>

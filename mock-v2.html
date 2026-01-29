@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>VM Self-Service Platform – Wireframe</title>
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Font Awesome -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+
+  <style>
+    body {
+      margin: 0;
+      font-size: 14px;
+      background: #f4f4f4;
+    }
+    /* Top Nav */
+    .topnav {
+      height: 56px;
+      background: #e0e0e0;
+      border-bottom: 1px solid #999;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      font-weight: bold;
+    }
+
+    /* Layout */
+    .layout {
+      display: flex;
+      height: calc(100vh - 56px);
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 260px;
+      background: #ebebeb;
+      border-right: 1px solid #999;
+      padding: 12px;
+    }
+    .sidebar-section {
+      margin-bottom: 16px;
+    }
+    .sidebar-title {
+      font-weight: bold;
+      font-size: 12px;
+      margin-bottom: 6px;
+      color: #333;
+    }
+    .sidebar-item {
+      padding: 6px 8px;
+      margin-bottom: 4px;
+      border: 1px solid #aaa;
+      background: #f0f0f0;
+      cursor: pointer;
+    }
+    .sidebar-item.active {
+      background: #dcdcdc;
+      font-weight: bold;
+    }
+
+    /* Content */
+    .content {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      background: #f8f8f8;
+    }
+
+    .box {
+      border: 1px solid #999;
+      background: #eaeaea;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    .kpi {
+      height: 90px;
+      text-align: center;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    table th, table td {
+      border: 1px solid #999 !important;
+      background: #f0f0f0;
+    }
+
+    .note {
+      font-size: 12px;
+      color: #555;
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+
+<!-- TOP NAV -->
+<div class="topnav">
+  VM Self-Service Platform
+  <div class="ms-auto">
+    User: <strong>Logged-in User</strong> | Role: <strong>Developer / Admin</strong>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- LEFT SIDEBAR -->
+  <div class="sidebar">
+
+    <div class="sidebar-section">
+      <div class="sidebar-title">OPERATION</div>
+      <div class="sidebar-item active" data-page="dashboard">Dashboard</div>
+      <div class="sidebar-item" data-page="myvms">My VMs</div>
+      <div class="sidebar-item" data-page="requests">Requests</div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-title">GOVERNANCE</div>
+      <div class="sidebar-item" data-page="audit">Audit Logs</div>
+      <div class="sidebar-item" data-page="cost">Cost & Usage</div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-title">ADMIN (role-based)</div>
+      <div class="sidebar-item" data-page="access">Access Management</div>
+      <div class="sidebar-item" data-page="registry">VM Registry</div>
+      <div class="sidebar-item" data-page="automation">Automation Rules</div>
+    </div>
+
+  </div>
+
+  <!-- CONTENT PANEL -->
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div id="dashboard" class="page">
+      <h3>Dashboard</h3>
+      <p class="text-muted">System-wide overview (all VM Groups & Sub-Groups)</p>
+
+      <div class="row">
+        <div class="col-md-3"><div class="box kpi">Total VMs</div></div>
+        <div class="col-md-3"><div class="box kpi">Running VMs</div></div>
+        <div class="col-md-3"><div class="box kpi">Avg Cost / Hour</div></div>
+        <div class="col-md-3"><div class="box kpi">Approx Total Cost</div></div>
+      </div>
+
+      <div class="note mt-2">
+        • Aggregated across all VM Groups & Sub-Groups<br>
+        • Read-only overview
+      </div>
+    </div>
+
+    <!-- MY VMs -->
+    <div id="myvms" class="page hidden">
+      <h3>My VMs</h3>
+      <p class="text-muted">VM Groups / Sub-Groups you are authorized to operate</p>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>VM Name</th>
+            <th>Group</th>
+            <th>Sub-Group</th>
+            <th>Cloud</th>
+            <th>Region</th>
+            <th>Status</th>
+            <th>Lock (Owner)</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="8">&nbsp;</td></tr>
+        </tbody>
+      </table>
+
+      <div class="note">
+        • Start / Stop allowed here only<br>
+        • Locks visible but not releasable
+      </div>
+    </div>
+
+    <!-- REQUESTS -->
+    <div id="requests" class="page hidden">
+      <h3>Requests</h3>
+      <p class="text-muted">Request governed actions</p>
+
+      <div class="row">
+        <div class="col-md-4"><div class="box">Request Group / Sub-Group Access</div></div>
+        <div class="col-md-4"><div class="box">Request VM Registration</div></div>
+        <div class="col-md-4"><div class="box">Request Lock Release</div></div>
+      </div>
+
+      <div class="box">Request Details Form Area</div>
+    </div>
+
+    <!-- AUDIT LOGS -->
+    <div id="audit" class="page hidden">
+      <h3>Audit Logs</h3>
+      <p class="text-muted">Start / Stop / Lock / Automation actions</p>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Action</th>
+            <th>VM / Scope</th>
+            <th>Timestamp</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="4">&nbsp;</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- COST -->
+    <div id="cost" class="page hidden">
+      <h3>Cost & Usage</h3>
+      <div class="box">Cost charts / tables placeholder</div>
+    </div>
+
+    <!-- ACCESS MANAGEMENT -->
+    <div id="access" class="page hidden">
+      <h3>Access Management</h3>
+
+      <div class="row">
+        <div class="col-md-4">
+          <div class="box">VM Group / Sub-Group Tree</div>
+        </div>
+        <div class="col-md-8">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>User / Group</th>
+                <th>Role</th>
+                <th>Scope</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="4">&nbsp;</td></tr>
+            </tbody>
+          </table>
+          <div class="box text-center">Grant Access</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VM REGISTRY -->
+    <div id="registry" class="page hidden">
+      <h3>VM Registry</h3>
+      <div class="box">Register VM Form (Group / Sub-Group / Metadata)</div>
+    </div>
+
+    <!-- AUTOMATION -->
+    <div id="automation" class="page hidden">
+      <h3>Automation Rules</h3>
+      <div class="box">Auto Start / Stop Rules</div>
+      <div class="box">Email Notifications</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script>
+  $('.sidebar-item').click(function () {
+    $('.sidebar-item').removeClass('active');
+    $(this).addClass('active');
+
+    $('.page').addClass('hidden');
+    $('#' + $(this).data('page')).removeClass('hidden');
+  });
+</script>
+
+</body>
+</html>
