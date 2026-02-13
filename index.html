@@ -168,11 +168,11 @@
 
       <!-- MY VMs PAGE -->
       <div id="myvms" class="page" style="display: none;">
-        <h5 style="margin-bottom: 4px;">📋 My VMs</h5>
-        <p class="text-muted" style="margin-bottom: 8px; font-size: 12px;">VM Groups / Sub-Groups you are authorized to operate</p>
+        <h5 style="margin-bottom: 2px;">📋 My VMs</h5>
+        <p class="text-muted" style="margin-bottom: 4px; font-size: 12px;">VM Groups / Sub-Groups you are authorized to operate</p>
 
         <!-- Groups Table -->
-        <h6 style="margin-bottom: 4px;">Groups</h6>
+        <h6 style="margin-bottom: 2px; font-size: 11px;">Groups</h6>
         <div class="groups-table-container">
           <table class="table table-hover groups-table">
             <thead>
@@ -195,13 +195,13 @@
 
         <!-- VMs Table (Hidden by default) -->
         <div id="vmsTableContainer" style="display: none;">
-          <div class="d-flex justify-content-between align-items-center" style="margin-bottom: 4px;">
-            <h6 style="margin: 0;">VMs in: <span id="selectedGroupName">-</span></h6>
+          <div class="d-flex justify-content-between align-items-center" style="margin-top: 20px; margin-bottom: 1px; padding: 0 12px;">
+            <h6 style="margin: 0; font-size: 12px;">VMs in: <span id="selectedGroupName">-</span></h6>
             <button class="btn btn-sm btn-secondary" id="clearGroupSelection" style="padding: 2px 6px; font-size: 12px;">
               <span class="material-icons" style="font-size: 14px; vertical-align: middle; margin-right: 2px;">close</span> Clear
             </button>
           </div>
-          <div style="overflow-x: auto; max-height: 200px; border: 1px solid #dee2e6; border-radius: 4px;">
+          <div style="overflow-x: auto; overflow-y: auto; height: 220px; border: 1px solid #dee2e6; border-radius: 4px; margin: 0 12px;">
             <table class="table table-hover" style="margin-bottom: 0;">
               <thead style="position: sticky; top: 0; background-color: #f8f9fa; z-index: 10;">
                 <tr>
@@ -222,7 +222,7 @@
           </div>
         </div>
 
-        <div style="font-size: 11px; color: #555; margin-top: 6px;">
+        <div style="font-size: 11px; color: #555; margin-top: 2px;">
           • Click on a group to view its VMs<br>
           • Start / Stop allowed here only<br>
           • Locks visible but not releasable

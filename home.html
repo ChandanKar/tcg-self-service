@@ -1,0 +1,2134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VM Self-Service Platform - Mockup</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --sidebar-width: 260px;
+            --sidebar-collapsed-width: 60px;
+            --topnav-height: 60px;
+            --primary-color: #2563eb;
+            --primary-light: #3b82f6;
+            --primary-dark: #1e40af;
+            --sidebar-bg: #ffffff;
+            --sidebar-hover: #eff6ff;
+            --sidebar-active: #dbeafe;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --border-color: #e2e8f0;
+            --background-light: #f8fafc;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow-x: hidden;
+            background-color: var(--background-light);
+        }
+
+        /* Top Navigation */
+        .top-navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: var(--topnav-height);
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            padding: 0 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .top-navbar .hamburger {
+            font-size: 1.25rem;
+            cursor: pointer;
+            color: #64748b;
+            margin-right: 1rem;
+        }
+
+        .top-navbar .logo {
+            font-size: 1.25rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .top-navbar .search-box {
+            flex: 1;
+            max-width: 500px;
+            margin: 0 2rem;
+        }
+
+        .top-navbar .search-box input {
+            border-radius: 20px;
+            border: 1px solid #e2e8f0;
+            padding: 0.5rem 1rem 0.5rem 2.5rem;
+        }
+
+        .top-navbar .search-box i {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+        }
+
+        .top-navbar .nav-icons {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .top-navbar .notification-bell {
+            position: relative;
+            cursor: pointer;
+            font-size: 1.25rem;
+            color: #64748b;
+        }
+
+        .top-navbar .notification-bell .badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #ef4444;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .top-navbar .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            cursor: pointer;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+
+        .top-navbar .user-profile:hover {
+            background: #f1f5f9;
+        }
+
+        .top-navbar .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+        }
+
+        .top-navbar .user-name {
+            font-weight: 500;
+            color: #334155;
+        }
+
+        .top-navbar .user-role {
+            font-size: 0.875rem;
+            color: #94a3b8;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            top: var(--topnav-height);
+            left: 0;
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--topnav-height));
+            background: var(--sidebar-bg);
+            overflow-y: auto;
+            transition: width 0.3s ease;
+            z-index: 999;
+            border-right: 1px solid var(--border-color);
+            box-shadow: 2px 0 8px rgba(0,0,0,0.05);
+        }
+
+        .sidebar.collapsed {
+            width: var(--sidebar-collapsed-width);
+        }
+
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .sidebar::-webkit-scrollbar-track {
+            background: var(--sidebar-bg);
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        .sidebar-section {
+            padding: 1rem 0;
+        }
+
+        .sidebar-section-title {
+            padding: 0.5rem 1.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s;
+        }
+
+        .sidebar-section-title:hover {
+            color: var(--primary-color);
+        }
+
+        .sidebar.collapsed .sidebar-section-title span {
+            display: none;
+        }
+
+        .sidebar-section-title i.toggle {
+            transition: transform 0.2s;
+        }
+
+        .sidebar-section-title.collapsed i.toggle {
+            transform: rotate(-90deg);
+        }
+
+        .sidebar-menu {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .sidebar-menu-item {
+            position: relative;
+        }
+
+        .sidebar-menu-link {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1.25rem;
+            color: var(--text-primary);
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .sidebar-menu-link:hover {
+            background: var(--sidebar-hover);
+            color: var(--primary-color);
+        }
+
+        .sidebar-menu-link.active {
+            background: var(--sidebar-active);
+            border-left-color: var(--primary-color);
+            color: var(--primary-color);
+            font-weight: 500;
+        }
+
+        .sidebar-menu-link i {
+            width: 20px;
+            margin-right: 0.75rem;
+            text-align: center;
+        }
+
+        .sidebar.collapsed .sidebar-menu-link span {
+            display: none;
+        }
+
+        .sidebar-menu-link .badge {
+            margin-left: auto;
+            background: var(--primary-color);
+            color: white;
+            padding: 0.125rem 0.5rem;
+            border-radius: 10px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .sidebar.collapsed .sidebar-menu-link .badge {
+            display: none;
+        }
+
+        /* Submenu */
+        .submenu {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            background: #f1f5f9;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .submenu.show {
+            max-height: 500px;
+        }
+
+        .submenu-item {
+            padding: 0.5rem 1.25rem 0.5rem 3.25rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .submenu-item:hover {
+            background: #e2e8f0;
+            color: var(--text-primary);
+        }
+
+        .submenu-item .btn-sm {
+            font-size: 0.7rem;
+            padding: 0.125rem 0.5rem;
+        }
+
+        /* Bottom section */
+        .sidebar-bottom {
+            border-top: 1px solid var(--border-color);
+            padding: 1rem 0;
+            margin-top: auto;
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--topnav-height);
+            padding: 2rem;
+            min-height: calc(100vh - var(--topnav-height));
+            transition: margin-left 0.3s ease;
+        }
+
+        .main-content.expanded {
+            margin-left: var(--sidebar-collapsed-width);
+        }
+
+        .content-header {
+            margin-bottom: 2rem;
+            border-left: 4px solid var(--primary-color);
+            padding-left: 1rem;
+        }
+
+        .content-header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 0.5rem;
+        }
+
+        .content-header p {
+            color: #64748b;
+            font-size: 1rem;
+        }
+
+        /* Dashboard Cards */
+        .metric-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border: 1px solid #e2e8f0;
+        }
+
+        .metric-card .metric-title {
+            font-size: 0.875rem;
+            color: #64748b;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .metric-card .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 0.25rem;
+        }
+
+        .metric-card .metric-subtitle {
+            font-size: 0.875rem;
+            color: #94a3b8;
+        }
+
+        .metric-card .metric-trend {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        .metric-card .metric-trend.up {
+            color: #10b981;
+        }
+
+        .metric-card .metric-trend.down {
+            color: #ef4444;
+        }
+
+        /* Table styles */
+        .custom-table {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .custom-table table {
+            margin-bottom: 0;
+        }
+
+        .custom-table th {
+            background: #f8fafc;
+            color: #475569;
+            font-weight: 600;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .custom-table td {
+            vertical-align: middle;
+            color: #334155;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            padding: 0.375rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .status-badge.running {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-badge.stopped {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .status-badge.partial {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-badge i {
+            font-size: 0.5rem;
+        }
+
+        /* Slide-out Panel */
+        .slideout-panel {
+            position: fixed;
+            top: var(--topnav-height);
+            right: -400px;
+            width: 400px;
+            height: calc(100vh - var(--topnav-height));
+            background: white;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+            transition: right 0.3s ease;
+            z-index: 998;
+            overflow-y: auto;
+        }
+
+        .slideout-panel.show {
+            right: 0;
+        }
+
+        .slideout-panel-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .slideout-panel-header h3 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 0;
+        }
+
+        .slideout-panel-header .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: #64748b;
+            cursor: pointer;
+        }
+
+        .slideout-panel-content {
+            padding: 1.5rem;
+        }
+
+        .slideout-overlay {
+            position: fixed;
+            top: var(--topnav-height);
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.3);
+            z-index: 997;
+            display: none;
+        }
+
+        .slideout-overlay.show {
+            display: block;
+        }
+
+        /* Environment Card in Slideout */
+        .env-card {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border: 1px solid #e2e8f0;
+        }
+
+        .env-card h5 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 0.5rem;
+        }
+
+        .env-card .env-meta {
+            font-size: 0.875rem;
+            color: #64748b;
+            margin-bottom: 0.75rem;
+        }
+
+        .env-card .vm-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .env-card .vm-list li {
+            padding: 0.5rem 0;
+            color: #475569;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .env-card .vm-list li i {
+            color: #10b981;
+        }
+
+        /* Enhanced Button Styles */
+        .btn-primary {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+            transition: all 0.2s;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            border-color: var(--primary-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+
+        .btn-outline-primary {
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-outline-primary:hover {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+            transform: translateY(-1px);
+        }
+
+        /* Enhanced Metric Cards */
+        .metric-card {
+            transition: all 0.2s;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+            border-color: var(--primary-light);
+        }
+
+        /* Link colors */
+        a {
+            color: var(--primary-color);
+        }
+
+        a:hover {
+            color: var(--primary-dark);
+        }
+
+        /* Badge enhancements */
+        .badge.bg-primary {
+            background-color: var(--primary-color) !important;
+        }
+
+        /* Table row hover */
+        .custom-table tbody tr {
+            transition: background 0.2s;
+        }
+
+        .custom-table tbody tr:hover {
+            background-color: #f8fafc;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top Navigation Bar -->
+    <nav class="top-navbar">
+        <i class="fas fa-bars hamburger" id="toggleSidebar"></i>
+        <div class="logo">
+            <i class="fas fa-server"></i> VM Platform
+        </div>
+        
+        <div class="search-box position-relative">
+            <i class="fas fa-search"></i>
+            <input type="text" class="form-control" placeholder="Search environments, VMs, or groups...">
+        </div>
+
+        <div class="nav-icons">
+            <div class="notification-bell">
+                <i class="fas fa-bell"></i>
+                <span class="badge">3</span>
+            </div>
+
+            <div class="user-profile">
+                <div class="user-avatar">JD</div>
+                <div>
+                    <div class="user-name">John Doe</div>
+                    <div class="user-role">Developer</div>
+                </div>
+                <i class="fas fa-chevron-down" style="color: #94a3b8; font-size: 0.875rem;"></i>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <!-- MY WORKSPACE Section -->
+        <div class="sidebar-section">
+            <div class="sidebar-section-title collapsed" data-section="workspace">
+                <span><i class="fas fa-briefcase"></i> MY WORKSPACE</span>
+                <i class="fas fa-chevron-down toggle"></i>
+            </div>
+            <ul class="sidebar-menu" id="workspace-menu" style="display: none;">
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-panel="running">
+                        <i class="fas fa-play-circle"></i>
+                        <span>Running</span>
+                        <span class="badge">12</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-panel="locked">
+                        <i class="fas fa-lock"></i>
+                        <span>Locked by Me</span>
+                        <span class="badge">2</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-toggle="submenu" data-target="favorites-submenu">
+                        <i class="fas fa-star"></i>
+                        <span>Favorites</span>
+                        <span class="badge">3</span>
+                    </a>
+                    <ul class="submenu" id="favorites-submenu">
+                        <li class="submenu-item" data-content="environment-detail" data-env="mcube-demo-env">
+                            mcube-demo-env
+                            <button class="btn btn-primary btn-sm">View</button>
+                        </li>
+                        <li class="submenu-item" data-content="environment-detail" data-env="analytics-sandbox">
+                            analytics-sandbox
+                            <button class="btn btn-primary btn-sm">View</button>
+                        </li>
+                        <li class="submenu-item" data-content="environment-detail" data-env="my-dev-env">
+                            my-dev-env
+                            <button class="btn btn-primary btn-sm">View</button>
+                        </li>
+                    </ul>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-toggle="submenu" data-target="recents-submenu">
+                        <i class="fas fa-clock"></i>
+                        <span>Recents</span>
+                        <span class="badge">5</span>
+                    </a>
+                    <ul class="submenu" id="recents-submenu">
+                        <li class="submenu-item" data-content="environment-detail" data-env="project-x-dev">
+                            project-x-dev
+                            <button class="btn btn-primary btn-sm">View</button>
+                        </li>
+                        <li class="submenu-item" data-content="environment-detail" data-env="data-pipeline-test">
+                            data-pipeline-test
+                            <button class="btn btn-primary btn-sm">View</button>
+                        </li>
+                        <li class="submenu-item" data-content="environment-detail" data-env="ml-training-env">
+                            ml-training-env
+                            <button class="btn btn-primary btn-sm">View</button>
+                        </li>
+                        <li class="submenu-item" data-content="environment-detail" data-env="api-sandbox">
+                            api-sandbox
+                            <button class="btn btn-primary btn-sm">View</button>
+                        </li>
+                        <li class="submenu-item" data-content="environment-detail" data-env="integration-test">
+                            integration-test
+                            <button class="btn btn-primary btn-sm">View</button>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+
+        <!-- OPERATIONS Section -->
+        <div class="sidebar-section">
+            <div class="sidebar-section-title" data-section="operations">
+                <span><i class="fas fa-cogs"></i> OPERATIONS</span>
+                <i class="fas fa-chevron-down toggle"></i>
+            </div>
+            <ul class="sidebar-menu" id="operations-menu">
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link active" data-content="dashboard">
+                        <i class="fas fa-chart-pie"></i>
+                        <span>Dashboard</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-content="my-environments">
+                        <i class="fas fa-folder-open"></i>
+                        <span>My Environments</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-content="request-access">
+                        <i class="fas fa-paper-plane"></i>
+                        <span>Request Access</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-content="activity-logs">
+                        <i class="fas fa-clipboard-list"></i>
+                        <span>Activity Logs</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        <!-- ADMIN Section -->
+        <div class="sidebar-section">
+            <div class="sidebar-section-title collapsed" data-section="admin">
+                <span><i class="fas fa-user-shield"></i> ADMIN</span>
+                <i class="fas fa-chevron-down toggle"></i>
+            </div>
+            <ul class="sidebar-menu" id="admin-menu" style="display: none;">
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-content="access-management">
+                        <i class="fas fa-users-cog"></i>
+                        <span>Access Management</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-content="vm-registry">
+                        <i class="fas fa-database"></i>
+                        <span>VM Registry</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-content="automation-rules">
+                        <i class="fas fa-clock"></i>
+                        <span>Automation Rules</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-content="audit-logs-all">
+                        <i class="fas fa-file-alt"></i>
+                        <span>Audit Logs (All)</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-content="cost-management">
+                        <i class="fas fa-dollar-sign"></i>
+                        <span>Cost Management</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-content="system-health">
+                        <i class="fas fa-heartbeat"></i>
+                        <span>System Health</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Bottom Section -->
+        <div class="sidebar-bottom">
+            <ul class="sidebar-menu">
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-content="settings">
+                        <i class="fas fa-cog"></i>
+                        <span>Settings</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-content="help">
+                        <i class="fas fa-question-circle"></i>
+                        <span>Help & Docs</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content" id="mainContent">
+        <div id="content-area">
+            <!-- Dashboard Content (Default) -->
+            <div class="content-view" id="dashboard-view">
+                <div class="content-header">
+                    <h1>Dashboard</h1>
+                    <p>Overview of your environments and VMs</p>
+                </div>
+
+                <!-- Cloud Provider Breakdown -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <div class="metric-card">
+                            <h5 class="mb-3">Cloud Provider Breakdown</h5>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <i class="fab fa-aws" style="font-size: 2rem; color: #FF9900; margin-right: 1rem;"></i>
+                                        <div>
+                                            <div style="font-weight: 600; color: #1e293b;">AWS</div>
+                                            <div style="color: #64748b; font-size: 0.875rem;">25 VMs (8 running)</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <i class="fab fa-microsoft" style="font-size: 2rem; color: #0078D4; margin-right: 1rem;"></i>
+                                        <div>
+                                            <div style="font-weight: 600; color: #1e293b;">Azure</div>
+                                            <div style="color: #64748b; font-size: 0.875rem;">15 VMs (4 running)</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <i class="fab fa-google" style="font-size: 2rem; color: #4285F4; margin-right: 1rem;"></i>
+                                        <div>
+                                            <div style="font-weight: 600; color: #1e293b;">GCP</div>
+                                            <div style="color: #64748b; font-size: 0.875rem;">7 VMs (0 running)</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Metric Cards -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="metric-card">
+                            <div class="metric-title">My Environments</div>
+                            <div class="metric-value">5</div>
+                            <div class="metric-subtitle">Across all cloud providers</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="metric-card">
+                            <div class="metric-title">Total VMs</div>
+                            <div class="metric-value">47</div>
+                            <div class="metric-subtitle">Registered instances</div>
+                            <div class="metric-trend up">
+                                <i class="fas fa-arrow-up"></i>
+                                <span>+3 this week</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="metric-card">
+                            <div class="metric-title">Running VMs</div>
+                            <div class="metric-value">12</div>
+                            <div class="metric-subtitle">26% of total</div>
+                            <div class="metric-trend down">
+                                <i class="fas fa-arrow-down"></i>
+                                <span>-5 from 1h ago</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="metric-card">
+                            <div class="metric-title">Est. Monthly Cost</div>
+                            <div class="metric-value">$2,450</div>
+                            <div class="metric-subtitle">Based on running VMs</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Environments Table -->
+                <div class="custom-table">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Environment</th>
+                                <th>Total VMs</th>
+                                <th>Running</th>
+                                <th>Lock Status</th>
+                                <th>Cost/Month</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>mcube-demo-env</strong></td>
+                                <td>15</td>
+                                <td>
+                                    <span class="status-badge partial">
+                                        <i class="fas fa-circle"></i> 8/15
+                                    </span>
+                                </td>
+                                <td><i class="fas fa-lock text-warning"></i> Locked by you</td>
+                                <td>$1,250</td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary">View</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>analytics-sandbox</strong></td>
+                                <td>8</td>
+                                <td>
+                                    <span class="status-badge partial">
+                                        <i class="fas fa-circle"></i> 4/8
+                                    </span>
+                                </td>
+                                <td><i class="fas fa-unlock text-success"></i> Unlocked</td>
+                                <td>$450</td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary">View</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>my-dev-env</strong></td>
+                                <td>12</td>
+                                <td>
+                                    <span class="status-badge stopped">
+                                        <i class="fas fa-circle"></i> 0/12
+                                    </span>
+                                </td>
+                                <td><i class="fas fa-unlock text-success"></i> Unlocked</td>
+                                <td>$0</td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary">View</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>project-x-staging</strong></td>
+                                <td>7</td>
+                                <td>
+                                    <span class="status-badge stopped">
+                                        <i class="fas fa-circle"></i> 0/7
+                                    </span>
+                                </td>
+                                <td><i class="fas fa-lock text-warning"></i> Locked by you</td>
+                                <td>$0</td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary">View</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>data-pipeline-test</strong></td>
+                                <td>5</td>
+                                <td>
+                                    <span class="status-badge stopped">
+                                        <i class="fas fa-circle"></i> 0/5
+                                    </span>
+                                </td>
+                                <td><i class="fas fa-unlock text-success"></i> Unlocked</td>
+                                <td>$0</td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary">View</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Slide-out Panel for Running VMs -->
+    <div class="slideout-panel" id="runningPanel">
+        <div class="slideout-panel-header">
+            <h3><i class="fas fa-play-circle text-success"></i> My Running VMs (12)</h3>
+            <button class="close-btn" onclick="closeSlideout()">&times;</button>
+        </div>
+        <div class="slideout-panel-content">
+            <div class="env-card">
+                <h5>mcube-demo-env</h5>
+                <div class="env-meta">
+                    <i class="fas fa-lock text-warning"></i> Locked by you â€¢ 8 VMs running
+                </div>
+                <ul class="vm-list">
+                    <li><i class="fas fa-circle"></i> database-primary (AWS) - 2h 15m uptime</li>
+                    <li><i class="fas fa-circle"></i> database-replica (AWS) - 2h 15m uptime</li>
+                    <li><i class="fas fa-circle"></i> app-server (Azure) - 2h 10m uptime</li>
+                    <li><i class="fas fa-circle"></i> worker-queue (Azure) - 45m uptime</li>
+                    <li><i class="fas fa-circle"></i> redis-cache (Azure) - 2h 15m uptime</li>
+                    <li><i class="fas fa-circle"></i> api-gateway (AWS) - 1h 30m uptime</li>
+                    <li><i class="fas fa-circle"></i> analytics-worker (AWS) - 50m uptime</li>
+                    <li><i class="fas fa-circle"></i> notification-service (AWS) - 2h 5m uptime</li>
+                </ul>
+                <button class="btn btn-danger btn-sm mt-2 w-100">Stop All in Environment</button>
+            </div>
+
+            <div class="env-card">
+                <h5>analytics-sandbox</h5>
+                <div class="env-meta">
+                    <i class="fas fa-unlock text-success"></i> Unlocked â€¢ 4 VMs running
+                </div>
+                <ul class="vm-list">
+                    <li><i class="fas fa-circle"></i> worker-1 (GCP) - 3h 20m uptime</li>
+                    <li><i class="fas fa-circle"></i> worker-2 (GCP) - 3h 20m uptime</li>
+                    <li><i class="fas fa-circle"></i> jupyter-notebook (GCP) - 1h 15m uptime</li>
+                    <li><i class="fas fa-circle"></i> data-processor (GCP) - 2h 40m uptime</li>
+                </ul>
+                <button class="btn btn-danger btn-sm mt-2 w-100">Stop All in Environment</button>
+            </div>
+
+            <button class="btn btn-danger w-100 mt-3">
+                <i class="fas fa-stop-circle"></i> Stop All My Running VMs
+            </button>
+        </div>
+    </div>
+
+    <!-- Slide-out Panel for Locked Environments -->
+    <div class="slideout-panel" id="lockedPanel">
+        <div class="slideout-panel-header">
+            <h3><i class="fas fa-lock text-warning"></i> Environments Locked by Me (2)</h3>
+            <button class="close-btn" onclick="closeSlideout()">&times;</button>
+        </div>
+        <div class="slideout-panel-content">
+            <div class="env-card">
+                <h5>mcube-demo-env</h5>
+                <div class="env-meta">
+                    <i class="fas fa-lock"></i> Locked 2h 15m ago
+                </div>
+                <div class="mb-2">
+                    <strong>Status:</strong> 8/15 VMs running
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-warning btn-sm flex-fill">Release Lock</button>
+                    <button class="btn btn-primary btn-sm flex-fill">View Environment</button>
+                </div>
+            </div>
+
+            <div class="env-card">
+                <h5>project-x-staging</h5>
+                <div class="env-meta">
+                    <i class="fas fa-lock"></i> Locked 45m ago
+                </div>
+                <div class="mb-2">
+                    <strong>Status:</strong> All VMs stopped
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-warning btn-sm flex-fill">Release Lock</button>
+                    <button class="btn btn-primary btn-sm flex-fill">View Environment</button>
+                </div>
+            </div>
+
+            <button class="btn btn-warning w-100 mt-3">
+                <i class="fas fa-unlock"></i> Release All My Locks
+            </button>
+        </div>
+    </div>
+
+    <!-- Overlay for Slide-out -->
+    <div class="slideout-overlay" id="slideoutOverlay" onclick="closeSlideout()"></div>
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        $(document).ready(function() {
+            // Toggle Sidebar
+            $('#toggleSidebar').click(function() {
+                $('#sidebar').toggleClass('collapsed');
+                $('#mainContent').toggleClass('expanded');
+            });
+
+            // Section collapse/expand (Accordion behavior - only one section open at a time)
+            $('.sidebar-section-title').click(function() {
+                var $clickedSection = $(this);
+                var $clickedMenu = $clickedSection.next('.sidebar-menu');
+                var isCurrentlyExpanded = !$clickedSection.hasClass('collapsed');
+                
+                // If clicking on an already expanded section, just collapse it
+                if (isCurrentlyExpanded) {
+                    $clickedSection.addClass('collapsed');
+                    $clickedMenu.slideUp(200);
+                } else {
+                    // Collapse all other sections
+                    $('.sidebar-section-title').not($clickedSection).addClass('collapsed');
+                    $('.sidebar-menu').not($clickedMenu).slideUp(200);
+                    
+                    // Expand the clicked section
+                    $clickedSection.removeClass('collapsed');
+                    $clickedMenu.slideDown(200);
+                }
+            });
+
+            // Submenu toggle
+            $('[data-toggle="submenu"]').click(function(e) {
+                e.preventDefault();
+                var targetId = $(this).data('target');
+                $('#' + targetId).toggleClass('show');
+            });
+
+            // Navigation menu items
+            $('.sidebar-menu-link[data-content]').click(function(e) {
+                e.preventDefault();
+                
+                // Remove active class from all
+                $('.sidebar-menu-link').removeClass('active');
+                
+                // Add active class to clicked item
+                $(this).addClass('active');
+                
+                var contentType = $(this).data('content');
+                loadContent(contentType);
+            });
+
+            // Slide-out panel triggers
+            $('[data-panel="running"]').click(function(e) {
+                e.preventDefault();
+                openSlideout('runningPanel');
+            });
+
+            $('[data-panel="locked"]').click(function(e) {
+                e.preventDefault();
+                openSlideout('lockedPanel');
+            });
+
+            // Environment detail from submenu
+            $('.submenu-item[data-content="environment-detail"]').click(function(e) {
+                e.stopPropagation();
+                var envName = $(this).data('env');
+                loadEnvironmentDetail(envName);
+            });
+        });
+
+        function openSlideout(panelId) {
+            $('#' + panelId).addClass('show');
+            $('#slideoutOverlay').addClass('show');
+        }
+
+        function closeSlideout() {
+            $('.slideout-panel').removeClass('show');
+            $('#slideoutOverlay').removeClass('show');
+        }
+
+        function loadContent(contentType) {
+            var content = '';
+            
+            switch(contentType) {
+                case 'dashboard':
+                    // Dashboard is already loaded
+                    location.reload();
+                    break;
+                    
+                case 'my-environments':
+                    content = `
+                        <div class="content-header">
+                            <h1>My Environments</h1>
+                            <p>Manage and monitor your accessible environments</p>
+                        </div>
+                        <div class="mb-3">
+                            <input type="text" class="form-control" placeholder="Search environments...">
+                        </div>
+                        <div class="custom-table">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Environment</th>
+                                        <th>Owner Team</th>
+                                        <th>Total VMs</th>
+                                        <th>Running/Stopped</th>
+                                        <th>Lock Status</th>
+                                        <th>Cloud</th>
+                                        <th>Cost/Month</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><strong>mcube-demo-env</strong></td>
+                                        <td>Data Engineering</td>
+                                        <td>15</td>
+                                        <td>8 / 7</td>
+                                        <td><i class="fas fa-lock text-warning"></i> You</td>
+                                        <td><i class="fab fa-aws"></i> <i class="fab fa-microsoft"></i></td>
+                                        <td>$1,250</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-primary">View</button>
+                                            <button class="btn btn-sm btn-success">Start All</button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>analytics-sandbox</strong></td>
+                                        <td>Analytics</td>
+                                        <td>8</td>
+                                        <td>4 / 4</td>
+                                        <td><i class="fas fa-unlock text-success"></i> Unlocked</td>
+                                        <td><i class="fab fa-google"></i></td>
+                                        <td>$450</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-primary">View</button>
+                                            <button class="btn btn-sm btn-success">Start All</button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>my-dev-env</strong></td>
+                                        <td>Platform Team</td>
+                                        <td>12</td>
+                                        <td>0 / 12</td>
+                                        <td><i class="fas fa-unlock text-success"></i> Unlocked</td>
+                                        <td><i class="fab fa-aws"></i></td>
+                                        <td>$0</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-primary">View</button>
+                                            <button class="btn btn-sm btn-success">Start All</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                    break;
+                    
+                case 'request-access':
+                    content = `
+                        <div class="content-header">
+                            <h1>Request Environment Access</h1>
+                            <p>Request access to environments you don't currently have</p>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <input type="text" class="form-control" placeholder="Search for environment by name or team...">
+                        </div>
+                        
+                        <h5 class="mb-3">Available Environments</h5>
+                        <div class="custom-table mb-4">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Environment</th>
+                                        <th>Owner Team</th>
+                                        <th>Total VMs</th>
+                                        <th>Description</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><strong>ml-training-prod</strong></td>
+                                        <td>ML Team</td>
+                                        <td>25</td>
+                                        <td>Production ML training environment</td>
+                                        <td><button class="btn btn-sm btn-primary">Request Access</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>customer-analytics</strong></td>
+                                        <td>Analytics</td>
+                                        <td>18</td>
+                                        <td>Customer data analysis environment</td>
+                                        <td><button class="btn btn-sm btn-primary">Request Access</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>integration-qa</strong></td>
+                                        <td>QA Team</td>
+                                        <td>12</td>
+                                        <td>Integration testing environment</td>
+                                        <td><button class="btn btn-sm btn-primary">Request Access</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <h5 class="mb-3">My Pending Requests</h5>
+                        <div class="custom-table">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Environment</th>
+                                        <th>Requested Date</th>
+                                        <th>Status</th>
+                                        <th>Approver</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><strong>ml-training-prod</strong></td>
+                                        <td>2 days ago</td>
+                                        <td><span class="badge bg-warning">Pending</span></td>
+                                        <td>ML Team Admin</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>integration-qa</strong></td>
+                                        <td>1 day ago</td>
+                                        <td><span class="badge bg-success">Approved</span></td>
+                                        <td>john.admin@company.com</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                    break;
+                    
+                case 'activity-logs':
+                    content = `
+                        <div class="content-header">
+                            <h1>My Activity Logs</h1>
+                            <p>Track your start/stop operations and lock management</p>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <select class="form-select">
+                                    <option>Last 24 hours</option>
+                                    <option>Last 7 days</option>
+                                    <option>Last 30 days</option>
+                                    <option>Custom range</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select">
+                                    <option>All Environments</option>
+                                    <option>mcube-demo-env</option>
+                                    <option>analytics-sandbox</option>
+                                    <option>my-dev-env</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select">
+                                    <option>All Actions</option>
+                                    <option>Start Operations</option>
+                                    <option>Stop Operations</option>
+                                    <option>Lock Operations</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <button class="btn btn-primary w-100"><i class="fas fa-download"></i> Export CSV</button>
+                            </div>
+                        </div>
+                        
+                        <div class="custom-table">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>Environment</th>
+                                        <th>Action</th>
+                                        <th>Target</th>
+                                        <th>Result</th>
+                                        <th>Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>2h ago</td>
+                                        <td>mcube-demo-env</td>
+                                        <td><span class="badge bg-success">START_VM</span></td>
+                                        <td>database-primary</td>
+                                        <td><i class="fas fa-check-circle text-success"></i> Success</td>
+                                        <td>-</td>
+                                    </tr>
+                                    <tr>
+                                        <td>2h ago</td>
+                                        <td>mcube-demo-env</td>
+                                        <td><span class="badge bg-warning">LOCK_ACQUIRE</span></td>
+                                        <td>Environment</td>
+                                        <td><i class="fas fa-check-circle text-success"></i> Success</td>
+                                        <td>-</td>
+                                    </tr>
+                                    <tr>
+                                        <td>5h ago</td>
+                                        <td>data-pipeline-test</td>
+                                        <td><span class="badge bg-danger">STOP_ENV</span></td>
+                                        <td>Environment</td>
+                                        <td><i class="fas fa-check-circle text-success"></i> Success</td>
+                                        <td>5 VMs stopped</td>
+                                    </tr>
+                                    <tr>
+                                        <td>1d ago</td>
+                                        <td>project-x-staging</td>
+                                        <td><span class="badge bg-warning">LOCK_ACQUIRE</span></td>
+                                        <td>Environment</td>
+                                        <td><i class="fas fa-check-circle text-success"></i> Success</td>
+                                        <td>-</td>
+                                    </tr>
+                                    <tr>
+                                        <td>1d ago</td>
+                                        <td>analytics-sandbox</td>
+                                        <td><span class="badge bg-success">START_GROUP</span></td>
+                                        <td>worker-tier</td>
+                                        <td><i class="fas fa-times-circle text-danger"></i> Failed</td>
+                                        <td>VM2 failed to start - timeout</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                    break;
+                    
+                case 'access-management':
+                    content = `
+                        <div class="content-header">
+                            <h1>Access Management</h1>
+                            <p>Grant or revoke user access to environments</p>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <input type="text" class="form-control" placeholder="Search users by name or email...">
+                            </div>
+                            <div class="col-md-4">
+                                <select class="form-select">
+                                    <option>All Environments</option>
+                                    <option>mcube-demo-env</option>
+                                    <option>analytics-sandbox</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <button class="btn btn-primary w-100"><i class="fas fa-plus"></i> Grant Access</button>
+                            </div>
+                        </div>
+                        
+                        <h5 class="mb-3">Environment: mcube-demo-env</h5>
+                        <div class="custom-table mb-4">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>User</th>
+                                        <th>Role</th>
+                                        <th>Granted By</th>
+                                        <th>Granted Date</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>john.doe@company.com</td>
+                                        <td><span class="badge bg-primary">Owner</span></td>
+                                        <td>System</td>
+                                        <td>3 months ago</td>
+                                        <td>-</td>
+                                    </tr>
+                                    <tr>
+                                        <td>jane.smith@company.com</td>
+                                        <td><span class="badge bg-secondary">User</span></td>
+                                        <td>admin</td>
+                                        <td>1 month ago</td>
+                                        <td><button class="btn btn-sm btn-danger">Revoke</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td>bob.jones@company.com</td>
+                                        <td><span class="badge bg-secondary">User</span></td>
+                                        <td>john.doe</td>
+                                        <td>2 weeks ago</td>
+                                        <td><button class="btn btn-sm btn-danger">Revoke</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <h5 class="mb-3">Pending Access Requests (2)</h5>
+                        <div class="custom-table">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>User</th>
+                                        <th>Environment</th>
+                                        <th>Requested</th>
+                                        <th>Justification</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>alice.wang@company.com</td>
+                                        <td>mcube-demo-env</td>
+                                        <td>2 days ago</td>
+                                        <td>Need access for feature development</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-success me-1">Approve</button>
+                                            <button class="btn btn-sm btn-danger">Deny</button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>chris.lee@company.com</td>
+                                        <td>analytics-sandbox</td>
+                                        <td>1 day ago</td>
+                                        <td>Testing new analytics pipeline</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-success me-1">Approve</button>
+                                            <button class="btn btn-sm btn-danger">Deny</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                    break;
+
+                case 'vm-registry':
+                    content = `
+                        <div class="content-header">
+                            <h1>VM Registry</h1>
+                            <p>Create and manage environments, groups, and VMs</p>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <button class="btn btn-primary"><i class="fas fa-plus"></i> Create Environment</button>
+                            <button class="btn btn-secondary ms-2"><i class="fas fa-plus"></i> Add Group</button>
+                            <button class="btn btn-secondary ms-2"><i class="fas fa-plus"></i> Register VM</button>
+                        </div>
+                        
+                        <div class="custom-table">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Environment</th>
+                                        <th>Groups</th>
+                                        <th>Total VMs</th>
+                                        <th>Owner</th>
+                                        <th>Cloud Providers</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><strong>mcube-demo-env</strong></td>
+                                        <td>3 groups</td>
+                                        <td>15 VMs</td>
+                                        <td>Data Engineering</td>
+                                        <td><i class="fab fa-aws"></i> <i class="fab fa-microsoft"></i></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-primary">Edit</button>
+                                            <button class="btn btn-sm btn-danger ms-1">Delete</button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>analytics-sandbox</strong></td>
+                                        <td>2 groups</td>
+                                        <td>8 VMs</td>
+                                        <td>Analytics</td>
+                                        <td><i class="fab fa-google"></i></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-primary">Edit</button>
+                                            <button class="btn btn-sm btn-danger ms-1">Delete</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                    break;
+
+                case 'automation-rules':
+                    content = `
+                        <div class="content-header">
+                            <h1>Automation Rules</h1>
+                            <p>Schedule automatic start/stop operations</p>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <button class="btn btn-primary"><i class="fas fa-plus"></i> Create Rule</button>
+                        </div>
+                        
+                        <h5 class="mb-3">Active Rules (3)</h5>
+                        
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h5 class="card-title">Nightly Shutdown</h5>
+                                        <p class="mb-1"><strong>Environment:</strong> mcube-demo-env</p>
+                                        <p class="mb-1"><strong>Action:</strong> <span class="badge bg-danger">STOP_ALL</span></p>
+                                        <p class="mb-1"><strong>Schedule:</strong> Every day at 7:00 PM EST</p>
+                                        <p class="mb-1"><strong>Status:</strong> <span class="badge bg-success">Active</span></p>
+                                        <p class="mb-1 text-muted">Last Run: Today at 7:00 PM (Success)</p>
+                                    </div>
+                                    <div>
+                                        <button class="btn btn-sm btn-primary me-1">Edit</button>
+                                        <button class="btn btn-sm btn-warning me-1">Disable</button>
+                                        <button class="btn btn-sm btn-danger">Delete</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h5 class="card-title">Morning Startup</h5>
+                                        <p class="mb-1"><strong>Environment:</strong> mcube-demo-env</p>
+                                        <p class="mb-1"><strong>Action:</strong> <span class="badge bg-success">START_ALL</span></p>
+                                        <p class="mb-1"><strong>Schedule:</strong> Weekdays at 8:00 AM EST</p>
+                                        <p class="mb-1"><strong>Status:</strong> <span class="badge bg-success">Active</span></p>
+                                        <p class="mb-1 text-muted">Last Run: Today at 8:00 AM (Success)</p>
+                                    </div>
+                                    <div>
+                                        <button class="btn btn-sm btn-primary me-1">Edit</button>
+                                        <button class="btn btn-sm btn-warning me-1">Disable</button>
+                                        <button class="btn btn-sm btn-danger">Delete</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h5 class="card-title">Weekend Cleanup</h5>
+                                        <p class="mb-1"><strong>Environment:</strong> analytics-sandbox</p>
+                                        <p class="mb-1"><strong>Action:</strong> <span class="badge bg-danger">STOP_ALL</span></p>
+                                        <p class="mb-1"><strong>Schedule:</strong> Friday at 6:00 PM EST</p>
+                                        <p class="mb-1"><strong>Status:</strong> <span class="badge bg-success">Active</span></p>
+                                        <p class="mb-1 text-muted">Last Run: Last Friday (Success)</p>
+                                    </div>
+                                    <div>
+                                        <button class="btn btn-sm btn-primary me-1">Edit</button>
+                                        <button class="btn btn-sm btn-warning me-1">Disable</button>
+                                        <button class="btn btn-sm btn-danger">Delete</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    break;
+
+                case 'audit-logs-all':
+                    content = `
+                        <div class="content-header">
+                            <h1>Global Audit Logs</h1>
+                            <p>Complete audit trail across all environments</p>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> Admin view: Showing activity from all users across all environments
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-2">
+                                <select class="form-select">
+                                    <option>Last 24 hours</option>
+                                    <option>Last 7 days</option>
+                                    <option>Last 30 days</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <select class="form-select">
+                                    <option>All Users</option>
+                                    <option>john.doe</option>
+                                    <option>jane.smith</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <select class="form-select">
+                                    <option>All Environments</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <select class="form-select">
+                                    <option>All Actions</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <select class="form-select">
+                                    <option>All Results</option>
+                                    <option>Success</option>
+                                    <option>Failure</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <button class="btn btn-primary w-100"><i class="fas fa-download"></i> Export</button>
+                            </div>
+                        </div>
+                        
+                        <div class="custom-table">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>User</th>
+                                        <th>Environment</th>
+                                        <th>Action</th>
+                                        <th>Target</th>
+                                        <th>Result</th>
+                                        <th>Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>2026-02-12 14:23:15</td>
+                                        <td>john.doe</td>
+                                        <td>mcube-demo-env</td>
+                                        <td><span class="badge bg-success">START_VM</span></td>
+                                        <td>database-primary</td>
+                                        <td><i class="fas fa-check-circle text-success"></i></td>
+                                        <td>-</td>
+                                    </tr>
+                                    <tr>
+                                        <td>2026-02-12 14:20:45</td>
+                                        <td>jane.smith</td>
+                                        <td>analytics-dev</td>
+                                        <td><span class="badge bg-danger">STOP_GROUP</span></td>
+                                        <td>data-tier</td>
+                                        <td><i class="fas fa-check-circle text-success"></i></td>
+                                        <td>Cascade stopped 3 VMs</td>
+                                    </tr>
+                                    <tr>
+                                        <td>2026-02-12 14:15:30</td>
+                                        <td>john.doe</td>
+                                        <td>mcube-demo-env</td>
+                                        <td><span class="badge bg-warning">LOCK_ACQUIRE</span></td>
+                                        <td>Environment</td>
+                                        <td><i class="fas fa-check-circle text-success"></i></td>
+                                        <td>-</td>
+                                    </tr>
+                                    <tr>
+                                        <td>2026-02-12 13:58:12</td>
+                                        <td>admin</td>
+                                        <td>project-x-dev</td>
+                                        <td><span class="badge bg-danger">LOCK_BREAK</span></td>
+                                        <td>Environment</td>
+                                        <td><i class="fas fa-check-circle text-success"></i></td>
+                                        <td>Reason: User unavailable</td>
+                                    </tr>
+                                    <tr>
+                                        <td>2026-02-12 13:45:00</td>
+                                        <td>bob.jones</td>
+                                        <td>ml-training-env</td>
+                                        <td><span class="badge bg-success">START_VM</span></td>
+                                        <td>gpu-worker-1</td>
+                                        <td><i class="fas fa-times-circle text-danger"></i></td>
+                                        <td>Cloud API timeout</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                    break;
+
+                case 'cost-management':
+                    content = `
+                        <div class="content-header">
+                            <h1>Cost Management</h1>
+                            <p>Monitor and optimize cloud spending</p>
+                        </div>
+                        
+                        <div class="row mb-4">
+                            <div class="col-md-3">
+                                <div class="metric-card">
+                                    <div class="metric-title">Total Monthly Cost</div>
+                                    <div class="metric-value">$12,450</div>
+                                    <div class="metric-subtitle">Across all environments</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="metric-card">
+                                    <div class="metric-title">Running VMs Cost</div>
+                                    <div class="metric-value">$3,250</div>
+                                    <div class="metric-subtitle">Current active spend</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="metric-card">
+                                    <div class="metric-title">This Month</div>
+                                    <div class="metric-value">$8,920</div>
+                                    <div class="metric-subtitle">Month-to-date actual</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="metric-card">
+                                    <div class="metric-title">Potential Savings</div>
+                                    <div class="metric-value">$2,100</div>
+                                    <div class="metric-subtitle">From stopped VMs</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <h5 class="mb-3">Cost by Environment</h5>
+                        <div class="custom-table">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Environment</th>
+                                        <th>Total VMs</th>
+                                        <th>Running</th>
+                                        <th>Est. Monthly</th>
+                                        <th>Actual This Month</th>
+                                        <th>Trend</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><strong>mcube-demo-env</strong></td>
+                                        <td>15</td>
+                                        <td>8</td>
+                                        <td>$1,250</td>
+                                        <td>$890</td>
+                                        <td><span class="text-success"><i class="fas fa-arrow-down"></i> -12%</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>analytics-sandbox</strong></td>
+                                        <td>8</td>
+                                        <td>4</td>
+                                        <td>$450</td>
+                                        <td>$320</td>
+                                        <td><span class="text-success"><i class="fas fa-arrow-down"></i> -8%</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>ml-training-env</strong></td>
+                                        <td>25</td>
+                                        <td>25</td>
+                                        <td>$8,900</td>
+                                        <td>$6,200</td>
+                                        <td><span class="text-danger"><i class="fas fa-arrow-up"></i> +15%</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                    break;
+
+                case 'system-health':
+                    content = `
+                        <div class="content-header">
+                            <h1>System Health</h1>
+                            <p>Platform monitoring and status</p>
+                        </div>
+                        
+                        <div class="row mb-4">
+                            <div class="col-md-3">
+                                <div class="metric-card">
+                                    <div class="metric-title">Platform Status</div>
+                                    <div class="metric-value text-success">Healthy</div>
+                                    <div class="metric-subtitle">All systems operational</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="metric-card">
+                                    <div class="metric-title">Total Environments</div>
+                                    <div class="metric-value">23</div>
+                                    <div class="metric-subtitle">Active across platform</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="metric-card">
+                                    <div class="metric-title">Total VMs</div>
+                                    <div class="metric-value">487</div>
+                                    <div class="metric-subtitle">312 running (64%)</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="metric-card">
+                                    <div class="metric-title">Active Locks</div>
+                                    <div class="metric-value">8</div>
+                                    <div class="metric-subtitle">Across 8 environments</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <h5 class="mb-3">Cloud Provider Status</h5>
+                        <div class="row mb-4">
+                            <div class="col-md-4">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h6><i class="fab fa-aws text-warning"></i> AWS</h6>
+                                        <p class="mb-1"><strong>Status:</strong> <span class="badge bg-success">Operational</span></p>
+                                        <p class="mb-1"><strong>VMs:</strong> 200 (120 running)</p>
+                                        <p class="mb-0"><strong>Last Sync:</strong> 2 min ago</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h6><i class="fab fa-microsoft text-primary"></i> Azure</h6>
+                                        <p class="mb-1"><strong>Status:</strong> <span class="badge bg-success">Operational</span></p>
+                                        <p class="mb-1"><strong>VMs:</strong> 150 (100 running)</p>
+                                        <p class="mb-0"><strong>Last Sync:</strong> 1 min ago</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h6><i class="fab fa-google text-info"></i> GCP</h6>
+                                        <p class="mb-1"><strong>Status:</strong> <span class="badge bg-success">Operational</span></p>
+                                        <p class="mb-1"><strong>VMs:</strong> 137 (92 running)</p>
+                                        <p class="mb-0"><strong>Last Sync:</strong> 3 min ago</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <h5 class="mb-3">Recent System Events</h5>
+                        <div class="custom-table">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>Event Type</th>
+                                        <th>Description</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>5 min ago</td>
+                                        <td><span class="badge bg-success">SYNC</span></td>
+                                        <td>State reconciliation completed for 487 VMs</td>
+                                        <td><i class="fas fa-check-circle text-success"></i></td>
+                                    </tr>
+                                    <tr>
+                                        <td>10 min ago</td>
+                                        <td><span class="badge bg-warning">DRIFT</span></td>
+                                        <td>2 VMs detected with state drift</td>
+                                        <td><i class="fas fa-exclamation-circle text-warning"></i></td>
+                                    </tr>
+                                    <tr>
+                                        <td>1 hour ago</td>
+                                        <td><span class="badge bg-info">AUTOMATION</span></td>
+                                        <td>Scheduled rule "Morning Startup" executed</td>
+                                        <td><i class="fas fa-check-circle text-success"></i></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                    break;
+
+                default:
+                    content = `
+                        <div class="content-header">
+                            <h1>${contentType.replace('-', ' ').toUpperCase()}</h1>
+                            <p>This view is under construction</p>
+                        </div>
+                    `;
+            }
+            
+            $('#content-area').html(content);
+        }
+
+        function loadEnvironmentDetail(envName) {
+            var content = `
+                <div class="content-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h1>${envName}</h1>
+                            <p>Environment details and VM management</p>
+                        </div>
+                        <div>
+                            <button class="btn btn-success me-2"><i class="fas fa-play"></i> Start All</button>
+                            <button class="btn btn-danger me-2"><i class="fas fa-stop"></i> Stop All</button>
+                            <button class="btn btn-warning"><i class="fas fa-unlock"></i> Release Lock</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="alert alert-warning">
+                    <i class="fas fa-lock"></i> <strong>Environment Locked by You</strong> - Acquired 2h 15m ago
+                </div>
+                
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="metric-card">
+                            <div class="metric-title">Total VMs</div>
+                            <div class="metric-value">15</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="metric-card">
+                            <div class="metric-title">Running</div>
+                            <div class="metric-value text-success">8</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="metric-card">
+                            <div class="metric-title">Stopped</div>
+                            <div class="metric-value text-danger">7</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <h5 class="mb-3">Groups and VMs</h5>
+                
+                <div class="card mb-3">
+                    <div class="card-header bg-light">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>Group 1: data-tier</strong>
+                                <span class="badge bg-success ms-2">2/2 Running</span>
+                                <small class="text-muted ms-2">Sequence: 1 | Depends on: None</small>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-success">Start Group</button>
+                                <button class="btn btn-sm btn-danger ms-1">Stop Group</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>VM Name</th>
+                                    <th>Cloud</th>
+                                    <th>Status</th>
+                                    <th>Uptime</th>
+                                    <th>Sequence</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>database-primary</td>
+                                    <td><i class="fab fa-aws text-warning"></i> AWS us-east-1</td>
+                                    <td><span class="status-badge running"><i class="fas fa-circle"></i> Running</span></td>
+                                    <td>2h 15m</td>
+                                    <td>1</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary">Details</button>
+                                        <button class="btn btn-sm btn-danger ms-1">Stop</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>database-replica</td>
+                                    <td><i class="fab fa-aws text-warning"></i> AWS us-east-1</td>
+                                    <td><span class="status-badge running"><i class="fas fa-circle"></i> Running</span></td>
+                                    <td>2h 15m</td>
+                                    <td>2 (Depends: database-primary)</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary">Details</button>
+                                        <button class="btn btn-sm btn-danger ms-1">Stop</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="card mb-3">
+                    <div class="card-header bg-light">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>Group 2: backend-tier</strong>
+                                <span class="badge bg-warning ms-2">1/2 Running</span>
+                                <small class="text-muted ms-2">Sequence: 2 | Depends on: data-tier</small>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-success">Start Group</button>
+                                <button class="btn btn-sm btn-danger ms-1">Stop Group</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>VM Name</th>
+                                    <th>Cloud</th>
+                                    <th>Status</th>
+                                    <th>Uptime</th>
+                                    <th>Sequence</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>app-server</td>
+                                    <td><i class="fab fa-microsoft text-primary"></i> Azure East US</td>
+                                    <td><span class="status-badge running"><i class="fas fa-circle"></i> Running</span></td>
+                                    <td>2h 10m</td>
+                                    <td>1</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary">Details</button>
+                                        <button class="btn btn-sm btn-danger ms-1">Stop</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>worker-queue</td>
+                                    <td><i class="fab fa-microsoft text-primary"></i> Azure East US</td>
+                                    <td><span class="status-badge stopped"><i class="fas fa-circle"></i> Stopped</span></td>
+                                    <td>-</td>
+                                    <td>2 (Depends: app-server)</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary">Details</button>
+                                        <button class="btn btn-sm btn-success ms-1">Start</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+            
+            $('#content-area').html(content);
+            $('.sidebar-menu-link').removeClass('active');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>VM Self-Service Platform</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+
+<style>
+body {
+  margin: 0;
+  font-family: "Inter", sans-serif;
+  background: #f9fafb;
+}
+
+/* Topbar */
+.topbar {
+  height: 60px;
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  padding: 0 25px;
+}
+
+.brand {
+  font-weight: 600;
+  font-size: 18px;
+}
+
+.user-info {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.role-badge {
+  background: #e0f2fe;
+  color: #0369a1;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Layout */
+.layout {
+  display: flex;
+  height: calc(100vh - 60px);
+}
+
+/* Sidebar */
+.sidebar {
+  width: 250px;
+  background: #111827;
+  color: #cbd5e1;
+  padding: 20px;
+}
+
+.sidebar-section-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  margin-top: 20px;
+  margin-bottom: 8px;
+  color: #6b7280;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.sidebar-item:hover {
+  background: #1f2937;
+}
+
+.sidebar-item.active {
+  background: #2563eb;
+  color: white;
+}
+
+/* Content */
+.content {
+  flex: 1;
+  padding: 30px;
+  overflow-y: auto;
+}
+
+/* Cards */
+.card-saas {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.kpi-card {
+  text-align: center;
+  padding: 20px;
+}
+
+.kpi-value {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.table-saas {
+  background: white;
+  border-radius: 12px;
+  padding: 15px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.page { display: none; }
+.page.active { display: block; }
+
+.btn-primary {
+  border-radius: 8px;
+}
+
+.btn-danger {
+  border-radius: 8px;
+}
+</style>
+</head>
+
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="brand">VM Self-Service Platform</div>
+  <div class="user-info">
+    <div>Chandan Kar</div>
+    <div class="role-badge" id="roleLabel">Developer</div>
+    <div class="bg-secondary rounded-circle" style="width:32px;height:32px;"></div>
+  </div>
+</div>
+
+<div class="layout">
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+
+  <div class="sidebar-section-title">Operation</div>
+  <div class="sidebar-item active" onclick="showPage('dashboard', this)">
+    <i class="fa-solid fa-chart-line"></i> Dashboard
+  </div>
+  <div class="sidebar-item" onclick="showPage('myvms', this)">
+    <i class="fa-solid fa-server"></i> My VMs
+  </div>
+  <div class="sidebar-item" onclick="showPage('requests', this)">
+    <i class="fa-solid fa-file-circle-plus"></i> Requests
+  </div>
+
+  <div class="sidebar-section-title">Governance</div>
+  <div class="sidebar-item" onclick="showPage('audit', this)">
+    <i class="fa-solid fa-clock-rotate-left"></i> Audit Logs
+  </div>
+  <div class="sidebar-item" onclick="showPage('cost', this)">
+    <i class="fa-solid fa-dollar-sign"></i> Cost & Usage
+  </div>
+
+  <div id="adminSection">
+    <div class="sidebar-section-title">Admin</div>
+    <div class="sidebar-item" onclick="showPage('access', this)">
+      <i class="fa-solid fa-user-shield"></i> Access Management
+    </div>
+    <div class="sidebar-item" onclick="showPage('registry', this)">
+      <i class="fa-solid fa-database"></i> VM Registry
+    </div>
+    <div class="sidebar-item" onclick="showPage('automation', this)">
+      <i class="fa-solid fa-robot"></i> Automation Rules
+    </div>
+  </div>
+
+</div>
+
+<!-- CONTENT -->
+<div class="content">
+
+<!-- DASHBOARD -->
+<div id="dashboard" class="page active">
+  <h4 class="mb-4">Dashboard</h4>
+  <div class="row g-4">
+    <div class="col-md-3">
+      <div class="card-saas kpi-card">
+        <div>Total VMs</div>
+        <div class="kpi-value">125</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card-saas kpi-card">
+        <div>Running VMs</div>
+        <div class="kpi-value text-success">48</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card-saas kpi-card">
+        <div>Avg Cost / Hour</div>
+        <div class="kpi-value">$2.45</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card-saas kpi-card">
+        <div>Total Cost</div>
+        <div class="kpi-value">$3,250</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MY VMS -->
+<div id="myvms" class="page">
+  <h4 class="mb-4">My VMs</h4>
+  <div class="table-saas">
+    <table class="table align-middle">
+      <thead>
+        <tr>
+          <th>VM Name</th>
+          <th>Group</th>
+          <th>Status</th>
+          <th>Cloud</th>
+          <th>Lock Owner</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>dev-api-01</td>
+          <td>Payments/API</td>
+          <td><span class="badge bg-success">Running</span></td>
+          <td>AWS</td>
+          <td>Chandan</td>
+          <td>
+            <button class="btn btn-sm btn-danger">Stop</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- REQUESTS -->
+<div id="requests" class="page">
+  <h4 class="mb-4">Requests</h4>
+  <div class="row g-4">
+    <div class="col-md-4"><div class="card-saas">Request Access</div></div>
+    <div class="col-md-4"><div class="card-saas">Request VM Registration</div></div>
+    <div class="col-md-4"><div class="card-saas">Request Lock Release</div></div>
+  </div>
+</div>
+
+<!-- AUDIT -->
+<div id="audit" class="page">
+  <h4 class="mb-4">Audit Logs</h4>
+  <div class="table-saas">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Action</th>
+          <th>Scope</th>
+          <th>Timestamp</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Chandan</td>
+          <td>Start</td>
+          <td>Payments/API</td>
+          <td>12 Feb 2026 09:15</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- COST -->
+<div id="cost" class="page">
+  <h4 class="mb-4">Cost & Usage</h4>
+  <div class="card-saas">Charts Placeholder</div>
+</div>
+
+<!-- ACCESS -->
+<div id="access" class="page">
+  <h4 class="mb-4">Access Management</h4>
+  <div class="card-saas">Access Control Table</div>
+</div>
+
+<!-- REGISTRY -->
+<div id="registry" class="page">
+  <h4 class="mb-4">VM Registry</h4>
+  <div class="card-saas">Register VM Form</div>
+</div>
+
+<!-- AUTOMATION -->
+<div id="automation" class="page">
+  <h4 class="mb-4">Automation Rules</h4>
+  <div class="card-saas mb-3">Auto Stop Rules</div>
+  <div class="card-saas">Email Notifications</div>
+</div>
+
+</div>
+</div>
+
+<script>
+function showPage(pageId, element) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+  document.getElementById(pageId).classList.add('active');
+  element.classList.add('active');
+}
+
+/* Simulated Role Control */
+let role = "Developer"; // Change to "Admin"
+if(role !== "Admin"){
+  document.getElementById("adminSection").style.display = "none";
+}
+</script>
+
+</body>
+</html>
