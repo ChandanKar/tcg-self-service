@@ -63,6 +63,42 @@
             margin-right: 1rem;
         }
 
+        .top-navbar .nav-left,
+        .top-navbar .nav-center,
+        .top-navbar .nav-right {
+            display: flex;
+            align-items: center;
+        }
+
+        .top-navbar .nav-left {
+            gap: 0.75rem;
+        }
+
+        .top-navbar .nav-center {
+            flex: 1;
+            justify-content: center;
+        }
+
+        .top-navbar .nav-right {
+            gap: 1.5rem;
+        }
+
+        .top-navbar .user-icon {
+            font-size: 1.5rem;
+            color: #64748b;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .top-navbar .tcg-logo {
+            height: 28px;
+            width: auto;
+            margin-right: 0.75rem;
+            display: block;
+        }
+
         .top-navbar .logo {
             font-size: 1.25rem;
             font-weight: 700;
@@ -74,14 +110,14 @@
 
         .top-navbar .search-box {
             flex: 1;
-            max-width: 500px;
-            margin: 0 2rem;
+            max-width: 450px;
+            margin: 0;
         }
 
         .top-navbar .search-box input {
             border-radius: 20px;
             border: 1px solid #e2e8f0;
-            padding: 0.5rem 1rem 0.5rem 2.5rem;
+            padding: 0.45rem 0.9rem 0.45rem 2.25rem;
         }
 
         .top-navbar .search-box i {
@@ -622,29 +658,34 @@
 
     <!-- Top Navigation Bar -->
     <nav class="top-navbar">
-        <i class="fas fa-bars hamburger" id="toggleSidebar"></i>
-        <div class="logo">
-            <i class="fas fa-server"></i> VM Platform
-        </div>
-        
-        <div class="search-box position-relative">
-            <i class="fas fa-search"></i>
-            <input type="text" class="form-control" placeholder="Search environments, VMs, or groups...">
+        <div class="nav-left">
+            <i class="fas fa-bars hamburger" id="toggleSidebar"></i>
+            <img class="tcg-logo" src="logo/tcg_blue_logo.png" alt="TCG">
+            <div class="logo">
+                Self-Service Platform
+            </div>
         </div>
 
-        <div class="nav-icons">
+        <div class="nav-center">
+            <div class="search-box position-relative">
+                <i class="fas fa-search"></i>
+                <input type="text" class="form-control" placeholder="Search environments, VMs, or groups...">
+            </div>
+        </div>
+
+        <div class="nav-right">
             <div class="notification-bell">
                 <i class="fas fa-bell"></i>
                 <span class="badge">3</span>
             </div>
-
             <div class="user-profile">
-                <div class="user-avatar">JD</div>
+                <div class="user-icon" aria-label="User">
+                    <i class="fas fa-circle-user"></i>
+                </div>
                 <div>
                     <div class="user-name">John Doe</div>
                     <div class="user-role">Developer</div>
                 </div>
-                <i class="fas fa-chevron-down" style="color: #94a3b8; font-size: 0.875rem;"></i>
             </div>
         </div>
     </nav>
