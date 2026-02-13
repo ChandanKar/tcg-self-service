@@ -30,6 +30,8 @@ dependencies {
 	implementation 'software.amazon.awssdk:sts'
 	implementation 'software.amazon.awssdk:ec2'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
+	// Swagger/OpenAPI
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6'
 	implementation 'org.springframework.boot:spring-boot-starter-jdbc'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'

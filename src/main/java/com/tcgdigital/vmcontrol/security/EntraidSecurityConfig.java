@@ -14,8 +14,9 @@ public class EntraidSecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .authorizeHttpRequests(authorize -> authorize
-                // allow static resources, health/error endpoints, oauth callback and h2 console
-                .requestMatchers("/css/**", "/js/**", "/images/**", "/static/**", "/error", "/h2-console/**", "/login/**", "/oauth2/**").permitAll()
+                // allow static resources, health/error endpoints, oauth callback, h2 console, and Swagger UI
+                .requestMatchers("/css/**", "/js/**", "/images/**", "/static/**", "/error", "/h2-console/**", "/login/**", "/oauth2/**",
+                    "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/swagger-resources/**", "/webjars/**").permitAll()
                 // require authentication for all other requests (including /home)
                 .anyRequest().authenticated()
             )
