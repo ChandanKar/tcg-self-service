@@ -20,9 +20,15 @@ repositories {
 
 ext {
 	set('springCloudAzureVersion', "7.0.0")
+	set('awsSdkVersion', "2.29.51")
 }
 
 dependencies {
+	// AWS SDK BOM for version management
+	implementation platform("software.amazon.awssdk:bom:${awsSdkVersion}")
+	// AWS SDK core modules
+	implementation 'software.amazon.awssdk:sts'
+	implementation 'software.amazon.awssdk:ec2'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-jdbc'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
