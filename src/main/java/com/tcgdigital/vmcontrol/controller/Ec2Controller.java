@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,6 +21,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/ec2")
 @Tag(name = "EC2 Instances", description = "Operations for managing AWS EC2 instances")
+@PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
 public class Ec2Controller {
 
     private final Ec2Service ec2Service;

@@ -1,0 +1,77 @@
+/*
+ * Modal Component Styles
+ */
+
+.modal-header {
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+.modal-footer {
+    border-top: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+.modal-title {
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+/* Custom modal sizes */
+.modal-lg-custom {
+    max-width: 800px;
+}
+
+.modal-xl-custom {
+    max-width: 1140px;
+}
+
+/* Form styling in modals */
+.modal-body .form-label {
+    font-weight: 500;
+    color: #475569;
+    margin-bottom: 0.25rem;
+}
+
+.modal-body .form-text {
+    font-size: 0.75rem;
+    color: #94a3b8;
+}
+
+.modal-body .form-select,
+.modal-body .form-control {
+    border-color: #e2e8f0;
+}
+
+.modal-body .form-select:focus,
+.modal-body .form-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+/* Required field indicator */
+.modal-body .text-danger {
+    font-weight: normal;
+}
+
+/* Confirmation modals */
+#confirmModal .modal-body p {
+    margin-bottom: 0;
+    font-size: 1rem;
+    line-height: 1.6;
+}
+
+/* Loading state in modal buttons */
+.modal-footer .btn .fa-spinner {
+    margin-right: 0.5rem;
+}
+
+/* Multiple select styling */
+.modal-body select[multiple] {
+    min-height: 100px;
+}
+

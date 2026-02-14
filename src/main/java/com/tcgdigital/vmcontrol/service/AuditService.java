@@ -395,6 +395,51 @@ public class AuditService {
                 "User: " + userId + ". Error: " + error);
     }
 
+    // ============= User Operations =============
+
+    public void logUserCreated(String userId, String email) {
+        logAction(null, AuditAction.USER_CREATED, "user", userId, email,
+                "User created via OAuth2 login: " + email);
+    }
+
+    public void logUserRoleChanged(String performedByUserId, String targetUserId, String role, boolean newValue) {
+        String action = newValue ? "granted" : "revoked";
+        logAction(null, AuditAction.USER_UPDATED, "user", targetUserId, role,
+                String.format("Role '%s' %s by user: %s", role, action, performedByUserId));
+    }
+
+    public void logUserDeactivated(String performedByUserId, String targetUserId) {
+        logAction(null, AuditAction.USER_DEACTIVATED, "user", targetUserId, targetUserId,
+                "User deactivated by: " + performedByUserId);
+    }
+
+    public void logUserReactivated(String performedByUserId, String targetUserId) {
+        logAction(null, AuditAction.USER_UPDATED, "user", targetUserId, targetUserId,
+                "User reactivated by: " + performedByUserId);
+    }
+
+    // ============= Access Request Operations =============
+
+    public void logAccessRequested(String userId, String environmentId, String environmentName, String accessLevel) {
+        logAction(null, AuditAction.ACCESS_REQUESTED, "environment_access", environmentId, environmentName,
+                String.format("Access requested by user: %s. Level: %s", userId, accessLevel));
+    }
+
+    public void logAccessGranted(String reviewerId, String userId, String environmentId, String environmentName, String accessLevel) {
+        logAction(null, AuditAction.ACCESS_GRANTED, "environment_access", environmentId, environmentName,
+                String.format("Access granted to user: %s. Level: %s. Approved by: %s", userId, accessLevel, reviewerId));
+    }
+
+    public void logAccessDenied(String reviewerId, String userId, String environmentId, String environmentName, String reason) {
+        logAction(null, AuditAction.ACCESS_DENIED, "environment_access", environmentId, environmentName,
+                String.format("Access denied for user: %s. Denied by: %s. Reason: %s", userId, reviewerId, reason));
+    }
+
+    public void logAccessRevoked(String performedByUserId, String userId, String environmentId, String environmentName) {
+        logAction(null, AuditAction.ACCESS_REVOKED, "environment_access", environmentId, environmentName,
+                String.format("Access revoked for user: %s. Revoked by: %s", userId, performedByUserId));
+    }
+
     // ============= Inner Classes =============
 
     public static class EnvironmentActivitySummary {

@@ -1,0 +1,127 @@
+/*
+ * Audit Log Styles
+ */
+
+/* Log table */
+.log-row {
+    transition: background 0.15s;
+}
+
+.log-row:hover {
+    background: #f8fafc;
+}
+
+/* Action badges */
+.log-row .badge {
+    font-size: 0.7rem;
+    font-weight: 500;
+}
+
+/* Status icons */
+.log-row .fa-check-circle {
+    font-size: 1rem;
+}
+
+.log-row .fa-times-circle {
+    font-size: 1rem;
+}
+
+/* Details column */
+.log-row td:last-child {
+    text-align: center;
+}
+
+/* Filter card */
+#audit-filter-form .form-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+/* Empty state */
+.empty-state {
+    text-align: center;
+    color: #64748b;
+}
+
+.empty-state i {
+    opacity: 0.5;
+}
+
+/* Log details modal */
+#logDetailsModal .table th {
+    background: #f8fafc;
+    font-weight: 600;
+    color: #475569;
+}
+
+#logDetailsModal pre {
+    background: #f1f5f9;
+    padding: 0.75rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    max-height: 200px;
+    overflow: auto;
+}
+
+/* Activity summary cards */
+.activity-summary .metric-card {
+    text-align: center;
+}
+
+/* Pagination */
+.pagination .page-link {
+    border-color: #e2e8f0;
+    color: #475569;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.pagination .page-item.disabled .page-link {
+    color: #94a3b8;
+}
+
+/* Export button */
+#export-logs,
+#export-all-logs {
+    white-space: nowrap;
+}
+
+/* Time filter badge colors */
+.time-badge-24h {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.time-badge-7d {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.time-badge-30d {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+/* Responsive table */
+@media (max-width: 768px) {
+    .table-responsive {
+        font-size: 0.875rem;
+    }
+
+    .log-row td:nth-child(6) {
+        display: none;
+    }
+}
+
+/* Search highlight */
+.search-highlight {
+    background: #fef08a;
+    padding: 0 2px;
+    border-radius: 2px;
+}
+

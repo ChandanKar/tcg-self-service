@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VM Self-Service Platform</title>
+
+    <!-- Bootstrap CSS (CDN) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Font Awesome (CDN) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Application CSS -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/layout/topnav.css">
+    <link rel="stylesheet" href="css/layout/sidebar.css">
+    <link rel="stylesheet" href="css/layout/content.css">
+    <link rel="stylesheet" href="css/components/cards.css">
+    <link rel="stylesheet" href="css/components/tables.css">
+    <link rel="stylesheet" href="css/components/badges.css">
+    <link rel="stylesheet" href="css/components/buttons.css">
+    <link rel="stylesheet" href="css/components/slideout.css">
+    <link rel="stylesheet" href="css/components/modals.css">
+    <link rel="stylesheet" href="css/components/operations.css">
+    <link rel="stylesheet" href="css/components/locks.css">
+    <link rel="stylesheet" href="css/components/access.css">
+    <link rel="stylesheet" href="css/components/audit.css">
+    <link rel="stylesheet" href="css/components/loading.css">
+</head>
+<body>
+
+    <!-- Top Navigation Bar -->
+    <nav class="top-navbar">
+        <div class="nav-left">
+            <i class="fas fa-bars hamburger" id="toggleSidebar"></i>
+            <img class="tcg-logo" src="logo/tcg_blue_logo.png" alt="TCG">
+            <div class="logo">
+                Self-Service Platform
+            </div>
+        </div>
+
+        <div class="nav-center">
+            <div class="search-box position-relative">
+                <i class="fas fa-search"></i>
+                <input type="text" class="form-control" placeholder="Search environments, VMs, or groups...">
+            </div>
+        </div>
+
+        <div class="nav-right">
+            <div class="notification-bell">
+                <i class="fas fa-bell"></i>
+                <span class="badge" id="notification-count">0</span>
+            </div>
+            <div class="user-profile">
+                <!-- User profile populated by UserMenu.js -->
+                <div class="user-profile-loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>Loading...</span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <!-- MY WORKSPACE Section -->
+        <div class="sidebar-section">
+            <div class="sidebar-section-title collapsed" data-section="workspace">
+                <span><i class="fas fa-briefcase"></i> MY WORKSPACE</span>
+                <i class="fas fa-chevron-down toggle"></i>
+            </div>
+            <ul class="sidebar-menu" id="workspace-menu" style="display: none;">
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-panel="running">
+                        <i class="fas fa-play-circle"></i>
+                        <span>Running</span>
+                        <span class="badge">12</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-panel="locked">
+                        <i class="fas fa-lock"></i>
+                        <span>Locked by Me</span>
+                        <span class="badge">2</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-toggle="submenu" data-target="favorites-submenu">
+                        <i class="fas fa-star"></i>
+                        <span>Favorites</span>
+                        <span class="badge">3</span>
+                    </a>
+                    <ul class="submenu" id="favorites-submenu">
+                        <li class="submenu-item" data-content="environment-detail" data-env="mcube-demo-env">
+                            mcube-demo-env
+                            <button class="btn btn-primary btn-sm">View</button>
+                        </li>
+                        <li class="submenu-item" data-content="environment-detail" data-env="analytics-sandbox">
+                            analytics-sandbox
+                            <button class="btn btn-primary btn-sm">View</button>
+                        </li>
+                        <li class="submenu-item" data-content="environment-detail" data-env="my-dev-env">
+                            my-dev-env
+                            <button class="btn btn-primary btn-sm">View</button>
+                        </li>
+                    </ul>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-toggle="submenu" data-target="recents-submenu">
+                        <i class="fas fa-clock"></i>
+                        <span>Recents</span>
+                        <span class="badge">5</span>
+                    </a>
+                    <ul class="submenu" id="recents-submenu">
+                        <li class="submenu-item" data-content="environment-detail" data-env="project-x-dev">
+                            project-x-dev
+                            <button class="btn btn-primary btn-sm">View</button>
+                        </li>
+                        <li class="submenu-item" data-content="environment-detail" data-env="data-pipeline-test">
+                            data-pipeline-test
+                            <button class="btn btn-primary btn-sm">View</button>
+                        </li>
+                        <li class="submenu-item" data-content="environment-detail" data-env="ml-training-env">
+                            ml-training-env
+                            <button class="btn btn-primary btn-sm">View</button>
+                        </li>
+                        <li class="submenu-item" data-content="environment-detail" data-env="api-sandbox">
+                            api-sandbox
+                            <button class="btn btn-primary btn-sm">View</button>
+                        </li>
+                        <li class="submenu-item" data-content="environment-detail" data-env="integration-test">
+                            integration-test
+                            <button class="btn btn-primary btn-sm">View</button>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+
+        <!-- OPERATIONS Section -->
+        <div class="sidebar-section">
+            <div class="sidebar-section-title" data-section="operations">
+                <span><i class="fas fa-cogs"></i> OPERATIONS</span>
+                <i class="fas fa-chevron-down toggle"></i>
+            </div>
+            <ul class="sidebar-menu" id="operations-menu">
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link active" data-content="dashboard">
+                        <i class="fas fa-chart-pie"></i>
+                        <span>Dashboard</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-content="my-environments">
+                        <i class="fas fa-folder-open"></i>
+                        <span>My Environments</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-content="request-access">
+                        <i class="fas fa-paper-plane"></i>
+                        <span>Request Access</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item env-admin-only" id="pending-requests-link" style="display: none;">
+                    <a class="sidebar-menu-link" data-content="pending-requests">
+                        <i class="fas fa-inbox"></i>
+                        <span>Pending Requests</span>
+                        <span class="badge pending-count" style="display: none;">0</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-content="activity-logs">
+                        <i class="fas fa-clipboard-list"></i>
+                        <span>Activity Logs</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        <!-- ADMIN Section (Admin/Env Admin Only) -->
+        <div class="sidebar-section admin-only" id="admin-section" style="display: none;">
+            <div class="sidebar-section-title collapsed" data-section="admin">
+                <span><i class="fas fa-user-shield"></i> ADMIN</span>
+                <i class="fas fa-chevron-down toggle"></i>
+            </div>
+            <ul class="sidebar-menu" id="admin-menu" style="display: none;">
+                <li class="sidebar-menu-item admin-only" id="user-management-link">
+                    <a class="sidebar-menu-link" data-content="user-management">
+                        <i class="fas fa-users"></i>
+                        <span>User Management</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item env-admin-only">
+                    <a class="sidebar-menu-link" data-content="access-management">
+                        <i class="fas fa-users-cog"></i>
+                        <span>Access Management</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item env-admin-only">
+                    <a class="sidebar-menu-link" data-content="vm-registry">
+                        <i class="fas fa-database"></i>
+                        <span>VM Registry</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item env-admin-only">
+                    <a class="sidebar-menu-link" data-content="automation-rules">
+                        <i class="fas fa-clock"></i>
+                        <span>Automation Rules</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item env-admin-only">
+                    <a class="sidebar-menu-link" data-content="audit-logs-all">
+                        <i class="fas fa-file-alt"></i>
+                        <span>Audit Logs (All)</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-content="cost-management">
+                        <i class="fas fa-dollar-sign"></i>
+                        <span>Cost Management</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-content="system-health">
+                        <i class="fas fa-heartbeat"></i>
+                        <span>System Health</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Bottom Section -->
+        <div class="sidebar-bottom">
+            <ul class="sidebar-menu">
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-content="settings">
+                        <i class="fas fa-cog"></i>
+                        <span>Settings</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a class="sidebar-menu-link" data-content="help">
+                        <i class="fas fa-question-circle"></i>
+                        <span>Help & Docs</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content" id="mainContent">
+        <div id="content-area">
+            <!-- Content will be dynamically loaded here -->
+            <div class="d-flex justify-content-center align-items-center" style="min-height: 400px;">
+                <div class="text-center">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="text-muted">Loading...</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Slide-out Panel for Running VMs -->
+    <div class="slideout-panel" id="runningPanel">
+        <div class="slideout-panel-header">
+            <h3><i class="fas fa-play-circle text-success"></i> My Running VMs (12)</h3>
+            <button class="close-btn">&times;</button>
+        </div>
+        <div class="slideout-panel-content">
+            <div class="env-card">
+                <h5>mcube-demo-env</h5>
+                <div class="env-meta">
+                    <i class="fas fa-lock text-warning"></i> Locked by you • 8 VMs running
+                </div>
+                <ul class="vm-list">
+                    <li><i class="fas fa-circle"></i> database-primary (AWS) - 2h 15m uptime</li>
+                    <li><i class="fas fa-circle"></i> database-replica (AWS) - 2h 15m uptime</li>
+                    <li><i class="fas fa-circle"></i> app-server (Azure) - 2h 10m uptime</li>
+                    <li><i class="fas fa-circle"></i> worker-queue (Azure) - 45m uptime</li>
+                    <li><i class="fas fa-circle"></i> redis-cache (Azure) - 2h 15m uptime</li>
+                    <li><i class="fas fa-circle"></i> api-gateway (AWS) - 1h 30m uptime</li>
+                    <li><i class="fas fa-circle"></i> analytics-worker (AWS) - 50m uptime</li>
+                    <li><i class="fas fa-circle"></i> notification-service (AWS) - 2h 5m uptime</li>
+                </ul>
+                <button class="btn btn-danger btn-sm mt-2 w-100">Stop All in Environment</button>
+            </div>
+
+            <div class="env-card">
+                <h5>analytics-sandbox</h5>
+                <div class="env-meta">
+                    <i class="fas fa-unlock text-success"></i> Unlocked • 4 VMs running
+                </div>
+                <ul class="vm-list">
+                    <li><i class="fas fa-circle"></i> worker-1 (GCP) - 3h 20m uptime</li>
+                    <li><i class="fas fa-circle"></i> worker-2 (GCP) - 3h 20m uptime</li>
+                    <li><i class="fas fa-circle"></i> jupyter-notebook (GCP) - 1h 15m uptime</li>
+                    <li><i class="fas fa-circle"></i> data-processor (GCP) - 2h 40m uptime</li>
+                </ul>
+                <button class="btn btn-danger btn-sm mt-2 w-100">Stop All in Environment</button>
+            </div>
+
+            <button class="btn btn-danger w-100 mt-3">
+                <i class="fas fa-stop-circle"></i> Stop All My Running VMs
+            </button>
+        </div>
+    </div>
+
+    <!-- Slide-out Panel for Locked Environments -->
+    <div class="slideout-panel" id="lockedPanel">
+        <div class="slideout-panel-header">
+            <h3><i class="fas fa-lock text-warning"></i> Environments Locked by Me (2)</h3>
+            <button class="close-btn">&times;</button>
+        </div>
+        <div class="slideout-panel-content">
+            <div class="env-card">
+                <h5>mcube-demo-env</h5>
+                <div class="env-meta">
+                    <i class="fas fa-lock"></i> Locked 2h 15m ago
+                </div>
+                <div class="mb-2">
+                    <strong>Status:</strong> 8/15 VMs running
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-warning btn-sm flex-fill">Release Lock</button>
+                    <button class="btn btn-primary btn-sm flex-fill">View Environment</button>
+                </div>
+            </div>
+
+            <div class="env-card">
+                <h5>project-x-staging</h5>
+                <div class="env-meta">
+                    <i class="fas fa-lock"></i> Locked 45m ago
+                </div>
+                <div class="mb-2">
+                    <strong>Status:</strong> All VMs stopped
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-warning btn-sm flex-fill">Release Lock</button>
+                    <button class="btn btn-primary btn-sm flex-fill">View Environment</button>
+                </div>
+            </div>
+
+            <button class="btn btn-warning w-100 mt-3">
+                <i class="fas fa-unlock"></i> Release All My Locks
+            </button>
+        </div>
+    </div>
+
+    <!-- Overlay for Slide-out -->
+    <div class="slideout-overlay" id="slideoutOverlay"></div>
+
+    <!-- jQuery (CDN) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <!-- Bootstrap JS (CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Application JavaScript -->
+    <script src="js/config.js"></script>
+    <script src="js/core/api-client.js"></script>
+    <script src="js/core/template-loader.js"></script>
+    <script src="js/core/utils.js"></script>
+    <script src="js/core/router.js"></script>
+    <script src="js/core/auth.js"></script>
+    <script src="js/core/realtime.js"></script>
+    <script src="js/core/keyboard.js"></script>
+    <script src="js/ui/sidebar.js"></script>
+    <script src="js/ui/slideout.js"></script>
+    <script src="js/ui/notifications.js"></script>
+    <script src="js/ui/user-menu.js"></script>
+    <script src="js/ui/modals.js"></script>
+    <script src="js/ui/loading.js"></script>
+    <script src="js/features/dashboard.js"></script>
+    <script src="js/features/environments.js"></script>
+    <script src="js/features/vm-operations.js"></script>
+    <script src="js/features/locks.js"></script>
+    <script src="js/features/access-requests.js"></script>
+    <script src="js/features/audit-logs.js"></script>
+    <script src="js/features/features.js"></script>
+    <script src="js/app.js"></script>
+
+</body>
+</html>
+

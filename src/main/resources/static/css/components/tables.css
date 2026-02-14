@@ -1,0 +1,38 @@
+/*
+ * Table Component Styles
+ */
+
+.custom-table {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.custom-table table {
+    margin-bottom: 0;
+}
+
+.custom-table th {
+    background: #f8fafc;
+    color: #475569;
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.custom-table td {
+    vertical-align: middle;
+    color: #334155;
+}
+
+.custom-table tbody tr {
+    transition: background 0.2s;
+}
+
+.custom-table tbody tr:hover {
+    background-color: #f8fafc;
+}
+

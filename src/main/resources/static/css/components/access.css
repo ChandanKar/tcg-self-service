@@ -1,0 +1,143 @@
+/*
+ * Access Request Styles
+ */
+
+/* Request cards */
+.access-request-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    background: white;
+    transition: box-shadow 0.2s;
+}
+
+.access-request-card:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+/* Request status badges */
+.badge.bg-PENDING {
+    background-color: #f59e0b !important;
+}
+
+.badge.bg-APPROVED {
+    background-color: #10b981 !important;
+}
+
+.badge.bg-DENIED {
+    background-color: #ef4444 !important;
+}
+
+.badge.bg-CANCELLED {
+    background-color: #6b7280 !important;
+}
+
+/* Reason text truncation */
+.reason-text {
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.reason-text:hover {
+    white-space: normal;
+    word-break: break-word;
+}
+
+/* Access level badges */
+.access-level-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.access-level-badge.viewer {
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+.access-level-badge.user {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.access-level-badge.admin {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+/* Manage access modal */
+.manage-access-content .table {
+    margin-bottom: 0;
+}
+
+.manage-access-content .table th {
+    background: #f8fafc;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+/* Pending requests badge in sidebar */
+.sidebar-menu-link .pending-count {
+    background: #ef4444;
+    color: white;
+    font-size: 0.65rem;
+    padding: 0.125rem 0.375rem;
+    border-radius: 10px;
+    margin-left: auto;
+}
+
+/* Access expiration warning */
+.access-expiring-soon {
+    color: #f59e0b;
+}
+
+.access-expired {
+    color: #ef4444;
+    text-decoration: line-through;
+}
+
+/* Environment row in request list */
+.env-row {
+    transition: background 0.15s;
+}
+
+.env-row:hover {
+    background: #f8fafc;
+}
+
+/* Request access form */
+#requestAccessForm .form-label {
+    font-weight: 500;
+}
+
+#requestAccessForm select option {
+    padding: 0.5rem;
+}
+
+/* Request history toggle */
+#toggle-history {
+    transition: transform 0.2s;
+}
+
+#toggle-history.rotated {
+    transform: rotate(180deg);
+}
+
+/* Card improvements */
+.card-header h5 {
+    font-size: 1rem;
+}
+
+.card-header h5 i {
+    color: #64748b;
+}
+

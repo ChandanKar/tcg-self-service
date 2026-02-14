@@ -1,0 +1,159 @@
+/*
+ * VM Self-Service Platform - Main CSS
+ * Global styles, CSS variables, typography, and resets
+ */
+
+:root {
+    /* Layout */
+    --sidebar-width: 260px;
+    --sidebar-collapsed-width: 60px;
+    --topnav-height: 60px;
+
+    /* Colors - Primary */
+    --primary-color: #2563eb;
+    --primary-light: #3b82f6;
+    --primary-dark: #1e40af;
+
+    /* Colors - UI */
+    --sidebar-bg: #ffffff;
+    --sidebar-hover: #eff6ff;
+    --sidebar-active: #dbeafe;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --border-color: #e2e8f0;
+    --background-light: #f8fafc;
+
+    /* Status Colors */
+    --success-color: #10b981;
+    --warning-color: #f59e0b;
+    --danger-color: #ef4444;
+    --info-color: #3b82f6;
+}
+
+/* Reset & Base */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    overflow-x: hidden;
+    background-color: var(--background-light);
+}
+
+/* Links */
+a {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+a:hover {
+    color: var(--primary-dark);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--sidebar-bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Smooth transitions */
+.btn, .card, .metric-card, .table tr, .sidebar-menu-link, .form-control, .form-select {
+    transition: all 0.15s ease-in-out;
+}
+
+/* Focus states */
+.btn:focus, .form-control:focus, .form-select:focus {
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* Card hover effect */
+.metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Table row hover */
+.table tbody tr:hover {
+    background-color: #f8fafc;
+}
+
+/* Text utilities */
+.text-truncate-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Keyboard shortcuts */
+kbd {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    font-family: monospace;
+    line-height: 1;
+    color: #1e293b;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    box-shadow: 0 1px 0 #e2e8f0;
+}
+
+kbd .key {
+    display: inline-block;
+    min-width: 1.5em;
+    text-align: center;
+}
+
+kbd + kbd {
+    margin-left: 0.25rem;
+}
+
+.shortcuts-table {
+    margin-bottom: 0;
+}
+
+.shortcuts-table th {
+    background: #f8fafc;
+}
+
+.shortcuts-table td:first-child {
+    width: 120px;
+}
+
+/* Responsive spacing */
+@media (max-width: 768px) {
+    .content-header h1 {
+        font-size: 1.5rem;
+    }
+
+    .metric-card {
+        margin-bottom: 1rem;
+    }
+}
+
+/* Print styles */
+@media print {
+    .sidebar, .top-navbar, .btn {
+        display: none !important;
+    }
+
+    .main-content {
+        margin-left: 0 !important;
+    }
+}

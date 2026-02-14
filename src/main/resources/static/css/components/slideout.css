@@ -1,0 +1,70 @@
+/*
+ * Slide-out Panel Styles
+ */
+
+.slideout-panel {
+    position: fixed;
+    top: var(--topnav-height);
+    right: -400px;
+    width: 400px;
+    height: calc(100vh - var(--topnav-height));
+    background: white;
+    box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+    transition: right 0.3s ease;
+    z-index: 998;
+    overflow-y: auto;
+}
+
+.slideout-panel.show {
+    right: 0;
+}
+
+.slideout-panel-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.slideout-panel-header h3 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0;
+}
+
+.slideout-panel-header .close-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: #64748b;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+
+.slideout-panel-header .close-btn:hover {
+    color: #1e293b;
+}
+
+.slideout-panel-content {
+    padding: 1.5rem;
+}
+
+/* Overlay */
+.slideout-overlay {
+    position: fixed;
+    top: var(--topnav-height);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.3);
+    z-index: 997;
+    display: none;
+}
+
+.slideout-overlay.show {
+    display: block;
+}
+

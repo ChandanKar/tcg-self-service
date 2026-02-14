@@ -15,6 +15,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -34,6 +35,7 @@ public class VmGroupController {
     }
 
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "List all groups in an environment",
             description = "Retrieves a list of all VM groups in the specified environment, ordered by sequence position"
@@ -65,6 +67,7 @@ public class VmGroupController {
     }
 
     @GetMapping("/{groupId}")
+    @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Get group details",
             description = "Retrieves detailed information about a specific VM group"
@@ -92,6 +95,7 @@ public class VmGroupController {
     }
 
     @GetMapping("/start-order")
+    @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Get groups in start order",
             description = "Retrieves groups sorted by dependency order for starting VMs"
@@ -123,6 +127,7 @@ public class VmGroupController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Create a new group",
             description = "Creates a new VM group within the specified environment"
@@ -145,6 +150,7 @@ public class VmGroupController {
     }
 
     @PutMapping("/{groupId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Update a group",
             description = "Updates an existing VM group's details"
@@ -167,6 +173,7 @@ public class VmGroupController {
     }
 
     @DeleteMapping("/{groupId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Delete a group",
             description = "Deletes a VM group (only if no VMs exist in it)"

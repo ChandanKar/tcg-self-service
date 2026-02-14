@@ -1,0 +1,353 @@
+/*
+ * Top Navigation Styles
+ */
+
+.top-navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--topnav-height);
+    background: white;
+    border-bottom: 1px solid #e2e8f0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    padding: 0 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.top-navbar .hamburger {
+    font-size: 1.25rem;
+    cursor: pointer;
+    color: #64748b;
+    margin-right: 1rem;
+}
+
+.top-navbar .nav-left,
+.top-navbar .nav-center,
+.top-navbar .nav-right {
+    display: flex;
+    align-items: center;
+}
+
+.top-navbar .nav-left {
+    gap: 0.75rem;
+}
+
+.top-navbar .nav-center {
+    flex: 1;
+    justify-content: center;
+}
+
+.top-navbar .nav-right {
+    gap: 1.5rem;
+}
+
+.top-navbar .user-icon {
+    font-size: 1.5rem;
+    color: #64748b;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.top-navbar .tcg-logo {
+    height: 28px;
+    width: auto;
+    margin-right: 0.75rem;
+    display: block;
+}
+
+.top-navbar .logo {
+    font-size: 1.25rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.top-navbar .search-box {
+    flex: 1;
+    max-width: 450px;
+    margin: 0;
+}
+
+.top-navbar .search-box input {
+    border-radius: 20px;
+    border: 1px solid #e2e8f0;
+    padding: 0.45rem 0.9rem 0.45rem 2.25rem;
+    width: 100%;
+}
+
+.top-navbar .search-box i {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+}
+
+.top-navbar .nav-icons {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.top-navbar .notification-bell {
+    position: relative;
+    cursor: pointer;
+    font-size: 1.25rem;
+    color: #64748b;
+}
+
+.top-navbar .notification-bell .badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #ef4444;
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.top-navbar .user-profile {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    transition: background 0.2s;
+}
+
+.top-navbar .user-profile:hover {
+    background: #f1f5f9;
+}
+
+.top-navbar .user-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+}
+
+.top-navbar .user-name {
+    font-weight: 500;
+    color: #334155;
+}
+
+.top-navbar .user-role {
+    font-size: 0.875rem;
+    color: #94a3b8;
+}
+
+/* User Profile Loading State */
+.user-profile-loading {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #64748b;
+    font-size: 0.875rem;
+}
+
+/* User Profile Wrapper */
+.user-profile-wrapper {
+    position: relative;
+}
+
+.user-profile-trigger {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.user-info {
+    text-align: left;
+}
+
+.dropdown-arrow {
+    font-size: 0.75rem;
+    color: #64748b;
+    transition: transform 0.2s;
+}
+
+.dropdown-arrow.rotated {
+    transform: rotate(180deg);
+}
+
+/* User Dropdown Menu */
+.user-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 220px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+    border: 1px solid #e2e8f0;
+    z-index: 1001;
+    overflow: hidden;
+}
+
+.dropdown-header {
+    padding: 0.75rem 1rem;
+    background: #f8fafc;
+}
+
+.dropdown-user-email {
+    font-size: 0.875rem;
+    color: #64748b;
+    word-break: break-all;
+}
+
+.dropdown-divider {
+    height: 1px;
+    background: #e2e8f0;
+    margin: 0;
+}
+
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    color: #334155;
+    text-decoration: none;
+    transition: background 0.15s;
+}
+
+.dropdown-item:hover {
+    background: #f1f5f9;
+    color: #334155;
+}
+
+.dropdown-item i {
+    width: 16px;
+    text-align: center;
+    color: #64748b;
+}
+
+.dropdown-item.text-danger {
+    color: #ef4444;
+}
+
+.dropdown-item.text-danger i {
+    color: #ef4444;
+}
+
+/* Role Badges */
+.role-badge {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+.role-badge-admin {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+}
+
+.role-badge-env-admin {
+    background: #fef3c7;
+    color: #d97706;
+    border: 1px solid #fde68a;
+}
+
+.role-badge-user {
+    background: #f0f9ff;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
+}
+
+/* Loading and Error States */
+.loading-state,
+.error-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    text-align: center;
+    color: #64748b;
+}
+
+.loading-state p,
+.error-state p {
+    margin-top: 1rem;
+    color: #64748b;
+}
+
+/* Profile Details in Slideout */
+.profile-details {
+    padding: 1rem;
+}
+
+.profile-header {
+    text-align: center;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    margin-bottom: 1.5rem;
+}
+
+.profile-avatar.large {
+    width: 80px;
+    height: 80px;
+    font-size: 2rem;
+    background: var(--primary-color);
+    color: white;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1rem;
+}
+
+.profile-info .info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.profile-info .info-row:last-child {
+    border-bottom: none;
+}
+
+.profile-info label {
+    color: #64748b;
+    font-weight: 500;
+}
+
+/* Access List in Slideout */
+.access-list {
+    margin-top: 1rem;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #64748b;
+}
+
+.empty-state i {
+    margin-bottom: 1rem;
+}
+

@@ -1,0 +1,167 @@
+/*
+ * Lock Management Styles
+ */
+
+/* Lock Banner */
+.lock-banner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+}
+
+.lock-banner.locked {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border: 1px solid #f59e0b;
+}
+
+.lock-banner.unlocked {
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+    border: 1px solid #10b981;
+}
+
+.lock-info {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+
+.lock-info > i {
+    font-size: 1.25rem;
+    margin-top: 0.125rem;
+}
+
+.lock-banner.locked .lock-info > i {
+    color: #d97706;
+}
+
+.lock-banner.unlocked .lock-info > i {
+    color: #059669;
+}
+
+.lock-info strong {
+    color: #1e293b;
+}
+
+.lock-time {
+    color: #64748b;
+    font-size: 0.875rem;
+}
+
+.lock-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Lock status in tables/cards */
+.lock-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.875rem;
+}
+
+.lock-status.locked {
+    color: #d97706;
+}
+
+.lock-status.unlocked {
+    color: #059669;
+}
+
+.lock-status i {
+    font-size: 0.75rem;
+}
+
+/* Lock history table */
+.lock-history .table {
+    margin-bottom: 0;
+}
+
+.lock-history .table th {
+    background: #f8fafc;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.lock-history .table td {
+    vertical-align: middle;
+}
+
+/* Lock modal form */
+#acquireLockModal .form-text,
+#breakLockModal .form-text {
+    font-size: 0.75rem;
+}
+
+/* Lock indicator in sidebar/cards */
+.lock-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.lock-indicator.locked {
+    background: #f59e0b;
+    box-shadow: 0 0 4px rgba(245, 158, 11, 0.5);
+}
+
+.lock-indicator.unlocked {
+    background: #10b981;
+}
+
+/* Lock warning in operation modals */
+.lock-warning {
+    background: #fef3c7;
+    border: 1px solid #fcd34d;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.lock-warning i {
+    color: #d97706;
+    font-size: 1.25rem;
+}
+
+.lock-warning-text {
+    flex: 1;
+}
+
+.lock-warning-text strong {
+    display: block;
+    color: #92400e;
+}
+
+.lock-warning-text small {
+    color: #b45309;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .lock-banner {
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+    }
+
+    .lock-info {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .lock-actions {
+        width: 100%;
+        justify-content: center;
+    }
+}
+

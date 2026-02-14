@@ -15,6 +15,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -36,6 +37,7 @@ public class VmOperationsController {
     }
 
     @PostMapping
+    @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Start a VM operation",
             description = "Initiates a start, stop, or restart operation on VMs in the environment. " +
@@ -64,6 +66,7 @@ public class VmOperationsController {
     }
 
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "List recent operations",
             description = "Retrieves the recent VM operations for an environment"
@@ -91,6 +94,7 @@ public class VmOperationsController {
     }
 
     @GetMapping("/{executionId}")
+    @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Get operation status",
             description = "Retrieves the current status and details of a VM operation"
@@ -113,6 +117,7 @@ public class VmOperationsController {
     }
 
     @PostMapping("/{executionId}/cancel")
+    @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Cancel an operation",
             description = "Cancels a pending or in-progress operation"

@@ -1,0 +1,147 @@
+/*
+ * VM Operations Progress Styles
+ */
+
+/* Progress modal */
+.operation-progress {
+    padding: 0.5rem;
+}
+
+.progress-header {
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.progress-status {
+    font-weight: 500;
+    color: #334155;
+}
+
+.progress-time {
+    font-size: 0.875rem;
+    font-family: monospace;
+}
+
+/* Mini metrics in progress modal */
+.metric-mini {
+    padding: 0.75rem;
+    background: #f8fafc;
+    border-radius: 8px;
+}
+
+.metric-mini .metric-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.metric-mini .metric-label {
+    font-size: 0.75rem;
+    color: #64748b;
+    text-transform: uppercase;
+}
+
+/* VM status list */
+.vm-status-list {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #fafafa;
+}
+
+.vm-status-item {
+    padding: 0.75rem 1rem;
+    background: white;
+    transition: background 0.15s;
+}
+
+.vm-status-item:hover {
+    background: #f8fafc;
+}
+
+.vm-status-item:last-child {
+    border-bottom: none;
+}
+
+.vm-status-item .badge {
+    font-size: 0.7rem;
+    font-weight: 500;
+}
+
+/* Progress bar customization */
+#operationProgressModal .progress {
+    border-radius: 12px;
+    background: #e2e8f0;
+}
+
+#operationProgressModal .progress-bar {
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    transition: width 0.3s ease;
+}
+
+/* Operation status colors */
+.operation-status-completed {
+    color: #10b981;
+}
+
+.operation-status-failed {
+    color: #ef4444;
+}
+
+.operation-status-in-progress {
+    color: #3b82f6;
+}
+
+.operation-status-pending {
+    color: #6b7280;
+}
+
+.operation-status-cancelled {
+    color: #9ca3af;
+}
+
+/* Operation history table */
+.operation-history .table {
+    margin-bottom: 0;
+}
+
+.operation-history .table th {
+    background: #f8fafc;
+    border-bottom: 2px solid #e2e8f0;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.operation-history .table td {
+    vertical-align: middle;
+    padding: 0.75rem;
+}
+
+/* Empty state */
+.operation-history .empty-state {
+    color: #64748b;
+}
+
+/* Scrollbar styling for VM list */
+.vm-status-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.vm-status-list::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 3px;
+}
+
+.vm-status-list::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+.vm-status-list::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+

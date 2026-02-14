@@ -18,6 +18,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
@@ -40,6 +41,7 @@ public class VmMgmtController {
     }
 
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "List all VMs in an environment",
             description = "Retrieves a list of all VMs in the specified environment, grouped by their VM groups"
@@ -76,6 +78,7 @@ public class VmMgmtController {
     }
 
     @GetMapping("/{vmId}")
+    @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Get VM details",
             description = "Retrieves detailed information about a specific VM"
@@ -97,6 +100,7 @@ public class VmMgmtController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Register a new VM",
             description = "Registers a new VM in the specified group within the environment"
@@ -119,6 +123,7 @@ public class VmMgmtController {
     }
 
     @PutMapping("/{vmId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Update a VM",
             description = "Updates an existing VM's details"
@@ -141,6 +146,7 @@ public class VmMgmtController {
     }
 
     @DeleteMapping("/{vmId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Delete a VM",
             description = "Unregisters a VM from the platform (does not affect the actual cloud VM)"

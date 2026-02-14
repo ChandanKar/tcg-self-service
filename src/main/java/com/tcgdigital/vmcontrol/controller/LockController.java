@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -36,6 +37,7 @@ public class LockController {
     }
 
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Get current lock status",
             description = "Retrieves the current lock status for an environment"
@@ -60,6 +62,7 @@ public class LockController {
     }
 
     @PostMapping("/acquire")
+    @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Acquire lock on environment",
             description = "Acquires an exclusive lock on the environment. Only one user can hold the lock at a time."
@@ -86,6 +89,7 @@ public class LockController {
     }
 
     @PostMapping("/release")
+    @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Release lock on environment",
             description = "Releases the lock held by the current user"
@@ -106,6 +110,7 @@ public class LockController {
     }
 
     @PostMapping("/break")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Break lock (admin operation)",
             description = "Forcibly breaks the lock held by another user. Requires admin privileges."
@@ -126,6 +131,7 @@ public class LockController {
     }
 
     @GetMapping("/history")
+    @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Get lock history",
             description = "Retrieves recent lock history for the environment"

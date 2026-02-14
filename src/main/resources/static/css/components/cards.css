@@ -1,0 +1,96 @@
+/*
+ * Card Component Styles
+ */
+
+/* Metric Cards */
+.metric-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    border: 1px solid #e2e8f0;
+    transition: all 0.2s;
+}
+
+.metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+    border-color: var(--primary-light);
+}
+
+.metric-card .metric-title {
+    font-size: 0.875rem;
+    color: #64748b;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.metric-card .metric-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 0.25rem;
+}
+
+.metric-card .metric-subtitle {
+    font-size: 0.875rem;
+    color: #94a3b8;
+}
+
+.metric-card .metric-trend {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+}
+
+.metric-card .metric-trend.up {
+    color: #10b981;
+}
+
+.metric-card .metric-trend.down {
+    color: #ef4444;
+}
+
+/* Environment Cards in Slideout */
+.env-card {
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border: 1px solid #e2e8f0;
+}
+
+.env-card h5 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+}
+
+.env-card .env-meta {
+    font-size: 0.875rem;
+    color: #64748b;
+    margin-bottom: 0.75rem;
+}
+
+.env-card .vm-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.env-card .vm-list li {
+    padding: 0.5rem 0;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.env-card .vm-list li i {
+    color: #10b981;
+}
+

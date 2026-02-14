@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -33,6 +34,7 @@ public class EnvironmentController {
     }
 
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "List all environments",
             description = "Retrieves a list of all active environments with group and VM counts"
@@ -67,6 +69,7 @@ public class EnvironmentController {
     }
 
     @GetMapping("/{environmentId}")
+    @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Get environment details",
             description = "Retrieves detailed information about a specific environment"
@@ -93,6 +96,7 @@ public class EnvironmentController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Create a new environment",
             description = "Creates a new environment for organizing VMs"
@@ -114,6 +118,7 @@ public class EnvironmentController {
     }
 
     @PutMapping("/{environmentId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Update an environment",
             description = "Updates an existing environment's details"
@@ -135,6 +140,7 @@ public class EnvironmentController {
     }
 
     @DeleteMapping("/{environmentId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Deactivate an environment",
             description = "Soft deletes an environment by marking it as inactive"

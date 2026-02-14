@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -35,6 +36,7 @@ public class MonitoringController {
     }
 
     @GetMapping("/sync-status")
+    @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Get sync status",
             description = "Returns the current status of VM state synchronization"
@@ -52,6 +54,7 @@ public class MonitoringController {
     }
 
     @PostMapping("/sync")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Trigger manual sync",
             description = "Triggers a manual VM state synchronization"
@@ -70,6 +73,7 @@ public class MonitoringController {
     }
 
     @PostMapping("/sync/environment/{environmentId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Sync environment VMs",
             description = "Triggers VM state sync for a specific environment"
@@ -87,6 +91,7 @@ public class MonitoringController {
     }
 
     @GetMapping("/vms/{vmId}/history")
+    @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Get VM state history",
             description = "Returns the state change history for a specific VM"
@@ -102,6 +107,7 @@ public class MonitoringController {
     }
 
     @GetMapping("/state-changes")
+    @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Get recent state changes",
             description = "Returns recent VM state changes across all VMs"
@@ -115,6 +121,7 @@ public class MonitoringController {
     }
 
     @GetMapping("/drift-events")
+    @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Get drift events",
             description = "Returns VM state drift events (unexpected state changes detected during sync)"
@@ -129,6 +136,7 @@ public class MonitoringController {
     }
 
     @GetMapping("/drift-events/count")
+    @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Count drift events",
             description = "Returns the count of drift events in a date range"
@@ -149,6 +157,7 @@ public class MonitoringController {
     }
 
     @GetMapping("/drift-events/report")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Get drift events report",
             description = "Returns drift events in a date range for reporting"

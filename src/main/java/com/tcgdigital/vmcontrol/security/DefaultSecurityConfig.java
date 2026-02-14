@@ -9,6 +9,8 @@ import org.springframework.security.web.SecurityFilterChain;
 /**
  * Default security configuration used when Entra ID authentication is disabled.
  * Permits all requests without authentication for local development and testing.
+ * Note: Method security (@PreAuthorize) is not enabled here - it's only active
+ * when EntraidSecurityConfig is used.
  */
 @Configuration
 @ConditionalOnProperty(name = "entraid.enabled", havingValue = "false", matchIfMissing = true)

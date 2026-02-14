@@ -1,0 +1,43 @@
+/*
+ * Main Content Area Styles
+ */
+
+.main-content {
+    margin-left: var(--sidebar-width);
+    margin-top: var(--topnav-height);
+    padding: 2rem;
+    min-height: calc(100vh - var(--topnav-height));
+    transition: margin-left 0.3s ease;
+}
+
+.main-content.expanded {
+    margin-left: var(--sidebar-collapsed-width);
+}
+
+.content-header {
+    margin-bottom: 2rem;
+    border-left: 4px solid var(--primary-color);
+    padding-left: 1rem;
+}
+
+.content-header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+}
+
+.content-header p {
+    color: #64748b;
+    font-size: 1rem;
+}
+
+/* Content Views */
+.content-view {
+    display: block;
+}
+
+.content-view.hidden {
+    display: none;
+}
+

@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -29,6 +30,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/v1/audit")
 @Tag(name = "Audit", description = "Audit logs and compliance reporting")
+@PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
 public class AuditController {
 
     private final AuditService auditService;
