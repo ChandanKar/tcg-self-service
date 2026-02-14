@@ -35,6 +35,7 @@ public class VmOperationsService {
     private final CloudProviderFactory cloudProviderFactory;
     private final LockService lockService;
     private final ObjectMapper objectMapper;
+    private final AuditService auditService;
 
     public VmOperationsService(OperationExecutionRepository executionRepository,
                                OperationDetailRepository detailRepository,
@@ -44,7 +45,8 @@ public class VmOperationsService {
                                DependencyValidator dependencyValidator,
                                CloudProviderFactory cloudProviderFactory,
                                LockService lockService,
-                               ObjectMapper objectMapper) {
+                               ObjectMapper objectMapper,
+                               AuditService auditService) {
         this.executionRepository = executionRepository;
         this.detailRepository = detailRepository;
         this.environmentRepository = environmentRepository;
@@ -54,6 +56,7 @@ public class VmOperationsService {
         this.cloudProviderFactory = cloudProviderFactory;
         this.lockService = lockService;
         this.objectMapper = objectMapper;
+        this.auditService = auditService;
     }
 
     /**
@@ -112,6 +115,10 @@ public class VmOperationsService {
 
         log.info("Created operation execution {} for environment {} ({} VMs)",
                 execution.getExecutionId(), environmentId, targetVms.size());
+
+        // Audit logging
+        auditService.logOperationStarted(userId, environmentId, environment.getName(),
+                execution.getExecutionId(), dto.getOperationType().name());
 
         // Start async execution
         executeOperationAsync(execution.getExecutionId(), dto.isContinueOnFailure());
@@ -372,6 +379,17 @@ public class VmOperationsService {
             execution.setCompletedAt(Timestamp.from(Instant.now()));
             executionRepository.save(execution);
             log.info("Execution {} completed successfully", executionId);
+
+            // Audit logging
+            auditService.logOperationCompleted(
+                    execution.getInitiatedByUserId(),
+                    execution.getEnvironment().getEnvironmentId(),
+                    execution.getEnvironment().getName(),
+                    executionId,
+                    execution.getOperationType().name(),
+                    execution.getTotalTargets(),
+                    execution.getFailedTargets()
+            );
         });
     }
 
@@ -381,6 +399,17 @@ public class VmOperationsService {
             execution.setCompletedAt(Timestamp.from(Instant.now()));
             executionRepository.save(execution);
             log.info("Execution {} completed with partial success", executionId);
+
+            // Audit logging
+            auditService.logOperationCompleted(
+                    execution.getInitiatedByUserId(),
+                    execution.getEnvironment().getEnvironmentId(),
+                    execution.getEnvironment().getName(),
+                    executionId,
+                    execution.getOperationType().name(),
+                    execution.getTotalTargets(),
+                    execution.getFailedTargets()
+            );
         });
     }
 
@@ -391,6 +420,16 @@ public class VmOperationsService {
             execution.setErrorMessage(errorMessage);
             executionRepository.save(execution);
             log.error("Execution {} failed: {}", executionId, errorMessage);
+
+            // Audit logging
+            auditService.logOperationFailed(
+                    execution.getInitiatedByUserId(),
+                    execution.getEnvironment().getEnvironmentId(),
+                    execution.getEnvironment().getName(),
+                    executionId,
+                    execution.getOperationType().name(),
+                    errorMessage
+            );
         });
     }
 }

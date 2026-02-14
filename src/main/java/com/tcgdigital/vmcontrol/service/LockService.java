@@ -31,13 +31,16 @@ public class LockService {
     private final EnvironmentLockRepository lockRepository;
     private final LockHistoryRepository historyRepository;
     private final EnvironmentRepository environmentRepository;
+    private final AuditService auditService;
 
     public LockService(EnvironmentLockRepository lockRepository,
                        LockHistoryRepository historyRepository,
-                       EnvironmentRepository environmentRepository) {
+                       EnvironmentRepository environmentRepository,
+                       AuditService auditService) {
         this.lockRepository = lockRepository;
         this.historyRepository = historyRepository;
         this.environmentRepository = environmentRepository;
+        this.auditService = auditService;
     }
 
     /**
@@ -85,6 +88,9 @@ public class LockService {
         // Record history
         recordLockHistory(lock, LockAction.ACQUIRED, userId, "Reason: " + reason);
 
+        // Audit logging
+        auditService.logLockAcquired(userId, environmentId, environment.getName(), reason);
+
         log.info("Lock acquired on environment {} by user {}", environmentId, userId);
 
         return lock;
@@ -112,6 +118,9 @@ public class LockService {
         // Record history
         recordLockHistory(lock, LockAction.RELEASED, userId, null);
 
+        // Audit logging
+        auditService.logLockReleased(userId, environmentId, lock.getEnvironment().getName());
+
         log.info("Lock released on environment {} by user {}", environmentId, userId);
     }
 
@@ -135,6 +144,10 @@ public class LockService {
         // Record history
         recordLockHistory(lock, LockAction.BROKEN, adminUserId,
                 "Original holder: " + originalLockHolder + ". Reason: " + breakReason);
+
+        // Audit logging
+        auditService.logLockBroken(adminUserId, environmentId, lock.getEnvironment().getName(),
+                originalLockHolder, breakReason);
 
         log.warn("Lock on environment {} broken by admin {} (was held by {}). Reason: {}",
                 environmentId, adminUserId, originalLockHolder, breakReason);

@@ -71,5 +71,11 @@ public interface VmRepository extends JpaRepository<Vm, String> {
      * Count running VMs in a group.
      */
     long countByGroupGroupIdAndStatus(String groupId, VmStatus status);
+
+    /**
+     * Find all active VMs for state sync.
+     */
+    @Query("SELECT v FROM Vm v WHERE v.group.environment.isActive = true ORDER BY v.group.environment.environmentId, v.group.sequencePosition, v.sequencePosition")
+    List<Vm> findByIsActiveTrue();
 }
 

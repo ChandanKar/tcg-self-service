@@ -27,13 +27,16 @@ public class EnvironmentService {
     private final EnvironmentRepository environmentRepository;
     private final VmGroupRepository groupRepository;
     private final VmRepository vmRepository;
+    private final AuditService auditService;
 
     public EnvironmentService(EnvironmentRepository environmentRepository,
                               VmGroupRepository groupRepository,
-                              VmRepository vmRepository) {
+                              VmRepository vmRepository,
+                              AuditService auditService) {
         this.environmentRepository = environmentRepository;
         this.groupRepository = groupRepository;
         this.vmRepository = vmRepository;
+        this.auditService = auditService;
     }
 
     /**
@@ -86,6 +89,9 @@ public class EnvironmentService {
 
         Environment saved = environmentRepository.save(environment);
         log.info("Created environment: {} ({})", saved.getName(), saved.getEnvironmentId());
+
+        // Audit logging
+        auditService.logEnvironmentCreated("system", saved.getEnvironmentId(), saved.getName());
 
         return saved;
     }

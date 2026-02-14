@@ -1,0 +1,62 @@
+package com.tcgdigital.vmcontrol.model;
+
+/**
+ * Types of audit actions.
+ */
+public enum AuditAction {
+    // Environment operations
+    ENVIRONMENT_CREATED,
+    ENVIRONMENT_UPDATED,
+    ENVIRONMENT_DELETED,
+    ENVIRONMENT_ACTIVATED,
+    ENVIRONMENT_DEACTIVATED,
+
+    // Group operations
+    GROUP_CREATED,
+    GROUP_UPDATED,
+    GROUP_DELETED,
+    GROUP_DEPENDENCIES_UPDATED,
+
+    // VM operations
+    VM_REGISTERED,
+    VM_UPDATED,
+    VM_DELETED,
+    VM_START_REQUESTED,
+    VM_STOP_REQUESTED,
+    VM_RESTART_REQUESTED,
+    VM_START_COMPLETED,
+    VM_STOP_COMPLETED,
+    VM_START_FAILED,
+    VM_STOP_FAILED,
+
+    // Lock operations
+    LOCK_ACQUIRED,
+    LOCK_RELEASED,
+    LOCK_BROKEN,
+    LOCK_EXPIRED,
+
+    // Operation execution
+    OPERATION_STARTED,
+    OPERATION_COMPLETED,
+    OPERATION_FAILED,
+    OPERATION_CANCELLED,
+
+    // Access operations
+    ACCESS_REQUESTED,
+    ACCESS_GRANTED,
+    ACCESS_DENIED,
+    ACCESS_REVOKED,
+
+    // User operations
+    USER_CREATED,
+    USER_UPDATED,
+    USER_DEACTIVATED,
+    USER_PROMOTED_TO_ADMIN,
+    USER_PROMOTED_TO_ENV_ADMIN,
+
+    // System operations
+    SYSTEM_CONFIG_UPDATED,
+    SCHEDULED_JOB_EXECUTED,
+    STATE_DRIFT_DETECTED
+}
+
