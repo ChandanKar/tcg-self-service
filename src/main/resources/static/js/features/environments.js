@@ -6,6 +6,22 @@
 const Environments = (function() {
     'use strict';
 
+    // Safe HTML escaping utility
+    const escapeHtml = (text) => {
+        if (!text) return '';
+        try {
+            // Use Utils if available
+            if (typeof Utils !== 'undefined' && Utils.escapeHtml) {
+                return Utils.escapeHtml(text);
+            }
+        } catch (e) {
+            // Fall back to DOM method
+        }
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    };
+
     // Cache for current environment data
     let currentEnvironment = null;
     let environmentsList = [];
@@ -31,12 +47,37 @@ const Environments = (function() {
      * Load environment detail view
      */
     async function loadDetail(params) {
-        const envId = params.environmentId;
+        let envId = params.environmentId;
         const envName = params.environmentName;
 
         showLoading(`Loading ${envName || 'environment'}...`);
 
         try {
+            // If no environmentId provided, try to resolve it by name from the environments list
+            if (!envId && envName) {
+                const envList = await new Promise((resolve, reject) => {
+                    ApiClient.get(Config.API.environments.list)
+                        .done(resolve)
+                        .fail(reject);
+                });
+                const match = envList.find(e =>
+                    e.name === envName ||
+                    e.displayName === envName ||
+                    (e.name && e.name.toLowerCase() === envName.toLowerCase())
+                );
+                if (match) {
+                    envId = match.environmentId;
+                } else {
+                    showError(`Environment "${envName}" not found or you do not have access.`);
+                    return;
+                }
+            }
+
+            if (!envId) {
+                showError('No environment specified.');
+                return;
+            }
+
             // Fetch environment details
             const env = await fetchEnvironmentDetails(envId);
             currentEnvironment = env;
@@ -224,8 +265,8 @@ const Environments = (function() {
             return `
                 <tr>
                     <td>
-                        <strong>${Utils.escapeHtml(env.name)}</strong>
-                        ${env.description ? `<br><small class="text-muted">${Utils.escapeHtml(env.description)}</small>` : ''}
+                        <strong>${escapeHtml(env.name)}</strong>
+                        ${env.description ? `<br><small class="text-muted">${escapeHtml(env.description)}</small>` : ''}
                     </td>
                     <td>${env.groupCount || 0}</td>
                     <td>${totalVms}</td>
@@ -283,8 +324,16 @@ const Environments = (function() {
         const totalVms = env.totalVms || 0;
         const runningVms = env.runningVms || 0;
 
-        // Lock section - use Locks module
-        const lockSection = Locks.buildLockBanner(env.lockStatus, env.environmentId, Auth.isEnvAdmin());
+        // Lock section - use Locks module if available
+        let lockSection = '';
+        try {
+            const isAdmin = (typeof Auth !== 'undefined' && Auth.isEnvAdmin) ? Auth.isEnvAdmin() : false;
+            lockSection = (typeof Locks !== 'undefined' && Locks.buildLockBanner) ?
+                Locks.buildLockBanner(env.lockStatus, env.environmentId, isAdmin) : '';
+        } catch (e) {
+            console.error('Error building lock banner:', e);
+            lockSection = '';
+        }
 
         // Metrics row
         const metricsRow = `
@@ -532,117 +581,179 @@ const Environments = (function() {
      */
     function bindDetailEvents(env) {
         const envId = env.environmentId;
+        const envName = env.displayName || env.name;
+        console.log('bindDetailEvents called for environment:', envId, envName);
 
-        // Lock events - delegate to Locks module
-        Locks.bindLockEvents(envId, env.name, function() {
-            loadDetail({ environmentId: envId });
-        });
+        // Lock events - delegate to Locks module if available
+        try {
+            if (typeof Locks !== 'undefined' && Locks.bindLockEvents) {
+                Locks.bindLockEvents(envId, envName, function() {
+                    loadDetail({ environmentId: envId });
+                });
+            }
+        } catch (e) {
+            console.error('Error binding lock events:', e);
+        }
 
         // Start all
-        $('#btn-start-all').off('click').on('click', function() {
-            startEnvironment(envId, env.name);
+        $('#btn-start-all').off('click').on('click', function(e) {
+            e.preventDefault();
+            console.log('Start All button clicked');
+            startEnvironment(envId, envName);
         });
 
         // Stop all
-        $('#btn-stop-all').off('click').on('click', function() {
-            stopEnvironment(envId, env.name);
+        $('#btn-stop-all').off('click').on('click', function(e) {
+            e.preventDefault();
+            console.log('Stop All button clicked');
+            stopEnvironment(envId, envName);
         });
 
         // Operation history
-        $('#btn-operation-history').off('click').on('click', function() {
-            showOperationHistory(envId, env.name);
+        $('#btn-operation-history').off('click').on('click', function(e) {
+            e.preventDefault();
+            console.log('Operation History button clicked');
+            showOperationHistory(envId, envName);
         });
 
         // Group actions
-        $('[data-action="start-group"]').off('click').on('click', function() {
+        $('[data-action="start-group"]').off('click').on('click', function(e) {
+            e.preventDefault();
             const groupId = $(this).data('group-id');
+            console.log('Start Group button clicked:', groupId);
             startGroup(envId, groupId);
         });
 
-        $('[data-action="stop-group"]').off('click').on('click', function() {
+        $('[data-action="stop-group"]').off('click').on('click', function(e) {
+            e.preventDefault();
             const groupId = $(this).data('group-id');
+            console.log('Stop Group button clicked:', groupId);
             stopGroup(envId, groupId);
         });
 
         // VM actions
-        $('[data-action="start-vm"]').off('click').on('click', function() {
+        $('[data-action="start-vm"]').off('click').on('click', function(e) {
+            e.preventDefault();
             const vmId = $(this).data('vm-id');
+            console.log('Start VM button clicked:', vmId);
             startVm(envId, vmId);
         });
 
-        $('[data-action="stop-vm"]').off('click').on('click', function() {
+        $('[data-action="stop-vm"]').off('click').on('click', function(e) {
+            e.preventDefault();
             const vmId = $(this).data('vm-id');
+            console.log('Stop VM button clicked:', vmId);
             stopVm(envId, vmId);
         });
 
-        $('[data-action="vm-details"]').off('click').on('click', function() {
+        $('[data-action="vm-details"]').off('click').on('click', function(e) {
+            e.preventDefault();
             const vmId = $(this).data('vm-id');
+            console.log('VM Details button clicked:', vmId);
             showVmDetails(envId, vmId);
         });
     }
 
     // Operation functions - delegate to VmOperations module for progress tracking
     function startEnvironment(envId, envName) {
+        console.log('startEnvironment called:', envId, envName);
         Modals.confirm(
             'Start Environment',
             `Start all VMs in "<strong>${Utils.escapeHtml(envName)}</strong>"?`,
             function() {
+                console.log('Confirmed start environment');
                 VmOperations.startEnvironment(envId, envName)
-                    .then(() => loadDetail({ environmentId: envId }))
-                    .catch(() => {}); // Error already handled
+                    .then(() => {
+                        console.log('Start environment completed');
+                        loadDetail({ environmentId: envId });
+                    })
+                    .catch((err) => {
+                        console.error('Start environment failed:', err);
+                    });
             },
             { confirmText: 'Start All', confirmClass: 'btn-success' }
         );
     }
 
     function stopEnvironment(envId, envName) {
+        console.log('stopEnvironment called:', envId, envName);
         Modals.confirm(
             'Stop Environment',
             `Stop all VMs in "<strong>${Utils.escapeHtml(envName)}</strong>"?<br>
              <small class="text-muted">Running VMs will be gracefully stopped.</small>`,
             function() {
+                console.log('Confirmed stop environment');
                 VmOperations.stopEnvironment(envId, envName)
-                    .then(() => loadDetail({ environmentId: envId }))
-                    .catch(() => {});
+                    .then(() => {
+                        console.log('Stop environment completed');
+                        loadDetail({ environmentId: envId });
+                    })
+                    .catch((err) => {
+                        console.error('Stop environment failed:', err);
+                    });
             },
             { confirmText: 'Stop All', confirmClass: 'btn-danger' }
         );
     }
 
     function startGroup(envId, groupId) {
+        console.log('startGroup called:', envId, groupId);
         const group = findGroup(groupId);
         const groupName = group ? (group.group?.name || group.name) : groupId;
 
         VmOperations.startGroup(envId, groupId, groupName)
-            .then(() => loadDetail({ environmentId: envId }))
-            .catch(() => {});
+            .then(() => {
+                console.log('Start group completed');
+                loadDetail({ environmentId: envId });
+            })
+            .catch((err) => {
+                console.error('Start group failed:', err);
+            });
     }
 
     function stopGroup(envId, groupId) {
+        console.log('stopGroup called:', envId, groupId);
         const group = findGroup(groupId);
         const groupName = group ? (group.group?.name || group.name) : groupId;
 
         VmOperations.stopGroup(envId, groupId, groupName)
-            .then(() => loadDetail({ environmentId: envId }))
-            .catch(() => {});
+            .then(() => {
+                console.log('Stop group completed');
+                loadDetail({ environmentId: envId });
+            })
+            .catch((err) => {
+                console.error('Stop group failed:', err);
+            });
     }
 
     function startVm(envId, vmId) {
+        console.log('startVm called:', envId, vmId);
         const vm = findVm(vmId);
         const vmName = vm ? vm.name : vmId;
 
         VmOperations.startVm(envId, vmId, vmName)
-            .then(() => loadDetail({ environmentId: envId }))
-            .catch(() => {});
+            .then(() => {
+                console.log('Start VM completed');
+                loadDetail({ environmentId: envId });
+            })
+            .catch((err) => {
+                console.error('Start VM failed:', err);
+            });
     }
 
     function stopVm(envId, vmId) {
+        console.log('stopVm called:', envId, vmId);
         const vm = findVm(vmId);
         const vmName = vm ? vm.name : vmId;
 
         VmOperations.stopVm(envId, vmId, vmName)
-            .then(() => loadDetail({ environmentId: envId }))
-            .catch(() => {});
+            .then(() => {
+                console.log('Stop VM completed');
+                loadDetail({ environmentId: envId });
+            })
+            .catch((err) => {
+                console.error('Stop VM failed:', err);
+            });
     }
 
     // Helper to find group in current environment
@@ -670,6 +781,16 @@ const Environments = (function() {
                 const providerConfig = Config.CLOUD_ICONS[vm.provider] || { icon: 'fas fa-cloud', label: vm.provider };
                 const statusConfig = Config.STATUS.vm[vm.status] || Config.STATUS.vm.UNKNOWN;
 
+                const formatTime = (time) => {
+                    if (!time) return 'Never';
+                    try {
+                        return typeof Utils !== 'undefined' && Utils.formatRelativeTime ?
+                            Utils.formatRelativeTime(time) : new Date(time).toLocaleString();
+                    } catch (e) {
+                        return new Date(time).toLocaleString();
+                    }
+                };
+
                 const content = `
                     <div class="vm-details">
                         <div class="mb-3">
@@ -678,19 +799,28 @@ const Environments = (function() {
                             </span>
                         </div>
                         <table class="table table-sm">
-                            <tr><th>Name</th><td>${Utils.escapeHtml(vm.name)}</td></tr>
-                            <tr><th>Display Name</th><td>${Utils.escapeHtml(vm.displayName || vm.name)}</td></tr>
+                            <tr><th>Name</th><td>${escapeHtml(vm.name)}</td></tr>
+                            <tr><th>Display Name</th><td>${escapeHtml(vm.displayName || vm.name)}</td></tr>
                             <tr><th>Provider</th><td><i class="${providerConfig.icon}"></i> ${providerConfig.label}</td></tr>
                             <tr><th>Region</th><td>${vm.region}</td></tr>
                             <tr><th>Provider VM ID</th><td><code>${vm.providerVmId}</code></td></tr>
                             <tr><th>Type</th><td>${vm.vmType || '-'}</td></tr>
                             <tr><th>Sequence</th><td>${vm.sequencePosition}</td></tr>
-                            <tr><th>Last Sync</th><td>${vm.lastStateSyncAt ? Utils.formatRelativeTime(vm.lastStateSyncAt) : 'Never'}</td></tr>
+                            <tr><th>Last Sync</th><td>${formatTime(vm.lastStateSyncAt)}</td></tr>
                         </table>
                     </div>
                 `;
 
-                Slideout.open(`VM: ${vm.name}`, content);
+                try {
+                    if (typeof Slideout !== 'undefined' && Slideout.open) {
+                        Slideout.open(`VM: ${escapeHtml(vm.name)}`, content);
+                    } else {
+                        Notifications.info('VM Details: ' + vm.name);
+                    }
+                } catch (e) {
+                    console.error('Error opening slideout:', e);
+                    Notifications.info('Could not display VM details');
+                }
             })
             .fail(function() {
                 Notifications.error('Failed to load VM details');

@@ -74,6 +74,9 @@ const VmOperations = (function() {
     /**
      * Execute an operation and show progress modal
      */
+    // Operation timeout: 30 minutes (in milliseconds)
+    const OPERATION_TIMEOUT = 30 * 60 * 1000;
+
     function executeOperation(envId, operationData, title) {
         return new Promise((resolve, reject) => {
             // Show progress modal
@@ -82,12 +85,14 @@ const VmOperations = (function() {
             // Submit operation
             ApiClient.post(Config.API.operations.create(envId), operationData)
                 .done(function(execution) {
-                    // Store operation info
+                    // Store operation info with explicit state tracking
                     activeOperations.set(execution.executionId, {
                         envId,
                         execution,
                         title,
-                        startTime: Date.now()
+                        state: 'running',  // Explicit state: running, completed, error, timeout
+                        startTime: Date.now(),
+                        lastUpdateTime: Date.now()
                     });
 
                     // Start polling for status
@@ -112,7 +117,14 @@ const VmOperations = (function() {
                         userMessage = 'Failed to start operation. Please try again.';
                     }
                     console.error('Operation failed:', xhr.status, xhr.responseJSON || xhr.statusText);
+                    // Always show error state and stop spinner
+                    stopPolling();  // Stop any pending polls
                     updateProgressModal('error', userMessage);
+                    // Update operation state to error
+                    const operation = Array.from(activeOperations.values())[0];
+                    if (operation) {
+                        operation.state = 'error';
+                    }
                     reject(new Error(userMessage));
                 });
         });
@@ -131,8 +143,7 @@ const VmOperations = (function() {
                     <div class="progress-header mb-3">
                         <div class="d-flex justify-content-between align-items-center">
                             <span class="progress-status">
-                                <i class="fas fa-spinner fa-spin me-2"></i>
-                                <span id="progress-status-text">Initializing...</span>
+                                <span id="progress-status-text"><i class="fas fa-spinner fa-spin me-2"></i>Initializing...</span>
                             </span>
                             <span class="progress-time text-muted" id="progress-elapsed">0s</span>
                         </div>
@@ -220,6 +231,17 @@ const VmOperations = (function() {
             return;
         }
 
+        if (status === 'timeout') {
+            $statusText.html(`<i class="fas fa-clock text-warning me-2"></i>Operation timed out`);
+            $progressBar.removeClass('progress-bar-animated progress-bar-striped')
+                        .addClass('bg-warning').css('width', '100%');
+            $progressPercent.text('Timed out');
+            $cancelBtn.hide();
+            $closeBtn.prop('disabled', false);
+            stopElapsedTimer();
+            return;
+        }
+
         if (status === 'cancelled') {
             $statusText.html(`<i class="fas fa-ban text-secondary me-2"></i>Operation cancelled`);
             $progressBar.removeClass('progress-bar-animated progress-bar-striped')
@@ -233,22 +255,31 @@ const VmOperations = (function() {
 
         if (execution) {
             const steps = execution.details || [];
-            const total = steps.length || 1;
+            const total = steps.length || 0;
             const completed = steps.filter(s => (s.status || '').toUpperCase() === 'COMPLETED').length;
             const failed = steps.filter(s => (s.status || '').toUpperCase() === 'FAILED').length;
-            const pending = total - completed - failed;
-            const percent = Math.round((completed / total) * 100);
+            const pending = Math.max(0, total - completed - failed);
+
+            // Calculate percent — for terminal states force meaningful values
+            let percent;
+            if (execution.status === 'COMPLETED') {
+                percent = 100;
+            } else if (total === 0) {
+                percent = execution.status === 'FAILED' ? 100 : 10; // show some progress if no steps yet
+            } else {
+                percent = Math.round(((completed + failed) / total) * 100);
+            }
 
             // Update counts
             $('#progress-completed').text(completed);
             $('#progress-pending').text(pending);
             $('#progress-failed').text(failed);
 
-            // Update progress bar
+            // Update progress bar width + label
             $progressBar.css('width', `${percent}%`);
             $progressPercent.text(`${percent}%`);
 
-            // Update status text
+            // Update status text and bar style based on terminal/in-progress state
             if (execution.status === 'COMPLETED') {
                 $statusText.html(`<i class="fas fa-check-circle text-success me-2"></i>Completed successfully`);
                 $progressBar.removeClass('progress-bar-animated progress-bar-striped').addClass('bg-success');
@@ -263,7 +294,8 @@ const VmOperations = (function() {
                 stopElapsedTimer();
             } else if (execution.status === 'FAILED') {
                 $statusText.html(`<i class="fas fa-times-circle text-danger me-2"></i>Operation failed`);
-                $progressBar.removeClass('progress-bar-animated progress-bar-striped').addClass('bg-danger');
+                $progressBar.removeClass('progress-bar-animated progress-bar-striped').addClass('bg-danger').css('width', '100%');
+                $progressPercent.text('Failed');
                 $cancelBtn.hide();
                 $closeBtn.prop('disabled', false);
                 stopElapsedTimer();
@@ -274,10 +306,10 @@ const VmOperations = (function() {
                 $closeBtn.prop('disabled', false);
                 stopElapsedTimer();
             } else {
-                // In progress
+                // In progress — keep spinner
                 const currentStep = steps.find(s => (s.status || '').toUpperCase() === 'IN_PROGRESS');
                 if (currentStep) {
-                    $statusText.html(`<i class="fas fa-spinner fa-spin me-2"></i>Processing: ${currentStep.targetName || currentStep.targetId}`);
+                    $statusText.html(`<i class="fas fa-spinner fa-spin me-2"></i>Processing: ${Utils.escapeHtml(currentStep.targetName || currentStep.targetId)}`);
                 } else {
                     $statusText.html(`<i class="fas fa-spinner fa-spin me-2"></i>Processing...`);
                 }
@@ -362,26 +394,56 @@ const VmOperations = (function() {
     function startPolling(envId, executionId, resolve, reject) {
         stopPolling(); // Clear any existing poll
 
+        const operation = activeOperations.get(executionId);
+
         const poll = function() {
+            // Check for timeout (30 minutes)
+            if (operation && (Date.now() - operation.startTime) > OPERATION_TIMEOUT) {
+                stopPolling();
+                operation.state = 'timeout';
+                updateProgressModal('timeout');
+                const timeoutMsg = 'Operation exceeded 30-minute timeout. Please contact support if the operation is still running.';
+                Notifications.error(timeoutMsg);
+                reject(new Error(timeoutMsg));
+                return;
+            }
+
             ApiClient.get(Config.API.operations.get(envId, executionId))
                 .done(function(execution) {
+                    // Update last status check time
+                    if (operation) {
+                        operation.lastUpdateTime = Date.now();
+                    }
+
                     updateProgressModal('progress', null, execution);
 
                     if (execution.status === 'COMPLETED') {
                         stopPolling();
+                        if (operation) {
+                            operation.state = 'completed';
+                        }
                         Notifications.success('Operation completed successfully! All VMs have been processed.');
                         resolve(execution);
                     } else if (execution.status === 'PARTIAL_SUCCESS') {
                         stopPolling();
+                        if (operation) {
+                            operation.state = 'completed';
+                        }
                         Notifications.warning('Operation completed with some failures. Check the details for more information.');
                         resolve(execution);
                     } else if (execution.status === 'FAILED') {
                         stopPolling();
+                        if (operation) {
+                            operation.state = 'completed';
+                        }
                         const failMsg = execution.errorMessage || 'One or more VMs failed to process. Check the operation details for more information.';
                         Notifications.error(failMsg);
                         reject(new Error(failMsg));
                     } else if (execution.status === 'CANCELLED') {
                         stopPolling();
+                        if (operation) {
+                            operation.state = 'completed';
+                        }
                         Notifications.info('Operation was cancelled. VMs already processed will remain in their current state.');
                         resolve(execution);
                     }
@@ -389,6 +451,9 @@ const VmOperations = (function() {
                 })
                 .fail(function(xhr) {
                     stopPolling();
+                    if (operation) {
+                        operation.state = 'error';
+                    }
                     console.error('Failed to poll operation status:', xhr.status, xhr.statusText);
                     updateProgressModal('error', 'Lost connection to the server while tracking the operation. The operation may still be running — please refresh to check.');
                     reject(new Error('Failed to get operation status'));
