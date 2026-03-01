@@ -6,13 +6,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -115,12 +115,22 @@ public class GlobalExceptionHandler {
         ));
     }
 
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, Object>> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
+        log.warn("Malformed request body: {}", ex.getMessage());
+        return ResponseEntity.badRequest().body(Map.of(
+                "error", "Bad Request",
+                "message", "Invalid request format. Please check your input and try again.",
+                "timestamp", Instant.now().toString()
+        ));
+    }
+
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, Object>> handleRuntimeException(RuntimeException ex) {
         log.error("Runtime exception: ", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
                 "error", "Internal Server Error",
-                "message", ex.getMessage(),
+                "message", "An unexpected error occurred. Please try again or contact support.",
                 "timestamp", Instant.now().toString()
         ));
     }
@@ -130,7 +140,7 @@ public class GlobalExceptionHandler {
         log.error("Unexpected exception: ", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
                 "error", "Internal Server Error",
-                "message", "An unexpected error occurred",
+                "message", "An unexpected error occurred. Please try again or contact support.",
                 "timestamp", Instant.now().toString()
         ));
     }

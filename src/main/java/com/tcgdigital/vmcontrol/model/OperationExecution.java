@@ -90,7 +90,7 @@ public class OperationExecution {
     }
 
     public void setOperationType(OperationType operationType) {
-        this.operationType = operationType.name().toLowerCase() + "_environment";
+        this.operationType = operationType.name();
     }
 
     public ExecutionStatus getStatus() {

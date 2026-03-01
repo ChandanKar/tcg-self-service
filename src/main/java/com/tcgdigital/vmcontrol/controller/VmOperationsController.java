@@ -3,6 +3,7 @@ package com.tcgdigital.vmcontrol.controller;
 import com.tcgdigital.vmcontrol.dto.OperationExecutionDTO;
 import com.tcgdigital.vmcontrol.dto.StartOperationDTO;
 import com.tcgdigital.vmcontrol.model.OperationExecution;
+import com.tcgdigital.vmcontrol.service.UserService;
 import com.tcgdigital.vmcontrol.service.VmOperationsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -28,12 +29,12 @@ import java.util.List;
 @Tag(name = "VM Operations", description = "Operations for starting, stopping, and restarting VMs")
 public class VmOperationsController {
 
-    private static final String DEFAULT_USER_ID = "dev-user-001";
-
     private final VmOperationsService operationsService;
+    private final UserService userService;
 
-    public VmOperationsController(VmOperationsService operationsService) {
+    public VmOperationsController(VmOperationsService operationsService, UserService userService) {
         this.operationsService = operationsService;
+        this.userService = userService;
     }
 
     @PostMapping
@@ -54,10 +55,9 @@ public class VmOperationsController {
     })
     public ResponseEntity<OperationExecutionDTO> startOperation(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
-            @Valid @RequestBody StartOperationDTO dto,
-            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+            @Valid @RequestBody StartOperationDTO dto) {
 
-        String effectiveUserId = userId != null ? userId : DEFAULT_USER_ID;
+        String effectiveUserId = userService.getCurrentUserId();
 
         OperationExecution execution = operationsService.startOperation(environmentId, effectiveUserId, dto);
 
@@ -133,10 +133,9 @@ public class VmOperationsController {
     })
     public ResponseEntity<OperationExecutionDTO> cancelOperation(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
-            @Parameter(description = "Execution ID") @PathVariable String executionId,
-            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+            @Parameter(description = "Execution ID") @PathVariable String executionId) {
 
-        String effectiveUserId = userId != null ? userId : DEFAULT_USER_ID;
+        String effectiveUserId = userService.getCurrentUserId();
 
         OperationExecution execution = operationsService.cancelExecution(executionId, effectiveUserId);
 

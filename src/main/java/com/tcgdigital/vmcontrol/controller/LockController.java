@@ -4,6 +4,7 @@ import com.tcgdigital.vmcontrol.dto.*;
 import com.tcgdigital.vmcontrol.model.EnvironmentLock;
 import com.tcgdigital.vmcontrol.model.LockHistory;
 import com.tcgdigital.vmcontrol.service.LockService;
+import com.tcgdigital.vmcontrol.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
@@ -28,12 +29,12 @@ import java.util.Optional;
 @Tag(name = "Environment Locks", description = "Operations for managing environment locks")
 public class LockController {
 
-    private static final String DEFAULT_USER_ID = "dev-user-001"; // Mock user for development
-
     private final LockService lockService;
+    private final UserService userService;
 
-    public LockController(LockService lockService) {
+    public LockController(LockService lockService, UserService userService) {
         this.lockService = lockService;
+        this.userService = userService;
     }
 
     @GetMapping
@@ -77,10 +78,9 @@ public class LockController {
     })
     public ResponseEntity<LockStatusDTO> acquireLock(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
-            @Valid @RequestBody(required = false) AcquireLockDTO dto,
-            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+            @Valid @RequestBody(required = false) AcquireLockDTO dto) {
 
-        String effectiveUserId = userId != null ? userId : DEFAULT_USER_ID;
+        String effectiveUserId = userService.getCurrentUserId();
         String reason = dto != null ? dto.getReason() : null;
         Integer duration = dto != null ? dto.getExpectedDurationMinutes() : null;
 
@@ -100,10 +100,9 @@ public class LockController {
             @ApiResponse(responseCode = "403", description = "User does not hold the lock")
     })
     public ResponseEntity<Void> releaseLock(
-            @Parameter(description = "Environment ID") @PathVariable String environmentId,
-            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+            @Parameter(description = "Environment ID") @PathVariable String environmentId) {
 
-        String effectiveUserId = userId != null ? userId : DEFAULT_USER_ID;
+        String effectiveUserId = userService.getCurrentUserId();
 
         lockService.releaseLock(environmentId, effectiveUserId);
         return ResponseEntity.ok().build();
@@ -121,10 +120,9 @@ public class LockController {
     })
     public ResponseEntity<Void> breakLock(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
-            @Valid @RequestBody BreakLockDTO dto,
-            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+            @Valid @RequestBody BreakLockDTO dto) {
 
-        String effectiveUserId = userId != null ? userId : DEFAULT_USER_ID;
+        String effectiveUserId = userService.getCurrentUserId();
 
         lockService.breakLock(environmentId, effectiveUserId, dto.getReason());
         return ResponseEntity.ok().build();

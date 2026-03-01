@@ -336,17 +336,6 @@ const Environments = (function() {
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h5>Groups and VMs</h5>
                 <div>
-                    ${Auth.isEnvAdmin() ? `
-                        <button class="btn btn-outline-primary me-2" id="btn-edit-env">
-                            <i class="fas fa-edit"></i> Edit
-                        </button>
-                        <button class="btn btn-outline-success me-2" id="btn-add-group">
-                            <i class="fas fa-layer-group"></i> Add Group
-                        </button>
-                        <button class="btn btn-outline-info me-2" id="btn-register-vm">
-                            <i class="fas fa-server"></i> Register VM
-                        </button>
-                    ` : ''}
                     <button class="btn btn-outline-secondary me-2" id="btn-operation-history">
                         <i class="fas fa-history"></i> History
                     </button>
@@ -359,8 +348,7 @@ const Environments = (function() {
                 </div>
             </div>
 
-            ${groupsHtml || '<div class="alert alert-secondary">No groups configured for this environment. ' +
-                (Auth.isEnvAdmin() ? '<a href="#" id="link-add-group">Add a group</a> to get started.' : '') + '</div>'}
+            ${groupsHtml || '<div class="alert alert-secondary">No groups configured for this environment.</div>'}
         `;
     }
 
@@ -371,13 +359,23 @@ const Environments = (function() {
         const group = groupData.group || groupData;
         const vms = groupData.vms || [];
 
-        const runningCount = vms.filter(v => v.status === 'RUNNING').count || 0;
+        const runningCount = vms.filter(v => v.status === 'RUNNING').length || 0;
         const totalCount = vms.length;
         const statusClass = runningCount === 0 ? 'bg-secondary' :
                            runningCount === totalCount ? 'bg-success' : 'bg-warning';
 
-        const dependsText = group.dependsOnGroupIds ?
-            JSON.parse(group.dependsOnGroupIds || '[]').join(', ') : 'None';
+        // dependsOnGroupIds comes as a JS array from the API (already parsed), not a JSON string
+        let dependsText = 'None';
+        if (group.dependsOnGroupIds && Array.isArray(group.dependsOnGroupIds) && group.dependsOnGroupIds.length > 0) {
+            dependsText = group.dependsOnGroupIds.join(', ');
+        } else if (typeof group.dependsOnGroupIds === 'string' && group.dependsOnGroupIds) {
+            try {
+                const parsed = JSON.parse(group.dependsOnGroupIds);
+                dependsText = Array.isArray(parsed) && parsed.length > 0 ? parsed.join(', ') : 'None';
+            } catch (e) {
+                dependsText = group.dependsOnGroupIds;
+            }
+        }
 
         const vmRows = vms.map(vm => {
             const providerConfig = Config.CLOUD_ICONS[vm.provider] || { icon: 'fas fa-cloud', color: '#6b7280' };
@@ -412,11 +410,6 @@ const Environments = (function() {
                                 <i class="fas fa-play"></i>
                             </button>`
                         }
-                        ${Auth.isEnvAdmin() ? `
-                            <button class="btn btn-sm btn-outline-danger" data-vm-id="${vm.vmId}" data-vm-name="${Utils.escapeHtml(vm.name)}" data-action="delete-vm">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        ` : ''}
                     </td>
                 </tr>
             `;
@@ -440,13 +433,6 @@ const Environments = (function() {
                                     ${runningCount === 0 ? 'disabled' : ''}>
                                 <i class="fas fa-stop"></i> Stop
                             </button>
-                            ${Auth.isEnvAdmin() ? `
-                                <button class="btn btn-sm btn-outline-danger ms-2" data-group-id="${group.groupId}"
-                                        data-group-name="${Utils.escapeHtml(group.name)}" data-action="delete-group"
-                                        ${vms.length > 0 ? 'disabled title="Remove all VMs first"' : ''}>
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            ` : ''}
                         </div>
                     </div>
                 </div>
@@ -542,7 +528,7 @@ const Environments = (function() {
     }
 
     /**
-     * Bind detail view events
+     * Bind detail view events (operations only - admin CRUD is in VM Registry)
      */
     function bindDetailEvents(env) {
         const envId = env.environmentId;
@@ -565,42 +551,6 @@ const Environments = (function() {
         // Operation history
         $('#btn-operation-history').off('click').on('click', function() {
             showOperationHistory(envId, env.name);
-        });
-
-        // Edit environment (admin)
-        $('#btn-edit-env').off('click').on('click', function() {
-            Modals.showEditEnvironment(env, function() {
-                loadDetail({ environmentId: envId });
-            });
-        });
-
-        // Add group (admin)
-        $('#btn-add-group, #link-add-group').off('click').on('click', function(e) {
-            e.preventDefault();
-            Modals.showCreateGroup(envId, env.groups || [], function() {
-                loadDetail({ environmentId: envId });
-            });
-        });
-
-        // Register VM (admin)
-        $('#btn-register-vm').off('click').on('click', function() {
-            Modals.showRegisterVm(envId, env.groups || [], function() {
-                loadDetail({ environmentId: envId });
-            });
-        });
-
-        // Delete group (admin)
-        $('[data-action="delete-group"]').off('click').on('click', function() {
-            const groupId = $(this).data('group-id');
-            const groupName = $(this).data('group-name');
-            deleteGroup(envId, groupId, groupName);
-        });
-
-        // Delete VM (admin)
-        $('[data-action="delete-vm"]').off('click').on('click', function() {
-            const vmId = $(this).data('vm-id');
-            const vmName = $(this).data('vm-name');
-            deleteVm(envId, vmId, vmName);
         });
 
         // Group actions
@@ -630,47 +580,6 @@ const Environments = (function() {
             showVmDetails(envId, vmId);
         });
     }
-
-    // Delete operations
-    function deleteGroup(envId, groupId, groupName) {
-        Modals.confirm(
-            'Delete Group',
-            `Are you sure you want to delete group "<strong>${Utils.escapeHtml(groupName)}</strong>"?`,
-            function() {
-                ApiClient.delete(Config.API.groups.delete(envId, groupId))
-                    .done(function() {
-                        Notifications.success(`Group "${groupName}" deleted`);
-                        loadDetail({ environmentId: envId });
-                    })
-                    .fail(function(xhr) {
-                        const msg = xhr.responseJSON?.message || 'Failed to delete group';
-                        Notifications.error(msg);
-                    });
-            },
-            { confirmText: 'Delete', confirmClass: 'btn-danger' }
-        );
-    }
-
-    function deleteVm(envId, vmId, vmName) {
-        Modals.confirm(
-            'Delete VM',
-            `Are you sure you want to unregister VM "<strong>${Utils.escapeHtml(vmName)}</strong>"?<br>
-             <small class="text-muted">This only removes the VM from the platform, it does not affect the actual cloud instance.</small>`,
-            function() {
-                ApiClient.delete(Config.API.vms.delete(envId, vmId))
-                    .done(function() {
-                        Notifications.success(`VM "${vmName}" unregistered`);
-                        loadDetail({ environmentId: envId });
-                    })
-                    .fail(function(xhr) {
-                        const msg = xhr.responseJSON?.message || 'Failed to delete VM';
-                        Notifications.error(msg);
-                    });
-            },
-            { confirmText: 'Delete', confirmClass: 'btn-danger' }
-        );
-    }
-
 
     // Operation functions - delegate to VmOperations module for progress tracking
     function startEnvironment(envId, envName) {
@@ -797,4 +706,3 @@ const Environments = (function() {
         loadDetail
     };
 })();
-

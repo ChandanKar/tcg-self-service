@@ -1,6 +1,7 @@
 package com.tcgdigital.vmcontrol.service;
 
 import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
+import com.tcgdigital.vmcontrol.exception.UnauthorizedException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.User;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
@@ -294,11 +295,17 @@ public class UserService {
     }
 
     /**
-     * Get the current user ID or "system" if not authenticated.
+     * Get the current user ID.
+     * Throws UnauthorizedException if not authenticated or user not found in database.
+     * This ensures the returned ID always references a valid APP_USER row (FK-safe).
      */
     public String getCurrentUserId() {
         User currentUser = getCurrentUser();
-        return currentUser != null ? currentUser.getUserId() : "system";
+        if (currentUser == null) {
+            throw new UnauthorizedException(
+                    "No authenticated user found. Please log in and try again.");
+        }
+        return currentUser.getUserId();
     }
 
     /**

@@ -12,12 +12,11 @@ const VmOperations = (function() {
 
     /**
      * Start an environment (all VMs)
+     * Backend: operationType=START, no vmIds/groupIds → operates on all VMs
      */
     function startEnvironment(envId, envName) {
         return executeOperation(envId, {
-            operationType: 'START_ENVIRONMENT',
-            targetType: 'ENVIRONMENT',
-            targetIds: []
+            operationType: 'START'
         }, `Starting ${envName}`);
     }
 
@@ -26,20 +25,18 @@ const VmOperations = (function() {
      */
     function stopEnvironment(envId, envName) {
         return executeOperation(envId, {
-            operationType: 'STOP_ENVIRONMENT',
-            targetType: 'ENVIRONMENT',
-            targetIds: []
+            operationType: 'STOP'
         }, `Stopping ${envName}`);
     }
 
     /**
      * Start a VM group
+     * Backend: operationType=START, groupIds=[groupId]
      */
     function startGroup(envId, groupId, groupName) {
         return executeOperation(envId, {
-            operationType: 'START_GROUP',
-            targetType: 'GROUP',
-            targetIds: [groupId]
+            operationType: 'START',
+            groupIds: [groupId]
         }, `Starting group ${groupName || groupId}`);
     }
 
@@ -48,20 +45,19 @@ const VmOperations = (function() {
      */
     function stopGroup(envId, groupId, groupName) {
         return executeOperation(envId, {
-            operationType: 'STOP_GROUP',
-            targetType: 'GROUP',
-            targetIds: [groupId]
+            operationType: 'STOP',
+            groupIds: [groupId]
         }, `Stopping group ${groupName || groupId}`);
     }
 
     /**
      * Start a single VM
+     * Backend: operationType=START, vmIds=[vmId]
      */
     function startVm(envId, vmId, vmName) {
         return executeOperation(envId, {
-            operationType: 'START_VM',
-            targetType: 'VM',
-            targetIds: [vmId]
+            operationType: 'START',
+            vmIds: [vmId]
         }, `Starting ${vmName || vmId}`);
     }
 
@@ -70,9 +66,8 @@ const VmOperations = (function() {
      */
     function stopVm(envId, vmId, vmName) {
         return executeOperation(envId, {
-            operationType: 'STOP_VM',
-            targetType: 'VM',
-            targetIds: [vmId]
+            operationType: 'STOP',
+            vmIds: [vmId]
         }, `Stopping ${vmName || vmId}`);
     }
 
@@ -99,9 +94,26 @@ const VmOperations = (function() {
                     startPolling(envId, execution.executionId, resolve, reject);
                 })
                 .fail(function(xhr) {
-                    const msg = xhr.responseJSON?.message || 'Failed to start operation';
-                    updateProgressModal('error', msg);
-                    reject(new Error(msg));
+                    // User-friendly error messages — stack traces stay in server logs only
+                    let userMessage;
+                    if (xhr.status === 409) {
+                        userMessage = xhr.responseJSON?.message || 'Another operation is already in progress. Please wait for it to complete.';
+                    } else if (xhr.status === 400) {
+                        userMessage = xhr.responseJSON?.message || 'Invalid operation request. Please check your selection and try again.';
+                    } else if (xhr.status === 403) {
+                        userMessage = 'You do not have permission to perform this operation. You may need to acquire a lock first.';
+                    } else if (xhr.status === 404) {
+                        userMessage = 'Environment or VMs not found. The data may have changed — please refresh and try again.';
+                    } else if (xhr.status >= 500) {
+                        userMessage = 'A server error occurred while starting the operation. Please try again later.';
+                    } else if (xhr.status === 0) {
+                        userMessage = 'Unable to connect to the server. Please check your network connection.';
+                    } else {
+                        userMessage = 'Failed to start operation. Please try again.';
+                    }
+                    console.error('Operation failed:', xhr.status, xhr.responseJSON || xhr.statusText);
+                    updateProgressModal('error', userMessage);
+                    reject(new Error(userMessage));
                 });
         });
     }
@@ -220,10 +232,10 @@ const VmOperations = (function() {
         }
 
         if (execution) {
-            const steps = execution.steps || [];
+            const steps = execution.details || [];
             const total = steps.length || 1;
-            const completed = steps.filter(s => s.status === 'COMPLETED').length;
-            const failed = steps.filter(s => s.status === 'FAILED').length;
+            const completed = steps.filter(s => (s.status || '').toUpperCase() === 'COMPLETED').length;
+            const failed = steps.filter(s => (s.status || '').toUpperCase() === 'FAILED').length;
             const pending = total - completed - failed;
             const percent = Math.round((completed / total) * 100);
 
@@ -243,6 +255,12 @@ const VmOperations = (function() {
                 $cancelBtn.hide();
                 $closeBtn.prop('disabled', false);
                 stopElapsedTimer();
+            } else if (execution.status === 'PARTIAL_SUCCESS') {
+                $statusText.html(`<i class="fas fa-exclamation-triangle text-warning me-2"></i>Completed with some failures`);
+                $progressBar.removeClass('progress-bar-animated progress-bar-striped').addClass('bg-warning');
+                $cancelBtn.hide();
+                $closeBtn.prop('disabled', false);
+                stopElapsedTimer();
             } else if (execution.status === 'FAILED') {
                 $statusText.html(`<i class="fas fa-times-circle text-danger me-2"></i>Operation failed`);
                 $progressBar.removeClass('progress-bar-animated progress-bar-striped').addClass('bg-danger');
@@ -257,9 +275,9 @@ const VmOperations = (function() {
                 stopElapsedTimer();
             } else {
                 // In progress
-                const currentStep = steps.find(s => s.status === 'IN_PROGRESS');
+                const currentStep = steps.find(s => (s.status || '').toUpperCase() === 'IN_PROGRESS');
                 if (currentStep) {
-                    $statusText.html(`<i class="fas fa-spinner fa-spin me-2"></i>Processing: ${currentStep.vmName || currentStep.targetId}`);
+                    $statusText.html(`<i class="fas fa-spinner fa-spin me-2"></i>Processing: ${currentStep.targetName || currentStep.targetId}`);
                 } else {
                     $statusText.html(`<i class="fas fa-spinner fa-spin me-2"></i>Processing...`);
                 }
@@ -283,7 +301,8 @@ const VmOperations = (function() {
 
         const items = steps.map(step => {
             let statusIcon, statusClass;
-            switch (step.status) {
+            const normalizedStatus = (step.status || '').toUpperCase();
+            switch (normalizedStatus) {
                 case 'COMPLETED':
                     statusIcon = 'fa-check-circle';
                     statusClass = 'text-success';
@@ -312,10 +331,10 @@ const VmOperations = (function() {
                 <div class="vm-status-item d-flex justify-content-between align-items-center py-2 border-bottom">
                     <div>
                         <i class="fas ${statusIcon} ${statusClass} me-2"></i>
-                        <span>${Utils.escapeHtml(step.vmName || step.targetId)}</span>
+                        <span>${Utils.escapeHtml(step.targetName || step.targetId)}</span>
                         ${errorMsg}
                     </div>
-                    <span class="badge bg-${getStatusBadgeClass(step.status)}">${step.status}</span>
+                    <span class="badge bg-${getStatusBadgeClass(normalizedStatus)}">${normalizedStatus}</span>
                 </div>
             `;
         }).join('');
@@ -329,6 +348,7 @@ const VmOperations = (function() {
     function getStatusBadgeClass(status) {
         switch (status) {
             case 'COMPLETED': return 'success';
+            case 'PARTIAL_SUCCESS': return 'warning';
             case 'FAILED': return 'danger';
             case 'IN_PROGRESS': return 'primary';
             case 'CANCELLED': return 'secondary';
@@ -349,22 +369,28 @@ const VmOperations = (function() {
 
                     if (execution.status === 'COMPLETED') {
                         stopPolling();
-                        Notifications.success('Operation completed successfully');
+                        Notifications.success('Operation completed successfully! All VMs have been processed.');
+                        resolve(execution);
+                    } else if (execution.status === 'PARTIAL_SUCCESS') {
+                        stopPolling();
+                        Notifications.warning('Operation completed with some failures. Check the details for more information.');
                         resolve(execution);
                     } else if (execution.status === 'FAILED') {
                         stopPolling();
-                        Notifications.error('Operation failed');
-                        reject(new Error('Operation failed'));
+                        const failMsg = execution.errorMessage || 'One or more VMs failed to process. Check the operation details for more information.';
+                        Notifications.error(failMsg);
+                        reject(new Error(failMsg));
                     } else if (execution.status === 'CANCELLED') {
                         stopPolling();
-                        Notifications.info('Operation cancelled');
+                        Notifications.info('Operation was cancelled. VMs already processed will remain in their current state.');
                         resolve(execution);
                     }
                     // Continue polling if still in progress
                 })
                 .fail(function(xhr) {
                     stopPolling();
-                    updateProgressModal('error', 'Failed to get operation status');
+                    console.error('Failed to poll operation status:', xhr.status, xhr.statusText);
+                    updateProgressModal('error', 'Lost connection to the server while tracking the operation. The operation may still be running — please refresh to check.');
                     reject(new Error('Failed to get operation status'));
                 });
         };
