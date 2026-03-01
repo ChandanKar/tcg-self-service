@@ -123,6 +123,12 @@ const Config = (function() {
             driftEvents: `${API_BASE_URL}/monitoring/drift-events`,
             driftCount: `${API_BASE_URL}/monitoring/drift-events/count`,
             driftReport: `${API_BASE_URL}/monitoring/drift-events/report`
+        },
+
+        // EC2 (AWS)
+        ec2: {
+            listInstances: (region) => `/api/ec2/instances?region=${region}`,
+            registeredIds: `/api/ec2/registered-ids`
         }
     };
 
@@ -181,6 +187,18 @@ const Config = (function() {
         ADMIN: { label: 'Admin', description: 'Full environment control', color: 'danger' }
     };
 
+    // AWS Region presets
+    const AWS_REGIONS = [
+        { value: 'ap-south-1', label: 'Asia Pacific (Mumbai)' },
+        { value: 'us-east-1', label: 'US East (N. Virginia)' },
+        { value: 'us-east-2', label: 'US East (Ohio)' },
+        { value: 'us-west-2', label: 'US West (Oregon)' },
+        { value: 'eu-west-1', label: 'Europe (Ireland)' },
+        { value: 'eu-central-1', label: 'Europe (Frankfurt)' },
+        { value: 'ap-southeast-1', label: 'Asia Pacific (Singapore)' },
+        { value: 'ap-northeast-1', label: 'Asia Pacific (Tokyo)' }
+    ];
+
     return {
         API_BASE_URL,
         AUTH,
@@ -188,7 +206,7 @@ const Config = (function() {
         UI,
         STATUS,
         CLOUD_ICONS,
-        ACCESS_LEVELS
+        ACCESS_LEVELS,
+        AWS_REGIONS
     };
 })();
-

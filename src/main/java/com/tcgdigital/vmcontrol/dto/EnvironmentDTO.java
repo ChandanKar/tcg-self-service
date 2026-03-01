@@ -18,6 +18,7 @@ public class EnvironmentDTO {
     private Timestamp updatedAt;
     private int groupCount;
     private int vmCount;
+    private String metadata;
 
     public EnvironmentDTO() {
     }
@@ -31,6 +32,7 @@ public class EnvironmentDTO {
         dto.setIsActive(environment.getIsActive());
         dto.setCreatedAt(environment.getCreatedAt());
         dto.setUpdatedAt(environment.getUpdatedAt());
+        dto.setMetadata(environment.getMetadata());
         return dto;
     }
 
@@ -112,6 +114,14 @@ public class EnvironmentDTO {
 
     public void setVmCount(int vmCount) {
         this.vmCount = vmCount;
+    }
+
+    public String getMetadata() {
+        return metadata;
+    }
+
+    public void setMetadata(String metadata) {
+        this.metadata = metadata;
     }
 }
 

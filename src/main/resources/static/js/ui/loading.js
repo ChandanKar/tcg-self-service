@@ -157,8 +157,33 @@ const Loading = (function() {
         `;
     }
 
+    /**
+     * Show global loading overlay (non-destructive)
+     */
+    function show(message) {
+        hide(); // remove any existing
+        $('body').append(`
+            <div class="global-loading-overlay" id="globalLoadingOverlay"
+                 style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.3);z-index:9999;display:flex;align-items:center;justify-content:center;">
+                <div style="background:#fff;padding:24px 40px;border-radius:8px;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 mb-0 text-muted">${message || 'Loading...'}</p>
+                </div>
+            </div>
+        `);
+    }
+
+    /**
+     * Hide global loading overlay
+     */
+    function hide() {
+        $('#globalLoadingOverlay').remove();
+    }
+
     // Public API
     return {
+        show,
+        hide,
         showPage,
         showInline,
         showButton,

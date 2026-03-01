@@ -2,6 +2,8 @@ package com.tcgdigital.vmcontrol.security;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
@@ -33,6 +35,16 @@ public class EntraidSecurityConfig {
                     .oidcUserService(customOAuth2UserService)
                 )
                 .defaultSuccessUrl("/home", true)
+            )
+            // Return JSON 403 for API requests instead of default behavior
+            .exceptionHandling(ex -> ex
+                .accessDeniedHandler((request, response, accessDeniedException) -> {
+                    response.setStatus(HttpStatus.FORBIDDEN.value());
+                    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                    response.getWriter().write(
+                        "{\"error\":\"Forbidden\",\"message\":\"You do not have permission to perform this action.\"}"
+                    );
+                })
             )
             // CSRF configuration for API endpoints
             .csrf(csrf -> csrf

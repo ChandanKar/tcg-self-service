@@ -13,6 +13,6 @@ public class HomeController {
 
     @GetMapping("/home")
     public String getHome() {
-        return "forward:/home.html";
+        return "forward:/index.html";
     }
 }

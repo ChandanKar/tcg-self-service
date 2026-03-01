@@ -354,6 +354,253 @@
     <!-- Overlay for Slide-out -->
     <div class="slideout-overlay" id="slideoutOverlay"></div>
 
+    <!-- Create/Edit Environment Modal -->
+    <div class="modal fade" id="createEnvironmentModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createEnvironmentModalLabel">Create Environment</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createEnvironmentForm" novalidate>
+                        <input type="hidden" id="environmentId">
+                        <div class="mb-3">
+                            <label for="envName" class="form-label">Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="envName" required minlength="2" maxlength="255">
+                            <div class="form-text">Unique identifier (lowercase, hyphens allowed)</div>
+                            <div class="invalid-feedback">Please enter a valid name (2-255 characters)</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="envDisplayName" class="form-label">Display Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="envDisplayName" required minlength="2" maxlength="255">
+                            <div class="form-text">Friendly name shown to users</div>
+                            <div class="invalid-feedback">Please enter a display name (2-255 characters)</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="envDescription" class="form-label">Description</label>
+                            <textarea class="form-control" id="envDescription" rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="envMetadata" class="form-label">Metadata (JSON)</label>
+                            <textarea class="form-control" id="envMetadata" rows="2" placeholder='{"key": "value"}'></textarea>
+                            <div class="form-text">Optional JSON metadata for extensibility</div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="btnSubmitEnvironment" onclick="Features.submitEnvironment()">
+                        <i class="fas fa-save"></i> Create Environment
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manage Groups & VMs Modal -->
+    <div class="modal fade" id="manageGroupsModal" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="manageGroupsModalLabel">Manage Groups & VMs</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0">Groups & VMs</h6>
+                        <button class="btn btn-sm btn-success" onclick="Features.openGroupForm()">
+                            <i class="fas fa-plus"></i> Add Group
+                        </button>
+                    </div>
+                    <div id="groupsContentArea">
+                        <!-- Populated by JavaScript with group cards -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create/Edit Group Modal -->
+    <div class="modal fade" id="createGroupModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createGroupModalLabel">Create Group</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createGroupForm" novalidate>
+                        <input type="hidden" id="groupId">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="groupName" class="form-label">Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="groupName" required minlength="2" maxlength="255">
+                                <div class="form-text">Unique identifier within environment</div>
+                                <div class="invalid-feedback">Please enter a valid name (2-255 characters)</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="groupDisplayName" class="form-label">Display Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="groupDisplayName" required minlength="2" maxlength="255">
+                                <div class="invalid-feedback">Please enter a display name (2-255 characters)</div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="groupDescription" class="form-label">Description</label>
+                            <textarea class="form-control" id="groupDescription" rows="2"></textarea>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="groupSequencePosition" class="form-label">Sequence Position <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="groupSequencePosition" required min="1">
+                                <div class="form-text">Lower numbers start first (1, 2, 3...)</div>
+                                <div class="invalid-feedback">Please enter a sequence >= 1</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="groupDependsOn" class="form-label">Depends On Groups</label>
+                                <select class="form-select" id="groupDependsOn" multiple size="3">
+                                    <!-- Populated by JavaScript -->
+                                </select>
+                                <div class="form-text">Select groups that must start first (hold Ctrl for multiple)</div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="groupMetadata" class="form-label">Metadata (JSON)</label>
+                            <textarea class="form-control" id="groupMetadata" rows="2" placeholder='{"key": "value"}'></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="btnSubmitGroup" onclick="Features.submitGroup()">
+                        <i class="fas fa-save"></i> Create Group
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Register VM Modal -->
+    <div class="modal fade" id="registerVmModal" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="registerVmModalLabel">Register VM</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="vmId">
+                    <input type="hidden" id="vmGroupId">
+                    <div class="mb-3">
+                        <span class="text-muted">Group:</span> <strong id="vmGroupLabel"></strong>
+                    </div>
+
+                    <!-- Import from AWS Section -->
+                    <div class="card mb-3 border-warning">
+                        <div class="card-header bg-warning bg-opacity-10 d-flex justify-content-between align-items-center">
+                            <span><i class="fab fa-aws text-warning me-2"></i><strong>Import from AWS</strong></span>
+                            <button class="btn btn-sm btn-link p-0" type="button" data-bs-toggle="collapse" data-bs-target="#ec2ImportSection" aria-expanded="true">
+                                <i class="fas fa-chevron-up" id="ec2CollapseIcon"></i>
+                            </button>
+                        </div>
+                        <div class="collapse show" id="ec2ImportSection">
+                            <div class="card-body">
+                                <div class="row align-items-end mb-3">
+                                    <div class="col-md-5">
+                                        <label for="ec2Region" class="form-label">AWS Region</label>
+                                        <select class="form-select" id="ec2Region">
+                                            <!-- Populated by JS from Config.AWS_REGIONS -->
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <button type="button" class="btn btn-warning w-100" id="btnFetchEc2" onclick="Features.fetchEc2Instances()">
+                                            <i class="fab fa-aws me-1"></i> Fetch Instances
+                                        </button>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <input type="text" class="form-control" id="ec2SearchFilter" placeholder="Filter by name or ID..." oninput="Features.filterEc2Instances(this.value)" style="display:none;">
+                                    </div>
+                                </div>
+                                <div id="ec2InstancesList">
+                                    <div class="text-center text-muted py-3">
+                                        <i class="fab fa-aws fa-2x mb-2 d-block text-warning opacity-50"></i>
+                                        Select a region and click "Fetch Instances" to browse available EC2 instances.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- VM Details Form -->
+                    <h6 class="mb-3"><i class="fas fa-edit me-1"></i> VM Details</h6>
+                    <form id="registerVmForm" novalidate>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="vmName" class="form-label">VM Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="vmName" required minlength="2" maxlength="255"
+                                       placeholder="e.g., web-server-01">
+                                <div class="form-text">Unique identifier for this VM</div>
+                                <div class="invalid-feedback">Please enter a valid name (2-255 characters)</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="vmDisplayName" class="form-label">Display Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="vmDisplayName" required minlength="2" maxlength="255"
+                                       placeholder="e.g., Web Server 01">
+                                <div class="invalid-feedback">Please enter a display name (2-255 characters)</div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="vmProvider" class="form-label">Cloud Provider <span class="text-danger">*</span></label>
+                                <select class="form-select" id="vmProvider" required>
+                                    <option value="">Select provider...</option>
+                                    <option value="AWS">AWS</option>
+                                    <option value="AZURE">Azure</option>
+                                    <option value="GCP">Google Cloud</option>
+                                    <option value="OCI">Oracle Cloud</option>
+                                </select>
+                                <div class="invalid-feedback">Please select a cloud provider</div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="vmRegion" class="form-label">Region <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="vmRegion" required
+                                       placeholder="e.g., us-east-1, eastus">
+                                <div class="invalid-feedback">Please enter the cloud region</div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="vmProviderVmId" class="form-label">Instance ID <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="vmProviderVmId" required
+                                       placeholder="e.g., i-0123456789abcdef0">
+                                <div class="invalid-feedback">Please enter the provider VM ID</div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="vmSequencePosition" class="form-label">Sequence Position <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="vmSequencePosition" required min="1" value="1">
+                                <div class="form-text">Start/stop order within the group</div>
+                                <div class="invalid-feedback">Please enter a sequence >= 1</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="vmDescription" class="form-label">Description</label>
+                                <textarea class="form-control" id="vmDescription" rows="2" placeholder="Optional description"></textarea>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="btnSubmitVm" onclick="Features.submitVm()">
+                        <i class="fas fa-save"></i> Register VM
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- jQuery (CDN) -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 

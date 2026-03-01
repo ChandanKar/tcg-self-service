@@ -244,18 +244,21 @@ const Modals = (function() {
                         return;
                     }
 
+                    const envName = $('#envName').val().trim();
                     const data = {
-                        name: $('#envName').val().trim(),
-                        displayName: $('#envDisplayName').val().trim() || null,
+                        name: envName,
+                        displayName: $('#envDisplayName').val().trim() || envName,
                         description: $('#envDescription').val().trim() || null,
-                        ownerTeam: $('#envOwnerTeam').val().trim() || null,
-                        defaultCloudProvider: $('#envCloudProvider').val()
+                        metadata: JSON.stringify({
+                            ownerTeam: $('#envOwnerTeam').val().trim() || null,
+                            defaultCloudProvider: $('#envCloudProvider').val() || null
+                        })
                     };
 
                     // Disable button and show loading
                     $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Creating...');
 
-                    ApiClient.post(Config.API.environments.list, data)
+                    ApiClient.post(Config.API.environments.create, data)
                         .done(function(env) {
                             hide('createEnvModal');
                             Notifications.success(`Environment "${env.name}" created successfully`);
@@ -275,6 +278,10 @@ const Modals = (function() {
      * Edit Environment Modal
      */
     function showEditEnvironment(env, onSuccess) {
+        // Parse existing metadata
+        let meta = {};
+        try { meta = JSON.parse(env.metadata || '{}') || {}; } catch(e) {}
+
         show({
             id: 'editEnvModal',
             title: `Edit Environment: ${env.name}`,
@@ -301,15 +308,15 @@ const Modals = (function() {
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Owner Team</label>
                             <input type="text" class="form-control" id="editEnvOwnerTeam"
-                                   value="${Utils.escapeHtml(env.ownerTeam || '')}">
+                                   value="${Utils.escapeHtml(meta.ownerTeam || '')}">
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Default Cloud Provider</label>
                             <select class="form-select" id="editEnvCloudProvider">
-                                <option value="AWS" ${env.defaultCloudProvider === 'AWS' ? 'selected' : ''}>AWS</option>
-                                <option value="AZURE" ${env.defaultCloudProvider === 'AZURE' ? 'selected' : ''}>Azure</option>
-                                <option value="GCP" ${env.defaultCloudProvider === 'GCP' ? 'selected' : ''}>Google Cloud</option>
-                                <option value="OCI" ${env.defaultCloudProvider === 'OCI' ? 'selected' : ''}>Oracle Cloud</option>
+                                <option value="AWS" ${meta.defaultCloudProvider === 'AWS' ? 'selected' : ''}>AWS</option>
+                                <option value="AZURE" ${meta.defaultCloudProvider === 'AZURE' ? 'selected' : ''}>Azure</option>
+                                <option value="GCP" ${meta.defaultCloudProvider === 'GCP' ? 'selected' : ''}>Google Cloud</option>
+                                <option value="OCI" ${meta.defaultCloudProvider === 'OCI' ? 'selected' : ''}>Oracle Cloud</option>
                             </select>
                         </div>
                     </div>
@@ -322,10 +329,12 @@ const Modals = (function() {
             onShow: function() {
                 $('#saveEnvBtn').off('click').on('click', function() {
                     const data = {
-                        displayName: $('#editEnvDisplayName').val().trim() || null,
+                        displayName: $('#editEnvDisplayName').val().trim() || env.displayName,
                         description: $('#editEnvDescription').val().trim() || null,
-                        ownerTeam: $('#editEnvOwnerTeam').val().trim() || null,
-                        defaultCloudProvider: $('#editEnvCloudProvider').val()
+                        metadata: JSON.stringify({
+                            ownerTeam: $('#editEnvOwnerTeam').val().trim() || null,
+                            defaultCloudProvider: $('#editEnvCloudProvider').val() || null
+                        })
                     };
 
                     $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Saving...');

@@ -54,6 +54,13 @@ public class UserService {
                 log.info("Updated display name for user: {} -> {}", user.getEmail(), displayName);
             }
 
+            // Check if this user should be promoted to admin based on initial-admin-email
+            if (initialAdminEmail != null && !initialAdminEmail.isEmpty()
+                && email.equalsIgnoreCase(initialAdminEmail) && !user.isAdmin()) {
+                user.setAdmin(true);
+                log.info("Auto-promoting existing user to admin based on initial-admin-email config: {}", email);
+            }
+
             // Update last login
             user.setLastLoginAt(new Timestamp(System.currentTimeMillis()));
 

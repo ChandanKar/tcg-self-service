@@ -77,5 +77,11 @@ public interface VmRepository extends JpaRepository<Vm, String> {
      */
     @Query("SELECT v FROM Vm v WHERE v.group.environment.isActive = true ORDER BY v.group.environment.environmentId, v.group.sequencePosition, v.sequencePosition")
     List<Vm> findByIsActiveTrue();
-}
 
+    /**
+     * Get all registered provider VM IDs for a given cloud provider (globally across all environments).
+     * Used for cross-environment duplicate detection in the EC2 picker.
+     */
+    @Query("SELECT v.providerVmId FROM Vm v WHERE v.provider = :provider")
+    List<String> findAllProviderVmIdsByProvider(com.tcgdigital.vmcontrol.model.CloudProvider provider);
+}
