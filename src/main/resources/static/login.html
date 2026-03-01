@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - VM Self-Service Platform</title>
+
+    <!-- Bootstrap CSS (CDN) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Font Awesome (CDN) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Application CSS -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/login.css">
+</head>
+<body class="login-page">
+    <div class="login-container">
+        <div class="login-card">
+            <!-- Logo -->
+            <div class="login-logo">
+                <img src="logo/tcg_blue_logo.png" alt="TCG Digital" class="logo-img">
+            </div>
+
+            <!-- Title -->
+            <h1 class="login-title">VM Self-Service Platform</h1>
+            <p class="login-subtitle">Sign in to manage your virtual machines</p>
+
+            <!-- Login Form (Disabled for future implementation) -->
+            <form class="login-form" id="loginForm">
+                <div class="form-group mb-2">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" class="form-control" id="username" name="username"
+                           placeholder="Enter your username" required disabled>
+                </div>
+
+                <div class="form-group mb-2">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" class="form-control" id="password" name="password"
+                           placeholder="Enter your password" required disabled>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-login" disabled>
+                    <i class="fas fa-sign-in-alt"></i> Sign In
+                </button>
+            </form>
+
+            <!-- Divider -->
+            <div class="login-divider">
+                <span>OR</span>
+            </div>
+
+            <!-- Entra ID Login Button -->
+            <div class="entraid-login">
+                <a href="/oauth2/authorization/azure" class="btn btn-entraid">
+                    <i class="fab fa-microsoft"></i> Sign in with Entra ID
+                </a>
+            </div>
+
+            <!-- Logout Success Message -->
+            <div id="logoutMessage" class="alert alert-success" style="display: none;">
+                <i class="fas fa-check-circle"></i> You have been successfully logged out.
+            </div>
+
+            <!-- Footer -->
+            <div class="login-footer">
+                <p class="text-muted">
+                    <small>Powered by TCG Digital &copy; 2026</small>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Show logout message if present in URL -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('logout')) {
+                const logoutMsg = document.getElementById('logoutMessage');
+                if (logoutMsg) {
+                    logoutMsg.style.display = 'block';
+                    setTimeout(() => {
+                        logoutMsg.style.display = 'none';
+                    }, 5000);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
+
+
+

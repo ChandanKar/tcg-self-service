@@ -8,7 +8,7 @@ import org.springframework.security.web.SecurityFilterChain;
 
 /**
  * Default security configuration used when Entra ID authentication is disabled.
- * Permits all requests without authentication for local development and testing.
+ * Shows login page but permits all requests without authentication for local development and testing.
  * Note: Method security (@PreAuthorize) is not enabled here - it's only active
  * when EntraidSecurityConfig is used.
  */
@@ -19,7 +19,11 @@ public class DefaultSecurityConfig {
     @Bean
     public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
         http
-            .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll())
+            .authorizeHttpRequests(authorize -> authorize
+                .requestMatchers("/", "/login", "/login.html", "/css/**", "/js/**", "/logo/**", "/images/**",
+                    "/static/**", "/error", "/h2-console/**", "/logout").permitAll()
+                .anyRequest().permitAll()
+            )
             .csrf(csrf -> csrf.disable())
             .headers(headers -> headers.frameOptions(frame -> frame.disable()));
 

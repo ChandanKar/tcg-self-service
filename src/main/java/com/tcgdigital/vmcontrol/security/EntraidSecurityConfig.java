@@ -24,20 +24,41 @@ public class EntraidSecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .authorizeHttpRequests(authorize -> authorize
-                // allow static resources, health/error endpoints, oauth callback, h2 console, and Swagger UI
-                .requestMatchers("/css/**", "/js/**", "/images/**", "/static/**", "/error", "/h2-console/**", "/login/**", "/oauth2/**",
+                // allow static resources, login page, health/error endpoints, oauth callback, h2 console, and Swagger UI
+                .requestMatchers("/", "/login", "/login.html", "/css/**", "/js/**", "/logo/**", "/images/**", "/static/**",
+                    "/error", "/h2-console/**", "/login/**", "/oauth2/**", "/logout",
                     "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/swagger-resources/**", "/webjars/**").permitAll()
                 // require authentication for all other requests (including /home)
                 .anyRequest().authenticated()
             )
             .oauth2Login(oauth2 -> oauth2
+                .loginPage("/login")
                 .userInfoEndpoint(userInfo -> userInfo
                     .oidcUserService(customOAuth2UserService)
                 )
                 .defaultSuccessUrl("/home", true)
             )
+            .logout(logout -> logout
+                .logoutUrl("/logout")
+                .logoutSuccessUrl("/login?logout=true")
+                .invalidateHttpSession(true)
+                .deleteCookies("JSESSIONID")
+                .clearAuthentication(true)
+            )
             // Return JSON 403 for API requests instead of default behavior
             .exceptionHandling(ex -> ex
+                .authenticationEntryPoint((request, response, authException) -> {
+                    String requestUri = request.getRequestURI();
+                    if (requestUri.startsWith("/api/")) {
+                        response.setStatus(HttpStatus.UNAUTHORIZED.value());
+                        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                        response.getWriter().write(
+                            "{\"error\":\"Unauthorized\",\"message\":\"Authentication required\"}"
+                        );
+                    } else {
+                        response.sendRedirect("/login");
+                    }
+                })
                 .accessDeniedHandler((request, response, accessDeniedException) -> {
                     response.setStatus(HttpStatus.FORBIDDEN.value());
                     response.setContentType(MediaType.APPLICATION_JSON_VALUE);
