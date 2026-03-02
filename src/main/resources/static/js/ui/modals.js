@@ -69,7 +69,8 @@ const Modals = (function() {
 
         // Bind callbacks
         if (onShow) {
-            modalEl.addEventListener('shown.bs.modal', onShow);
+            // Use both events with once:true — whichever fires first wins
+            modalEl.addEventListener('shown.bs.modal', onShow, { once: true });
         }
         if (onHide) {
             modalEl.addEventListener('hidden.bs.modal', onHide);
@@ -194,34 +195,34 @@ const Modals = (function() {
             title: 'Create New Environment',
             size: 'lg',
             body: `
-                <form id="createEnvForm">
+                <form id="createEnvForm" autocomplete="off">
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Environment Name <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="envName" required
+                            <input type="text" class="form-control" id="cem-name" name="cem-name" required
                                    pattern="[a-z0-9-]+" placeholder="my-environment">
                             <div class="form-text">Lowercase letters, numbers, and hyphens only</div>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Display Name</label>
-                            <input type="text" class="form-control" id="envDisplayName"
+                            <input type="text" class="form-control" id="cem-displayName" name="cem-displayName"
                                    placeholder="My Environment">
                         </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Description</label>
-                        <textarea class="form-control" id="envDescription" rows="2"
+                        <textarea class="form-control" id="cem-description" name="cem-description" rows="2"
                                   placeholder="Brief description of this environment"></textarea>
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Owner Team</label>
-                            <input type="text" class="form-control" id="envOwnerTeam"
+                            <input type="text" class="form-control" id="cem-ownerTeam" name="cem-ownerTeam"
                                    placeholder="e.g., Platform Team">
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Default Cloud Provider</label>
-                            <select class="form-select" id="envCloudProvider">
+                            <select class="form-select" id="cem-cloudProvider" name="cem-cloudProvider">
                                 <option value="AWS">AWS</option>
                                 <option value="AZURE">Azure</option>
                                 <option value="GCP">Google Cloud</option>
@@ -233,41 +234,50 @@ const Modals = (function() {
             `,
             buttons: [
                 { text: 'Cancel', class: 'btn-secondary', dismiss: true },
-                { text: 'Create Environment', class: 'btn-primary', id: 'createEnvBtn' }
+                { text: 'Create Environment', class: 'btn-primary', id: 'cem-submitBtn' }
             ],
             onShow: function() {
-                $('#envName').focus();
+                document.getElementById('cem-name').focus();
 
-                $('#createEnvBtn').off('click').on('click', function() {
-                    if (!$('#createEnvForm')[0].checkValidity()) {
-                        $('#createEnvForm')[0].reportValidity();
+                document.getElementById('cem-submitBtn').addEventListener('click', function() {
+                    const form = document.getElementById('createEnvForm');
+                    if (form && !form.checkValidity()) {
+                        form.reportValidity();
                         return;
                     }
 
-                    const envName = $('#envName').val().trim();
+                    const envName     = (document.getElementById('cem-name').value        || '').trim();
+                    const displayName = (document.getElementById('cem-displayName').value  || '').trim() || envName;
+                    const description = (document.getElementById('cem-description').value  || '').trim() || null;
+                    const ownerTeam   = (document.getElementById('cem-ownerTeam').value    || '').trim() || null;
+                    const cloudProv   = (document.getElementById('cem-cloudProvider').value || '') || null;
+
+                    if (!envName) {
+                        showModalError('createEnvModal', 'Environment Name is required.');
+                        return;
+                    }
+
                     const data = {
                         name: envName,
-                        displayName: $('#envDisplayName').val().trim() || envName,
-                        description: $('#envDescription').val().trim() || null,
-                        metadata: JSON.stringify({
-                            ownerTeam: $('#envOwnerTeam').val().trim() || null,
-                            defaultCloudProvider: $('#envCloudProvider').val() || null
-                        })
+                        displayName: displayName,
+                        description: description,
+                        metadata: JSON.stringify({ ownerTeam, defaultCloudProvider: cloudProv })
                     };
 
-                    // Disable button and show loading
-                    $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Creating...');
+                    this.disabled = true;
+                    this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
 
-                    ApiClient.post(Config.API.environments.create, data)
+                    ApiClient.post(Config.API.environments.create, data, { suppressGlobalError: true })
                         .done(function(env) {
                             hide('createEnvModal');
                             Notifications.success(`Environment "${env.name}" created successfully`);
                             if (onSuccess) onSuccess(env);
                         })
                         .fail(function(xhr) {
-                            $('#createEnvBtn').prop('disabled', false).html('Create Environment');
-                            const msg = xhr.responseJSON?.message || 'Failed to create environment';
-                            Notifications.error(msg);
+                            const btn = document.getElementById('cem-submitBtn');
+                            if (btn) { btn.disabled = false; btn.innerHTML = 'Create Environment'; }
+                            const errMsg = parseValidationError(xhr);
+                            showModalError('createEnvModal', errMsg);
                         });
                 });
             }
@@ -327,28 +337,29 @@ const Modals = (function() {
                 { text: 'Save Changes', class: 'btn-primary', id: 'saveEnvBtn' }
             ],
             onShow: function() {
-                $('#saveEnvBtn').off('click').on('click', function() {
+                const $modal = $('#editEnvModal');
+                $modal.find('#saveEnvBtn').off('click').on('click', function() {
                     const data = {
-                        displayName: $('#editEnvDisplayName').val().trim() || env.displayName,
-                        description: $('#editEnvDescription').val().trim() || null,
+                        displayName: ($modal.find('#editEnvDisplayName').val() || '').trim() || env.displayName,
+                        description: ($modal.find('#editEnvDescription').val() || '').trim() || null,
                         metadata: JSON.stringify({
-                            ownerTeam: $('#editEnvOwnerTeam').val().trim() || null,
-                            defaultCloudProvider: $('#editEnvCloudProvider').val() || null
+                            ownerTeam: ($modal.find('#editEnvOwnerTeam').val() || '').trim() || null,
+                            defaultCloudProvider: ($modal.find('#editEnvCloudProvider').val() || '') || null
                         })
                     };
 
                     $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Saving...');
 
-                    ApiClient.put(Config.API.environments.update(env.environmentId), data)
+                    ApiClient.put(Config.API.environments.update(env.environmentId), data, { suppressGlobalError: true })
                         .done(function(updated) {
                             hide('editEnvModal');
                             Notifications.success('Environment updated successfully');
                             if (onSuccess) onSuccess(updated);
                         })
                         .fail(function(xhr) {
-                            $('#saveEnvBtn').prop('disabled', false).html('Save Changes');
-                            const msg = xhr.responseJSON?.message || 'Failed to update environment';
-                            Notifications.error(msg);
+                            $modal.find('#saveEnvBtn').prop('disabled', false).html('Save Changes');
+                            const errMsg = parseValidationError(xhr);
+                            showModalError('editEnvModal', errMsg);
                         });
                 });
             }
@@ -551,6 +562,54 @@ const Modals = (function() {
                 });
             }
         });
+    }
+
+    /**
+     * Parse a Spring validation error response into a clean human-readable string.
+     * Handles both {errors:[{field,message}]} and {message:"field: msg, field: msg"} formats.
+     */
+    function parseValidationError(xhr) {
+        const json = xhr.responseJSON;
+        if (!json) return 'An unexpected error occurred. Please try again.';
+
+        // Spring MethodArgumentNotValidException → {errors: [{field, message}]}
+        if (json.errors && Array.isArray(json.errors) && json.errors.length > 0) {
+            return json.errors.map(e => `<li>${Utils.escapeHtml(e.message || e.defaultMessage || '')}</li>`).join('');
+        }
+
+        // Single message string — may be comma-separated "field: msg, field: msg"
+        if (json.message) {
+            const parts = json.message.split(/,\s*(?=[a-zA-Z]+:)/);
+            if (parts.length > 1) {
+                return parts.map(p => {
+                    // Strip "fieldName: " prefix for cleaner display
+                    const clean = p.replace(/^[a-zA-Z]+:\s*/, '');
+                    return `<li>${Utils.escapeHtml(clean)}</li>`;
+                }).join('');
+            }
+            return Utils.escapeHtml(json.message);
+        }
+
+        return 'Failed to save. Please check your input and try again.';
+    }
+
+    /**
+     * Show an inline error alert inside a modal body, above the form.
+     * Replaces any existing error alert — no duplicate toasts.
+     */
+    function showModalError(modalId, htmlOrText) {
+        const isList = htmlOrText.includes('<li>');
+        const content = isList
+            ? `<ul class="mb-0 ps-3">${htmlOrText}</ul>`
+            : htmlOrText;
+
+        const $modal = $(`#${modalId}`);
+        $modal.find('.modal-error-alert').remove();
+        $modal.find('.modal-body').prepend(`
+            <div class="alert alert-danger modal-error-alert py-2 mb-3" role="alert">
+                <i class="fas fa-exclamation-circle me-2"></i>${content}
+            </div>
+        `);
     }
 
     return {

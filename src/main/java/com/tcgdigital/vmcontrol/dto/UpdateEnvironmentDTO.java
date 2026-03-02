@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -7,13 +8,17 @@ import jakarta.validation.constraints.Size;
  */
 public class UpdateEnvironmentDTO {
 
+    @JsonProperty("displayName")
     @Size(min = 2, max = 255, message = "Display name must be between 2 and 255 characters")
     private String displayName;
 
+    @JsonProperty("description")
     private String description;
 
+    @JsonProperty("isActive")
     private Boolean isActive;
 
+    @JsonProperty("metadata")
     private String metadata;
 
     public UpdateEnvironmentDTO() {
@@ -52,4 +57,3 @@ public class UpdateEnvironmentDTO {
         this.metadata = metadata;
     }
 }
-

@@ -11,6 +11,11 @@ const Dashboard = (function() {
     let isLoading = false;
     let autoRefreshEnabled = true;
 
+    // Pagination state for environments table
+    const PAGE_SIZE = 7;
+    let currentPage = 1;
+    let filteredEnvironments = [];
+
     /**
      * Load dashboard view
      */
@@ -314,7 +319,7 @@ const Dashboard = (function() {
 
         return `
             <div class="content-view" id="dashboard-view">
-                <div class="content-header d-flex justify-content-between align-items-start">
+                <div class="content-header d-flex justify-content-between align-items-start flex-shrink-0">
                     <div>
                         <h1>Dashboard</h1>
                         <p>Overview of your environments and VMs</p>
@@ -324,14 +329,16 @@ const Dashboard = (function() {
                     </button>
                 </div>
 
-                <!-- Cloud Provider Breakdown -->
-                ${buildCloudBreakdown(data.cloudBreakdown)}
+                <div class="dashboard-body">
+                    <!-- Cloud Provider Breakdown -->
+                    ${buildCloudBreakdown(data.cloudBreakdown)}
 
-                <!-- Metric Cards -->
-                ${buildMetricCards(data.metrics)}
+                    <!-- Metric Cards -->
+                    ${buildMetricCards(data.metrics)}
 
-                <!-- Environments Table -->
-                ${buildEnvironmentsTable(data.environments)}
+                    <!-- Environments Table -->
+                    ${buildEnvironmentsTable(data.environments)}
+                </div>
             </div>
         `;
     }
@@ -342,10 +349,10 @@ const Dashboard = (function() {
     function buildCloudBreakdown(providers) {
         if (!providers || providers.length === 0) {
             return `
-                <div class="row mb-4">
+                <div class="row mb-2 flex-shrink-0">
                     <div class="col-md-12">
                         <div class="metric-card">
-                            <h5 class="mb-3">Cloud Provider Breakdown</h5>
+                            <h5 class="mb-2">Cloud Provider Breakdown</h5>
                             <p class="text-muted">No VMs registered yet</p>
                         </div>
                     </div>
@@ -355,11 +362,11 @@ const Dashboard = (function() {
 
         const providerCards = providers.map(p => `
             <div class="col-md-4 col-lg-3">
-                <div class="d-flex align-items-center mb-2">
-                    <i class="${p.icon}" style="font-size: 2rem; color: ${p.color}; margin-right: 1rem;"></i>
+                <div class="d-flex align-items-center mb-1">
+                    <i class="${p.icon}" style="font-size: 1.75rem; color: ${p.color}; margin-right: 0.75rem;"></i>
                     <div>
                         <div style="font-weight: 600; color: #1e293b;">${p.provider}</div>
-                        <div style="color: #64748b; font-size: 0.875rem;">
+                        <div style="color: #64748b; font-size: 0.8rem;">
                             ${p.totalVms} VMs (${p.runningVms} running)
                         </div>
                     </div>
@@ -368,10 +375,10 @@ const Dashboard = (function() {
         `).join('');
 
         return `
-            <div class="row mb-4">
+            <div class="row mb-1 flex-shrink-0">
                 <div class="col-md-12">
-                    <div class="metric-card">
-                        <h5 class="mb-3">Cloud Provider Breakdown</h5>
+                    <div class="metric-card py-2">
+                        <h6 class="mb-2 text-muted text-uppercase" style="font-size:0.7rem;letter-spacing:0.05em;">Cloud Provider Breakdown</h6>
                         <div class="row">
                             ${providerCards}
                         </div>
@@ -386,39 +393,33 @@ const Dashboard = (function() {
      */
     function buildMetricCards(metrics) {
         return `
-            <div class="row mb-4">
+            <div class="row mb-1 flex-shrink-0">
                 <div class="col-md-3">
-                    <div class="metric-card">
+                    <div class="metric-card py-2">
                         <div class="metric-title">My Environments</div>
                         <div class="metric-value" id="metric-environments">${metrics.environments}</div>
                         <div class="metric-subtitle">Accessible environments</div>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="metric-card">
+                    <div class="metric-card py-2">
                         <div class="metric-title">Total VMs</div>
                         <div class="metric-value" id="metric-total-vms">${metrics.totalVms}</div>
                         <div class="metric-subtitle">Registered instances</div>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="metric-card">
+                    <div class="metric-card py-2">
                         <div class="metric-title">Running VMs</div>
                         <div class="metric-value" id="metric-running-vms">${metrics.runningVms}</div>
                         <div class="metric-subtitle"><span id="metric-running-percent">${metrics.runningPercent}%</span> of total</div>
-                        <div class="progress mt-2" style="height: 6px;">
-                            <div class="progress-bar bg-success" id="metric-running-bar" style="width: ${metrics.runningPercent}%"></div>
-                        </div>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="metric-card">
+                    <div class="metric-card py-2">
                         <div class="metric-title">Stopped VMs</div>
                         <div class="metric-value" id="metric-stopped-vms">${metrics.totalVms - metrics.runningVms}</div>
                         <div class="metric-subtitle">${100 - metrics.runningPercent}% of total</div>
-                        <div class="progress mt-2" style="height: 6px;">
-                            <div class="progress-bar bg-secondary" style="width: ${100 - metrics.runningPercent}%"></div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -426,12 +427,12 @@ const Dashboard = (function() {
     }
 
     /**
-     * Build environments table
+     * Build environments table — clickable rows, no actions, pagination, internal scroll
      */
     function buildEnvironmentsTable(environments) {
         if (!environments || environments.length === 0) {
             return `
-                <div class="metric-card">
+                <div class="metric-card env-table-card">
                     <h5 class="mb-3">My Environments</h5>
                     <div class="empty-state">
                         <i class="fas fa-folder-open fa-3x text-muted"></i>
@@ -445,11 +446,51 @@ const Dashboard = (function() {
             `;
         }
 
-        const rows = environments.map(env => {
+        filteredEnvironments = environments;
+        currentPage = 1;
+
+        return `
+            <div class="metric-card env-table-card">
+                <div class="d-flex justify-content-between align-items-center mb-2 flex-shrink-0">
+                    <h6 class="mb-0 text-muted text-uppercase" style="font-size:0.7rem;letter-spacing:0.05em;">My Environments</h6>
+                    <div class="input-group" style="width: 220px;">
+                        <span class="input-group-text py-1"><i class="fas fa-search" style="font-size:0.8rem;"></i></span>
+                        <input type="text" class="form-control form-control-sm" id="env-search" placeholder="Search...">
+                    </div>
+                </div>
+                <div class="env-table-wrapper">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th>Environment</th>
+                                <th>Total VMs</th>
+                                <th>Running</th>
+                                <th>Lock Status</th>
+                                <th>Cloud</th>
+                                <th style="width:32px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="env-table-body">
+                            ${buildTableRows(environments, 1)}
+                        </tbody>
+                    </table>
+                </div>
+                <div id="env-pagination" class="flex-shrink-0 pt-1"></div>
+            </div>
+        `;
+    }
+
+    /**
+     * Build table rows for given page from filtered list
+     */
+    function buildTableRows(envList, page) {
+        const start = (page - 1) * PAGE_SIZE;
+        const pageItems = envList.slice(start, start + PAGE_SIZE);
+
+        return pageItems.map(env => {
             const statusClass = env.runningVms === 0 ? 'stopped' :
                                env.runningVms === env.totalVms ? 'running' : 'partial';
 
-            // Lock status display
             let lockDisplay;
             if (env.lockStatus && env.lockStatus.isLocked) {
                 const lockedBy = env.lockStatus.lockedByUserId === Auth.getUserId() ? 'you' :
@@ -459,18 +500,16 @@ const Dashboard = (function() {
                 lockDisplay = `<span class="text-success"><i class="fas fa-unlock"></i> Unlocked</span>`;
             }
 
-            // Cloud provider icons
             const providerIcons = (env.providers || []).map(p => {
                 const config = Config.CLOUD_ICONS[p] || { icon: 'fas fa-cloud', color: '#6b7280' };
                 return `<i class="${config.icon}" style="color: ${config.color};" title="${p}"></i>`;
             }).join(' ') || '<span class="text-muted">-</span>';
 
+            const tooltip = env.description ? ` data-bs-toggle="tooltip" data-bs-placement="right" title="${Utils.escapeHtml(env.description)}"` : '';
             return `
-                <tr>
+                <tr class="env-row" data-env-id="${env.environmentId}">
                     <td>
-                        <strong>${Utils.escapeHtml(env.name)}</strong>
-                        ${env.displayName && env.displayName !== env.name ?
-                            `<br><small class="text-muted">${Utils.escapeHtml(env.displayName)}</small>` : ''}
+                        <strong${tooltip}>${Utils.escapeHtml(env.name)}</strong>
                     </td>
                     <td>${env.totalVms}</td>
                     <td>
@@ -480,133 +519,112 @@ const Dashboard = (function() {
                     </td>
                     <td>${lockDisplay}</td>
                     <td>${providerIcons}</td>
-                    <td>
-                        <button class="btn btn-sm btn-primary" data-env-id="${env.environmentId}" data-action="view">
-                            <i class="fas fa-eye"></i> View
-                        </button>
-                        ${env.totalVms > 0 ? `
-                            <button class="btn btn-sm btn-success" data-env-id="${env.environmentId}" data-action="start-all"
-                                    ${env.runningVms === env.totalVms ? 'disabled' : ''}>
-                                <i class="fas fa-play"></i>
-                            </button>
-                            <button class="btn btn-sm btn-danger" data-env-id="${env.environmentId}" data-action="stop-all"
-                                    ${env.runningVms === 0 ? 'disabled' : ''}>
-                                <i class="fas fa-stop"></i>
-                            </button>
-                        ` : ''}
+                    <td class="text-muted text-end pe-2">
+                        <i class="fas fa-chevron-right" style="font-size:0.75rem;"></i>
                     </td>
                 </tr>
             `;
         }).join('');
+    }
 
-        return `
-            <div class="metric-card">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="mb-0">My Environments</h5>
-                    <div class="input-group" style="width: 250px;">
-                        <span class="input-group-text"><i class="fas fa-search"></i></span>
-                        <input type="text" class="form-control" id="env-search" placeholder="Search...">
-                    </div>
-                </div>
-                <div class="custom-table">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Environment</th>
-                                <th>Total VMs</th>
-                                <th>Running</th>
-                                <th>Lock Status</th>
-                                <th>Cloud</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="env-table-body">
-                            ${rows}
-                        </tbody>
-                    </table>
+    /**
+     * Render pagination controls — only shown when total rows > PAGE_SIZE
+     */
+    function renderPagination(totalItems, page) {
+        const totalPages = Math.ceil(totalItems / PAGE_SIZE);
+
+        if (totalItems <= PAGE_SIZE) {
+            $('#env-pagination').html(
+                `<div class="text-muted small mt-2">Showing ${totalItems} environment${totalItems !== 1 ? 's' : ''}</div>`
+            );
+            return;
+        }
+
+        const start      = (page - 1) * PAGE_SIZE + 1;
+        const end        = Math.min(page * PAGE_SIZE, totalItems);
+        const rangeStart = Math.max(1, page - 2);
+        const rangeEnd   = Math.min(totalPages, page + 2);
+
+        let pageButtons = '';
+        for (let i = rangeStart; i <= rangeEnd; i++) {
+            pageButtons += `<button class="btn btn-sm ${i === page ? 'btn-primary' : 'btn-outline-secondary'} env-page-btn ms-1"
+                data-page="${i}">${i}</button>`;
+        }
+
+        $('#env-pagination').html(`
+            <div class="d-flex justify-content-between align-items-center mt-2">
+                <span class="text-muted small">Showing ${start}–${end} of ${totalItems} environments</span>
+                <div>
+                    <button class="btn btn-sm btn-outline-secondary env-page-btn"
+                            data-page="${page - 1}" ${page === 1 ? 'disabled' : ''}>
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    ${pageButtons}
+                    <button class="btn btn-sm btn-outline-secondary env-page-btn ms-1"
+                            data-page="${page + 1}" ${page === totalPages ? 'disabled' : ''}>
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
                 </div>
             </div>
-        `;
+        `);
+    }
+
+    /**
+     * Apply search filter and re-render table + pagination
+     */
+    function filterAndRender(searchTerm) {
+        const all = dashboardData ? dashboardData.environments : [];
+        filteredEnvironments = searchTerm
+            ? all.filter(e =>
+                (e.name || '').toLowerCase().includes(searchTerm) ||
+                (e.description || '').toLowerCase().includes(searchTerm))
+            : all;
+        currentPage = 1;
+        $('#env-table-body').html(buildTableRows(filteredEnvironments, currentPage));
+        renderPagination(filteredEnvironments.length, currentPage);
+        initTooltips();
     }
 
     /**
      * Bind dashboard event handlers
      */
     function bindEvents() {
-        // View environment button
-        $('#content-area').off('click', '[data-action="view"]').on('click', '[data-action="view"]', function() {
-            const envId = $(this).data('env-id');
-            const env = dashboardData.environments.find(e => e.environmentId === envId);
-            if (env) {
-                Environments.loadDetail({ environmentId: envId, environmentName: env.name });
+        // Pagination button clicks
+        $('#content-area').off('click', '.env-page-btn').on('click', '.env-page-btn', function() {
+            const page = parseInt($(this).data('page'));
+            if (!page || page < 1) return;
+            const totalPages = Math.ceil(filteredEnvironments.length / PAGE_SIZE);
+            if (page > totalPages) return;
+            currentPage = page;
+            $('#env-table-body').html(buildTableRows(filteredEnvironments, currentPage));
+            renderPagination(filteredEnvironments.length, currentPage);
+            initTooltips();
+        });
+
+        // Search — filters and resets to page 1
+        $('#content-area').off('input', '#env-search').on('input', '#env-search', Utils.debounce(function() {
+            filterAndRender($(this).val().toLowerCase().trim());
+        }, 300));
+
+        // Initial pagination render
+        if (dashboardData && dashboardData.environments) {
+            renderPagination(dashboardData.environments.length, currentPage);
+        }
+
+        // Init tooltips
+        initTooltips();
+    }
+
+    /**
+     * Initialise Bootstrap tooltips on env name cells
+     */
+    function initTooltips() {
+        const els = document.querySelectorAll('#env-table-body [data-bs-toggle="tooltip"]');
+        els.forEach(el => {
+            if (bootstrap && bootstrap.Tooltip) {
+                new bootstrap.Tooltip(el, { trigger: 'hover' });
             }
         });
-
-        // Start all VMs
-        $('#content-area').off('click', '[data-action="start-all"]').on('click', '[data-action="start-all"]', function() {
-            const envId = $(this).data('env-id');
-            startEnvironment(envId);
-        });
-
-        // Stop all VMs
-        $('#content-area').off('click', '[data-action="stop-all"]').on('click', '[data-action="stop-all"]', function() {
-            const envId = $(this).data('env-id');
-            stopEnvironment(envId);
-        });
-
-        // Search filter
-        $('#env-search').off('input').on('input', Utils.debounce(function() {
-            const searchTerm = $(this).val().toLowerCase();
-            filterEnvironments(searchTerm);
-        }, 300));
-    }
-
-    /**
-     * Filter environments table
-     */
-    function filterEnvironments(searchTerm) {
-        $('#env-table-body tr').each(function() {
-            const text = $(this).text().toLowerCase();
-            $(this).toggle(text.includes(searchTerm));
-        });
-    }
-
-    /**
-     * Start all VMs in an environment
-     */
-    function startEnvironment(envId) {
-        const env = dashboardData.environments.find(e => e.environmentId === envId);
-        if (!env) return;
-
-        Modals.confirm(
-            'Start Environment',
-            `Start all VMs in "<strong>${Utils.escapeHtml(env.name)}</strong>"?`,
-            function() {
-                VmOperations.startEnvironment(envId, env.name)
-                    .then(() => refresh())
-                    .catch(() => {});
-            },
-            { confirmText: 'Start All', confirmClass: 'btn-success' }
-        );
-    }
-
-    /**
-     * Stop all VMs in an environment
-     */
-    function stopEnvironment(envId) {
-        const env = dashboardData.environments.find(e => e.environmentId === envId);
-        if (!env) return;
-
-        Modals.confirm(
-            'Stop Environment',
-            `Stop all VMs in "<strong>${Utils.escapeHtml(env.name)}</strong>"?`,
-            function() {
-                VmOperations.stopEnvironment(envId, env.name)
-                    .then(() => refresh())
-                    .catch(() => {});
-            },
-            { confirmText: 'Stop All', confirmClass: 'btn-danger' }
-        );
     }
 
     /**
@@ -630,4 +648,3 @@ const Dashboard = (function() {
         getData
     };
 })();
-

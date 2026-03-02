@@ -13,8 +13,10 @@ const ApiClient = (function() {
      * @param {object} data - Request body (for POST/PUT)
      * @returns {Promise} - jQuery deferred promise
      */
-    function request(method, url, data = null) {
-        const options = {
+    function request(method, url, data = null, options = {}) {
+        const { suppressGlobalError = false } = options;
+
+        const ajaxOptions = {
             url: url,
             method: method,
             contentType: 'application/json',
@@ -22,13 +24,15 @@ const ApiClient = (function() {
         };
 
         if (data && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
-            options.data = JSON.stringify(data);
+            ajaxOptions.data = JSON.stringify(data);
         }
 
-        return $.ajax(options)
+        return $.ajax(ajaxOptions)
             .fail(function(xhr, status, error) {
                 console.error(`API Error [${method} ${url}]:`, error);
-                handleApiError(xhr, status, error);
+                if (!suppressGlobalError) {
+                    handleApiError(xhr, status, error);
+                }
             });
     }
 
@@ -59,24 +63,24 @@ const ApiClient = (function() {
     }
 
     // Convenience methods
-    function get(url) {
-        return request('GET', url);
+    function get(url, options) {
+        return request('GET', url, null, options);
     }
 
-    function post(url, data) {
-        return request('POST', url, data);
+    function post(url, data, options) {
+        return request('POST', url, data, options);
     }
 
-    function put(url, data) {
-        return request('PUT', url, data);
+    function put(url, data, options) {
+        return request('PUT', url, data, options);
     }
 
-    function patch(url, data) {
-        return request('PATCH', url, data);
+    function patch(url, data, options) {
+        return request('PATCH', url, data, options);
     }
 
-    function del(url) {
-        return request('DELETE', url);
+    function del(url, options) {
+        return request('DELETE', url, null, options);
     }
 
     return {

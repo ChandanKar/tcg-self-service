@@ -388,12 +388,21 @@ const Environments = (function() {
                     <button class="btn btn-outline-secondary me-2" id="btn-operation-history">
                         <i class="fas fa-history"></i> History
                     </button>
-                    <button class="btn btn-success" id="btn-start-all" ${runningVms === totalVms ? 'disabled' : ''}>
-                        <i class="fas fa-play"></i> Start All
-                    </button>
-                    <button class="btn btn-danger ms-2" id="btn-stop-all" ${runningVms === 0 ? 'disabled' : ''}>
-                        <i class="fas fa-stop"></i> Stop All
-                    </button>
+                    ${runningVms === 0 ?
+                        `<button class="btn btn-success" id="btn-env-action" data-action-type="start">
+                            <i class="fas fa-play-circle"></i> Start All
+                        </button>` :
+                    runningVms === totalVms ?
+                        `<button class="btn btn-danger" id="btn-env-action" data-action-type="stop">
+                            <i class="fas fa-stop-circle"></i> Stop All
+                        </button>` :
+                        `<button class="btn btn-success me-2" id="btn-env-action" data-action-type="start">
+                            <i class="fas fa-play-circle"></i> Start All
+                        </button>
+                        <button class="btn btn-danger" id="btn-env-action-stop" data-action-type="stop">
+                            <i class="fas fa-stop-circle"></i> Stop All
+                        </button>`
+                    }
                 </div>
             </div>
 
@@ -453,10 +462,10 @@ const Environments = (function() {
                         </button>
                         ${vm.status === 'RUNNING' ?
                             `<button class="btn btn-sm btn-outline-danger" data-vm-id="${vm.vmId}" data-action="stop-vm">
-                                <i class="fas fa-stop"></i>
+                                <i class="fas fa-stop-circle"></i>
                             </button>` :
                             `<button class="btn btn-sm btn-outline-success" data-vm-id="${vm.vmId}" data-action="start-vm">
-                                <i class="fas fa-play"></i>
+                                <i class="fas fa-play-circle"></i>
                             </button>`
                         }
                     </td>
@@ -474,14 +483,21 @@ const Environments = (function() {
                             <small class="text-muted ms-2">Seq: ${group.sequencePosition} | Depends: ${dependsText}</small>
                         </div>
                         <div>
-                            <button class="btn btn-sm btn-success" data-group-id="${group.groupId}" data-action="start-group"
-                                    ${runningCount === totalCount ? 'disabled' : ''}>
-                                <i class="fas fa-play"></i> Start
-                            </button>
-                            <button class="btn btn-sm btn-danger ms-1" data-group-id="${group.groupId}" data-action="stop-group"
-                                    ${runningCount === 0 ? 'disabled' : ''}>
-                                <i class="fas fa-stop"></i> Stop
-                            </button>
+                            ${runningCount === 0 ?
+                                `<button class="btn btn-sm btn-success" data-group-id="${group.groupId}" data-action="group-action" data-action-type="start">
+                                    <i class="fas fa-play-circle"></i> Start
+                                </button>` :
+                            runningCount === totalCount ?
+                                `<button class="btn btn-sm btn-danger" data-group-id="${group.groupId}" data-action="group-action" data-action-type="stop">
+                                    <i class="fas fa-stop-circle"></i> Stop
+                                </button>` :
+                                `<button class="btn btn-sm btn-success me-1" data-group-id="${group.groupId}" data-action="group-action" data-action-type="start">
+                                    <i class="fas fa-play-circle"></i> Start
+                                </button>
+                                <button class="btn btn-sm btn-danger" data-group-id="${group.groupId}" data-action="group-action" data-action-type="stop">
+                                    <i class="fas fa-stop-circle"></i> Stop
+                                </button>`
+                            }
                         </div>
                     </div>
                 </div>
@@ -595,40 +611,27 @@ const Environments = (function() {
             console.error('Error binding lock events:', e);
         }
 
-        // Start all
-        $('#btn-start-all').off('click').on('click', function(e) {
+        // Environment action button (single contextual — Start All or Stop All)
+        $('#btn-env-action, #btn-env-action-stop').off('click').on('click', function(e) {
             e.preventDefault();
-            console.log('Start All button clicked');
-            startEnvironment(envId, envName);
-        });
-
-        // Stop all
-        $('#btn-stop-all').off('click').on('click', function(e) {
-            e.preventDefault();
-            console.log('Stop All button clicked');
-            stopEnvironment(envId, envName);
+            const actionType = $(this).data('action-type');
+            if (actionType === 'start') startEnvironment(envId, envName);
+            else stopEnvironment(envId, envName);
         });
 
         // Operation history
         $('#btn-operation-history').off('click').on('click', function(e) {
             e.preventDefault();
-            console.log('Operation History button clicked');
             showOperationHistory(envId, envName);
         });
 
-        // Group actions
-        $('[data-action="start-group"]').off('click').on('click', function(e) {
+        // Group action button (single contextual — Start or Stop)
+        $('[data-action="group-action"]').off('click').on('click', function(e) {
             e.preventDefault();
             const groupId = $(this).data('group-id');
-            console.log('Start Group button clicked:', groupId);
-            startGroup(envId, groupId);
-        });
-
-        $('[data-action="stop-group"]').off('click').on('click', function(e) {
-            e.preventDefault();
-            const groupId = $(this).data('group-id');
-            console.log('Stop Group button clicked:', groupId);
-            stopGroup(envId, groupId);
+            const actionType = $(this).data('action-type');
+            if (actionType === 'start') startGroup(envId, groupId);
+            else stopGroup(envId, groupId);
         });
 
         // VM actions
@@ -735,10 +738,11 @@ const Environments = (function() {
         const actionLabel = isStart ? `Start ${scope.level === 'vm' ? 'VM' : 'All'}` : `Stop ${scope.level === 'vm' ? 'VM' : 'All'}`;
         const actionClass = isStart ? 'btn-success' : 'btn-danger';
 
+        // Use div instead of p to avoid double-<p> wrap from Modals.confirm
         const bodyFor = (estimateHtml) => `
-            <p class="mb-2">${verb} ${scope.label}?
+            <div class="mb-2">${verb} ${scope.label}?
             ${note ? `<br><small class="text-muted">${note}</small>` : ''}
-            </p>
+            </div>
             ${estimateHtml}
         `;
 
