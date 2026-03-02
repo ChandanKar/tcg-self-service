@@ -656,105 +656,200 @@ const Environments = (function() {
 
     // Operation functions - delegate to VmOperations module for progress tracking
     function startEnvironment(envId, envName) {
-        console.log('startEnvironment called:', envId, envName);
-        Modals.confirm(
-            'Start Environment',
-            `Start all VMs in "<strong>${Utils.escapeHtml(envName)}</strong>"?`,
-            function() {
-                console.log('Confirmed start environment');
-                VmOperations.startEnvironment(envId, envName)
-                    .then(() => {
-                        console.log('Start environment completed');
-                        loadDetail({ environmentId: envId });
-                    })
-                    .catch((err) => {
-                        console.error('Start environment failed:', err);
-                    });
-            },
-            { confirmText: 'Start All', confirmClass: 'btn-success' }
-        );
+        showOperationConfirm({
+            envId, opType: 'START',
+            scope: { level: 'environment', label: `all VMs in <strong>${Utils.escapeHtml(envName)}</strong>` },
+            onConfirm: () => VmOperations.startEnvironment(envId, envName)
+                                .then(() => loadDetail({ environmentId: envId }))
+        });
     }
 
     function stopEnvironment(envId, envName) {
-        console.log('stopEnvironment called:', envId, envName);
-        Modals.confirm(
-            'Stop Environment',
-            `Stop all VMs in "<strong>${Utils.escapeHtml(envName)}</strong>"?<br>
-             <small class="text-muted">Running VMs will be gracefully stopped.</small>`,
-            function() {
-                console.log('Confirmed stop environment');
-                VmOperations.stopEnvironment(envId, envName)
-                    .then(() => {
-                        console.log('Stop environment completed');
-                        loadDetail({ environmentId: envId });
-                    })
-                    .catch((err) => {
-                        console.error('Stop environment failed:', err);
-                    });
-            },
-            { confirmText: 'Stop All', confirmClass: 'btn-danger' }
-        );
+        showOperationConfirm({
+            envId, opType: 'STOP',
+            scope: { level: 'environment', label: `all VMs in <strong>${Utils.escapeHtml(envName)}</strong>` },
+            note: 'Running VMs will be gracefully stopped.',
+            onConfirm: () => VmOperations.stopEnvironment(envId, envName)
+                                .then(() => loadDetail({ environmentId: envId }))
+        });
     }
 
     function startGroup(envId, groupId) {
-        console.log('startGroup called:', envId, groupId);
         const group = findGroup(groupId);
-        const groupName = group ? (group.group?.name || group.name) : groupId;
-
-        VmOperations.startGroup(envId, groupId, groupName)
-            .then(() => {
-                console.log('Start group completed');
-                loadDetail({ environmentId: envId });
-            })
-            .catch((err) => {
-                console.error('Start group failed:', err);
-            });
+        const groupName = group ? (group.group?.displayName || group.group?.name || group.displayName || group.name) : groupId;
+        showOperationConfirm({
+            envId, opType: 'START',
+            scope: { level: 'group', label: `group <strong>${Utils.escapeHtml(groupName)}</strong>`, groupId },
+            onConfirm: () => VmOperations.startGroup(envId, groupId, groupName)
+                                .then(() => loadDetail({ environmentId: envId }))
+        });
     }
 
     function stopGroup(envId, groupId) {
-        console.log('stopGroup called:', envId, groupId);
         const group = findGroup(groupId);
-        const groupName = group ? (group.group?.name || group.name) : groupId;
-
-        VmOperations.stopGroup(envId, groupId, groupName)
-            .then(() => {
-                console.log('Stop group completed');
-                loadDetail({ environmentId: envId });
-            })
-            .catch((err) => {
-                console.error('Stop group failed:', err);
-            });
+        const groupName = group ? (group.group?.displayName || group.group?.name || group.displayName || group.name) : groupId;
+        showOperationConfirm({
+            envId, opType: 'STOP',
+            scope: { level: 'group', label: `group <strong>${Utils.escapeHtml(groupName)}</strong>`, groupId },
+            note: 'Running VMs will be gracefully stopped.',
+            onConfirm: () => VmOperations.stopGroup(envId, groupId, groupName)
+                                .then(() => loadDetail({ environmentId: envId }))
+        });
     }
 
     function startVm(envId, vmId) {
-        console.log('startVm called:', envId, vmId);
         const vm = findVm(vmId);
-        const vmName = vm ? vm.name : vmId;
-
-        VmOperations.startVm(envId, vmId, vmName)
-            .then(() => {
-                console.log('Start VM completed');
-                loadDetail({ environmentId: envId });
-            })
-            .catch((err) => {
-                console.error('Start VM failed:', err);
-            });
+        const vmName = vm ? (vm.displayName || vm.name) : vmId;
+        showOperationConfirm({
+            envId, opType: 'START',
+            scope: { level: 'vm', label: `VM <strong>${Utils.escapeHtml(vmName)}</strong>`, vmId },
+            onConfirm: () => VmOperations.startVm(envId, vmId, vmName)
+                                .then(() => loadDetail({ environmentId: envId }))
+        });
     }
 
     function stopVm(envId, vmId) {
-        console.log('stopVm called:', envId, vmId);
         const vm = findVm(vmId);
-        const vmName = vm ? vm.name : vmId;
+        const vmName = vm ? (vm.displayName || vm.name) : vmId;
+        showOperationConfirm({
+            envId, opType: 'STOP',
+            scope: { level: 'vm', label: `VM <strong>${Utils.escapeHtml(vmName)}</strong>`, vmId },
+            onConfirm: () => VmOperations.stopVm(envId, vmId, vmName)
+                                .then(() => loadDetail({ environmentId: envId }))
+        });
+    }
 
-        VmOperations.stopVm(envId, vmId, vmName)
-            .then(() => {
-                console.log('Stop VM completed');
-                loadDetail({ environmentId: envId });
+    /**
+     * Unified confirm modal with async estimate for all 3 scope levels.
+     * @param {object} opts
+     *   envId     - environment ID
+     *   opType    - 'START' | 'STOP'
+     *   scope     - { level: 'environment'|'group'|'vm', label, groupId?, vmId? }
+     *   note      - optional extra text (e.g., "VMs will be gracefully stopped")
+     *   onConfirm - function to call when user clicks confirm
+     */
+    function showOperationConfirm(opts) {
+        const { envId, opType, scope, note, onConfirm } = opts;
+        const isStart     = opType === 'START';
+        const verb        = isStart ? 'Start' : 'Stop';
+        const actionLabel = isStart ? `Start ${scope.level === 'vm' ? 'VM' : 'All'}` : `Stop ${scope.level === 'vm' ? 'VM' : 'All'}`;
+        const actionClass = isStart ? 'btn-success' : 'btn-danger';
+
+        const bodyFor = (estimateHtml) => `
+            <p class="mb-2">${verb} ${scope.label}?
+            ${note ? `<br><small class="text-muted">${note}</small>` : ''}
+            </p>
+            ${estimateHtml}
+        `;
+
+        // Show modal immediately — estimate loads async
+        Modals.confirm(
+            `${verb} ${scope.level === 'environment' ? 'Environment' : scope.level === 'group' ? 'Group' : 'VM'}`,
+            bodyFor(`<div id="estimate-placeholder" class="text-muted small mt-2">
+                <i class="fas fa-spinner fa-spin me-1"></i> Loading time estimate…
+            </div>`),
+            function() {
+                onConfirm().catch(err => console.error(`${actionLabel} failed:`, err));
+            },
+            { confirmText: actionLabel, confirmClass: actionClass }
+        );
+
+        // Build scope param for API
+        const scopeParam = scope.level === 'group' ? { groupId: scope.groupId }
+                         : scope.level === 'vm'    ? { vmId: scope.vmId }
+                         : null;
+
+        ApiClient.get(Config.API.operations.estimates(envId, opType, scopeParam))
+            .done(function(estimate) {
+                console.log(`[Estimate][${scope.level}] received:`, estimate);
+                const html = buildEstimateHtml(estimate, opType, scope.level);
+                const $ph = $('#estimate-placeholder');
+                if ($ph.length) $ph.replaceWith(html);
             })
-            .catch((err) => {
-                console.error('Stop VM failed:', err);
+            .fail(function(xhr) {
+                console.warn(`[Estimate][${scope.level}] fetch failed:`, xhr.status, xhr.responseText);
+                const $ph = $('#estimate-placeholder');
+                if ($ph.length) $ph.remove();
             });
     }
+
+    /**
+     * Build the estimate info block for any scope level.
+     * - ENVIRONMENT: shows avg/min/max + per-VM breakdown table
+     * - GROUP: shows avg/min/max total for the group (no VM breakdown)
+     * - VM: shows avg/min/max for that single VM
+     */
+    function buildEstimateHtml(estimate, opType, level) {
+        const opLabel = opType.toLowerCase();
+
+        if (!estimate || estimate.sampleCount === 0) {
+            return `<div class="alert alert-secondary py-2 small mt-2 mb-0">
+                <i class="fas fa-info-circle me-1"></i>
+                No historical data yet — this will be the first recorded ${opLabel} operation${level !== 'environment' ? ' at this level' : ''}.
+            </div>`;
+        }
+
+        const n   = estimate.sampleCount;
+        const avg = estimate.avgEnvironmentSeconds;
+        const min = estimate.minEnvironmentSeconds;
+        const max = estimate.maxEnvironmentSeconds;
+
+        const fmt = (s) => {
+            if (s == null || s === 0) return '—';
+            s = Math.round(s);
+            if (s < 60) return `${s}s`;
+            const m = Math.floor(s / 60), sec = s % 60;
+            return sec > 0 ? `${m}m ${sec}s` : `${m}m`;
+        };
+
+        // Per-VM breakdown only for environment scope
+        let vmBreakdown = '';
+        if (level === 'environment' && estimate.vmEstimates && estimate.vmEstimates.length > 0) {
+            const MAX_VISIBLE = 6;
+            const rows = estimate.vmEstimates.map((vm, i) => `
+                <tr class="${i >= MAX_VISIBLE ? 'vm-est-extra d-none' : ''}">
+                    <td class="text-muted pe-2" style="width:24px">${vm.sequencePosition}</td>
+                    <td>${Utils.escapeHtml(vm.vmName)}</td>
+                    <td class="text-end text-nowrap ps-3">~${fmt(vm.avgSeconds)}
+                        <small class="text-muted">(${vm.sampleCount}×)</small>
+                    </td>
+                </tr>`).join('');
+
+            const extra = estimate.vmEstimates.length - MAX_VISIBLE;
+            const toggleRow = extra > 0 ? `
+                <tr><td colspan="3" class="pt-1">
+                    <a href="#" class="small text-muted" onclick="
+                        $(this).closest('table').find('.vm-est-extra').toggleClass('d-none');
+                        $(this).text($(this).text().startsWith('Show') ? 'Hide' : 'Show ${extra} more…');
+                        return false;">Show ${extra} more…</a>
+                </td></tr>` : '';
+
+            vmBreakdown = `
+                <div class="mt-2 border-top pt-2">
+                    <table class="table table-sm table-borderless mb-0" style="font-size:0.8rem">
+                        <tbody>${rows}${toggleRow}</tbody>
+                    </table>
+                </div>`;
+        }
+
+        const levelLabel = level === 'environment' ? 'environment' : level === 'group' ? 'group' : 'VM';
+
+        return `
+            <div class="alert alert-info py-2 mt-2 mb-0" style="font-size:0.875rem">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <i class="fas fa-clock text-info"></i>
+                    <strong>Estimated ${opLabel} time</strong>
+                    <span class="text-muted small">(based on ${n} previous ${n === 1 ? 'run' : 'runs'})</span>
+                </div>
+                <div class="d-flex gap-3 flex-wrap">
+                    <span>Avg: <strong class="text-dark">${fmt(avg)}</strong></span>
+                    <span class="text-muted">Fast: ${fmt(min)}</span>
+                    <span class="text-muted">Slow: ${fmt(max)}</span>
+                </div>
+                ${vmBreakdown}
+            </div>`;
+    }
+
 
     // Helper to find group in current environment
     function findGroup(groupId) {

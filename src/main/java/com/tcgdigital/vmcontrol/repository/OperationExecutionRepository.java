@@ -2,8 +2,10 @@ package com.tcgdigital.vmcontrol.repository;
 
 import com.tcgdigital.vmcontrol.model.ExecutionStatus;
 import com.tcgdigital.vmcontrol.model.OperationExecution;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -46,5 +48,16 @@ public interface OperationExecutionRepository extends JpaRepository<OperationExe
      */
     @Query("SELECT COUNT(e) > 0 FROM OperationExecution e WHERE e.environment.environmentId = :environmentId AND (e.status = 'pending' OR e.status = 'in_progress')")
     boolean hasActiveOperations(String environmentId);
+
+    /**
+     * Find the last N completed executions for a given environment and operationType.
+     * Pass PageRequest.of(0, 20) as pageable to limit to 20 results.
+     * Duration stats are computed in the service layer to avoid HQL dialect issues.
+     */
+    @Query("SELECT e FROM OperationExecution e WHERE e.environment.environmentId = :environmentId AND e.operationType = :operationType AND e.status = 'completed' AND e.completedAt IS NOT NULL ORDER BY e.startedAt DESC")
+    List<OperationExecution> findRecentCompletedByEnvironmentAndType(
+            @Param("environmentId") String environmentId,
+            @Param("operationType") String operationType,
+            Pageable pageable);
 }
 

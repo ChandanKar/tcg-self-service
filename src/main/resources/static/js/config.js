@@ -87,7 +87,13 @@ const Config = (function() {
             create: (envId) => `${API_BASE_URL}/environments/${envId}/operations`,
             list: (envId) => `${API_BASE_URL}/environments/${envId}/operations`,
             get: (envId, execId) => `${API_BASE_URL}/environments/${envId}/operations/${execId}`,
-            cancel: (envId, execId) => `${API_BASE_URL}/environments/${envId}/operations/${execId}/cancel`
+            cancel: (envId, execId) => `${API_BASE_URL}/environments/${envId}/operations/${execId}/cancel`,
+            estimates: (envId, opType, scope) => {
+                let url = `${API_BASE_URL}/environments/${envId}/operations/time-estimates?operationType=${opType}`;
+                if (scope && scope.groupId) url += `&groupId=${scope.groupId}`;
+                if (scope && scope.vmId)    url += `&vmId=${scope.vmId}`;
+                return url;
+            }
         },
 
         // Locks

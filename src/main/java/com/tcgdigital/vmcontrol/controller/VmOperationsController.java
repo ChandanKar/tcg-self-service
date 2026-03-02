@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.controller;
 
+import com.tcgdigital.vmcontrol.dto.OperationEstimateDTO;
 import com.tcgdigital.vmcontrol.dto.OperationExecutionDTO;
 import com.tcgdigital.vmcontrol.dto.StartOperationDTO;
 import com.tcgdigital.vmcontrol.model.OperationExecution;
@@ -114,6 +115,23 @@ public class VmOperationsController {
         OperationExecution execution = operationsService.getExecutionWithDetails(executionId);
 
         return ResponseEntity.ok(OperationExecutionDTO.fromEntityWithDetails(execution));
+    }
+
+    @GetMapping("/time-estimates")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "Get operation time estimates",
+            description = "Returns average duration statistics (last 10 runs) for start/stop operations. " +
+                    "Scope: environment (default), group (pass groupId), or VM (pass vmId)."
+    )
+    public ResponseEntity<OperationEstimateDTO> getEstimates(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId,
+            @Parameter(description = "Operation type: START or STOP") @RequestParam(defaultValue = "START") String operationType,
+            @Parameter(description = "Optional: scope to a specific group") @RequestParam(required = false) String groupId,
+            @Parameter(description = "Optional: scope to a specific VM")    @RequestParam(required = false) String vmId) {
+
+        OperationEstimateDTO estimate = operationsService.getOperationEstimate(environmentId, operationType, groupId, vmId);
+        return ResponseEntity.ok(estimate);
     }
 
     @PostMapping("/{executionId}/cancel")

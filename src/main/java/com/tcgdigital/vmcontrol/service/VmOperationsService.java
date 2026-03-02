@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.dto.OperationEstimateDTO;
 import com.tcgdigital.vmcontrol.dto.StartOperationDTO;
 import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
@@ -8,6 +9,7 @@ import com.tcgdigital.vmcontrol.repository.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +18,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 /**
  * Service for orchestrating VM operations across an environment.
@@ -150,6 +153,158 @@ public class VmOperationsService {
      */
     public List<OperationExecution> getRecentExecutions(String environmentId) {
         return executionRepository.findTop20ByEnvironmentEnvironmentIdOrderByStartedAtDesc(environmentId);
+    }
+
+    /**
+     * Build average-time estimates for an operation, scoped to environment / group / VM.
+     * Uses last 10 completed executions for the environment as the sample window.
+     * All duration arithmetic is done in Java to stay DB-dialect-agnostic.
+     *
+     * @param environmentId always required
+     * @param operationType "start" or "stop"
+     * @param groupId       optional — scope to a single group
+     * @param vmId          optional — scope to a single VM (takes precedence over groupId)
+     */
+    @Transactional(readOnly = true)
+    public OperationEstimateDTO getOperationEstimate(String environmentId, String operationType,
+                                                     String groupId, String vmId) {
+        OperationEstimateDTO estimate = new OperationEstimateDTO();
+        estimate.setOperationType(operationType.toUpperCase());
+
+        // --- Determine scope ---
+        List<String> scopedVmIds = null; // null = all VMs in environment
+
+        if (vmId != null && !vmId.isBlank()) {
+            // VM scope
+            scopedVmIds = List.of(vmId);
+            Vm vm = vmRepository.findById(vmId).orElse(null);
+            estimate.setScopeLevel("VM");
+            estimate.setScopeId(vmId);
+            estimate.setScopeName(vm != null ? vm.getName() : vmId);
+        } else if (groupId != null && !groupId.isBlank()) {
+            // Group scope — resolve VMs in this group
+            List<Vm> groupVms = vmRepository.findByGroupGroupIdOrderBySequencePositionAsc(groupId);
+            scopedVmIds = groupVms.stream().map(Vm::getVmId).toList();
+            VmGroup group = groupRepository.findById(groupId).orElse(null);
+            estimate.setScopeLevel("GROUP");
+            estimate.setScopeId(groupId);
+            estimate.setScopeName(group != null ? (group.getDisplayName() != null ? group.getDisplayName() : group.getName()) : groupId);
+            if (scopedVmIds.isEmpty()) {
+                estimate.setSampleCount(0);
+                estimate.setVmEstimates(new ArrayList<>());
+                return estimate;
+            }
+        } else {
+            // Environment scope
+            Environment env = environmentRepository.findById(environmentId).orElse(null);
+            estimate.setScopeLevel("ENVIRONMENT");
+            estimate.setScopeId(environmentId);
+            estimate.setScopeName(env != null ? env.getName() : environmentId);
+        }
+
+        // --- Fetch last 10 completed executions for this environment + operationType ---
+        // operationType must be UPPERCASE to match what OperationType.name() stores in DB (e.g. "START", "STOP")
+        List<OperationExecution> executions = executionRepository
+                .findRecentCompletedByEnvironmentAndType(environmentId, operationType.toUpperCase(), PageRequest.of(0, 10));
+
+        if (executions.isEmpty()) {
+            estimate.setSampleCount(0);
+            estimate.setVmEstimates(new ArrayList<>());
+            return estimate;
+        }
+
+        List<String> execIds = executions.stream().map(OperationExecution::getExecutionId).toList();
+
+        // --- Fetch relevant details (scoped or all) ---
+        List<OperationDetail> details;
+        if (scopedVmIds != null) {
+            details = detailRepository.findCompletedDetailsByExecutionIdsAndVmIds(execIds, scopedVmIds);
+        } else {
+            details = detailRepository.findCompletedDetailsByExecutionIds(execIds);
+        }
+
+        if (details.isEmpty()) {
+            estimate.setSampleCount(0);
+            estimate.setVmEstimates(new ArrayList<>());
+            return estimate;
+        }
+
+        // --- Compute wall-clock totals per execution (sum of scoped VM durations within each run) ---
+        // Group details by executionId first
+        Map<String, List<OperationDetail>> byExec = new LinkedHashMap<>();
+        for (OperationDetail d : details) {
+            byExec.computeIfAbsent(d.getExecution().getExecutionId(), k -> new ArrayList<>()).add(d);
+        }
+
+        // For each execution compute the total duration of scoped VMs
+        // (from earliest startedAt to latest completedAt within that execution)
+        List<Double> totalDurations = new ArrayList<>();
+        for (List<OperationDetail> execDetails : byExec.values()) {
+            long earliest = execDetails.stream()
+                    .mapToLong(d -> d.getStartedAt().getTime())
+                    .min().orElse(0);
+            long latest = execDetails.stream()
+                    .mapToLong(d -> d.getCompletedAt().getTime())
+                    .max().orElse(0);
+            if (latest > earliest) {
+                totalDurations.add((latest - earliest) / 1000.0);
+            }
+        }
+
+        if (!totalDurations.isEmpty()) {
+            double avg = totalDurations.stream().mapToDouble(Double::doubleValue).average().orElse(0);
+            double min = totalDurations.stream().mapToDouble(Double::doubleValue).min().orElse(0);
+            double max = totalDurations.stream().mapToDouble(Double::doubleValue).max().orElse(0);
+            estimate.setSampleCount(totalDurations.size());
+            estimate.setAvgEnvironmentSeconds(round1(avg));
+            estimate.setMinEnvironmentSeconds(round1(min));
+            estimate.setMaxEnvironmentSeconds(round1(max));
+        } else {
+            estimate.setSampleCount(0);
+        }
+
+        // --- Per-VM breakdown (only for ENVIRONMENT scope — group/VM show totals only) ---
+        if (scopedVmIds == null) {
+            // Environment scope: build per-VM breakdown
+            Map<String, List<OperationDetail>> byVm = new LinkedHashMap<>();
+            Map<String, String> vmNames = new LinkedHashMap<>();
+            Map<String, Integer> minSeq = new LinkedHashMap<>();
+
+            for (OperationDetail d : details) {
+                byVm.computeIfAbsent(d.getTargetId(), k -> new ArrayList<>()).add(d);
+                vmNames.put(d.getTargetId(), d.getTargetName());
+                minSeq.merge(d.getTargetId(), d.getSequencePosition(),
+                        (existing, newVal) -> Math.min(existing, newVal));
+            }
+
+            List<OperationEstimateDTO.VmEstimate> vmEstimates = byVm.entrySet().stream()
+                    .map(entry -> {
+                        String vid = entry.getKey();
+                        List<OperationDetail> vmDetails = entry.getValue();
+                        double avgSec = vmDetails.stream()
+                                .mapToDouble(d -> (d.getCompletedAt().getTime() - d.getStartedAt().getTime()) / 1000.0)
+                                .average().orElse(0);
+                        OperationEstimateDTO.VmEstimate ve = new OperationEstimateDTO.VmEstimate();
+                        ve.setVmId(vid);
+                        ve.setVmName(vmNames.get(vid));
+                        ve.setAvgSeconds(round1(avgSec));
+                        ve.setSampleCount(vmDetails.size());
+                        ve.setSequencePosition(minSeq.getOrDefault(vid, 0));
+                        return ve;
+                    })
+                    .sorted(Comparator.comparingInt(OperationEstimateDTO.VmEstimate::getSequencePosition))
+                    .collect(java.util.stream.Collectors.toList());
+
+            estimate.setVmEstimates(vmEstimates);
+        } else {
+            estimate.setVmEstimates(new ArrayList<>());
+        }
+
+        return estimate;
+    }
+
+    private static double round1(double v) {
+        return Math.round(v * 10.0) / 10.0;
     }
 
     /**
