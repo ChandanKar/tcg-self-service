@@ -84,13 +84,9 @@ const Dashboard = (function() {
         // Calculate metrics from environments
         const metrics = calculateMetrics(environments);
 
-        // Calculate cloud provider breakdown
-        const cloudBreakdown = calculateCloudBreakdown(environments);
-
         return {
             environments,
-            metrics,
-            cloudBreakdown
+            metrics
         };
     }
 
@@ -223,51 +219,6 @@ const Dashboard = (function() {
     }
 
     /**
-     * Calculate cloud provider breakdown from environments
-     */
-    function calculateCloudBreakdown(environments) {
-        const providerMap = {};
-
-        // Initialize with known providers
-        const knownProviders = ['AWS', 'AZURE', 'GCP', 'OCI'];
-        knownProviders.forEach(p => {
-            providerMap[p] = { totalVms: 0, runningVms: 0 };
-        });
-
-        // Aggregate from environments
-        environments.forEach(env => {
-            if (env.providers) {
-                env.providers.forEach(provider => {
-                    if (!providerMap[provider]) {
-                        providerMap[provider] = { totalVms: 0, runningVms: 0 };
-                    }
-                    // Approximate distribution (would need per-VM data for accuracy)
-                    providerMap[provider].totalVms += Math.ceil(env.totalVms / env.providers.length);
-                    providerMap[provider].runningVms += Math.ceil(env.runningVms / env.providers.length);
-                });
-            }
-        });
-
-        // Convert to array and filter out empty providers
-        return Object.entries(providerMap)
-            .filter(([_, data]) => data.totalVms > 0)
-            .map(([provider, data]) => {
-                const config = Config.CLOUD_ICONS[provider] || {
-                    icon: 'fas fa-cloud',
-                    color: '#6b7280',
-                    label: provider
-                };
-                return {
-                    provider: config.label,
-                    icon: config.icon,
-                    color: config.color,
-                    totalVms: data.totalVms,
-                    runningVms: data.runningVms
-                };
-            });
-    }
-
-    /**
      * Show loading state
      */
     function showLoading() {
@@ -330,9 +281,6 @@ const Dashboard = (function() {
                 </div>
 
                 <div class="dashboard-body">
-                    <!-- Cloud Provider Breakdown -->
-                    ${buildCloudBreakdown(data.cloudBreakdown)}
-
                     <!-- Metric Cards -->
                     ${buildMetricCards(data.metrics)}
 
@@ -344,82 +292,41 @@ const Dashboard = (function() {
     }
 
     /**
-     * Build cloud provider breakdown section
-     */
-    function buildCloudBreakdown(providers) {
-        if (!providers || providers.length === 0) {
-            return `
-                <div class="row mb-2 flex-shrink-0">
-                    <div class="col-md-12">
-                        <div class="metric-card">
-                            <h5 class="mb-2">Cloud Provider Breakdown</h5>
-                            <p class="text-muted">No VMs registered yet</p>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        const providerCards = providers.map(p => `
-            <div class="col-md-4 col-lg-3">
-                <div class="d-flex align-items-center mb-1">
-                    <i class="${p.icon}" style="font-size: 1.75rem; color: ${p.color}; margin-right: 0.75rem;"></i>
-                    <div>
-                        <div style="font-weight: 600; color: #1e293b;">${p.provider}</div>
-                        <div style="color: #64748b; font-size: 0.8rem;">
-                            ${p.totalVms} VMs (${p.runningVms} running)
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `).join('');
-
-        return `
-            <div class="row mb-1 flex-shrink-0">
-                <div class="col-md-12">
-                    <div class="metric-card py-2">
-                        <h6 class="mb-2 text-muted text-uppercase" style="font-size:0.7rem;letter-spacing:0.05em;">Cloud Provider Breakdown</h6>
-                        <div class="row">
-                            ${providerCards}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    /**
-     * Build metric cards section
+     * Build metric cards section — number only, detail on tooltip
      */
     function buildMetricCards(metrics) {
         return `
-            <div class="row mb-1 flex-shrink-0">
+            <div class="row g-2 flex-shrink-0">
                 <div class="col-md-3">
-                    <div class="metric-card py-2">
-                        <div class="metric-title">My Environments</div>
+                    <div class="metric-card"
+                         data-bs-toggle="tooltip" data-bs-placement="bottom"
+                         title="My Environments — ${metrics.environments} accessible environment${metrics.environments !== 1 ? 's' : ''}">
                         <div class="metric-value" id="metric-environments">${metrics.environments}</div>
-                        <div class="metric-subtitle">Accessible environments</div>
+                        <div class="metric-label-hint">My Environments</div>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="metric-card py-2">
-                        <div class="metric-title">Total VMs</div>
+                    <div class="metric-card"
+                         data-bs-toggle="tooltip" data-bs-placement="bottom"
+                         title="Total VMs — ${metrics.totalVms} registered instance${metrics.totalVms !== 1 ? 's' : ''}">
                         <div class="metric-value" id="metric-total-vms">${metrics.totalVms}</div>
-                        <div class="metric-subtitle">Registered instances</div>
+                        <div class="metric-label-hint">Total VMs</div>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="metric-card py-2">
-                        <div class="metric-title">Running VMs</div>
-                        <div class="metric-value" id="metric-running-vms">${metrics.runningVms}</div>
-                        <div class="metric-subtitle"><span id="metric-running-percent">${metrics.runningPercent}%</span> of total</div>
+                    <div class="metric-card"
+                         data-bs-toggle="tooltip" data-bs-placement="bottom"
+                         title="Running VMs — ${metrics.runningPercent}% of total (${metrics.runningVms} of ${metrics.totalVms})">
+                        <div class="metric-value text-success" id="metric-running-vms">${metrics.runningVms}</div>
+                        <div class="metric-label-hint">Running</div>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="metric-card py-2">
-                        <div class="metric-title">Stopped VMs</div>
-                        <div class="metric-value" id="metric-stopped-vms">${metrics.totalVms - metrics.runningVms}</div>
-                        <div class="metric-subtitle">${100 - metrics.runningPercent}% of total</div>
+                    <div class="metric-card"
+                         data-bs-toggle="tooltip" data-bs-placement="bottom"
+                         title="Stopped VMs — ${100 - metrics.runningPercent}% of total (${metrics.totalVms - metrics.runningVms} of ${metrics.totalVms})">
+                        <div class="metric-value text-secondary" id="metric-stopped-vms">${metrics.totalVms - metrics.runningVms}</div>
+                        <div class="metric-label-hint">Stopped</div>
                     </div>
                 </div>
             </div>
@@ -487,7 +394,7 @@ const Dashboard = (function() {
         const start = (page - 1) * PAGE_SIZE;
         const pageItems = envList.slice(start, start + PAGE_SIZE);
 
-        return pageItems.map(env => {
+        const dataRows = pageItems.map(env => {
             const statusClass = env.runningVms === 0 ? 'stopped' :
                                env.runningVms === env.totalVms ? 'running' : 'partial';
 
@@ -508,9 +415,7 @@ const Dashboard = (function() {
             const tooltip = env.description ? ` data-bs-toggle="tooltip" data-bs-placement="right" title="${Utils.escapeHtml(env.description)}"` : '';
             return `
                 <tr class="env-row" data-env-id="${env.environmentId}">
-                    <td>
-                        <strong${tooltip}>${Utils.escapeHtml(env.name)}</strong>
-                    </td>
+                    <td><strong${tooltip}>${Utils.escapeHtml(env.name)}</strong></td>
                     <td>${env.totalVms}</td>
                     <td>
                         <span class="status-badge ${statusClass}">
@@ -525,6 +430,13 @@ const Dashboard = (function() {
                 </tr>
             `;
         }).join('');
+
+        // Single filler row — expands via CSS height:100% to fill leftover space
+        const filler = pageItems.length < PAGE_SIZE
+            ? `<tr class="env-table-filler"><td colspan="6"></td></tr>`
+            : '';
+
+        return dataRows + filler;
     }
 
     /**
@@ -616,12 +528,18 @@ const Dashboard = (function() {
     }
 
     /**
-     * Initialise Bootstrap tooltips on env name cells
+     * Initialise Bootstrap tooltips — table rows, metric cards, cloud bar
      */
     function initTooltips() {
-        const els = document.querySelectorAll('#env-table-body [data-bs-toggle="tooltip"]');
+        const els = document.querySelectorAll(
+            '#env-table-body [data-bs-toggle="tooltip"], ' +
+            '#dashboard-view [data-bs-toggle="tooltip"]'
+        );
         els.forEach(el => {
-            if (bootstrap && bootstrap.Tooltip) {
+            if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+                // Dispose existing to avoid duplicates
+                const existing = bootstrap.Tooltip.getInstance(el);
+                if (existing) existing.dispose();
                 new bootstrap.Tooltip(el, { trigger: 'hover' });
             }
         });

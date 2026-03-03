@@ -5,7 +5,7 @@
 .main-content {
     margin-left: var(--sidebar-width);
     margin-top: var(--topnav-height);
-    padding: 1.25rem;
+    padding: 0.85rem 1.1rem;
     height: calc(100vh - var(--topnav-height));
     overflow: hidden;
     display: flex;
@@ -17,7 +17,7 @@
     margin-left: var(--sidebar-collapsed-width);
 }
 
-/* Dashboard fits viewport exactly — no page scroll */
+/* ── Dashboard: zero page scroll, maximum density ── */
 #dashboard-view {
     display: flex;
     flex-direction: column;
@@ -25,89 +25,143 @@
     overflow: hidden;
 }
 
-/* Scrollable body region below the header */
+/* Compact header for dashboard */
+#dashboard-view .content-header {
+    margin-bottom: 0.4rem;
+    padding-left: 0.75rem;
+}
+#dashboard-view .content-header h1 {
+    font-size: 1.2rem;
+    margin-bottom: 0;
+}
+#dashboard-view .content-header p {
+    font-size: 0.75rem;
+    margin-bottom: 0;
+}
+
+/* Dashboard body: flex column, gaps between sections */
 #dashboard-view .dashboard-body {
     flex: 1;
     overflow: hidden;
     display: flex;
     flex-direction: column;
     min-height: 0;
+    gap: 0.35rem;
 }
 
-/* Tighten metric cards inside dashboard only */
+/* ── Metric cards: number only + tiny label ── */
 #dashboard-view .metric-card {
-    padding: 0.75rem 1rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: 8px;
+    text-align: center;
+    cursor: default;
 }
-
+#dashboard-view .metric-card:hover {
+    transform: none;
+}
 #dashboard-view .metric-card .metric-value {
-    font-size: 1.5rem;
-    margin-bottom: 0.1rem;
+    font-size: 1.55rem;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 0;
+}
+#dashboard-view .metric-label-hint {
+    font-size: 0.63rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
 }
 
-#dashboard-view .metric-card .metric-title {
-    font-size: 0.8rem;
-    margin-bottom: 0.25rem;
-}
-
-#dashboard-view .metric-card .metric-subtitle {
-    font-size: 0.78rem;
-}
-
-/* Environments table card fills remaining height */
+/* ── Env table card: fills all remaining height ── */
 #dashboard-view .env-table-card {
     flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 0;
     overflow: hidden;
+    padding: 0.4rem 0.6rem 0.3rem;
 }
 
-/* Table scrolls internally — viewport never scrolls */
+/* Table wrapper: takes all space, scrolls only when > PAGE_SIZE rows */
 #dashboard-view .env-table-wrapper {
     flex: 1;
     overflow-y: auto;
     min-height: 0;
 }
-
-#dashboard-view .env-table-wrapper::-webkit-scrollbar {
-    width: 5px;
-}
-
+#dashboard-view .env-table-wrapper::-webkit-scrollbar { width: 4px; }
 #dashboard-view .env-table-wrapper::-webkit-scrollbar-thumb {
     background: #cbd5e1;
     border-radius: 3px;
 }
 
-/* All other content views scroll normally — handled by .content-view:not(#dashboard-view) below */
+/* Make the table itself fill full wrapper height so filler row expands */
+#dashboard-view .env-table-wrapper .table {
+    table-layout: fixed;
+    width: 100%;
+    height: 100%;
+}
+#dashboard-view .env-table-wrapper .table tbody {
+    height: 100%;
+}
 
+/* Compact table rows */
+#dashboard-view .env-table-wrapper .table td,
+#dashboard-view .env-table-wrapper .table th {
+    padding: 0.28rem 0.55rem;
+    font-size: 0.81rem;
+    vertical-align: middle;
+    line-height: 1.5;
+}
+#dashboard-view .env-table-wrapper .table thead th {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+/* Single filler row expands to fill leftover space */
+#dashboard-view .env-table-filler {
+    height: 100%;
+}
+#dashboard-view .env-table-filler td {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    pointer-events: none;
+}
+
+/* Pagination bar — always at bottom */
+#dashboard-view #env-pagination {
+    flex-shrink: 0;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 0.3rem;
+    min-height: 28px;
+}
+
+/* ── All other views ── */
 .content-header {
     margin-bottom: 0.75rem;
     border-left: 4px solid var(--primary-color);
     padding-left: 1rem;
     flex-shrink: 0;
 }
-
 .content-header h1 {
     font-size: 1.5rem;
     font-weight: 700;
     color: #1e293b;
     margin-bottom: 0.15rem;
 }
-
 .content-header p {
     color: #64748b;
     font-size: 0.85rem;
 }
 
-/* Content Views */
 .content-view {
     display: flex;
     flex-direction: column;
     height: 100%;
     overflow: hidden;
 }
-
-/* Non-dashboard views scroll at content-view level */
 .content-view:not(#dashboard-view) {
     overflow-y: auto;
 }
