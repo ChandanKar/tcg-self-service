@@ -27,7 +27,8 @@ public class EntraidSecurityConfig {
                 // allow static resources, login page, health/error endpoints, oauth callback, h2 console, and Swagger UI
                 .requestMatchers("/", "/login", "/login.html", "/css/**", "/js/**", "/logo/**", "/images/**", "/static/**",
                     "/error", "/h2-console/**", "/login/**", "/oauth2/**", "/logout",
-                    "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/swagger-resources/**", "/webjars/**").permitAll()
+                    "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/swagger-resources/**", "/webjars/**",
+                    "/api/auth/login").permitAll()  // Added username/password login endpoint
                 // require authentication for all other requests (including /home)
                 .anyRequest().authenticated()
             )
@@ -69,7 +70,7 @@ public class EntraidSecurityConfig {
             )
             // CSRF configuration for API endpoints
             .csrf(csrf -> csrf
-                .ignoringRequestMatchers("/api/**", "/h2-console/**")
+                .ignoringRequestMatchers("/api/**", "/h2-console/**")  // Allow /api/auth/login without CSRF token
             )
             // allow H2 console to render in a frame
             .headers(headers -> headers.frameOptions(frame -> frame.disable()));

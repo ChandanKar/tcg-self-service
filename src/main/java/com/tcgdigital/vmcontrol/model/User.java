@@ -24,8 +24,23 @@ public class User {
     @Column(name = "display_name", nullable = false)
     private String displayName;
 
-    @Column(name = "azure_ad_object_id", nullable = false, unique = true)
+    @Column(name = "azure_ad_object_id", nullable = true, unique = true)
     private String azureAdObjectId;
+
+    @Column(name = "username", length = 150, unique = true)
+    private String username;
+
+    @Column(name = "password", length = 300)
+    private String password;
+
+    @Column(name = "company_name", length = 300)
+    private String companyName;
+
+    @Column(name = "legacy_user_id")
+    private Integer legacyUserId;
+
+    @Column(name = "password_updated_at")
+    private Timestamp passwordUpdatedAt;
 
     @Column(nullable = false)
     private Boolean admin = false;
@@ -69,6 +84,25 @@ public class User {
         return user;
     }
 
+    /**
+     * Factory method to create a new user from username/password.
+     */
+    public static User fromUsernamePassword(String username, String password, String email,
+                                            String displayName, String companyName) {
+        User user = new User();
+        user.setUserId(java.util.UUID.randomUUID().toString());
+        user.setUsername(username);
+        user.setPassword(password);  // Plain text (alpha); hash later
+        user.setEmail(email);
+        user.setDisplayName(displayName);
+        user.setCompanyName(companyName);
+        user.setPasswordUpdatedAt(new Timestamp(System.currentTimeMillis()));
+        user.setAdmin(false);
+        user.setEnvAdmin(false);
+        user.setIsActive(true);
+        return user;
+    }
+
     // Getters and Setters
     public String getUserId() {
         return userId;
@@ -100,6 +134,46 @@ public class User {
 
     public void setAzureAdObjectId(String azureAdObjectId) {
         this.azureAdObjectId = azureAdObjectId;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
+    }
+
+    public String getCompanyName() {
+        return companyName;
+    }
+
+    public void setCompanyName(String companyName) {
+        this.companyName = companyName;
+    }
+
+    public Integer getLegacyUserId() {
+        return legacyUserId;
+    }
+
+    public void setLegacyUserId(Integer legacyUserId) {
+        this.legacyUserId = legacyUserId;
+    }
+
+    public Timestamp getPasswordUpdatedAt() {
+        return passwordUpdatedAt;
+    }
+
+    public void setPasswordUpdatedAt(Timestamp passwordUpdatedAt) {
+        this.passwordUpdatedAt = passwordUpdatedAt;
     }
 
     public Boolean getAdmin() {
@@ -177,6 +251,8 @@ public class User {
                 "userId='" + userId + '\'' +
                 ", email='" + email + '\'' +
                 ", displayName='" + displayName + '\'' +
+                ", username='" + username + '\'' +
+                ", companyName='" + companyName + '\'' +
                 ", admin=" + admin +
                 ", envAdmin=" + envAdmin +
                 ", isActive=" + isActive +
