@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.context.annotation.Bean;
 
@@ -67,6 +68,12 @@ public class EntraidSecurityConfig {
                         "{\"error\":\"Forbidden\",\"message\":\"You do not have permission to perform this action.\"}"
                     );
                 })
+            )
+            // Session management - create session for authentication
+            .sessionManagement(session -> session
+                .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+                .maximumSessions(1)  // Allow only 1 session per user
+                .maxSessionsPreventsLogin(false)  // New login invalidates old session
             )
             // CSRF configuration for API endpoints
             .csrf(csrf -> csrf

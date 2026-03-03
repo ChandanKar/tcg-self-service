@@ -4,16 +4,22 @@ import com.tcgdigital.vmcontrol.dto.LoginRequest;
 import com.tcgdigital.vmcontrol.dto.LoginResponse;
 import com.tcgdigital.vmcontrol.exception.UnauthorizedException;
 import com.tcgdigital.vmcontrol.model.User;
+import com.tcgdigital.vmcontrol.security.UsernamePasswordAuthenticationToken;
 import com.tcgdigital.vmcontrol.service.AuthenticationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 
 /**
@@ -27,6 +33,7 @@ public class AuthController {
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
     private final AuthenticationService authenticationService;
+    private final SecurityContextRepository securityContextRepository = new HttpSessionSecurityContextRepository();
 
     public AuthController(AuthenticationService authenticationService) {
         this.authenticationService = authenticationService;
@@ -37,11 +44,15 @@ public class AuthController {
      * Creates a Spring Security session on successful authentication.
      *
      * @param loginRequest contains username and password
-     * @param session HTTP session to store authentication
+     * @param request HTTP request to save SecurityContext
+     * @param response HTTP response (unused but required for SecurityContextRepository)
      * @return LoginResponse with success status and user details
      */
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest loginRequest, HttpSession session) {
+    public ResponseEntity<LoginResponse> login(
+            @RequestBody LoginRequest loginRequest,
+            HttpServletRequest request,
+            jakarta.servlet.http.HttpServletResponse response) {
         try {
             // Validate request
             if (loginRequest.getUsername() == null || loginRequest.getUsername().isBlank()) {
@@ -59,7 +70,19 @@ public class AuthController {
             // Authenticate user
             User user = authenticationService.authenticateUser(loginRequest.getUsername(), loginRequest.getPassword());
 
-            // Store user info in session for authentication
+            // Create Spring Security authentication token
+            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(user);
+
+            // Create a new SecurityContext and set the authentication
+            SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
+            securityContext.setAuthentication(authentication);
+            SecurityContextHolder.setContext(securityContext);
+
+            // Save the SecurityContext to the session
+            securityContextRepository.saveContext(securityContext, request, response);
+
+            // Store user info in session for additional reference (optional)
+            HttpSession session = request.getSession();
             session.setAttribute("userId", user.getUserId());
             session.setAttribute("username", user.getUsername());
             session.setAttribute("userEmail", user.getEmail());
