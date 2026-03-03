@@ -26,6 +26,11 @@ const Environments = (function() {
     let currentEnvironment = null;
     let environmentsList = [];
 
+    // Pagination state for list view
+    const ENV_PAGE_SIZE = 10;
+    let envCurrentPage = 1;
+    let envFiltered = [];
+
     /**
      * Load environment list view
      */
@@ -206,12 +211,11 @@ const Environments = (function() {
     }
 
     /**
-     * Build environment list HTML
+     * Build environment list HTML — dashboard-style compact table with pagination
      */
     function buildListHtml(environments) {
-        // Admin actions button
         const adminActions = Auth.isEnvAdmin() ? `
-            <button class="btn btn-success" id="btn-create-env">
+            <button class="btn btn-sm btn-success" id="btn-create-env">
                 <i class="fas fa-plus"></i> Create Environment
             </button>
         ` : '';
@@ -236,13 +240,63 @@ const Environments = (function() {
             `;
         }
 
-        const rows = environments.map(env => {
+        envFiltered = environments;
+        envCurrentPage = 1;
+
+        return `
+            <div id="environments-list-view">
+            <div class="content-header d-flex justify-content-between align-items-start flex-shrink-0">
+                <div>
+                    <h1>My Environments</h1>
+                    <p>Manage and monitor your accessible environments</p>
+                </div>
+                ${adminActions}
+            </div>
+            <div class="metric-card env-list-card">
+                <div class="d-flex justify-content-between align-items-center mb-2 flex-shrink-0">
+                    <h6 class="mb-0 text-muted text-uppercase" style="font-size:0.7rem;letter-spacing:0.05em;">My Environments</h6>
+                    <div class="input-group" style="width:220px;">
+                        <span class="input-group-text py-1"><i class="fas fa-search" style="font-size:0.8rem;"></i></span>
+                        <input type="text" class="form-control form-control-sm" id="env-list-search" placeholder="Search...">
+                    </div>
+                </div>
+                <div class="env-list-table-wrapper">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th>Environment</th>
+                                <th>Groups</th>
+                                <th>Total VMs</th>
+                                <th>Running</th>
+                                <th>Lock Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="env-list-body">
+                            ${buildEnvRows(environments, 1)}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="env-list-spacer"></div>
+                <div id="env-list-pagination" class="flex-shrink-0" style="border-top:1px solid #f1f5f9;padding-top:0.3rem;min-height:28px;"></div>
+            </div>
+            </div>
+        `;
+    }
+
+    /**
+     * Build paginated table rows for the list view
+     */
+    function buildEnvRows(envList, page) {
+        const start = (page - 1) * ENV_PAGE_SIZE;
+        const pageItems = envList.slice(start, start + ENV_PAGE_SIZE);
+
+        const dataRows = pageItems.map(env => {
             const runningVms = env.runningVms || 0;
             const totalVms = env.vmCount || env.totalVms || 0;
             const statusClass = runningVms === 0 ? 'stopped' :
                                runningVms === totalVms ? 'running' : 'partial';
 
-            // Lock status
             let lockDisplay;
             if (env.lockStatus && env.lockStatus.isLocked) {
                 const lockedBy = env.lockStatus.lockedByUserId === Auth.getUserId() ? 'you' :
@@ -252,22 +306,26 @@ const Environments = (function() {
                 lockDisplay = `<span class="text-success"><i class="fas fa-unlock"></i> Unlocked</span>`;
             }
 
-            // Admin action buttons
             const adminBtns = Auth.isEnvAdmin() ? `
-                <button class="btn btn-sm btn-outline-secondary" data-env-id="${env.environmentId}" data-action="edit-env" title="Edit">
+                <button class="btn btn-sm btn-outline-secondary btn-action ms-1"
+                        data-env-id="${env.environmentId}" data-action="edit-env"
+                        data-bs-toggle="tooltip" title="Edit">
                     <i class="fas fa-edit"></i>
                 </button>
-                <button class="btn btn-sm btn-outline-danger" data-env-id="${env.environmentId}" data-env-name="${env.name}" data-action="delete-env" title="Delete">
+                <button class="btn btn-sm btn-outline-danger btn-action ms-1"
+                        data-env-id="${env.environmentId}" data-env-name="${escapeHtml(env.name)}" data-action="delete-env"
+                        data-bs-toggle="tooltip" title="Delete">
                     <i class="fas fa-trash"></i>
                 </button>
             ` : '';
 
+            const descTooltip = env.description
+                ? ` data-bs-toggle="tooltip" data-bs-placement="right" title="${escapeHtml(env.description)}"`
+                : '';
+
             return `
                 <tr>
-                    <td>
-                        <strong>${escapeHtml(env.name)}</strong>
-                        ${env.description ? `<br><small class="text-muted">${escapeHtml(env.description)}</small>` : ''}
-                    </td>
+                    <td><strong${descTooltip}>${escapeHtml(env.name)}</strong></td>
                     <td>${env.groupCount || 0}</td>
                     <td>${totalVms}</td>
                     <td>
@@ -277,8 +335,10 @@ const Environments = (function() {
                     </td>
                     <td>${lockDisplay}</td>
                     <td>
-                        <button class="btn btn-sm btn-primary" data-env-id="${env.environmentId}" data-env-name="${env.name}" data-action="view">
-                            <i class="fas fa-eye"></i> View
+                        <button class="btn btn-sm btn-primary btn-action"
+                                data-env-id="${env.environmentId}" data-env-name="${escapeHtml(env.name)}" data-action="view"
+                                data-bs-toggle="tooltip" title="View">
+                            <i class="fas fa-eye"></i>
                         </button>
                         ${adminBtns}
                     </td>
@@ -286,35 +346,77 @@ const Environments = (function() {
             `;
         }).join('');
 
-        return `
-            <div class="content-header d-flex justify-content-between align-items-start">
+        // Single filler row — expands to fill remaining table height
+        const filler = pageItems.length < ENV_PAGE_SIZE
+            ? `<tr class="env-list-filler"><td colspan="6"></td></tr>`
+            : '';
+
+        return dataRows + filler;
+    }
+
+    /**
+     * Render pagination for the list view
+     */
+    function renderEnvPagination(totalItems, page) {
+        const totalPages = Math.ceil(totalItems / ENV_PAGE_SIZE);
+
+        if (totalItems <= ENV_PAGE_SIZE) {
+            $('#env-list-pagination').html(
+                `<div class="text-muted small mt-1">Showing ${totalItems} environment${totalItems !== 1 ? 's' : ''}</div>`
+            );
+            return;
+        }
+
+        const start      = (page - 1) * ENV_PAGE_SIZE + 1;
+        const end        = Math.min(page * ENV_PAGE_SIZE, totalItems);
+        const rangeStart = Math.max(1, page - 2);
+        const rangeEnd   = Math.min(totalPages, page + 2);
+
+        let pageButtons = '';
+        for (let i = rangeStart; i <= rangeEnd; i++) {
+            pageButtons += `<button class="btn btn-sm ${i === page ? 'btn-primary' : 'btn-outline-secondary'} env-list-page-btn ms-1"
+                data-page="${i}">${i}</button>`;
+        }
+
+        $('#env-list-pagination').html(`
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="text-muted small">Showing ${start}–${end} of ${totalItems} environments</span>
                 <div>
-                    <h1>My Environments</h1>
-                    <p>Manage and monitor your accessible environments</p>
+                    <button class="btn btn-sm btn-outline-secondary env-list-page-btn"
+                            data-page="${page - 1}" ${page === 1 ? 'disabled' : ''}>
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    ${pageButtons}
+                    <button class="btn btn-sm btn-outline-secondary env-list-page-btn ms-1"
+                            data-page="${page + 1}" ${page === totalPages ? 'disabled' : ''}>
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
                 </div>
-                ${adminActions}
             </div>
-            <div class="mb-3">
-                <input type="text" class="form-control" id="env-search" placeholder="Search environments...">
-            </div>
-            <div class="custom-table">
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>Environment</th>
-                            <th>Groups</th>
-                            <th>Total VMs</th>
-                            <th>Running</th>
-                            <th>Lock Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="env-table-body">
-                        ${rows}
-                    </tbody>
-                </table>
-            </div>
-        `;
+        `);
+
+        // Init tooltips on new rows (env names + action buttons)
+        document.querySelectorAll('#env-list-body [data-bs-toggle="tooltip"]').forEach(el => {
+            if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+                const existing = bootstrap.Tooltip.getInstance(el);
+                if (existing) existing.dispose();
+                new bootstrap.Tooltip(el, { trigger: 'hover' });
+            }
+        });
+    }
+
+    /**
+     * Filter environments list and re-render
+     */
+    function filterAndRenderEnvList(searchTerm) {
+        envFiltered = searchTerm
+            ? environmentsList.filter(e =>
+                (e.name || '').toLowerCase().includes(searchTerm) ||
+                (e.description || '').toLowerCase().includes(searchTerm))
+            : environmentsList;
+        envCurrentPage = 1;
+        $('#env-list-body').html(buildEnvRows(envFiltered, envCurrentPage));
+        renderEnvPagination(envFiltered.length, envCurrentPage);
     }
 
     /**
@@ -535,38 +637,51 @@ const Environments = (function() {
         });
 
         // Create environment
-        $('#btn-create-env, #btn-create-env-empty').off('click').on('click', function() {
-            Modals.showCreateEnvironment(function(env) {
-                loadList(); // Refresh list
+        $('#content-area').off('click', '#btn-create-env, #btn-create-env-empty')
+            .on('click', '#btn-create-env, #btn-create-env-empty', function() {
+                Modals.showCreateEnvironment(function(env) {
+                    loadList();
+                });
             });
-        });
 
         // Edit environment
-        $('[data-action="edit-env"]').off('click').on('click', function() {
+        $('#content-area').off('click', '[data-action="edit-env"]').on('click', '[data-action="edit-env"]', function() {
             const envId = $(this).data('env-id');
             const env = environmentsList.find(e => e.environmentId === envId);
             if (env) {
                 Modals.showEditEnvironment(env, function() {
-                    loadList(); // Refresh list
+                    loadList();
                 });
             }
         });
 
         // Delete environment
-        $('[data-action="delete-env"]').off('click').on('click', function() {
+        $('#content-area').off('click', '[data-action="delete-env"]').on('click', '[data-action="delete-env"]', function() {
             const envId = $(this).data('env-id');
             const envName = $(this).data('env-name');
             deleteEnvironment(envId, envName);
         });
 
-        // Search
-        $('#env-search').off('input').on('input', Utils.debounce(function() {
-            const query = $(this).val().toLowerCase();
-            $('#env-table-body tr').each(function() {
-                const text = $(this).text().toLowerCase();
-                $(this).toggle(text.includes(query));
-            });
-        }, 300));
+        // Pagination
+        $('#content-area').off('click', '.env-list-page-btn').on('click', '.env-list-page-btn', function() {
+            const page = parseInt($(this).data('page'));
+            if (!page || page < 1) return;
+            const totalPages = Math.ceil(envFiltered.length / ENV_PAGE_SIZE);
+            if (page > totalPages) return;
+            envCurrentPage = page;
+            $('#env-list-body').html(buildEnvRows(envFiltered, envCurrentPage));
+            renderEnvPagination(envFiltered.length, envCurrentPage);
+        });
+
+        // Search — filter data, re-render rows + pagination
+        $('#content-area').off('input', '#env-list-search').on('input', '#env-list-search',
+            Utils.debounce(function() {
+                filterAndRenderEnvList($(this).val().toLowerCase().trim());
+            }, 300)
+        );
+
+        // Initial pagination render
+        renderEnvPagination(environmentsList.length, envCurrentPage);
     }
 
     /**

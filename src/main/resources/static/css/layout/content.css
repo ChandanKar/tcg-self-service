@@ -17,6 +17,15 @@
     margin-left: var(--sidebar-collapsed-width);
 }
 
+/* content-area fills all main-content height */
+#content-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
 /* ── Dashboard: zero page scroll, maximum density ── */
 #dashboard-view {
     display: flex;
@@ -135,6 +144,110 @@
     flex-shrink: 0;
     border-top: 1px solid #f1f5f9;
     padding-top: 0.3rem;
+    min-height: 28px;
+}
+
+/* ── My Environments list view — same style as dashboard ── */
+#environments-list-view {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+#environments-list-view .content-header {
+    flex-shrink: 0;
+    margin-bottom: 0.35rem;
+    padding-top: 0;
+}
+#environments-list-view .content-header h1 {
+    font-size: 1.25rem;
+    margin-bottom: 0.05rem;
+}
+#environments-list-view .content-header p {
+    font-size: 0.78rem;
+    margin-bottom: 0;
+}
+
+#environments-list-view .env-list-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0.4rem 0.65rem 0.35rem;
+}
+
+#environments-list-view .env-list-table-wrapper {
+    flex: 1;
+    overflow-y: fixed;
+    min-height: 0;
+}
+#environments-list-view .env-list-table-wrapper::-webkit-scrollbar { width: 4px; }
+#environments-list-view .env-list-table-wrapper::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+#environments-list-view .env-list-table-wrapper .table {
+    table-layout: fixed;
+    width: 100%;
+    height: 100%;
+    margin-bottom: 0;
+}
+#environments-list-view .env-list-table-wrapper .table tbody { height: 100%; }
+
+/* Compact rows — tighter than before to fit 7-9 rows */
+#environments-list-view .env-list-table-wrapper .table td,
+#environments-list-view .env-list-table-wrapper .table th {
+    padding: 0.18rem 0.5rem;
+    font-size: 0.8rem;
+    vertical-align: middle;
+    line-height: 1.35;
+}
+#environments-list-view .env-list-table-wrapper .table thead th {
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 0.25rem 0.5rem;
+}
+
+/* Actions column: icon-only buttons, tight */
+#environments-list-view .env-list-table-wrapper .table td:last-child {
+    white-space: nowrap;
+    width: 88px;
+}
+#environments-list-view .env-list-table-wrapper .btn-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    font-size: 0.72rem;
+    border-radius: 4px;
+    line-height: 1;
+}
+#environments-list-view .env-list-table-wrapper .btn-action + .btn-action {
+    margin-left: 3px;
+}
+
+/* Filler row expands to fill leftover space */
+#environments-list-view .env-list-filler { height: 100%; }
+#environments-list-view .env-list-filler td {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    pointer-events: none;
+}
+
+/* Spacer pushes pagination to bottom */
+#environments-list-view .env-list-spacer { flex: 1; min-height: 0; }
+
+/* Pagination bar */
+#environments-list-view #env-list-pagination {
+    flex-shrink: 0;
     min-height: 28px;
 }
 
