@@ -346,12 +346,7 @@ const Environments = (function() {
             `;
         }).join('');
 
-        // Single filler row — expands to fill remaining table height
-        const filler = pageItems.length < ENV_PAGE_SIZE
-            ? `<tr class="env-list-filler"><td colspan="6"></td></tr>`
-            : '';
-
-        return dataRows + filler;
+        return dataRows;
     }
 
     /**
@@ -395,13 +390,33 @@ const Environments = (function() {
             </div>
         `);
 
-        // Init tooltips on new rows (env names + action buttons)
+        // Dispose all existing tooltips in the table first (prevent leaks on re-render)
         document.querySelectorAll('#env-list-body [data-bs-toggle="tooltip"]').forEach(el => {
             if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
                 const existing = bootstrap.Tooltip.getInstance(el);
                 if (existing) existing.dispose();
-                new bootstrap.Tooltip(el, { trigger: 'hover' });
             }
+        });
+
+        // Init fresh tooltips with auto-hide delay
+        document.querySelectorAll('#env-list-body [data-bs-toggle="tooltip"]').forEach(el => {
+            if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+                new bootstrap.Tooltip(el, {
+                    trigger: 'hover',
+                    delay: { show: 300, hide: 100 }
+                });
+            }
+        });
+    }
+
+    /**
+     * Dispose all Bootstrap tooltips inside env-list-body to prevent leaks on re-render
+     */
+    function disposeEnvListTooltips() {
+        if (typeof bootstrap === 'undefined' || !bootstrap.Tooltip) return;
+        document.querySelectorAll('#env-list-body [data-bs-toggle="tooltip"]').forEach(el => {
+            const tt = bootstrap.Tooltip.getInstance(el);
+            if (tt) tt.dispose();
         });
     }
 
@@ -415,6 +430,7 @@ const Environments = (function() {
                 (e.description || '').toLowerCase().includes(searchTerm))
             : environmentsList;
         envCurrentPage = 1;
+        disposeEnvListTooltips();
         $('#env-list-body').html(buildEnvRows(envFiltered, envCurrentPage));
         renderEnvPagination(envFiltered.length, envCurrentPage);
     }
@@ -426,105 +442,106 @@ const Environments = (function() {
         const totalVms = env.totalVms || 0;
         const runningVms = env.runningVms || 0;
 
-        // Lock section - use Locks module if available
+        // Lock section
         let lockSection = '';
         try {
             const isAdmin = (typeof Auth !== 'undefined' && Auth.isEnvAdmin) ? Auth.isEnvAdmin() : false;
             lockSection = (typeof Locks !== 'undefined' && Locks.buildLockBanner) ?
                 Locks.buildLockBanner(env.lockStatus, env.environmentId, isAdmin) : '';
-        } catch (e) {
-            console.error('Error building lock banner:', e);
-            lockSection = '';
-        }
+        } catch (e) { lockSection = ''; }
 
-        // Metrics row
+        // Compact metric cards — number-only + tooltip (same style as dashboard)
         const metricsRow = `
-            <div class="row mb-4">
-                <div class="col-md-3">
-                    <div class="metric-card">
-                        <div class="metric-title">Total VMs</div>
+            <div class="row g-2 mb-2">
+                <div class="col-6 col-md-3">
+                    <div class="metric-card text-center" data-bs-toggle="tooltip" title="Total VMs in this environment">
                         <div class="metric-value">${totalVms}</div>
+                        <div class="metric-label-hint">Total VMs</div>
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <div class="metric-card">
-                        <div class="metric-title">Running</div>
+                <div class="col-6 col-md-3">
+                    <div class="metric-card text-center" data-bs-toggle="tooltip" title="Currently running VMs">
                         <div class="metric-value text-success">${runningVms}</div>
+                        <div class="metric-label-hint">Running</div>
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <div class="metric-card">
-                        <div class="metric-title">Stopped</div>
+                <div class="col-6 col-md-3">
+                    <div class="metric-card text-center" data-bs-toggle="tooltip" title="Currently stopped VMs">
                         <div class="metric-value text-danger">${totalVms - runningVms}</div>
+                        <div class="metric-label-hint">Stopped</div>
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <div class="metric-card">
-                        <div class="metric-title">Groups</div>
+                <div class="col-6 col-md-3">
+                    <div class="metric-card text-center" data-bs-toggle="tooltip" title="Number of VM groups">
                         <div class="metric-value">${env.groups ? env.groups.length : 0}</div>
+                        <div class="metric-label-hint">Groups</div>
                     </div>
                 </div>
-            </div>
-        `;
+            </div>`;
 
-        // Groups HTML
-        const groupsHtml = (env.groups || []).map(group => buildGroupCard(group, env)).join('');
+        // Groups — first expanded, rest collapsed
+        const groupsHtml = (env.groups || []).map((group, idx) =>
+            buildGroupCard(group, env, idx === 0)
+        ).join('');
 
         return `
-            <div class="content-header d-flex justify-content-between align-items-start">
-                <div>
-                    <h1>${Utils.escapeHtml(env.displayName || env.name)}</h1>
-                    <p>${env.description || ''}</p>
-                </div>
-                <button class="btn btn-outline-secondary" onclick="Dashboard.load()">
-                    <i class="fas fa-arrow-left"></i> Back
-                </button>
-            </div>
-
-            ${lockSection}
-            ${metricsRow}
-
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5>Groups and VMs</h5>
-                <div>
-                    <button class="btn btn-outline-secondary me-2" id="btn-operation-history">
-                        <i class="fas fa-history"></i> History
-                    </button>
-                    ${runningVms === 0 ?
-                        `<button class="btn btn-success" id="btn-env-action" data-action-type="start">
-                            <i class="fas fa-play-circle"></i> Start All
-                        </button>` :
-                    runningVms === totalVms ?
-                        `<button class="btn btn-danger" id="btn-env-action" data-action-type="stop">
-                            <i class="fas fa-stop-circle"></i> Stop All
-                        </button>` :
-                        `<button class="btn btn-success me-2" id="btn-env-action" data-action-type="start">
-                            <i class="fas fa-play-circle"></i> Start All
+            <div id="env-detail-view">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div style="border-left:4px solid var(--primary-color);padding-left:0.75rem;">
+                        <div style="font-size:1.25rem;font-weight:700;color:#1e293b;margin-bottom:0.05rem;">${Utils.escapeHtml(env.displayName || env.name)}</div>
+                        <div style="font-size:0.78rem;color:#64748b;">${escapeHtml(env.description || '')}</div>
+                    </div>
+                    <div class="d-flex gap-2 align-items-center">
+                        <button class="btn btn-sm btn-outline-secondary" id="btn-operation-history">
+                            <i class="fas fa-history"></i> History
                         </button>
-                        <button class="btn btn-danger" id="btn-env-action-stop" data-action-type="stop">
-                            <i class="fas fa-stop-circle"></i> Stop All
-                        </button>`
-                    }
+                        ${runningVms === 0 ?
+                            `<button class="btn btn-sm btn-success" id="btn-env-action" data-action-type="start">
+                                <i class="fas fa-play-circle"></i> Start All
+                            </button>` :
+                        runningVms === totalVms ?
+                            `<button class="btn btn-sm btn-danger" id="btn-env-action" data-action-type="stop">
+                                <i class="fas fa-stop-circle"></i> Stop All
+                            </button>` :
+                            `<button class="btn btn-sm btn-success" id="btn-env-action" data-action-type="start">
+                                <i class="fas fa-play-circle"></i> Start All
+                            </button>
+                            <button class="btn btn-sm btn-danger" id="btn-env-action-stop" data-action-type="stop">
+                                <i class="fas fa-stop-circle"></i> Stop All
+                            </button>`
+                        }
+                        <button class="btn btn-sm btn-outline-secondary" onclick="Environments.loadList()">
+                            <i class="fas fa-arrow-left"></i> Back
+                        </button>
+                    </div>
                 </div>
-            </div>
 
-            ${groupsHtml || '<div class="alert alert-secondary">No groups configured for this environment.</div>'}
-        `;
+                ${lockSection}
+                ${metricsRow}
+
+                <div class="mb-1">
+                    <span class="text-muted text-uppercase" style="font-size:0.68rem;letter-spacing:0.05em;">Groups &amp; VMs</span>
+                </div>
+
+                <div id="env-groups-container">
+                    ${groupsHtml || '<div class="alert alert-secondary py-2 small">No groups configured for this environment.</div>'}
+                </div>
+            </div>`;
     }
 
     /**
-     * Build group card HTML
+     * Build group card — collapsible accordion.
+     * @param {boolean} expanded - first group starts open, rest collapsed
      */
-    function buildGroupCard(groupData, env) {
+    function buildGroupCard(groupData, env, expanded) {
         const group = groupData.group || groupData;
-        const vms = groupData.vms || [];
+        const vms   = groupData.vms || [];
 
         const runningCount = vms.filter(v => v.status === 'RUNNING').length || 0;
-        const totalCount = vms.length;
-        const statusClass = runningCount === 0 ? 'bg-secondary' :
-                           runningCount === totalCount ? 'bg-success' : 'bg-warning';
+        const totalCount   = vms.length;
+        const statusClass  = runningCount === 0 ? 'bg-secondary' :
+                             runningCount === totalCount ? 'bg-success' : 'bg-warning';
 
-        // dependsOnGroupIds comes as a JS array from the API (already parsed), not a JSON string
         let dependsText = 'None';
         if (group.dependsOnGroupIds && Array.isArray(group.dependsOnGroupIds) && group.dependsOnGroupIds.length > 0) {
             dependsText = group.dependsOnGroupIds.join(', ');
@@ -532,25 +549,20 @@ const Environments = (function() {
             try {
                 const parsed = JSON.parse(group.dependsOnGroupIds);
                 dependsText = Array.isArray(parsed) && parsed.length > 0 ? parsed.join(', ') : 'None';
-            } catch (e) {
-                dependsText = group.dependsOnGroupIds;
-            }
+            } catch (e) { dependsText = group.dependsOnGroupIds; }
         }
 
+        // VM rows — compact icon-only action buttons
         const vmRows = vms.map(vm => {
             const providerConfig = Config.CLOUD_ICONS[vm.provider] || { icon: 'fas fa-cloud', color: '#6b7280' };
-            const statusConfig = Config.STATUS.vm[vm.status] || Config.STATUS.vm.UNKNOWN;
+            const statusConfig   = Config.STATUS.vm[vm.status] || Config.STATUS.vm.UNKNOWN;
 
             return `
                 <tr>
+                    <td><strong>${Utils.escapeHtml(vm.name)}</strong></td>
                     <td>
-                        <strong>${Utils.escapeHtml(vm.name)}</strong>
-                        ${vm.displayName && vm.displayName !== vm.name ?
-                            `<br><small class="text-muted">${Utils.escapeHtml(vm.displayName)}</small>` : ''}
-                    </td>
-                    <td>
-                        <i class="${providerConfig.icon}" style="color: ${providerConfig.color};"></i>
-                        ${vm.region}
+                        <i class="${providerConfig.icon}" style="color:${providerConfig.color};"></i>
+                        <span class="ms-1" style="font-size:0.8rem;">${vm.region}</span>
                     </td>
                     <td>
                         <span class="status-badge ${statusConfig.class}">
@@ -559,70 +571,81 @@ const Environments = (function() {
                     </td>
                     <td>${vm.sequencePosition || '-'}</td>
                     <td>
-                        <button class="btn btn-sm btn-outline-primary" data-vm-id="${vm.vmId}" data-action="vm-details">
+                        <button class="btn btn-sm btn-outline-primary btn-action"
+                                data-vm-id="${vm.vmId}" data-action="vm-details"
+                                data-bs-toggle="tooltip" title="Details">
                             <i class="fas fa-info-circle"></i>
                         </button>
                         ${vm.status === 'RUNNING' ?
-                            `<button class="btn btn-sm btn-outline-danger" data-vm-id="${vm.vmId}" data-action="stop-vm">
+                            `<button class="btn btn-sm btn-outline-danger btn-action ms-1"
+                                     data-vm-id="${vm.vmId}" data-action="stop-vm"
+                                     data-bs-toggle="tooltip" title="Stop VM">
                                 <i class="fas fa-stop-circle"></i>
                             </button>` :
-                            `<button class="btn btn-sm btn-outline-success" data-vm-id="${vm.vmId}" data-action="start-vm">
+                            `<button class="btn btn-sm btn-outline-success btn-action ms-1"
+                                     data-vm-id="${vm.vmId}" data-action="start-vm"
+                                     data-bs-toggle="tooltip" title="Start VM">
                                 <i class="fas fa-play-circle"></i>
                             </button>`
                         }
                     </td>
-                </tr>
-            `;
+                </tr>`;
         }).join('');
 
+        // Group action buttons
+        const groupBtns = runningCount === 0 ?
+            `<button class="btn btn-sm btn-success" data-group-id="${group.groupId}" data-action="group-action" data-action-type="start">
+                <i class="fas fa-play-circle"></i> Start
+            </button>` :
+            runningCount === totalCount ?
+            `<button class="btn btn-sm btn-danger" data-group-id="${group.groupId}" data-action="group-action" data-action-type="stop">
+                <i class="fas fa-stop-circle"></i> Stop
+            </button>` :
+            `<button class="btn btn-sm btn-success me-1" data-group-id="${group.groupId}" data-action="group-action" data-action-type="start">
+                <i class="fas fa-play-circle"></i> Start
+            </button>
+            <button class="btn btn-sm btn-danger" data-group-id="${group.groupId}" data-action="group-action" data-action-type="stop">
+                <i class="fas fa-stop-circle"></i> Stop
+            </button>`;
+
+        const collapseId = `group-collapse-${group.groupId}`;
+
+        const vmTableHtml = vms.length > 0 ? `
+            <div class="group-vm-table-wrapper">
+                <table class="table table-sm table-hover mb-0 group-vm-table">
+                    <thead class="table-light sticky-top">
+                        <tr>
+                            <th>VM Name</th>
+                            <th>Location</th>
+                            <th>Status</th>
+                            <th>Seq</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>${vmRows}</tbody>
+                </table>
+            </div>` :
+            `<p class="px-3 py-2 mb-0 text-muted small">No VMs in this group</p>`;
+
         return `
-            <div class="card mb-3">
-                <div class="card-header bg-light">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <strong>${Utils.escapeHtml(group.displayName || group.name)}</strong>
-                            <span class="badge ${statusClass} ms-2">${runningCount}/${totalCount}</span>
-                            <small class="text-muted ms-2">Seq: ${group.sequencePosition} | Depends: ${dependsText}</small>
-                        </div>
-                        <div>
-                            ${runningCount === 0 ?
-                                `<button class="btn btn-sm btn-success" data-group-id="${group.groupId}" data-action="group-action" data-action-type="start">
-                                    <i class="fas fa-play-circle"></i> Start
-                                </button>` :
-                            runningCount === totalCount ?
-                                `<button class="btn btn-sm btn-danger" data-group-id="${group.groupId}" data-action="group-action" data-action-type="stop">
-                                    <i class="fas fa-stop-circle"></i> Stop
-                                </button>` :
-                                `<button class="btn btn-sm btn-success me-1" data-group-id="${group.groupId}" data-action="group-action" data-action-type="start">
-                                    <i class="fas fa-play-circle"></i> Start
-                                </button>
-                                <button class="btn btn-sm btn-danger" data-group-id="${group.groupId}" data-action="group-action" data-action-type="stop">
-                                    <i class="fas fa-stop-circle"></i> Stop
-                                </button>`
-                            }
-                        </div>
+            <div class="group-card mb-2">
+                <div class="group-card-header d-flex justify-content-between align-items-center">
+                    <div class="group-card-toggle d-flex align-items-center gap-2 flex-grow-1"
+                         data-collapse-target="${collapseId}" role="button" style="min-width:0;overflow:hidden;">
+                        <i class="fas fa-chevron-${expanded ? 'down' : 'right'} group-chevron flex-shrink-0"
+                           style="font-size:0.68rem;color:#94a3b8;transition:transform 0.2s;"></i>
+                        <strong class="flex-shrink-0" style="font-size:0.875rem;">${Utils.escapeHtml(group.displayName || group.name)}</strong>
+                        <span class="badge ${statusClass} flex-shrink-0" style="font-size:0.68rem;padding:0.2em 0.45em;">${runningCount}/${totalCount}</span>
+                        <small class="text-muted text-truncate" style="font-size:0.72rem;min-width:0;">Seq: ${group.sequencePosition} | Depends: ${dependsText}</small>
+                    </div>
+                    <div class="flex-shrink-0 ms-2" onclick="event.stopPropagation()">
+                        ${groupBtns}
                     </div>
                 </div>
-                <div class="card-body p-0">
-                    ${vms.length > 0 ? `
-                        <table class="table table-sm mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>VM Name</th>
-                                    <th>Location</th>
-                                    <th>Status</th>
-                                    <th>Sequence</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${vmRows}
-                            </tbody>
-                        </table>
-                    ` : '<p class="p-3 mb-0 text-muted">No VMs in this group</p>'}
+                <div id="${collapseId}" class="group-card-body${expanded ? '' : ' group-collapsed'}">
+                    ${vmTableHtml}
                 </div>
-            </div>
-        `;
+            </div>`;
     }
 
     /**
@@ -669,6 +692,7 @@ const Environments = (function() {
             const totalPages = Math.ceil(envFiltered.length / ENV_PAGE_SIZE);
             if (page > totalPages) return;
             envCurrentPage = page;
+            disposeEnvListTooltips();
             $('#env-list-body').html(buildEnvRows(envFiltered, envCurrentPage));
             renderEnvPagination(envFiltered.length, envCurrentPage);
         });
@@ -769,6 +793,40 @@ const Environments = (function() {
             const vmId = $(this).data('vm-id');
             console.log('VM Details button clicked:', vmId);
             showVmDetails(envId, vmId);
+        });
+
+        // Group accordion — only one group open at a time (true accordion)
+        $('#content-area').off('click', '.group-card-toggle')
+            .on('click', '.group-card-toggle', function() {
+                const targetId  = $(this).data('collapse-target');
+                const $clicked  = $('#' + targetId);
+                const isNowOpen = !$clicked.hasClass('group-collapsed');
+
+                // Collapse ALL groups first
+                $('#env-groups-container .group-card-body').addClass('group-collapsed');
+                $('#env-groups-container .group-chevron')
+                    .removeClass('fa-chevron-down')
+                    .addClass('fa-chevron-right');
+
+                // If it was closed → open it; if already open → leave collapsed (toggle off)
+                if (!isNowOpen) {
+                    $clicked.removeClass('group-collapsed');
+                    $(this).find('.group-chevron')
+                        .removeClass('fa-chevron-right')
+                        .addClass('fa-chevron-down');
+                }
+            });
+
+        // Init tooltips — ONLY on metric cards and VM action buttons, NOT on group headers
+        document.querySelectorAll(
+            '#env-detail-view .metric-card[data-bs-toggle="tooltip"], ' +
+            '#env-groups-container [data-bs-toggle="tooltip"]'
+        ).forEach(el => {
+            if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+                const ex = bootstrap.Tooltip.getInstance(el);
+                if (ex) ex.dispose();
+                new bootstrap.Tooltip(el, { trigger: 'hover' });
+            }
         });
     }
 

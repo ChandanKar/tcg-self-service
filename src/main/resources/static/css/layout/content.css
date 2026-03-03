@@ -172,7 +172,7 @@
 
 #environments-list-view .env-list-card {
     flex: 1;
-    display: flex;
+    display: box;
     flex-direction: column;
     min-height: 0;
     overflow: hidden;
@@ -181,7 +181,7 @@
 
 #environments-list-view .env-list-table-wrapper {
     flex: 1;
-    overflow-y: fixed;
+    overflow-y: auto;
     min-height: 0;
 }
 #environments-list-view .env-list-table-wrapper::-webkit-scrollbar { width: 4px; }
@@ -192,11 +192,9 @@
 #environments-list-view .env-list-table-wrapper .table {
     table-layout: fixed;
     width: 100%;
-    height: 100%;
     margin-bottom: 0;
+    /* NO height:100% — prevents filler row from overlapping data rows */
 }
-#environments-list-view .env-list-table-wrapper .table tbody { height: 100%; }
-
 /* Compact rows — tighter than before to fit 7-9 rows */
 #environments-list-view .env-list-table-wrapper .table td,
 #environments-list-view .env-list-table-wrapper .table th {
@@ -231,15 +229,6 @@
 }
 #environments-list-view .env-list-table-wrapper .btn-action + .btn-action {
     margin-left: 3px;
-}
-
-/* Filler row expands to fill leftover space */
-#environments-list-view .env-list-filler { height: 100%; }
-#environments-list-view .env-list-filler td {
-    border: none !important;
-    background: transparent !important;
-    padding: 0 !important;
-    pointer-events: none;
 }
 
 /* Spacer pushes pagination to bottom */
@@ -281,5 +270,174 @@
 
 .content-view.hidden {
     display: none;
+}
+
+/* ── Environment detail — group accordion cards ── */
+#env-detail-view {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;       /* no page-level scroll */
+}
+
+/* Fixed top section — never scrolls */
+#env-detail-view > .d-flex,
+#env-detail-view > .lock-banner,
+#env-detail-view > .row,
+#env-detail-view > .mb-1 {
+    flex-shrink: 0;
+}
+
+/* Groups container — ONLY this section scrolls vertically */
+#env-groups-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;     /* no horizontal scroll */
+    min-height: 0;
+    padding-right: 2px;     /* thin gap so scrollbar doesn't clip card border */
+}
+#env-groups-container::-webkit-scrollbar { width: 4px; }
+#env-groups-container::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+/* Compact metric cards on detail page */
+#env-detail-view .metric-card {
+    padding: 0.35rem 0.5rem;
+    border-radius: 7px;
+    cursor: default;
+}
+#env-detail-view .metric-card:hover {
+    transform: none;
+}
+#env-detail-view .metric-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 0;
+}
+#env-detail-view .metric-label-hint {
+    font-size: 0.6rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* Compact lock banner on detail page */
+#env-detail-view .lock-banner {
+    padding: 0.35rem 0.75rem;
+    margin-bottom: 0.5rem;
+    border-radius: 6px;
+}
+#env-detail-view .lock-info > i {
+    font-size: 0.9rem;
+    margin-top: 0;
+}
+#env-detail-view .lock-info strong {
+    font-size: 0.82rem;
+}
+#env-detail-view .lock-time {
+    font-size: 0.75rem;
+}
+#env-detail-view .lock-actions .btn {
+    padding: 0.15rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+.group-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    overflow: hidden;       /* clip content, no horiz scroll */
+    background: #fff;
+    min-width: 0;
+}
+
+.group-card-header {
+    padding: 0.45rem 0.75rem;
+    background: #f8fafc;
+    border-bottom: 1px solid transparent;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.group-card-toggle {
+    cursor: pointer;
+    user-select: none;
+    min-width: 0;
+    overflow: hidden;
+}
+.group-card-toggle:hover { opacity: 0.8; }
+
+/* Truncate the long depends text inside header */
+.group-card-toggle .text-truncate {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.group-card-body {
+    border-top: 1px solid #e2e8f0;
+}
+.group-card-body.group-collapsed {
+    display: none;
+}
+
+/* VM table inside group — scrolls after 5 rows, no horiz scroll */
+.group-vm-table-wrapper {
+    max-height: 202px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+.group-vm-table-wrapper::-webkit-scrollbar { width: 4px; }
+.group-vm-table-wrapper::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+.group-vm-table {
+    table-layout: fixed;
+    width: 100%;
+}
+/* Column widths to prevent overflow */
+.group-vm-table th:nth-child(1),
+.group-vm-table td:nth-child(1) { width: 32%; }   /* VM Name */
+.group-vm-table th:nth-child(2),
+.group-vm-table td:nth-child(2) { width: 22%; }   /* Location */
+.group-vm-table th:nth-child(3),
+.group-vm-table td:nth-child(3) { width: 22%; }   /* Status */
+.group-vm-table th:nth-child(4),
+.group-vm-table td:nth-child(4) { width: 8%; }    /* Seq */
+.group-vm-table th:nth-child(5),
+.group-vm-table td:nth-child(5) { width: 16%; }   /* Actions */
+
+.group-vm-table td,
+.group-vm-table th {
+    padding: 0.2rem 0.5rem;
+    font-size: 0.8rem;
+    vertical-align: middle;
+    line-height: 1.4;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.group-vm-table thead th {
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+/* Icon-only action buttons in VM table */
+.group-vm-table .btn-action {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    border-radius: 4px;
 }
 
