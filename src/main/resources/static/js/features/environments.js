@@ -257,7 +257,8 @@ const Environments = (function() {
                     <h6 class="mb-0 text-muted text-uppercase" style="font-size:0.7rem;letter-spacing:0.05em;">My Environments</h6>
                     <div class="input-group" style="width:220px;">
                         <span class="input-group-text py-1"><i class="fas fa-search" style="font-size:0.8rem;"></i></span>
-                        <input type="text" class="form-control form-control-sm" id="env-list-search" placeholder="Search...">
+                        <input type="text" class="form-control form-control-sm" id="env-list-search" placeholder="Search..."
+                               oninput="Environments._search(this.value)">
                     </div>
                 </div>
                 <div class="env-list-table-wrapper">
@@ -377,14 +378,22 @@ const Environments = (function() {
             <div class="d-flex justify-content-between align-items-center">
                 <span class="text-muted small">Showing ${start}–${end} of ${totalItems} environments</span>
                 <div>
-                    <button class="btn btn-sm btn-outline-secondary env-list-page-btn"
-                            data-page="${page - 1}" ${page === 1 ? 'disabled' : ''}>
+                    <button class="btn btn-sm btn-outline-secondary env-list-page-btn" data-page="1"
+                            ${page === 1 ? 'disabled' : ''} title="First page">
+                        <i class="fas fa-angle-double-left"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary env-list-page-btn ms-1" data-page="${page - 1}"
+                            ${page === 1 ? 'disabled' : ''} title="Previous page">
                         <i class="fas fa-chevron-left"></i>
                     </button>
                     ${pageButtons}
-                    <button class="btn btn-sm btn-outline-secondary env-list-page-btn ms-1"
-                            data-page="${page + 1}" ${page === totalPages ? 'disabled' : ''}>
+                    <button class="btn btn-sm btn-outline-secondary env-list-page-btn ms-1" data-page="${page + 1}"
+                            ${page === totalPages ? 'disabled' : ''} title="Next page">
                         <i class="fas fa-chevron-right"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary env-list-page-btn ms-1" data-page="${totalPages}"
+                            ${page === totalPages ? 'disabled' : ''} title="Last page">
+                        <i class="fas fa-angle-double-right"></i>
                     </button>
                 </div>
             </div>
@@ -697,12 +706,13 @@ const Environments = (function() {
             renderEnvPagination(envFiltered.length, envCurrentPage);
         });
 
-        // Search — filter data, re-render rows + pagination
-        $('#content-area').off('input', '#env-list-search').on('input', '#env-list-search',
-            Utils.debounce(function() {
-                filterAndRenderEnvList($(this).val().toLowerCase().trim());
-            }, 300)
-        );
+        // Search — delegated binding + direct bind on rendered element (same pattern as dashboard)
+        $('#content-area').off('input', '#env-list-search').on('input', '#env-list-search', function() {
+            filterAndRenderEnvList($(this).val().toLowerCase().trim());
+        });
+        $('#env-list-search').off('input.envlist').on('input.envlist', function() {
+            filterAndRenderEnvList($(this).val().toLowerCase().trim());
+        });
 
         // Initial pagination render
         renderEnvPagination(environmentsList.length, envCurrentPage);
@@ -1105,6 +1115,9 @@ const Environments = (function() {
 
     return {
         loadList,
-        loadDetail
+        loadDetail,
+        _search: function(val) {
+            filterAndRenderEnvList((val || '').toLowerCase().trim());
+        }
     };
 })();

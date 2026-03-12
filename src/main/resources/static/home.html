@@ -668,8 +668,9 @@
 
         <div class="nav-center">
             <div class="search-box position-relative">
+                <label class="visually-hidden" for="global-search">Search environments, VMs, or groups</label>
                 <i class="fas fa-search"></i>
-                <input type="text" class="form-control" placeholder="Search environments, VMs, or groups...">
+                <input id="global-search" type="text" class="form-control" placeholder="Search environments, VMs, or groups...">
             </div>
         </div>
 
@@ -869,7 +870,7 @@
     <main class="main-content" id="mainContent">
         <div id="content-area">
             <!-- Dashboard Content (Default) -->
-            <div class="content-view" id="dashboard-view">
+            <div class="content-view" id="dashboard-view" data-view="dashboard">
                 <div class="content-header">
                     <h1>Dashboard</h1>
                     <p>Overview of your environments and VMs</p>
@@ -955,7 +956,7 @@
 
                 <!-- Environments Table -->
                 <div class="custom-table">
-                    <table class="table">
+                    <table class="table" id="dashboard-environments-table" data-table="dashboard-environments">
                         <thead>
                             <tr>
                                 <th>Environment</th>
@@ -1272,805 +1273,832 @@
             $('#slideoutOverlay').removeClass('show');
         }
 
+        function renderView(viewName, content, viewId) {
+            var resolvedViewId = viewId || (viewName + '-view');
+            $('#content-area').html(`
+                <div class="content-view" id="${resolvedViewId}" data-view="${viewName}">
+                    ${content}
+                </div>
+            `);
+        }
+
         function loadContent(contentType) {
-            var content = '';
-            
-            switch(contentType) {
-                case 'dashboard':
-                    // Dashboard is already loaded
-                    location.reload();
-                    break;
-                    
-                case 'my-environments':
-                    content = `
-                        <div class="content-header">
-                            <h1>My Environments</h1>
-                            <p>Manage and monitor your accessible environments</p>
-                        </div>
-                        <div class="mb-3">
-                            <input type="text" class="form-control" placeholder="Search environments...">
-                        </div>
-                        <div class="custom-table">
-                            <table class="table">
-                                <thead>
-                                    <tr>
-                                        <th>Environment</th>
-                                        <th>Owner Team</th>
-                                        <th>Total VMs</th>
-                                        <th>Running/Stopped</th>
-                                        <th>Lock Status</th>
-                                        <th>Cloud</th>
-                                        <th>Cost/Month</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td><strong>mcube-demo-env</strong></td>
-                                        <td>Data Engineering</td>
-                                        <td>15</td>
-                                        <td>8 / 7</td>
-                                        <td><i class="fas fa-lock text-warning"></i> You</td>
-                                        <td><i class="fab fa-aws"></i> <i class="fab fa-microsoft"></i></td>
-                                        <td>$1,250</td>
-                                        <td>
-                                            <button class="btn btn-sm btn-primary">View</button>
-                                            <button class="btn btn-sm btn-success">Start All</button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>analytics-sandbox</strong></td>
-                                        <td>Analytics</td>
-                                        <td>8</td>
-                                        <td>4 / 4</td>
-                                        <td><i class="fas fa-unlock text-success"></i> Unlocked</td>
-                                        <td><i class="fab fa-google"></i></td>
-                                        <td>$450</td>
-                                        <td>
-                                            <button class="btn btn-sm btn-primary">View</button>
-                                            <button class="btn btn-sm btn-success">Start All</button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>my-dev-env</strong></td>
-                                        <td>Platform Team</td>
-                                        <td>12</td>
-                                        <td>0 / 12</td>
-                                        <td><i class="fas fa-unlock text-success"></i> Unlocked</td>
-                                        <td><i class="fab fa-aws"></i></td>
-                                        <td>$0</td>
-                                        <td>
-                                            <button class="btn btn-sm btn-primary">View</button>
-                                            <button class="btn btn-sm btn-success">Start All</button>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    `;
-                    break;
-                    
-                case 'request-access':
-                    content = `
-                        <div class="content-header">
-                            <h1>Request Environment Access</h1>
-                            <p>Request access to environments you don't currently have</p>
-                        </div>
-                        
-                        <div class="mb-4">
-                            <input type="text" class="form-control" placeholder="Search for environment by name or team...">
-                        </div>
-                        
-                        <h5 class="mb-3">Available Environments</h5>
-                        <div class="custom-table mb-4">
-                            <table class="table">
-                                <thead>
-                                    <tr>
-                                        <th>Environment</th>
-                                        <th>Owner Team</th>
-                                        <th>Total VMs</th>
-                                        <th>Description</th>
-                                        <th>Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td><strong>ml-training-prod</strong></td>
-                                        <td>ML Team</td>
-                                        <td>25</td>
-                                        <td>Production ML training environment</td>
-                                        <td><button class="btn btn-sm btn-primary">Request Access</button></td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>customer-analytics</strong></td>
-                                        <td>Analytics</td>
-                                        <td>18</td>
-                                        <td>Customer data analysis environment</td>
-                                        <td><button class="btn btn-sm btn-primary">Request Access</button></td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>integration-qa</strong></td>
-                                        <td>QA Team</td>
-                                        <td>12</td>
-                                        <td>Integration testing environment</td>
-                                        <td><button class="btn btn-sm btn-primary">Request Access</button></td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        
-                        <h5 class="mb-3">My Pending Requests</h5>
-                        <div class="custom-table">
-                            <table class="table">
-                                <thead>
-                                    <tr>
-                                        <th>Environment</th>
-                                        <th>Requested Date</th>
-                                        <th>Status</th>
-                                        <th>Approver</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td><strong>ml-training-prod</strong></td>
-                                        <td>2 days ago</td>
-                                        <td><span class="badge bg-warning">Pending</span></td>
-                                        <td>ML Team Admin</td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>integration-qa</strong></td>
-                                        <td>1 day ago</td>
-                                        <td><span class="badge bg-success">Approved</span></td>
-                                        <td>john.admin@company.com</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    `;
-                    break;
-                    
-                case 'activity-logs':
-                    content = `
-                        <div class="content-header">
-                            <h1>My Activity Logs</h1>
-                            <p>Track your start/stop operations and lock management</p>
-                        </div>
-                        
-                        <div class="row mb-3">
-                            <div class="col-md-3">
-                                <select class="form-select">
-                                    <option>Last 24 hours</option>
-                                    <option>Last 7 days</option>
-                                    <option>Last 30 days</option>
-                                    <option>Custom range</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <select class="form-select">
-                                    <option>All Environments</option>
-                                    <option>mcube-demo-env</option>
-                                    <option>analytics-sandbox</option>
-                                    <option>my-dev-env</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <select class="form-select">
-                                    <option>All Actions</option>
-                                    <option>Start Operations</option>
-                                    <option>Stop Operations</option>
-                                    <option>Lock Operations</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <button class="btn btn-primary w-100"><i class="fas fa-download"></i> Export CSV</button>
-                            </div>
-                        </div>
-                        
-                        <div class="custom-table">
-                            <table class="table">
-                                <thead>
-                                    <tr>
-                                        <th>Timestamp</th>
-                                        <th>Environment</th>
-                                        <th>Action</th>
-                                        <th>Target</th>
-                                        <th>Result</th>
-                                        <th>Details</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>2h ago</td>
-                                        <td>mcube-demo-env</td>
-                                        <td><span class="badge bg-success">START_VM</span></td>
-                                        <td>database-primary</td>
-                                        <td><i class="fas fa-check-circle text-success"></i> Success</td>
-                                        <td>-</td>
-                                    </tr>
-                                    <tr>
-                                        <td>2h ago</td>
-                                        <td>mcube-demo-env</td>
-                                        <td><span class="badge bg-warning">LOCK_ACQUIRE</span></td>
-                                        <td>Environment</td>
-                                        <td><i class="fas fa-check-circle text-success"></i> Success</td>
-                                        <td>-</td>
-                                    </tr>
-                                    <tr>
-                                        <td>5h ago</td>
-                                        <td>data-pipeline-test</td>
-                                        <td><span class="badge bg-danger">STOP_ENV</span></td>
-                                        <td>Environment</td>
-                                        <td><i class="fas fa-check-circle text-success"></i> Success</td>
-                                        <td>5 VMs stopped</td>
-                                    </tr>
-                                    <tr>
-                                        <td>1d ago</td>
-                                        <td>project-x-staging</td>
-                                        <td><span class="badge bg-warning">LOCK_ACQUIRE</span></td>
-                                        <td>Environment</td>
-                                        <td><i class="fas fa-check-circle text-success"></i> Success</td>
-                                        <td>-</td>
-                                    </tr>
-                                    <tr>
-                                        <td>1d ago</td>
-                                        <td>analytics-sandbox</td>
-                                        <td><span class="badge bg-success">START_GROUP</span></td>
-                                        <td>worker-tier</td>
-                                        <td><i class="fas fa-times-circle text-danger"></i> Failed</td>
-                                        <td>VM2 failed to start - timeout</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    `;
-                    break;
-                    
-                case 'access-management':
-                    content = `
-                        <div class="content-header">
-                            <h1>Access Management</h1>
-                            <p>Grant or revoke user access to environments</p>
-                        </div>
-                        
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <input type="text" class="form-control" placeholder="Search users by name or email...">
-                            </div>
-                            <div class="col-md-4">
-                                <select class="form-select">
-                                    <option>All Environments</option>
-                                    <option>mcube-demo-env</option>
-                                    <option>analytics-sandbox</option>
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <button class="btn btn-primary w-100"><i class="fas fa-plus"></i> Grant Access</button>
-                            </div>
-                        </div>
-                        
-                        <h5 class="mb-3">Environment: mcube-demo-env</h5>
-                        <div class="custom-table mb-4">
-                            <table class="table">
-                                <thead>
-                                    <tr>
-                                        <th>User</th>
-                                        <th>Role</th>
-                                        <th>Granted By</th>
-                                        <th>Granted Date</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>john.doe@company.com</td>
-                                        <td><span class="badge bg-primary">Owner</span></td>
-                                        <td>System</td>
-                                        <td>3 months ago</td>
-                                        <td>-</td>
-                                    </tr>
-                                    <tr>
-                                        <td>jane.smith@company.com</td>
-                                        <td><span class="badge bg-secondary">User</span></td>
-                                        <td>admin</td>
-                                        <td>1 month ago</td>
-                                        <td><button class="btn btn-sm btn-danger">Revoke</button></td>
-                                    </tr>
-                                    <tr>
-                                        <td>bob.jones@company.com</td>
-                                        <td><span class="badge bg-secondary">User</span></td>
-                                        <td>john.doe</td>
-                                        <td>2 weeks ago</td>
-                                        <td><button class="btn btn-sm btn-danger">Revoke</button></td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        
-                        <h5 class="mb-3">Pending Access Requests (2)</h5>
-                        <div class="custom-table">
-                            <table class="table">
-                                <thead>
-                                    <tr>
-                                        <th>User</th>
-                                        <th>Environment</th>
-                                        <th>Requested</th>
-                                        <th>Justification</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>alice.wang@company.com</td>
-                                        <td>mcube-demo-env</td>
-                                        <td>2 days ago</td>
-                                        <td>Need access for feature development</td>
-                                        <td>
-                                            <button class="btn btn-sm btn-success me-1">Approve</button>
-                                            <button class="btn btn-sm btn-danger">Deny</button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>chris.lee@company.com</td>
-                                        <td>analytics-sandbox</td>
-                                        <td>1 day ago</td>
-                                        <td>Testing new analytics pipeline</td>
-                                        <td>
-                                            <button class="btn btn-sm btn-success me-1">Approve</button>
-                                            <button class="btn btn-sm btn-danger">Deny</button>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    `;
-                    break;
-
-                case 'vm-registry':
-                    content = `
-                        <div class="content-header">
-                            <h1>VM Registry</h1>
-                            <p>Create and manage environments, groups, and VMs</p>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <button class="btn btn-primary"><i class="fas fa-plus"></i> Create Environment</button>
-                            <button class="btn btn-secondary ms-2"><i class="fas fa-plus"></i> Add Group</button>
-                            <button class="btn btn-secondary ms-2"><i class="fas fa-plus"></i> Register VM</button>
-                        </div>
-                        
-                        <div class="custom-table">
-                            <table class="table">
-                                <thead>
-                                    <tr>
-                                        <th>Environment</th>
-                                        <th>Groups</th>
-                                        <th>Total VMs</th>
-                                        <th>Owner</th>
-                                        <th>Cloud Providers</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td><strong>mcube-demo-env</strong></td>
-                                        <td>3 groups</td>
-                                        <td>15 VMs</td>
-                                        <td>Data Engineering</td>
-                                        <td><i class="fab fa-aws"></i> <i class="fab fa-microsoft"></i></td>
-                                        <td>
-                                            <button class="btn btn-sm btn-primary">Edit</button>
-                                            <button class="btn btn-sm btn-danger ms-1">Delete</button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>analytics-sandbox</strong></td>
-                                        <td>2 groups</td>
-                                        <td>8 VMs</td>
-                                        <td>Analytics</td>
-                                        <td><i class="fab fa-google"></i></td>
-                                        <td>
-                                            <button class="btn btn-sm btn-primary">Edit</button>
-                                            <button class="btn btn-sm btn-danger ms-1">Delete</button>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    `;
-                    break;
-
-                case 'automation-rules':
-                    content = `
-                        <div class="content-header">
-                            <h1>Automation Rules</h1>
-                            <p>Schedule automatic start/stop operations</p>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <button class="btn btn-primary"><i class="fas fa-plus"></i> Create Rule</button>
-                        </div>
-                        
-                        <h5 class="mb-3">Active Rules (3)</h5>
-                        
-                        <div class="card mb-3">
-                            <div class="card-body">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div>
-                                        <h5 class="card-title">Nightly Shutdown</h5>
-                                        <p class="mb-1"><strong>Environment:</strong> mcube-demo-env</p>
-                                        <p class="mb-1"><strong>Action:</strong> <span class="badge bg-danger">STOP_ALL</span></p>
-                                        <p class="mb-1"><strong>Schedule:</strong> Every day at 7:00 PM EST</p>
-                                        <p class="mb-1"><strong>Status:</strong> <span class="badge bg-success">Active</span></p>
-                                        <p class="mb-1 text-muted">Last Run: Today at 7:00 PM (Success)</p>
-                                    </div>
-                                    <div>
-                                        <button class="btn btn-sm btn-primary me-1">Edit</button>
-                                        <button class="btn btn-sm btn-warning me-1">Disable</button>
-                                        <button class="btn btn-sm btn-danger">Delete</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="card mb-3">
-                            <div class="card-body">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div>
-                                        <h5 class="card-title">Morning Startup</h5>
-                                        <p class="mb-1"><strong>Environment:</strong> mcube-demo-env</p>
-                                        <p class="mb-1"><strong>Action:</strong> <span class="badge bg-success">START_ALL</span></p>
-                                        <p class="mb-1"><strong>Schedule:</strong> Weekdays at 8:00 AM EST</p>
-                                        <p class="mb-1"><strong>Status:</strong> <span class="badge bg-success">Active</span></p>
-                                        <p class="mb-1 text-muted">Last Run: Today at 8:00 AM (Success)</p>
-                                    </div>
-                                    <div>
-                                        <button class="btn btn-sm btn-primary me-1">Edit</button>
-                                        <button class="btn btn-sm btn-warning me-1">Disable</button>
-                                        <button class="btn btn-sm btn-danger">Delete</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="card mb-3">
-                            <div class="card-body">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div>
-                                        <h5 class="card-title">Weekend Cleanup</h5>
-                                        <p class="mb-1"><strong>Environment:</strong> analytics-sandbox</p>
-                                        <p class="mb-1"><strong>Action:</strong> <span class="badge bg-danger">STOP_ALL</span></p>
-                                        <p class="mb-1"><strong>Schedule:</strong> Friday at 6:00 PM EST</p>
-                                        <p class="mb-1"><strong>Status:</strong> <span class="badge bg-success">Active</span></p>
-                                        <p class="mb-1 text-muted">Last Run: Last Friday (Success)</p>
-                                    </div>
-                                    <div>
-                                        <button class="btn btn-sm btn-primary me-1">Edit</button>
-                                        <button class="btn btn-sm btn-warning me-1">Disable</button>
-                                        <button class="btn btn-sm btn-danger">Delete</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    break;
-
-                case 'audit-logs-all':
-                    content = `
-                        <div class="content-header">
-                            <h1>Global Audit Logs</h1>
-                            <p>Complete audit trail across all environments</p>
-                        </div>
-                        
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle"></i> Admin view: Showing activity from all users across all environments
-                        </div>
-                        
-                        <div class="row mb-3">
-                            <div class="col-md-2">
-                                <select class="form-select">
-                                    <option>Last 24 hours</option>
-                                    <option>Last 7 days</option>
-                                    <option>Last 30 days</option>
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <select class="form-select">
-                                    <option>All Users</option>
-                                    <option>john.doe</option>
-                                    <option>jane.smith</option>
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <select class="form-select">
-                                    <option>All Environments</option>
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <select class="form-select">
-                                    <option>All Actions</option>
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <select class="form-select">
-                                    <option>All Results</option>
-                                    <option>Success</option>
-                                    <option>Failure</option>
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <button class="btn btn-primary w-100"><i class="fas fa-download"></i> Export</button>
-                            </div>
-                        </div>
-                        
-                        <div class="custom-table">
-                            <table class="table table-sm">
-                                <thead>
-                                    <tr>
-                                        <th>Timestamp</th>
-                                        <th>User</th>
-                                        <th>Environment</th>
-                                        <th>Action</th>
-                                        <th>Target</th>
-                                        <th>Result</th>
-                                        <th>Details</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>2026-02-12 14:23:15</td>
-                                        <td>john.doe</td>
-                                        <td>mcube-demo-env</td>
-                                        <td><span class="badge bg-success">START_VM</span></td>
-                                        <td>database-primary</td>
-                                        <td><i class="fas fa-check-circle text-success"></i></td>
-                                        <td>-</td>
-                                    </tr>
-                                    <tr>
-                                        <td>2026-02-12 14:20:45</td>
-                                        <td>jane.smith</td>
-                                        <td>analytics-dev</td>
-                                        <td><span class="badge bg-danger">STOP_GROUP</span></td>
-                                        <td>data-tier</td>
-                                        <td><i class="fas fa-check-circle text-success"></i></td>
-                                        <td>Cascade stopped 3 VMs</td>
-                                    </tr>
-                                    <tr>
-                                        <td>2026-02-12 14:15:30</td>
-                                        <td>john.doe</td>
-                                        <td>mcube-demo-env</td>
-                                        <td><span class="badge bg-warning">LOCK_ACQUIRE</span></td>
-                                        <td>Environment</td>
-                                        <td><i class="fas fa-check-circle text-success"></i></td>
-                                        <td>-</td>
-                                    </tr>
-                                    <tr>
-                                        <td>2026-02-12 13:58:12</td>
-                                        <td>admin</td>
-                                        <td>project-x-dev</td>
-                                        <td><span class="badge bg-danger">LOCK_BREAK</span></td>
-                                        <td>Environment</td>
-                                        <td><i class="fas fa-check-circle text-success"></i></td>
-                                        <td>Reason: User unavailable</td>
-                                    </tr>
-                                    <tr>
-                                        <td>2026-02-12 13:45:00</td>
-                                        <td>bob.jones</td>
-                                        <td>ml-training-env</td>
-                                        <td><span class="badge bg-success">START_VM</span></td>
-                                        <td>gpu-worker-1</td>
-                                        <td><i class="fas fa-times-circle text-danger"></i></td>
-                                        <td>Cloud API timeout</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    `;
-                    break;
-
-                case 'cost-management':
-                    content = `
-                        <div class="content-header">
-                            <h1>Cost Management</h1>
-                            <p>Monitor and optimize cloud spending</p>
-                        </div>
-                        
-                        <div class="row mb-4">
-                            <div class="col-md-3">
-                                <div class="metric-card">
-                                    <div class="metric-title">Total Monthly Cost</div>
-                                    <div class="metric-value">$12,450</div>
-                                    <div class="metric-subtitle">Across all environments</div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="metric-card">
-                                    <div class="metric-title">Running VMs Cost</div>
-                                    <div class="metric-value">$3,250</div>
-                                    <div class="metric-subtitle">Current active spend</div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="metric-card">
-                                    <div class="metric-title">This Month</div>
-                                    <div class="metric-value">$8,920</div>
-                                    <div class="metric-subtitle">Month-to-date actual</div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="metric-card">
-                                    <div class="metric-title">Potential Savings</div>
-                                    <div class="metric-value">$2,100</div>
-                                    <div class="metric-subtitle">From stopped VMs</div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <h5 class="mb-3">Cost by Environment</h5>
-                        <div class="custom-table">
-                            <table class="table">
-                                <thead>
-                                    <tr>
-                                        <th>Environment</th>
-                                        <th>Total VMs</th>
-                                        <th>Running</th>
-                                        <th>Est. Monthly</th>
-                                        <th>Actual This Month</th>
-                                        <th>Trend</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td><strong>mcube-demo-env</strong></td>
-                                        <td>15</td>
-                                        <td>8</td>
-                                        <td>$1,250</td>
-                                        <td>$890</td>
-                                        <td><span class="text-success"><i class="fas fa-arrow-down"></i> -12%</span></td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>analytics-sandbox</strong></td>
-                                        <td>8</td>
-                                        <td>4</td>
-                                        <td>$450</td>
-                                        <td>$320</td>
-                                        <td><span class="text-success"><i class="fas fa-arrow-down"></i> -8%</span></td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>ml-training-env</strong></td>
-                                        <td>25</td>
-                                        <td>25</td>
-                                        <td>$8,900</td>
-                                        <td>$6,200</td>
-                                        <td><span class="text-danger"><i class="fas fa-arrow-up"></i> +15%</span></td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    `;
-                    break;
-
-                case 'system-health':
-                    content = `
-                        <div class="content-header">
-                            <h1>System Health</h1>
-                            <p>Platform monitoring and status</p>
-                        </div>
-                        
-                        <div class="row mb-4">
-                            <div class="col-md-3">
-                                <div class="metric-card">
-                                    <div class="metric-title">Platform Status</div>
-                                    <div class="metric-value text-success">Healthy</div>
-                                    <div class="metric-subtitle">All systems operational</div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="metric-card">
-                                    <div class="metric-title">Total Environments</div>
-                                    <div class="metric-value">23</div>
-                                    <div class="metric-subtitle">Active across platform</div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="metric-card">
-                                    <div class="metric-title">Total VMs</div>
-                                    <div class="metric-value">487</div>
-                                    <div class="metric-subtitle">312 running (64%)</div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="metric-card">
-                                    <div class="metric-title">Active Locks</div>
-                                    <div class="metric-value">8</div>
-                                    <div class="metric-subtitle">Across 8 environments</div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <h5 class="mb-3">Cloud Provider Status</h5>
-                        <div class="row mb-4">
-                            <div class="col-md-4">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <h6><i class="fab fa-aws text-warning"></i> AWS</h6>
-                                        <p class="mb-1"><strong>Status:</strong> <span class="badge bg-success">Operational</span></p>
-                                        <p class="mb-1"><strong>VMs:</strong> 200 (120 running)</p>
-                                        <p class="mb-0"><strong>Last Sync:</strong> 2 min ago</p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <h6><i class="fab fa-microsoft text-primary"></i> Azure</h6>
-                                        <p class="mb-1"><strong>Status:</strong> <span class="badge bg-success">Operational</span></p>
-                                        <p class="mb-1"><strong>VMs:</strong> 150 (100 running)</p>
-                                        <p class="mb-0"><strong>Last Sync:</strong> 1 min ago</p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <h6><i class="fab fa-google text-info"></i> GCP</h6>
-                                        <p class="mb-1"><strong>Status:</strong> <span class="badge bg-success">Operational</span></p>
-                                        <p class="mb-1"><strong>VMs:</strong> 137 (92 running)</p>
-                                        <p class="mb-0"><strong>Last Sync:</strong> 3 min ago</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <h5 class="mb-3">Recent System Events</h5>
-                        <div class="custom-table">
-                            <table class="table">
-                                <thead>
-                                    <tr>
-                                        <th>Timestamp</th>
-                                        <th>Event Type</th>
-                                        <th>Description</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>5 min ago</td>
-                                        <td><span class="badge bg-success">SYNC</span></td>
-                                        <td>State reconciliation completed for 487 VMs</td>
-                                        <td><i class="fas fa-check-circle text-success"></i></td>
-                                    </tr>
-                                    <tr>
-                                        <td>10 min ago</td>
-                                        <td><span class="badge bg-warning">DRIFT</span></td>
-                                        <td>2 VMs detected with state drift</td>
-                                        <td><i class="fas fa-exclamation-circle text-warning"></i></td>
-                                    </tr>
-                                    <tr>
-                                        <td>1 hour ago</td>
-                                        <td><span class="badge bg-info">AUTOMATION</span></td>
-                                        <td>Scheduled rule "Morning Startup" executed</td>
-                                        <td><i class="fas fa-check-circle text-success"></i></td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    `;
-                    break;
-
-                default:
-                    content = `
-                        <div class="content-header">
-                            <h1>${contentType.replace('-', ' ').toUpperCase()}</h1>
-                            <p>This view is under construction</p>
-                        </div>
-                    `;
+            if (contentType === 'dashboard') {
+                location.reload();
+                return;
             }
-            
-            $('#content-area').html(content);
+
+            var contentRenderers = {
+                'my-environments': renderMyEnvironmentsContent,
+                'request-access': renderRequestAccessContent,
+                'activity-logs': renderActivityLogsContent,
+                'access-management': renderAccessManagementContent,
+                'vm-registry': renderVmRegistryContent,
+                'automation-rules': renderAutomationRulesContent,
+                'audit-logs-all': renderAuditLogsAllContent,
+                'cost-management': renderCostManagementContent,
+                'system-health': renderSystemHealthContent
+            };
+
+            var renderer = contentRenderers[contentType] || function() {
+                return renderUnderConstructionContent(contentType);
+            };
+
+            renderView(contentType, renderer());
         }
 
         function loadEnvironmentDetail(envName) {
-            var content = `
+            renderView('environment-detail', renderEnvironmentDetailContent(envName), 'environment-detail-view');
+            $('.sidebar-menu-link').removeClass('active');
+        }
+
+        function renderMyEnvironmentsContent() {
+            return `
+                <div class="content-header">
+                    <h1>My Environments</h1>
+                    <p>Manage and monitor your accessible environments</p>
+                </div>
+                <div class="mb-3">
+                    <input type="text" class="form-control" placeholder="Search environments...">
+                </div>
+                <div class="custom-table">
+                    <table class="table" id="my-environments-table" data-table="my-environments">
+                        <thead>
+                            <tr>
+                                <th>Environment</th>
+                                <th>Owner Team</th>
+                                <th>Total VMs</th>
+                                <th>Running/Stopped</th>
+                                <th>Lock Status</th>
+                                <th>Cloud</th>
+                                <th>Cost/Month</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>mcube-demo-env</strong></td>
+                                <td>Data Engineering</td>
+                                <td>15</td>
+                                <td>8 / 7</td>
+                                <td><i class="fas fa-lock text-warning"></i> You</td>
+                                <td><i class="fab fa-aws"></i> <i class="fab fa-microsoft"></i></td>
+                                <td>$1,250</td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary">View</button>
+                                    <button class="btn btn-sm btn-success">Start All</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>analytics-sandbox</strong></td>
+                                <td>Analytics</td>
+                                <td>8</td>
+                                <td>4 / 4</td>
+                                <td><i class="fas fa-unlock text-success"></i> Unlocked</td>
+                                <td><i class="fab fa-google"></i></td>
+                                <td>$450</td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary">View</button>
+                                    <button class="btn btn-sm btn-success">Start All</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>my-dev-env</strong></td>
+                                <td>Platform Team</td>
+                                <td>12</td>
+                                <td>0 / 12</td>
+                                <td><i class="fas fa-unlock text-success"></i> Unlocked</td>
+                                <td><i class="fab fa-aws"></i></td>
+                                <td>$0</td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary">View</button>
+                                    <button class="btn btn-sm btn-success">Start All</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function renderRequestAccessContent() {
+            return `
+                <div class="content-header">
+                    <h1>Request Environment Access</h1>
+                    <p>Request access to environments you don't currently have</p>
+                </div>
+
+                <div class="mb-4">
+                    <input type="text" class="form-control" placeholder="Search for environment by name or team...">
+                </div>
+
+                <h5 class="mb-3">Available Environments</h5>
+                <div class="custom-table mb-4">
+                    <table class="table" id="request-access-available-table" data-table="request-access-available">
+                        <thead>
+                            <tr>
+                                <th>Environment</th>
+                                <th>Owner Team</th>
+                                <th>Total VMs</th>
+                                <th>Description</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>ml-training-prod</strong></td>
+                                <td>ML Team</td>
+                                <td>25</td>
+                                <td>Production ML training environment</td>
+                                <td><button class="btn btn-sm btn-primary">Request Access</button></td>
+                            </tr>
+                            <tr>
+                                <td><strong>customer-analytics</strong></td>
+                                <td>Analytics</td>
+                                <td>18</td>
+                                <td>Customer data analysis environment</td>
+                                <td><button class="btn btn-sm btn-primary">Request Access</button></td>
+                            </tr>
+                            <tr>
+                                <td><strong>integration-qa</strong></td>
+                                <td>QA Team</td>
+                                <td>12</td>
+                                <td>Integration testing environment</td>
+                                <td><button class="btn btn-sm btn-primary">Request Access</button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h5 class="mb-3">My Pending Requests</h5>
+                <div class="custom-table">
+                    <table class="table" id="request-access-pending-table" data-table="request-access-pending">
+                        <thead>
+                            <tr>
+                                <th>Environment</th>
+                                <th>Requested Date</th>
+                                <th>Status</th>
+                                <th>Approver</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>ml-training-prod</strong></td>
+                                <td>2 days ago</td>
+                                <td><span class="badge bg-warning">Pending</span></td>
+                                <td>ML Team Admin</td>
+                            </tr>
+                            <tr>
+                                <td><strong>integration-qa</strong></td>
+                                <td>1 day ago</td>
+                                <td><span class="badge bg-success">Approved</span></td>
+                                <td>john.admin@company.com</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function renderActivityLogsContent() {
+            return `
+                <div class="content-header">
+                    <h1>My Activity Logs</h1>
+                    <p>Track your start/stop operations and lock management</p>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <select class="form-select">
+                            <option>Last 24 hours</option>
+                            <option>Last 7 days</option>
+                            <option>Last 30 days</option>
+                            <option>Custom range</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select">
+                            <option>All Environments</option>
+                            <option>mcube-demo-env</option>
+                            <option>analytics-sandbox</option>
+                            <option>my-dev-env</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select">
+                            <option>All Actions</option>
+                            <option>Start Operations</option>
+                            <option>Stop Operations</option>
+                            <option>Lock Operations</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <button class="btn btn-primary w-100"><i class="fas fa-download"></i> Export CSV</button>
+                    </div>
+                </div>
+
+                <div class="custom-table">
+                    <table class="table" id="activity-logs-table" data-table="activity-logs">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Environment</th>
+                                <th>Action</th>
+                                <th>Target</th>
+                                <th>Result</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>2h ago</td>
+                                <td>mcube-demo-env</td>
+                                <td><span class="badge bg-success">START_VM</span></td>
+                                <td>database-primary</td>
+                                <td><i class="fas fa-check-circle text-success"></i> Success</td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td>2h ago</td>
+                                <td>mcube-demo-env</td>
+                                <td><span class="badge bg-warning">LOCK_ACQUIRE</span></td>
+                                <td>Environment</td>
+                                <td><i class="fas fa-check-circle text-success"></i> Success</td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td>5h ago</td>
+                                <td>data-pipeline-test</td>
+                                <td><span class="badge bg-danger">STOP_ENV</span></td>
+                                <td>Environment</td>
+                                <td><i class="fas fa-check-circle text-success"></i> Success</td>
+                                <td>5 VMs stopped</td>
+                            </tr>
+                            <tr>
+                                <td>1d ago</td>
+                                <td>project-x-staging</td>
+                                <td><span class="badge bg-warning">LOCK_ACQUIRE</span></td>
+                                <td>Environment</td>
+                                <td><i class="fas fa-check-circle text-success"></i> Success</td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td>1d ago</td>
+                                <td>analytics-sandbox</td>
+                                <td><span class="badge bg-success">START_GROUP</span></td>
+                                <td>worker-tier</td>
+                                <td><i class="fas fa-times-circle text-danger"></i> Failed</td>
+                                <td>VM2 failed to start - timeout</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function renderAccessManagementContent() {
+            return `
+                <div class="content-header">
+                    <h1>Access Management</h1>
+                    <p>Grant or revoke user access to environments</p>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <input type="text" class="form-control" placeholder="Search users by name or email...">
+                    </div>
+                    <div class="col-md-4">
+                        <select class="form-select">
+                            <option>All Environments</option>
+                            <option>mcube-demo-env</option>
+                            <option>analytics-sandbox</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-primary w-100"><i class="fas fa-plus"></i> Grant Access</button>
+                    </div>
+                </div>
+
+                <h5 class="mb-3">Environment: mcube-demo-env</h5>
+                <div class="custom-table mb-4">
+                    <table class="table" id="access-management-users-table" data-table="access-management-users">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Role</th>
+                                <th>Granted By</th>
+                                <th>Granted Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>john.doe@company.com</td>
+                                <td><span class="badge bg-primary">Owner</span></td>
+                                <td>System</td>
+                                <td>3 months ago</td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td>jane.smith@company.com</td>
+                                <td><span class="badge bg-secondary">User</span></td>
+                                <td>admin</td>
+                                <td>1 month ago</td>
+                                <td><button class="btn btn-sm btn-danger">Revoke</button></td>
+                            </tr>
+                            <tr>
+                                <td>bob.jones@company.com</td>
+                                <td><span class="badge bg-secondary">User</span></td>
+                                <td>john.doe</td>
+                                <td>2 weeks ago</td>
+                                <td><button class="btn btn-sm btn-danger">Revoke</button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h5 class="mb-3">Pending Access Requests (2)</h5>
+                <div class="custom-table">
+                    <table class="table" id="access-management-requests-table" data-table="access-management-requests">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Environment</th>
+                                <th>Requested</th>
+                                <th>Justification</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>alice.wang@company.com</td>
+                                <td>mcube-demo-env</td>
+                                <td>2 days ago</td>
+                                <td>Need access for feature development</td>
+                                <td>
+                                    <button class="btn btn-sm btn-success me-1">Approve</button>
+                                    <button class="btn btn-sm btn-danger">Deny</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>chris.lee@company.com</td>
+                                <td>analytics-sandbox</td>
+                                <td>1 day ago</td>
+                                <td>Testing new analytics pipeline</td>
+                                <td>
+                                    <button class="btn btn-sm btn-success me-1">Approve</button>
+                                    <button class="btn btn-sm btn-danger">Deny</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function renderVmRegistryContent() {
+            return `
+                <div class="content-header">
+                    <h1>VM Registry</h1>
+                    <p>Create and manage environments, groups, and VMs</p>
+                </div>
+
+                <div class="mb-3">
+                    <button class="btn btn-primary"><i class="fas fa-plus"></i> Create Environment</button>
+                    <button class="btn btn-secondary ms-2"><i class="fas fa-plus"></i> Add Group</button>
+                    <button class="btn btn-secondary ms-2"><i class="fas fa-plus"></i> Register VM</button>
+                </div>
+
+                <div class="custom-table">
+                    <table class="table" id="vm-registry-table" data-table="vm-registry">
+                        <thead>
+                            <tr>
+                                <th>Environment</th>
+                                <th>Groups</th>
+                                <th>Total VMs</th>
+                                <th>Owner</th>
+                                <th>Cloud Providers</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>mcube-demo-env</strong></td>
+                                <td>3 groups</td>
+                                <td>15 VMs</td>
+                                <td>Data Engineering</td>
+                                <td><i class="fab fa-aws"></i> <i class="fab fa-microsoft"></i></td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary">Edit</button>
+                                    <button class="btn btn-sm btn-danger ms-1">Delete</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>analytics-sandbox</strong></td>
+                                <td>2 groups</td>
+                                <td>8 VMs</td>
+                                <td>Analytics</td>
+                                <td><i class="fab fa-google"></i></td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary">Edit</button>
+                                    <button class="btn btn-sm btn-danger ms-1">Delete</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function renderAutomationRulesContent() {
+            return `
+                <div class="content-header">
+                    <h1>Automation Rules</h1>
+                    <p>Schedule automatic start/stop operations</p>
+                </div>
+
+                <div class="mb-3">
+                    <button class="btn btn-primary"><i class="fas fa-plus"></i> Create Rule</button>
+                </div>
+
+                <h5 class="mb-3">Active Rules (3)</h5>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h5 class="card-title">Nightly Shutdown</h5>
+                                <p class="mb-1"><strong>Environment:</strong> mcube-demo-env</p>
+                                <p class="mb-1"><strong>Action:</strong> <span class="badge bg-danger">STOP_ALL</span></p>
+                                <p class="mb-1"><strong>Schedule:</strong> Every day at 7:00 PM EST</p>
+                                <p class="mb-1"><strong>Status:</strong> <span class="badge bg-success">Active</span></p>
+                                <p class="mb-1 text-muted">Last Run: Today at 7:00 PM (Success)</p>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-primary me-1">Edit</button>
+                                <button class="btn btn-sm btn-warning me-1">Disable</button>
+                                <button class="btn btn-sm btn-danger">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h5 class="card-title">Morning Startup</h5>
+                                <p class="mb-1"><strong>Environment:</strong> mcube-demo-env</p>
+                                <p class="mb-1"><strong>Action:</strong> <span class="badge bg-success">START_ALL</span></p>
+                                <p class="mb-1"><strong>Schedule:</strong> Weekdays at 8:00 AM EST</p>
+                                <p class="mb-1"><strong>Status:</strong> <span class="badge bg-success">Active</span></p>
+                                <p class="mb-1 text-muted">Last Run: Today at 8:00 AM (Success)</p>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-primary me-1">Edit</button>
+                                <button class="btn btn-sm btn-warning me-1">Disable</button>
+                                <button class="btn btn-sm btn-danger">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h5 class="card-title">Weekend Cleanup</h5>
+                                <p class="mb-1"><strong>Environment:</strong> analytics-sandbox</p>
+                                <p class="mb-1"><strong>Action:</strong> <span class="badge bg-danger">STOP_ALL</span></p>
+                                <p class="mb-1"><strong>Schedule:</strong> Friday at 6:00 PM EST</p>
+                                <p class="mb-1"><strong>Status:</strong> <span class="badge bg-success">Active</span></p>
+                                <p class="mb-1 text-muted">Last Run: Last Friday (Success)</p>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-primary me-1">Edit</button>
+                                <button class="btn btn-sm btn-warning me-1">Disable</button>
+                                <button class="btn btn-sm btn-danger">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderAuditLogsAllContent() {
+            return `
+                <div class="content-header">
+                    <h1>Global Audit Logs</h1>
+                    <p>Complete audit trail across all environments</p>
+                </div>
+
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> Admin view: Showing activity from all users across all environments
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-2">
+                        <select class="form-select">
+                            <option>Last 24 hours</option>
+                            <option>Last 7 days</option>
+                            <option>Last 30 days</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select class="form-select">
+                            <option>All Users</option>
+                            <option>john.doe</option>
+                            <option>jane.smith</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select class="form-select">
+                            <option>All Environments</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select class="form-select">
+                            <option>All Actions</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select class="form-select">
+                            <option>All Results</option>
+                            <option>Success</option>
+                            <option>Failure</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-primary w-100"><i class="fas fa-download"></i> Export</button>
+                    </div>
+                </div>
+
+                <div class="custom-table">
+                    <table class="table table-sm" id="audit-logs-all-table" data-table="audit-logs-all">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>User</th>
+                                <th>Environment</th>
+                                <th>Action</th>
+                                <th>Target</th>
+                                <th>Result</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>2026-02-12 14:23:15</td>
+                                <td>john.doe</td>
+                                <td>mcube-demo-env</td>
+                                <td><span class="badge bg-success">START_VM</span></td>
+                                <td>database-primary</td>
+                                <td><i class="fas fa-check-circle text-success"></i></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td>2026-02-12 14:20:45</td>
+                                <td>jane.smith</td>
+                                <td>analytics-dev</td>
+                                <td><span class="badge bg-danger">STOP_GROUP</span></td>
+                                <td>data-tier</td>
+                                <td><i class="fas fa-check-circle text-success"></i></td>
+                                <td>Cascade stopped 3 VMs</td>
+                            </tr>
+                            <tr>
+                                <td>2026-02-12 14:15:30</td>
+                                <td>john.doe</td>
+                                <td>mcube-demo-env</td>
+                                <td><span class="badge bg-warning">LOCK_ACQUIRE</span></td>
+                                <td>Environment</td>
+                                <td><i class="fas fa-check-circle text-success"></i></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td>2026-02-12 13:58:12</td>
+                                <td>admin</td>
+                                <td>project-x-dev</td>
+                                <td><span class="badge bg-danger">LOCK_BREAK</span></td>
+                                <td>Environment</td>
+                                <td><i class="fas fa-check-circle text-success"></i></td>
+                                <td>Reason: User unavailable</td>
+                            </tr>
+                            <tr>
+                                <td>2026-02-12 13:45:00</td>
+                                <td>bob.jones</td>
+                                <td>ml-training-env</td>
+                                <td><span class="badge bg-success">START_VM</span></td>
+                                <td>gpu-worker-1</td>
+                                <td><i class="fas fa-times-circle text-danger"></i></td>
+                                <td>Cloud API timeout</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function renderCostManagementContent() {
+            return `
+                <div class="content-header">
+                    <h1>Cost Management</h1>
+                    <p>Monitor and optimize cloud spending</p>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="metric-card">
+                            <div class="metric-title">Total Monthly Cost</div>
+                            <div class="metric-value">$12,450</div>
+                            <div class="metric-subtitle">Across all environments</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="metric-card">
+                            <div class="metric-title">Running VMs Cost</div>
+                            <div class="metric-value">$3,250</div>
+                            <div class="metric-subtitle">Current active spend</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="metric-card">
+                            <div class="metric-title">This Month</div>
+                            <div class="metric-value">$8,920</div>
+                            <div class="metric-subtitle">Month-to-date actual</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="metric-card">
+                            <div class="metric-title">Potential Savings</div>
+                            <div class="metric-value">$2,100</div>
+                            <div class="metric-subtitle">From stopped VMs</div>
+                        </div>
+                    </div>
+                </div>
+
+                <h5 class="mb-3">Cost by Environment</h5>
+                <div class="custom-table">
+                    <table class="table" id="cost-management-table" data-table="cost-management">
+                        <thead>
+                            <tr>
+                                <th>Environment</th>
+                                <th>Total VMs</th>
+                                <th>Running</th>
+                                <th>Est. Monthly</th>
+                                <th>Actual This Month</th>
+                                <th>Trend</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>mcube-demo-env</strong></td>
+                                <td>15</td>
+                                <td>8</td>
+                                <td>$1,250</td>
+                                <td>$890</td>
+                                <td><span class="text-success"><i class="fas fa-arrow-down"></i> -12%</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>analytics-sandbox</strong></td>
+                                <td>8</td>
+                                <td>4</td>
+                                <td>$450</td>
+                                <td>$320</td>
+                                <td><span class="text-success"><i class="fas fa-arrow-down"></i> -8%</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>ml-training-env</strong></td>
+                                <td>25</td>
+                                <td>25</td>
+                                <td>$8,900</td>
+                                <td>$6,200</td>
+                                <td><span class="text-danger"><i class="fas fa-arrow-up"></i> +15%</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function renderSystemHealthContent() {
+            return `
+                <div class="content-header">
+                    <h1>System Health</h1>
+                    <p>Platform monitoring and status</p>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="metric-card">
+                            <div class="metric-title">Platform Status</div>
+                            <div class="metric-value text-success">Healthy</div>
+                            <div class="metric-subtitle">All systems operational</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="metric-card">
+                            <div class="metric-title">Total Environments</div>
+                            <div class="metric-value">23</div>
+                            <div class="metric-subtitle">Active across platform</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="metric-card">
+                            <div class="metric-title">Total VMs</div>
+                            <div class="metric-value">487</div>
+                            <div class="metric-subtitle">312 running (64%)</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="metric-card">
+                            <div class="metric-title">Active Locks</div>
+                            <div class="metric-value">8</div>
+                            <div class="metric-subtitle">Across 8 environments</div>
+                        </div>
+                    </div>
+                </div>
+
+                <h5 class="mb-3">Cloud Provider Status</h5>
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6><i class="fab fa-aws text-warning"></i> AWS</h6>
+                                <p class="mb-1"><strong>Status:</strong> <span class="badge bg-success">Operational</span></p>
+                                <p class="mb-1"><strong>VMs:</strong> 200 (120 running)</p>
+                                <p class="mb-0"><strong>Last Sync:</strong> 2 min ago</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6><i class="fab fa-microsoft text-primary"></i> Azure</h6>
+                                <p class="mb-1"><strong>Status:</strong> <span class="badge bg-success">Operational</span></p>
+                                <p class="mb-1"><strong>VMs:</strong> 150 (100 running)</p>
+                                <p class="mb-0"><strong>Last Sync:</strong> 1 min ago</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6><i class="fab fa-google text-info"></i> GCP</h6>
+                                <p class="mb-1"><strong>Status:</strong> <span class="badge bg-success">Operational</span></p>
+                                <p class="mb-1"><strong>VMs:</strong> 137 (92 running)</p>
+                                <p class="mb-0"><strong>Last Sync:</strong> 3 min ago</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <h5 class="mb-3">Recent System Events</h5>
+                <div class="custom-table">
+                    <table class="table" id="system-health-events-table" data-table="system-health-events">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Event Type</th>
+                                <th>Description</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>5 min ago</td>
+                                <td><span class="badge bg-success">SYNC</span></td>
+                                <td>State reconciliation completed for 487 VMs</td>
+                                <td><i class="fas fa-check-circle text-success"></i></td>
+                            </tr>
+                            <tr>
+                                <td>10 min ago</td>
+                                <td><span class="badge bg-warning">DRIFT</span></td>
+                                <td>2 VMs detected with state drift</td>
+                                <td><i class="fas fa-exclamation-circle text-warning"></i></td>
+                            </tr>
+                            <tr>
+                                <td>1 hour ago</td>
+                                <td><span class="badge bg-info">AUTOMATION</span></td>
+                                <td>Scheduled rule "Morning Startup" executed</td>
+                                <td><i class="fas fa-check-circle text-success"></i></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function renderUnderConstructionContent(contentType) {
+            return `
+                <div class="content-header">
+                    <h1>${contentType.replace('-', ' ').toUpperCase()}</h1>
+                    <p>This view is under construction</p>
+                </div>
+            `;
+        }
+
+        function renderEnvironmentDetailContent(envName) {
+            return `
                 <div class="content-header">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
@@ -2127,7 +2155,7 @@
                         </div>
                     </div>
                     <div class="card-body">
-                        <table class="table table-sm mb-0">
+                        <table class="table table-sm mb-0" id="environment-detail-data-tier-table" data-table="environment-detail-data-tier">
                             <thead>
                                 <tr>
                                     <th>VM Name</th>
@@ -2181,7 +2209,7 @@
                         </div>
                     </div>
                     <div class="card-body">
-                        <table class="table table-sm mb-0">
+                        <table class="table table-sm mb-0" id="environment-detail-backend-tier-table" data-table="environment-detail-backend-tier">
                             <thead>
                                 <tr>
                                     <th>VM Name</th>
@@ -2220,10 +2248,8 @@
                     </div>
                 </div>
             `;
-            
-            $('#content-area').html(content);
-            $('.sidebar-menu-link').removeClass('active');
         }
     </script>
 </body>
 </html>
+

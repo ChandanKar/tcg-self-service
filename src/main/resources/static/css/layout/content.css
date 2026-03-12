@@ -128,6 +128,23 @@
     letter-spacing: 0.03em;
 }
 
+#dashboard-view .env-table-wrapper .table thead th:nth-child(1),
+#dashboard-view .env-table-wrapper .table tbody td:nth-child(1) {
+    width: 40%;
+    text-align: left;
+}
+
+#dashboard-view .env-table-wrapper .table thead th:nth-child(2),
+#dashboard-view .env-table-wrapper .table tbody td:nth-child(2),
+#dashboard-view .env-table-wrapper .table thead th:nth-child(3),
+#dashboard-view .env-table-wrapper .table tbody td:nth-child(3),
+#dashboard-view .env-table-wrapper .table thead th:nth-child(4),
+#dashboard-view .env-table-wrapper .table tbody td:nth-child(4),
+#dashboard-view .env-table-wrapper .table thead th:nth-child(5),
+#dashboard-view .env-table-wrapper .table tbody td:nth-child(5) {
+    width: 15%;
+}
+
 /* Single filler row expands to fill leftover space */
 #dashboard-view .env-table-filler {
     height: 100%;
@@ -172,7 +189,7 @@
 
 #environments-list-view .env-list-card {
     flex: 1;
-    display: box;
+    display: flex;
     flex-direction: column;
     min-height: 0;
     overflow: hidden;
@@ -211,32 +228,53 @@
     padding: 0.25rem 0.5rem;
 }
 
-/* Actions column: icon-only buttons, tight */
-#environments-list-view .env-list-table-wrapper .table td:last-child {
+/* ── Column widths: Environment 40%, remaining 5 cols split equally, Actions fixed ── */
+#environments-list-view .env-list-table-wrapper .table thead th:nth-child(1),
+#environments-list-view .env-list-table-wrapper .table tbody td:nth-child(1) {
+    width: 40%;
+    text-align: left;
+}
+#environments-list-view .env-list-table-wrapper .table thead th:nth-child(2),
+#environments-list-view .env-list-table-wrapper .table tbody td:nth-child(2),
+#environments-list-view .env-list-table-wrapper .table thead th:nth-child(3),
+#environments-list-view .env-list-table-wrapper .table tbody td:nth-child(3),
+#environments-list-view .env-list-table-wrapper .table thead th:nth-child(4),
+#environments-list-view .env-list-table-wrapper .table tbody td:nth-child(4),
+#environments-list-view .env-list-table-wrapper .table thead th:nth-child(5),
+#environments-list-view .env-list-table-wrapper .table tbody td:nth-child(5) {
+    width: 12%;
+}
+
+/* Actions column — comfortable width for up to 3 icon buttons */
+#environments-list-view .env-list-table-wrapper .table td:last-child,
+#environments-list-view .env-list-table-wrapper .table th:last-child {
     white-space: nowrap;
-    width: 88px;
+    width: 110px;
 }
 #environments-list-view .env-list-table-wrapper .btn-action {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
+    width: 30px;
+    height: 28px;
     padding: 0;
-    font-size: 0.72rem;
+    font-size: 0.78rem;
     border-radius: 4px;
     line-height: 1;
 }
 #environments-list-view .env-list-table-wrapper .btn-action + .btn-action {
-    margin-left: 3px;
+    margin-left: 4px;
 }
 
 /* Spacer pushes pagination to bottom */
-#environments-list-view .env-list-spacer { flex: 1; min-height: 0; }
+#environments-list-view .env-list-spacer { display: none; }
 
-/* Pagination bar */
+/* Pagination bar — always pinned to the bottom of the card */
 #environments-list-view #env-list-pagination {
     flex-shrink: 0;
+    margin-top: auto;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 0.3rem;
     min-height: 28px;
 }
 
@@ -440,4 +478,3 @@
     font-size: 0.72rem;
     border-radius: 4px;
 }
-

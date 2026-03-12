@@ -362,7 +362,8 @@ const Dashboard = (function() {
                     <h6 class="mb-0 text-muted text-uppercase" style="font-size:0.7rem;letter-spacing:0.05em;">My Environments</h6>
                     <div class="input-group" style="width: 220px;">
                         <span class="input-group-text py-1"><i class="fas fa-search" style="font-size:0.8rem;"></i></span>
-                        <input type="text" class="form-control form-control-sm" id="env-search" placeholder="Search...">
+                        <input type="text" class="form-control form-control-sm" id="env-search" placeholder="Search..."
+                               oninput="Dashboard._search(this.value)">
                     </div>
                 </div>
                 <div class="env-table-wrapper">
@@ -374,7 +375,6 @@ const Dashboard = (function() {
                                 <th>Running</th>
                                 <th>Lock Status</th>
                                 <th>Cloud</th>
-                                <th style="width:32px;"></th>
                             </tr>
                         </thead>
                         <tbody id="env-table-body">
@@ -424,16 +424,13 @@ const Dashboard = (function() {
                     </td>
                     <td>${lockDisplay}</td>
                     <td>${providerIcons}</td>
-                    <td class="text-muted text-end pe-2">
-                        <i class="fas fa-chevron-right" style="font-size:0.75rem;"></i>
-                    </td>
                 </tr>
             `;
         }).join('');
 
         // Single filler row — expands via CSS height:100% to fill leftover space
         const filler = pageItems.length < PAGE_SIZE
-            ? `<tr class="env-table-filler"><td colspan="6"></td></tr>`
+            ? `<tr class="env-table-filler"><td colspan="5"></td></tr>`
             : '';
 
         return dataRows + filler;
@@ -467,14 +464,22 @@ const Dashboard = (function() {
             <div class="d-flex justify-content-between align-items-center mt-2">
                 <span class="text-muted small">Showing ${start}–${end} of ${totalItems} environments</span>
                 <div>
-                    <button class="btn btn-sm btn-outline-secondary env-page-btn"
-                            data-page="${page - 1}" ${page === 1 ? 'disabled' : ''}>
+                    <button class="btn btn-sm btn-outline-secondary env-page-btn" data-page="1"
+                            ${page === 1 ? 'disabled' : ''} title="First page">
+                        <i class="fas fa-angle-double-left"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary env-page-btn ms-1" data-page="${page - 1}"
+                            ${page === 1 ? 'disabled' : ''} title="Previous page">
                         <i class="fas fa-chevron-left"></i>
                     </button>
                     ${pageButtons}
-                    <button class="btn btn-sm btn-outline-secondary env-page-btn ms-1"
-                            data-page="${page + 1}" ${page === totalPages ? 'disabled' : ''}>
+                    <button class="btn btn-sm btn-outline-secondary env-page-btn ms-1" data-page="${page + 1}"
+                            ${page === totalPages ? 'disabled' : ''} title="Next page">
                         <i class="fas fa-chevron-right"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary env-page-btn ms-1" data-page="${totalPages}"
+                            ${page === totalPages ? 'disabled' : ''} title="Last page">
+                        <i class="fas fa-angle-double-right"></i>
                     </button>
                 </div>
             </div>
@@ -513,10 +518,14 @@ const Dashboard = (function() {
             initTooltips();
         });
 
-        // Search — filters and resets to page 1
-        $('#content-area').off('input', '#env-search').on('input', '#env-search', Utils.debounce(function() {
+        // Search — delegated binding (fallback) + direct binding on rendered element
+        $('#content-area').off('input', '#env-search').on('input', '#env-search', function() {
             filterAndRender($(this).val().toLowerCase().trim());
-        }, 300));
+        });
+        // Direct bind on the already-rendered element (most reliable after innerHTML swap)
+        $('#env-search').off('input.dash').on('input.dash', function() {
+            filterAndRender($(this).val().toLowerCase().trim());
+        });
 
         // Initial pagination render
         if (dashboardData && dashboardData.environments) {
@@ -563,6 +572,9 @@ const Dashboard = (function() {
     return {
         load,
         refresh,
-        getData
+        getData,
+        _search: function(val) {
+            filterAndRender((val || '').toLowerCase().trim());
+        }
     };
 })();
