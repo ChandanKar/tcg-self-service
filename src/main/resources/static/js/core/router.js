@@ -18,13 +18,13 @@ const ContentRouter = (function() {
             'request-access': () => AccessRequests.loadRequestAccessPage(),
             'pending-requests': () => AccessRequests.loadPendingRequestsPage(),
             'activity-logs': () => ActivityLogs.loadMyActivityLogs(),
-            'user-management': () => Features.loadUserManagement(),
-            'access-management': () => Features.loadAccessManagement(),
-            'vm-registry': () => Features.loadVmRegistry(),
-            'automation-rules': () => Features.loadAutomationRules(),
+            'user-management': () => window.Features?.loadUserManagement?.(),
+            'access-management': () => window.Features?.loadAccessManagement?.(),
+            'vm-registry': () => window.Features?.loadVmRegistry?.(),
+            'automation-rules': () => window.Features?.loadAutomationRules?.(),
             'audit-logs-all': () => AllLogs.loadAllAuditLogs(),
             'cost-management': () => showPlaceholder('cost-management'),
-            'system-health': () => Features.loadSystemHealth(),
+            'system-health': () => window.Features?.loadSystemHealth?.(),
             'settings': () => showPlaceholder('settings'),
             'help': () => showPlaceholder('help')
         };
@@ -114,4 +114,3 @@ const ContentRouter = (function() {
         showPlaceholder
     };
 })();
-

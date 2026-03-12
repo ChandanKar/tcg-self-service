@@ -118,8 +118,11 @@ const Features = (function() {
     function loadVmRegistry() {
         window.VmRegistryState = {
             environments: [],
+            filtered: [],
             currentEnvironment: null,
-            currentGroups: []
+            currentGroups: [],
+            currentPage: 1,
+            PAGE_SIZE: 7
         };
 
         renderVmRegistry();
@@ -147,7 +150,7 @@ const Features = (function() {
                     <div class="col-md-6">
                         <div class="input-group">
                             <span class="input-group-text"><i class="fas fa-search"></i></span>
-                            <input type="text" class="form-control" id="searchEnvironments" placeholder="Search environments..." onkeyup="Features.filterEnvironments(this.value)">
+                            <input type="text" class="form-control" id="searchEnvironments" placeholder="Search environments..." oninput="Features._searchRegistry(this.value)">
                         </div>
                     </div>
                     <div class="col-md-3">
@@ -164,8 +167,8 @@ const Features = (function() {
                 </div>
 
                 <div class="card">
-                    <div class="card-body">
-                        <div id="environmentsTableContainer">
+                    <div class="card-body vm-registry-card-body">
+                        <div id="environmentsTableContainer" class="vm-registry-table-wrapper">
                             <div class="text-center py-5" id="environmentsLoading">
                                 <div class="spinner-border text-primary" role="status"></div>
                                 <p class="text-muted mt-2">Loading environments...</p>
@@ -179,8 +182,8 @@ const Features = (function() {
                                 </button>
                             </div>
                             <div class="table-responsive d-none" id="environmentsTableWrapper">
-                                <table class="table table-hover align-middle" id="environmentsTable">
-                                    <thead>
+                                <table class="table table-hover mb-0" id="environmentsTable">
+                                    <thead class="table-light sticky-top">
                                         <tr>
                                             <th>Environment</th>
                                             <th>Description</th>
@@ -195,41 +198,7 @@ const Features = (function() {
                                 </table>
                             </div>
                         </div>
-                    </div>
-                </div>
-
-                <div class="row mt-4">
-                    <div class="col-md-3">
-                        <div class="card text-center">
-                            <div class="card-body">
-                                <h3 class="mb-0" id="statTotalEnvironments">0</h3>
-                                <p class="text-muted mb-0">Total Environments</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card text-center">
-                            <div class="card-body">
-                                <h3 class="mb-0" id="statTotalGroups">0</h3>
-                                <p class="text-muted mb-0">Total Groups</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card text-center">
-                            <div class="card-body">
-                                <h3 class="mb-0" id="statTotalVMs">0</h3>
-                                <p class="text-muted mb-0">Total VMs</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card text-center">
-                            <div class="card-body">
-                                <h3 class="mb-0" id="statActiveEnvironments">0</h3>
-                                <p class="text-muted mb-0">Active Environments</p>
-                            </div>
-                        </div>
+                        <div id="vm-registry-pagination" class="vm-registry-pagination"></div>
                     </div>
                 </div>
             </div>
@@ -247,7 +216,9 @@ const Features = (function() {
             const environments = await ApiClient.get(`/api/v1/environments?includeInactive=${includeInactive}`);
 
             window.VmRegistryState.environments = environments;
-            renderEnvironmentsList(environments);
+            window.VmRegistryState.filtered = environments;
+            window.VmRegistryState.currentPage = 1;
+            renderEnvironmentsList();
             updateVmRegistryStats(environments);
         } catch (error) {
             console.error('Failed to load environments:', error);
@@ -257,33 +228,62 @@ const Features = (function() {
         }
     }
 
-    function renderEnvironmentsList(envs) {
+    function renderEnvironmentsList() {
+        const state = window.VmRegistryState;
+        const list = state.filtered || [];
+        const total = list.length;
+        const pageSize = state.PAGE_SIZE || 10;
+        const totalPages = Math.max(1, Math.ceil(total / pageSize));
+        if (state.currentPage > totalPages) state.currentPage = totalPages;
+        if (state.currentPage < 1) state.currentPage = 1;
+
         $('#environmentsLoading').addClass('d-none');
-        if (!envs || envs.length === 0) {
+        if (!total) {
             $('#environmentsEmpty').removeClass('d-none');
             $('#environmentsTableWrapper').addClass('d-none');
+            $('#vm-registry-pagination').html(`<div class="text-muted small">Showing 0 environments</div>`);
             return;
         }
+
         $('#environmentsEmpty').addClass('d-none');
         $('#environmentsTableWrapper').removeClass('d-none');
 
         const tbody = $('#environmentsTableBody');
         tbody.empty();
-        envs.forEach(env => tbody.append(buildEnvironmentRow(env)));
+        const start = (state.currentPage - 1) * pageSize;
+        const slice = list.slice(start, start + pageSize);
+        slice.forEach(env => tbody.append(buildEnvironmentRow(env)));
+
+        // Single filler row — expands via CSS height:100% to fill leftover space (same as Dashboard)
+        if (slice.length < pageSize) {
+            tbody.append('<tr class="vm-registry-filler-row"><td colspan="7"></td></tr>');
+        }
+
+        renderVmRegistryPagination(total, state.currentPage, pageSize);
+        $('#vm-registry-pagination').off('click', '.vm-reg-page').on('click', '.vm-reg-page', function() {
+            const target = parseInt($(this).data('page'));
+            if (!target || target < 1) return;
+            const maxPage = Math.ceil(total / pageSize) || 1;
+            if (target > maxPage) return;
+            state.currentPage = target;
+            renderEnvironmentsList();
+        });
     }
 
     function buildEnvironmentRow(env) {
-        const statusBadge = env.isActive ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Inactive</span>';
+        const statusBadge = env.isActive
+            ? '<span class="badge bg-success">Active</span>'
+            : '<span class="badge bg-secondary">Inactive</span>';
         const createdDate = env.createdAt ? new Date(env.createdAt).toLocaleDateString() : 'N/A';
         const description = env.description || '<span class="text-muted">No description</span>';
         const displayName = Utils.escapeHtml(env.displayName);
         const name = Utils.escapeHtml(env.name);
+        const tooltip = `Environment: ${displayName}${name && displayName !== name ? ` (${name})` : ''}`;
 
         return `
-            <tr data-env-id="${env.environmentId}">
+            <tr data-env-id="${env.environmentId}" title="${tooltip}">
                 <td>
                     <div><strong>${displayName}</strong></div>
-                    <div class="small text-muted">${name}</div>
                 </td>
                 <td>${description}</td>
                 <td class="text-center"><span class="badge bg-primary">${env.groupCount || 0}</span></td>
@@ -291,13 +291,13 @@ const Features = (function() {
                 <td class="text-center">${statusBadge}</td>
                 <td>${createdDate}</td>
                 <td class="text-end">
-                    <button class="btn btn-sm btn-primary" onclick="Features.manageGroups('${env.environmentId}', '${displayName.replace(/'/g, "\\'")}')">
+                    <button class="btn btn-sm btn-primary" title="${tooltip}" onclick="Features.manageGroups('${env.environmentId}', '${displayName.replace(/'/g, "\\'")}')">
                         <i class="fas fa-layer-group"></i> Groups
                     </button>
-                    <button class="btn btn-sm btn-warning" onclick="Features.editEnvironment('${env.environmentId}')">
+                    <button class="btn btn-sm btn-warning" onclick="Features.editEnvironment('${env.environmentId}')" title="Edit ${tooltip}">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button class="btn btn-sm btn-danger" onclick="Features.deleteEnvironment('${env.environmentId}')">
+                    <button class="btn btn-sm btn-danger" onclick="Features.deleteEnvironment('${env.environmentId}')" title="Delete ${tooltip}">
                         <i class="fas fa-trash"></i>
                     </button>
                 </td>
@@ -316,18 +316,61 @@ const Features = (function() {
         $('#statTotalVMs').text(totalVMs);
     }
 
+    function renderVmRegistryPagination(totalItems, page, pageSize) {
+        const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+        if (totalItems <= pageSize) {
+            $('#vm-registry-pagination').html(`<div class="text-muted small mt-1">Showing ${totalItems} environment${totalItems !== 1 ? 's' : ''}</div>`);
+            return;
+        }
+
+        const start = (page - 1) * pageSize + 1;
+        const end = Math.min(page * pageSize, totalItems);
+        const rangeStart = Math.max(1, page - 2);
+        const rangeEnd = Math.min(totalPages, page + 2);
+
+        let pageButtons = '';
+        for (let i = rangeStart; i <= rangeEnd; i++) {
+            pageButtons += `<button class="btn btn-sm ${i === page ? 'btn-primary' : 'btn-outline-secondary'} vm-reg-page ms-1" data-page="${i}">${i}</button>`;
+        }
+
+        $('#vm-registry-pagination').html(`
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="text-muted small">Showing ${start}–${end} of ${totalItems} environments</span>
+                <div>
+                    <button class="btn btn-sm btn-outline-secondary vm-reg-page" data-page="1" ${page === 1 ? 'disabled' : ''} title="First page">
+                        <i class="fas fa-angle-double-left"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary vm-reg-page ms-1" data-page="${page - 1}" ${page === 1 ? 'disabled' : ''} title="Previous page">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    ${pageButtons}
+                    <button class="btn btn-sm btn-outline-secondary vm-reg-page ms-1" data-page="${page + 1}" ${page === totalPages ? 'disabled' : ''} title="Next page">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary vm-reg-page ms-1" data-page="${totalPages}" ${page === totalPages ? 'disabled' : ''} title="Last page">
+                        <i class="fas fa-angle-double-right"></i>
+                    </button>
+                </div>
+            </div>
+        `);
+    }
+
     function filterEnvironments(searchTerm) {
+        const state = window.VmRegistryState;
         if (!searchTerm) {
-            renderEnvironmentsList(window.VmRegistryState.environments);
+            state.filtered = state.environments;
+            state.currentPage = 1;
+            renderEnvironmentsList();
             return;
         }
         const term = searchTerm.toLowerCase();
-        const filtered = window.VmRegistryState.environments.filter(env =>
-            env.name.toLowerCase().includes(term) ||
-            env.displayName.toLowerCase().includes(term) ||
+        state.filtered = state.environments.filter(env =>
+            (env.name || '').toLowerCase().includes(term) ||
+            (env.displayName || '').toLowerCase().includes(term) ||
             (env.description && env.description.toLowerCase().includes(term))
         );
-        renderEnvironmentsList(filtered);
+        state.currentPage = 1;
+        renderEnvironmentsList();
     }
 
     function openCreateEnvironmentModal() {
@@ -1385,7 +1428,12 @@ const Features = (function() {
         selectEc2Instance,
         loadAutomationRules,
         loadSystemHealth,
-        loadUserManagement
+        loadUserManagement,
+        _searchRegistry: function(val) {
+            filterEnvironments((val || '').trim());
+        }
     };
 })();
 
+// Make Features available on window for router and sidebar navigation
+window.Features = Features;
