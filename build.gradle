@@ -24,6 +24,8 @@ ext {
 }
 
 dependencies {
+	// .env file support
+	implementation 'me.paulschwarz:spring-dotenv:4.0.0'
 	// AWS SDK BOM for version management
 	implementation platform("software.amazon.awssdk:bom:${awsSdkVersion}")
 	// AWS SDK core modules

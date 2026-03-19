@@ -8,6 +8,11 @@ build/
 **/src/main/resources/**/dist/
 **/src/main/resources/**/old_backup/
 
+### Environment Variables ###
+.env
+.env.local
+.env.*.local
+
 
 ### STS ###
 .apt_generated

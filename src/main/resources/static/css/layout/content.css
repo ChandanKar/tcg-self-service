@@ -179,11 +179,11 @@
     padding-top: 0;
 }
 #environments-list-view .content-header h1 {
-    font-size: 1.25rem;
+    font-size: 1.2rem;
     margin-bottom: 0.05rem;
 }
 #environments-list-view .content-header p {
-    font-size: 0.78rem;
+    font-size: 0.75rem;
     margin-bottom: 0;
 }
 
@@ -212,20 +212,19 @@
     margin-bottom: 0;
     /* NO height:100% — prevents filler row from overlapping data rows */
 }
-/* Compact rows — tighter than before to fit 7-9 rows */
+/* Rows — match dashboard baseline */
 #environments-list-view .env-list-table-wrapper .table td,
 #environments-list-view .env-list-table-wrapper .table th {
-    padding: 0.18rem 0.5rem;
-    font-size: 0.8rem;
+    padding: 0.28rem 0.55rem;
+    font-size: 0.81rem;
     vertical-align: middle;
-    line-height: 1.35;
+    line-height: 1.5;
 }
 #environments-list-view .env-list-table-wrapper .table thead th {
-    font-size: 0.68rem;
+    font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.03em;
-    padding: 0.25rem 0.5rem;
 }
 
 /* ── Column widths: Environment 40%, remaining 5 cols split equally, Actions fixed ── */
@@ -286,14 +285,14 @@
     flex-shrink: 0;
 }
 .content-header h1 {
-    font-size: 1.5rem;
+    font-size: 1.2rem;
     font-weight: 700;
     color: #1e293b;
     margin-bottom: 0.15rem;
 }
 .content-header p {
     color: #64748b;
-    font-size: 0.85rem;
+    font-size: 0.75rem;
 }
 
 .content-view {
@@ -479,110 +478,5 @@
     border-radius: 4px;
 }
 
-/* ── VM Registry table layout — match Dashboard exactly ── */
-.vm-registry-container .card {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    overflow: hidden;
-}
-.vm-registry-card-body {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    overflow: hidden;
-    /* Match dashboard env-table-card padding */
-    padding: 0.4rem 0.6rem 0.3rem !important;
-}
-.vm-registry-table-wrapper {
-    flex: 1;
-    overflow-y: auto;
-    min-height: 0;
-}
-.vm-registry-table-wrapper::-webkit-scrollbar { width: 4px; }
-.vm-registry-table-wrapper::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 3px;
-}
-.vm-registry-table-wrapper #environmentsTableWrapper {
-    height: 100%;
-}
-/* Make the table itself fill full wrapper height so filler row expands */
-.vm-registry-table-wrapper #environmentsTableWrapper .table {
-    table-layout: fixed;
-    width: 100%;
-    height: 100%;
-    margin-bottom: 0;
-}
-.vm-registry-table-wrapper #environmentsTableWrapper .table tbody {
-    height: 100%;
-}
-/* Sticky header like Dashboard */
-.vm-registry-table-wrapper #environmentsTableWrapper .table thead {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    background: #f8fafc;
-}
-.vm-registry-pagination {
-    flex-shrink: 0;
-    border-top: 1px solid #f1f5f9;
-    padding-top: 0.3rem;
-    min-height: 28px;
-}
-
-/* VM Registry column widths */
-#environmentsTable thead th:nth-child(1),
-#environmentsTable tbody td:nth-child(1) { width: 40%; text-align: left; }
-#environmentsTable thead th:nth-child(2),
-#environmentsTable tbody td:nth-child(2) { width: 20%; }
-#environmentsTable thead th:nth-child(3),
-#environmentsTable tbody td:nth-child(3) { width: 10%; }
-#environmentsTable thead th:nth-child(4),
-#environmentsTable tbody td:nth-child(4) { width: 7%; }
-#environmentsTable thead th:nth-child(5),
-#environmentsTable tbody td:nth-child(5) { width: 8%; }
-#environmentsTable thead th:nth-child(6),
-#environmentsTable tbody td:nth-child(6) { width: 13%; }
-#environmentsTable thead th:nth-child(7),
-#environmentsTable tbody td:nth-child(7) {
-    white-space: nowrap;
-    width: 130px;
-}
-
-/* VM Registry action buttons */
-#environmentsTable tbody td:last-child .btn {
-    height: 28px;
-    padding: 0.18rem 0.5rem;
-    font-size: 0.8rem;
-}
-#environmentsTable tbody td:last-child .btn + .btn { margin-left: 4px; }
-
-/* VM Registry table font sizes and spacing — match dashboard env table */
-.vm-registry-table-wrapper .table td,
-.vm-registry-table-wrapper .table th {
-    padding: 0.28rem 0.55rem;
-    font-size: 0.81rem;
-    vertical-align: middle;
-    line-height: 1.5;
-}
-.vm-registry-table-wrapper .table thead th {
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-}
-
-/* Single filler row expands to fill leftover space — same as Dashboard */
-.vm-registry-filler-row {
-    height: 100%;
-}
-.vm-registry-filler-row td {
-    border: none !important;
-    background: transparent !important;
-    padding: 0 !important;
-    pointer-events: none;
-}
+/* VM Registry styles moved to css/features/vm-registry.css */
 

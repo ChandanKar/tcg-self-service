@@ -12,6 +12,7 @@ const ActivityLogs = (function() {
         endDate: '',
         environmentId: '',
         actionType: '',
+        timeRange: '7d',
         page: 0,
         size: 50
     };
@@ -124,126 +125,141 @@ const ActivityLogs = (function() {
         const totalPages = data.totalPages || 0;
         const currentPage = data.number || 0;
 
-        const startDate = currentFilters.startDate;
-        const endDate = currentFilters.endDate;
+        return `
+            <div class="activity-logs-container">
+                <!-- Header -->
+                <div class="content-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h1><i class="fas fa-clipboard-list"></i> My Activity Logs</h1>
+                            <p class="text-muted">Your start/stop, restart and lock operations across all environments</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filter Bar: dropdowns only, no labels -->
+                <div class="activity-logs-filter-bar mb-2">
+                    <select class="form-select form-select-sm" id="al-time-range-filter">
+                        <option value="24h" ${currentFilters.timeRange === '24h' ? 'selected' : ''}>Last 24h</option>
+                        <option value="7d"  ${currentFilters.timeRange === '7d'  ? 'selected' : ''}>Last 7 days</option>
+                        <option value="30d" ${currentFilters.timeRange === '30d' ? 'selected' : ''}>Last 30 days</option>
+                        <option value="custom" ${currentFilters.timeRange === 'custom' ? 'selected' : ''}>Custom range</option>
+                    </select>
+                    <select class="form-select form-select-sm" id="al-environment-filter">
+                        <option value="">All Environments</option>
+                        ${userEnvironments.map(env => `<option value="${env.id}" ${currentFilters.environmentId === env.id ? 'selected' : ''}>${env.name}</option>`).join('')}
+                    </select>
+                    <select class="form-select form-select-sm" id="al-action-type-filter">
+                        <option value="">All Actions</option>
+                        <optgroup label="VM Operations">
+                            <option value="VM_START_REQUESTED"   ${currentFilters.actionType === 'VM_START_REQUESTED'   ? 'selected' : ''}>VM Start</option>
+                            <option value="VM_STOP_REQUESTED"    ${currentFilters.actionType === 'VM_STOP_REQUESTED'    ? 'selected' : ''}>VM Stop</option>
+                            <option value="VM_RESTART_REQUESTED" ${currentFilters.actionType === 'VM_RESTART_REQUESTED' ? 'selected' : ''}>VM Restart</option>
+                        </optgroup>
+                        <optgroup label="Lock Management">
+                            <option value="LOCK_ACQUIRED" ${currentFilters.actionType === 'LOCK_ACQUIRED' ? 'selected' : ''}>Lock Acquired</option>
+                            <option value="LOCK_RELEASED" ${currentFilters.actionType === 'LOCK_RELEASED' ? 'selected' : ''}>Lock Released</option>
+                        </optgroup>
+                    </select>
+                    <select class="form-select form-select-sm" id="al-page-size-filter" title="Rows per fetch">
+                        <option value="50"    ${currentFilters.size === 50    ? 'selected' : ''}>50</option>
+                        <option value="100"   ${currentFilters.size === 100   ? 'selected' : ''}>100</option>
+                        <option value="500"   ${currentFilters.size === 500   ? 'selected' : ''}>500</option>
+                        <option value="10000" ${currentFilters.size === 10000 ? 'selected' : ''}>All</option>
+                    </select>
+                    <button class="btn btn-outline-danger btn-sm" id="al-clear-filters-btn" title="Clear all filters">
+                        <i class="fas fa-times"></i> Clear
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" id="al-export-logs-btn" title="Export CSV">
+                        <i class="fas fa-download"></i> Export
+                    </button>
+                </div>
+
+                <!-- Custom Date Range (shown only when "Custom range" is selected) -->
+                <div id="al-custom-date-range" class="activity-logs-custom-range mb-2" style="display:${currentFilters.timeRange === 'custom' ? 'flex' : 'none'};">
+                    <input type="date" class="form-control form-control-sm" id="al-start-date-input" value="${currentFilters.startDate}">
+                    <input type="date" class="form-control form-control-sm" id="al-end-date-input"   value="${currentFilters.endDate}">
+                    <button class="btn btn-primary btn-sm" id="al-apply-custom-range-btn">Apply</button>
+                </div>
+
+                <!-- Table Card: fills remaining space -->
+                <div class="card activity-logs-table-card">
+                    <div class="card-body activity-logs-card-body">
+                        <div class="activity-logs-table-wrapper">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>Environment</th>
+                                        <th>Action</th>
+                                        <th>Target</th>
+                                        <th>Result</th>
+                                        <th>Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${logs.length > 0 ? logs.map(log => buildActivityLogRow(log)).join('') : `
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted py-4">
+                                                <i class="fas fa-inbox fa-3x mb-2 d-block" style="opacity:0.5;"></i>
+                                                No activity found for the selected filters
+                                            </td>
+                                        </tr>
+                                    `}
+                                </tbody>
+                            </table>
+                        </div>
+                        <!-- Pagination: pinned to bottom of card -->
+                        <div class="activity-logs-pagination" id="al-pagination">
+                            ${buildActivityLogsPagination(totalElements, currentPage, totalPages)}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * Build pagination controls — same style as VM Registry / All Logs
+     */
+    function buildActivityLogsPagination(totalElements, currentPage, totalPages) {
+        if (totalElements === 0) {
+            return `<div class="text-muted small">No results</div>`;
+        }
+        const pageSize = currentFilters.size;
+        const start = currentPage * pageSize + 1;
+        const end = Math.min((currentPage + 1) * pageSize, totalElements);
+
+        if (totalPages <= 1) {
+            return `<div class="text-muted small">Showing ${start}–${end} of ${totalElements} entries</div>`;
+        }
+
+        const rangeStart = Math.max(0, currentPage - 2);
+        const rangeEnd = Math.min(totalPages - 1, currentPage + 2);
+        let pageButtons = '';
+        for (let i = rangeStart; i <= rangeEnd; i++) {
+            pageButtons += `<button class="btn btn-sm ${i === currentPage ? 'btn-primary' : 'btn-outline-secondary'} al-page ms-1" data-page="${i}">${i + 1}</button>`;
+        }
 
         return `
-            <div class="content-header">
-                <h1><i class="fas fa-clipboard-list"></i> My Activity Logs</h1>
-                <p>Track your start/stop operations and lock management</p>
-            </div>
-
-            <!-- Filter Bar -->
-            <div class="card mb-4">
-                <div class="card-body">
-                    <div class="row g-3">
-                        <div class="col-md-3">
-                            <label class="form-label">Time Range</label>
-                            <select class="form-select" id="time-range-filter">
-                                <option value="24h" ${isTimeRangeSelected(startDate, endDate, '24h') ? 'selected' : ''}>Last 24 hours</option>
-                                <option value="7d" ${isTimeRangeSelected(startDate, endDate, '7d') ? 'selected' : ''}>Last 7 days</option>
-                                <option value="30d" ${isTimeRangeSelected(startDate, endDate, '30d') ? 'selected' : ''}>Last 30 days</option>
-                                <option value="custom">Custom range</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Environment</label>
-                            <select class="form-select" id="environment-filter">
-                                <option value="">All Environments</option>
-                                ${userEnvironments.map(env => `<option value="${env.id}" ${currentFilters.environmentId === env.id ? 'selected' : ''}>${env.name}</option>`).join('')}
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Action Type</label>
-                            <select class="form-select" id="action-type-filter">
-                                <option value="">All Actions</option>
-                                <optgroup label="Execution">
-                                    <option value="VM_START_REQUESTED" ${currentFilters.actionType === 'VM_START_REQUESTED' ? 'selected' : ''}>Start Operations</option>
-                                    <option value="VM_STOP_REQUESTED" ${currentFilters.actionType === 'VM_STOP_REQUESTED' ? 'selected' : ''}>Stop Operations</option>
-                                    <option value="VM_RESTART_REQUESTED" ${currentFilters.actionType === 'VM_RESTART_REQUESTED' ? 'selected' : ''}>Restart Operations</option>
-                                </optgroup>
-                                <optgroup label="Lock Management">
-                                    <option value="LOCK_ACQUIRED" ${currentFilters.actionType === 'LOCK_ACQUIRED' ? 'selected' : ''}>Lock Acquire</option>
-                                    <option value="LOCK_RELEASED" ${currentFilters.actionType === 'LOCK_RELEASED' ? 'selected' : ''}>Lock Release</option>
-                                </optgroup>
-                            </select>
-                        </div>
-                        <div class="col-md-3 d-flex align-items-end">
-                            <button class="btn btn-outline-primary w-100" id="export-logs-btn">
-                                <i class="fas fa-download"></i> Export CSV
-                            </button>
-                        </div>
-                    </div>
-                    <!-- Custom Date Range (hidden by default) -->
-                    <div id="custom-date-range" class="row g-3 mt-2" style="display: none;">
-                        <div class="col-md-4">
-                            <label class="form-label">Start Date</label>
-                            <input type="date" class="form-control" id="start-date-input" value="${startDate}">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">End Date</label>
-                            <input type="date" class="form-control" id="end-date-input" value="${endDate}">
-                        </div>
-                        <div class="col-md-4 d-flex align-items-end">
-                            <button class="btn btn-primary w-100" id="apply-custom-range-btn">Apply</button>
-                        </div>
-                    </div>
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="text-muted small">Showing ${start}–${end} of ${totalElements} entries</span>
+                <div>
+                    <button class="btn btn-sm btn-outline-secondary al-page" data-page="0" ${currentPage === 0 ? 'disabled' : ''} title="First page">
+                        <i class="fas fa-angle-double-left"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary al-page ms-1" data-page="${currentPage - 1}" ${currentPage === 0 ? 'disabled' : ''} title="Previous page">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    ${pageButtons}
+                    <button class="btn btn-sm btn-outline-secondary al-page ms-1" data-page="${currentPage + 1}" ${currentPage >= totalPages - 1 ? 'disabled' : ''} title="Next page">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary al-page ms-1" data-page="${totalPages - 1}" ${currentPage >= totalPages - 1 ? 'disabled' : ''} title="Last page">
+                        <i class="fas fa-angle-double-right"></i>
+                    </button>
                 </div>
             </div>
-
-            <!-- Results Table -->
-            <div class="card">
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Timestamp</th>
-                                <th>Environment</th>
-                                <th>Action</th>
-                                <th>Target</th>
-                                <th>Result</th>
-                                <th>Details</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${logs.length > 0 ? logs.map(log => buildActivityLogRow(log)).join('') : `
-                                <tr>
-                                    <td colspan="6" class="text-center text-muted py-4">
-                                        <i class="fas fa-inbox fa-3x mb-2" style="opacity: 0.5;"></i>
-                                        <p>No activity found for the selected filters</p>
-                                    </td>
-                                </tr>
-                            `}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Pagination -->
-            ${totalPages > 0 ? `
-            <nav aria-label="Pagination" class="mt-4">
-                <ul class="pagination justify-content-between">
-                    <li class="me-auto">
-                        <small class="text-muted">Showing ${logs.length > 0 ? (currentPage * currentFilters.size + 1) : 0}-${Math.min((currentPage + 1) * currentFilters.size, totalElements)} of ${totalElements} results</small>
-                    </li>
-                    <li class="page-item ${currentPage === 0 ? 'disabled' : ''}">
-                        <button class="page-link" id="prev-page-btn" ${currentPage === 0 ? 'disabled' : ''}>
-                            <i class="fas fa-chevron-left"></i> Previous
-                        </button>
-                    </li>
-                    <li class="page-item ms-2">
-                        <small class="text-muted d-inline-block" style="padding: 0.375rem 0.75rem;">
-                            Page ${currentPage + 1} of ${totalPages}
-                        </small>
-                    </li>
-                    <li class="page-item ${currentPage >= totalPages - 1 ? 'disabled' : ''} ms-2">
-                        <button class="page-link" id="next-page-btn" ${currentPage >= totalPages - 1 ? 'disabled' : ''}>
-                            Next <i class="fas fa-chevron-right"></i>
-                        </button>
-                    </li>
-                </ul>
-            </nav>
-            ` : ''}
         `;
     }
 
@@ -275,70 +291,85 @@ const ActivityLogs = (function() {
     }
 
     /**
-     * Bind event handlers for filter changes
+     * Bind event handlers for filter changes and pagination
      */
     function bindActivityLogEvents() {
         // Time range filter
-        $('#time-range-filter').on('change', function() {
+        $('#al-time-range-filter').on('change', function() {
             const value = $(this).val();
+            currentFilters.timeRange = value;
             if (value === 'custom') {
-                $('#custom-date-range').show();
+                $('#al-custom-date-range').show();
             } else {
-                $('#custom-date-range').hide();
+                $('#al-custom-date-range').hide();
                 applyTimeRangeFilter(value);
             }
         });
 
         // Environment filter
-        $('#environment-filter').on('change', function() {
+        $('#al-environment-filter').on('change', function() {
             currentFilters.environmentId = $(this).val();
             currentFilters.page = 0;
             loadActivityLogs();
         });
 
         // Action type filter
-        $('#action-type-filter').on('change', function() {
+        $('#al-action-type-filter').on('change', function() {
             currentFilters.actionType = $(this).val();
             currentFilters.page = 0;
             loadActivityLogs();
         });
 
-        // Custom date range
-        $('#apply-custom-range-btn').on('click', function() {
-            const startDate = $('#start-date-input').val();
-            const endDate = $('#end-date-input').val();
+        // Page size
+        $('#al-page-size-filter').on('change', function() {
+            currentFilters.size = parseInt($(this).val());
+            currentFilters.page = 0;
+            loadActivityLogs();
+        });
 
+        // Clear all filters
+        $('#al-clear-filters-btn').on('click', function() {
+            const endDate = new Date();
+            const startDate = new Date();
+            startDate.setDate(startDate.getDate() - 7);
+            currentFilters.startDate = formatDateForApi(startDate);
+            currentFilters.endDate = formatDateForApi(endDate);
+            currentFilters.environmentId = '';
+            currentFilters.actionType = '';
+            currentFilters.timeRange = '7d';
+            currentFilters.page = 0;
+            loadActivityLogs();
+        });
+
+        // Custom date range
+        $('#al-apply-custom-range-btn').on('click', function() {
+            const startDate = $('#al-start-date-input').val();
+            const endDate = $('#al-end-date-input').val();
             if (!startDate || !endDate) {
                 Notifications.show('Please select both start and end dates', 'warning');
                 return;
             }
-
             if (new Date(startDate) > new Date(endDate)) {
                 Notifications.show('Start date must be before end date', 'warning');
                 return;
             }
-
             currentFilters.startDate = startDate;
             currentFilters.endDate = endDate;
             currentFilters.page = 0;
             loadActivityLogs();
         });
 
-        // Pagination
-        $('#prev-page-btn').on('click', function() {
-            if (currentFilters.page > 0) {
-                currentFilters.page--;
-                loadActivityLogs();
-            }
-        });
-
-        $('#next-page-btn').on('click', function() {
-            currentFilters.page++;
+        // Pagination — delegated on #content-area so it survives re-renders
+        $('#content-area').off('click', '.al-page').on('click', '.al-page', function() {
+            if ($(this).prop('disabled')) return;
+            const target = parseInt($(this).data('page'));
+            if (isNaN(target) || target < 0) return;
+            currentFilters.page = target;
             loadActivityLogs();
         });
 
         // Export
-        $('#export-logs-btn').on('click', function() {
+        $('#al-export-logs-btn').on('click', function() {
             exportActivityLogs();
         });
     }
@@ -351,19 +382,13 @@ const ActivityLogs = (function() {
         const startDate = new Date();
 
         switch (range) {
-            case '24h':
-                startDate.setDate(startDate.getDate() - 1);
-                break;
-            case '7d':
-                startDate.setDate(startDate.getDate() - 7);
-                break;
-            case '30d':
-                startDate.setDate(startDate.getDate() - 30);
-                break;
-            default:
-                return;
+            case '24h': startDate.setDate(startDate.getDate() - 1);  break;
+            case '7d':  startDate.setDate(startDate.getDate() - 7);  break;
+            case '30d': startDate.setDate(startDate.getDate() - 30); break;
+            default: return;
         }
 
+        currentFilters.timeRange = range;
         currentFilters.startDate = formatDateForApi(startDate);
         currentFilters.endDate = formatDateForApi(endDate);
         currentFilters.page = 0;
@@ -467,35 +492,6 @@ const ActivityLogs = (function() {
     }
 
     /**
-     * Helper: Check if time range matches current filters
-     */
-    function isTimeRangeSelected(startDate, endDate, range) {
-        if (!startDate || !endDate) return false;
-
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        const today = new Date();
-        const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-
-        let rangeStart = new Date(todayStart);
-        switch (range) {
-            case '24h':
-                rangeStart.setDate(rangeStart.getDate() - 1);
-                break;
-            case '7d':
-                rangeStart.setDate(rangeStart.getDate() - 7);
-                break;
-            case '30d':
-                rangeStart.setDate(rangeStart.getDate() - 30);
-                break;
-            default:
-                return false;
-        }
-
-        return start.toDateString() === rangeStart.toDateString() && end.toDateString() === todayStart.toDateString();
-    }
-
-    /**
      * Helper: Get badge CSS class for action type
      */
     function getActionBadgeClass(action) {
@@ -559,6 +555,8 @@ const ActivityLogs = (function() {
         loadMyActivityLogs
     };
 })();
+
+window.ActivityLogs = ActivityLogs;
 
 
 
