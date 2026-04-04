@@ -1,0 +1,148 @@
+<!--
+  Activity Logs Feature Template
+  Used by activity-logs.js to render the activity logs page
+-->
+
+<div class="content-view" id="activity-logs-view">
+    <!-- Header -->
+    <div class="content-header">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <h1>My Activity Logs</h1>
+                <p>Track your VM operations and actions</p>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary btn-sm" id="btn-export-logs">
+                    <i class="fas fa-download me-1"></i> Export
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" id="btn-refresh-logs">
+                    <i class="fas fa-sync"></i> Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Bar -->
+    <div class="log-filters-bar">
+        <div class="filter-group">
+            <label class="filter-label">Date Range:</label>
+            <select class="form-select form-select-sm filter-select" id="filter-date-range">
+                <option value="today">Today</option>
+                <option value="week" selected>Last 7 Days</option>
+                <option value="month">Last 30 Days</option>
+                <option value="all">All Time</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label class="filter-label">Action Type:</label>
+            <select class="form-select form-select-sm filter-select" id="filter-action-type">
+                <option value="">All Actions</option>
+                <option value="START">Start VM</option>
+                <option value="STOP">Stop VM</option>
+                <option value="RESTART">Restart VM</option>
+                <option value="LOCK">Lock Environment</option>
+                <option value="UNLOCK">Unlock Environment</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label class="filter-label">Environment:</label>
+            <select class="form-select form-select-sm filter-select" id="filter-environment">
+                <option value="">All Environments</option>
+                <!-- Populated by JavaScript -->
+            </select>
+        </div>
+
+        <div class="filter-group filter-search">
+            <input type="text" class="form-control form-control-sm" id="log-search"
+                   placeholder="Search logs..." aria-label="Search logs">
+        </div>
+    </div>
+
+    <!-- Logs Timeline -->
+    <div class="log-timeline" id="log-timeline">
+        <!-- Populated by JavaScript -->
+    </div>
+
+    <!-- Pagination -->
+    <div class="log-pagination" id="log-pagination">
+        <!-- Populated by JavaScript -->
+    </div>
+</div>
+
+
+<!-- Loading State -->
+<template id="logs-loading-template">
+    <div class="loading-state">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p>Loading activity logs...</p>
+    </div>
+</template>
+
+
+<!-- Empty State -->
+<template id="logs-empty-template">
+    <div class="log-empty-state">
+        <i class="fas fa-clipboard-list"></i>
+        <h4>No Activity Found</h4>
+        <p>No activity logs match your current filters.</p>
+    </div>
+</template>
+
+
+<!-- Log Entry Template -->
+<template id="log-entry-template">
+    <div class="log-entry" data-log-id="{{logId}}">
+        <div class="log-icon {{iconClass}}">
+            <i class="{{iconName}}"></i>
+        </div>
+        <div class="log-content">
+            <div class="log-header">
+                <span class="log-action">{{actionText}}</span>
+                <span class="log-time">{{timeAgo}}</span>
+            </div>
+            <div class="log-details">
+                <span class="log-target">{{targetName}}</span> on
+                <span class="log-target">{{environmentName}}</span>
+            </div>
+            <div class="log-meta">
+                <span class="meta-item">
+                    <i class="fas fa-cloud"></i> {{provider}}
+                </span>
+                <span class="meta-item">
+                    <i class="fas fa-map-marker-alt"></i> {{region}}
+                </span>
+                <span class="meta-item log-status {{statusClass}}">
+                    {{statusText}}
+                </span>
+            </div>
+        </div>
+    </div>
+</template>
+
+
+<!-- Pagination Template -->
+<template id="pagination-template">
+    <nav aria-label="Log pagination">
+        <ul class="pagination pagination-sm mb-0">
+            <li class="page-item {{prevDisabled}}">
+                <a class="page-link" href="#" data-page="prev">
+                    <i class="fas fa-chevron-left"></i>
+                </a>
+            </li>
+            <!-- Page numbers inserted here -->
+            <li class="page-item {{nextDisabled}}">
+                <a class="page-link" href="#" data-page="next">
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+            </li>
+        </ul>
+    </nav>
+    <span class="page-info">
+        Showing {{startItem}}-{{endItem}} of {{totalItems}}
+    </span>
+</template>
+

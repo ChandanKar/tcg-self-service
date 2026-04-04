@@ -1,0 +1,131 @@
+/**
+ * VM Registry Feature Styles
+ * Admin > VM Registry view — environments, groups, and VMs management table.
+ * Mirrors Dashboard table layout and density.
+ */
+
+/* ── Top-level container: fills #content-area exactly like #dashboard-view ── */
+.vm-registry-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+/* Prevent header & filter row from shrinking when card grows */
+.vm-registry-container > .content-header,
+.vm-registry-container > .row {
+    flex-shrink: 0;
+}
+
+/* ── Container & Card ── */
+.vm-registry-container .card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+.vm-registry-card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0.4rem 0.6rem 0.3rem !important;
+}
+
+/* ── Scrollable Table Wrapper ── */
+.vm-registry-table-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+.vm-registry-table-wrapper::-webkit-scrollbar { width: 4px; }
+.vm-registry-table-wrapper::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+.vm-registry-table-wrapper #environmentsTableWrapper {
+    height: 100%;
+}
+
+/* Table fills wrapper height so filler row can expand */
+.vm-registry-table-wrapper #environmentsTableWrapper .table {
+    table-layout: fixed;
+    width: 100%;
+    height: 100%;
+    margin-bottom: 0;
+}
+.vm-registry-table-wrapper #environmentsTableWrapper .table tbody {
+    height: 100%;
+}
+
+/* Sticky header — matches Dashboard */
+.vm-registry-table-wrapper #environmentsTableWrapper .table thead {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #f8fafc;
+}
+
+/* ── Pagination Bar ── */
+.vm-registry-pagination {
+    flex-shrink: 0;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 0.3rem;
+    min-height: 28px;
+}
+
+/* ── Column Widths ── */
+#environmentsTable thead th:nth-child(1),
+#environmentsTable tbody td:nth-child(1) { width: 40%; text-align: left; }
+#environmentsTable thead th:nth-child(2),
+#environmentsTable tbody td:nth-child(2) { width: 20%; }
+#environmentsTable thead th:nth-child(3),
+#environmentsTable tbody td:nth-child(3) { width: 10%; }
+#environmentsTable thead th:nth-child(4),
+#environmentsTable tbody td:nth-child(4) { width: 7%; }
+#environmentsTable thead th:nth-child(5),
+#environmentsTable tbody td:nth-child(5) { width: 8%; }
+#environmentsTable thead th:nth-child(6),
+#environmentsTable tbody td:nth-child(6) { width: 13%; }
+#environmentsTable thead th:nth-child(7),
+#environmentsTable tbody td:nth-child(7) {
+    white-space: nowrap;
+    width: 130px;
+}
+
+/* ── Action Buttons ── */
+#environmentsTable tbody td:last-child .btn {
+    height: 28px;
+    padding: 0.18rem 0.5rem;
+    font-size: 0.81rem;
+}
+#environmentsTable tbody td:last-child .btn + .btn { margin-left: 4px; }
+
+/* ── Table Typography & Spacing — match Dashboard baseline ── */
+.vm-registry-table-wrapper .table td,
+.vm-registry-table-wrapper .table th {
+    padding: 0.28rem 0.55rem;
+    font-size: 0.81rem;
+    vertical-align: middle;
+    line-height: 1.5;
+}
+.vm-registry-table-wrapper .table thead th {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+/* ── Filler Row — expands to fill leftover vertical space (same as Dashboard) ── */
+.vm-registry-filler-row {
+    height: 100%;
+}
+.vm-registry-filler-row td {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    pointer-events: none;
+}

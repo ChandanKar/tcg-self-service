@@ -1,0 +1,154 @@
+<!--
+  Request Access Feature Template
+  Used by access-requests.js to render the request access page (user view)
+-->
+
+<div class="content-view" id="request-access-view">
+    <!-- Header -->
+    <div class="content-header">
+        <h1>Request Environment Access</h1>
+        <p>Request access to environments you don't currently have</p>
+    </div>
+
+    <!-- Search and Filter -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="input-group">
+                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                <input type="text" class="form-control" id="env-search"
+                       placeholder="Search environments..." aria-label="Search environments">
+            </div>
+        </div>
+    </div>
+
+    <!-- Available Environments Card -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-folder-open me-2"></i>Available Environments
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Environment</th>
+                        <th>Size</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="available-env-list">
+                    <!-- Populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- My Pending Requests Card -->
+    <div class="card mb-4" id="pending-requests-card" style="display: none;">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-clock me-2"></i>My Pending Requests
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Environment</th>
+                        <th>Status</th>
+                        <th>Access Level</th>
+                        <th>Requested</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="pending-requests-list">
+                    <!-- Populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Request History Card -->
+    <div class="card" id="request-history-card" style="display: none;">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="fas fa-history me-2"></i>Request History
+            </h5>
+            <button class="btn btn-sm btn-outline-secondary" id="toggle-history">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+        <div class="card-body p-0" id="request-history" style="display: none;">
+            <table class="table table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Environment</th>
+                        <th>Status</th>
+                        <th>Access Level</th>
+                        <th>Requested</th>
+                        <th>Processed</th>
+                    </tr>
+                </thead>
+                <tbody id="history-list">
+                    <!-- Populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+
+<!-- Empty State: All Environments Accessible -->
+<template id="all-access-template">
+    <tr>
+        <td colspan="3">
+            <div class="empty-state p-4">
+                <i class="fas fa-check-circle fa-2x text-success mb-2"></i>
+                <p class="mb-0">You have access to all environments!</p>
+            </div>
+        </td>
+    </tr>
+</template>
+
+
+<!-- Request Access Modal -->
+<template id="request-modal-template">
+    <div class="modal fade" id="requestAccessModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Request Access</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Request access to: <strong id="modal-env-name"></strong></p>
+
+                    <div class="mb-3">
+                        <label for="accessLevel" class="form-label">Access Level</label>
+                        <select class="form-select" id="accessLevel">
+                            <option value="USER">User (View & Operate)</option>
+                            <option value="ENV_ADMIN">Environment Admin (Full Control)</option>
+                        </select>
+                        <div class="form-text">
+                            User: Can view and operate VMs. Admin: Can manage access and settings.
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="requestReason" class="form-label">Reason (Optional)</label>
+                        <textarea class="form-control" id="requestReason" rows="3"
+                                  placeholder="Why do you need access to this environment?"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="btn-submit-request">
+                        <i class="fas fa-paper-plane me-1"></i> Submit Request
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+

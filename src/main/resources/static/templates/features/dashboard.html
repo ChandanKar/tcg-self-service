@@ -1,0 +1,143 @@
+<!--
+  Dashboard Feature Template
+  Used by dashboard.js to render the dashboard view
+
+  Usage:
+    const html = await TemplateLoader.load('features/dashboard.html');
+    $('#content-area').html(html);
+    Dashboard.bindEvents();
+-->
+
+<div class="content-view" id="dashboard-view">
+    <!-- Dashboard Header -->
+    <div class="content-header d-flex justify-content-between align-items-start flex-shrink-0">
+        <div>
+            <h1>Dashboard</h1>
+            <p>Overview of your environments and VMs</p>
+        </div>
+        <button class="btn btn-outline-secondary btn-sm" id="btn-refresh-dashboard">
+            <i class="fas fa-sync"></i> Refresh
+        </button>
+    </div>
+
+    <div class="dashboard-body">
+        <!-- Metric Cards Row -->
+        <div class="row g-2 flex-shrink-0">
+            <div class="col-md-3">
+                <div class="metric-card" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                     title="My Environments — accessible environments">
+                    <div class="metric-value" id="metric-environments">--</div>
+                    <div class="metric-label-hint">My Environments</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="metric-card" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                     title="Total VMs — registered instances">
+                    <div class="metric-value" id="metric-total-vms">--</div>
+                    <div class="metric-label-hint">Total VMs</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="metric-card" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                     title="Running VMs — active instances">
+                    <div class="metric-value text-success" id="metric-running-vms">--</div>
+                    <div class="metric-label-hint">Running</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="metric-card" data-bs-toggle="tooltip" data-bs-placement="bottom"
+                     title="Stopped VMs — inactive instances">
+                    <div class="metric-value text-secondary" id="metric-stopped-vms">--</div>
+                    <div class="metric-label-hint">Stopped</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Environments Table Card -->
+        <div class="metric-card env-table-card">
+            <div class="d-flex justify-content-between align-items-center mb-2 flex-shrink-0">
+                <h6 class="mb-0 text-muted text-uppercase" style="font-size:0.7rem;letter-spacing:0.05em;">
+                    My Environments
+                </h6>
+                <div class="input-group" style="width: 220px;">
+                    <span class="input-group-text py-1">
+                        <i class="fas fa-search" style="font-size:0.8rem;"></i>
+                    </span>
+                    <input type="text" class="form-control form-control-sm" id="env-search"
+                           placeholder="Search..." aria-label="Search environments">
+                </div>
+            </div>
+
+            <div class="env-table-wrapper">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light sticky-top">
+                        <tr>
+                            <th>Environment</th>
+                            <th>Total VMs</th>
+                            <th>Running</th>
+                            <th>Lock Status</th>
+                            <th>Cloud</th>
+                        </tr>
+                    </thead>
+                    <tbody id="env-table-body">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div id="env-pagination" class="flex-shrink-0 pt-1"></div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Loading State Template (use when loading) -->
+<template id="dashboard-loading-template">
+    <div class="content-view" id="dashboard-view">
+        <div class="content-header">
+            <h1>Dashboard</h1>
+            <p>Overview of your environments and VMs</p>
+        </div>
+        <div class="loading-state">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p>Loading dashboard data...</p>
+        </div>
+    </div>
+</template>
+
+
+<!-- Error State Template -->
+<template id="dashboard-error-template">
+    <div class="content-view" id="dashboard-view">
+        <div class="content-header">
+            <h1>Dashboard</h1>
+            <p>Overview of your environments and VMs</p>
+        </div>
+        <div class="error-state">
+            <i class="fas fa-exclamation-triangle fa-3x text-warning"></i>
+            <h4 class="mt-3">Unable to Load Dashboard</h4>
+            <p id="error-message">An error occurred while loading data.</p>
+            <button class="btn btn-primary" id="btn-retry">
+                <i class="fas fa-sync"></i> Try Again
+            </button>
+        </div>
+    </div>
+</template>
+
+
+<!-- Empty State Template -->
+<template id="dashboard-empty-template">
+    <div class="empty-state">
+        <i class="fas fa-folder-open fa-3x text-muted"></i>
+        <p class="mt-3">No environments available</p>
+        <p class="text-muted">Request access to environments to get started</p>
+        <a href="#" class="btn btn-primary" data-content="request-access">
+            <i class="fas fa-paper-plane"></i> Request Access
+        </a>
+    </div>
+</template>
+
+

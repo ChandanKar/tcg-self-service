@@ -1,0 +1,173 @@
+/**
+ * All Logs (Global Audit) Feature Styles
+ * Admin > Audit Logs (All) — synced to dashboard baseline.
+ */
+
+/* ── Container: fills #content-area exactly like .vm-registry-container ── */
+.all-logs-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+.all-logs-container > .content-header,
+.all-logs-container > .row,
+.all-logs-container > .all-logs-filter-bar,
+.all-logs-container > .all-logs-custom-range {
+    flex-shrink: 0;
+}
+
+/* ── Metric Cards: compact, no hover animation — matches Dashboard ── */
+.all-logs-container .metric-card {
+    padding: 0.6rem 0.75rem;
+    text-align: center;
+    cursor: default;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+.all-logs-container .metric-card:hover {
+    transform: none;
+}
+.all-logs-container .metric-value {
+    font-size: 1.55rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+.all-logs-container .metric-value-sm {
+    font-size: 0.81rem;
+    font-weight: 600;
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    width: 100%;
+    text-align: center;
+}
+.all-logs-container .metric-label-hint {
+    font-size: 0.63rem;
+    color: var(--text-secondary, #64748b);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-top: 0.1rem;
+}
+
+/* ── Filter Bar: single compact row, no labels ── */
+.all-logs-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: nowrap;
+}
+.all-logs-filter-bar .form-select {
+    font-size: 0.81rem;
+    padding: 0.25rem 1.75rem 0.25rem 0.5rem;
+    flex: 1;
+}
+#page-size-filter {
+    flex: 0 0 90px;
+    max-width: 90px;
+}
+.all-logs-filter-bar .btn {
+    font-size: 0.81rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* ── Custom Date Range ── */
+.all-logs-custom-range {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.all-logs-custom-range .form-control {
+    font-size: 0.81rem;
+    max-width: 160px;
+}
+
+/* ── Table Card: fills remaining vertical space ── */
+.all-logs-table-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+.all-logs-card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0.4rem 0.6rem 0.3rem !important;
+}
+
+/* ── Scrollable Table Wrapper ── */
+.all-logs-table-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+.all-logs-table-wrapper::-webkit-scrollbar { width: 4px; }
+.all-logs-table-wrapper::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+/* Table typography — dashboard baseline */
+.all-logs-table-wrapper .table td,
+.all-logs-table-wrapper .table th {
+    padding: 0.28rem 0.55rem;
+    font-size: 0.81rem;
+    vertical-align: middle;
+    line-height: 1.5;
+}
+.all-logs-table-wrapper .table thead th {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #f8fafc;
+}
+
+/* ── Pagination Bar: pinned to bottom of card ── */
+.all-logs-pagination {
+    flex-shrink: 0;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 0.3rem;
+    min-height: 28px;
+}
+
+/* ── Table Column Widths ── */
+.all-logs-table-wrapper .table {
+    table-layout: fixed;
+    width: 100%;
+}
+.all-logs-table-wrapper .table thead th:nth-child(1),
+.all-logs-table-wrapper .table tbody td:nth-child(1) { width: 14%; }
+.all-logs-table-wrapper .table thead th:nth-child(2),
+.all-logs-table-wrapper .table tbody td:nth-child(2) { width: 16%; }
+.all-logs-table-wrapper .table thead th:nth-child(3),
+.all-logs-table-wrapper .table tbody td:nth-child(3) { width: 14%; }
+.all-logs-table-wrapper .table thead th:nth-child(4),
+.all-logs-table-wrapper .table tbody td:nth-child(4) { width: 14%; }
+.all-logs-table-wrapper .table thead th:nth-child(5),
+.all-logs-table-wrapper .table tbody td:nth-child(5) { width: 14%; }
+.all-logs-table-wrapper .table thead th:nth-child(6),
+.all-logs-table-wrapper .table tbody td:nth-child(6) { width: 6%; text-align: center; }
+.all-logs-table-wrapper .table thead th:nth-child(7),
+.all-logs-table-wrapper .table tbody td:nth-child(7) { width: 22%; }
+
+/* Truncate long text in fixed-width cells */
+.all-logs-table-wrapper .table tbody td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 0;
+}

@@ -1,0 +1,52 @@
+<!--
+  Partial: VM Card Component
+  Reusable VM card template for lists and grids
+
+  Usage: TemplateLoader.loadPartial('vm-card.html', vmData)
+-->
+
+<div class="vm-card" data-vm-id="{{vmId}}">
+    <div class="vm-card-header">
+        <div class="vm-status">
+            <span class="status-indicator {{statusClass}}"></span>
+            <span class="vm-name">{{displayName}}</span>
+        </div>
+        <div class="vm-provider">
+            <i class="{{providerIcon}}"></i>
+            {{provider}}
+        </div>
+    </div>
+
+    <div class="vm-card-body">
+        <div class="vm-meta">
+            <span class="meta-item">
+                <i class="fas fa-microchip"></i> {{instanceType}}
+            </span>
+            <span class="meta-item">
+                <i class="fas fa-map-marker-alt"></i> {{region}}
+            </span>
+        </div>
+        <div class="vm-instance-id text-muted text-sm">
+            {{providerVmId}}
+        </div>
+    </div>
+
+    <div class="vm-card-actions">
+        <button class="btn btn-sm btn-success" data-action="start"
+                {{#if isRunning}}disabled{{/if}} title="Start VM">
+            <i class="fas fa-play"></i>
+        </button>
+        <button class="btn btn-sm btn-danger" data-action="stop"
+                {{#unless isRunning}}disabled{{/unless}} title="Stop VM">
+            <i class="fas fa-stop"></i>
+        </button>
+        <button class="btn btn-sm btn-warning" data-action="restart"
+                {{#unless isRunning}}disabled{{/unless}} title="Restart VM">
+            <i class="fas fa-sync"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-secondary" data-action="details" title="View Details">
+            <i class="fas fa-info-circle"></i>
+        </button>
+    </div>
+</div>
+

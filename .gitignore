@@ -50,4 +50,10 @@ out/
 .idea
 
 
+# ai
+**/ai
+**/data
+doc
+
+
 

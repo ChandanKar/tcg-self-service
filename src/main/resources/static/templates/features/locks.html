@@ -1,0 +1,180 @@
+<!--
+  Locks Feature Template
+  Used for environment lock management UI
+-->
+
+<div class="content-view" id="locks-view">
+    <!-- Currently not a separate page, but lock-related templates -->
+</div>
+
+
+<!-- Lock Confirmation Modal -->
+<template id="lock-modal-template">
+    <div class="modal fade" id="lockModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-warning bg-opacity-10">
+                    <h5 class="modal-title">
+                        <i class="fas fa-lock me-2"></i>Lock Environment
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>You are about to lock <strong id="lock-env-name"></strong>.</p>
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-1"></i>
+                        <strong>When locked:</strong>
+                        <ul class="mb-0 mt-1">
+                            <li>Only you can perform VM operations</li>
+                            <li>Other users can view but not modify</li>
+                            <li>Lock expires automatically after timeout</li>
+                        </ul>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="lockReason" class="form-label">Reason (Optional)</label>
+                        <input type="text" class="form-control" id="lockReason"
+                               placeholder="e.g., Performing maintenance...">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="lockDuration" class="form-label">Lock Duration</label>
+                        <select class="form-select" id="lockDuration">
+                            <option value="30">30 minutes</option>
+                            <option value="60" selected>1 hour</option>
+                            <option value="120">2 hours</option>
+                            <option value="240">4 hours</option>
+                            <option value="480">8 hours</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-warning" id="btn-confirm-lock">
+                        <i class="fas fa-lock me-1"></i> Lock Environment
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+
+<!-- Unlock Confirmation Modal -->
+<template id="unlock-modal-template">
+    <div class="modal fade" id="unlockModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-unlock me-2"></i>Unlock Environment
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Unlock <strong id="unlock-env-name"></strong>?</p>
+                    <p class="text-muted">
+                        Other users will be able to perform VM operations again.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" id="btn-confirm-unlock">
+                        <i class="fas fa-unlock me-1"></i> Unlock
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+
+<!-- Lock Status Badge Template -->
+<template id="lock-badge-template">
+    <span class="badge {{badgeClass}}" title="{{tooltip}}">
+        <i class="fas {{icon}} me-1"></i>
+        {{text}}
+    </span>
+</template>
+
+
+<!-- Locked By Other User Warning -->
+<template id="locked-warning-template">
+    <div class="alert alert-warning d-flex align-items-center">
+        <i class="fas fa-lock fa-2x me-3"></i>
+        <div>
+            <strong>Environment Locked</strong>
+            <p class="mb-0">
+                This environment is locked by <strong>{{lockedBy}}</strong>.
+                <br>
+                <small class="text-muted">
+                    Locked {{lockedAt}} • Expires {{expiresAt}}
+                    {{#if reason}}<br>Reason: {{reason}}{{/if}}
+                </small>
+            </p>
+        </div>
+    </div>
+</template>
+
+
+<!-- Force Unlock Modal (Admin Only) -->
+<template id="force-unlock-modal-template">
+    <div class="modal fade" id="forceUnlockModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger bg-opacity-10">
+                    <h5 class="modal-title text-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Force Unlock
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger">
+                        <strong>Warning:</strong> This will override another user's lock.
+                    </div>
+
+                    <p>
+                        <strong id="force-unlock-env-name"></strong> is currently locked by
+                        <strong id="force-unlock-user"></strong>.
+                    </p>
+
+                    <div class="mb-3">
+                        <label for="forceUnlockReason" class="form-label">
+                            Reason for Force Unlock <span class="text-danger">*</span>
+                        </label>
+                        <textarea class="form-control" id="forceUnlockReason" rows="2" required
+                                  placeholder="Explain why you're overriding this lock..."></textarea>
+                    </div>
+
+                    <p class="text-muted small">
+                        <i class="fas fa-info-circle me-1"></i>
+                        This action will be logged and the original lock holder will be notified.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="btn-force-unlock">
+                        <i class="fas fa-unlock me-1"></i> Force Unlock
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+
+<!-- Lock Timer Display -->
+<template id="lock-timer-template">
+    <div class="lock-timer d-flex align-items-center">
+        <i class="fas fa-clock me-2 text-warning"></i>
+        <div>
+            <small class="text-muted">Lock expires in:</small>
+            <div class="countdown fw-bold" id="lock-countdown">--:--</div>
+        </div>
+        <button class="btn btn-sm btn-outline-warning ms-3" id="btn-extend-lock" title="Extend Lock">
+            <i class="fas fa-plus"></i> Extend
+        </button>
+    </div>
+</template>
+

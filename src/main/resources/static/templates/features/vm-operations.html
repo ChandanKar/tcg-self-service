@@ -1,0 +1,234 @@
+<!--
+  VM Operations Feature Template
+  Styles for VM operation dialogs and confirmations
+-->
+
+<!-- VM Operation Confirmation Modal -->
+<template id="vm-operation-modal-template">
+    <div class="modal fade" id="vmOperationModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="operation-modal-title">Confirm Operation</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center mb-3">
+                        <i class="fas fa-3x" id="operation-icon"></i>
+                    </div>
+                    <p class="text-center" id="operation-message">
+                        Are you sure you want to perform this operation?
+                    </p>
+
+                    <!-- VM Details -->
+                    <div class="card bg-light mb-3">
+                        <div class="card-body py-2">
+                            <div class="row">
+                                <div class="col-6">
+                                    <small class="text-muted">VM Name</small>
+                                    <div id="operation-vm-name">--</div>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted">Environment</small>
+                                    <div id="operation-env-name">--</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Warning for Stop/Restart -->
+                    <div class="alert alert-warning d-none" id="operation-warning">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        <span id="operation-warning-text"></span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn" id="btn-confirm-operation">
+                        <i class="fas fa-check me-1"></i> Confirm
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+
+<!-- Bulk Operation Modal -->
+<template id="bulk-operation-modal-template">
+    <div class="modal fade" id="bulkOperationModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="bulk-modal-title">Bulk Operation</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="bulk-description">
+                        This will affect the following VMs:
+                    </p>
+
+                    <!-- VM List -->
+                    <div class="table-responsive" style="max-height: 300px;">
+                        <table class="table table-sm">
+                            <thead class="sticky-top bg-white">
+                                <tr>
+                                    <th>
+                                        <input type="checkbox" id="select-all-vms" checked>
+                                    </th>
+                                    <th>VM Name</th>
+                                    <th>Current Status</th>
+                                    <th>Sequence</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bulk-vm-list">
+                                <!-- Populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="mt-3">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            VMs will be processed in sequence order with a brief delay between each.
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <span class="me-auto text-muted" id="bulk-selected-count">0 VMs selected</span>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn" id="btn-confirm-bulk">
+                        <i class="fas fa-check me-1"></i> Execute
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+
+<!-- Operation Progress Modal -->
+<template id="operation-progress-modal-template">
+    <div class="modal fade" id="operationProgressModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="progress-modal-title">Operation in Progress</h5>
+                </div>
+                <div class="modal-body">
+                    <!-- Overall Progress -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>Overall Progress</span>
+                            <span id="progress-percent">0%</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                 id="progress-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Current Operation -->
+                    <div class="mb-3">
+                        <small class="text-muted">Current:</small>
+                        <div id="current-operation">Initializing...</div>
+                    </div>
+
+                    <!-- Operation Log -->
+                    <div class="card bg-light">
+                        <div class="card-body py-2" style="max-height: 150px; overflow-y: auto;">
+                            <div id="operation-log" class="small">
+                                <!-- Log entries -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="btn-cancel-operation" disabled>
+                        Cancel
+                    </button>
+                    <button type="button" class="btn btn-primary d-none" id="btn-close-progress"
+                            data-bs-dismiss="modal">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+
+<!-- VM Detail Slideout -->
+<template id="vm-detail-slideout-template">
+    <div class="slideout-panel" id="vmDetailPanel">
+        <div class="slideout-panel-header">
+            <h3 id="vm-detail-title">VM Details</h3>
+            <button class="close-btn">&times;</button>
+        </div>
+        <div class="slideout-panel-content">
+            <!-- VM Status Card -->
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="vm-status" id="vm-detail-status">
+                            <span class="status-indicator"></span>
+                            <span class="status-text">--</span>
+                        </span>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-success" id="vm-btn-start" disabled>
+                                <i class="fas fa-play"></i>
+                            </button>
+                            <button class="btn btn-danger" id="vm-btn-stop" disabled>
+                                <i class="fas fa-stop"></i>
+                            </button>
+                            <button class="btn btn-warning" id="vm-btn-restart" disabled>
+                                <i class="fas fa-sync"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VM Info -->
+            <div class="card mb-3">
+                <div class="card-header py-2">
+                    <h6 class="mb-0">Instance Information</h6>
+                </div>
+                <div class="card-body py-2">
+                    <dl class="row mb-0 small">
+                        <dt class="col-4 text-muted">Name</dt>
+                        <dd class="col-8" id="vm-info-name">--</dd>
+
+                        <dt class="col-4 text-muted">Instance ID</dt>
+                        <dd class="col-8"><code id="vm-info-id">--</code></dd>
+
+                        <dt class="col-4 text-muted">Provider</dt>
+                        <dd class="col-8" id="vm-info-provider">--</dd>
+
+                        <dt class="col-4 text-muted">Region</dt>
+                        <dd class="col-8" id="vm-info-region">--</dd>
+
+                        <dt class="col-4 text-muted">Group</dt>
+                        <dd class="col-8" id="vm-info-group">--</dd>
+
+                        <dt class="col-4 text-muted">Sequence</dt>
+                        <dd class="col-8" id="vm-info-sequence">--</dd>
+                    </dl>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="card">
+                <div class="card-header py-2">
+                    <h6 class="mb-0">Recent Activity</h6>
+                </div>
+                <div class="card-body py-2">
+                    <div id="vm-recent-activity" class="small">
+                        <!-- Activity entries -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+

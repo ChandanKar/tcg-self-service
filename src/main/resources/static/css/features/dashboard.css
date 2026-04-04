@@ -1,0 +1,157 @@
+/*
+ * Dashboard Feature Styles
+ * Specific styles for the dashboard view
+ */
+
+/* Dashboard View Container */
+#dashboard-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* Dashboard Header - Compact */
+#dashboard-view .content-header {
+    margin-bottom: 0.4rem;
+    padding-left: 0.75rem;
+}
+
+#dashboard-view .content-header h1 {
+    font-size: 1.2rem;
+    margin-bottom: 0;
+}
+
+#dashboard-view .content-header p {
+    font-size: 0.75rem;
+    margin-bottom: 0;
+}
+
+/* Dashboard Body Layout */
+#dashboard-view .dashboard-body {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    gap: 0.35rem;
+}
+
+/* Dashboard Metrics Row */
+.dashboard-metrics-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Metric Cards - Dashboard Specific */
+#dashboard-view .metric-card {
+    padding: 0.6rem 0.75rem;
+    border-radius: 8px;
+    text-align: center;
+    cursor: default;
+}
+
+#dashboard-view .metric-card:hover {
+    transform: none;
+}
+
+#dashboard-view .metric-card .metric-value {
+    font-size: 1.55rem;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 0;
+}
+
+#dashboard-view .metric-label-hint {
+    font-size: 0.63rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* Dashboard Environment Table Card */
+#dashboard-view .env-table-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0.4rem 0.6rem 0.3rem;
+    background: var(--sidebar-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+/* Dashboard Table Wrapper */
+#dashboard-view .env-table-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+#dashboard-view .env-table-wrapper::-webkit-scrollbar {
+    width: 4px;
+}
+
+/* Quick Stats */
+.dashboard-quick-stats {
+    display: flex;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 0.5rem;
+}
+
+.dashboard-quick-stats .stat-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.dashboard-quick-stats .stat-item .stat-value {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+/* Dashboard Refresh Indicator */
+.dashboard-refresh-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.dashboard-refresh-indicator i {
+    color: var(--success-color);
+}
+
+/* Environment Status Icons in Dashboard */
+.dashboard-env-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.dashboard-env-status .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.dashboard-env-status .status-dot.running {
+    background-color: var(--success-color);
+}
+
+.dashboard-env-status .status-dot.stopped {
+    background-color: var(--text-secondary);
+}
+
+.dashboard-env-status .status-dot.mixed {
+    background-color: var(--warning-color);
+}
+

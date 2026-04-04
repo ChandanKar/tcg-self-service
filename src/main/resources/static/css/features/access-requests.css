@@ -1,0 +1,231 @@
+/**
+ * Access Requests Feature Styles
+ * Operations > Request Access — user request workflow and admin approval view.
+ * Typography and density synced to dashboard baseline.
+ */
+
+/* ── Page container: natural-scroll (not flex-fill) ── */
+.request-access-container {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+
+/* ── Compact search bar ── */
+.ra-search-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+.ra-search-bar .input-group {
+    max-width: 360px;
+}
+.ra-search-bar .input-group-text {
+    font-size: 0.81rem;
+    padding: 0.25rem 0.5rem;
+    background: #f8fafc;
+    border-color: #e2e8f0;
+}
+.ra-search-bar .form-control {
+    font-size: 0.81rem;
+    padding: 0.25rem 0.5rem;
+    border-color: #e2e8f0;
+}
+.ra-search-bar .form-control:focus {
+    border-color: #93c5fd;
+    box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+}
+
+/* ── Card header density ── */
+.request-access-container .card-header h5,
+.request-access-container .card-header .card-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 0;
+}
+.request-access-container .card-header {
+    padding: 0.5rem 0.75rem;
+}
+
+/* ── Table typography — dashboard baseline ── */
+.request-access-container .table td,
+.request-access-container .table th {
+    padding: 0.28rem 0.55rem;
+    font-size: 0.81rem;
+    vertical-align: middle;
+    line-height: 1.5;
+}
+.request-access-container .table thead th {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    background: #f8fafc;
+}
+
+/* ── Available Environments table column widths ── */
+#env-list-table {
+    table-layout: fixed;
+    width: 100%;
+}
+#env-list-table thead th:nth-child(1),
+#env-list-table tbody td:nth-child(1) { width: 55%; }
+#env-list-table thead th:nth-child(2),
+#env-list-table tbody td:nth-child(2) { width: 15%; }
+#env-list-table thead th:nth-child(3),
+#env-list-table tbody td:nth-child(3) { width: 30%; text-align: right; }
+
+/* ── My Requests / History table column widths (6 cols) ── */
+#my-requests-table,
+#history-table {
+    table-layout: fixed;
+    width: 100%;
+}
+#my-requests-table thead th:nth-child(1),
+#my-requests-table tbody td:nth-child(1),
+#history-table thead th:nth-child(1),
+#history-table tbody td:nth-child(1) { width: 22%; }
+
+#my-requests-table thead th:nth-child(2),
+#my-requests-table tbody td:nth-child(2),
+#history-table thead th:nth-child(2),
+#history-table tbody td:nth-child(2) { width: 13%; }
+
+#my-requests-table thead th:nth-child(3),
+#my-requests-table tbody td:nth-child(3),
+#history-table thead th:nth-child(3),
+#history-table tbody td:nth-child(3) { width: 13%; }
+
+#my-requests-table thead th:nth-child(4),
+#my-requests-table tbody td:nth-child(4),
+#history-table thead th:nth-child(4),
+#history-table tbody td:nth-child(4) { width: 14%; }
+
+#my-requests-table thead th:nth-child(5),
+#my-requests-table tbody td:nth-child(5),
+#history-table thead th:nth-child(5),
+#history-table tbody td:nth-child(5) { width: 14%; }
+
+#my-requests-table thead th:nth-child(6),
+#my-requests-table tbody td:nth-child(6),
+#history-table thead th:nth-child(6),
+#history-table tbody td:nth-child(6) { width: 24%; }
+
+/* ── Pending Requests (admin) table column widths (6 cols) ── */
+#pending-requests-table {
+    table-layout: fixed;
+    width: 100%;
+}
+#pending-requests-table thead th:nth-child(1),
+#pending-requests-table tbody td:nth-child(1) { width: 22%; }
+#pending-requests-table thead th:nth-child(2),
+#pending-requests-table tbody td:nth-child(2) { width: 18%; }
+#pending-requests-table thead th:nth-child(3),
+#pending-requests-table tbody td:nth-child(3) { width: 12%; }
+#pending-requests-table thead th:nth-child(4),
+#pending-requests-table tbody td:nth-child(4) { width: 11%; }
+#pending-requests-table thead th:nth-child(5),
+#pending-requests-table tbody td:nth-child(5) { width: 25%; }
+#pending-requests-table thead th:nth-child(6),
+#pending-requests-table tbody td:nth-child(6) { width: 12%; text-align: right; }
+
+/* Truncate long text in fixed-width cells */
+.request-access-container .table tbody td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 0;
+}
+/* Allow name/description cells to wrap */
+.request-access-container .table tbody td.ra-wrap {
+    white-space: normal;
+    overflow: visible;
+}
+
+/* ── Reason text: truncate in admin table ── */
+.reason-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+    display: block;
+}
+
+/* ── Action buttons in tables ── */
+.request-access-container .table .btn-sm {
+    height: 26px;
+    padding: 0.15rem 0.45rem;
+    font-size: 0.78rem;
+    line-height: 1;
+}
+.request-access-container .table .btn-group-sm .btn {
+    height: 26px;
+    padding: 0.15rem 0.45rem;
+    font-size: 0.78rem;
+}
+
+/* ── Env card: fixed height, table scrolls, pagination pinned ── */
+.ra-env-card-body {
+    display: flex;
+    flex-direction: column;
+    height: 396px;
+    overflow: hidden;
+    padding: 0 !important;
+}
+.ra-env-table-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+.ra-env-table-wrapper::-webkit-scrollbar { width: 4px; }
+.ra-env-table-wrapper::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+/* Table + tbody fill wrapper so filler row can expand */
+.ra-env-table-wrapper #env-list-table {
+    table-layout: fixed;
+    width: 100%;
+    height: 100%;
+    margin-bottom: 0;
+}
+.ra-env-table-wrapper #env-list-table tbody {
+    height: 100%;
+}
+.ra-env-table-wrapper .table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #f8fafc;
+}
+/* Filler row: expands to fill leftover vertical space */
+.ra-env-filler-row { height: 100%; }
+.ra-env-filler-row td {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    pointer-events: none;
+}
+
+/* ── Env table pagination bar: pinned, buttons right-aligned ── */
+.ra-env-pagination {
+    flex-shrink: 0;
+    border-top: 1px solid #f1f5f9;
+    padding: 0.3rem 0.55rem;
+    min-height: 28px;
+}
+
+/* ── Empty state ── */
+.ra-empty-state {
+    text-align: center;
+    padding: 2rem 1rem;
+    color: #64748b;
+}
+.ra-empty-state i {
+    opacity: 0.5;
+    margin-bottom: 0.5rem;
+}
+.ra-empty-state p {
+    font-size: 0.875rem;
+    margin-bottom: 0;
+}

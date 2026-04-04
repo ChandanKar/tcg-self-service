@@ -1,0 +1,151 @@
+<!--
+  Environment List Feature Template
+  Used by environments.js to render the environment list view
+-->
+
+<div class="content-view" id="environments-list-view">
+    <!-- Header -->
+    <div class="content-header">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <h1>My Environments</h1>
+                <p>Manage your VM environments</p>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary btn-sm" id="btn-refresh-envs">
+                    <i class="fas fa-sync-alt me-1"></i> Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Bar -->
+    <div class="user-filters-bar mb-3">
+        <div class="search-input">
+            <div class="input-group">
+                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                <input type="text" class="form-control" id="env-filter-search"
+                       placeholder="Search environments..." aria-label="Search environments">
+            </div>
+        </div>
+        <select class="form-select filter-select" id="env-filter-status">
+            <option value="">All Status</option>
+            <option value="running">All Running</option>
+            <option value="stopped">All Stopped</option>
+            <option value="mixed">Mixed</option>
+        </select>
+        <select class="form-select filter-select" id="env-filter-locked">
+            <option value="">Lock Status</option>
+            <option value="locked">Locked</option>
+            <option value="unlocked">Unlocked</option>
+        </select>
+        <select class="form-select filter-select" id="env-filter-provider">
+            <option value="">All Providers</option>
+            <option value="AWS">AWS</option>
+            <option value="AZURE">Azure</option>
+            <option value="GCP">GCP</option>
+            <option value="OCI">Oracle Cloud</option>
+        </select>
+    </div>
+
+    <!-- Environment List -->
+    <div class="environments-list-container" id="environments-container">
+        <!-- Populated by JavaScript -->
+    </div>
+
+    <!-- Pagination -->
+    <div class="log-pagination" id="env-list-pagination">
+        <!-- Populated by JavaScript -->
+    </div>
+</div>
+
+
+<!-- Loading State -->
+<template id="envlist-loading-template">
+    <div class="loading-state">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p>Loading environments...</p>
+    </div>
+</template>
+
+
+<!-- Empty State -->
+<template id="envlist-empty-template">
+    <div class="env-empty-state">
+        <i class="fas fa-folder-open"></i>
+        <h4>No Environments Found</h4>
+        <p>You don't have access to any environments yet.</p>
+        <a href="#" class="btn btn-primary" data-content="request-access">
+            <i class="fas fa-paper-plane me-1"></i> Request Access
+        </a>
+    </div>
+</template>
+
+
+<!-- Environment Card Template -->
+<template id="env-card-template">
+    <div class="environment-list-card" data-env-id="{{environmentId}}">
+        <div class="env-header">
+            <div>
+                <h5 class="env-name">{{displayName}}</h5>
+                <small class="text-muted">{{name}}</small>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span class="status-dot {{statusClass}}" title="{{statusText}}"></span>
+                {{#if isLocked}}
+                <span class="badge bg-warning text-dark">
+                    <i class="fas fa-lock"></i> Locked
+                </span>
+                {{/if}}
+            </div>
+        </div>
+
+        {{#if description}}
+        <p class="env-description">{{description}}</p>
+        {{/if}}
+
+        <div class="env-stats">
+            <span class="stat">
+                <i class="fas fa-server"></i>
+                <strong>{{totalVms}}</strong> VMs
+            </span>
+            <span class="stat text-success">
+                <i class="fas fa-play-circle"></i>
+                <strong>{{runningVms}}</strong> Running
+            </span>
+            <span class="stat text-secondary">
+                <i class="fas fa-stop-circle"></i>
+                <strong>{{stoppedVms}}</strong> Stopped
+            </span>
+            <span class="stat">
+                <i class="fas fa-layer-group"></i>
+                <strong>{{groupCount}}</strong> Groups
+            </span>
+        </div>
+
+        <div class="env-card-actions mt-2 d-flex justify-content-between">
+            <div>
+                <span class="badge bg-light text-dark me-1" title="Cloud Provider">
+                    <i class="{{providerIcon}}"></i> {{provider}}
+                </span>
+            </div>
+            <div class="d-flex gap-1">
+                <button class="btn btn-sm btn-outline-primary" data-action="view" title="View Details">
+                    <i class="fas fa-eye me-1"></i> View
+                </button>
+                <button class="btn btn-sm btn-success" data-action="start-all"
+                        {{#if allRunning}}disabled{{/if}} title="Start All VMs">
+                    <i class="fas fa-play"></i>
+                </button>
+                <button class="btn btn-sm btn-danger" data-action="stop-all"
+                        {{#if allStopped}}disabled{{/if}} title="Stop All VMs">
+                    <i class="fas fa-stop"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</template>
+
+

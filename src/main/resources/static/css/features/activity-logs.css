@@ -1,0 +1,134 @@
+/**
+ * Activity Logs Feature Styles
+ * Operations > Activity Logs — personal action history for all users.
+ * Layout and typography synced to dashboard baseline.
+ */
+
+/* ── Container: fills #content-area exactly like .vm-registry-container ── */
+.activity-logs-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+.activity-logs-container > .content-header,
+.activity-logs-container > .activity-logs-filter-bar,
+.activity-logs-container > .activity-logs-custom-range {
+    flex-shrink: 0;
+}
+
+/* ── Filter Bar: single compact row, no labels ── */
+.activity-logs-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: nowrap;
+}
+.activity-logs-filter-bar .form-select {
+    font-size: 0.81rem;
+    padding: 0.25rem 1.75rem 0.25rem 0.5rem;
+    flex: 1;
+}
+#al-page-size-filter {
+    flex: 0 0 90px;
+    max-width: 90px;
+}
+.activity-logs-filter-bar .btn {
+    font-size: 0.81rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* ── Custom Date Range ── */
+.activity-logs-custom-range {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.activity-logs-custom-range .form-control {
+    font-size: 0.81rem;
+    max-width: 160px;
+}
+
+/* ── Table Card: fills remaining vertical space ── */
+.activity-logs-table-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+.activity-logs-card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0.4rem 0.6rem 0.3rem !important;
+}
+
+/* ── Scrollable Table Wrapper ── */
+.activity-logs-table-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+.activity-logs-table-wrapper::-webkit-scrollbar { width: 4px; }
+.activity-logs-table-wrapper::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+/* Table typography — dashboard baseline */
+.activity-logs-table-wrapper .table td,
+.activity-logs-table-wrapper .table th {
+    padding: 0.28rem 0.55rem;
+    font-size: 0.81rem;
+    vertical-align: middle;
+    line-height: 1.5;
+}
+.activity-logs-table-wrapper .table thead th {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #f8fafc;
+}
+
+/* ── Fixed Column Widths ── */
+.activity-logs-table-wrapper .table {
+    table-layout: fixed;
+    width: 100%;
+}
+.activity-logs-table-wrapper .table thead th:nth-child(1),
+.activity-logs-table-wrapper .table tbody td:nth-child(1) { width: 16%; }
+.activity-logs-table-wrapper .table thead th:nth-child(2),
+.activity-logs-table-wrapper .table tbody td:nth-child(2) { width: 16%; }
+.activity-logs-table-wrapper .table thead th:nth-child(3),
+.activity-logs-table-wrapper .table tbody td:nth-child(3) { width: 16%; }
+.activity-logs-table-wrapper .table thead th:nth-child(4),
+.activity-logs-table-wrapper .table tbody td:nth-child(4) { width: 16%; }
+.activity-logs-table-wrapper .table thead th:nth-child(5),
+.activity-logs-table-wrapper .table tbody td:nth-child(5) { width: 8%; text-align: center; }
+.activity-logs-table-wrapper .table thead th:nth-child(6),
+.activity-logs-table-wrapper .table tbody td:nth-child(6) { width: 28%; }
+
+/* Truncate overflowing text in fixed cells */
+.activity-logs-table-wrapper .table tbody td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 0;
+}
+
+/* ── Pagination Bar: pinned to bottom of card ── */
+.activity-logs-pagination {
+    flex-shrink: 0;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 0.3rem;
+    min-height: 28px;
+}

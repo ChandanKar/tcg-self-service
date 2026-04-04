@@ -1,0 +1,243 @@
+<!--
+  Environment Detail Feature Template
+  Used by environments.js to render environment detail view
+-->
+
+<div class="content-view" id="environment-detail-view">
+    <!-- Back Navigation -->
+    <div class="mb-3">
+        <a href="#" class="text-muted" id="btn-back-to-list">
+            <i class="fas fa-arrow-left me-1"></i> Back to Environments
+        </a>
+    </div>
+
+    <!-- Environment Header -->
+    <div class="env-detail-header">
+        <div class="env-info">
+            <h1 id="env-detail-name"><!-- Environment Name --></h1>
+            <div class="env-meta">
+                <span class="me-3"><i class="fas fa-user me-1"></i> Owner: <span id="env-owner">--</span></span>
+                <span class="me-3"><i class="fas fa-calendar me-1"></i> Created: <span id="env-created">--</span></span>
+                <span id="env-lock-status-badge"></span>
+            </div>
+        </div>
+        <div class="env-actions d-flex gap-2">
+            <button class="btn btn-outline-primary btn-sm" id="btn-refresh-env" title="Refresh">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+            <div class="btn-group">
+                <button class="btn btn-success btn-sm" id="btn-start-all" title="Start All VMs">
+                    <i class="fas fa-play me-1"></i> Start All
+                </button>
+                <button class="btn btn-danger btn-sm" id="btn-stop-all" title="Stop All VMs">
+                    <i class="fas fa-stop me-1"></i> Stop All
+                </button>
+            </div>
+            <button class="btn btn-warning btn-sm" id="btn-toggle-lock" title="Toggle Lock">
+                <i class="fas fa-lock me-1"></i> <span id="lock-btn-text">Lock</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="env-summary-cards">
+        <div class="env-summary-card">
+            <div class="summary-value" id="summary-total-vms">0</div>
+            <div class="summary-label">Total VMs</div>
+        </div>
+        <div class="env-summary-card">
+            <div class="summary-value text-success" id="summary-running">0</div>
+            <div class="summary-label">Running</div>
+        </div>
+        <div class="env-summary-card">
+            <div class="summary-value text-secondary" id="summary-stopped">0</div>
+            <div class="summary-label">Stopped</div>
+        </div>
+        <div class="env-summary-card">
+            <div class="summary-value" id="summary-groups">0</div>
+            <div class="summary-label">Groups</div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="env-tabs">
+        <button class="tab-btn active" data-tab="vms">
+            <i class="fas fa-server me-1"></i> VMs
+        </button>
+        <button class="tab-btn" data-tab="activity">
+            <i class="fas fa-history me-1"></i> Activity
+        </button>
+        <button class="tab-btn" data-tab="access">
+            <i class="fas fa-users me-1"></i> Access
+        </button>
+        <button class="tab-btn" data-tab="settings">
+            <i class="fas fa-cog me-1"></i> Settings
+        </button>
+    </div>
+
+    <!-- Tab Content Container -->
+    <div class="tab-content-container">
+        <!-- Tab: VMs -->
+        <div class="vm-groups-section tab-content" id="tab-vms">
+            <div id="vm-groups-container">
+                <!-- VM Groups populated by JavaScript -->
+            </div>
+        </div>
+
+        <!-- Tab: Activity -->
+        <div class="vm-groups-section tab-content" id="tab-activity" style="display: none;">
+            <div id="env-activity-container">
+                <!-- Activity log populated by JavaScript -->
+            </div>
+        </div>
+
+        <!-- Tab: Access -->
+        <div class="vm-groups-section tab-content" id="tab-access" style="display: none;">
+            <div id="env-access-container">
+                <!-- Access list populated by JavaScript -->
+            </div>
+        </div>
+
+        <!-- Tab: Settings -->
+        <div class="vm-groups-section tab-content" id="tab-settings" style="display: none;">
+            <div id="env-settings-container">
+                <!-- Settings populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Loading State -->
+<template id="envdetail-loading-template">
+    <div class="loading-state">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p>Loading environment details...</p>
+    </div>
+</template>
+
+
+<!-- VM Group Card Template -->
+<template id="vm-group-template">
+    <div class="vm-group-card" data-group-id="{{groupId}}">
+        <div class="group-header">
+            <h5>
+                <i class="fas fa-layer-group me-2"></i>{{groupName}}
+                <small class="text-muted ms-2">({{vmCount}} VMs)</small>
+            </h5>
+            <div class="group-actions">
+                <button class="btn btn-sm btn-success" data-action="start-group" title="Start Group">
+                    <i class="fas fa-play"></i>
+                </button>
+                <button class="btn btn-sm btn-danger" data-action="stop-group" title="Stop Group">
+                    <i class="fas fa-stop"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" data-action="toggle-group" title="Expand/Collapse">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+            </div>
+        </div>
+        <div class="group-body">
+            <table class="vm-list-table">
+                <thead>
+                    <tr>
+                        <th>VM Name</th>
+                        <th>Status</th>
+                        <th>Instance ID</th>
+                        <th>Provider</th>
+                        <th>Region</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="group-vms-{{groupId}}">
+                    <!-- VMs populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</template>
+
+
+<!-- VM Row Template -->
+<template id="vm-row-template">
+    <tr data-vm-id="{{vmId}}">
+        <td>
+            <strong>{{displayName}}</strong>
+            <br><small class="text-muted">{{name}}</small>
+        </td>
+        <td>
+            <span class="vm-status">
+                <span class="status-indicator {{statusClass}}"></span>
+                {{statusText}}
+            </span>
+        </td>
+        <td><code class="small">{{providerVmId}}</code></td>
+        <td>
+            <span class="badge bg-light text-dark">
+                <i class="{{providerIcon}}"></i> {{provider}}
+            </span>
+        </td>
+        <td>{{region}}</td>
+        <td>
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-success" data-action="start"
+                        {{#if isRunning}}disabled{{/if}} title="Start">
+                    <i class="fas fa-play"></i>
+                </button>
+                <button class="btn btn-danger" data-action="stop"
+                        {{#unless isRunning}}disabled{{/unless}} title="Stop">
+                    <i class="fas fa-stop"></i>
+                </button>
+                <button class="btn btn-warning" data-action="restart"
+                        {{#unless isRunning}}disabled{{/unless}} title="Restart">
+                    <i class="fas fa-sync"></i>
+                </button>
+                <button class="btn btn-outline-secondary" data-action="details" title="Details">
+                    <i class="fas fa-info-circle"></i>
+                </button>
+            </div>
+        </td>
+    </tr>
+</template>
+
+
+<!-- No VMs State -->
+<template id="no-vms-template">
+    <div class="env-empty-state">
+        <i class="fas fa-server"></i>
+        <h4>No VMs Registered</h4>
+        <p>This environment has no VMs registered yet.</p>
+    </div>
+</template>
+
+
+<!-- Access List Template -->
+<template id="access-list-template">
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">Users with Access</h6>
+            <button class="btn btn-sm btn-primary" id="btn-add-access">
+                <i class="fas fa-user-plus me-1"></i> Add User
+            </button>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Access Level</th>
+                        <th>Granted</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="access-table-body">
+                    <!-- Populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</template>
+
+

@@ -1,0 +1,259 @@
+<!--
+  All Audit Logs Feature Template (Admin View)
+  Used by all-logs.js to render the full audit logs page
+-->
+
+<div class="content-view" id="audit-logs-view">
+    <!-- Header -->
+    <div class="content-header">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <h1>Audit Logs (All)</h1>
+                <p>Complete system audit trail for all users and actions</p>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-primary btn-sm" id="btn-export-audit">
+                    <i class="fas fa-file-export me-1"></i> Export CSV
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" id="btn-refresh-audit">
+                    <i class="fas fa-sync"></i> Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Advanced Filters -->
+    <div class="card mb-3">
+        <div class="card-header py-2 d-flex justify-content-between align-items-center">
+            <span><i class="fas fa-filter me-1"></i> Filters</span>
+            <button class="btn btn-sm btn-link" id="btn-toggle-filters">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+        <div class="card-body" id="filter-panel">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label small">Date Range</label>
+                    <select class="form-select form-select-sm" id="filter-date">
+                        <option value="today">Today</option>
+                        <option value="week" selected>Last 7 Days</option>
+                        <option value="month">Last 30 Days</option>
+                        <option value="quarter">Last 90 Days</option>
+                        <option value="custom">Custom Range</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">User</label>
+                    <select class="form-select form-select-sm" id="filter-user">
+                        <option value="">All Users</option>
+                        <!-- Populated by JavaScript -->
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Environment</label>
+                    <select class="form-select form-select-sm" id="filter-env">
+                        <option value="">All Environments</option>
+                        <!-- Populated by JavaScript -->
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Action Type</label>
+                    <select class="form-select form-select-sm" id="filter-action">
+                        <option value="">All Actions</option>
+                        <option value="VM_START">VM Start</option>
+                        <option value="VM_STOP">VM Stop</option>
+                        <option value="VM_RESTART">VM Restart</option>
+                        <option value="ENV_LOCK">Environment Lock</option>
+                        <option value="ENV_UNLOCK">Environment Unlock</option>
+                        <option value="ACCESS_GRANT">Access Granted</option>
+                        <option value="ACCESS_REVOKE">Access Revoked</option>
+                        <option value="LOGIN">User Login</option>
+                        <option value="LOGOUT">User Logout</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row g-3 mt-1">
+                <div class="col-md-6">
+                    <input type="text" class="form-control form-control-sm" id="filter-search"
+                           placeholder="Search by user, environment, VM, or action details...">
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select form-select-sm" id="filter-status">
+                        <option value="">All Results</option>
+                        <option value="SUCCESS">Success</option>
+                        <option value="FAILED">Failed</option>
+                        <option value="PENDING">Pending</option>
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex gap-2">
+                    <button class="btn btn-primary btn-sm flex-fill" id="btn-apply-filters">
+                        <i class="fas fa-search me-1"></i> Apply
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" id="btn-clear-filters">
+                        <i class="fas fa-times"></i> Clear
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Summary -->
+    <div class="row g-3 mb-3">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body py-2 text-center">
+                    <div class="h4 mb-0" id="stat-total-logs">--</div>
+                    <small class="text-muted">Total Events</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body py-2 text-center">
+                    <div class="h4 mb-0 text-success" id="stat-success">--</div>
+                    <small class="text-muted">Successful</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body py-2 text-center">
+                    <div class="h4 mb-0 text-danger" id="stat-failed">--</div>
+                    <small class="text-muted">Failed</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body py-2 text-center">
+                    <div class="h4 mb-0" id="stat-users">--</div>
+                    <small class="text-muted">Active Users</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audit Log Table -->
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-sm mb-0 log-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 150px;">Timestamp</th>
+                            <th style="width: 120px;">User</th>
+                            <th style="width: 140px;">Action</th>
+                            <th>Environment / Target</th>
+                            <th style="width: 80px;">Status</th>
+                            <th style="width: 80px;">Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="audit-table-body">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer py-2">
+            <div class="d-flex justify-content-between align-items-center">
+                <div id="audit-pagination">
+                    <!-- Pagination controls -->
+                </div>
+                <div class="page-info text-muted small" id="audit-page-info">
+                    <!-- Page info -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Audit Log Row Template -->
+<template id="audit-row-template">
+    <tr data-log-id="{{logId}}">
+        <td>
+            <span class="text-nowrap">{{date}}</span><br>
+            <small class="text-muted">{{time}}</small>
+        </td>
+        <td>
+            <strong>{{userName}}</strong><br>
+            <small class="text-muted">{{userEmail}}</small>
+        </td>
+        <td>
+            <span class="badge {{actionBadgeClass}}">{{actionType}}</span>
+        </td>
+        <td>
+            <strong>{{environmentName}}</strong>
+            <span class="text-muted">/ {{targetName}}</span>
+        </td>
+        <td>
+            <span class="log-status {{statusClass}}">{{status}}</span>
+        </td>
+        <td>
+            <button class="btn btn-sm btn-outline-secondary" data-action="view-details"
+                    data-log-id="{{logId}}">
+                <i class="fas fa-eye"></i>
+            </button>
+        </td>
+    </tr>
+</template>
+
+
+<!-- Log Detail Modal -->
+<template id="log-detail-modal-template">
+    <div class="modal fade" id="logDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Audit Log Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Timestamp</label>
+                            <p class="mb-0" id="detail-timestamp"></p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Status</label>
+                            <p class="mb-0" id="detail-status"></p>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">User</label>
+                            <p class="mb-0" id="detail-user"></p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">IP Address</label>
+                            <p class="mb-0" id="detail-ip"></p>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Action</label>
+                            <p class="mb-0" id="detail-action"></p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Environment</label>
+                            <p class="mb-0" id="detail-env"></p>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Target Details</label>
+                        <p class="mb-0" id="detail-target"></p>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Additional Information</label>
+                        <pre class="bg-light p-2 rounded" id="detail-metadata"
+                             style="max-height: 200px; overflow: auto;"></pre>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
