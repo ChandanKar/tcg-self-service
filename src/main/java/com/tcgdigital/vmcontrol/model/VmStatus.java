@@ -8,6 +8,8 @@ public enum VmStatus {
     STOPPED,
     STARTING,
     STOPPING,
+    TERMINATED,   // VM was terminated/deleted in cloud
+    NOT_FOUND,    // VM not found in cloud provider (may have been deleted)
     ERROR,
     UNKNOWN
 }

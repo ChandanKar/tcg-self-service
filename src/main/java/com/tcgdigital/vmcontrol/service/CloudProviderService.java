@@ -42,6 +42,14 @@ public interface CloudProviderService {
     VmStatus getVmStatus(String providerVmId, String region);
 
     /**
+     * Get the VM name from the cloud provider (e.g., EC2 Name tag).
+     * @param providerVmId The cloud provider's VM ID
+     * @param region The region where the VM is located
+     * @return VM name from cloud provider, or null if not found
+     */
+    String getVmName(String providerVmId, String region);
+
+    /**
      * Check if the service is available/configured.
      */
     boolean isAvailable();

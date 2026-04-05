@@ -143,7 +143,35 @@ public class StateSyncService {
             return false;
         }
 
-        // Check for drift
+        // Handle VM not found in cloud (deleted externally)
+        if (cloudStatus == VmStatus.NOT_FOUND || cloudStatus == VmStatus.TERMINATED) {
+            log.warn("VM {} ({}) is {} in cloud provider - marking as inactive",
+                    vm.getName(), vm.getVmId(), cloudStatus);
+
+            // Record state change
+            String details = cloudStatus == VmStatus.NOT_FOUND
+                    ? "VM not found in cloud provider - may have been deleted externally"
+                    : "VM terminated in cloud provider";
+            recordStateChange(vm, currentStatus, cloudStatus, "state_sync", null, null, details);
+
+            // Update VM status and deactivate
+            vm.setStatus(cloudStatus);
+            vm.setIsActive(false);
+            vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
+            vmRepository.save(vm);
+
+            // Audit log with high severity
+            auditService.logAction(null, AuditAction.STATE_DRIFT_DETECTED, "vm", vm.getVmId(),
+                    vm.getName(), String.format("VM %s in cloud - marked inactive. Previous status: %s",
+                            cloudStatus, currentStatus));
+
+            return true;
+        }
+
+        // Sync VM name from cloud if name/displayName matches providerVmId (likely auto-generated)
+        syncVmNameIfNeeded(vm);
+
+        // Check for normal drift (status changed but VM still exists)
         if (currentStatus != cloudStatus) {
             log.info("State drift detected for VM {}: {} -> {}",
                     vm.getName(), currentStatus, cloudStatus);
@@ -169,6 +197,61 @@ public class StateSyncService {
         vmRepository.save(vm);
 
         return false;
+    }
+
+    /**
+     * Sync VM name from cloud provider if current name matches providerVmId.
+     * This handles cases where VM was registered with instance ID as name.
+     */
+    private void syncVmNameIfNeeded(Vm vm) {
+        String providerVmId = vm.getProviderVmId();
+        String currentName = vm.getName();
+        String currentDisplayName = vm.getDisplayName();
+
+        // Check if name or displayName matches the providerVmId (instance ID)
+        boolean nameNeedsSync = providerVmId != null && (
+                providerVmId.equalsIgnoreCase(currentName) ||
+                providerVmId.equalsIgnoreCase(currentDisplayName)
+        );
+
+        if (!nameNeedsSync) {
+            return;
+        }
+
+        log.info("VM {} has name matching instance ID, fetching actual name from cloud", vm.getVmId());
+
+        try {
+            CloudProviderService providerService = cloudProviderFactory.getService(vm.getProvider());
+            if (providerService == null || !providerService.isAvailable()) {
+                log.warn("Cloud provider not available for VM name sync: {}", vm.getProvider());
+                return;
+            }
+
+            String cloudVmName = providerService.getVmName(providerVmId, vm.getRegion());
+
+            if (cloudVmName != null && !cloudVmName.isBlank()) {
+                String oldName = vm.getName();
+                String oldDisplayName = vm.getDisplayName();
+
+                // Update name (lowercase, hyphenated) and displayName
+                String newName = cloudVmName.toLowerCase().replaceAll("\\s+", "-");
+                vm.setName(newName);
+                vm.setDisplayName(cloudVmName);
+                vmRepository.save(vm);
+
+                log.info("Updated VM name from cloud: {} -> {} (display: {} -> {})",
+                        oldName, newName, oldDisplayName, cloudVmName);
+
+                // Audit log the name sync
+                auditService.logAction(null, AuditAction.VM_NAME_SYNCED, "vm", vm.getVmId(),
+                        cloudVmName, String.format("VM name synced from cloud. Old: %s/%s, New: %s/%s",
+                                oldName, oldDisplayName, newName, cloudVmName));
+            } else {
+                log.debug("No name tag found in cloud for VM {}", vm.getVmId());
+            }
+        } catch (Exception e) {
+            log.error("Error syncing VM name for {}: {}", vm.getVmId(), e.getMessage());
+        }
     }
 
     /**

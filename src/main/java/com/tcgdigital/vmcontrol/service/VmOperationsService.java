@@ -487,20 +487,30 @@ public class VmOperationsService {
     // ============= Private Helper Methods =============
 
     private List<Vm> resolveTargetVms(Environment environment, StartOperationDTO dto) {
-        List<Vm> targetVms = new ArrayList<>();
+        List<Vm> targetVms;
 
         if (dto.getVmIds() != null && !dto.getVmIds().isEmpty()) {
-            // Specific VMs requested
+            // Specific VMs requested - filter out inactive VMs
+            List<Vm> resolvedVms = new ArrayList<>();
             for (String vmId : dto.getVmIds()) {
-                vmRepository.findById(vmId).ifPresent(targetVms::add);
+                vmRepository.findById(vmId).ifPresent(vm -> {
+                    if (Boolean.TRUE.equals(vm.getIsActive())) {
+                        resolvedVms.add(vm);
+                    } else {
+                        log.warn("Skipping inactive VM {} ({}) - status: {}",
+                                vm.getName(), vmId, vm.getStatus());
+                    }
+                });
             }
+            targetVms = resolvedVms;
         } else if (dto.getGroupIds() != null && !dto.getGroupIds().isEmpty()) {
-            // Specific groups requested
+            // Specific groups requested - repository already filters inactive VMs
+            targetVms = new ArrayList<>();
             for (String groupId : dto.getGroupIds()) {
                 targetVms.addAll(vmRepository.findByGroupGroupIdOrderBySequencePositionAsc(groupId));
             }
         } else {
-            // All VMs in environment
+            // All VMs in environment - repository already filters inactive VMs
             targetVms = vmRepository.findByEnvironmentId(environment.getEnvironmentId());
         }
 

@@ -102,6 +102,7 @@ public class VmService {
         vm.setDependencies(dto.getDependsOnVmIds());
         vm.setMetadata(dto.getMetadata());
         vm.setStatus(VmStatus.UNKNOWN);
+        vm.setIsActive(true);  // New VMs are active by default
 
         Vm saved = vmRepository.save(vm);
         log.info("Registered VM: {} ({}) in group {}", saved.getName(), saved.getVmId(), dto.getGroupId());

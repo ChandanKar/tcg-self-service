@@ -243,11 +243,52 @@ public class AwsCloudProviderService implements CloudProviderService {
                 return mapAwsStateToVmStatus(instance.state().name());
             }
 
+            // VM not found in cloud - may have been deleted
+            log.warn("AWS EC2 instance {} not found in region {}", providerVmId, region);
+            return VmStatus.NOT_FOUND;
+
+        } catch (Ec2Exception e) {
+            // InvalidInstanceID.NotFound means the instance doesn't exist
+            if ("InvalidInstanceID.NotFound".equals(e.awsErrorDetails().errorCode())) {
+                log.warn("AWS EC2 instance {} does not exist: {}", providerVmId, e.getMessage());
+                return VmStatus.NOT_FOUND;
+            }
+            log.error("AWS API error for instance {}: {}", providerVmId, e.getMessage());
             return VmStatus.UNKNOWN;
 
         } catch (Exception e) {
             log.error("Failed to get status for AWS EC2 instance {}: {}", providerVmId, e.getMessage());
             return VmStatus.UNKNOWN;
+        }
+    }
+
+    @Override
+    public String getVmName(String providerVmId, String region) {
+        try {
+            Ec2Client ec2 = getEc2Client(region);
+
+            DescribeInstancesRequest request = DescribeInstancesRequest.builder()
+                    .instanceIds(providerVmId)
+                    .build();
+
+            DescribeInstancesResponse response = ec2.describeInstances(request);
+
+            if (!response.reservations().isEmpty() && !response.reservations().get(0).instances().isEmpty()) {
+                Instance instance = response.reservations().get(0).instances().get(0);
+
+                // Find the "Name" tag
+                return instance.tags().stream()
+                        .filter(tag -> "Name".equals(tag.key()))
+                        .map(Tag::value)
+                        .findFirst()
+                        .orElse(null);
+            }
+
+            return null;
+
+        } catch (Exception e) {
+            log.error("Failed to get name for AWS EC2 instance {}: {}", providerVmId, e.getMessage());
+            return null;
         }
     }
 
@@ -277,7 +318,7 @@ public class AwsCloudProviderService implements CloudProviderService {
             case STOPPED -> VmStatus.STOPPED;
             case PENDING -> VmStatus.STARTING;
             case STOPPING, SHUTTING_DOWN -> VmStatus.STOPPING;
-            case TERMINATED -> VmStatus.STOPPED;
+            case TERMINATED -> VmStatus.TERMINATED;
             default -> VmStatus.UNKNOWN;
         };
     }

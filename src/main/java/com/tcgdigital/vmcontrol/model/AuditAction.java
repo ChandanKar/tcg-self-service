@@ -57,6 +57,7 @@ public enum AuditAction {
     // System operations
     SYSTEM_CONFIG_UPDATED,
     SCHEDULED_JOB_EXECUTED,
-    STATE_DRIFT_DETECTED
+    STATE_DRIFT_DETECTED,
+    VM_NAME_SYNCED
 }
 

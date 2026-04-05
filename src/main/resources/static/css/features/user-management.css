@@ -1,9 +1,11 @@
 /*
  * User Management Feature Styles
- * Styles for admin user management views
+ * Aligned with dashboard/environment styling
  */
 
-/* User Management View */
+/* ============================================
+   View Container
+   ============================================ */
 #user-management-view {
     display: flex;
     flex-direction: column;
@@ -11,133 +13,153 @@
     overflow: hidden;
 }
 
-/* User Management Header */
-.user-mgmt-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
+/* ============================================
+   Header - Compact like dashboard
+   ============================================ */
+#user-management-view .content-header {
+    margin-bottom: 0.5rem;
+    padding-left: 0.75rem;
 }
 
-.user-mgmt-header .header-actions {
+#user-management-view .content-header h1 {
+    font-size: 1.2rem;
+    margin-bottom: 0;
+}
+
+#user-management-view .content-header p {
+    font-size: 0.75rem;
+    margin-bottom: 0;
+    color: var(--text-secondary);
+}
+
+#user-management-view .header-actions {
     display: flex;
     gap: 0.5rem;
 }
 
-/* User Search & Filters */
-.user-filters-bar {
+/* ============================================
+   Filters Bar
+   ============================================ */
+#user-management-view .user-filters-bar {
     display: flex;
     gap: 0.75rem;
     padding: 0.75rem;
     background: var(--sidebar-bg);
     border: 1px solid var(--border-color);
     border-radius: 8px;
-    margin-bottom: 0.75rem;
-}
-
-.user-filters-bar .search-input {
-    flex: 1;
-    max-width: 300px;
-}
-
-.user-filters-bar .filter-select {
-    min-width: 150px;
-}
-
-/* User List/Grid */
-.user-list-container {
-    flex: 1;
-    overflow-y: auto;
-}
-
-/* User Card */
-.user-card {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 1rem;
-    background: var(--sidebar-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
     margin-bottom: 0.5rem;
-    transition: all 0.2s;
-}
-
-.user-card:hover {
-    border-color: var(--primary-light);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
-.user-card .user-avatar {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: var(--primary-color);
-    color: white;
-    display: flex;
     align-items: center;
-    justify-content: center;
-    font-size: 1.25rem;
-    font-weight: 600;
-    flex-shrink: 0;
+    box-sizing: border-box;
 }
 
-.user-card .user-avatar img {
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    object-fit: cover;
-}
-
-.user-card .user-info {
-    flex: 1;
+/* Search Input Wrapper - 40% */
+#user-management-view .user-filters-bar .search-input-wrapper {
+    flex: 0 0 calc(40% - 0.5rem);
     min-width: 0;
 }
 
-.user-card .user-name {
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 0.125rem;
+#user-management-view .user-filters-bar .input-group {
+    display: flex;
+    flex-wrap: nowrap;
+    width: 100%;
 }
 
-.user-card .user-email {
+#user-management-view .user-filters-bar .input-group-text {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.8rem;
+    background: var(--background-light);
+    border-color: var(--border-color);
+    display: flex;
+    align-items: center;
+}
+
+#user-management-view .user-filters-bar .input-group .form-control {
     font-size: 0.81rem;
+    padding: 0.4rem 0.6rem;
+    border-color: var(--border-color);
+}
+
+#user-management-view .user-filters-bar .input-group .btn {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Role & Status Filters - 30% each */
+#user-management-view .user-filters-bar > select.form-select {
+    flex: 0 0 calc(30% - 0.5rem);
+    min-width: 0;
+    font-size: 0.81rem;
+    padding: 0.4rem 2rem 0.4rem 0.6rem;
+    border-color: var(--border-color);
+    box-sizing: border-box;
+}
+
+/* ============================================
+   Stats Row - Inline like dashboard metrics
+   ============================================ */
+.user-stats-row {
+    display: flex;
+    gap: 1.5rem;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.user-stat-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.81rem;
+}
+
+.user-stat-item .stat-label {
     color: var(--text-secondary);
 }
 
-.user-card .user-role {
-    font-size: 0.75rem;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    font-weight: 500;
+.user-stat-item .stat-value {
+    font-weight: 600;
+    color: var(--text-primary);
 }
 
-.user-card .user-role.admin {
-    background: rgba(239, 68, 68, 0.1);
-    color: var(--danger-color);
-}
-
-.user-card .user-role.env-admin {
-    background: rgba(245, 158, 11, 0.1);
-    color: var(--warning-color);
-}
-
-.user-card .user-role.user {
-    background: rgba(59, 130, 246, 0.1);
-    color: var(--info-color);
-}
-
-.user-card .user-actions {
+/* ============================================
+   Table Card - Like dashboard env-table-card
+   ============================================ */
+.user-table-card {
+    flex: 1;
     display: flex;
-    gap: 0.25rem;
-}
-
-/* User Table View */
-.user-table {
-    width: 100%;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0;
     background: var(--sidebar-bg);
     border-radius: 8px;
-    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+.user-table-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+.user-table-wrapper::-webkit-scrollbar {
+    width: 4px;
+}
+
+/* ============================================
+   Table Styles
+   ============================================ */
+.user-table {
+    width: 100%;
+    margin: 0;
+}
+
+.user-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
 }
 
 .user-table th {
@@ -145,58 +167,151 @@
     font-size: 0.70rem;
     font-weight: 600;
     text-transform: uppercase;
+    letter-spacing: 0.03em;
     color: var(--text-secondary);
-    padding: 0.75rem 1rem;
-    text-align: left;
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
 }
 
 .user-table td {
-    padding: 0.75rem 1rem;
-    border-top: 1px solid var(--border-color);
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--border-color);
     vertical-align: middle;
     font-size: 0.81rem;
 }
 
-.user-table tr:hover td {
+.user-table tbody tr:hover {
     background: var(--sidebar-hover);
 }
 
-/* User Detail Panel */
-.user-detail-panel {
-    position: fixed;
-    top: var(--topnav-height);
-    right: -400px;
-    width: 400px;
-    height: calc(100vh - var(--topnav-height));
-    background: var(--sidebar-bg);
-    border-left: 1px solid var(--border-color);
-    box-shadow: -4px 0 12px rgba(0, 0, 0, 0.1);
-    transition: right 0.3s ease;
-    z-index: 1000;
-    overflow-y: auto;
+.user-table tbody tr:last-child td {
+    border-bottom: none;
 }
 
-.user-detail-panel.open {
-    right: 0;
+/* ============================================
+   User Cell with Avatar
+   ============================================ */
+.user-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
 }
 
-.user-detail-panel .panel-header {
+.user-avatar-sm {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.user-cell .user-info {
+    min-width: 0;
+}
+
+.user-cell .user-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.81rem;
+    line-height: 1.3;
+}
+
+.user-cell .user-email {
+    font-size: 0.70rem;
+    color: var(--text-secondary);
+    line-height: 1.3;
+}
+
+/* ============================================
+   Role Badges
+   ============================================ */
+.role-badge {
+    display: inline-block;
+    font-size: 0.70rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+.role-badge.role-admin {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger-color);
+}
+
+.role-badge.role-env-admin {
+    background: rgba(245, 158, 11, 0.1);
+    color: var(--warning-color);
+}
+
+.role-badge.role-user {
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--info-color);
+}
+
+/* ============================================
+   Pagination - Like environments
+   ============================================ */
+.user-pagination {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1rem;
-    border-bottom: 1px solid var(--border-color);
+    padding: 0.5rem 0.75rem;
+    border-top: 1px solid var(--border-color);
+    background: var(--background-light);
+    min-height: 40px;
 }
 
-.user-detail-panel .panel-body {
-    padding: 1rem;
+.pagination-info {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
 }
 
-/* User Form (Create/Edit) */
-.user-form {
-    max-width: 600px;
+.pagination-controls {
+    display: flex;
+    gap: 0.25rem;
 }
 
+.pagination-controls .page-btn {
+    min-width: 28px;
+    height: 28px;
+    padding: 0 0.4rem;
+    font-size: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pagination-controls .page-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ============================================
+   Action Dropdown
+   ============================================ */
+.user-table .dropdown-menu {
+    font-size: 0.81rem;
+}
+
+.user-table .dropdown-item {
+    padding: 0.4rem 0.75rem;
+}
+
+.user-table .dropdown-item i {
+    width: 16px;
+    text-align: center;
+}
+
+/* ============================================
+   Legacy styles kept for compatibility
+   ============================================ */
 .user-form .form-section {
     margin-bottom: 1.5rem;
 }

@@ -70,6 +70,9 @@ public class Vm {
     @Column(name = "state_drift_detected", nullable = false)
     private Boolean stateDriftDetected = false;
 
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = true;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @CreationTimestamp
     private Timestamp createdAt;
@@ -237,6 +240,14 @@ public class Vm {
 
     public void setStateDriftDetected(Boolean stateDriftDetected) {
         this.stateDriftDetected = stateDriftDetected;
+    }
+
+    public Boolean getIsActive() {
+        return isActive;
+    }
+
+    public void setIsActive(Boolean isActive) {
+        this.isActive = isActive;
     }
 
     public Timestamp getCreatedAt() {
