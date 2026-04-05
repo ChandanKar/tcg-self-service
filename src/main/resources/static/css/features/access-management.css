@@ -1,0 +1,442 @@
+/*
+ * Access Management Feature Styles
+ * Aligned with User Management styling
+ */
+
+/* ============================================
+   View Container
+   ============================================ */
+#access-management-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* ============================================
+   Header - Compact like dashboard
+   ============================================ */
+#access-management-view .content-header {
+    margin-bottom: 0.5rem;
+    padding-left: 0.75rem;
+}
+
+#access-management-view .content-header h1 {
+    font-size: 1.2rem;
+    margin-bottom: 0;
+}
+
+#access-management-view .content-header p {
+    font-size: 0.75rem;
+    margin-bottom: 0;
+    color: var(--text-secondary);
+}
+
+#access-management-view .header-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* ============================================
+   Filters Bar
+   ============================================ */
+#access-management-view .access-filters-bar {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    align-items: center;
+    box-sizing: border-box;
+}
+
+/* Search Input Wrapper - 40% */
+#access-management-view .access-filters-bar .search-input-wrapper {
+    flex: 0 0 calc(40% - 0.5rem);
+    min-width: 0;
+}
+
+#access-management-view .access-filters-bar .input-group {
+    display: flex;
+    flex-wrap: nowrap;
+    width: 100%;
+}
+
+#access-management-view .access-filters-bar .input-group-text {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.8rem;
+    background: var(--background-light);
+    border-color: var(--border-color);
+    display: flex;
+    align-items: center;
+}
+
+#access-management-view .access-filters-bar .input-group .form-control {
+    font-size: 0.81rem;
+    padding: 0.4rem 0.6rem;
+    border-color: var(--border-color);
+}
+
+/* Environment Filter - 35% */
+#access-management-view .access-filters-bar > select.form-select {
+    flex: 0 0 calc(35% - 0.5rem);
+    min-width: 0;
+    font-size: 0.81rem;
+    padding: 0.4rem 2rem 0.4rem 0.6rem;
+    border-color: var(--border-color);
+    box-sizing: border-box;
+}
+
+/* Grant Button */
+#access-management-view .access-filters-bar > .btn {
+    flex-shrink: 0;
+    font-size: 0.81rem;
+    padding: 0.4rem 0.75rem;
+}
+
+/* ============================================
+   Stats Row - Inline like dashboard metrics
+   ============================================ */
+.access-stats-row {
+    display: flex;
+    gap: 1.5rem;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.access-stat-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.81rem;
+}
+
+.access-stat-item .stat-label {
+    color: var(--text-secondary);
+}
+
+.access-stat-item .stat-value {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+/* ============================================
+   Section Headers
+   ============================================ */
+.access-section {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.access-section:first-of-type {
+    flex: 1;
+}
+
+.access-section-header {
+    padding: 0 0.75rem 0.5rem;
+}
+
+.access-section-header h5 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin: 0;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+}
+
+.access-section-header h5 .badge {
+    font-size: 0.7rem;
+}
+
+/* ============================================
+   Table Card - Like User Management
+   ============================================ */
+.access-table-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0;
+    background: var(--sidebar-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.access-table-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+.access-table-wrapper::-webkit-scrollbar {
+    width: 4px;
+}
+
+.access-table-wrapper::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+/* Pending table has max height */
+#pending-table-wrapper {
+    max-height: 250px;
+}
+
+/* ============================================
+   Table Styles
+   ============================================ */
+.access-table {
+    width: 100%;
+    margin: 0;
+}
+
+.access-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.access-table th {
+    background: var(--background-light);
+    font-size: 0.70rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-secondary);
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
+}
+
+.access-table td {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: middle;
+    font-size: 0.81rem;
+}
+
+.access-table tbody tr:hover {
+    background: var(--sidebar-hover);
+}
+
+.access-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* ============================================
+   User Cell with Avatar (same as User Mgmt)
+   ============================================ */
+.access-table .user-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.access-table .user-avatar-sm {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.access-table .user-cell .user-info {
+    min-width: 0;
+}
+
+.access-table .user-cell .user-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.81rem;
+    line-height: 1.3;
+}
+
+.access-table .user-cell .user-email {
+    font-size: 0.70rem;
+    color: var(--text-secondary);
+    line-height: 1.3;
+}
+
+/* ============================================
+   Access Level Badges
+   ============================================ */
+.access-level-badge {
+    display: inline-block;
+    font-size: 0.70rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.access-level-badge.level-admin {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger-color);
+}
+
+.access-level-badge.level-user {
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--info-color);
+}
+
+.access-level-badge.level-viewer {
+    background: rgba(100, 116, 139, 0.1);
+    color: var(--text-secondary);
+}
+
+/* ============================================
+   Justification Cell
+   ============================================ */
+.justification-cell {
+    max-width: 200px;
+}
+
+.justification-text {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ============================================
+   Pagination - Like User Management
+   ============================================ */
+.access-pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    border-top: 1px solid var(--border-color);
+    background: var(--background-light);
+    min-height: 40px;
+}
+
+.access-pagination .pagination-info {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.access-pagination .pagination-controls {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.access-pagination .pagination-controls .page-btn {
+    min-width: 28px;
+    height: 28px;
+    padding: 0 0.4rem;
+    font-size: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.access-pagination .pagination-controls .page-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ============================================
+   Action Buttons
+   ============================================ */
+.access-table .btn-sm {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.access-table .btn-group-sm .btn {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+/* ============================================
+   Modal Styles
+   ============================================ */
+#grantAccessModal .modal-header,
+#denyRequestModal .modal-header {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+#grantAccessModal .modal-title,
+#denyRequestModal .modal-title {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+#grantAccessModal .modal-body,
+#denyRequestModal .modal-body {
+    padding: 1rem;
+}
+
+#grantAccessModal .form-label,
+#denyRequestModal .form-label {
+    font-size: 0.81rem;
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+}
+
+#grantAccessModal .form-control,
+#grantAccessModal .form-select,
+#denyRequestModal .form-control {
+    font-size: 0.81rem;
+}
+
+#grantAccessModal .modal-footer,
+#denyRequestModal .modal-footer {
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+/* ============================================
+   Responsive Adjustments
+   ============================================ */
+@media (max-width: 992px) {
+    #access-management-view .access-filters-bar {
+        flex-wrap: wrap;
+    }
+
+    #access-management-view .access-filters-bar .search-input-wrapper {
+        flex: 1 1 100%;
+        margin-bottom: 0.5rem;
+    }
+
+    #access-management-view .access-filters-bar > select.form-select {
+        flex: 1 1 calc(50% - 2rem);
+    }
+
+    .access-stats-row {
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .access-stat-item {
+        flex: 0 0 auto;
+    }
+}
+
+@media (max-width: 768px) {
+    .access-table th:nth-child(3),
+    .access-table td:nth-child(3),
+    .access-table th:nth-child(5),
+    .access-table td:nth-child(5) {
+        display: none;
+    }
+
+    .justification-cell {
+        max-width: 120px;
+    }
+}
+

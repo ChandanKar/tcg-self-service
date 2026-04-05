@@ -1,0 +1,204 @@
+<!--
+  Access Management Feature Template (Admin View)
+  Note: The view is rendered dynamically by access-management.js
+  This template is kept for reference.
+-->
+
+<!-- Main View Structure (rendered by JS) -->
+<!--
+<div class="content-view" id="access-management-view">
+    <div class="content-header">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <h1>Access Management</h1>
+                <p>Grant or revoke user access to environments</p>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-outline-secondary btn-sm" id="btn-refresh-access">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="access-filters-bar">
+        <div class="search-input-wrapper">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                <input type="text" class="form-control" id="access-search"
+                       placeholder="Search by name or email...">
+            </div>
+        </div>
+        <select class="form-select form-select-sm" id="filter-environment">
+            <option value="">All Environments</option>
+        </select>
+        <button class="btn btn-primary btn-sm" id="btn-grant-access">
+            <i class="fas fa-plus me-1"></i>Grant Access
+        </button>
+    </div>
+
+    <div class="access-stats-row">
+        <div class="access-stat-item">
+            <span class="stat-label">Total Access:</span>
+            <span class="stat-value" id="stat-total">0</span>
+        </div>
+        <div class="access-stat-item">
+            <span class="stat-label">Admins:</span>
+            <span class="stat-value text-danger" id="stat-admins">0</span>
+        </div>
+        <div class="access-stat-item">
+            <span class="stat-label">Users:</span>
+            <span class="stat-value text-primary" id="stat-users">0</span>
+        </div>
+        <div class="access-stat-item">
+            <span class="stat-label">Viewers:</span>
+            <span class="stat-value text-secondary" id="stat-viewers">0</span>
+        </div>
+        <div class="access-stat-item">
+            <span class="stat-label">Pending:</span>
+            <span class="stat-value text-warning" id="stat-pending">0</span>
+        </div>
+    </div>
+
+    <div class="access-section">
+        <div class="access-section-header">
+            <h5><i class="fas fa-users me-2"></i>Environment Access: [Environment Name]</h5>
+        </div>
+        <div class="access-table-card">
+            <div class="access-table-wrapper">
+                <table class="table table-hover access-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Access Level</th>
+                            <th>Granted By</th>
+                            <th>Granted Date</th>
+                            <th>Expires</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="access-table-body">
+                    </tbody>
+                </table>
+            </div>
+            <div id="access-pagination" class="access-pagination"></div>
+        </div>
+    </div>
+
+    <div class="access-section mt-3">
+        <div class="access-section-header">
+            <h5>
+                <i class="fas fa-clock me-2"></i>Pending Access Requests
+                <span class="badge bg-warning text-dark ms-2">0</span>
+            </h5>
+        </div>
+        <div class="access-table-card">
+            <div class="access-table-wrapper" id="pending-table-wrapper">
+                <table class="table table-hover access-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Requester</th>
+                            <th>Environment</th>
+                            <th>Requested Level</th>
+                            <th>Requested</th>
+                            <th>Justification</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pending-table-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+-->
+
+<!-- Grant Access Modal -->
+<!--
+<div class="modal fade" id="grantAccessModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-user-plus me-2"></i>Grant Access</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="grant-access-form">
+                    <div class="mb-3">
+                        <label class="form-label">Environment</label>
+                        <select class="form-select" id="grant-environment" required></select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">User</label>
+                        <input type="text" class="form-control" id="grant-user-search"
+                               placeholder="Search user by email...">
+                        <select class="form-select mt-2" id="grant-user-id" required>
+                            <option value="">Select a user...</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Access Level</label>
+                        <select class="form-select" id="grant-access-level" required>
+                            <option value="VIEWER">Viewer - View only</option>
+                            <option value="USER" selected>User - Can perform operations</option>
+                            <option value="ADMIN">Admin - Full control</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Duration (optional)</label>
+                        <select class="form-select" id="grant-duration">
+                            <option value="">Permanent</option>
+                            <option value="7">7 days</option>
+                            <option value="30">30 days</option>
+                            <option value="90">90 days</option>
+                            <option value="180">180 days</option>
+                            <option value="365">1 year</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes (optional)</label>
+                        <textarea class="form-control" id="grant-notes" rows="2"
+                                  placeholder="Reason for access grant..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btn-confirm-grant">
+                    <i class="fas fa-check me-1"></i>Grant Access
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+-->
+
+<!-- Deny Request Modal -->
+<!--
+<div class="modal fade" id="denyRequestModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-times-circle me-2 text-danger"></i>Deny Request</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="deny-request-id">
+                <div class="mb-3">
+                    <label class="form-label">Reason for denial</label>
+                    <textarea class="form-control" id="deny-reason" rows="3"
+                              placeholder="Enter reason..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger btn-sm" id="btn-confirm-deny">
+                    <i class="fas fa-times me-1"></i>Deny
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+-->
+
