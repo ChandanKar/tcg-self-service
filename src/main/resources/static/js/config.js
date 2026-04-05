@@ -34,7 +34,7 @@ const Config = (function() {
             setEnvAdmin: (id) => `${API_BASE_URL}/users/${id}/env-admin`,
             deactivate: (id) => `${API_BASE_URL}/users/${id}/deactivate`,
             reactivate: (id) => `${API_BASE_URL}/users/${id}/reactivate`,
-            search: (query) => `${API_BASE_URL}/users/search?query=${encodeURIComponent(query)}`,
+            search: (query) => `${API_BASE_URL}/users/search?q=${encodeURIComponent(query)}`,
             admins: `${API_BASE_URL}/users/admins`
         },
 

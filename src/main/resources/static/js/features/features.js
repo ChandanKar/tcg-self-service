@@ -10,106 +10,19 @@ const Features = (function() {
 
     /**
      * Load Access Management view (Admin)
+     * Delegates to AccessManagement module
      */
     function loadAccessManagement() {
-        const html = `
-            <div class="content-header">
-                <h1>Access Management</h1>
-                <p>Grant or revoke user access to environments</p>
+        if (window.AccessManagement) {
+            return window.AccessManagement.load();
+        }
+        // Module not loaded
+        $('#content-area').html(`
+            <div class="alert alert-danger m-3">
+                <i class="fas fa-exclamation-circle me-2"></i>Access Management module failed to load.
+                Please refresh the page.
             </div>
-
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <input type="text" class="form-control" placeholder="Search users by name or email...">
-                </div>
-                <div class="col-md-4">
-                    <select class="form-select">
-                        <option>All Environments</option>
-                        <option>mcube-demo-env</option>
-                        <option>analytics-sandbox</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <button class="btn btn-primary w-100"><i class="fas fa-plus"></i> Grant Access</button>
-                </div>
-            </div>
-
-            <h5 class="mb-3">Environment: mcube-demo-env</h5>
-            <div class="custom-table mb-4">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>User</th>
-                            <th>Role</th>
-                            <th>Granted By</th>
-                            <th>Granted Date</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>john.doe@company.com</td>
-                            <td><span class="badge bg-primary">Owner</span></td>
-                            <td>System</td>
-                            <td>3 months ago</td>
-                            <td>-</td>
-                        </tr>
-                        <tr>
-                            <td>jane.smith@company.com</td>
-                            <td><span class="badge bg-secondary">User</span></td>
-                            <td>admin</td>
-                            <td>1 month ago</td>
-                            <td><button class="btn btn-sm btn-danger">Revoke</button></td>
-                        </tr>
-                        <tr>
-                            <td>bob.jones@company.com</td>
-                            <td><span class="badge bg-secondary">User</span></td>
-                            <td>john.doe</td>
-                            <td>2 weeks ago</td>
-                            <td><button class="btn btn-sm btn-danger">Revoke</button></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <h5 class="mb-3">Pending Access Requests (2)</h5>
-            <div class="custom-table">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>User</th>
-                            <th>Environment</th>
-                            <th>Requested</th>
-                            <th>Justification</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>alice.wang@company.com</td>
-                            <td>mcube-demo-env</td>
-                            <td>2 days ago</td>
-                            <td>Need access for feature development</td>
-                            <td>
-                                <button class="btn btn-sm btn-success me-1">Approve</button>
-                                <button class="btn btn-sm btn-danger">Deny</button>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>chris.lee@company.com</td>
-                            <td>analytics-sandbox</td>
-                            <td>1 day ago</td>
-                            <td>Testing new analytics pipeline</td>
-                            <td>
-                                <button class="btn btn-sm btn-success me-1">Approve</button>
-                                <button class="btn btn-sm btn-danger">Deny</button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        `;
-        $('#content-area').html(html);
+        `);
     }
 
     // VM Registry feature moved to js/features/vm-registry.js (VmRegistry module)

@@ -955,8 +955,6 @@ const AccessManagement = (function() {
 
 })();
 
-// Register with Features for backward compatibility
-if (window.Features) {
-    window.Features.loadAccessManagement = AccessManagement.load;
-}
+// Make AccessManagement available globally
+window.AccessManagement = AccessManagement;
 
