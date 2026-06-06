@@ -1,0 +1,56 @@
+services:
+
+  # ---------------------------------------------------------------------------
+  # MySQL 8 — production database
+  # ---------------------------------------------------------------------------
+  db:
+    image: mysql:8.0
+    container_name: vmcontrol-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-vmcontrol}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - vmcontrol-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Application — Spring Boot fat JAR
+  # Place the built JAR at deployment/app/vmcontrol-0.0.1-SNAPSHOT.jar
+  # Build it with: ./gradlew bootJar  (from project root)
+  # ---------------------------------------------------------------------------
+  app:
+    image: eclipse-temurin:17-jre-alpine
+    container_name: vmcontrol-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    volumes:
+      - ./app:/app
+    working_dir: /app
+    command: ["java", "-jar", "vmcontrol-0.0.1-SNAPSHOT.jar"]
+    networks:
+      - vmcontrol-net
+
+volumes:
+  mysql_data:
+
+networks:
+  vmcontrol-net:
+    driver: bridge

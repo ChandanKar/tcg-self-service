@@ -1,0 +1,5 @@
+# Actual env file — never commit secrets
+.env
+
+# Fat JAR dropped here before deploying
+app/*.jar

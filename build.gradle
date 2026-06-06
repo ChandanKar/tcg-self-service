@@ -40,12 +40,13 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
 	implementation 'org.flywaydb:flyway-core'
+	implementation 'org.flywaydb:flyway-mysql'
 	//implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	//implementation 'com.github.kstyrc:embedded-redis:0.6'
 	// removed Azure starter because it brings Spring Boot 4 autoconfiguration that conflicts with the project's Spring Boot 3.5.x
 	//implementation 'com.azure.spring:spring-cloud-azure-starter-active-directory'
 	runtimeOnly 'com.h2database:h2'
-	//runtimeOnly 'com.mysql:mysql-connector-j'
+	runtimeOnly 'com.mysql:mysql-connector-j'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -59,4 +60,12 @@ dependencyManagement {
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+tasks.register('deploy', Copy) {
+	group = 'deployment'
+	description = 'Builds the bootJar and copies it to deployment/app/'
+	dependsOn bootJar
+	from bootJar.outputs
+	into layout.projectDirectory.dir('deployment/app')
 }
