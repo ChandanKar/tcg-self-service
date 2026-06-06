@@ -9,14 +9,29 @@
 -->
 
 <div class="content-view" id="dashboard-view">
+    <!-- State Drift Alert Banner (TASK-015) -->
+    <div class="alert alert-warning drift-alert d-flex align-items-center mb-3" id="drift-alert"
+         role="alert" style="display: none;">
+        <i class="fas fa-exclamation-triangle me-2" aria-hidden="true"></i>
+        <div class="flex-grow-1">
+            <strong>State Drift Detected:</strong>
+            <span id="drift-count">0</span> VM(s) have unexpected state.
+        </div>
+        <a href="#" class="btn btn-sm btn-warning me-2" id="view-drift-details">
+            View Details
+        </a>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+
     <!-- Dashboard Header -->
     <div class="content-header d-flex justify-content-between align-items-start flex-shrink-0">
         <div>
             <h1>Dashboard</h1>
             <p>Overview of your environments and VMs</p>
         </div>
-        <button class="btn btn-outline-secondary btn-sm" id="btn-refresh-dashboard">
-            <i class="fas fa-sync"></i> Refresh
+        <button class="btn btn-outline-secondary btn-sm" id="btn-refresh-dashboard"
+                aria-label="Refresh dashboard" title="Refresh">
+            <i class="fas fa-sync" aria-hidden="true"></i> Refresh
         </button>
     </div>
 

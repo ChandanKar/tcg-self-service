@@ -7,8 +7,30 @@
     <!-- Back Navigation -->
     <div class="mb-3">
         <a href="#" class="text-muted" id="btn-back-to-list">
-            <i class="fas fa-arrow-left me-1"></i> Back to Environments
+            <i class="fas fa-arrow-left me-1" aria-hidden="true"></i> Back to Environments
         </a>
+    </div>
+
+    <!-- Sticky Lock Banner (TASK-005) -->
+    <div class="env-lock-banner" id="env-lock-banner" role="alert" style="display: none;">
+        <div class="lock-info">
+            <i class="fas fa-lock me-2" aria-hidden="true"></i>
+            <span>
+                <strong>Environment Locked</strong> by
+                <span id="lock-holder-name">--</span>
+                since <span id="lock-acquired-time">--</span>
+            </span>
+        </div>
+        <div class="lock-actions">
+            <button class="btn btn-sm btn-warning" id="btn-release-lock"
+                    style="display: none;" aria-label="Release lock" title="Release Lock">
+                <i class="fas fa-unlock me-1" aria-hidden="true"></i> Release Lock
+            </button>
+            <button class="btn btn-sm btn-outline-danger" id="btn-break-lock"
+                    style="display: none;" aria-label="Break lock" title="Break Lock">
+                <i class="fas fa-hammer me-1" aria-hidden="true"></i> Break Lock
+            </button>
+        </div>
     </div>
 
     <!-- Environment Header -->
@@ -16,25 +38,29 @@
         <div class="env-info">
             <h1 id="env-detail-name"><!-- Environment Name --></h1>
             <div class="env-meta">
-                <span class="me-3"><i class="fas fa-user me-1"></i> Owner: <span id="env-owner">--</span></span>
-                <span class="me-3"><i class="fas fa-calendar me-1"></i> Created: <span id="env-created">--</span></span>
+                <span class="me-3"><i class="fas fa-user me-1" aria-hidden="true"></i> Owner: <span id="env-owner">--</span></span>
+                <span class="me-3"><i class="fas fa-calendar me-1" aria-hidden="true"></i> Created: <span id="env-created">--</span></span>
                 <span id="env-lock-status-badge"></span>
             </div>
         </div>
         <div class="env-actions d-flex gap-2">
-            <button class="btn btn-outline-primary btn-sm" id="btn-refresh-env" title="Refresh">
-                <i class="fas fa-sync-alt"></i>
+            <button class="btn btn-outline-primary btn-sm" id="btn-refresh-env"
+                    aria-label="Refresh environment" title="Refresh">
+                <i class="fas fa-sync-alt" aria-hidden="true"></i>
             </button>
-            <div class="btn-group">
-                <button class="btn btn-success btn-sm" id="btn-start-all" title="Start All VMs">
-                    <i class="fas fa-play me-1"></i> Start All
+            <div class="btn-group" role="group" aria-label="Environment actions">
+                <button class="btn btn-success btn-sm" id="btn-start-all"
+                        aria-label="Start all VMs" title="Start All VMs">
+                    <i class="fas fa-play me-1" aria-hidden="true"></i> Start All
                 </button>
-                <button class="btn btn-danger btn-sm" id="btn-stop-all" title="Stop All VMs">
-                    <i class="fas fa-stop me-1"></i> Stop All
+                <button class="btn btn-danger btn-sm" id="btn-stop-all"
+                        aria-label="Stop all VMs" title="Stop All VMs">
+                    <i class="fas fa-stop me-1" aria-hidden="true"></i> Stop All
                 </button>
             </div>
-            <button class="btn btn-warning btn-sm" id="btn-toggle-lock" title="Toggle Lock">
-                <i class="fas fa-lock me-1"></i> <span id="lock-btn-text">Lock</span>
+            <button class="btn btn-warning btn-sm" id="btn-toggle-lock"
+                    aria-label="Toggle environment lock" title="Toggle Lock">
+                <i class="fas fa-lock me-1" aria-hidden="true"></i> <span id="lock-btn-text">Lock</span>
             </button>
         </div>
     </div>
@@ -60,18 +86,18 @@
     </div>
 
     <!-- Tabs -->
-    <div class="env-tabs">
-        <button class="tab-btn active" data-tab="vms">
-            <i class="fas fa-server me-1"></i> VMs
+    <div class="env-tabs" role="tablist" aria-label="Environment sections">
+        <button class="tab-btn active" data-tab="vms" role="tab" aria-selected="true" aria-controls="tab-vms">
+            <i class="fas fa-server me-1" aria-hidden="true"></i> VMs
         </button>
-        <button class="tab-btn" data-tab="activity">
-            <i class="fas fa-history me-1"></i> Activity
+        <button class="tab-btn" data-tab="activity" role="tab" aria-selected="false" aria-controls="tab-activity">
+            <i class="fas fa-history me-1" aria-hidden="true"></i> Activity
         </button>
-        <button class="tab-btn" data-tab="access">
-            <i class="fas fa-users me-1"></i> Access
+        <button class="tab-btn" data-tab="access" role="tab" aria-selected="false" aria-controls="tab-access">
+            <i class="fas fa-users me-1" aria-hidden="true"></i> Access
         </button>
-        <button class="tab-btn" data-tab="settings">
-            <i class="fas fa-cog me-1"></i> Settings
+        <button class="tab-btn" data-tab="settings" role="tab" aria-selected="false" aria-controls="tab-settings">
+            <i class="fas fa-cog me-1" aria-hidden="true"></i> Settings
         </button>
     </div>
 
@@ -131,11 +157,13 @@
                 <button class="btn btn-sm btn-success" data-action="start-group" title="Start Group">
                     <i class="fas fa-play"></i>
                 </button>
-                <button class="btn btn-sm btn-danger" data-action="stop-group" title="Stop Group">
-                    <i class="fas fa-stop"></i>
+                <button class="btn btn-sm btn-danger" data-action="stop-group"
+                        aria-label="Stop group" title="Stop Group">
+                    <i class="fas fa-stop" aria-hidden="true"></i>
                 </button>
-                <button class="btn btn-sm btn-outline-secondary" data-action="toggle-group" title="Expand/Collapse">
-                    <i class="fas fa-chevron-down"></i>
+                <button class="btn btn-sm btn-outline-secondary" data-action="toggle-group"
+                        aria-label="Expand or collapse group" title="Expand/Collapse">
+                    <i class="fas fa-chevron-down" aria-hidden="true"></i>
                 </button>
             </div>
         </div>
@@ -168,7 +196,7 @@
             <br><small class="text-muted">{{name}}</small>
         </td>
         <td>
-            <span class="vm-status">
+            <span class="vm-status" role="status" aria-label="VM status: {{statusText}}">
                 <span class="status-indicator {{statusClass}}"></span>
                 {{statusText}}
             </span>
@@ -176,26 +204,30 @@
         <td><code class="small">{{providerVmId}}</code></td>
         <td>
             <span class="badge bg-light text-dark">
-                <i class="{{providerIcon}}"></i> {{provider}}
+                <i class="{{providerIcon}}" aria-hidden="true"></i> {{provider}}
             </span>
         </td>
         <td>{{region}}</td>
         <td>
-            <div class="btn-group btn-group-sm">
+            <div class="btn-group btn-group-sm" role="group" aria-label="VM actions">
                 <button class="btn btn-success" data-action="start"
-                        {{#if isRunning}}disabled{{/if}} title="Start">
-                    <i class="fas fa-play"></i>
+                        {{#if isRunning}}disabled{{/if}}
+                        aria-label="Start VM" title="Start">
+                    <i class="fas fa-play" aria-hidden="true"></i>
                 </button>
                 <button class="btn btn-danger" data-action="stop"
-                        {{#unless isRunning}}disabled{{/unless}} title="Stop">
-                    <i class="fas fa-stop"></i>
+                        {{#unless isRunning}}disabled{{/unless}}
+                        aria-label="Stop VM" title="Stop">
+                    <i class="fas fa-stop" aria-hidden="true"></i>
                 </button>
                 <button class="btn btn-warning" data-action="restart"
-                        {{#unless isRunning}}disabled{{/unless}} title="Restart">
-                    <i class="fas fa-sync"></i>
+                        {{#unless isRunning}}disabled{{/unless}}
+                        aria-label="Restart VM" title="Restart">
+                    <i class="fas fa-sync" aria-hidden="true"></i>
                 </button>
-                <button class="btn btn-outline-secondary" data-action="details" title="Details">
-                    <i class="fas fa-info-circle"></i>
+                <button class="btn btn-outline-secondary" data-action="details"
+                        aria-label="View VM details" title="Details">
+                    <i class="fas fa-info-circle" aria-hidden="true"></i>
                 </button>
             </div>
         </td>
@@ -206,7 +238,7 @@
 <!-- No VMs State -->
 <template id="no-vms-template">
     <div class="env-empty-state">
-        <i class="fas fa-server"></i>
+        <i class="fas fa-server" aria-hidden="true"></i>
         <h4>No VMs Registered</h4>
         <p>This environment has no VMs registered yet.</p>
     </div>

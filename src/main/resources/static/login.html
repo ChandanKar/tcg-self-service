@@ -20,7 +20,7 @@
         <div class="login-card">
             <!-- Logo -->
             <div class="login-logo">
-                <img src="logo/tcg_blue_logo.png" alt="TCG Digital" class="logo-img">
+                <img src="logo/tcg_blue_logo.png" alt="TCG Digital - VM Self-Service Platform" class="logo-img">
             </div>
 
             <!-- Title -->
@@ -29,7 +29,7 @@
 
             <!-- Error Message Display -->
             <div id="errorAlert" class="alert alert-danger" role="alert" style="display: none;">
-                <i class="fas fa-exclamation-circle"></i>
+                <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
                 <span id="errorMessage"></span>
             </div>
 
@@ -38,17 +38,19 @@
                 <div class="form-group mb-2">
                     <label for="username" class="form-label">Username</label>
                     <input type="text" class="form-control" id="username" name="username"
-                           placeholder="Enter your username" required>
+                           placeholder="Enter your username" required
+                           autocomplete="username">
                 </div>
 
                 <div class="form-group mb-2">
                     <label for="password" class="form-label">Password</label>
                     <input type="password" class="form-control" id="password" name="password"
-                           placeholder="Enter your password" required>
+                           placeholder="Enter your password" required
+                           autocomplete="current-password">
                 </div>
 
                 <button type="submit" class="btn btn-primary btn-login" id="submitBtn">
-                    <i class="fas fa-sign-in-alt"></i> Sign In
+                    <i class="fas fa-sign-in-alt" aria-hidden="true"></i> Sign In
                 </button>
             </form>
 

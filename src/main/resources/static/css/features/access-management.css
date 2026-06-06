@@ -188,7 +188,7 @@
 }
 
 /* ============================================
-   Table Styles
+   Table Styles - Dashboard Baseline (uses CSS variables)
    ============================================ */
 .access-table {
     width: 100%;
@@ -202,22 +202,22 @@
 }
 
 .access-table th {
-    background: var(--background-light);
-    font-size: 0.70rem;
+    background: var(--table-header-bg, #f8fafc);
+    font-size: var(--table-header-font, 0.7rem);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.03em;
     color: var(--text-secondary);
-    padding: 0.6rem 0.75rem;
+    padding: var(--table-cell-padding, 0.28rem 0.55rem);
     border-bottom: 1px solid var(--border-color);
     white-space: nowrap;
 }
 
 .access-table td {
-    padding: 0.6rem 0.75rem;
+    padding: var(--table-cell-padding, 0.28rem 0.55rem);
     border-bottom: 1px solid var(--border-color);
     vertical-align: middle;
-    font-size: 0.81rem;
+    font-size: var(--table-body-font, 0.81rem);
 }
 
 .access-table tbody tr:hover {

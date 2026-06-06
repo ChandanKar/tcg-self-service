@@ -22,6 +22,12 @@ public interface EnvironmentLockRepository extends JpaRepository<EnvironmentLock
     Optional<EnvironmentLock> findByEnvironmentEnvironmentIdAndIsActiveTrue(String environmentId);
 
     /**
+     * Find active lock for an environment with eager fetch of environment.
+     */
+    @Query("SELECT l FROM EnvironmentLock l JOIN FETCH l.environment WHERE l.environment.environmentId = :environmentId AND l.isActive = true")
+    Optional<EnvironmentLock> findByEnvironmentIdWithEnvironment(String environmentId);
+
+    /**
      * Find active lock with pessimistic lock for concurrent access control.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)

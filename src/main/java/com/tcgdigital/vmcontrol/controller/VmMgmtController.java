@@ -5,6 +5,7 @@ import com.tcgdigital.vmcontrol.dto.VmDTO;
 import com.tcgdigital.vmcontrol.dto.VmGroupDTO;
 import com.tcgdigital.vmcontrol.model.Vm;
 import com.tcgdigital.vmcontrol.model.VmGroup;
+import com.tcgdigital.vmcontrol.service.SecurityService;
 import com.tcgdigital.vmcontrol.service.VmGroupService;
 import com.tcgdigital.vmcontrol.service.VmService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,17 +35,20 @@ public class VmMgmtController {
 
     private final VmService vmService;
     private final VmGroupService groupService;
+    private final SecurityService securityService;
 
-    public VmMgmtController(VmService vmService, VmGroupService groupService) {
+    public VmMgmtController(VmService vmService, VmGroupService groupService, SecurityService securityService) {
         this.vmService = vmService;
         this.groupService = groupService;
+        this.securityService = securityService;
     }
 
     @GetMapping
     @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "List all VMs in an environment",
-            description = "Retrieves a list of all VMs in the specified environment, grouped by their VM groups"
+            description = "Retrieves a list of all VMs in the specified environment, grouped by their VM groups. " +
+                    "Requires access to the environment."
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -54,10 +58,16 @@ public class VmMgmtController {
                             mediaType = "application/json",
                             array = @ArraySchema(schema = @Schema(implementation = VmGroupWithVmsDTO.class))
                     )
-            )
+            ),
+            @ApiResponse(responseCode = "403", description = "Access denied")
     })
     public ResponseEntity<List<VmGroupWithVmsDTO>> listVms(
             @Parameter(description = "Environment ID") @PathVariable String environmentId) {
+
+        // Check access
+        if (!securityService.hasEnvironmentAccess(environmentId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
 
         List<VmGroup> groups = groupService.getGroupsByEnvironmentId(environmentId);
         List<VmGroupWithVmsDTO> result = new ArrayList<>();
@@ -81,7 +91,7 @@ public class VmMgmtController {
     @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Get VM details",
-            description = "Retrieves detailed information about a specific VM"
+            description = "Retrieves detailed information about a specific VM. Requires access to the environment."
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -89,11 +99,17 @@ public class VmMgmtController {
                     description = "Successfully retrieved VM",
                     content = @Content(schema = @Schema(implementation = VmDTO.class))
             ),
+            @ApiResponse(responseCode = "403", description = "Access denied"),
             @ApiResponse(responseCode = "404", description = "VM not found")
     })
     public ResponseEntity<VmDTO> getVm(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Parameter(description = "VM ID") @PathVariable String vmId) {
+
+        // Check access
+        if (!securityService.hasEnvironmentAccess(environmentId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
 
         Vm vm = vmService.getVmById(vmId);
         return ResponseEntity.ok(VmDTO.fromEntity(vm));

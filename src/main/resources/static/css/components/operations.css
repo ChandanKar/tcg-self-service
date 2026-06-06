@@ -145,3 +145,177 @@
     background: #94a3b8;
 }
 
+/* ================================================
+   Operation Step Progress UI (TASK-019)
+   Shows step-by-step progress during multi-VM operations
+   ================================================ */
+.operation-steps {
+    display: flex;
+    flex-direction: column;
+}
+
+.step {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem 0;
+    position: relative;
+}
+
+/* Connector line between steps */
+.step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 48px;
+    width: 2px;
+    height: calc(100% - 32px);
+    background: var(--border-color);
+}
+
+.step.completed:not(:last-child)::after {
+    background: var(--success-color);
+}
+
+/* Step indicator circle */
+.step-indicator {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.875rem;
+    flex-shrink: 0;
+}
+
+.step.pending .step-indicator {
+    background: #f1f5f9;
+    color: var(--text-secondary);
+}
+
+.step.active .step-indicator {
+    background: var(--primary-color);
+    color: white;
+}
+
+.step.completed .step-indicator {
+    background: var(--success-color);
+    color: white;
+}
+
+.step.failed .step-indicator {
+    background: var(--danger-color);
+    color: white;
+}
+
+.step.skipped .step-indicator {
+    background: #e5e7eb;
+    color: #9ca3af;
+}
+
+/* Step content */
+.step-content {
+    flex: 1;
+    padding-top: 0.25rem;
+}
+
+.step-title {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.step-status {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.step.active .step-status {
+    color: var(--primary-color);
+}
+
+.step.failed .step-status {
+    color: var(--danger-color);
+}
+
+/* Step details (expandable) */
+.step-details {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background: #f8fafc;
+    border-radius: 4px;
+    font-size: 0.8rem;
+}
+
+.step-details ul {
+    margin: 0;
+    padding-left: 1.25rem;
+}
+
+.step-details li {
+    margin-bottom: 0.25rem;
+}
+
+/* Operation progress banner (fixed bottom) */
+.operation-banner {
+    position: fixed;
+    bottom: 0;
+    left: var(--sidebar-width);
+    right: 0;
+    background: var(--primary-color);
+    color: white;
+    padding: 0.75rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 1000;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+    transition: left 0.3s ease;
+}
+
+.sidebar.collapsed ~ .main-content ~ .operation-banner,
+.operation-banner.sidebar-collapsed {
+    left: var(--sidebar-collapsed-width);
+}
+
+.operation-banner .operation-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.operation-banner .operation-progress {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.operation-banner .progress {
+    width: 200px;
+    height: 8px;
+    background: rgba(255,255,255,0.2);
+}
+
+.operation-banner .progress-bar {
+    background: white;
+}
+
+.operation-banner .operation-count {
+    font-weight: 600;
+    min-width: 50px;
+}
+
+@media (max-width: 768px) {
+    .operation-banner {
+        left: 0;
+        padding: 0.5rem 1rem;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .operation-banner .progress {
+        width: 100px;
+    }
+}

@@ -351,3 +351,71 @@
     margin-bottom: 1rem;
 }
 
+/* ================================================
+   Sync Indicator (TASK-014)
+   Shows real-time sync status with cloud
+   ================================================ */
+.sync-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    padding: 0.25rem 0.75rem;
+    background: #f1f5f9;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.sync-indicator:hover {
+    background: #e2e8f0;
+}
+
+.sync-indicator.syncing i {
+    animation: sync-spin 1s linear infinite;
+}
+
+.sync-indicator.stale {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.sync-indicator.error {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.sync-indicator .sync-time {
+    white-space: nowrap;
+}
+
+@keyframes sync-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Hide sync time text on small screens */
+@media (max-width: 576px) {
+    .sync-indicator .sync-time {
+        display: none;
+    }
+}
+
+/* Hamburger button style */
+.hamburger-btn {
+    background: none;
+    border: none;
+    font-size: 1.25rem;
+    cursor: pointer;
+    color: #64748b;
+    padding: 0.5rem;
+    margin-right: 0.5rem;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.hamburger-btn:hover {
+    background: #f1f5f9;
+    color: var(--primary-color);
+}

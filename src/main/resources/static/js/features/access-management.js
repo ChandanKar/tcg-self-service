@@ -72,7 +72,11 @@ const AccessManagement = (function() {
             render();
         } catch (error) {
             console.error('Failed to load access management data:', error);
-            showError('Failed to load data. Please try again.');
+            if (error.status === 403) {
+                showError('Access denied. You do not have permission to manage access.');
+            } else {
+                showError('Failed to load data. Please try again.');
+            }
         }
     }
 

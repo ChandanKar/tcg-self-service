@@ -2,11 +2,47 @@
  * Table Component Styles
  */
 
+/* ================================================
+   Dashboard Baseline Table (TASK-STYLE)
+   This is the STANDARD table style for all views.
+   Apply class .table-baseline to inherit these styles.
+   ================================================ */
+.table-baseline th {
+    font-size: var(--table-header-font, 0.7rem);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: var(--table-cell-padding, 0.28rem 0.55rem);
+    background: var(--table-header-bg, #f8fafc);
+    color: #475569;
+    vertical-align: middle;
+    line-height: 1.5;
+}
+
+.table-baseline td {
+    font-size: var(--table-body-font, 0.81rem);
+    padding: var(--table-cell-padding, 0.28rem 0.55rem);
+    vertical-align: middle;
+    line-height: 1.5;
+    color: #334155;
+}
+
+.table-baseline tbody tr {
+    transition: background 0.15s ease;
+}
+
+.table-baseline tbody tr:hover {
+    background-color: #f8fafc;
+}
+
+/* ================================================
+   Custom Table (legacy - aligned to baseline)
+   ================================================ */
 .custom-table {
     background: white;
-    border-radius: 12px;
+    border-radius: var(--card-radius, 8px);
     overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.1));
 }
 
 .custom-table table {
@@ -14,16 +50,19 @@
 }
 
 .custom-table th {
-    background: #f8fafc;
+    background: var(--table-header-bg, #f8fafc);
     color: #475569;
     font-weight: 600;
-    font-size: 0.875rem;
+    font-size: var(--table-header-font, 0.7rem);
     text-transform: uppercase;
-    letter-spacing: 0.025em;
+    letter-spacing: 0.03em;
+    padding: var(--table-cell-padding, 0.28rem 0.55rem);
     border-bottom: 2px solid #e2e8f0;
 }
 
 .custom-table td {
+    font-size: var(--table-body-font, 0.81rem);
+    padding: var(--table-cell-padding, 0.28rem 0.55rem);
     vertical-align: middle;
     color: #334155;
 }
@@ -36,3 +75,81 @@
     background-color: #f8fafc;
 }
 
+/* Zebra striping */
+.custom-table tbody tr:nth-child(odd) {
+    background: #fafbfc;
+}
+
+.custom-table tbody tr:nth-child(odd):hover {
+    background-color: #f1f5f9;
+}
+
+/* ================================================
+   Responsive Stacking Tables (TASK-013)
+   Tables convert to card layout on mobile
+   ================================================ */
+@media (max-width: 992px) {
+    .table-responsive-stack {
+        display: block;
+    }
+
+    .table-responsive-stack thead {
+        display: none;
+    }
+
+    .table-responsive-stack tbody {
+        display: block;
+    }
+
+    .table-responsive-stack tbody tr {
+        display: block;
+        margin-bottom: 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 1rem;
+        background: white;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .table-responsive-stack tbody tr:hover {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .table-responsive-stack tbody td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0;
+        border: none;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .table-responsive-stack tbody td:last-child {
+        border-bottom: none;
+        padding-top: 0.75rem;
+    }
+
+    .table-responsive-stack tbody td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        flex-shrink: 0;
+        margin-right: 1rem;
+    }
+
+    /* Actions column - full width */
+    .table-responsive-stack tbody td:last-child::before {
+        display: none;
+    }
+
+    .table-responsive-stack tbody td:last-child {
+        justify-content: center;
+    }
+
+    .table-responsive-stack tbody td:last-child .btn-group {
+        width: 100%;
+        justify-content: center;
+    }
+}

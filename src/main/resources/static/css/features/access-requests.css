@@ -47,20 +47,20 @@
     padding: 0.5rem 0.75rem;
 }
 
-/* ── Table typography — dashboard baseline ── */
+/* ── Table typography — dashboard baseline (uses CSS variables) ── */
 .request-access-container .table td,
 .request-access-container .table th {
-    padding: 0.28rem 0.55rem;
-    font-size: 0.81rem;
+    padding: var(--table-cell-padding, 0.28rem 0.55rem);
+    font-size: var(--table-body-font, 0.81rem);
     vertical-align: middle;
     line-height: 1.5;
 }
 .request-access-container .table thead th {
-    font-size: 0.7rem;
+    font-size: var(--table-header-font, 0.7rem);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.03em;
-    background: #f8fafc;
+    background: var(--table-header-bg, #f8fafc);
 }
 
 /* ── Available Environments table column widths ── */

@@ -44,7 +44,11 @@ const Environments = (function() {
             bindListEvents();
         } catch (error) {
             console.error('Failed to load environments:', error);
-            showError('Failed to load environments. Please try again.');
+            if (error.status === 403) {
+                showError('You do not have access to any environments. Please request access from an administrator.');
+            } else {
+                showError('Failed to load environments. Please try again.');
+            }
         }
     }
 
@@ -92,7 +96,13 @@ const Environments = (function() {
             bindDetailEvents(env);
         } catch (error) {
             console.error('Failed to load environment:', error);
-            showError('Failed to load environment details.');
+            if (error.status === 403) {
+                showError('You do not have access to this environment. Please request access from an administrator.');
+            } else if (error.status === 404) {
+                showError('Environment not found.');
+            } else {
+                showError('Failed to load environment details.');
+            }
         }
     }
 
@@ -230,11 +240,11 @@ const Environments = (function() {
                     ${adminActions}
                 </div>
                 <div class="empty-state">
-                    <i class="fas fa-folder-open fa-3x text-muted"></i>
-                    <p class="mt-3">No environments available</p>
+                    <i class="fas fa-server fa-3x text-muted"></i>
+                    <p class="mt-3 mb-1">No environments assigned</p>
                     ${Auth.isEnvAdmin() ?
-                        '<button class="btn btn-primary" id="btn-create-env-empty"><i class="fas fa-plus"></i> Create First Environment</button>' :
-                        '<a href="#" class="btn btn-primary" data-content="request-access">Request Access</a>'
+                        '<p class="text-muted small mb-3">Create your first environment to get started.</p><button class="btn btn-primary" id="btn-create-env-empty"><i class="fas fa-plus"></i> Create First Environment</button>' :
+                        '<p class="text-muted small">You don\'t have access to any environments yet.<br>Please contact your administrator for environment access.</p>'
                     }
                 </div>
             `;
@@ -915,6 +925,31 @@ const Environments = (function() {
      *   onConfirm - function to call when user clicks confirm
      */
     function showOperationConfirm(opts) {
+        const { envId, opType, scope, note, onConfirm } = opts;
+
+        // Check lock status first - block if locked by another user
+        Locks.getStatus(envId).then(function(lockStatus) {
+            if (!Locks.canOperate(lockStatus)) {
+                const lockedBy = lockStatus.lockedByDisplayName || lockStatus.lockedByUserId || 'another user';
+                Notifications.warning(
+                    `This environment is locked by <strong>${Utils.escapeHtml(lockedBy)}</strong>. ` +
+                    `You cannot perform operations until the lock is released.`
+                );
+                return;
+            }
+
+            // Lock check passed - show confirmation dialog
+            showOperationConfirmDialog(opts);
+        }).catch(function() {
+            // If we can't check lock status, proceed anyway (backend will enforce)
+            showOperationConfirmDialog(opts);
+        });
+    }
+
+    /**
+     * Internal: Show the actual operation confirmation dialog after lock check passes
+     */
+    function showOperationConfirmDialog(opts) {
         const { envId, opType, scope, note, onConfirm } = opts;
         const isStart     = opType === 'START';
         const verb        = isStart ? 'Start' : 'Stop';

@@ -175,6 +175,69 @@ const Utils = (function() {
         return then.toLocaleDateString();
     }
 
+    /**
+     * Render a VM status badge with screen reader text (TASK-033)
+     * @param {string} status - VM status (RUNNING, STOPPED, etc.)
+     * @returns {string} - HTML for the status badge
+     */
+    function renderStatusBadge(status) {
+        const statusConfig = {
+            RUNNING: {
+                cssClass: 'running',
+                icon: 'fa-play-circle',
+                text: 'Running',
+                srText: 'VM is currently running',
+                spinning: false
+            },
+            STOPPED: {
+                cssClass: 'stopped',
+                icon: 'fa-stop-circle',
+                text: 'Stopped',
+                srText: 'VM is currently stopped',
+                spinning: false
+            },
+            STARTING: {
+                cssClass: 'starting',
+                icon: 'fa-spinner',
+                text: 'Starting...',
+                srText: 'VM is starting up',
+                spinning: true
+            },
+            STOPPING: {
+                cssClass: 'stopping',
+                icon: 'fa-spinner',
+                text: 'Stopping...',
+                srText: 'VM is shutting down',
+                spinning: true
+            },
+            ERROR: {
+                cssClass: 'error',
+                icon: 'fa-exclamation-triangle',
+                text: 'Error',
+                srText: 'VM has encountered an error',
+                spinning: false
+            },
+            UNKNOWN: {
+                cssClass: 'unknown',
+                icon: 'fa-question-circle',
+                text: 'Unknown',
+                srText: 'VM status is unknown',
+                spinning: false
+            }
+        };
+
+        const config = statusConfig[status] || statusConfig.UNKNOWN;
+        const spinClass = config.spinning ? 'fa-spin' : '';
+
+        return `
+            <span class="status-badge ${config.cssClass}" role="status">
+                <i class="fas ${config.icon} ${spinClass}" aria-hidden="true"></i>
+                <span class="status-text">${config.text}</span>
+                <span class="visually-hidden">${config.srText}</span>
+            </span>
+        `;
+    }
+
     return {
         formatDate,
         formatDuration,
@@ -187,7 +250,8 @@ const Utils = (function() {
         truncate,
         escapeHtml,
         parseQueryString,
-        formatRelativeTime
+        formatRelativeTime,
+        renderStatusBadge
     };
 })();
 

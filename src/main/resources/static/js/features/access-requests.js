@@ -69,13 +69,20 @@ const AccessRequests = (function() {
      */
     function fetchAvailableEnvironments() {
         return new Promise((resolve, reject) => {
-            // Get all environments, then filter out ones user already has access to
-            ApiClient.get(Config.API.environments.list)
+            // Use the endpoint that returns environments user doesn't have access to
+            ApiClient.get(Config.API.environments.available)
                 .done(function(environments) {
-                    // For now, return all - backend should handle filtering
                     resolve(environments || []);
                 })
-                .fail(reject);
+                .fail(function(xhr) {
+                    // Fallback: if endpoint doesn't exist, return empty
+                    if (xhr.status === 404) {
+                        console.warn('Available environments endpoint not found');
+                        resolve([]);
+                    } else {
+                        reject(xhr);
+                    }
+                });
         });
     }
 
@@ -590,8 +597,8 @@ const AccessRequests = (function() {
      */
     function submitAccessRequest(envId, accessLevel, reason) {
         ApiClient.post(Config.API.access.requestAccess(envId), {
-            requestedAccessLevel: accessLevel,
-            reason: reason
+            accessLevel: accessLevel,
+            businessJustification: reason
         })
         .done(function() {
             Modals.hide('requestAccessModal');

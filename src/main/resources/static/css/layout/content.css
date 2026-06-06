@@ -113,19 +113,20 @@
     height: 100%;
 }
 
-/* Compact table rows */
+/* Compact table rows - DASHBOARD BASELINE */
 #dashboard-view .env-table-wrapper .table td,
 #dashboard-view .env-table-wrapper .table th {
-    padding: 0.28rem 0.55rem;
-    font-size: 0.81rem;
+    padding: var(--table-cell-padding, 0.28rem 0.55rem);
+    font-size: var(--table-body-font, 0.81rem);
     vertical-align: middle;
     line-height: 1.5;
 }
 #dashboard-view .env-table-wrapper .table thead th {
-    font-size: 0.7rem;
+    font-size: var(--table-header-font, 0.7rem);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.03em;
+    background: var(--table-header-bg, #f8fafc);
 }
 
 #dashboard-view .env-table-wrapper .table thead th:nth-child(1),
@@ -212,19 +213,20 @@
     margin-bottom: 0;
     /* NO height:100% — prevents filler row from overlapping data rows */
 }
-/* Rows — match dashboard baseline */
+/* Rows — match dashboard baseline (uses CSS variables) */
 #environments-list-view .env-list-table-wrapper .table td,
 #environments-list-view .env-list-table-wrapper .table th {
-    padding: 0.28rem 0.55rem;
-    font-size: 0.81rem;
+    padding: var(--table-cell-padding, 0.28rem 0.55rem);
+    font-size: var(--table-body-font, 0.81rem);
     vertical-align: middle;
     line-height: 1.5;
 }
 #environments-list-view .env-list-table-wrapper .table thead th {
-    font-size: 0.7rem;
+    font-size: var(--table-header-font, 0.7rem);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.03em;
+    background: var(--table-header-bg, #f8fafc);
 }
 
 /* ── Column widths: Environment 40%, remaining 5 cols split equally, Actions fixed ── */
@@ -480,3 +482,47 @@
 
 /* VM Registry styles moved to css/features/vm-registry.css */
 
+/* ================================================
+   Breadcrumb Navigation (TASK-018)
+   ================================================ */
+.content-breadcrumb {
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.content-breadcrumb .breadcrumb {
+    background: none;
+    padding: 0;
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+.content-breadcrumb .breadcrumb-item a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.content-breadcrumb .breadcrumb-item a:hover {
+    color: var(--primary-color);
+}
+
+.content-breadcrumb .breadcrumb-item.active {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.content-breadcrumb .breadcrumb-item + .breadcrumb-item::before {
+    color: var(--text-secondary);
+}
+
+/* Compact breadcrumb for nested views */
+.content-breadcrumb.compact {
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.5rem;
+}
+
+.content-breadcrumb.compact .breadcrumb {
+    font-size: 0.8rem;
+}

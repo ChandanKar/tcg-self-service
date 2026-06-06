@@ -28,6 +28,54 @@
     --warning-color: #f59e0b;
     --danger-color: #ef4444;
     --info-color: #3b82f6;
+
+    /* Typography Scale (TASK-021) */
+    --font-size-xs: 0.75rem;     /* 12px - labels, hints */
+    --font-size-sm: 0.875rem;    /* 14px - body small */
+    --font-size-base: 1rem;      /* 16px - body */
+    --font-size-lg: 1.125rem;    /* 18px - emphasis */
+    --font-size-xl: 1.25rem;     /* 20px - section titles */
+    --font-size-2xl: 1.5rem;     /* 24px - page titles */
+    --font-size-3xl: 2rem;       /* 32px - hero numbers */
+
+    /* Spacing Scale (TASK-022) */
+    --space-xs: 0.25rem;   /* 4px */
+    --space-sm: 0.5rem;    /* 8px */
+    --space-md: 1rem;      /* 16px */
+    --space-lg: 1.5rem;    /* 24px */
+    --space-xl: 2rem;      /* 32px */
+    --space-2xl: 3rem;     /* 48px */
+
+    /* Dashboard Table Baseline (TASK-STYLE) */
+    --table-header-font: 0.7rem;
+    --table-body-font: 0.81rem;
+    --table-cell-padding: 0.28rem 0.55rem;
+    --table-header-bg: #f8fafc;
+
+    /* Shadow Scale */
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.2);
+
+    /* Card Standards */
+    --card-radius: 8px;
+
+    /* Status Badge Colors */
+    --status-running-bg: #dcfce7;
+    --status-running-text: #166534;
+    --status-stopped-bg: #f3f4f6;
+    --status-stopped-text: #4b5563;
+    --status-starting-bg: #dbeafe;
+    --status-starting-text: #1e40af;
+    --status-stopping-bg: #fef3c7;
+    --status-stopping-text: #92400e;
+    --status-error-bg: #fee2e2;
+    --status-error-text: #991b1b;
+    --status-unknown-bg: #f3f4f6;
+    --status-unknown-text: #4b5563;
+
+    /* Monospace Font */
+    --font-mono: 'SF Mono', 'Monaco', 'Consolas', 'Liberation Mono', monospace;
 }
 
 /* Reset & Base */
@@ -147,6 +195,75 @@ kbd + kbd {
         margin-bottom: 1rem;
     }
 }
+
+/* Skip Link for Accessibility */
+.skip-link {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    background: var(--primary-color);
+    color: white;
+    padding: 0.5rem 1rem;
+    z-index: 10000;
+    transition: top 0.3s;
+    text-decoration: none;
+    border-radius: 0 0 4px 0;
+}
+
+.skip-link:focus {
+    top: 0;
+    color: white;
+}
+
+/* Visible Focus Indicators */
+*:focus {
+    outline: none;
+}
+
+*:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+.btn:focus-visible {
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.4);
+}
+
+.metric-card:focus-within {
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+.sidebar-menu-link:focus-visible {
+    background: var(--sidebar-active);
+    outline: 2px solid var(--primary-color);
+    outline-offset: -2px;
+}
+
+.form-control:focus-visible,
+.form-select:focus-visible {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* ================================================
+   Spacing Utility Classes (TASK-032)
+   ================================================ */
+/* Gap utilities */
+.gap-action-buttons { gap: var(--space-sm, 0.5rem); }
+.gap-form-fields { gap: var(--space-md, 1rem); }
+.gap-cards { gap: var(--space-lg, 1.5rem); }
+.gap-sections { gap: var(--space-xl, 2rem); }
+
+/* Padding utilities */
+.p-card { padding: var(--space-lg, 1.5rem); }
+.p-modal-body { padding: 1.25rem; }
+.p-section { padding: var(--space-xl, 2rem) 0; }
+
+/* Margin utilities */
+.mb-form-group { margin-bottom: var(--space-md, 1rem); }
+.mb-section { margin-bottom: var(--space-xl, 2rem); }
+.mb-card { margin-bottom: var(--space-lg, 1.5rem); }
 
 /* Print styles */
 @media print {

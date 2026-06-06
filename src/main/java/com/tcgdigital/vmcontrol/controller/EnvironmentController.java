@@ -3,6 +3,7 @@ package com.tcgdigital.vmcontrol.controller;
 import com.tcgdigital.vmcontrol.dto.*;
 import com.tcgdigital.vmcontrol.model.Environment;
 import com.tcgdigital.vmcontrol.service.EnvironmentService;
+import com.tcgdigital.vmcontrol.service.SecurityService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
@@ -28,16 +29,18 @@ import java.util.List;
 public class EnvironmentController {
 
     private final EnvironmentService environmentService;
+    private final SecurityService securityService;
 
-    public EnvironmentController(EnvironmentService environmentService) {
+    public EnvironmentController(EnvironmentService environmentService, SecurityService securityService) {
         this.environmentService = environmentService;
+        this.securityService = securityService;
     }
 
     @GetMapping
     @PreAuthorize("isAuthenticated()")
     @Operation(
-            summary = "List all environments",
-            description = "Retrieves a list of all active environments with group and VM counts"
+            summary = "List environments",
+            description = "Retrieves environments the current user has access to. Admins see all environments."
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -50,12 +53,50 @@ public class EnvironmentController {
             )
     })
     public ResponseEntity<List<EnvironmentDTO>> listEnvironments(
-            @Parameter(description = "Include inactive environments")
+            @Parameter(description = "Include inactive environments (admin only)")
             @RequestParam(required = false, defaultValue = "false") boolean includeInactive) {
 
-        List<Environment> environments = includeInactive
-                ? environmentService.getAllEnvironments()
-                : environmentService.getAllActiveEnvironments();
+        List<Environment> environments;
+
+        // Admins and Env Admins see all environments
+        if (securityService.isEnvAdmin()) {
+            environments = includeInactive
+                    ? environmentService.getAllEnvironments()
+                    : environmentService.getAllActiveEnvironments();
+        } else {
+            // Regular users only see environments they have access to
+            environments = environmentService.getEnvironmentsForCurrentUser();
+        }
+
+        List<EnvironmentDTO> dtos = environments.stream()
+                .map(env -> EnvironmentDTO.fromEntityWithCounts(
+                        env,
+                        environmentService.getGroupCount(env.getEnvironmentId()),
+                        environmentService.getVmCount(env.getEnvironmentId())
+                ))
+                .toList();
+
+        return ResponseEntity.ok(dtos);
+    }
+
+    @GetMapping("/available")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "List environments available for access request",
+            description = "Retrieves active environments the current user does NOT have access to. Used for Request Access feature."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Successfully retrieved list of available environments",
+                    content = @Content(
+                            mediaType = "application/json",
+                            array = @ArraySchema(schema = @Schema(implementation = EnvironmentDTO.class))
+                    )
+            )
+    })
+    public ResponseEntity<List<EnvironmentDTO>> listAvailableEnvironments() {
+        List<Environment> environments = environmentService.getEnvironmentsWithoutAccessForCurrentUser();
 
         List<EnvironmentDTO> dtos = environments.stream()
                 .map(env -> EnvironmentDTO.fromEntityWithCounts(
@@ -72,7 +113,7 @@ public class EnvironmentController {
     @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Get environment details",
-            description = "Retrieves detailed information about a specific environment"
+            description = "Retrieves detailed information about a specific environment. User must have access."
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -80,10 +121,16 @@ public class EnvironmentController {
                     description = "Successfully retrieved environment",
                     content = @Content(schema = @Schema(implementation = EnvironmentDTO.class))
             ),
+            @ApiResponse(responseCode = "403", description = "Access denied"),
             @ApiResponse(responseCode = "404", description = "Environment not found")
     })
     public ResponseEntity<EnvironmentDTO> getEnvironment(
             @Parameter(description = "Environment ID") @PathVariable String environmentId) {
+
+        // Check access
+        if (!securityService.hasEnvironmentAccess(environmentId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
 
         Environment environment = environmentService.getEnvironmentById(environmentId);
         EnvironmentDTO dto = EnvironmentDTO.fromEntityWithCounts(
@@ -156,4 +203,3 @@ public class EnvironmentController {
         return ResponseEntity.noContent().build();
     }
 }
-

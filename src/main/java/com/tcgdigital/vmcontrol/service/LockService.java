@@ -101,13 +101,24 @@ public class LockService {
      */
     @Transactional
     public void releaseLock(String environmentId, String userId) {
-        EnvironmentLock lock = lockRepository.findByEnvironmentEnvironmentIdAndIsActiveTrue(environmentId)
-                .orElseThrow(() -> new NoActiveLockException("No active lock on environment", environmentId));
+        log.debug("Attempting to release lock on environment {} by user {}", environmentId, userId);
+        
+        EnvironmentLock lock = lockRepository.findByEnvironmentIdWithEnvironment(environmentId)
+                .orElseThrow(() -> {
+                    log.warn("No active lock found for environment {} when user {} tried to release", environmentId, userId);
+                    return new NoActiveLockException("No active lock on environment", environmentId);
+                });
+
+        log.debug("Found active lock {} held by user {}", lock.getLockId(), lock.getLockedByUserId());
 
         // Verify user holds the lock
         if (!lock.getLockedByUserId().equals(userId)) {
+            log.warn("User {} attempted to release lock held by {}", userId, lock.getLockedByUserId());
             throw new UnauthorizedException("You do not hold the lock on this environment");
         }
+
+        // Store environment name before modifying lock state
+        String environmentName = lock.getEnvironment().getName();
 
         lock.setIsActive(false);
         lock.setReleasedAt(Timestamp.from(Instant.now()));
@@ -119,7 +130,7 @@ public class LockService {
         recordLockHistory(lock, LockAction.RELEASED, userId, null);
 
         // Audit logging
-        auditService.logLockReleased(userId, environmentId, lock.getEnvironment().getName());
+        auditService.logLockReleased(userId, environmentId, environmentName);
 
         log.info("Lock released on environment {} by user {}", environmentId, userId);
     }
@@ -129,10 +140,11 @@ public class LockService {
      */
     @Transactional
     public void breakLock(String environmentId, String adminUserId, String breakReason) {
-        EnvironmentLock lock = lockRepository.findByEnvironmentEnvironmentIdAndIsActiveTrue(environmentId)
+        EnvironmentLock lock = lockRepository.findByEnvironmentIdWithEnvironment(environmentId)
                 .orElseThrow(() -> new NoActiveLockException("No active lock to break", environmentId));
 
         String originalLockHolder = lock.getLockedByUserId();
+        String environmentName = lock.getEnvironment().getName();
 
         lock.setIsActive(false);
         lock.setReleasedAt(Timestamp.from(Instant.now()));
@@ -146,7 +158,7 @@ public class LockService {
                 "Original holder: " + originalLockHolder + ". Reason: " + breakReason);
 
         // Audit logging
-        auditService.logLockBroken(adminUserId, environmentId, lock.getEnvironment().getName(),
+        auditService.logLockBroken(adminUserId, environmentId, environmentName,
                 originalLockHolder, breakReason);
 
         log.warn("Lock on environment {} broken by admin {} (was held by {}). Reason: {}",

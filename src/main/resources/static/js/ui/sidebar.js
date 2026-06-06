@@ -165,12 +165,73 @@ const Sidebar = (function() {
         $('.sidebar-menu').slideUp(200);
     }
 
+    /**
+     * Initialize keyboard navigation for sidebar (TASK-009)
+     * Allows arrow key navigation within the sidebar menu
+     */
+    function initKeyboardNav() {
+        const sidebar = document.getElementById('sidebar');
+        if (!sidebar) return;
+
+        sidebar.addEventListener('keydown', function(e) {
+            const menuLinks = Array.from(
+                sidebar.querySelectorAll('.sidebar-menu-link:not([style*="display: none"])')
+            ).filter(link => {
+                // Only include visible links
+                const parent = link.closest('.sidebar-menu');
+                return parent && parent.style.display !== 'none';
+            });
+
+            const currentIndex = menuLinks.indexOf(document.activeElement);
+            if (currentIndex === -1) return;
+
+            switch(e.key) {
+                case 'ArrowDown':
+                    e.preventDefault();
+                    const nextIndex = Math.min(currentIndex + 1, menuLinks.length - 1);
+                    menuLinks[nextIndex].focus();
+                    break;
+
+                case 'ArrowUp':
+                    e.preventDefault();
+                    const prevIndex = Math.max(currentIndex - 1, 0);
+                    menuLinks[prevIndex].focus();
+                    break;
+
+                case 'Enter':
+                case ' ':
+                    e.preventDefault();
+                    document.activeElement.click();
+                    break;
+
+                case 'Home':
+                    e.preventDefault();
+                    menuLinks[0].focus();
+                    break;
+
+                case 'End':
+                    e.preventDefault();
+                    menuLinks[menuLinks.length - 1].focus();
+                    break;
+            }
+        });
+    }
+
+    // Initialize keyboard navigation when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initKeyboardNav);
+    } else {
+        // Small delay to ensure sidebar is rendered
+        setTimeout(initKeyboardNav, 100);
+    }
+
     return {
         init,
         toggleSidebar,
         setActiveItem,
         expandSection,
-        collapseAllSections
+        collapseAllSections,
+        initKeyboardNav
     };
 })();
 

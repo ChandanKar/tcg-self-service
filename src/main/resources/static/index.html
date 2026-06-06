@@ -33,14 +33,20 @@
     <link rel="stylesheet" href="css/features/all-logs.css">
     <link rel="stylesheet" href="css/features/activity-logs.css">
     <link rel="stylesheet" href="css/features/access-requests.css">
+    <link rel="stylesheet" href="css/layout/mobile.css">
 </head>
 <body>
 
+    <!-- Skip Link for Accessibility -->
+    <a href="#mainContent" class="skip-link">Skip to main content</a>
+
     <!-- Top Navigation Bar -->
-    <nav class="top-navbar">
+    <nav class="top-navbar" role="banner">
         <div class="nav-left">
-            <i class="fas fa-bars hamburger" id="toggleSidebar"></i>
-            <img class="tcg-logo" src="logo/tcg_blue_logo.png" alt="TCG">
+            <button class="hamburger-btn" id="toggleSidebar" aria-label="Toggle sidebar menu" title="Toggle menu">
+                <i class="fas fa-bars" aria-hidden="true"></i>
+            </button>
+            <img class="tcg-logo" src="logo/tcg_blue_logo.png" alt="TCG Digital - VM Self-Service Platform">
             <div class="logo">
                 Self-Service Platform
             </div>
@@ -48,20 +54,25 @@
 
         <div class="nav-center">
             <div class="search-box position-relative">
-                <i class="fas fa-search"></i>
-                <input type="text" class="form-control" placeholder="Search environments, VMs, or groups...">
+                <i class="fas fa-search" aria-hidden="true"></i>
+                <input type="text" class="form-control" placeholder="Search environments, VMs, or groups..." aria-label="Search">
             </div>
         </div>
 
         <div class="nav-right">
-            <div class="notification-bell">
-                <i class="fas fa-bell"></i>
-                <span class="badge" id="notification-count">0</span>
+            <!-- Sync Indicator (TASK-014) -->
+            <div class="sync-indicator" id="sync-indicator" title="Last synced with cloud" role="status">
+                <i class="fas fa-sync-alt" aria-hidden="true"></i>
+                <span class="sync-time" id="sync-time">Just now</span>
             </div>
+            <button class="notification-bell" aria-label="Notifications" title="Notifications">
+                <i class="fas fa-bell" aria-hidden="true"></i>
+                <span class="badge" id="notification-count" aria-label="Notification count">0</span>
+            </button>
             <div class="user-profile">
                 <!-- User profile populated by UserMenu.js -->
                 <div class="user-profile-loading">
-                    <i class="fas fa-spinner fa-spin"></i>
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
                     <span>Loading...</span>
                 </div>
             </div>
@@ -69,59 +80,59 @@
     </nav>
 
     <!-- Sidebar -->
-    <aside class="sidebar" id="sidebar">
+    <aside class="sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
         <!-- MY WORKSPACE Section -->
-        <div class="sidebar-section">
-            <div class="sidebar-section-title collapsed" data-section="workspace">
-                <span><i class="fas fa-briefcase"></i> MY WORKSPACE</span>
-                <i class="fas fa-chevron-down toggle"></i>
+        <div class="sidebar-section" role="region" aria-labelledby="workspace-title">
+            <div class="sidebar-section-title collapsed" data-section="workspace" id="workspace-title">
+                <span><i class="fas fa-briefcase" aria-hidden="true"></i> MY WORKSPACE</span>
+                <i class="fas fa-chevron-down toggle" aria-hidden="true"></i>
             </div>
             <ul class="sidebar-menu" id="workspace-menu" style="display: none;">
                 <li class="sidebar-menu-item">
-                    <a class="sidebar-menu-link" data-panel="running">
-                        <i class="fas fa-play-circle"></i>
+                    <a class="sidebar-menu-link" data-panel="running" tabindex="0">
+                        <i class="fas fa-play-circle" aria-hidden="true"></i>
                         <span>Running</span>
-                        <span class="badge">12</span>
+                        <span class="badge" aria-label="12 running">12</span>
                     </a>
                 </li>
                 <li class="sidebar-menu-item">
-                    <a class="sidebar-menu-link" data-panel="locked">
-                        <i class="fas fa-lock"></i>
+                    <a class="sidebar-menu-link" data-panel="locked" tabindex="0">
+                        <i class="fas fa-lock" aria-hidden="true"></i>
                         <span>Locked by Me</span>
-                        <span class="badge">2</span>
+                        <span class="badge" aria-label="2 locked">2</span>
                     </a>
                 </li>
                 <li class="sidebar-menu-item">
-                    <a class="sidebar-menu-link" data-toggle="submenu" data-target="favorites-submenu">
-                        <i class="fas fa-star"></i>
+                    <a class="sidebar-menu-link" data-toggle="submenu" data-target="favorites-submenu" tabindex="0" aria-expanded="false">
+                        <i class="fas fa-star" aria-hidden="true"></i>
                         <span>Favorites</span>
-                        <span class="badge">3</span>
+                        <span class="badge" aria-label="3 favorites">3</span>
                     </a>
                     <ul class="submenu" id="favorites-submenu">
                         <li class="submenu-item" data-content="environment-detail" data-env="mcube-demo-env">
                             mcube-demo-env
-                            <button class="btn btn-primary btn-sm">View</button>
+                            <button class="btn btn-primary btn-sm" aria-label="View mcube-demo-env">View</button>
                         </li>
                         <li class="submenu-item" data-content="environment-detail" data-env="analytics-sandbox">
                             analytics-sandbox
-                            <button class="btn btn-primary btn-sm">View</button>
+                            <button class="btn btn-primary btn-sm" aria-label="View analytics-sandbox">View</button>
                         </li>
                         <li class="submenu-item" data-content="environment-detail" data-env="my-dev-env">
                             my-dev-env
-                            <button class="btn btn-primary btn-sm">View</button>
+                            <button class="btn btn-primary btn-sm" aria-label="View my-dev-env">View</button>
                         </li>
                     </ul>
                 </li>
                 <li class="sidebar-menu-item">
-                    <a class="sidebar-menu-link" data-toggle="submenu" data-target="recents-submenu">
-                        <i class="fas fa-clock"></i>
+                    <a class="sidebar-menu-link" data-toggle="submenu" data-target="recents-submenu" tabindex="0" aria-expanded="false">
+                        <i class="fas fa-clock" aria-hidden="true"></i>
                         <span>Recents</span>
-                        <span class="badge">5</span>
+                        <span class="badge" aria-label="5 recent">5</span>
                     </a>
                     <ul class="submenu" id="recents-submenu">
                         <li class="submenu-item" data-content="environment-detail" data-env="project-x-dev">
                             project-x-dev
-                            <button class="btn btn-primary btn-sm">View</button>
+                            <button class="btn btn-primary btn-sm" aria-label="View project-x-dev">View</button>
                         </li>
                         <li class="submenu-item" data-content="environment-detail" data-env="data-pipeline-test">
                             data-pipeline-test
@@ -137,7 +148,7 @@
                         </li>
                         <li class="submenu-item" data-content="environment-detail" data-env="integration-test">
                             integration-test
-                            <button class="btn btn-primary btn-sm">View</button>
+                            <button class="btn btn-primary btn-sm" aria-label="View integration-test">View</button>
                         </li>
                     </ul>
                 </li>
@@ -145,40 +156,40 @@
         </div>
 
         <!-- OPERATIONS Section -->
-        <div class="sidebar-section">
-            <div class="sidebar-section-title" data-section="operations">
-                <span><i class="fas fa-cogs"></i> OPERATIONS</span>
-                <i class="fas fa-chevron-down toggle"></i>
+        <div class="sidebar-section" role="region" aria-labelledby="operations-title">
+            <div class="sidebar-section-title" data-section="operations" id="operations-title">
+                <span><i class="fas fa-cogs" aria-hidden="true"></i> OPERATIONS</span>
+                <i class="fas fa-chevron-down toggle" aria-hidden="true"></i>
             </div>
             <ul class="sidebar-menu" id="operations-menu">
                 <li class="sidebar-menu-item">
-                    <a class="sidebar-menu-link active" data-content="dashboard">
-                        <i class="fas fa-chart-pie"></i>
+                    <a class="sidebar-menu-link active" data-content="dashboard" tabindex="0">
+                        <i class="fas fa-chart-pie" aria-hidden="true"></i>
                         <span>Dashboard</span>
                     </a>
                 </li>
                 <li class="sidebar-menu-item">
-                    <a class="sidebar-menu-link" data-content="my-environments">
-                        <i class="fas fa-folder-open"></i>
+                    <a class="sidebar-menu-link" data-content="my-environments" tabindex="0">
+                        <i class="fas fa-folder-open" aria-hidden="true"></i>
                         <span>My Environments</span>
                     </a>
                 </li>
                 <li class="sidebar-menu-item">
-                    <a class="sidebar-menu-link" data-content="request-access">
-                        <i class="fas fa-paper-plane"></i>
+                    <a class="sidebar-menu-link" data-content="request-access" tabindex="0">
+                        <i class="fas fa-paper-plane" aria-hidden="true"></i>
                         <span>Request Access</span>
                     </a>
                 </li>
                 <li class="sidebar-menu-item env-admin-only" id="pending-requests-link" style="display: none;">
-                    <a class="sidebar-menu-link" data-content="pending-requests">
-                        <i class="fas fa-inbox"></i>
+                    <a class="sidebar-menu-link" data-content="pending-requests" tabindex="0">
+                        <i class="fas fa-inbox" aria-hidden="true"></i>
                         <span>Pending Requests</span>
-                        <span class="badge pending-count" style="display: none;">0</span>
+                        <span class="badge pending-count" style="display: none;" aria-label="Pending requests count">0</span>
                     </a>
                 </li>
                 <li class="sidebar-menu-item">
-                    <a class="sidebar-menu-link" data-content="activity-logs">
-                        <i class="fas fa-clipboard-list"></i>
+                    <a class="sidebar-menu-link" data-content="activity-logs" tabindex="0">
+                        <i class="fas fa-clipboard-list" aria-hidden="true"></i>
                         <span>Activity Logs</span>
                     </a>
                 </li>
@@ -186,51 +197,51 @@
         </div>
 
         <!-- ADMIN Section (Admin/Env Admin Only) -->
-        <div class="sidebar-section admin-only" id="admin-section" style="display: none;">
-            <div class="sidebar-section-title collapsed" data-section="admin">
-                <span><i class="fas fa-user-shield"></i> ADMIN</span>
-                <i class="fas fa-chevron-down toggle"></i>
+        <div class="sidebar-section admin-only" id="admin-section" style="display: none;" role="region" aria-labelledby="admin-title">
+            <div class="sidebar-section-title collapsed" data-section="admin" id="admin-title">
+                <span><i class="fas fa-user-shield" aria-hidden="true"></i> ADMIN</span>
+                <i class="fas fa-chevron-down toggle" aria-hidden="true"></i>
             </div>
             <ul class="sidebar-menu" id="admin-menu" style="display: none;">
                 <li class="sidebar-menu-item admin-only" id="user-management-link">
-                    <a class="sidebar-menu-link" data-content="user-management">
-                        <i class="fas fa-users"></i>
+                    <a class="sidebar-menu-link" data-content="user-management" tabindex="0">
+                        <i class="fas fa-users" aria-hidden="true"></i>
                         <span>User Management</span>
                     </a>
                 </li>
                 <li class="sidebar-menu-item env-admin-only">
-                    <a class="sidebar-menu-link" data-content="access-management">
-                        <i class="fas fa-users-cog"></i>
+                    <a class="sidebar-menu-link" data-content="access-management" tabindex="0">
+                        <i class="fas fa-users-cog" aria-hidden="true"></i>
                         <span>Access Management</span>
                     </a>
                 </li>
                 <li class="sidebar-menu-item env-admin-only">
-                    <a class="sidebar-menu-link" data-content="vm-registry">
-                        <i class="fas fa-database"></i>
+                    <a class="sidebar-menu-link" data-content="vm-registry" tabindex="0">
+                        <i class="fas fa-database" aria-hidden="true"></i>
                         <span>VM Registry</span>
                     </a>
                 </li>
                 <li class="sidebar-menu-item env-admin-only">
-                    <a class="sidebar-menu-link" data-content="automation-rules">
-                        <i class="fas fa-clock"></i>
+                    <a class="sidebar-menu-link" data-content="automation-rules" tabindex="0">
+                        <i class="fas fa-clock" aria-hidden="true"></i>
                         <span>Automation Rules</span>
                     </a>
                 </li>
                 <li class="sidebar-menu-item env-admin-only">
-                    <a class="sidebar-menu-link" data-content="audit-logs-all">
-                        <i class="fas fa-file-alt"></i>
+                    <a class="sidebar-menu-link" data-content="audit-logs-all" tabindex="0">
+                        <i class="fas fa-file-alt" aria-hidden="true"></i>
                         <span>Audit Logs (All)</span>
                     </a>
                 </li>
                 <li class="sidebar-menu-item">
-                    <a class="sidebar-menu-link" data-content="cost-management">
-                        <i class="fas fa-dollar-sign"></i>
+                    <a class="sidebar-menu-link" data-content="cost-management" tabindex="0">
+                        <i class="fas fa-dollar-sign" aria-hidden="true"></i>
                         <span>Cost Management</span>
                     </a>
                 </li>
                 <li class="sidebar-menu-item">
-                    <a class="sidebar-menu-link" data-content="system-health">
-                        <i class="fas fa-heartbeat"></i>
+                    <a class="sidebar-menu-link" data-content="system-health" tabindex="0">
+                        <i class="fas fa-heartbeat" aria-hidden="true"></i>
                         <span>System Health</span>
                     </a>
                 </li>
@@ -241,14 +252,14 @@
         <div class="sidebar-bottom">
             <ul class="sidebar-menu">
                 <li class="sidebar-menu-item">
-                    <a class="sidebar-menu-link" data-content="settings">
-                        <i class="fas fa-cog"></i>
+                    <a class="sidebar-menu-link" data-content="settings" tabindex="0">
+                        <i class="fas fa-cog" aria-hidden="true"></i>
                         <span>Settings</span>
                     </a>
                 </li>
                 <li class="sidebar-menu-item">
-                    <a class="sidebar-menu-link" data-content="help">
-                        <i class="fas fa-question-circle"></i>
+                    <a class="sidebar-menu-link" data-content="help" tabindex="0">
+                        <i class="fas fa-question-circle" aria-hidden="true"></i>
                         <span>Help & Docs</span>
                     </a>
                 </li>
@@ -600,12 +611,104 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-primary" id="btnSubmitVm" onclick="Features.submitVm()">
-                        <i class="fas fa-save"></i> Register VM
+                        <i class="fas fa-save" aria-hidden="true"></i> Register VM
                     </button>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- Destructive Confirm Modal (TASK-004) -->
+    <div class="modal fade" id="destructiveConfirmModal" tabindex="-1"
+         aria-labelledby="destructiveConfirmTitle">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="destructiveConfirmTitle">
+                        <i class="fas fa-exclamation-triangle me-2" aria-hidden="true"></i>
+                        Confirm Action
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white"
+                            data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="destructive-message">Are you sure?</p>
+                    <div class="alert alert-warning" id="destructive-impact">
+                        <strong>Impact:</strong>
+                        <ul class="mb-0 mt-2" id="impact-list"></ul>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">
+                            Type "<strong id="confirm-text-required"></strong>" to confirm:
+                        </label>
+                        <input type="text" class="form-control" id="confirm-text-input"
+                               autocomplete="off" aria-describedby="confirm-text-error">
+                        <div class="form-text text-danger" id="confirm-text-error"
+                             style="display: none;">
+                            Text does not match. Please try again.
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        Cancel
+                    </button>
+                    <button type="button" class="btn btn-danger" id="btn-destructive-confirm"
+                            disabled>
+                        <span id="destructive-action-text">Confirm</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Overlay (for sidebar) -->
+    <div class="mobile-overlay" id="mobile-overlay"></div>
+
+    <!-- Mobile Bottom Navigation (TASK-011) -->
+    <nav class="mobile-nav" id="mobile-nav" aria-label="Mobile navigation">
+        <a href="#" class="mobile-nav-item active" data-content="dashboard">
+            <i class="fas fa-chart-pie" aria-hidden="true"></i>
+            <span>Dashboard</span>
+        </a>
+        <a href="#" class="mobile-nav-item" data-content="my-environments">
+            <i class="fas fa-folder-open" aria-hidden="true"></i>
+            <span>Environments</span>
+        </a>
+        <a href="#" class="mobile-nav-item" data-content="activity-logs">
+            <i class="fas fa-clipboard-list" aria-hidden="true"></i>
+            <span>Activity</span>
+        </a>
+        <a href="#" class="mobile-nav-item" data-action="toggle-mobile-menu">
+            <i class="fas fa-bars" aria-hidden="true"></i>
+            <span>More</span>
+        </a>
+    </nav>
+
+    <!-- Operation Progress Banner (TASK-026) -->
+    <div class="operation-banner" id="operation-banner" style="display: none;" role="status" aria-live="polite">
+        <div class="operation-info">
+            <i class="fas fa-cog fa-spin me-2" aria-hidden="true"></i>
+            <span id="operation-description">Processing...</span>
+        </div>
+        <div class="operation-progress">
+            <div class="progress" style="width: 200px; height: 8px;">
+                <div class="progress-bar" id="operation-progress-bar"
+                     role="progressbar" style="width: 0%"
+                     aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                </div>
+            </div>
+            <span class="operation-count" id="operation-count">0/0</span>
+        </div>
+        <button class="btn btn-sm btn-outline-light" id="view-operation-details"
+                aria-label="View operation details">
+            Details
+        </button>
+    </div>
+
+    <!-- Toast Container for Notifications -->
+    <div id="toast-container" class="toast-container position-fixed bottom-0 end-0 p-3"
+         aria-live="polite" aria-atomic="true"></div>
 
     <!-- jQuery (CDN) -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -628,6 +731,7 @@
     <script src="js/ui/user-menu.js"></script>
     <script src="js/ui/modals.js"></script>
     <script src="js/ui/loading.js"></script>
+    <script src="js/ui/forms.js"></script>
     <script src="js/features/dashboard.js"></script>
     <script src="js/features/environments.js"></script>
     <script src="js/features/vm-operations.js"></script>

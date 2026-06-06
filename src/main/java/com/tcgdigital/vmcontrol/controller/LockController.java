@@ -3,6 +3,7 @@ package com.tcgdigital.vmcontrol.controller;
 import com.tcgdigital.vmcontrol.dto.*;
 import com.tcgdigital.vmcontrol.model.EnvironmentLock;
 import com.tcgdigital.vmcontrol.model.LockHistory;
+import com.tcgdigital.vmcontrol.model.User;
 import com.tcgdigital.vmcontrol.service.LockService;
 import com.tcgdigital.vmcontrol.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -56,7 +57,8 @@ public class LockController {
         Optional<EnvironmentLock> lock = lockService.getCurrentLock(environmentId);
 
         if (lock.isPresent()) {
-            return ResponseEntity.ok(LockStatusDTO.fromEntity(lock.get()));
+            String displayName = resolveDisplayName(lock.get().getLockedByUserId());
+            return ResponseEntity.ok(LockStatusDTO.fromEntity(lock.get(), displayName));
         } else {
             return ResponseEntity.ok(LockStatusDTO.noLock());
         }
@@ -85,7 +87,8 @@ public class LockController {
         Integer duration = dto != null ? dto.getExpectedDurationMinutes() : null;
 
         EnvironmentLock lock = lockService.acquireLock(environmentId, effectiveUserId, reason, duration);
-        return ResponseEntity.ok(LockStatusDTO.fromEntity(lock));
+        String displayName = resolveDisplayName(lock.getLockedByUserId());
+        return ResponseEntity.ok(LockStatusDTO.fromEntity(lock, displayName));
     }
 
     @PostMapping("/release")
@@ -149,10 +152,26 @@ public class LockController {
 
         List<LockHistory> history = lockService.getLockHistory(environmentId);
         List<LockHistoryDTO> dtos = history.stream()
-                .map(LockHistoryDTO::fromEntity)
+                .map(h -> {
+                    String displayName = resolveDisplayName(h.getPerformedByUserId());
+                    return LockHistoryDTO.fromEntity(h, displayName);
+                })
                 .toList();
 
         return ResponseEntity.ok(dtos);
     }
-}
 
+    /**
+     * Resolve user display name from user ID.
+     * Returns the user ID if display name cannot be resolved.
+     */
+    private String resolveDisplayName(String userId) {
+        try {
+            User user = userService.getUserById(userId);
+            return user.getDisplayName() != null ? user.getDisplayName() : userId;
+        } catch (Exception e) {
+            // User might have been deleted or not found
+            return userId;
+        }
+    }
+}

@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tcgdigital.vmcontrol.model.ExecutionStatus;
 import com.tcgdigital.vmcontrol.model.OperationExecution;
 import com.tcgdigital.vmcontrol.model.OperationType;
@@ -18,6 +19,7 @@ public class OperationExecutionDTO {
     private OperationType operationType;
     private ExecutionStatus status;
     private String initiatedByUserId;
+    private String initiatedByDisplayName;
     private Timestamp startedAt;
     private Timestamp completedAt;
     private String errorMessage;
@@ -57,6 +59,15 @@ public class OperationExecutionDTO {
         return dto;
     }
 
+    /**
+     * Create DTO from entity with user display name.
+     */
+    public static OperationExecutionDTO fromEntity(OperationExecution execution, String displayName) {
+        OperationExecutionDTO dto = fromEntity(execution);
+        dto.setInitiatedByDisplayName(displayName);
+        return dto;
+    }
+
     public static OperationExecutionDTO fromEntityWithDetails(OperationExecution execution) {
         OperationExecutionDTO dto = fromEntity(execution);
         if (execution.getDetails() != null) {
@@ -64,6 +75,15 @@ public class OperationExecutionDTO {
                     .map(OperationDetailDTO::fromEntity)
                     .toList());
         }
+        return dto;
+    }
+
+    /**
+     * Create DTO from entity with details and user display name.
+     */
+    public static OperationExecutionDTO fromEntityWithDetails(OperationExecution execution, String displayName) {
+        OperationExecutionDTO dto = fromEntityWithDetails(execution);
+        dto.setInitiatedByDisplayName(displayName);
         return dto;
     }
 
@@ -116,12 +136,36 @@ public class OperationExecutionDTO {
         this.initiatedByUserId = initiatedByUserId;
     }
 
+    /**
+     * Alias for initiatedByUserId for frontend compatibility.
+     */
+    @JsonProperty("initiatedBy")
+    public String getInitiatedBy() {
+        return initiatedByUserId;
+    }
+
+    public String getInitiatedByDisplayName() {
+        return initiatedByDisplayName;
+    }
+
+    public void setInitiatedByDisplayName(String initiatedByDisplayName) {
+        this.initiatedByDisplayName = initiatedByDisplayName;
+    }
+
     public Timestamp getStartedAt() {
         return startedAt;
     }
 
     public void setStartedAt(Timestamp startedAt) {
         this.startedAt = startedAt;
+    }
+
+    /**
+     * Alias for startedAt for frontend compatibility (uses createdAt in history display).
+     */
+    @JsonProperty("createdAt")
+    public Timestamp getCreatedAt() {
+        return startedAt;
     }
 
     public Timestamp getCompletedAt() {

@@ -57,6 +57,7 @@ const Config = (function() {
         // Environments
         environments: {
             list: `${API_BASE_URL}/environments`,
+            available: `${API_BASE_URL}/environments/available`,
             get: (id) => `${API_BASE_URL}/environments/${id}`,
             create: `${API_BASE_URL}/environments`,
             update: (id) => `${API_BASE_URL}/environments/${id}`,
@@ -179,6 +180,65 @@ const Config = (function() {
         }
     };
 
+    // VM Status Badge Configuration (TASK-025)
+    // Used for rendering status badges with icons and animations
+    const VM_STATUS_CONFIG = {
+        RUNNING: {
+            cssClass: 'running',
+            icon: 'fa-play-circle',
+            text: 'Running',
+            spinning: false
+        },
+        STOPPED: {
+            cssClass: 'stopped',
+            icon: 'fa-stop-circle',
+            text: 'Stopped',
+            spinning: false
+        },
+        STARTING: {
+            cssClass: 'starting',
+            icon: 'fa-spinner',
+            text: 'Starting...',
+            spinning: true
+        },
+        STOPPING: {
+            cssClass: 'stopping',
+            icon: 'fa-spinner',
+            text: 'Stopping...',
+            spinning: true
+        },
+        ERROR: {
+            cssClass: 'error',
+            icon: 'fa-exclamation-triangle',
+            text: 'Error',
+            spinning: false
+        },
+        UNKNOWN: {
+            cssClass: 'unknown',
+            icon: 'fa-question-circle',
+            text: 'Unknown',
+            spinning: false
+        }
+    };
+
+    /**
+     * Render a VM status badge HTML
+     * @param {string} status - VM status (RUNNING, STOPPED, etc.)
+     * @returns {string} - HTML for the status badge
+     */
+    function renderStatusBadge(status) {
+        const config = VM_STATUS_CONFIG[status] || VM_STATUS_CONFIG.UNKNOWN;
+        const spinClass = config.spinning ? 'fa-spin' : '';
+
+        return `
+            <span class="status-badge ${config.cssClass}" role="status"
+                  aria-label="VM status: ${config.text}">
+                <i class="fas ${config.icon} ${spinClass}" aria-hidden="true"></i>
+                <span class="status-text">${config.text}</span>
+            </span>
+        `;
+    }
+
     // Cloud provider icons
     const CLOUD_ICONS = {
         AWS: { icon: 'fab fa-aws', color: '#FF9900', label: 'AWS' },
@@ -212,6 +272,8 @@ const Config = (function() {
         API,
         UI,
         STATUS,
+        VM_STATUS_CONFIG,
+        renderStatusBadge,
         CLOUD_ICONS,
         ACCESS_LEVELS,
         AWS_REGIONS

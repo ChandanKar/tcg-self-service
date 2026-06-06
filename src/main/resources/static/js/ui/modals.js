@@ -7,6 +7,69 @@ const Modals = (function() {
     'use strict';
 
     /**
+     * Trap focus within a modal for accessibility (TASK-007)
+     * @param {HTMLElement} modal - The modal element
+     * @returns {function} Cleanup function to remove event listener
+     */
+    function trapFocus(modal) {
+        const focusableSelectors = [
+            'button:not([disabled])',
+            '[href]',
+            'input:not([disabled])',
+            'select:not([disabled])',
+            'textarea:not([disabled])',
+            '[tabindex]:not([tabindex="-1"])'
+        ].join(', ');
+
+        function handleKeydown(e) {
+            const focusableElements = modal.querySelectorAll(focusableSelectors);
+            const firstElement = focusableElements[0];
+            const lastElement = focusableElements[focusableElements.length - 1];
+
+            if (e.key === 'Tab') {
+                if (e.shiftKey && document.activeElement === firstElement) {
+                    e.preventDefault();
+                    lastElement.focus();
+                } else if (!e.shiftKey && document.activeElement === lastElement) {
+                    e.preventDefault();
+                    firstElement.focus();
+                }
+            }
+
+            if (e.key === 'Escape') {
+                const bsModal = bootstrap.Modal.getInstance(modal);
+                if (bsModal) bsModal.hide();
+            }
+        }
+
+        modal.addEventListener('keydown', handleKeydown);
+
+        // Focus first element when modal is shown
+        modal.addEventListener('shown.bs.modal', function() {
+            const focusableElements = modal.querySelectorAll(focusableSelectors);
+            if (focusableElements.length > 0) {
+                focusableElements[0].focus();
+            }
+        }, { once: true });
+
+        return () => modal.removeEventListener('keydown', handleKeydown);
+    }
+
+    /**
+     * Initialize focus trapping for all modals on the page
+     */
+    function initFocusTraps() {
+        document.querySelectorAll('.modal').forEach(modal => trapFocus(modal));
+    }
+
+    // Initialize focus traps when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initFocusTraps);
+    } else {
+        initFocusTraps();
+    }
+
+    /**
      * Show a modal dialog
      * @param {object} options - Modal options
      * @param {string} options.id - Modal ID
@@ -621,6 +684,154 @@ const Modals = (function() {
         showEditEnvironment,
         showCreateGroup,
         showRegisterVm
+    };
+})();
+
+
+/**
+ * Destructive Confirm Modal (TASK-004)
+ * Type-to-confirm modal for destructive actions like Stop All, Delete, Break Lock
+ */
+const DestructiveConfirm = (function() {
+    'use strict';
+
+    let currentCallback = null;
+
+    /**
+     * Show a destructive confirmation modal
+     * @param {object} options - Configuration options
+     * @param {string} options.title - Modal title
+     * @param {string} options.message - Description of what will happen
+     * @param {array} options.impact - List of impact items to display
+     * @param {string} options.confirmText - Text user must type to confirm
+     * @param {string} options.actionText - Button text for confirm action
+     * @param {function} options.onConfirm - Callback when confirmed
+     */
+    function show(options) {
+        const { title, message, impact = [], confirmText, actionText, onConfirm } = options;
+
+        // Update modal content
+        document.getElementById('destructiveConfirmTitle').innerHTML =
+            `<i class="fas fa-exclamation-triangle me-2" aria-hidden="true"></i>${title}`;
+        document.getElementById('destructive-message').textContent = message;
+        document.getElementById('confirm-text-required').textContent = confirmText;
+        document.getElementById('destructive-action-text').textContent = actionText;
+
+        // Populate impact list
+        const impactList = document.getElementById('impact-list');
+        impactList.innerHTML = impact.map(i => `<li>${i}</li>`).join('');
+
+        // Show/hide impact section
+        document.getElementById('destructive-impact').style.display =
+            impact.length > 0 ? 'block' : 'none';
+
+        // Reset input and button
+        const input = document.getElementById('confirm-text-input');
+        const confirmBtn = document.getElementById('btn-destructive-confirm');
+        const errorDiv = document.getElementById('confirm-text-error');
+
+        input.value = '';
+        confirmBtn.disabled = true;
+        errorDiv.style.display = 'none';
+
+        // Store callback
+        currentCallback = onConfirm;
+
+        // Remove old event listener and add new one
+        const newInput = input.cloneNode(true);
+        input.parentNode.replaceChild(newInput, input);
+
+        newInput.addEventListener('input', function() {
+            const matches = this.value === confirmText;
+            confirmBtn.disabled = !matches;
+            errorDiv.style.display = (this.value && !matches) ? 'block' : 'none';
+        });
+
+        // Handle confirm button click
+        confirmBtn.onclick = function() {
+            const inputVal = document.getElementById('confirm-text-input').value;
+            if (inputVal === confirmText && currentCallback) {
+                // Hide modal
+                const modalEl = document.getElementById('destructiveConfirmModal');
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) modal.hide();
+
+                // Execute callback
+                currentCallback();
+                currentCallback = null;
+            }
+        };
+
+        // Show modal
+        const modalEl = document.getElementById('destructiveConfirmModal');
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+
+        // Focus on input when modal is shown
+        modalEl.addEventListener('shown.bs.modal', function() {
+            document.getElementById('confirm-text-input').focus();
+        }, { once: true });
+    }
+
+    /**
+     * Convenience method for Stop All VMs
+     */
+    function confirmStopAll(environmentName, vmCount, onConfirm) {
+        show({
+            title: 'Stop All VMs',
+            message: `This will stop all VMs in "${environmentName}".`,
+            impact: [
+                `${vmCount} VM(s) will be stopped`,
+                'Running applications will be interrupted',
+                'This action cannot be undone automatically'
+            ],
+            confirmText: environmentName,
+            actionText: 'Stop All VMs',
+            onConfirm
+        });
+    }
+
+    /**
+     * Convenience method for Break Lock
+     */
+    function confirmBreakLock(environmentName, lockHolder, onConfirm) {
+        show({
+            title: 'Break Lock',
+            message: `This will forcibly break the lock on "${environmentName}".`,
+            impact: [
+                `Lock held by ${lockHolder} will be released`,
+                'Any in-progress operations may be interrupted',
+                'The lock holder will be notified'
+            ],
+            confirmText: environmentName,
+            actionText: 'Break Lock',
+            onConfirm
+        });
+    }
+
+    /**
+     * Convenience method for Delete Environment
+     */
+    function confirmDeleteEnvironment(environmentName, vmCount, onConfirm) {
+        show({
+            title: 'Delete Environment',
+            message: `This will permanently delete "${environmentName}".`,
+            impact: [
+                `${vmCount} VM(s) will be unregistered`,
+                'All access permissions will be removed',
+                'This action cannot be undone'
+            ],
+            confirmText: environmentName,
+            actionText: 'Delete Environment',
+            onConfirm
+        });
+    }
+
+    return {
+        show,
+        confirmStopAll,
+        confirmBreakLock,
+        confirmDeleteEnvironment
     };
 })();
 

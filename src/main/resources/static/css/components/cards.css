@@ -94,3 +94,72 @@
     color: #10b981;
 }
 
+/* ================================================
+   Primary/Secondary Metric Card Variants (TASK-023)
+   ================================================ */
+.metric-card.primary {
+    border-left: 4px solid var(--primary-color);
+    background: linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%);
+}
+
+.metric-card.primary:hover {
+    border-left-color: var(--primary-dark);
+}
+
+.metric-card.secondary {
+    border-left: 4px solid var(--border-color);
+}
+
+.metric-card.success {
+    border-left: 4px solid var(--success-color);
+}
+
+.metric-card.warning {
+    border-left: 4px solid var(--warning-color);
+}
+
+.metric-card.danger {
+    border-left: 4px solid var(--danger-color);
+}
+
+/* ================================================
+   Responsive Cards Grid (TASK-028)
+   ================================================ */
+.metric-cards-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-md, 1rem);
+    margin-bottom: var(--space-lg, 1.5rem);
+}
+
+.metric-cards-row .metric-card {
+    flex: 1;
+    min-width: 150px;
+}
+
+@media (max-width: 576px) {
+    .metric-cards-row {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+    }
+
+    .metric-cards-row .metric-card {
+        min-width: 0;
+        padding: 1rem;
+    }
+
+    .metric-cards-row .metric-card .metric-value {
+        font-size: 1.5rem;
+    }
+
+    .metric-cards-row .metric-card .metric-label-hint {
+        font-size: 0.7rem;
+    }
+}
+
+@media (max-width: 400px) {
+    .metric-cards-row {
+        grid-template-columns: 1fr;
+    }
+}

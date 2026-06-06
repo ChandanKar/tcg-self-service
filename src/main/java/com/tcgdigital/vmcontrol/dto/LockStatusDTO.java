@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tcgdigital.vmcontrol.model.EnvironmentLock;
 
 import java.sql.Timestamp;
@@ -13,6 +14,7 @@ public class LockStatusDTO {
     private String lockId;
     private String environmentId;
     private String lockedByUserId;
+    private String lockedByDisplayName;
     private Timestamp lockedAt;
     private String lockReason;
     private Integer expectedDurationMinutes;
@@ -38,7 +40,22 @@ public class LockStatusDTO {
         return dto;
     }
 
+    /**
+     * Create DTO from entity with display name.
+     */
+    public static LockStatusDTO fromEntity(EnvironmentLock lock, String displayName) {
+        LockStatusDTO dto = fromEntity(lock);
+        dto.setLockedByDisplayName(displayName);
+        return dto;
+    }
+
     // Getters and Setters
+
+    /**
+     * Whether the environment is locked.
+     * Uses @JsonProperty to serialize as "isLocked" for frontend compatibility.
+     */
+    @JsonProperty("isLocked")
     public boolean isLocked() {
         return locked;
     }
@@ -71,6 +88,14 @@ public class LockStatusDTO {
         this.lockedByUserId = lockedByUserId;
     }
 
+    public String getLockedByDisplayName() {
+        return lockedByDisplayName;
+    }
+
+    public void setLockedByDisplayName(String lockedByDisplayName) {
+        this.lockedByDisplayName = lockedByDisplayName;
+    }
+
     public Timestamp getLockedAt() {
         return lockedAt;
     }
@@ -95,4 +120,3 @@ public class LockStatusDTO {
         this.expectedDurationMinutes = expectedDurationMinutes;
     }
 }
-

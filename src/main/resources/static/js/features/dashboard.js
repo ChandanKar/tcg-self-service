@@ -42,7 +42,11 @@ const Dashboard = (function() {
 
         } catch (error) {
             console.error('Failed to load dashboard:', error);
-            showError('Failed to load dashboard data. Please try again.');
+            if (error.status === 403) {
+                showError('You do not have access to any environments. Please request access from an administrator.');
+            } else {
+                showError('Failed to load dashboard data. Please try again.');
+            }
         }
     }
 
@@ -342,12 +346,9 @@ const Dashboard = (function() {
                 <div class="metric-card env-table-card">
                     <h5 class="mb-3">My Environments</h5>
                     <div class="empty-state">
-                        <i class="fas fa-folder-open fa-3x text-muted"></i>
-                        <p class="mt-3">No environments available</p>
-                        <p class="text-muted">Request access to environments to get started</p>
-                        <a href="#" class="btn btn-primary" data-content="request-access">
-                            <i class="fas fa-paper-plane"></i> Request Access
-                        </a>
+                        <i class="fas fa-server fa-3x text-muted"></i>
+                        <p class="mt-3 mb-1">No environments assigned</p>
+                        <p class="text-muted small">You don't have access to any environments yet.<br>Please contact your administrator for environment access.</p>
                     </div>
                 </div>
             `;
