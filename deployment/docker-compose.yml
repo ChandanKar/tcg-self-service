@@ -1,7 +1,7 @@
 services:
 
   # ---------------------------------------------------------------------------
-  # MySQL 8 — production database
+  # MySQL 8 — production database (data in named volume, survives restarts)
   # ---------------------------------------------------------------------------
   db:
     image: mysql:8.0
@@ -13,7 +13,7 @@ services:
       MYSQL_USER: ${DB_USERNAME}
       MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - mysql_data:/var/lib/mysql
+      - ./mysql/data:/var/lib/mysql
     networks:
       - vmcontrol-net
     healthcheck:
@@ -25,11 +25,14 @@ services:
 
   # ---------------------------------------------------------------------------
   # Application — Spring Boot fat JAR
-  # Place the built JAR at deployment/app/vmcontrol-0.0.1-SNAPSHOT.jar
-  # Build it with: ./gradlew bootJar  (from project root)
+  #
+  # Deploy workflow:
+  #   1. Build:   ./gradlew bootJar  (from project root)
+  #   2. Copy:    cp build/libs/vmcontrol-*.jar deployment/app/vmcontrol.jar
+  #   3. Restart: docker compose restart app
   # ---------------------------------------------------------------------------
   app:
-    image: eclipse-temurin:17-jre-alpine
+    image: amazoncorretto:17-alpine
     container_name: vmcontrol-app
     restart: unless-stopped
     depends_on:
@@ -39,17 +42,36 @@ services:
       - .env
     environment:
       SPRING_PROFILES_ACTIVE: prod
-    ports:
-      - "${APP_PORT:-8080}:8080"
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_AZURE_REDIRECT_URI: https://selfservice-new.tcgdigital.com/login/oauth2/code/azure
     volumes:
       - ./app:/app
+      - ./logs:/app/logs
+      - ./config/application-prod.properties:/app/config/application-prod.properties:ro
     working_dir: /app
-    command: ["java", "-jar", "vmcontrol-0.0.1-SNAPSHOT.jar"]
+    command: [
+      "java",
+      "-Dspring.security.oauth2.client.registration.azure.redirect-uri=https://selfservice-new.tcgdigital.com/login/oauth2/code/azure",
+      "-jar", "vmcontrol.jar"
+    ]
     networks:
       - vmcontrol-net
 
-volumes:
-  mysql_data:
+  # ---------------------------------------------------------------------------
+  # Nginx — reverse proxy; terminates HTTP, forwards to app on port 8080
+  # ---------------------------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: vmcontrol-nginx
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    networks:
+      - vmcontrol-net
 
 networks:
   vmcontrol-net:

@@ -3,3 +3,14 @@
 
 # Fat JAR dropped here before deploying
 app/*.jar
+
+# MySQL data files — keep the directory, not the contents
+mysql/data/*
+!mysql/data/.gitkeep
+
+# Application log files — keep the directory, not the contents
+logs/*
+!logs/.gitkeep
+
+# SSL certificates — never commit private keys
+nginx/conf.d/certs/*
