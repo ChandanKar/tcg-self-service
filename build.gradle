@@ -164,15 +164,6 @@ tasks.register('patchIndexHtml') {
 	}
 }
 
-// Swap out the source index.html for the patched one during resource processing
-tasks.named('processResources') {
-	dependsOn patchIndexHtml
-	exclude('**/static/index.html')
-	from(layout.buildDirectory.dir('generated/patched-static')) {
-		into('static')
-	}
-}
-
 // ---------------------------------------------------------------------------
 // Deploy: bundle frontend → build JAR → copy to deployment/app/vmcontrol.jar
 // Usage: ./gradlew deploy
