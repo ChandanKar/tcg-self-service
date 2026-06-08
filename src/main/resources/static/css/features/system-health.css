@@ -1,0 +1,160 @@
+/*
+ * System Health Feature Styles
+ * Compact density matching dashboard baseline
+ */
+
+#system-health-view {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+#system-health-view::-webkit-scrollbar { width: 4px; }
+#system-health-view::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+/* Compact header — same as dashboard */
+#system-health-view .content-header {
+    margin-bottom: 0.5rem;
+    flex-shrink: 0;
+}
+#system-health-view .content-header h1 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 0;
+}
+#system-health-view .content-header p {
+    font-size: 0.75rem;
+    margin-bottom: 0;
+}
+
+/* Compact metric cards — matches dashboard density */
+#system-health-view .metric-card {
+    padding: 0.6rem 0.85rem;
+    border-radius: 8px;
+    cursor: default;
+}
+#system-health-view .metric-card:hover {
+    transform: none;
+}
+#system-health-view .metric-card .metric-title {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #94a3b8;
+    margin-bottom: 0.2rem;
+    font-weight: 600;
+}
+#system-health-view .metric-card .metric-value {
+    font-size: 1.45rem;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 0;
+}
+#system-health-view .metric-card .metric-subtitle {
+    font-size: 0.68rem;
+    color: #94a3b8;
+    margin-top: 0.1rem;
+}
+
+/* Compact audit summary card */
+#system-health-view .sh-summary-card .card-header {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    background: #f8fafc;
+}
+#system-health-view .sh-summary-card .card-body {
+    padding: 0.6rem 1rem;
+}
+#system-health-view .sh-summary-card .sh-stat-value {
+    font-size: 1.3rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+#system-health-view .sh-summary-card .sh-stat-label {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #94a3b8;
+    margin-top: 0.1rem;
+}
+
+/* Side-by-side table cards */
+#system-health-view .sh-table-card .card-header {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    background: #f8fafc;
+}
+#system-health-view .sh-table-card .card-body {
+    padding: 0;
+}
+
+/* Scrollable table wrapper */
+#system-health-view .sh-table-wrapper {
+    max-height: 240px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+#system-health-view .sh-table-wrapper::-webkit-scrollbar { width: 4px; }
+#system-health-view .sh-table-wrapper::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+/* Compliance report tables — slightly taller */
+#system-health-view .sh-compliance-wrapper {
+    max-height: 200px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+#system-health-view .sh-compliance-wrapper::-webkit-scrollbar { width: 4px; }
+#system-health-view .sh-compliance-wrapper::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+/* Uniform compact table styles */
+#system-health-view .table td,
+#system-health-view .table th {
+    padding: var(--table-cell-padding, 0.28rem 0.55rem);
+    font-size: var(--table-body-font, 0.8rem);
+    vertical-align: middle;
+    line-height: 1.4;
+}
+#system-health-view .table thead th {
+    font-size: var(--table-header-font, 0.68rem);
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    background: var(--table-header-bg, #f8fafc);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+/* Empty state inside tables */
+#system-health-view .sh-empty {
+    padding: 1.5rem;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 0.8rem;
+}
+#system-health-view .sh-empty i {
+    display: block;
+    font-size: 1.5rem;
+    margin-bottom: 0.4rem;
+    opacity: 0.5;
+}
+
+/* Compliance card headers */
+#system-health-view .sh-compliance-card .card-header {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    background: #f8fafc;
+}
+#system-health-view .sh-compliance-card .card-body {
+    padding: 0;
+}

@@ -128,7 +128,6 @@
 .all-logs-table-wrapper .table thead th {
     font-size: var(--table-header-font, 0.7rem);
     font-weight: 600;
-    text-transform: uppercase;
     letter-spacing: 0.03em;
     position: sticky;
     top: 0;

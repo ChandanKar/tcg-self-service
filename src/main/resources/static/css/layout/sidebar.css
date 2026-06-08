@@ -2,6 +2,31 @@
  * Sidebar Styles
  */
 
+/* Disabled menu items — not clickable, visually muted */
+.sidebar-menu-link--disabled {
+    opacity: 0.45;
+    cursor: not-allowed !important;
+    pointer-events: none;
+}
+.sidebar-menu-link--disabled:hover {
+    background: transparent !important;
+    color: inherit !important;
+}
+
+/* "Soon" badge on disabled items */
+.coming-soon-badge {
+    margin-left: auto;
+    font-size: 0.6rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: #e2e8f0;
+    color: #94a3b8;
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
 .sidebar {
     position: fixed;
     top: var(--topnav-height);

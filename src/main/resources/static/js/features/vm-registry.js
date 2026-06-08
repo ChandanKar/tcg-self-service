@@ -293,71 +293,23 @@ const VmRegistry = (function() {
     // =========================================================================
 
     function openCreateEnvironmentModal() {
-        $('#createEnvironmentForm')[0].reset();
-        $('#createEnvironmentForm').removeClass('was-validated');
-        $('#environmentId').val('');
-        $('#createEnvironmentModalLabel').text('Create Environment');
-        $('#btnSubmitEnvironment').html('<i class="fas fa-save"></i> Create Environment');
-        new bootstrap.Modal(document.getElementById('createEnvironmentModal')).show();
+        Modals.showCreateEnvironment(function() { loadEnvironmentsData(); });
     }
 
     async function editEnvironment(environmentId) {
+        const cached = window.VmRegistryState.environments.find(e => e.environmentId === environmentId);
+        if (cached) {
+            Modals.showEditEnvironment(cached, function() { loadEnvironmentsData(); });
+            return;
+        }
         try {
             Loading.show('Loading environment...');
             const env = await ApiClient.get(`/api/v1/environments/${environmentId}`);
-            $('#environmentId').val(env.environmentId);
-            $('#envName').val(env.name);
-            $('#envDisplayName').val(env.displayName);
-            $('#envDescription').val(env.description || '');
-            $('#envMetadata').val(env.metadata || '');
-            $('#createEnvironmentModalLabel').text('Edit Environment');
-            $('#btnSubmitEnvironment').html('<i class="fas fa-save"></i> Update Environment');
-            new bootstrap.Modal(document.getElementById('createEnvironmentModal')).show();
             Loading.hide();
+            Modals.showEditEnvironment(env, function() { loadEnvironmentsData(); });
         } catch (error) {
             console.error('Failed to load environment:', error);
             Notifications.error('Failed to load environment');
-            Loading.hide();
-        }
-    }
-
-    async function submitEnvironment() {
-        const form = $('#createEnvironmentForm')[0];
-        if (!form.checkValidity()) {
-            form.classList.add('was-validated');
-            return;
-        }
-        const environmentId = $('#environmentId').val();
-        const isEdit = !!environmentId;
-        const name = $('#envName').val().trim();
-        const displayName = $('#envDisplayName').val().trim();
-        const data = {
-            name: name,
-            displayName: displayName || name,
-            description: $('#envDescription').val().trim() || null,
-            metadata: $('#envMetadata').val().trim() || null
-        };
-        try {
-            Loading.show(isEdit ? 'Updating...' : 'Creating...');
-            if (isEdit) {
-                await ApiClient.put(`/api/v1/environments/${environmentId}`, data);
-            } else {
-                await ApiClient.post('/api/v1/environments', data);
-            }
-            Notifications.success(isEdit ? 'Environment updated' : 'Environment created');
-            bootstrap.Modal.getInstance(document.getElementById('createEnvironmentModal')).hide();
-            await loadEnvironmentsData();
-            Loading.hide();
-        } catch (error) {
-            console.error('Failed to submit environment:', error);
-            const msg = error?.responseJSON?.message || error?.responseJSON?.error;
-            if (!msg) {
-                if (error?.status === 400) {
-                    Notifications.error('Validation failed. Please check your input.');
-                } else if (!error?.status) {
-                    Notifications.error('Failed to save environment');
-                }
-            }
             Loading.hide();
         }
     }
@@ -385,7 +337,12 @@ const VmRegistry = (function() {
     // =========================================================================
 
     async function manageGroups(environmentId, environmentName) {
-        window.VmRegistryState.currentEnvironment = { environmentId, environmentName };
+        const envRecord = window.VmRegistryState.environments.find(e => e.environmentId === environmentId);
+        window.VmRegistryState.currentEnvironment = {
+            environmentId,
+            environmentName,
+            serviceType: envRecord?.serviceType || 'EC2'
+        };
         try {
             Loading.show('Loading groups and VMs...');
             const groupsWithVms = await ApiClient.get(`/api/v1/environments/${environmentId}/vms`);
@@ -402,14 +359,33 @@ const VmRegistry = (function() {
     }
 
     function renderGroupsModal(environmentName, groupsWithVms) {
+        const isEks = (window.VmRegistryState.currentEnvironment?.serviceType || 'EC2') === 'EKS';
         $('#manageGroupsModalLabel').text(`Manage Groups & VMs - ${environmentName}`);
+
+        // Update the Add Group button in the modal header (defined in index.html)
+        const $addGroupBtn = $('#manageGroupsModal .modal-body .d-flex button');
+        if (isEks) {
+            $addGroupBtn.hide();
+            // Show EKS info banner above groups
+            $('#cem-eks-groups-banner').remove();
+            $('#groupsContentArea').before(`
+                <div id="cem-eks-groups-banner" class="alert alert-info d-flex align-items-center gap-2 py-2 mb-3" style="font-size:0.875rem;">
+                    <i class="fas fa-info-circle"></i>
+                    <span>Node groups are auto-synced from AWS EKS. You can edit the sequence order but cannot add or delete groups manually.</span>
+                </div>
+            `);
+        } else {
+            $addGroupBtn.show();
+            $('#cem-eks-groups-banner').remove();
+        }
+
         const container = $('#groupsContentArea');
         container.empty();
         if (!groupsWithVms || groupsWithVms.length === 0) {
             container.html(`
                 <div class="text-center text-muted py-5">
                     <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
-                    <p>No groups yet. Add a group to get started.</p>
+                    <p>${isEks ? 'No node groups synced yet. Run an EKS sync to populate groups.' : 'No groups yet. Add a group to get started.'}</p>
                 </div>
             `);
             return;
@@ -463,6 +439,22 @@ const VmRegistry = (function() {
 
         const collapseId = `collapse-${group.groupId}`;
 
+        const isEks = (window.VmRegistryState.currentEnvironment?.serviceType || 'EC2') === 'EKS';
+        const actionBtns = isEks
+            ? `<button class="btn btn-sm btn-warning" onclick="VmRegistry.editGroup('${group.groupId}')" title="Edit sequence / display name">
+                   <i class="fas fa-edit"></i>
+               </button>`
+            : `<button class="btn btn-sm btn-success me-1" onclick="VmRegistry.openVmForm('${group.groupId}')" title="Register VM">
+                   <i class="fas fa-plus"></i> VM
+               </button>
+               <button class="btn btn-sm btn-warning me-1" onclick="VmRegistry.editGroup('${group.groupId}')" title="Edit Group">
+                   <i class="fas fa-edit"></i>
+               </button>
+               <button class="btn btn-sm btn-danger" onclick="VmRegistry.deleteGroup('${group.groupId}')" title="Delete Group"
+                       ${vmCount > 0 ? 'disabled' : ''}>
+                   <i class="fas fa-trash"></i>
+               </button>`;
+
         return `
             <div class="card mb-3" data-group-id="${group.groupId}">
                 <div class="card-header bg-light">
@@ -477,16 +469,7 @@ const VmRegistry = (function() {
                             <small class="text-muted ms-3">Depends: ${dependencies}</small>
                         </div>
                         <div>
-                            <button class="btn btn-sm btn-success me-1" onclick="VmRegistry.openVmForm('${group.groupId}')" title="Register VM">
-                                <i class="fas fa-plus"></i> VM
-                            </button>
-                            <button class="btn btn-sm btn-warning me-1" onclick="VmRegistry.editGroup('${group.groupId}')" title="Edit Group">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="btn btn-sm btn-danger" onclick="VmRegistry.deleteGroup('${group.groupId}')" title="Delete Group"
-                                    ${vmCount > 0 ? 'disabled' : ''}>
-                                <i class="fas fa-trash"></i>
-                            </button>
+                            ${actionBtns}
                         </div>
                     </div>
                 </div>
@@ -936,7 +919,6 @@ const VmRegistry = (function() {
         filterEnvironments,
         openCreateEnvironmentModal,
         editEnvironment,
-        submitEnvironment,
         deleteEnvironment,
         manageGroups,
         renderGroupsModal,

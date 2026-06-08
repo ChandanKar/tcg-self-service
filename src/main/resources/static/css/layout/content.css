@@ -124,26 +124,32 @@
 #dashboard-view .env-table-wrapper .table thead th {
     font-size: var(--table-header-font, 0.7rem);
     font-weight: 600;
-    text-transform: uppercase;
     letter-spacing: 0.03em;
     background: var(--table-header-bg, #f8fafc);
 }
 
+/* Environment col */
 #dashboard-view .env-table-wrapper .table thead th:nth-child(1),
 #dashboard-view .env-table-wrapper .table tbody td:nth-child(1) {
-    width: 40%;
+    width: 38%;
     text-align: left;
 }
-
+/* Type col */
 #dashboard-view .env-table-wrapper .table thead th:nth-child(2),
-#dashboard-view .env-table-wrapper .table tbody td:nth-child(2),
+#dashboard-view .env-table-wrapper .table tbody td:nth-child(2) {
+    width: 42px;
+    text-align: center;
+}
+/* Total VMs, Running, Lock Status, Cloud */
 #dashboard-view .env-table-wrapper .table thead th:nth-child(3),
 #dashboard-view .env-table-wrapper .table tbody td:nth-child(3),
 #dashboard-view .env-table-wrapper .table thead th:nth-child(4),
 #dashboard-view .env-table-wrapper .table tbody td:nth-child(4),
 #dashboard-view .env-table-wrapper .table thead th:nth-child(5),
-#dashboard-view .env-table-wrapper .table tbody td:nth-child(5) {
-    width: 15%;
+#dashboard-view .env-table-wrapper .table tbody td:nth-child(5),
+#dashboard-view .env-table-wrapper .table thead th:nth-child(6),
+#dashboard-view .env-table-wrapper .table tbody td:nth-child(6) {
+    width: 14%;
 }
 
 /* Single filler row expands to fill leftover space */
@@ -224,26 +230,48 @@
 #environments-list-view .env-list-table-wrapper .table thead th {
     font-size: var(--table-header-font, 0.7rem);
     font-weight: 600;
-    text-transform: uppercase;
     letter-spacing: 0.03em;
     background: var(--table-header-bg, #f8fafc);
 }
 
-/* ── Column widths: Environment 40%, remaining 5 cols split equally, Actions fixed ── */
+/* ── Column widths: 8-col layout (Environment | Type | Cloud | Groups | Total VMs | Running | Lock Status | Actions) ── */
 #environments-list-view .env-list-table-wrapper .table thead th:nth-child(1),
 #environments-list-view .env-list-table-wrapper .table tbody td:nth-child(1) {
-    width: 40%;
+    width: 32%;
     text-align: left;
 }
+/* Type */
 #environments-list-view .env-list-table-wrapper .table thead th:nth-child(2),
-#environments-list-view .env-list-table-wrapper .table tbody td:nth-child(2),
+#environments-list-view .env-list-table-wrapper .table tbody td:nth-child(2) {
+    width: 42px;
+    text-align: center;
+}
+/* Cloud */
 #environments-list-view .env-list-table-wrapper .table thead th:nth-child(3),
-#environments-list-view .env-list-table-wrapper .table tbody td:nth-child(3),
+#environments-list-view .env-list-table-wrapper .table tbody td:nth-child(3) {
+    width: 42px;
+    text-align: center;
+}
+/* Groups */
 #environments-list-view .env-list-table-wrapper .table thead th:nth-child(4),
-#environments-list-view .env-list-table-wrapper .table tbody td:nth-child(4),
+#environments-list-view .env-list-table-wrapper .table tbody td:nth-child(4) {
+    width: 6%;
+}
+/* Total VMs */
 #environments-list-view .env-list-table-wrapper .table thead th:nth-child(5),
 #environments-list-view .env-list-table-wrapper .table tbody td:nth-child(5) {
-    width: 12%;
+    width: 7%;
+}
+/* Running */
+#environments-list-view .env-list-table-wrapper .table thead th:nth-child(6),
+#environments-list-view .env-list-table-wrapper .table tbody td:nth-child(6) {
+    width: 8%;
+}
+/* Lock Status */
+#environments-list-view .env-list-table-wrapper .table thead th:nth-child(7),
+#environments-list-view .env-list-table-wrapper .table tbody td:nth-child(7) {
+    width: 10%;
+    white-space: nowrap;
 }
 
 /* Actions column — comfortable width for up to 3 icon buttons */
@@ -464,7 +492,6 @@
 .group-vm-table thead th {
     font-size: 0.68rem;
     font-weight: 600;
-    text-transform: uppercase;
     letter-spacing: 0.03em;
 }
 

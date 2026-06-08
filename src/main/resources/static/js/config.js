@@ -61,7 +61,8 @@ const Config = (function() {
             get: (id) => `${API_BASE_URL}/environments/${id}`,
             create: `${API_BASE_URL}/environments`,
             update: (id) => `${API_BASE_URL}/environments/${id}`,
-            delete: (id) => `${API_BASE_URL}/environments/${id}`
+            delete: (id) => `${API_BASE_URL}/environments/${id}`,
+            discoverEks: `${API_BASE_URL}/environments/discover/eks`
         },
 
         // VM Groups

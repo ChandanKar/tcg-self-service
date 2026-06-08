@@ -250,7 +250,7 @@ const Modals = (function() {
     }
 
     /**
-     * Create Environment Modal
+     * Create Environment Modal — EC2/EKS toggle with EKS cluster picker.
      */
     function showCreateEnvironment(onSuccess) {
         show({
@@ -259,38 +259,99 @@ const Modals = (function() {
             size: 'lg',
             body: `
                 <form id="createEnvForm" autocomplete="off">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Environment Name <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="cem-name" name="cem-name" required
-                                   pattern="[a-z0-9-]+" placeholder="my-environment">
-                            <div class="form-text">Lowercase letters, numbers, and hyphens only</div>
+                    <input type="hidden" id="cem-serviceType" value="EC2">
+
+                    <!-- Service type toggle -->
+                    <div class="d-flex gap-2 mb-4">
+                        <button type="button" class="btn btn-primary flex-fill" id="cem-type-ec2">
+                            <i class="fas fa-server me-1"></i> EC2 &mdash; Virtual Machines
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary flex-fill" id="cem-type-eks">
+                            <i class="fas fa-dharmachakra me-1"></i> EKS &mdash; Kubernetes
+                        </button>
+                    </div>
+
+                    <!-- EC2 section -->
+                    <div id="cem-ec2-section">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Environment Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="cem-name" required
+                                       pattern="[a-z0-9\\-]+" placeholder="my-environment">
+                                <div class="form-text">Lowercase letters, numbers, and hyphens only</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Display Name</label>
+                                <input type="text" class="form-control" id="cem-displayName" placeholder="My Environment">
+                            </div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Display Name</label>
-                            <input type="text" class="form-control" id="cem-displayName" name="cem-displayName"
-                                   placeholder="My Environment">
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" id="cem-description" rows="2"
+                                      placeholder="Brief description of this environment"></textarea>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Default Cloud Provider</label>
+                                <select class="form-select" id="cem-cloudProvider">
+                                    <option value="AWS">AWS</option>
+                                    <option value="AZURE">Azure</option>
+                                    <option value="GCP">Google Cloud</option>
+                                    <option value="OCI">Oracle Cloud</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Owner Team</label>
+                                <input type="text" class="form-control" id="cem-ownerTeam" placeholder="e.g., Platform Team">
+                            </div>
                         </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Description</label>
-                        <textarea class="form-control" id="cem-description" name="cem-description" rows="2"
-                                  placeholder="Brief description of this environment"></textarea>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Owner Team</label>
-                            <input type="text" class="form-control" id="cem-ownerTeam" name="cem-ownerTeam"
-                                   placeholder="e.g., Platform Team">
+
+                    <!-- EKS section (hidden by default) -->
+                    <div id="cem-eks-section" style="display:none;">
+                        <div class="mb-3">
+                            <label class="form-label">Select EKS Cluster from AWS</label>
+                            <div id="cem-eks-picker" class="border rounded p-3 bg-light"
+                                 style="min-height:80px; max-height:200px; overflow-y:auto;">
+                                <div class="text-center text-muted py-2 small" id="cem-eks-picker-idle">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Switch to EKS above to load available clusters.
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Default Cloud Provider</label>
-                            <select class="form-select" id="cem-cloudProvider" name="cem-cloudProvider">
-                                <option value="AWS">AWS</option>
-                                <option value="AZURE">Azure</option>
-                                <option value="GCP">Google Cloud</option>
-                                <option value="OCI">Oracle Cloud</option>
-                            </select>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Cluster Name <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="cem-eks-name"
+                                           placeholder="Select a cluster above or type manually"
+                                           pattern="[a-zA-Z0-9\\-_]+" required>
+                                    <span class="input-group-text d-none" id="cem-eks-lock-icon"
+                                          data-bs-toggle="tooltip" title="Name locked to selected cluster">
+                                        <i class="fas fa-lock text-muted small"></i>
+                                    </span>
+                                </div>
+                                <div id="cem-eks-region-info" class="form-text d-none">
+                                    <i class="fas fa-map-marker-alt me-1"></i> Region: <strong id="cem-eks-region-val"></strong>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Display Name</label>
+                                <input type="text" class="form-control" id="cem-eks-displayName"
+                                       placeholder="Auto-filled from cluster name">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Owner Team</label>
+                                <input type="text" class="form-control" id="cem-eks-ownerTeam"
+                                       placeholder="e.g., Platform Team">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Description</label>
+                                <input type="text" class="form-control" id="cem-eks-description"
+                                       placeholder="Optional description">
+                            </div>
                         </div>
                     </div>
                 </form>
@@ -300,23 +361,117 @@ const Modals = (function() {
                 { text: 'Create Environment', class: 'btn-primary', id: 'cem-submitBtn' }
             ],
             onShow: function() {
+                let eksPickerLoaded = false;
+
+                // Toggle between EC2 and EKS
+                function switchToEc2() {
+                    $('#cem-serviceType').val('EC2');
+                    $('#cem-type-ec2').removeClass('btn-outline-secondary').addClass('btn-primary');
+                    $('#cem-type-eks').removeClass('btn-primary').addClass('btn-outline-secondary');
+                    $('#cem-ec2-section').show();
+                    $('#cem-eks-section').hide();
+                    // Make EC2 name required, EKS name not
+                    document.getElementById('cem-name').required = true;
+                    document.getElementById('cem-eks-name').required = false;
+                }
+
+                function switchToEks() {
+                    $('#cem-serviceType').val('EKS');
+                    $('#cem-type-eks').removeClass('btn-outline-secondary').addClass('btn-primary');
+                    $('#cem-type-ec2').removeClass('btn-primary').addClass('btn-outline-secondary');
+                    $('#cem-ec2-section').hide();
+                    $('#cem-eks-section').show();
+                    document.getElementById('cem-name').required = false;
+                    document.getElementById('cem-eks-name').required = true;
+                    if (!eksPickerLoaded) {
+                        loadEksClusters();
+                        eksPickerLoaded = true;
+                    }
+                }
+
+                function loadEksClusters() {
+                    $('#cem-eks-picker').html(`
+                        <div class="text-center text-muted py-2 small">
+                            <i class="fas fa-spinner fa-spin me-1"></i> Fetching clusters from AWS...
+                        </div>
+                    `);
+                    ApiClient.get(Config.API.environments.discoverEks)
+                        .done(function(clusters) {
+                            if (!clusters || clusters.length === 0) {
+                                $('#cem-eks-picker').html(`
+                                    <div class="text-muted small py-1">
+                                        <i class="fas fa-check-circle text-success me-1"></i>
+                                        All EKS clusters in this region are already registered.
+                                        Enter a cluster name manually below.
+                                    </div>
+                                `);
+                                return;
+                            }
+                            const rows = clusters.map(name => `
+                                <div class="cem-eks-cluster-row d-flex align-items-center gap-2 p-2 rounded mb-1"
+                                     style="cursor:pointer; background:#fff; border:1px solid #e2e8f0;"
+                                     data-cluster="${name}">
+                                    <i class="fas fa-dharmachakra text-primary" style="font-size:0.85rem;"></i>
+                                    <span style="font-size:0.875rem; font-weight:500;">${name}</span>
+                                </div>
+                            `).join('');
+                            $('#cem-eks-picker').html(rows);
+
+                            // Cluster row click
+                            $('#cem-eks-picker').on('click', '.cem-eks-cluster-row', function() {
+                                const clusterName = $(this).data('cluster');
+                                // Highlight selected
+                                $('.cem-eks-cluster-row').css({ background: '#fff', borderColor: '#e2e8f0' });
+                                $(this).css({ background: '#eff6ff', borderColor: '#3b82f6' });
+                                // Fill and lock name
+                                $('#cem-eks-name').val(clusterName).prop('readonly', true);
+                                $('#cem-eks-lock-icon').removeClass('d-none');
+                                // Auto-fill display name if empty
+                                if (!$('#cem-eks-displayName').val()) {
+                                    $('#cem-eks-displayName').val(clusterName);
+                                }
+                                $('#cem-eks-region-info').removeClass('d-none');
+                            });
+                        })
+                        .fail(function() {
+                            $('#cem-eks-picker').html(`
+                                <div class="text-warning small py-1">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>
+                                    Could not reach AWS. Enter cluster name manually below.
+                                </div>
+                            `);
+                        });
+                }
+
+                $('#cem-type-ec2').on('click', switchToEc2);
+                $('#cem-type-eks').on('click', switchToEks);
+
+                // Start in EC2 mode
+                switchToEc2();
                 document.getElementById('cem-name').focus();
 
                 document.getElementById('cem-submitBtn').addEventListener('click', function() {
-                    const form = document.getElementById('createEnvForm');
-                    if (form && !form.checkValidity()) {
-                        form.reportValidity();
-                        return;
-                    }
+                    const serviceType = document.getElementById('cem-serviceType').value;
+                    const isEks = serviceType === 'EKS';
 
-                    const envName     = (document.getElementById('cem-name').value        || '').trim();
-                    const displayName = (document.getElementById('cem-displayName').value  || '').trim() || envName;
-                    const description = (document.getElementById('cem-description').value  || '').trim() || null;
-                    const ownerTeam   = (document.getElementById('cem-ownerTeam').value    || '').trim() || null;
-                    const cloudProv   = (document.getElementById('cem-cloudProvider').value || '') || null;
+                    const envName     = isEks
+                        ? (document.getElementById('cem-eks-name').value || '').trim()
+                        : (document.getElementById('cem-name').value || '').trim();
+                    const displayName = isEks
+                        ? (document.getElementById('cem-eks-displayName').value || '').trim() || envName
+                        : (document.getElementById('cem-displayName').value || '').trim() || envName;
+                    const description = isEks
+                        ? (document.getElementById('cem-eks-description').value || '').trim() || null
+                        : (document.getElementById('cem-description').value || '').trim() || null;
+                    const ownerTeam   = isEks
+                        ? (document.getElementById('cem-eks-ownerTeam').value || '').trim() || null
+                        : (document.getElementById('cem-ownerTeam').value || '').trim() || null;
+                    const cloudProv   = isEks ? 'AWS' : (document.getElementById('cem-cloudProvider').value || 'AWS');
 
                     if (!envName) {
-                        showModalError('createEnvModal', 'Environment Name is required.');
+                        showModalError('createEnvModal', isEks
+                            ? 'Please select a cluster or enter a cluster name.'
+                            : 'Environment Name is required.');
                         return;
                     }
 
@@ -324,6 +479,7 @@ const Modals = (function() {
                         name: envName,
                         displayName: displayName,
                         description: description,
+                        serviceType: serviceType,
                         metadata: JSON.stringify({ ownerTeam, defaultCloudProvider: cloudProv })
                     };
 
@@ -378,18 +534,25 @@ const Modals = (function() {
                         <textarea class="form-control" id="editEnvDescription" rows="2">${Utils.escapeHtml(env.description || '')}</textarea>
                     </div>
                     <div class="row">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4 mb-3">
                             <label class="form-label">Owner Team</label>
                             <input type="text" class="form-control" id="editEnvOwnerTeam"
                                    value="${Utils.escapeHtml(meta.ownerTeam || '')}">
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4 mb-3">
                             <label class="form-label">Default Cloud Provider</label>
                             <select class="form-select" id="editEnvCloudProvider">
                                 <option value="AWS" ${meta.defaultCloudProvider === 'AWS' ? 'selected' : ''}>AWS</option>
                                 <option value="AZURE" ${meta.defaultCloudProvider === 'AZURE' ? 'selected' : ''}>Azure</option>
                                 <option value="GCP" ${meta.defaultCloudProvider === 'GCP' ? 'selected' : ''}>Google Cloud</option>
                                 <option value="OCI" ${meta.defaultCloudProvider === 'OCI' ? 'selected' : ''}>Oracle Cloud</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Service Type</label>
+                            <select class="form-select" id="editEnvServiceType">
+                                <option value="EC2" ${(!env.serviceType || env.serviceType === 'EC2') ? 'selected' : ''}>EC2 — Virtual Machines</option>
+                                <option value="EKS" ${env.serviceType === 'EKS' ? 'selected' : ''}>EKS — Kubernetes</option>
                             </select>
                         </div>
                     </div>
@@ -405,6 +568,7 @@ const Modals = (function() {
                     const data = {
                         displayName: ($modal.find('#editEnvDisplayName').val() || '').trim() || env.displayName,
                         description: ($modal.find('#editEnvDescription').val() || '').trim() || null,
+                        serviceType: ($modal.find('#editEnvServiceType').val() || 'EC2'),
                         metadata: JSON.stringify({
                             ownerTeam: ($modal.find('#editEnvOwnerTeam').val() || '').trim() || null,
                             defaultCloudProvider: ($modal.find('#editEnvCloudProvider').val() || '') || null

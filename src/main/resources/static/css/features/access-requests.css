@@ -58,7 +58,6 @@
 .request-access-container .table thead th {
     font-size: var(--table-header-font, 0.7rem);
     font-weight: 600;
-    text-transform: uppercase;
     letter-spacing: 0.03em;
     background: var(--table-header-bg, #f8fafc);
 }

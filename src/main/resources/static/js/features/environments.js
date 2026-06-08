@@ -224,12 +224,6 @@ const Environments = (function() {
      * Build environment list HTML — dashboard-style compact table with pagination
      */
     function buildListHtml(environments) {
-        const adminActions = Auth.isEnvAdmin() ? `
-            <button class="btn btn-sm btn-success" id="btn-create-env">
-                <i class="fas fa-plus"></i> Create Environment
-            </button>
-        ` : '';
-
         if (!environments || environments.length === 0) {
             return `
                 <div class="content-header d-flex justify-content-between align-items-start">
@@ -237,15 +231,12 @@ const Environments = (function() {
                         <h1>My Environments</h1>
                         <p>Manage and monitor your accessible environments</p>
                     </div>
-                    ${adminActions}
                 </div>
                 <div class="empty-state">
                     <i class="fas fa-server fa-3x text-muted"></i>
                     <p class="mt-3 mb-1">No environments assigned</p>
-                    ${Auth.isEnvAdmin() ?
-                        '<p class="text-muted small mb-3">Create your first environment to get started.</p><button class="btn btn-primary" id="btn-create-env-empty"><i class="fas fa-plus"></i> Create First Environment</button>' :
-                        '<p class="text-muted small">You don\'t have access to any environments yet.<br>Please contact your administrator for environment access.</p>'
-                    }
+                    <p class="text-muted small">You don't have access to any environments yet.<br>
+                    ${Auth.isEnvAdmin() ? 'Go to <strong>Admin › VM Registry</strong> to create environments.' : 'Please contact your administrator for environment access.'}</p>
                 </div>
             `;
         }
@@ -260,7 +251,6 @@ const Environments = (function() {
                     <h1>My Environments</h1>
                     <p>Manage and monitor your accessible environments</p>
                 </div>
-                ${adminActions}
             </div>
             <div class="metric-card env-list-card">
                 <div class="d-flex justify-content-between align-items-center mb-2 flex-shrink-0">
@@ -276,6 +266,8 @@ const Environments = (function() {
                         <thead class="table-light sticky-top">
                             <tr>
                                 <th>Environment</th>
+                                <th class="col-type text-center">Type</th>
+                                <th class="col-cloud text-center">Cloud</th>
                                 <th>Groups</th>
                                 <th>Total VMs</th>
                                 <th>Running</th>
@@ -334,9 +326,21 @@ const Environments = (function() {
                 ? ` data-bs-toggle="tooltip" data-bs-placement="right" title="${escapeHtml(env.description)}"`
                 : '';
 
+            const serviceType = (env.serviceType || 'EC2').toUpperCase();
+            const typeColor = serviceType === 'EKS' ? '#1d4ed8' : '#c2410c';
+            const typeIcon = serviceType === 'EKS' ? 'fas fa-dharmachakra' : 'fas fa-server';
+            const typeCell = `<i class="${typeIcon} env-type-icon" style="color:${typeColor}" data-bs-toggle="tooltip" title="${serviceType}"></i>`;
+
+            let envMeta = {};
+            try { envMeta = JSON.parse(env.metadata || '{}') || {}; } catch(e) {}
+            const cloudProv = (envMeta.defaultCloudProvider || 'AWS').toUpperCase();
+            const cloudCfg = (Config.CLOUD_ICONS || {})[cloudProv] || { icon: 'fab fa-aws', color: '#FF9900', label: 'AWS' };
+
             return `
                 <tr>
                     <td><strong${descTooltip}>${escapeHtml(env.name)}</strong></td>
+                    <td class="text-center">${typeCell}</td>
+                    <td class="text-center"><i class="${cloudCfg.icon} env-cloud-icon" style="color:${cloudCfg.color}" data-bs-toggle="tooltip" title="${cloudCfg.label || cloudProv}"></i></td>
                     <td>${env.groupCount || 0}</td>
                     <td>${totalVms}</td>
                     <td>
@@ -677,14 +681,6 @@ const Environments = (function() {
             const envName = $(this).data('env-name');
             loadDetail({ environmentId: envId, environmentName: envName });
         });
-
-        // Create environment
-        $('#content-area').off('click', '#btn-create-env, #btn-create-env-empty')
-            .on('click', '#btn-create-env, #btn-create-env-empty', function() {
-                Modals.showCreateEnvironment(function(env) {
-                    loadList();
-                });
-            });
 
         // Edit environment
         $('#content-area').off('click', '[data-action="edit-env"]').on('click', '[data-action="edit-env"]', function() {

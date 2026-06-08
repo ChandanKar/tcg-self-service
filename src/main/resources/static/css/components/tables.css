@@ -10,7 +10,6 @@
 .table-baseline th {
     font-size: var(--table-header-font, 0.7rem);
     font-weight: 600;
-    text-transform: uppercase;
     letter-spacing: 0.03em;
     padding: var(--table-cell-padding, 0.28rem 0.55rem);
     background: var(--table-header-bg, #f8fafc);
@@ -54,7 +53,6 @@
     color: #475569;
     font-weight: 600;
     font-size: var(--table-header-font, 0.7rem);
-    text-transform: uppercase;
     letter-spacing: 0.03em;
     padding: var(--table-cell-padding, 0.28rem 0.55rem);
     border-bottom: 2px solid #e2e8f0;

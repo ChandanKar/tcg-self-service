@@ -177,7 +177,6 @@
 .vm-list-table th {
     font-size: 0.70rem;
     font-weight: 600;
-    text-transform: uppercase;
     color: var(--text-secondary);
     padding: 0.5rem 1rem;
     background: var(--background-light);
@@ -187,6 +186,18 @@
     padding: 0.5rem 1rem;
     border-top: 1px solid var(--border-color);
     font-size: 0.81rem;
+}
+
+/* Type and Cloud icon-only columns */
+.env-list-table-wrapper .table th.col-type,
+.env-list-table-wrapper .table th.col-cloud {
+    width: 48px;
+    text-align: center;
+}
+.env-type-icon,
+.env-cloud-icon {
+    font-size: 1rem;
+    cursor: default;
 }
 
 .vm-list-table tr:hover {

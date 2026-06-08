@@ -29,6 +29,12 @@ const Features = (function() {
     // Router now calls VmRegistry.load() directly. This shim keeps backward compatibility.
     function loadVmRegistry() { return window.VmRegistry ? VmRegistry.load() : undefined; }
 
+    // Shims for VmRegistry methods called inline from index.html
+    function fetchEc2Instances() { return window.VmRegistry ? VmRegistry.fetchEc2Instances() : undefined; }
+    function filterEc2Instances(val) { return window.VmRegistry ? VmRegistry.filterEc2Instances(val) : undefined; }
+    function submitGroup() { return window.VmRegistry ? VmRegistry.submitGroup() : undefined; }
+    function submitVm() { return window.VmRegistry ? VmRegistry.submitVm() : undefined; }
+
 
     /**
      * Load Automation Rules view
@@ -90,99 +96,17 @@ const Features = (function() {
     }
 
     /**
-     * Load System Health view
+     * Load System Health view — delegates to SystemHealth module
      */
     function loadSystemHealth() {
-        const html = `
-            <div class="content-header">
-                <h1>System Health</h1>
-                <p>Monitor platform health and state synchronization</p>
+        if (window.SystemHealth) {
+            return window.SystemHealth.load();
+        }
+        $('#content-area').html(`
+            <div class="alert alert-danger m-3">
+                <i class="fas fa-exclamation-circle me-2"></i>System Health module failed to load. Please refresh the page.
             </div>
-
-            <div class="row mb-4">
-                <div class="col-md-3">
-                    <div class="metric-card">
-                        <div class="metric-title">API Status</div>
-                        <div class="metric-value text-success">
-                            <i class="fas fa-check-circle"></i>
-                        </div>
-                        <div class="metric-subtitle">All services healthy</div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="metric-card">
-                        <div class="metric-title">Last State Sync</div>
-                        <div class="metric-value">2m ago</div>
-                        <div class="metric-subtitle">47 VMs synced</div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="metric-card">
-                        <div class="metric-title">Drift Detected</div>
-                        <div class="metric-value text-warning">2</div>
-                        <div class="metric-subtitle">In last 24 hours</div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="metric-card">
-                        <div class="metric-title">Pending Operations</div>
-                        <div class="metric-value">0</div>
-                        <div class="metric-subtitle">All operations complete</div>
-                    </div>
-                </div>
-            </div>
-
-            <h5 class="mb-3">Cloud Provider Connectivity</h5>
-            <div class="custom-table mb-4">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Provider</th>
-                            <th>Region</th>
-                            <th>Status</th>
-                            <th>Last Check</th>
-                            <th>Response Time</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><i class="fab fa-aws text-warning"></i> AWS</td>
-                            <td>us-east-1</td>
-                            <td><span class="badge bg-success">Connected</span></td>
-                            <td>30s ago</td>
-                            <td>45ms</td>
-                        </tr>
-                        <tr>
-                            <td><i class="fab fa-aws text-warning"></i> AWS</td>
-                            <td>eu-west-1</td>
-                            <td><span class="badge bg-success">Connected</span></td>
-                            <td>30s ago</td>
-                            <td>120ms</td>
-                        </tr>
-                        <tr>
-                            <td><i class="fab fa-microsoft text-primary"></i> Azure</td>
-                            <td>East US</td>
-                            <td><span class="badge bg-success">Connected</span></td>
-                            <td>30s ago</td>
-                            <td>55ms</td>
-                        </tr>
-                        <tr>
-                            <td><i class="fab fa-google text-info"></i> GCP</td>
-                            <td>us-central1</td>
-                            <td><span class="badge bg-warning">Degraded</span></td>
-                            <td>30s ago</td>
-                            <td>350ms</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="d-flex gap-2">
-                <button class="btn btn-primary"><i class="fas fa-sync"></i> Trigger State Sync</button>
-                <button class="btn btn-secondary"><i class="fas fa-download"></i> Download Health Report</button>
-            </div>
-        `;
-        $('#content-area').html(html);
+        `);
     }
 
     function showLoading() {
@@ -211,7 +135,11 @@ const Features = (function() {
         loadVmRegistry,       // shim — delegates to VmRegistry.load()
         loadAutomationRules,
         loadSystemHealth,
-        loadUserManagement
+        loadUserManagement,
+        fetchEc2Instances,
+        filterEc2Instances,
+        submitGroup,
+        submitVm
     };
 })();
 

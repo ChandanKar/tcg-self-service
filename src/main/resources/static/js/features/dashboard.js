@@ -372,6 +372,7 @@ const Dashboard = (function() {
                         <thead class="table-light sticky-top">
                             <tr>
                                 <th>Environment</th>
+                                <th class="col-type text-center">Type</th>
                                 <th>Total VMs</th>
                                 <th>Running</th>
                                 <th>Lock Status</th>
@@ -413,10 +414,15 @@ const Dashboard = (function() {
                 return `<i class="${config.icon}" style="color: ${config.color};" title="${p}"></i>`;
             }).join(' ') || '<span class="text-muted">-</span>';
 
+            const serviceType = (env.serviceType || 'EC2').toUpperCase();
+            const typeColor = serviceType === 'EKS' ? '#1d4ed8' : '#c2410c';
+            const typeIcon = serviceType === 'EKS' ? 'fas fa-dharmachakra' : 'fas fa-server';
+
             const tooltip = env.description ? ` data-bs-toggle="tooltip" data-bs-placement="right" title="${Utils.escapeHtml(env.description)}"` : '';
             return `
                 <tr class="env-row" data-env-id="${env.environmentId}">
                     <td><strong${tooltip}>${Utils.escapeHtml(env.name)}</strong></td>
+                    <td class="text-center"><i class="${typeIcon} env-type-icon" style="color:${typeColor}" data-bs-toggle="tooltip" title="${serviceType}"></i></td>
                     <td>${env.totalVms}</td>
                     <td>
                         <span class="status-badge ${statusClass}">
@@ -431,7 +437,7 @@ const Dashboard = (function() {
 
         // Single filler row — expands via CSS height:100% to fill leftover space
         const filler = pageItems.length < PAGE_SIZE
-            ? `<tr class="env-table-filler"><td colspan="5"></td></tr>`
+            ? `<tr class="env-table-filler"><td colspan="6"></td></tr>`
             : '';
 
         return dataRows + filler;

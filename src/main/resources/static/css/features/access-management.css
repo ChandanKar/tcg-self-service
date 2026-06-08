@@ -205,7 +205,6 @@
     background: var(--table-header-bg, #f8fafc);
     font-size: var(--table-header-font, 0.7rem);
     font-weight: 600;
-    text-transform: uppercase;
     letter-spacing: 0.03em;
     color: var(--text-secondary);
     padding: var(--table-cell-padding, 0.28rem 0.55rem);

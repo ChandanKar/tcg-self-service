@@ -42,6 +42,7 @@
 
 .top-navbar .nav-right {
     gap: 1.5rem;
+    margin-left: auto;
 }
 
 .top-navbar .user-icon {
@@ -251,11 +252,10 @@
 /* Role Badges */
 .role-badge {
     display: inline-block;
-    padding: 0.15rem 0.5rem;
+    padding: 0.15rem 0.65rem;
     font-size: 0.7rem;
     font-weight: 500;
-    border-radius: 4px;
-    text-transform: uppercase;
+    border-radius: 9999px;
     letter-spacing: 0.025em;
 }
 
