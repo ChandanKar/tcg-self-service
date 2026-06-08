@@ -722,7 +722,7 @@ INSERT INTO app_user (
     legacy_user_id
 )
 SELECT
-    RANDOM_UUID(),  -- Generate UUID for user_id
+    UUID(),  -- Generate UUID for user_id
     email_address,
     user_name,
     NULL,  -- azure_ad_object_id is NULL for legacy users

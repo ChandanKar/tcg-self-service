@@ -681,7 +681,7 @@ INSERT INTO environment (
     metadata
 )
 SELECT
-    RANDOM_UUID() AS environment_id,
+    UUID() AS environment_id,
     LOWER(REGEXP_REPLACE(REGEXP_REPLACE(vm_name, '[^a-zA-Z0-9-]', '-'), '-+', '-')) AS name,
     vm_name AS display_name,
     vm_name AS description,
@@ -715,7 +715,7 @@ INSERT INTO vm_group (
     metadata
 )
 SELECT
-    RANDOM_UUID() AS group_id,
+    UUID() AS group_id,
     e.environment_id,
     'default-group' AS name,
     'Default Group' AS display_name,
@@ -756,7 +756,7 @@ INSERT INTO vm (
     metadata
 )
 SELECT
-    RANDOM_UUID() AS vm_id,
+    UUID() AS vm_id,
     g.group_id,
     LOWER(deduped.instance_id) AS name,
     deduped.instance_id AS display_name,
@@ -824,7 +824,7 @@ INSERT INTO vm_provider_details (
     updated_at
 )
 SELECT
-    RANDOM_UUID() AS vm_provider_detail_id,
+    UUID() AS vm_provider_detail_id,
     v.vm_id,
     'AWS' AS provider,
     'unknown' AS region_code,
