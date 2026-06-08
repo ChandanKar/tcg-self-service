@@ -31,6 +31,7 @@ dependencies {
 	// AWS SDK core modules
 	implementation 'software.amazon.awssdk:sts'
 	implementation 'software.amazon.awssdk:ec2'
+	implementation 'software.amazon.awssdk:eks'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
@@ -62,10 +63,125 @@ tasks.named('test') {
 	useJUnitPlatform()
 }
 
+// ---------------------------------------------------------------------------
+// Frontend build: reads index.html to derive file order, bundles into dist/
+// Never needs updating when new CSS/JS files are added — just add to index.html
+// ---------------------------------------------------------------------------
+tasks.register('buildFrontend') {
+	group = 'build'
+	description = 'Bundles CSS and JS (order derived from index.html) into static/dist/'
+
+	def staticDir = file('src/main/resources/static')
+	def indexHtml = file("${staticDir}/index.html")
+	def distDir   = file("${staticDir}/dist")
+
+	inputs.file   indexHtml
+	inputs.dir    "${staticDir}/css"
+	inputs.dir    "${staticDir}/js"
+	outputs.dir   distDir
+
+	doLast {
+		distDir.mkdirs()
+		def html = indexHtml.text
+
+		// --- CSS ---
+		def cssLinks = []
+		(html =~ /<link rel="stylesheet" href="([^"]+)"/).each { m, href ->
+			if (!href.startsWith('http')) cssLinks << href
+		}
+		def cssOut = new StringBuilder()
+		cssLinks.each { href ->
+			def f = new File(staticDir, href)
+			if (f.exists()) {
+				cssOut << "/* === ${f.name} === */\n${f.text}\n\n"
+			} else {
+				logger.warn("buildFrontend: CSS file not found: ${f}")
+			}
+		}
+		def cssFile = new File(distDir, 'app.css')
+		cssFile.text = cssOut.toString()
+		logger.lifecycle("buildFrontend: dist/app.css  — ${cssLinks.size()} files, ${cssFile.length()} bytes")
+
+		// --- JS ---
+		def jsScripts = []
+		(html =~ /<script src="([^"]+)"/).each { m, src ->
+			if (!src.startsWith('http')) jsScripts << src
+		}
+		def jsOut = new StringBuilder()
+		jsScripts.each { src ->
+			def f = new File(staticDir, src)
+			if (f.exists()) {
+				jsOut << "/* === ${f.name} === */\n${f.text}\n\n"
+			} else {
+				logger.warn("buildFrontend: JS file not found: ${f}")
+			}
+		}
+		def jsFile = new File(distDir, 'app.js')
+		jsFile.text = jsOut.toString()
+		logger.lifecycle("buildFrontend: dist/app.js   — ${jsScripts.size()} files, ${jsFile.length()} bytes")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Patch index.html: write a production version (dist bundle refs) to
+// build/generated/patched-static/ BEFORE processResources, so Gradle can
+// track the dependency properly and bootJar's UP-TO-DATE check is accurate.
+// The source index.html is never modified — dev still loads files one-by-one.
+// ---------------------------------------------------------------------------
+tasks.register('patchIndexHtml') {
+	group = 'build'
+	description = 'Writes a production index.html (dist bundles) to build/generated/patched-static/'
+	dependsOn buildFrontend
+
+	def sourceFile  = file('src/main/resources/static/index.html')
+	def patchedFile = layout.buildDirectory.file('generated/patched-static/index.html').get().asFile
+
+	inputs.file  sourceFile
+	outputs.file patchedFile
+
+	doLast {
+		patchedFile.parentFile.mkdirs()
+		// Normalize to LF so the regex matches regardless of source line endings
+		def content = sourceFile.text.replaceAll('\r\n', '\n')
+
+		// Replace local CSS <link> tags (not CDN) with single bundle reference
+		def patched = content.replaceAll(
+			/(?s)([ \t]*<!-- Application CSS -->[ \t]*\n)([ \t]*<link rel="stylesheet" href="(?!https?:\/\/)[^"]*">[ \t]*\n)+/,
+			'$1    <link rel="stylesheet" href="dist/app.css">\n'
+		)
+
+		// Replace local JS <script> tags (not CDN) with single bundle reference
+		patched = patched.replaceAll(
+			/(?s)([ \t]*<!-- Application JavaScript -->[ \t]*\n)([ \t]*<script src="(?!https?:\/\/)[^"]*"><\/script>[ \t]*\n)+/,
+			'$1    <script src="dist/app.js"></script>\n'
+		)
+
+		if (!patched.contains('dist/app.css') || !patched.contains('dist/app.js')) {
+			throw new GradleException("patchIndexHtml: regex did not match — verify comment markers in index.html")
+		}
+		patchedFile.text = patched
+		logger.lifecycle("patchIndexHtml: wrote production index.html")
+	}
+}
+
+// Swap out the source index.html for the patched one during resource processing
+tasks.named('processResources') {
+	dependsOn patchIndexHtml
+	exclude('**/static/index.html')
+	from(layout.buildDirectory.dir('generated/patched-static')) {
+		into('static')
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Deploy: bundle frontend → build JAR → copy to deployment/app/vmcontrol.jar
+// Usage: ./gradlew deploy
+// ---------------------------------------------------------------------------
 tasks.register('deploy', Copy) {
 	group = 'deployment'
-	description = 'Builds the bootJar and copies it to deployment/app/'
+	description = 'Builds frontend + bootJar and copies result to deployment/app/vmcontrol.jar'
 	dependsOn bootJar
 	from bootJar.outputs
 	into layout.projectDirectory.dir('deployment/app')
+	rename { 'vmcontrol.jar' }
 }

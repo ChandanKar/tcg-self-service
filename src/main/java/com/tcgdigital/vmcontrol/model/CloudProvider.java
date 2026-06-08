@@ -7,6 +7,7 @@ public enum CloudProvider {
     AWS,
     AZURE,
     GCP,
-    OCI
+    OCI,
+    AWS_EKS
 }
 

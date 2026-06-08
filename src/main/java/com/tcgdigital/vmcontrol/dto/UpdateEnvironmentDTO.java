@@ -21,6 +21,9 @@ public class UpdateEnvironmentDTO {
     @JsonProperty("metadata")
     private String metadata;
 
+    @JsonProperty("serviceType")
+    private String serviceType;
+
     public UpdateEnvironmentDTO() {
     }
 
@@ -55,5 +58,13 @@ public class UpdateEnvironmentDTO {
 
     public void setMetadata(String metadata) {
         this.metadata = metadata;
+    }
+
+    public String getServiceType() {
+        return serviceType;
+    }
+
+    public void setServiceType(String serviceType) {
+        this.serviceType = serviceType;
     }
 }

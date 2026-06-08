@@ -3,6 +3,7 @@ package com.tcgdigital.vmcontrol.service;
 import com.tcgdigital.vmcontrol.dto.RegisterVmDTO;
 import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
+import com.tcgdigital.vmcontrol.model.AuditAction;
 import com.tcgdigital.vmcontrol.model.Vm;
 import com.tcgdigital.vmcontrol.model.VmGroup;
 import com.tcgdigital.vmcontrol.model.VmStatus;
@@ -27,13 +28,16 @@ public class VmService {
     private final VmRepository vmRepository;
     private final VmGroupRepository groupRepository;
     private final DependencyValidator dependencyValidator;
+    private final AuditService auditService;
 
     public VmService(VmRepository vmRepository,
                      VmGroupRepository groupRepository,
-                     DependencyValidator dependencyValidator) {
+                     DependencyValidator dependencyValidator,
+                     AuditService auditService) {
         this.vmRepository = vmRepository;
         this.groupRepository = groupRepository;
         this.dependencyValidator = dependencyValidator;
+        this.auditService = auditService;
     }
 
     /**
@@ -180,6 +184,24 @@ public class VmService {
 
         vmRepository.delete(vm);
         log.info("Deleted VM: {} ({})", vm.getName(), vmId);
+    }
+
+    /**
+     * Acknowledge an auto-discovered VM — clears discovery_pending flag.
+     * Admin calls this after reviewing and placing the VM in the correct group.
+     */
+    @Transactional
+    public Vm acknowledgeVm(String vmId, String userId) {
+        Vm vm = getVmById(vmId);
+        if (!Boolean.TRUE.equals(vm.getDiscoveryPending())) {
+            throw new ValidationException("VM '" + vm.getName() + "' is not pending discovery review");
+        }
+        vm.setDiscoveryPending(false);
+        vmRepository.save(vm);
+        auditService.logAction(userId, AuditAction.VM_REGISTERED, "vm", vmId,
+                vm.getName(), "Discovery review acknowledged by admin");
+        log.info("VM {} acknowledged by user {} — no longer pending review", vm.getName(), userId);
+        return vm;
     }
 
     /**

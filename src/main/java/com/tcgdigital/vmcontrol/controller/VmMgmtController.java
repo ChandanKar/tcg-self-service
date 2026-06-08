@@ -6,6 +6,7 @@ import com.tcgdigital.vmcontrol.dto.VmGroupDTO;
 import com.tcgdigital.vmcontrol.model.Vm;
 import com.tcgdigital.vmcontrol.model.VmGroup;
 import com.tcgdigital.vmcontrol.service.SecurityService;
+import com.tcgdigital.vmcontrol.service.UserService;
 import com.tcgdigital.vmcontrol.service.VmGroupService;
 import com.tcgdigital.vmcontrol.service.VmService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -36,11 +37,14 @@ public class VmMgmtController {
     private final VmService vmService;
     private final VmGroupService groupService;
     private final SecurityService securityService;
+    private final UserService userService;
 
-    public VmMgmtController(VmService vmService, VmGroupService groupService, SecurityService securityService) {
+    public VmMgmtController(VmService vmService, VmGroupService groupService,
+                             SecurityService securityService, UserService userService) {
         this.vmService = vmService;
         this.groupService = groupService;
         this.securityService = securityService;
+        this.userService = userService;
     }
 
     @GetMapping
@@ -178,6 +182,26 @@ public class VmMgmtController {
 
         vmService.deleteVm(vmId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{vmId}/acknowledge")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(
+            summary = "Acknowledge an auto-discovered VM",
+            description = "Clears the discovery_pending flag after admin has reviewed and placed the VM in the correct group."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "VM acknowledged successfully"),
+            @ApiResponse(responseCode = "400", description = "VM is not pending review"),
+            @ApiResponse(responseCode = "404", description = "VM not found")
+    })
+    public ResponseEntity<VmDTO> acknowledgeVm(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId,
+            @Parameter(description = "VM ID") @PathVariable String vmId) {
+
+        String userId = userService.getCurrentUserId();
+        Vm vm = vmService.acknowledgeVm(vmId, userId);
+        return ResponseEntity.ok(VmDTO.fromEntity(vm));
     }
 
     /**

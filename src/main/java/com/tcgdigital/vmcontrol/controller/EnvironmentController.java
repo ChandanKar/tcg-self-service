@@ -2,6 +2,7 @@ package com.tcgdigital.vmcontrol.controller;
 
 import com.tcgdigital.vmcontrol.dto.*;
 import com.tcgdigital.vmcontrol.model.Environment;
+import com.tcgdigital.vmcontrol.service.EksSyncService;
 import com.tcgdigital.vmcontrol.service.EnvironmentService;
 import com.tcgdigital.vmcontrol.service.SecurityService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -13,6 +14,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -30,10 +32,17 @@ public class EnvironmentController {
 
     private final EnvironmentService environmentService;
     private final SecurityService securityService;
+    private final EksSyncService eksSyncService;
 
-    public EnvironmentController(EnvironmentService environmentService, SecurityService securityService) {
+    @Value("${aws.region:ap-south-1}")
+    private String defaultRegion;
+
+    public EnvironmentController(EnvironmentService environmentService,
+                                 SecurityService securityService,
+                                 EksSyncService eksSyncService) {
         this.environmentService = environmentService;
         this.securityService = securityService;
+        this.eksSyncService = eksSyncService;
     }
 
     @GetMapping
@@ -140,6 +149,16 @@ public class EnvironmentController {
         );
 
         return ResponseEntity.ok(dto);
+    }
+
+    @GetMapping("/discover/eks")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(
+            summary = "Discover unregistered EKS clusters",
+            description = "Returns EKS cluster names that exist in AWS but are not yet registered as environments"
+    )
+    public ResponseEntity<List<String>> discoverEksClusters() {
+        return ResponseEntity.ok(eksSyncService.getUnregisteredEksClusters(defaultRegion));
     }
 
     @PostMapping

@@ -39,5 +39,17 @@ public interface EnvironmentRepository extends JpaRepository<Environment, String
      */
     @Query("SELECT e FROM Environment e LEFT JOIN FETCH e.groups WHERE e.environmentId = :environmentId")
     Optional<Environment> findByIdWithGroups(String environmentId);
+
+    /**
+     * Find all active EKS environments for sync scheduling.
+     */
+    @Query("SELECT e FROM Environment e WHERE e.serviceType = 'EKS' AND e.isActive = true ORDER BY e.name ASC")
+    List<Environment> findActiveEksEnvironments();
+
+    /**
+     * Find all active EC2 environments for VM discovery.
+     */
+    @Query("SELECT e FROM Environment e WHERE e.serviceType = 'EC2' AND e.isActive = true ORDER BY e.name ASC")
+    List<Environment> findActiveEc2Environments();
 }
 

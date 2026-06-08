@@ -276,6 +276,7 @@ public class AuditService {
         List<Object[]> results = auditLogRepository.countActionsByUserInRange(start, end);
 
         return results.stream()
+                .filter(row -> row[0] != null)
                 .collect(Collectors.toMap(
                         row -> (String) row[0],
                         row -> (Long) row[1]

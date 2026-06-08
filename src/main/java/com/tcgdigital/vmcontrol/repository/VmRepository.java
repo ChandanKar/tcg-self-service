@@ -109,4 +109,5 @@ public interface VmRepository extends JpaRepository<Vm, String> {
      */
     @Query("SELECT v.providerVmId FROM Vm v WHERE v.provider = :provider")
     List<String> findAllProviderVmIdsByProvider(com.tcgdigital.vmcontrol.model.CloudProvider provider);
+
 }

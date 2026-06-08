@@ -19,6 +19,7 @@ public class EnvironmentDTO {
     private int groupCount;
     private int vmCount;
     private String metadata;
+    private String serviceType;
 
     public EnvironmentDTO() {
     }
@@ -33,6 +34,7 @@ public class EnvironmentDTO {
         dto.setCreatedAt(environment.getCreatedAt());
         dto.setUpdatedAt(environment.getUpdatedAt());
         dto.setMetadata(environment.getMetadata());
+        dto.setServiceType(environment.getServiceType());
         return dto;
     }
 
@@ -122,6 +124,14 @@ public class EnvironmentDTO {
 
     public void setMetadata(String metadata) {
         this.metadata = metadata;
+    }
+
+    public String getServiceType() {
+        return serviceType;
+    }
+
+    public void setServiceType(String serviceType) {
+        this.serviceType = serviceType;
     }
 }
 

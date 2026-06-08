@@ -6,6 +6,7 @@ import com.tcgdigital.vmcontrol.repository.VmRepository;
 import com.tcgdigital.vmcontrol.repository.VmStateHistoryRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -18,6 +19,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -34,6 +37,7 @@ public class StateSyncService {
     private final VmStateHistoryRepository stateHistoryRepository;
     private final CloudProviderFactory cloudProviderFactory;
     private final AuditService auditService;
+    private final Executor syncExecutor;
 
     @Value("${vm.state.sync.interval:300000}")
     private long syncIntervalMs;
@@ -49,17 +53,19 @@ public class StateSyncService {
     public StateSyncService(VmRepository vmRepository,
                             VmStateHistoryRepository stateHistoryRepository,
                             CloudProviderFactory cloudProviderFactory,
-                            AuditService auditService) {
+                            AuditService auditService,
+                            @Qualifier("syncExecutor") Executor syncExecutor) {
         this.vmRepository = vmRepository;
         this.stateHistoryRepository = stateHistoryRepository;
         this.cloudProviderFactory = cloudProviderFactory;
         this.auditService = auditService;
+        this.syncExecutor = syncExecutor;
     }
 
     /**
      * Sync all active VMs with their cloud provider status.
+     * Active VMs are processed in parallel via syncExecutor.
      */
-    @Transactional
     public StateSyncStatusDTO syncAllVmStates() {
         if (!syncInProgress.compareAndSet(false, true)) {
             log.warn("State sync already in progress, skipping");
@@ -67,38 +73,41 @@ public class StateSyncService {
         }
 
         log.info("Starting VM state sync for all active VMs");
-        int vmCount = 0;
-        int driftCount = 0;
-        int errorCount = 0;
+        AtomicInteger vmCount = new AtomicInteger(0);
+        AtomicInteger driftCount = new AtomicInteger(0);
+        AtomicInteger errorCount = new AtomicInteger(0);
 
         try {
             List<Vm> activeVms = vmRepository.findByIsActiveTrue();
-            vmCount = activeVms.size();
+            vmCount.set(activeVms.size());
 
-            for (Vm vm : activeVms) {
-                try {
-                    boolean hasDrift = syncVmState(vm);
-                    if (hasDrift) {
-                        driftCount++;
-                    }
-                } catch (Exception e) {
-                    errorCount++;
-                    log.error("Failed to sync VM {}: {}", vm.getVmId(), e.getMessage());
-                }
-            }
+            // Process active VMs in parallel
+            List<CompletableFuture<Void>> futures = activeVms.stream()
+                    .map(vm -> CompletableFuture.runAsync(() -> {
+                        try {
+                            boolean hasDrift = syncVmState(vm);
+                            if (hasDrift) driftCount.incrementAndGet();
+                        } catch (Exception e) {
+                            errorCount.incrementAndGet();
+                            log.error("Failed to sync VM {}: {}", vm.getVmId(), e.getMessage());
+                        }
+                    }, syncExecutor))
+                    .toList();
+
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
             lastSyncTime.set(Timestamp.from(Instant.now()));
-            lastSyncStatus.set(errorCount == 0 ? "success" : "partial");
-            lastSyncVmCount.set(vmCount);
-            lastDriftCount.set(driftCount);
-            lastErrorCount.set(errorCount);
+            lastSyncStatus.set(errorCount.get() == 0 ? "success" : "partial");
+            lastSyncVmCount.set(vmCount.get());
+            lastDriftCount.set(driftCount.get());
+            lastErrorCount.set(errorCount.get());
 
             log.info("VM state sync completed: {} VMs synced, {} drift detected, {} errors",
-                    vmCount, driftCount, errorCount);
+                    vmCount.get(), driftCount.get(), errorCount.get());
 
-            // Audit log
             auditService.logAction(null, AuditAction.SCHEDULED_JOB_EXECUTED, "job", "state_sync",
-                    "VM State Sync", String.format("Synced %d VMs, %d drift, %d errors", vmCount, driftCount, errorCount));
+                    "VM State Sync", String.format("Synced %d VMs, %d drift, %d errors",
+                            vmCount.get(), driftCount.get(), errorCount.get()));
 
         } finally {
             syncInProgress.set(false);
@@ -133,13 +142,13 @@ public class StateSyncService {
      * Sync a single VM's state with cloud provider.
      * Returns true if drift was detected.
      */
-    @Transactional
     public boolean syncVmState(Vm vm) {
         VmStatus currentStatus = vm.getStatus();
-        VmStatus cloudStatus = fetchCloudVmStatus(vm);
+        VmStatus cloudStatus = fetchCloudVmStatusWithRetry(vm, 2);
 
-        if (cloudStatus == null) {
-            log.warn("Could not fetch cloud status for VM: {}", vm.getVmId());
+        if (cloudStatus == null || cloudStatus == VmStatus.UNKNOWN) {
+            log.warn("Could not determine cloud status for VM {} (result: {}) — skipping to avoid false drift",
+                    vm.getVmId(), cloudStatus);
             return false;
         }
 
@@ -157,6 +166,7 @@ public class StateSyncService {
             // Update VM status and deactivate
             vm.setStatus(cloudStatus);
             vm.setIsActive(false);
+            vm.setStateDriftDetected(true);
             vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
             vmRepository.save(vm);
 
@@ -182,6 +192,7 @@ public class StateSyncService {
 
             // Update VM status
             vm.setStatus(cloudStatus);
+            vm.setStateDriftDetected(true);
             vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
             vmRepository.save(vm);
 
@@ -192,7 +203,8 @@ public class StateSyncService {
             return true;
         }
 
-        // Update last sync time even if no drift
+        // No drift — clear drift flag and update sync time
+        vm.setStateDriftDetected(false);
         vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
         vmRepository.save(vm);
 
@@ -252,6 +264,28 @@ public class StateSyncService {
         } catch (Exception e) {
             log.error("Error syncing VM name for {}: {}", vm.getVmId(), e.getMessage());
         }
+    }
+
+    /**
+     * Retry wrapper around fetchCloudVmStatus — retries on null/UNKNOWN only.
+     * Definitive states (NOT_FOUND, TERMINATED) are returned immediately.
+     */
+    private VmStatus fetchCloudVmStatusWithRetry(Vm vm, int maxAttempts) {
+        VmStatus status = null;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            status = fetchCloudVmStatus(vm);
+            if (status != null && status != VmStatus.UNKNOWN) {
+                return status;
+            }
+            if (attempt < maxAttempts) {
+                try { Thread.sleep(1000); } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return status;
+                }
+                log.debug("Retrying cloud status fetch for VM {} (attempt {}/{})", vm.getVmId(), attempt + 1, maxAttempts);
+            }
+        }
+        return status;
     }
 
     /**

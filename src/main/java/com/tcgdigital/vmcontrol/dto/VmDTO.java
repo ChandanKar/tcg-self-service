@@ -28,6 +28,7 @@ public class VmDTO {
     private VmStatus status;
     private Timestamp lastStateSyncAt;
     private Boolean stateDriftDetected;
+    private Boolean discoveryPending;
     private Timestamp createdAt;
     private Timestamp updatedAt;
 
@@ -51,6 +52,7 @@ public class VmDTO {
         dto.setStatus(vm.getStatus());
         dto.setLastStateSyncAt(vm.getLastStateSyncAt());
         dto.setStateDriftDetected(vm.getStateDriftDetected());
+        dto.setDiscoveryPending(vm.getDiscoveryPending());
         dto.setCreatedAt(vm.getCreatedAt());
         dto.setUpdatedAt(vm.getUpdatedAt());
         return dto;
@@ -175,6 +177,14 @@ public class VmDTO {
 
     public void setStateDriftDetected(Boolean stateDriftDetected) {
         this.stateDriftDetected = stateDriftDetected;
+    }
+
+    public Boolean getDiscoveryPending() {
+        return discoveryPending;
+    }
+
+    public void setDiscoveryPending(Boolean discoveryPending) {
+        this.discoveryPending = discoveryPending;
     }
 
     public Timestamp getCreatedAt() {

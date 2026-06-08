@@ -138,6 +138,7 @@ public class EnvironmentService {
         environment.setDisplayName(dto.getDisplayName());
         environment.setDescription(dto.getDescription());
         environment.setMetadata(dto.getMetadata());
+        environment.setServiceType(dto.getServiceType() != null ? dto.getServiceType() : "EC2");
         environment.setIsActive(true);
 
         Environment saved = environmentRepository.save(environment);
@@ -167,6 +168,9 @@ public class EnvironmentService {
         }
         if (dto.getMetadata() != null) {
             environment.setMetadata(dto.getMetadata());
+        }
+        if (dto.getServiceType() != null) {
+            environment.setServiceType(dto.getServiceType());
         }
 
         Environment saved = environmentRepository.save(environment);

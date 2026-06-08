@@ -25,6 +25,9 @@ public class CreateEnvironmentDTO {
     @JsonProperty("metadata")
     private String metadata;
 
+    @JsonProperty("serviceType")
+    private String serviceType = "EC2";
+
     public CreateEnvironmentDTO() {
     }
 
@@ -59,5 +62,13 @@ public class CreateEnvironmentDTO {
 
     public void setMetadata(String metadata) {
         this.metadata = metadata;
+    }
+
+    public String getServiceType() {
+        return serviceType;
+    }
+
+    public void setServiceType(String serviceType) {
+        this.serviceType = serviceType;
     }
 }

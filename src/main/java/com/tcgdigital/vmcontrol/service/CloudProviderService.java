@@ -55,6 +55,16 @@ public interface CloudProviderService {
     boolean isAvailable();
 
     /**
+     * List all instance IDs currently running in the given regions.
+     * Used by the VM discovery job to detect untracked instances.
+     * @param regions list of region strings to scan
+     * @return list of provider VM IDs found in the cloud
+     */
+    default java.util.List<String> discoverInstanceIds(java.util.List<String> regions) {
+        return java.util.Collections.emptyList();
+    }
+
+    /**
      * Result of a VM operation.
      */
     class VmOperationResult {

@@ -43,6 +43,9 @@ public class Environment {
     @Column(columnDefinition = "TEXT")
     private String metadata;
 
+    @Column(name = "service_type", length = 20, nullable = false)
+    private String serviceType = "EC2";
+
     @OneToMany(mappedBy = "environment", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<VmGroup> groups = new ArrayList<>();
 
@@ -116,6 +119,14 @@ public class Environment {
 
     public void setMetadata(String metadata) {
         this.metadata = metadata;
+    }
+
+    public String getServiceType() {
+        return serviceType;
+    }
+
+    public void setServiceType(String serviceType) {
+        this.serviceType = serviceType;
     }
 
     public List<VmGroup> getGroups() {

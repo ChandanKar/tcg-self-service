@@ -8,11 +8,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.ec2.Ec2Client;
 import software.amazon.awssdk.services.ec2.model.*;
 
+import java.time.Duration;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * AWS EC2 implementation of CloudProviderService.
@@ -35,6 +39,8 @@ public class AwsCloudProviderService implements CloudProviderService {
 
     @Value("${aws.region:us-east-1}")
     private String defaultRegion;
+
+    private final Map<String, Ec2Client> clientCache = new ConcurrentHashMap<>();
 
     @Override
     public CloudProvider getProvider() {
@@ -298,14 +304,113 @@ public class AwsCloudProviderService implements CloudProviderService {
                 && secretKey != null && !secretKey.isEmpty();
     }
 
+    /**
+     * Discovers all non-terminated EC2 instances in a region whose Name tag starts with namePrefix.
+     * Pass null/blank namePrefix to return all non-terminated instances.
+     */
+    public java.util.List<Instance> discoverInstancesByNamePrefix(String region, String namePrefix) {
+        try {
+            Ec2Client ec2 = getEc2Client(region);
+            java.util.List<Filter> filters = new java.util.ArrayList<>();
+            filters.add(Filter.builder()
+                    .name("instance-state-name")
+                    .values("pending", "running", "stopping", "stopped")
+                    .build());
+            if (namePrefix != null && !namePrefix.isBlank()) {
+                filters.add(Filter.builder()
+                        .name("tag:Name")
+                        .values(namePrefix + "*")
+                        .build());
+            }
+            java.util.List<Instance> result = new java.util.ArrayList<>();
+            software.amazon.awssdk.services.ec2.paginators.DescribeInstancesIterable pages =
+                    ec2.describeInstancesPaginator(DescribeInstancesRequest.builder()
+                            .filters(filters).build());
+            for (DescribeInstancesResponse page : pages) {
+                for (software.amazon.awssdk.services.ec2.model.Reservation r : page.reservations()) {
+                    result.addAll(r.instances());
+                }
+            }
+            log.debug("discoverInstancesByNamePrefix(prefix='{}') found {} instance(s) in {}", namePrefix, result.size(), region);
+            return result;
+        } catch (Exception e) {
+            log.error("Failed to discover instances by name prefix '{}' in region {}: {}", namePrefix, region, e.getMessage());
+            return java.util.List.of();
+        }
+    }
+
+    /**
+     * Discovers all non-terminated EC2 instances in a region that carry the given tag key/value.
+     * Uses the SDK paginator so results beyond the 1000-item page limit are not missed.
+     */
+    public java.util.List<Instance> discoverTaggedInstances(String region, String tagKey, String tagValue) {
+        try {
+            Ec2Client ec2 = getEc2Client(region);
+
+            Filter tagFilter = Filter.builder()
+                    .name("tag:" + tagKey)
+                    .values(tagValue)
+                    .build();
+            Filter stateFilter = Filter.builder()
+                    .name("instance-state-name")
+                    .values("pending", "running", "stopping", "stopped")
+                    .build();
+
+            java.util.List<Instance> result = new java.util.ArrayList<>();
+            software.amazon.awssdk.services.ec2.paginators.DescribeInstancesIterable pages =
+                    ec2.describeInstancesPaginator(DescribeInstancesRequest.builder()
+                            .filters(tagFilter, stateFilter)
+                            .build());
+
+            for (DescribeInstancesResponse page : pages) {
+                for (software.amazon.awssdk.services.ec2.model.Reservation r : page.reservations()) {
+                    result.addAll(r.instances());
+                }
+            }
+
+            log.debug("Discovered {} tagged instances in region {} with tag {}={}", result.size(), region, tagKey, tagValue);
+            return result;
+
+        } catch (Exception e) {
+            log.error("Failed to discover tagged instances in region {} (tag {}={}): {}", region, tagKey, tagValue, e.getMessage());
+            return java.util.List.of();
+        }
+    }
+
+    @Override
+    public java.util.List<String> discoverInstanceIds(java.util.List<String> regions) {
+        java.util.List<String> discovered = new java.util.ArrayList<>();
+        for (String region : regions) {
+            try {
+                Ec2Client ec2 = getEc2Client(region);
+                DescribeInstancesResponse response = ec2.describeInstances(
+                        DescribeInstancesRequest.builder().build());
+                for (software.amazon.awssdk.services.ec2.model.Reservation r : response.reservations()) {
+                    for (Instance instance : r.instances()) {
+                        InstanceStateName state = instance.state().name();
+                        if (state != InstanceStateName.TERMINATED && state != InstanceStateName.SHUTTING_DOWN) {
+                            discovered.add(instance.instanceId());
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Failed to discover EC2 instances in region {}: {}", region, e.getMessage());
+            }
+        }
+        return discovered;
+    }
+
     private Ec2Client getEc2Client(String region) {
         String effectiveRegion = region != null && !region.isEmpty() ? region : defaultRegion;
-
-        return Ec2Client.builder()
-                .region(Region.of(effectiveRegion))
+        return clientCache.computeIfAbsent(effectiveRegion, r -> Ec2Client.builder()
+                .region(Region.of(r))
                 .credentialsProvider(StaticCredentialsProvider.create(
                         AwsBasicCredentials.create(accessKey, secretKey)))
-                .build();
+                .overrideConfiguration(ClientOverrideConfiguration.builder()
+                        .apiCallTimeout(Duration.ofSeconds(30))
+                        .apiCallAttemptTimeout(Duration.ofSeconds(25))
+                        .build())
+                .build());
     }
 
     private VmStatus mapAwsStateToVmStatus(InstanceStateName stateName) {
