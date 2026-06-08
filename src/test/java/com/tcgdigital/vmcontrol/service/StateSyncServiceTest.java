@@ -18,7 +18,8 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
+
 
 @SpringBootTest
 @Sql(scripts = "/db/reset-test-data.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
@@ -275,14 +276,39 @@ class StateSyncServiceTest {
 
     @Test
     void testSyncInProgress_PreventsParallelSync() {
-        // This test verifies the atomic check works
-        // First sync should proceed
         when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.RUNNING);
 
         StateSyncStatusDTO result = stateSyncService.syncAllVmStates();
 
-        // After sync completes, syncInProgress should be false
         assertFalse(stateSyncService.isSyncInProgress());
+    }
+
+    @Test
+    void testSyncVmState_SkipsSync_WhenVmIsStarting() {
+        testVm.setStatus(VmStatus.STARTING);
+        testVm = vmRepository.save(testVm);
+
+        boolean hasDrift = stateSyncService.syncVmState(testVm);
+
+        assertFalse(hasDrift);
+        // Cloud provider must not be called — VM is mid-operation
+        verify(awsCloudProviderService, never()).getVmStatus(anyString(), anyString());
+        // Status must remain STARTING (not overwritten by sync)
+        Vm unchanged = vmRepository.findById(testVm.getVmId()).orElseThrow();
+        assertEquals(VmStatus.STARTING, unchanged.getStatus());
+    }
+
+    @Test
+    void testSyncVmState_SkipsSync_WhenVmIsStopping() {
+        testVm.setStatus(VmStatus.STOPPING);
+        testVm = vmRepository.save(testVm);
+
+        boolean hasDrift = stateSyncService.syncVmState(testVm);
+
+        assertFalse(hasDrift);
+        verify(awsCloudProviderService, never()).getVmStatus(anyString(), anyString());
+        Vm unchanged = vmRepository.findById(testVm.getVmId()).orElseThrow();
+        assertEquals(VmStatus.STOPPING, unchanged.getStatus());
     }
 }
 

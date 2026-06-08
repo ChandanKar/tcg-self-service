@@ -26,10 +26,15 @@ public class AwsCloudProviderService implements CloudProviderService {
 
     private static final Logger log = LoggerFactory.getLogger(AwsCloudProviderService.class);
 
-    private static final int STATUS_CHECK_POLL_INTERVAL_MS = 10_000; // 10 seconds
-    private static final int STATUS_CHECK_TIMEOUT_MS = 300_000;      // 5 minutes
-    private static final int STOP_POLL_INTERVAL_MS = 10_000;         // 10 seconds
-    private static final int STOP_TIMEOUT_MS = 180_000;              // 3 minutes
+    private static final int STATUS_CHECK_TIMEOUT_MS = 300_000;  // 5 minutes
+    private static final int STOP_TIMEOUT_MS = 180_000;          // 3 minutes
+
+    // Overridable via ReflectionTestUtils in tests
+    @Value("${aws.status-check.poll-interval-ms:10000}")
+    private int statusCheckPollIntervalMs;
+
+    @Value("${aws.stop.poll-interval-ms:10000}")
+    private int stopPollIntervalMs;
 
     @Value("${aws.access-key:}")
     private String accessKey;
@@ -59,6 +64,9 @@ public class AwsCloudProviderService implements CloudProviderService {
 
                 StartInstancesResponse response = ec2.startInstances(request);
 
+                String requestId = response.responseMetadata() != null
+                        ? response.responseMetadata().requestId() : null;
+
                 if (!response.startingInstances().isEmpty()) {
                     InstanceStateChange stateChange = response.startingInstances().get(0);
                     log.info("Started AWS EC2 instance {}: {} -> {}",
@@ -66,27 +74,38 @@ public class AwsCloudProviderService implements CloudProviderService {
                             stateChange.previousState().nameAsString(),
                             stateChange.currentState().nameAsString());
 
-                    // Wait for instance to pass 2/2 status checks
                     VmStatus finalStatus = waitForStatusChecks(ec2, providerVmId);
 
                     if (finalStatus == VmStatus.RUNNING) {
                         log.info("AWS EC2 instance {} passed 2/2 status checks — fully operational", providerVmId);
-                        return VmOperationResult.success(
-                                response.responseMetadata().requestId(),
-                                VmStatus.RUNNING
-                        );
+                        return VmOperationResult.success(requestId, VmStatus.RUNNING);
                     } else {
                         log.warn("AWS EC2 instance {} did not pass status checks in time, current status: {}", providerVmId, finalStatus);
-                        return VmOperationResult.success(
-                                response.responseMetadata().requestId(),
-                                finalStatus
-                        );
+                        return VmOperationResult.success(requestId, finalStatus);
                     }
+                }
+
+                // startingInstances is empty — instance may already be pending/running
+                // (double-click, prior attempt not recorded, or StateSyncService lag)
+                VmStatus currentStatus = getVmStatus(providerVmId, region);
+                if (currentStatus == VmStatus.STARTING || currentStatus == VmStatus.RUNNING) {
+                    log.info("AWS EC2 instance {} already in state {}, waiting for status checks", providerVmId, currentStatus);
+                    VmStatus finalStatus = waitForStatusChecks(ec2, providerVmId);
+                    return VmOperationResult.success(requestId, finalStatus);
                 }
 
                 return VmOperationResult.failure("No instance state change returned");
 
             } catch (Ec2Exception e) {
+                // Instance already in pending/running — recover instead of failing
+                if ("IncorrectInstanceState".equals(e.awsErrorDetails().errorCode())) {
+                    VmStatus currentStatus = getVmStatus(providerVmId, region);
+                    if (currentStatus == VmStatus.STARTING || currentStatus == VmStatus.RUNNING) {
+                        log.info("AWS EC2 instance {} is already {} — waiting for status checks", providerVmId, currentStatus);
+                        VmStatus finalStatus = waitForStatusChecks(getEc2Client(region), providerVmId);
+                        return VmOperationResult.success(e.requestId(), finalStatus);
+                    }
+                }
                 log.error("Failed to start AWS EC2 instance {}: {}", providerVmId, e.getMessage());
                 return VmOperationResult.failure("AWS Error: " + e.awsErrorDetails().errorMessage());
             } catch (Exception e) {
@@ -148,7 +167,7 @@ public class AwsCloudProviderService implements CloudProviderService {
 
         while (System.currentTimeMillis() - startTime < STATUS_CHECK_TIMEOUT_MS) {
             try {
-                Thread.sleep(STATUS_CHECK_POLL_INTERVAL_MS);
+                Thread.sleep(statusCheckPollIntervalMs);
 
                 DescribeInstanceStatusRequest statusRequest = DescribeInstanceStatusRequest.builder()
                         .instanceIds(instanceId)
@@ -201,7 +220,7 @@ public class AwsCloudProviderService implements CloudProviderService {
 
         while (System.currentTimeMillis() - startTime < STOP_TIMEOUT_MS) {
             try {
-                Thread.sleep(STOP_POLL_INTERVAL_MS);
+                Thread.sleep(stopPollIntervalMs);
 
                 DescribeInstancesRequest request = DescribeInstancesRequest.builder()
                         .instanceIds(instanceId)

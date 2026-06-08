@@ -144,6 +144,13 @@ public class StateSyncService {
      */
     public boolean syncVmState(Vm vm) {
         VmStatus currentStatus = vm.getStatus();
+
+        // Skip sync while an active operation is driving the VM through a transitional state
+        if (currentStatus == VmStatus.STARTING || currentStatus == VmStatus.STOPPING) {
+            log.debug("Skipping sync for VM {} — transitional state {}", vm.getVmId(), currentStatus);
+            return false;
+        }
+
         VmStatus cloudStatus = fetchCloudVmStatusWithRetry(vm, 2);
 
         if (cloudStatus == null || cloudStatus == VmStatus.UNKNOWN) {
