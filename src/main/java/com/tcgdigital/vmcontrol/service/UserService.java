@@ -70,6 +70,25 @@ public class UserService {
             return userRepository.save(user);
         }
 
+        // Fallback: look up by email to handle legacy-migrated users whose azure_ad_object_id is null
+        Optional<User> userByEmail = userRepository.findByEmail(email);
+        if (userByEmail.isPresent()) {
+            User user = userByEmail.get();
+            // Link the Azure AD object ID now that the user has logged in via Entra ID
+            user.setAzureAdObjectId(azureAdObjectId);
+            log.info("Linked Azure AD object ID to existing user: {} ({})", user.getEmail(), user.getUserId());
+            if (!user.getDisplayName().equals(displayName)) {
+                user.setDisplayName(displayName);
+            }
+            if (initialAdminEmail != null && !initialAdminEmail.isEmpty()
+                && email.equalsIgnoreCase(initialAdminEmail) && !user.isAdmin()) {
+                user.setAdmin(true);
+                log.info("Auto-promoting legacy user to admin based on initial-admin-email config: {}", email);
+            }
+            user.setLastLoginAt(new Timestamp(System.currentTimeMillis()));
+            return userRepository.save(user);
+        }
+
         // Create new user
         User newUser = User.fromAzureAd(azureAdObjectId, email, displayName);
         newUser.setLastLoginAt(new Timestamp(System.currentTimeMillis()));
