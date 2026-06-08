@@ -10,8 +10,12 @@ build/
 
 ### Environment Variables ###
 .env
+.env.bak
 .env.local
 .env.*.local
+
+### Local log files ###
+*.log
 
 
 ### STS ###
