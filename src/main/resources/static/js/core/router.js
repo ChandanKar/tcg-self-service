@@ -24,7 +24,7 @@ const ContentRouter = (function() {
             'automation-rules': () => window.Features?.loadAutomationRules?.(),
             'audit-logs-all': () => AllLogs.loadAllAuditLogs(),
             'cost-management': () => showPlaceholder('cost-management'),
-            'system-health': () => window.Features?.loadSystemHealth?.(),
+            'system-health': () => SystemHealth.load(),
             'settings': () => showPlaceholder('settings'),
             'help': () => showPlaceholder('help')
         };

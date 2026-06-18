@@ -152,7 +152,7 @@ public class MonitoringController {
         return ResponseEntity.ok(Map.of(
                 "startDate", startDate.toString(),
                 "endDate", endDate.toString(),
-                "driftEventCount", count
+                "count", count
         ));
     }
 
