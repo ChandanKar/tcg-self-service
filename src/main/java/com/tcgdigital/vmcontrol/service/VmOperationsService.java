@@ -9,10 +9,14 @@ import com.tcgdigital.vmcontrol.repository.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -39,6 +43,11 @@ public class VmOperationsService {
     private final LockService lockService;
     private final ObjectMapper objectMapper;
     private final AuditService auditService;
+
+    // Self-reference via proxy so @Async is properly applied (self-invocation bypasses Spring proxy)
+    @Lazy
+    @Autowired
+    private VmOperationsService self;
 
     public VmOperationsService(OperationExecutionRepository executionRepository,
                                OperationDetailRepository detailRepository,
@@ -123,8 +132,15 @@ public class VmOperationsService {
         auditService.logOperationStarted(userId, environmentId, environment.getName(),
                 execution.getExecutionId(), dto.getOperationType().name());
 
-        // Start async execution
-        executeOperationAsync(execution.getExecutionId(), dto.isContinueOnFailure());
+        // Fire async execution after this transaction commits so the execution row is visible
+        final String executionId = execution.getExecutionId();
+        final boolean continueOnFailure = dto.isContinueOnFailure();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                self.executeOperationAsync(executionId, continueOnFailure);
+            }
+        });
 
         return execution;
     }
