@@ -55,6 +55,24 @@ public interface CloudProviderService {
     boolean isAvailable();
 
     /**
+     * Fetch the status of multiple VMs in a single cloud API call where supported.
+     * The default implementation falls back to individual {@link #getVmStatus} calls.
+     * AWS overrides this with a batched DescribeInstances request (O(1) per region).
+     *
+     * @param providerVmIds cloud provider instance IDs to query
+     * @param region        region to query
+     * @return map of providerVmId → VmStatus; missing entries mean UNKNOWN
+     */
+    default java.util.Map<String, VmStatus> getVmStatusBatch(
+            java.util.List<String> providerVmIds, String region) {
+        java.util.Map<String, VmStatus> result = new java.util.HashMap<>();
+        for (String id : providerVmIds) {
+            result.put(id, getVmStatus(id, region));
+        }
+        return result;
+    }
+
+    /**
      * List all instance IDs currently running in the given regions.
      * Used by the VM discovery job to detect untracked instances.
      * @param regions list of region strings to scan

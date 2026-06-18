@@ -18,12 +18,15 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 /**
  * Service for VM state synchronization and drift detection.
@@ -64,7 +67,11 @@ public class StateSyncService {
 
     /**
      * Sync all active VMs with their cloud provider status.
-     * Active VMs are processed in parallel via syncExecutor.
+     *
+     * Instead of one API call per VM (O(n)), VMs are grouped by (provider, region) and
+     * a single batch DescribeInstances call is issued per group.  For 161 VMs all in
+     * ap-south-1 this reduces 161 AWS API calls to 1.  If a batch call fails, affected
+     * VMs fall back to the individual-fetch path automatically.
      */
     public StateSyncStatusDTO syncAllVmStates() {
         if (!syncInProgress.compareAndSet(false, true)) {
@@ -81,20 +88,85 @@ public class StateSyncService {
             List<Vm> activeVms = vmRepository.findByIsActiveTrue();
             vmCount.set(activeVms.size());
 
-            // Process active VMs in parallel
-            List<CompletableFuture<Void>> futures = activeVms.stream()
-                    .map(vm -> CompletableFuture.runAsync(() -> {
+            // VMs in transitional states are being driven by an in-flight operation — skip them
+            List<Vm> vmsToSync = activeVms.stream()
+                    .filter(vm -> vm.getStatus() != VmStatus.STARTING
+                               && vm.getStatus() != VmStatus.STOPPING)
+                    .toList();
+
+            int skipped = activeVms.size() - vmsToSync.size();
+            if (skipped > 0) {
+                log.debug("Skipping {} VM(s) in transitional state (STARTING/STOPPING)", skipped);
+            }
+
+            // Group by "PROVIDER:region" — one batch API call per group
+            Map<String, List<Vm>> groups = vmsToSync.stream()
+                    .filter(vm -> vm.getProviderVmId() != null && !vm.getProviderVmId().isBlank())
+                    .collect(Collectors.groupingBy(
+                            vm -> vm.getProvider().name() + ":" + vm.getRegion()));
+
+            // Fetch all statuses in parallel — one call per (provider, region) group
+            Map<String, Map<String, VmStatus>> batchResults = new ConcurrentHashMap<>();
+            List<CompletableFuture<Void>> fetchFutures = groups.entrySet().stream()
+                    .map(entry -> CompletableFuture.runAsync(() -> {
+                        String[] parts = entry.getKey().split(":", 2);
+                        CloudProvider provider = CloudProvider.valueOf(parts[0]);
+                        String region = parts[1];
+                        List<String> ids = entry.getValue().stream()
+                                .map(Vm::getProviderVmId).toList();
                         try {
-                            boolean hasDrift = syncVmState(vm);
-                            if (hasDrift) driftCount.incrementAndGet();
+                            CloudProviderService svc = cloudProviderFactory.getService(provider);
+                            if (!svc.isAvailable()) {
+                                log.warn("Cloud provider {} not available — {} VM(s) will be skipped",
+                                        provider, ids.size());
+                                return;
+                            }
+                            Map<String, VmStatus> statuses = svc.getVmStatusBatch(ids, region);
+                            if (!statuses.isEmpty()) {
+                                batchResults.put(entry.getKey(), statuses);
+                            } else {
+                                log.warn("Batch fetch returned no results for {}/{} — VMs will fall back to individual fetch",
+                                        provider, region);
+                            }
                         } catch (Exception e) {
-                            errorCount.incrementAndGet();
-                            log.error("Failed to sync VM {}: {}", vm.getVmId(), e.getMessage());
+                            log.error("Batch fetch failed for {}/{}: {}", provider, region, e.getMessage());
+                            errorCount.addAndGet(ids.size());
                         }
                     }, syncExecutor))
                     .toList();
 
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            CompletableFuture.allOf(fetchFutures.toArray(new CompletableFuture[0])).join();
+            log.info("Batch status fetch complete: {} group(s) queried", groups.size());
+
+            // Apply the pre-fetched statuses to each VM in parallel
+            List<CompletableFuture<Void>> applyFutures = vmsToSync.stream()
+                    .map(vm -> CompletableFuture.runAsync(() -> {
+                        try {
+                            if (vm.getProviderVmId() == null || vm.getProviderVmId().isBlank()) {
+                                log.warn("VM {} has no provider ID — skipping", vm.getVmId());
+                                return;
+                            }
+                            String key = vm.getProvider().name() + ":" + vm.getRegion();
+                            Map<String, VmStatus> regionStatuses = batchResults.get(key);
+
+                            VmStatus cloudStatus;
+                            if (regionStatuses != null) {
+                                cloudStatus = regionStatuses.getOrDefault(
+                                        vm.getProviderVmId(), VmStatus.UNKNOWN);
+                            } else {
+                                // Batch failed for this group — individual fallback
+                                cloudStatus = fetchCloudVmStatusWithRetry(vm, 2);
+                            }
+
+                            if (applySyncedStatus(vm, cloudStatus)) driftCount.incrementAndGet();
+                        } catch (Exception e) {
+                            errorCount.incrementAndGet();
+                            log.error("Failed to apply sync for VM {}: {}", vm.getVmId(), e.getMessage());
+                        }
+                    }, syncExecutor))
+                    .toList();
+
+            CompletableFuture.allOf(applyFutures.toArray(new CompletableFuture[0])).join();
 
             lastSyncTime.set(Timestamp.from(Instant.now()));
             lastSyncStatus.set(errorCount.get() == 0 ? "success" : "partial");
@@ -102,12 +174,12 @@ public class StateSyncService {
             lastDriftCount.set(driftCount.get());
             lastErrorCount.set(errorCount.get());
 
-            log.info("VM state sync completed: {} VMs synced, {} drift detected, {} errors",
-                    vmCount.get(), driftCount.get(), errorCount.get());
+            log.info("VM state sync completed: {}/{} VMs synced across {} group(s), {} drift, {} errors",
+                    vmsToSync.size(), vmCount.get(), groups.size(), driftCount.get(), errorCount.get());
 
             auditService.logAction(null, AuditAction.SCHEDULED_JOB_EXECUTED, "job", "state_sync",
-                    "VM State Sync", String.format("Synced %d VMs, %d drift, %d errors",
-                            vmCount.get(), driftCount.get(), errorCount.get()));
+                    "VM State Sync", String.format("Synced %d VMs in %d group(s), %d drift, %d errors",
+                            vmsToSync.size(), groups.size(), driftCount.get(), errorCount.get()));
 
         } finally {
             syncInProgress.set(false);
@@ -140,18 +212,25 @@ public class StateSyncService {
 
     /**
      * Sync a single VM's state with cloud provider.
-     * Returns true if drift was detected.
+     * Used by {@link #syncEnvironmentVmStates} and manual single-VM triggers.
+     * The full-sync path uses {@link #applySyncedStatus} directly with batch-fetched statuses.
      */
     public boolean syncVmState(Vm vm) {
         VmStatus currentStatus = vm.getStatus();
-
-        // Skip sync while an active operation is driving the VM through a transitional state
         if (currentStatus == VmStatus.STARTING || currentStatus == VmStatus.STOPPING) {
             log.debug("Skipping sync for VM {} — transitional state {}", vm.getVmId(), currentStatus);
             return false;
         }
-
         VmStatus cloudStatus = fetchCloudVmStatusWithRetry(vm, 2);
+        return applySyncedStatus(vm, cloudStatus);
+    }
+
+    /**
+     * Apply a pre-fetched cloud status to the VM, recording drift and updating the DB.
+     * Extracted so the batch sync path can reuse this logic without redundant API calls.
+     */
+    private boolean applySyncedStatus(Vm vm, VmStatus cloudStatus) {
+        VmStatus currentStatus = vm.getStatus();
 
         if (cloudStatus == null || cloudStatus == VmStatus.UNKNOWN) {
             log.warn("Could not determine cloud status for VM {} (result: {}) — skipping to avoid false drift",
@@ -159,62 +238,50 @@ public class StateSyncService {
             return false;
         }
 
-        // Handle VM not found in cloud (deleted externally)
         if (cloudStatus == VmStatus.NOT_FOUND || cloudStatus == VmStatus.TERMINATED) {
-            log.warn("VM {} ({}) is {} in cloud provider - marking as inactive",
+            log.warn("VM {} ({}) is {} in cloud — marking as inactive",
                     vm.getName(), vm.getVmId(), cloudStatus);
 
-            // Record state change
             String details = cloudStatus == VmStatus.NOT_FOUND
                     ? "VM not found in cloud provider - may have been deleted externally"
                     : "VM terminated in cloud provider";
             recordStateChange(vm, currentStatus, cloudStatus, "state_sync", null, null, details);
 
-            // Update VM status and deactivate
             vm.setStatus(cloudStatus);
             vm.setIsActive(false);
             vm.setStateDriftDetected(true);
             vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
             vmRepository.save(vm);
 
-            // Audit log with high severity
             auditService.logAction(null, AuditAction.STATE_DRIFT_DETECTED, "vm", vm.getVmId(),
                     vm.getName(), String.format("VM %s in cloud - marked inactive. Previous status: %s",
                             cloudStatus, currentStatus));
-
             return true;
         }
 
-        // Sync VM name from cloud if name/displayName matches providerVmId (likely auto-generated)
+        // Sync name from cloud if the stored name is still the raw instance ID
         syncVmNameIfNeeded(vm);
 
-        // Check for normal drift (status changed but VM still exists)
         if (currentStatus != cloudStatus) {
-            log.info("State drift detected for VM {}: {} -> {}",
-                    vm.getName(), currentStatus, cloudStatus);
+            log.info("State drift detected for VM {}: {} -> {}", vm.getName(), currentStatus, cloudStatus);
 
-            // Record state change
             recordStateChange(vm, currentStatus, cloudStatus, "state_sync", null, null,
                     "Drift detected during state sync");
 
-            // Update VM status
             vm.setStatus(cloudStatus);
             vm.setStateDriftDetected(true);
             vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
             vmRepository.save(vm);
 
-            // Audit log drift
             auditService.logAction(null, AuditAction.STATE_DRIFT_DETECTED, "vm", vm.getVmId(),
                     vm.getName(), String.format("State drift: %s -> %s", currentStatus, cloudStatus));
-
             return true;
         }
 
-        // No drift — clear drift flag and update sync time
+        // No drift — clear the flag and record the sync time
         vm.setStateDriftDetected(false);
         vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
         vmRepository.save(vm);
-
         return false;
     }
 

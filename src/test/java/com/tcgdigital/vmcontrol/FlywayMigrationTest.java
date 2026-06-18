@@ -334,15 +334,15 @@ class FlywayMigrationTest {
             userId, "testnotif@example.com", "Test Notification User", "oid-notif-1"
         );
         jdbcTemplate.update(
-            "INSERT INTO notification (notification_id, user_id, notification_type, title, message, severity, is_read, is_dismissed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            notificationId, userId, "test_notification", "Test Title", "Test Message", "info", false, false
+            "INSERT INTO notification (notification_id, user_id, type, title, message, is_read) VALUES (?, ?, ?, ?, ?, ?)",
+            notificationId, userId, "VM_STATE_CHANGE", "Test Title", "Test Message", false
         );
 
         // Query: Get unread notifications for a user
         List<Map<String, Object>> notifications = jdbcTemplate.queryForList(
-            "SELECT n.notification_id, n.notification_type, n.title, n.message, n.severity, n.created_at " +
+            "SELECT n.notification_id, n.type, n.title, n.message, n.created_at " +
             "FROM notification n " +
-            "WHERE n.user_id = ? AND n.is_read = FALSE AND n.is_dismissed = FALSE " +
+            "WHERE n.user_id = ? AND n.is_read = FALSE " +
             "ORDER BY n.created_at DESC",
             userId
         );

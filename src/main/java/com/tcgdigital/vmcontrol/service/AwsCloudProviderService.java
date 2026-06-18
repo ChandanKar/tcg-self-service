@@ -14,6 +14,9 @@ import software.amazon.awssdk.services.ec2.Ec2Client;
 import software.amazon.awssdk.services.ec2.model.*;
 
 import java.time.Duration;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -321,6 +324,54 @@ public class AwsCloudProviderService implements CloudProviderService {
     public boolean isAvailable() {
         return accessKey != null && !accessKey.isEmpty()
                 && secretKey != null && !secretKey.isEmpty();
+    }
+
+    /**
+     * Batch-fetches status for multiple EC2 instances with a single DescribeInstances call per chunk
+     * instead of one API call per VM.  Falls back gracefully: if the call fails, returns an empty
+     * map and the caller will retry individually.
+     */
+    @Override
+    public Map<String, VmStatus> getVmStatusBatch(List<String> instanceIds, String region) {
+        if (instanceIds.isEmpty()) return Collections.emptyMap();
+
+        Map<String, VmStatus> result = new HashMap<>();
+        try {
+            Ec2Client ec2 = getEc2Client(region);
+
+            // EC2 accepts up to 1 000 IDs; chunk at 200 to stay well inside the limit
+            int chunkSize = 200;
+            for (int i = 0; i < instanceIds.size(); i += chunkSize) {
+                List<String> chunk = instanceIds.subList(i, Math.min(i + chunkSize, instanceIds.size()));
+
+                DescribeInstancesResponse response = ec2.describeInstances(
+                        DescribeInstancesRequest.builder()
+                                .instanceIds(chunk)
+                                .build());
+
+                for (Reservation reservation : response.reservations()) {
+                    for (Instance instance : reservation.instances()) {
+                        result.put(instance.instanceId(),
+                                mapAwsStateToVmStatus(instance.state().name()));
+                    }
+                }
+            }
+
+            // Instance IDs absent from the response no longer exist in EC2
+            for (String id : instanceIds) {
+                result.putIfAbsent(id, VmStatus.NOT_FOUND);
+            }
+
+            log.debug("Batch DescribeInstances: {} IDs → {} results in {}", instanceIds.size(), result.size(), region);
+
+        } catch (Ec2Exception e) {
+            log.error("Batch DescribeInstances failed for region {}: {}", region, e.getMessage());
+            // Return empty — StateSyncService will fall back to per-VM fetch for this group
+        } catch (Exception e) {
+            log.error("Batch status fetch error for region {}: {}", region, e.getMessage());
+        }
+
+        return result;
     }
 
     /**
