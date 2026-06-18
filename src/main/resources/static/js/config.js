@@ -110,6 +110,8 @@ const Config = (function() {
         // Audit
         audit: {
             logs: `${API_BASE_URL}/audit/logs`,
+            allLogs: `${API_BASE_URL}/audit/logs`,
+            myLogs: (userId) => `${API_BASE_URL}/audit/logs/user/${userId}`,
             recent: `${API_BASE_URL}/audit/logs/recent`,
             byEnvironment: (envId) => `${API_BASE_URL}/audit/logs/environment/${envId}`,
             byUser: (userId) => `${API_BASE_URL}/audit/logs/user/${userId}`,
@@ -118,7 +120,9 @@ const Config = (function() {
             report: `${API_BASE_URL}/audit/report`,
             lockReport: `${API_BASE_URL}/audit/report/locks`,
             vmReport: `${API_BASE_URL}/audit/report/vm-operations`,
-            actions: `${API_BASE_URL}/audit/actions`
+            actions: `${API_BASE_URL}/audit/actions`,
+            export: `${API_BASE_URL}/audit/logs/export`,
+            exportMy: `${API_BASE_URL}/audit/logs/my/export`
         },
 
         // Monitoring

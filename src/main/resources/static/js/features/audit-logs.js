@@ -66,7 +66,7 @@ const AuditLogs = (function() {
      */
     function fetchMyLogs() {
         return new Promise((resolve, reject) => {
-            ApiClient.get(Config.API.audit.myLogs)
+            ApiClient.get(Config.API.audit.myLogs(Auth.getCurrentUserId()))
                 .done(resolve)
                 .fail(function(xhr) {
                     if (xhr.status === 404) {
