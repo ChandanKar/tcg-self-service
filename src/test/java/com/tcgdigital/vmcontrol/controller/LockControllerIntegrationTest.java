@@ -49,7 +49,7 @@ class LockControllerIntegrationTest {
     void testGetLockStatus_NoLock() throws Exception {
         mockMvc.perform(get("/api/v1/environments/" + environmentId + "/lock"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.locked").value(false))
+                .andExpect(jsonPath("$.isLocked").value(false))
                 .andExpect(jsonPath("$.lockId").doesNotExist());
     }
 
@@ -64,7 +64,7 @@ class LockControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.locked").value(true))
+                .andExpect(jsonPath("$.isLocked").value(true))
                 .andExpect(jsonPath("$.lockId").isNotEmpty())
                 .andExpect(jsonPath("$.lockedByUserId").value("user-001"))
                 .andExpect(jsonPath("$.lockReason").value("Testing lock acquisition"));
@@ -106,7 +106,7 @@ class LockControllerIntegrationTest {
         // Verify lock is released
         mockMvc.perform(get("/api/v1/environments/" + environmentId + "/lock"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.locked").value(false));
+                .andExpect(jsonPath("$.isLocked").value(false));
     }
 
     @Test
@@ -147,7 +147,7 @@ class LockControllerIntegrationTest {
         // Verify lock is broken
         mockMvc.perform(get("/api/v1/environments/" + environmentId + "/lock"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.locked").value(false));
+                .andExpect(jsonPath("$.isLocked").value(false));
     }
 
     @Test
@@ -192,7 +192,7 @@ class LockControllerIntegrationTest {
     void testLockWorkflow_FullCycle() throws Exception {
         // 1. Check no lock exists
         mockMvc.perform(get("/api/v1/environments/" + environmentId + "/lock"))
-                .andExpect(jsonPath("$.locked").value(false));
+                .andExpect(jsonPath("$.isLocked").value(false));
 
         // 2. User 1 acquires lock
         mockMvc.perform(post("/api/v1/environments/" + environmentId + "/lock/acquire")

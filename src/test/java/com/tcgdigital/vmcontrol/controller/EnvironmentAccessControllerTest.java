@@ -9,16 +9,20 @@ import com.tcgdigital.vmcontrol.repository.EnvironmentAccessRequestRepository;
 import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
 import com.tcgdigital.vmcontrol.service.EnvironmentAccessService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.*;
@@ -85,6 +89,15 @@ class EnvironmentAccessControllerTest {
         adminUser = User.fromAzureAd("admin-oid", "admin@example.com", "Admin User");
         adminUser.setAdmin(true);
         adminUser = userRepository.save(adminUser);
+
+        // Set up security context so getCurrentUserId() resolves to testUser
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("test@example.com", null, Collections.emptyList()));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     // ============= Access Grant Endpoint Tests =============

@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -312,9 +313,19 @@ public class UserService {
             }
         }
 
-        // For testing/development without OAuth2
-        if (principal instanceof String username) {
-            return userRepository.findByEmail(username).orElse(null);
+        // For @WithMockUser in tests (UserDetails principal from Spring Security test support)
+        if (principal instanceof UserDetails ud) {
+            String login = ud.getUsername();
+            return userRepository.findByEmail(login)
+                    .or(() -> userRepository.findById(login))
+                    .orElse(null);
+        }
+
+        // For dev mode X-User-Id header or manual SecurityContext setup in tests
+        if (principal instanceof String s) {
+            return userRepository.findByEmail(s)
+                    .or(() -> userRepository.findById(s))
+                    .orElse(null);
         }
 
         return null;

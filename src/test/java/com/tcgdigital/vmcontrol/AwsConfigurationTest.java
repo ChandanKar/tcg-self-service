@@ -63,7 +63,8 @@ class AwsConfigurationTest {
     @Test
     void testAwsCredentialsAreValid() {
         // Skip test if using placeholder credentials
-        if ("YOUR_AWS_ACCESS_KEY".equals(accessKey) || "YOUR_AWS_SECRET_KEY".equals(secretKey)) {
+        if ("YOUR_AWS_ACCESS_KEY".equals(accessKey) || "YOUR_AWS_SECRET_KEY".equals(secretKey)
+                || "test-access-key".equals(accessKey) || "test-secret-key".equals(secretKey)) {
             System.out.println("Skipping AWS credential validation test - placeholder credentials detected. " +
                 "Please configure real AWS credentials in application.properties to run this test.");
             return;

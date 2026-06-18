@@ -3,11 +3,14 @@ package com.tcgdigital.vmcontrol.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tcgdigital.vmcontrol.dto.CreateEnvironmentDTO;
 import com.tcgdigital.vmcontrol.dto.CreateVmGroupDTO;
+import com.tcgdigital.vmcontrol.dto.GrantAccessDTO;
 import com.tcgdigital.vmcontrol.dto.RegisterVmDTO;
 import com.tcgdigital.vmcontrol.dto.StartOperationDTO;
+import com.tcgdigital.vmcontrol.model.AccessLevel;
 import com.tcgdigital.vmcontrol.model.CloudProvider;
 import com.tcgdigital.vmcontrol.model.OperationType;
 import com.tcgdigital.vmcontrol.model.VmType;
+import com.tcgdigital.vmcontrol.service.EnvironmentAccessService;
 import com.tcgdigital.vmcontrol.service.EnvironmentService;
 import com.tcgdigital.vmcontrol.service.LockService;
 import com.tcgdigital.vmcontrol.service.VmGroupService;
@@ -51,6 +54,9 @@ class VmOperationsControllerIntegrationTest {
     @Autowired
     private LockService lockService;
 
+    @Autowired
+    private EnvironmentAccessService accessService;
+
     private String environmentId;
     private String groupId;
     private String vmId;
@@ -62,6 +68,10 @@ class VmOperationsControllerIntegrationTest {
         envDto.setName("ops-ctrl-test-" + UUID.randomUUID().toString().substring(0, 8));
         envDto.setDisplayName("Operations Controller Test");
         environmentId = environmentService.createEnvironment(envDto).getEnvironmentId();
+
+        // Grant user-001 and user-002 access so security checks pass in tests
+        accessService.grantAccess(environmentId, "admin-001", new GrantAccessDTO("user-001", AccessLevel.USER, null, null));
+        accessService.grantAccess(environmentId, "admin-001", new GrantAccessDTO("user-002", AccessLevel.USER, null, null));
 
         // Create group
         CreateVmGroupDTO groupDto = new CreateVmGroupDTO();
@@ -154,7 +164,8 @@ class VmOperationsControllerIntegrationTest {
                 .andExpect(status().isAccepted());
 
         // List operations
-        mockMvc.perform(get("/api/v1/environments/" + environmentId + "/operations"))
+        mockMvc.perform(get("/api/v1/environments/" + environmentId + "/operations")
+                        .header("X-User-Id", "user-001"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].operationType").value("START"));
@@ -179,7 +190,8 @@ class VmOperationsControllerIntegrationTest {
         String executionId = objectMapper.readTree(response).get("executionId").asText();
 
         // Get details
-        mockMvc.perform(get("/api/v1/environments/" + environmentId + "/operations/" + executionId))
+        mockMvc.perform(get("/api/v1/environments/" + environmentId + "/operations/" + executionId)
+                        .header("X-User-Id", "user-001"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.executionId").value(executionId))
                 .andExpect(jsonPath("$.operationType").value("STOP"))
