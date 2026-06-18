@@ -389,15 +389,24 @@ public class VmOperationsService {
 
         // Process each detail
         for (OperationDetail detail : details) {
-            // Check if cancelled
+            // Check before starting each VM
             execution = getExecution(executionId);
             if (execution.getStatus() == ExecutionStatus.CANCELLED) {
-                log.info("Execution {} was cancelled", executionId);
+                log.info("Execution {} was cancelled before VM {}", executionId, detail.getTargetName());
                 return;
             }
 
             try {
                 executeVmOperation(detail, execution.getOperationType());
+
+                // Re-check after the cloud call returns — a cancel request may have arrived
+                // while the provider API was blocking (cloud calls are non-interruptible)
+                execution = getExecution(executionId);
+                if (execution.getStatus() == ExecutionStatus.CANCELLED) {
+                    log.info("Execution {} was cancelled after completing VM {}, stopping",
+                            executionId, detail.getTargetName());
+                    return;
+                }
 
                 detail = detailRepository.findById(detail.getDetailId()).orElse(detail);
                 if (detail.isFailed()) {
@@ -556,6 +565,10 @@ public class VmOperationsService {
 
     private void markExecutionCompleted(String executionId) {
         executionRepository.findById(executionId).ifPresent(execution -> {
+            if (execution.getStatus() == ExecutionStatus.CANCELLED) {
+                log.info("Execution {} was already cancelled — skipping COMPLETED transition", executionId);
+                return;
+            }
             execution.setStatus(ExecutionStatus.COMPLETED);
             execution.setCompletedAt(Timestamp.from(Instant.now()));
             executionRepository.save(execution);
@@ -576,6 +589,10 @@ public class VmOperationsService {
 
     private void markExecutionPartialSuccess(String executionId) {
         executionRepository.findById(executionId).ifPresent(execution -> {
+            if (execution.getStatus() == ExecutionStatus.CANCELLED) {
+                log.info("Execution {} was already cancelled — skipping PARTIAL_SUCCESS transition", executionId);
+                return;
+            }
             execution.setStatus(ExecutionStatus.PARTIAL_SUCCESS);
             execution.setCompletedAt(Timestamp.from(Instant.now()));
             executionRepository.save(execution);
