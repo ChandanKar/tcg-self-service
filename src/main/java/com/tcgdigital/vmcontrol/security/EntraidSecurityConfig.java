@@ -29,7 +29,8 @@ public class EntraidSecurityConfig {
                 .requestMatchers("/", "/login", "/login.html", "/css/**", "/js/**", "/logo/**", "/images/**", "/static/**",
                     "/error", "/h2-console/**", "/login/**", "/oauth2/**", "/logout",
                     "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/swagger-resources/**", "/webjars/**",
-                    "/api/auth/login").permitAll()  // Added username/password login endpoint
+                    "/api/auth/login",
+                    "/actuator/health", "/actuator/health/**").permitAll()
                 // require authentication for all other requests (including /home)
                 .anyRequest().authenticated()
             )
