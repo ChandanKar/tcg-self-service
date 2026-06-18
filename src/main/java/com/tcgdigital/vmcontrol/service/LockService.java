@@ -32,15 +32,18 @@ public class LockService {
     private final LockHistoryRepository historyRepository;
     private final EnvironmentRepository environmentRepository;
     private final AuditService auditService;
+    private final NotificationService notificationService;
 
     public LockService(EnvironmentLockRepository lockRepository,
                        LockHistoryRepository historyRepository,
                        EnvironmentRepository environmentRepository,
-                       AuditService auditService) {
+                       AuditService auditService,
+                       NotificationService notificationService) {
         this.lockRepository = lockRepository;
         this.historyRepository = historyRepository;
         this.environmentRepository = environmentRepository;
         this.auditService = auditService;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -164,7 +167,7 @@ public class LockService {
         log.warn("Lock on environment {} broken by admin {} (was held by {}). Reason: {}",
                 environmentId, adminUserId, originalLockHolder, breakReason);
 
-        // TODO: Send notification to original lock holder when notification service is implemented
+        notificationService.notifyLockBroken(originalLockHolder, environmentName, adminUserId, breakReason);
     }
 
     /**

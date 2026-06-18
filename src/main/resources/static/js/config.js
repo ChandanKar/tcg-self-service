@@ -137,6 +137,15 @@ const Config = (function() {
             driftReport: `${API_BASE_URL}/monitoring/drift-events/report`
         },
 
+        // Notifications
+        notifications: {
+            list:       `${API_BASE_URL}/notifications`,
+            unread:     `${API_BASE_URL}/notifications/unread`,
+            count:      `${API_BASE_URL}/notifications/count`,
+            markRead:   (id) => `${API_BASE_URL}/notifications/${id}/read`,
+            markAllRead: `${API_BASE_URL}/notifications/read-all`
+        },
+
         // EC2 (AWS)
         ec2: {
             listInstances: (region) => `/api/ec2/instances?region=${region}`,
