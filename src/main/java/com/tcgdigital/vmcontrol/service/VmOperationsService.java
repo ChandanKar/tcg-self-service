@@ -43,6 +43,7 @@ public class VmOperationsService {
     private final LockService lockService;
     private final ObjectMapper objectMapper;
     private final AuditService auditService;
+    private final NotificationService notificationService;
 
     // Self-reference via proxy so @Async is properly applied (self-invocation bypasses Spring proxy)
     @Lazy
@@ -58,7 +59,8 @@ public class VmOperationsService {
                                CloudProviderFactory cloudProviderFactory,
                                LockService lockService,
                                ObjectMapper objectMapper,
-                               AuditService auditService) {
+                               AuditService auditService,
+                               NotificationService notificationService) {
         this.executionRepository = executionRepository;
         this.detailRepository = detailRepository;
         this.environmentRepository = environmentRepository;
@@ -69,6 +71,7 @@ public class VmOperationsService {
         this.lockService = lockService;
         this.objectMapper = objectMapper;
         this.auditService = auditService;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -584,6 +587,10 @@ public class VmOperationsService {
                     execution.getTotalTargets(),
                     execution.getFailedTargets()
             );
+            notificationService.notifyOperationCompleted(
+                    execution.getInitiatedByUserId(),
+                    execution.getEnvironment().getName(),
+                    execution.getOperationType().name());
         });
     }
 
@@ -608,6 +615,10 @@ public class VmOperationsService {
                     execution.getTotalTargets(),
                     execution.getFailedTargets()
             );
+            notificationService.notifyOperationCompleted(
+                    execution.getInitiatedByUserId(),
+                    execution.getEnvironment().getName(),
+                    execution.getOperationType().name());
         });
     }
 
@@ -628,6 +639,11 @@ public class VmOperationsService {
                     execution.getOperationType().name(),
                     errorMessage
             );
+            notificationService.notifyOperationFailed(
+                    execution.getInitiatedByUserId(),
+                    execution.getEnvironment().getName(),
+                    execution.getOperationType().name(),
+                    errorMessage);
         });
     }
 }

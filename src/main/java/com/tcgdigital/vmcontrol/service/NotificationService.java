@@ -92,6 +92,22 @@ public class NotificationService {
                "ENVIRONMENT", environmentId);
     }
 
+    public void notifyOperationCompleted(String userId, String environmentName, String operationType) {
+        create(userId, NotificationType.OPERATION_COMPLETED,
+               operationType + " completed: " + environmentName,
+               "The " + operationType.toLowerCase() + " operation on environment \"" +
+                       environmentName + "\" finished successfully.",
+               "ENVIRONMENT", null);
+    }
+
+    public void notifyOperationFailed(String userId, String environmentName, String operationType, String reason) {
+        create(userId, NotificationType.OPERATION_FAILED,
+               operationType + " failed: " + environmentName,
+               "The " + operationType.toLowerCase() + " operation on environment \"" +
+                       environmentName + "\" failed. Reason: " + reason,
+               "ENVIRONMENT", null);
+    }
+
     private void create(String userId, NotificationType type, String title, String message,
                         String entityType, String entityId) {
         Notification n = new Notification();

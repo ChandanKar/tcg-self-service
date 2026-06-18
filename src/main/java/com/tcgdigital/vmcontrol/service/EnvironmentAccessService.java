@@ -33,17 +33,20 @@ public class EnvironmentAccessService {
     private final EnvironmentRepository environmentRepository;
     private final UserRepository userRepository;
     private final AuditService auditService;
+    private final NotificationService notificationService;
 
     public EnvironmentAccessService(EnvironmentAccessRepository accessRepository,
                                      EnvironmentAccessRequestRepository requestRepository,
                                      EnvironmentRepository environmentRepository,
                                      UserRepository userRepository,
-                                     AuditService auditService) {
+                                     AuditService auditService,
+                                     NotificationService notificationService) {
         this.accessRepository = accessRepository;
         this.requestRepository = requestRepository;
         this.environmentRepository = environmentRepository;
         this.userRepository = userRepository;
         this.auditService = auditService;
+        this.notificationService = notificationService;
     }
 
     // ============= Access Request Operations =============
@@ -164,6 +167,11 @@ public class EnvironmentAccessService {
                 request.getEnvironment().getEnvironmentId(), request.getEnvironment().getName(),
                 request.getRequestedAccessLevel().getValue());
 
+        notificationService.notifyAccessRequestApproved(
+                request.getRequester().getUserId(),
+                request.getEnvironment().getName(),
+                request.getEnvironment().getEnvironmentId());
+
         return saved;
     }
 
@@ -188,6 +196,11 @@ public class EnvironmentAccessService {
 
         auditService.logAccessDenied(reviewerUserId, request.getRequester().getUserId(),
                 request.getEnvironment().getEnvironmentId(), request.getEnvironment().getName(), reason);
+
+        notificationService.notifyAccessRequestDenied(
+                request.getRequester().getUserId(),
+                request.getEnvironment().getName(),
+                request.getEnvironment().getEnvironmentId());
 
         return saved;
     }
@@ -264,6 +277,8 @@ public class EnvironmentAccessService {
         auditService.logAccessGranted(grantedByUserId, dto.getUserId(), environmentId,
                 environment.getName(), dto.getAccessLevel().getValue());
 
+        notificationService.notifyAccessGranted(dto.getUserId(), environment.getName(), environmentId);
+
         return saved;
     }
 
@@ -284,6 +299,8 @@ public class EnvironmentAccessService {
         log.info("Access revoked for user {} on environment {} by {}", userId, environmentId, revokedByUserId);
 
         auditService.logAccessRevoked(revokedByUserId, userId, environmentId, environment.getName());
+
+        notificationService.notifyAccessRevoked(userId, environment.getName(), environmentId);
     }
 
     // ============= Access Query Operations =============
