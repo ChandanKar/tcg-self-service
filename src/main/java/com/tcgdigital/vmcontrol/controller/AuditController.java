@@ -31,7 +31,6 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/v1/audit")
 @Tag(name = "Audit", description = "Audit logs and compliance reporting")
-@PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
 public class AuditController {
 
     private final AuditService auditService;
@@ -43,6 +42,7 @@ public class AuditController {
     }
 
     @GetMapping("/logs")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Get audit logs",
             description = "Retrieves audit logs with optional filtering"
@@ -108,6 +108,7 @@ public class AuditController {
     }
 
     @GetMapping("/logs/recent")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Get recent audit logs",
             description = "Retrieves the most recent 100 audit logs"
@@ -121,6 +122,7 @@ public class AuditController {
     }
 
     @GetMapping("/logs/environment/{environmentId}")
+    @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Get audit logs for an environment",
             description = "Retrieves audit logs for a specific environment"
@@ -136,6 +138,7 @@ public class AuditController {
     }
 
     @GetMapping("/logs/user/{userId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Get audit logs for a user",
             description = "Retrieves audit logs for a specific user"
@@ -151,6 +154,7 @@ public class AuditController {
     }
 
     @GetMapping("/logs/target/{targetType}/{targetId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Get audit logs for a target",
             description = "Retrieves audit logs for a specific target (vm, group, environment, etc.)"
@@ -168,6 +172,7 @@ public class AuditController {
     }
 
     @GetMapping("/logs/failures")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Get failed operations",
             description = "Retrieves audit logs for failed operations"
@@ -182,6 +187,7 @@ public class AuditController {
     }
 
     @GetMapping("/report")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Generate audit report",
             description = "Generates an audit report for a date range"
@@ -240,6 +246,7 @@ public class AuditController {
     }
 
     @GetMapping("/report/locks")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Get lock operations report",
             description = "Retrieves all lock-related operations for compliance"
@@ -258,6 +265,7 @@ public class AuditController {
     }
 
     @GetMapping("/report/vm-operations")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Get VM operations report",
             description = "Retrieves all VM start/stop operations for compliance"
@@ -276,6 +284,7 @@ public class AuditController {
     }
 
     @GetMapping("/actions")
+    @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Get available audit actions",
             description = "Returns list of all possible audit action types"
