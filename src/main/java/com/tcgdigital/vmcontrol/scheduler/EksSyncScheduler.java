@@ -26,10 +26,10 @@ public class EksSyncScheduler {
     @Scheduled(fixedRateString = "${eks.sync.interval:300000}",
                initialDelayString = "${eks.sync.initial-delay:60000}")
     public void scheduledEksSync() {
-        log.debug("Scheduled EKS sync triggered");
+        log.info("Scheduled EKS sync triggered");
         try {
             int synced = eksSyncService.syncAllEksClusters();
-            log.debug("EKS sync completed — {} node groups processed", synced);
+            log.info("EKS sync completed — {} node group(s) processed", synced);
         } catch (Exception e) {
             log.error("Error during scheduled EKS sync: {}", e.getMessage(), e);
         }

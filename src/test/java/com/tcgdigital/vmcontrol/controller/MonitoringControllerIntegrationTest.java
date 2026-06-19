@@ -196,7 +196,7 @@ class MonitoringControllerIntegrationTest {
                         .param("size", "3"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content", hasSize(3)))
-                .andExpect(jsonPath("$.totalElements").value(greaterThanOrEqualTo(5)));
+                .andExpect(jsonPath("$.page.totalElements").value(greaterThanOrEqualTo(5)));
     }
 }
 

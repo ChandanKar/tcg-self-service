@@ -205,8 +205,8 @@ class AuditControllerIntegrationTest {
                         .param("size", "5"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content", hasSize(5)))
-                .andExpect(jsonPath("$.pageable.pageSize").value(5))
-                .andExpect(jsonPath("$.pageable.pageNumber").value(0));
+                .andExpect(jsonPath("$.page.size").value(5))
+                .andExpect(jsonPath("$.page.number").value(0));
     }
 }
 

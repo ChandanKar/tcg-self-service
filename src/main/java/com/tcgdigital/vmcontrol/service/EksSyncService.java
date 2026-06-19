@@ -103,7 +103,7 @@ public class EksSyncService {
     public void autoDiscoverClusters() {
         List<String> clusterNames = eksService.listClusters(defaultRegion);
         if (clusterNames.isEmpty()) {
-            log.debug("No EKS clusters found in region {} during auto-discovery", defaultRegion);
+            log.info("No EKS clusters found in region {} during auto-discovery", defaultRegion);
             return;
         }
 
