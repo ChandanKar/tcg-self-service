@@ -111,7 +111,7 @@ const Config = (function() {
         audit: {
             logs: `${API_BASE_URL}/audit/logs`,
             allLogs: `${API_BASE_URL}/audit/logs`,
-            myLogs: (userId) => `${API_BASE_URL}/audit/logs/user/${userId}`,
+            myLogs: `${API_BASE_URL}/audit/logs/my`,
             recent: `${API_BASE_URL}/audit/logs/recent`,
             byEnvironment: (envId) => `${API_BASE_URL}/audit/logs/environment/${envId}`,
             byUser: (userId) => `${API_BASE_URL}/audit/logs/user/${userId}`,

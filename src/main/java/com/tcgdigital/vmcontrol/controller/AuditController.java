@@ -5,6 +5,7 @@ import com.tcgdigital.vmcontrol.dto.AuditReportDTO;
 import com.tcgdigital.vmcontrol.model.AuditAction;
 import com.tcgdigital.vmcontrol.model.AuditLog;
 import com.tcgdigital.vmcontrol.service.AuditService;
+import com.tcgdigital.vmcontrol.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
@@ -34,9 +35,11 @@ import java.util.stream.Collectors;
 public class AuditController {
 
     private final AuditService auditService;
+    private final UserService userService;
 
-    public AuditController(AuditService auditService) {
+    public AuditController(AuditService auditService, UserService userService) {
         this.auditService = auditService;
+        this.userService = userService;
     }
 
     @GetMapping("/logs")
@@ -84,6 +87,22 @@ public class AuditController {
             );
         }
 
+        Page<AuditLogDTO> dtos = logs.map(AuditLogDTO::fromEntity);
+        return ResponseEntity.ok(dtos);
+    }
+
+    @GetMapping("/logs/my")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "Get my activity logs",
+            description = "Returns audit logs for the currently authenticated user"
+    )
+    public ResponseEntity<Page<AuditLogDTO>> getMyLogs(
+            @Parameter(description = "Page number") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Page size") @RequestParam(defaultValue = "50") int size) {
+
+        String userId = userService.getCurrentUserId();
+        Page<AuditLog> logs = auditService.getLogsForUser(userId, page, size);
         Page<AuditLogDTO> dtos = logs.map(AuditLogDTO::fromEntity);
         return ResponseEntity.ok(dtos);
     }

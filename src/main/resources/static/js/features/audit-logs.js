@@ -66,11 +66,11 @@ const AuditLogs = (function() {
      */
     function fetchMyLogs() {
         return new Promise((resolve, reject) => {
-            ApiClient.get(Config.API.audit.myLogs(Auth.getCurrentUserId()))
+            ApiClient.get(Config.API.audit.myLogs)
                 .done(resolve)
                 .fail(function(xhr) {
                     if (xhr.status === 404) {
-                        resolve([]);
+                        resolve({ content: [], totalElements: 0, totalPages: 0 });
                     } else {
                         reject(xhr);
                     }
