@@ -9,8 +9,8 @@ import jakarta.validation.constraints.NotNull;
  */
 public class GrantAccessDTO {
 
-    @NotBlank(message = "User ID is required")
-    private String userId;
+    @NotBlank(message = "User email is required")
+    private String userEmail;
 
     @NotNull(message = "Access level is required")
     private AccessLevel accessLevel;
@@ -29,19 +29,19 @@ public class GrantAccessDTO {
     public GrantAccessDTO() {
     }
 
-    public GrantAccessDTO(String userId, AccessLevel accessLevel, Integer durationDays, String notes) {
-        this.userId = userId;
+    public GrantAccessDTO(String userEmail, AccessLevel accessLevel, Integer durationDays, String notes) {
+        this.userEmail = userEmail;
         this.accessLevel = accessLevel;
         this.durationDays = durationDays;
         this.notes = notes;
     }
 
-    public String getUserId() {
-        return userId;
+    public String getUserEmail() {
+        return userEmail;
     }
 
-    public void setUserId(String userId) {
-        this.userId = userId;
+    public void setUserEmail(String userEmail) {
+        this.userEmail = userEmail;
     }
 
     public AccessLevel getAccessLevel() {

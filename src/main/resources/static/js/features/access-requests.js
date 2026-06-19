@@ -369,7 +369,7 @@ const AccessRequests = (function() {
                     <td>${statusBadge}</td>
                     <td>${Utils.escapeHtml(req.requestedAccessLevel || 'USER')}</td>
                     <td>${Utils.formatRelativeTime(req.createdAt)}</td>
-                    <td>${req.processedAt ? Utils.formatRelativeTime(req.processedAt) : '-'}</td>
+                    <td>${req.reviewedAt ? Utils.formatRelativeTime(req.reviewedAt) : '-'}</td>
                     <td>${cancelBtn}</td>
                 </tr>
             `;
@@ -432,8 +432,8 @@ const AccessRequests = (function() {
                     </span>
                 </td>
                 <td>${Utils.formatRelativeTime(req.createdAt)}</td>
-                <td title="${Utils.escapeHtml(req.reason || '')}">
-                    <span class="reason-text">${Utils.escapeHtml(req.reason || '-')}</span>
+                <td title="${Utils.escapeHtml(req.businessJustification || '')}">
+                    <span class="reason-text">${Utils.escapeHtml(req.businessJustification || '-')}</span>
                 </td>
                 <td class="text-end">
                     <div class="btn-group btn-group-sm">
@@ -667,20 +667,14 @@ const AccessRequests = (function() {
             onShow: function() {
                 $('#confirmApprove').off('click').on('click', function() {
                     const days = $('#expirationDays').val();
-                    const comments = $('#approveComments').val().trim();
-
-                    let expiresAt = null;
-                    if (days) {
-                        const date = new Date();
-                        date.setDate(date.getDate() + parseInt(days));
-                        expiresAt = date.toISOString();
-                    }
+                    const notes = $('#approveComments').val().trim();
+                    const durationDays = days ? parseInt(days) : null;
 
                     $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Approving...');
 
                     ApiClient.post(Config.API.access.approveRequest(requestId), {
-                        expiresAt,
-                        comments
+                        notes,
+                        durationDays
                     })
                     .done(function() {
                         Modals.hide('approveRequestModal');
@@ -729,7 +723,7 @@ const AccessRequests = (function() {
 
                     $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Denying...');
 
-                    ApiClient.post(Config.API.access.denyRequest(requestId), { reason })
+                    ApiClient.post(Config.API.access.denyRequest(requestId), { notes: reason })
                         .done(function() {
                             Modals.hide('denyRequestModal');
                             Notifications.success('Request denied');

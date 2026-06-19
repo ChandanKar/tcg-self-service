@@ -121,7 +121,7 @@ class EnvironmentAccessControllerTest {
     void grantAccess_verifyViaGet() throws Exception {
         // Grant access via service
         GrantAccessDTO dto = new GrantAccessDTO(
-                testUser.getUserId(),
+                testUser.getEmail(),
                 AccessLevel.USER,
                 30,
                 "Project access"
@@ -225,7 +225,7 @@ class EnvironmentAccessControllerTest {
         request = requestRepository.save(request);
 
         // Approve via service
-        accessService.approveRequest(request.getRequestId(), adminUser.getUserId(), "Approved for project");
+        accessService.approveRequest(request.getRequestId(), adminUser.getUserId(), "Approved for project", null);
 
         // Verify access was granted via endpoint
         mockMvc.perform(get("/api/v1/environments/{envId}/access", testEnvironment.getEnvironmentId()))

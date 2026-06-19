@@ -131,7 +131,7 @@ class EnvironmentAccessServiceTest {
     void createAccessRequest_alreadyHasAccess_fails() {
         // Grant access first
         GrantAccessDTO grantDto = new GrantAccessDTO(
-                requesterUser.getUserId(),
+                requesterUser.getEmail(),
                 AccessLevel.VIEWER,
                 null,
                 null
@@ -173,7 +173,8 @@ class EnvironmentAccessServiceTest {
         EnvironmentAccess access = accessService.approveRequest(
                 request.getRequestId(),
                 adminUser.getUserId(),
-                "Approved for development work"
+                "Approved for development work",
+                null
         );
 
         assertThat(access).isNotNull();
@@ -265,7 +266,7 @@ class EnvironmentAccessServiceTest {
     @DisplayName("Should grant access directly")
     void grantAccess_success() {
         GrantAccessDTO dto = new GrantAccessDTO(
-                requesterUser.getUserId(),
+                requesterUser.getEmail(),
                 AccessLevel.USER,
                 60,
                 "Granted for project work"
@@ -289,7 +290,7 @@ class EnvironmentAccessServiceTest {
     void grantAccess_updateExisting() {
         // Grant initial access
         GrantAccessDTO dto1 = new GrantAccessDTO(
-                requesterUser.getUserId(),
+                requesterUser.getEmail(),
                 AccessLevel.VIEWER,
                 null,
                 null
@@ -298,7 +299,7 @@ class EnvironmentAccessServiceTest {
 
         // Grant higher access
         GrantAccessDTO dto2 = new GrantAccessDTO(
-                requesterUser.getUserId(),
+                requesterUser.getEmail(),
                 AccessLevel.USER,
                 null,
                 "Upgraded access"
@@ -321,7 +322,7 @@ class EnvironmentAccessServiceTest {
     void revokeAccess_success() {
         // Grant access first
         GrantAccessDTO dto = new GrantAccessDTO(
-                requesterUser.getUserId(),
+                requesterUser.getEmail(),
                 AccessLevel.USER,
                 null,
                 null
@@ -361,7 +362,7 @@ class EnvironmentAccessServiceTest {
     void hasAccessLevel_success() {
         // Grant USER access
         GrantAccessDTO dto = new GrantAccessDTO(
-                requesterUser.getUserId(),
+                requesterUser.getEmail(),
                 AccessLevel.USER,
                 null,
                 null
@@ -397,8 +398,8 @@ class EnvironmentAccessServiceTest {
         User anotherUser = User.fromAzureAd("another-oid", "another@example.com", "Another User");
         anotherUser = userRepository.save(anotherUser);
 
-        GrantAccessDTO dto1 = new GrantAccessDTO(requesterUser.getUserId(), AccessLevel.USER, null, null);
-        GrantAccessDTO dto2 = new GrantAccessDTO(anotherUser.getUserId(), AccessLevel.VIEWER, null, null);
+        GrantAccessDTO dto1 = new GrantAccessDTO(requesterUser.getEmail(), AccessLevel.USER, null, null);
+        GrantAccessDTO dto2 = new GrantAccessDTO(anotherUser.getEmail(), AccessLevel.VIEWER, null, null);
 
         accessService.grantAccess(testEnvironment.getEnvironmentId(), adminUser.getUserId(), dto1);
         accessService.grantAccess(testEnvironment.getEnvironmentId(), adminUser.getUserId(), dto2);

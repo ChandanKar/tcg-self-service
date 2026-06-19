@@ -10,11 +10,14 @@ public class ReviewAccessRequestDTO {
     @Size(max = 500, message = "Notes cannot exceed 500 characters")
     private String notes;
 
+    private Integer durationDays;
+
     public ReviewAccessRequestDTO() {
     }
 
-    public ReviewAccessRequestDTO(String notes) {
+    public ReviewAccessRequestDTO(String notes, Integer durationDays) {
         this.notes = notes;
+        this.durationDays = durationDays;
     }
 
     public String getNotes() {
@@ -23,6 +26,14 @@ public class ReviewAccessRequestDTO {
 
     public void setNotes(String notes) {
         this.notes = notes;
+    }
+
+    public Integer getDurationDays() {
+        return durationDays;
+    }
+
+    public void setDurationDays(Integer durationDays) {
+        this.durationDays = durationDays;
     }
 }
 

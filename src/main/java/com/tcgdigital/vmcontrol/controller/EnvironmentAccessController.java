@@ -262,7 +262,8 @@ public class EnvironmentAccessController {
 
         String reviewerUserId = userService.getCurrentUserId();
         String notes = dto != null ? dto.getNotes() : null;
-        EnvironmentAccess access = accessService.approveRequest(requestId, reviewerUserId, notes);
+        Integer durationDays = dto != null ? dto.getDurationDays() : null;
+        EnvironmentAccess access = accessService.approveRequest(requestId, reviewerUserId, notes, durationDays);
 
         return ResponseEntity.ok(EnvironmentAccessDTO.fromEntity(access));
     }

@@ -70,8 +70,8 @@ class VmOperationsControllerIntegrationTest {
         environmentId = environmentService.createEnvironment(envDto).getEnvironmentId();
 
         // Grant user-001 and user-002 access so security checks pass in tests
-        accessService.grantAccess(environmentId, "admin-001", new GrantAccessDTO("user-001", AccessLevel.USER, null, null));
-        accessService.grantAccess(environmentId, "admin-001", new GrantAccessDTO("user-002", AccessLevel.USER, null, null));
+        accessService.grantAccess(environmentId, "admin-001", new GrantAccessDTO("user001@test.com", AccessLevel.USER, null, null));
+        accessService.grantAccess(environmentId, "admin-001", new GrantAccessDTO("user002@test.com", AccessLevel.USER, null, null));
 
         // Create group
         CreateVmGroupDTO groupDto = new CreateVmGroupDTO();

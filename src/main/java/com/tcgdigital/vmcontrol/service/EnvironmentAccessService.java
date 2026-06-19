@@ -34,19 +34,22 @@ public class EnvironmentAccessService {
     private final UserRepository userRepository;
     private final AuditService auditService;
     private final NotificationService notificationService;
+    private final UserService userService;
 
     public EnvironmentAccessService(EnvironmentAccessRepository accessRepository,
                                      EnvironmentAccessRequestRepository requestRepository,
                                      EnvironmentRepository environmentRepository,
                                      UserRepository userRepository,
                                      AuditService auditService,
-                                     NotificationService notificationService) {
+                                     NotificationService notificationService,
+                                     UserService userService) {
         this.accessRepository = accessRepository;
         this.requestRepository = requestRepository;
         this.environmentRepository = environmentRepository;
         this.userRepository = userRepository;
         this.auditService = auditService;
         this.notificationService = notificationService;
+        this.userService = userService;
     }
 
     // ============= Access Request Operations =============
@@ -130,7 +133,8 @@ public class EnvironmentAccessService {
      * Approve an access request.
      */
     @Transactional
-    public EnvironmentAccess approveRequest(String requestId, String reviewerUserId, String notes) {
+    public EnvironmentAccess approveRequest(String requestId, String reviewerUserId, String notes,
+                                             Integer reviewerDurationDays) {
         EnvironmentAccessRequest request = getAccessRequest(requestId);
         User reviewer = getUser(reviewerUserId);
 
@@ -150,9 +154,10 @@ public class EnvironmentAccessService {
                 reviewer
         );
 
-        // Set expiration if duration was specified
-        if (request.getDurationDays() != null) {
-            LocalDateTime expiresAt = LocalDateTime.now().plusDays(request.getDurationDays());
+        // Reviewer-specified duration overrides what the requester asked for
+        Integer effectiveDays = reviewerDurationDays != null ? reviewerDurationDays : request.getDurationDays();
+        if (effectiveDays != null) {
+            LocalDateTime expiresAt = LocalDateTime.now().plusDays(effectiveDays);
             access.setExpiresAt(Timestamp.valueOf(expiresAt));
         }
 
@@ -238,12 +243,15 @@ public class EnvironmentAccessService {
     public EnvironmentAccess grantAccess(String environmentId, String grantedByUserId, GrantAccessDTO dto) {
         Environment environment = getEnvironment(environmentId);
         User grantedBy = getUser(grantedByUserId);
-        User targetUser = getUser(dto.getUserId());
+        User targetUser = userService.getUserByEmail(dto.getUserEmail())
+                .orElseThrow(() -> new ResourceNotFoundException("User with email", dto.getUserEmail()));
+
+        String targetUserId = targetUser.getUserId();
 
         // Check if user already has active access
         Timestamp now = new Timestamp(System.currentTimeMillis());
         Optional<EnvironmentAccess> existingAccess = accessRepository.findActiveAccess(
-                environmentId, dto.getUserId(), now);
+                environmentId, targetUserId, now);
 
         if (existingAccess.isPresent()) {
             // Update existing access level instead of creating new
@@ -256,7 +264,7 @@ public class EnvironmentAccessService {
             }
             EnvironmentAccess saved = accessRepository.save(access);
             log.info("Access updated for user {} on environment {} by {}",
-                    dto.getUserId(), environmentId, grantedByUserId);
+                    targetUserId, environmentId, grantedByUserId);
             return saved;
         }
 
@@ -272,12 +280,12 @@ public class EnvironmentAccessService {
         EnvironmentAccess saved = accessRepository.save(access);
 
         log.info("Access granted to user {} on environment {} by {}",
-                dto.getUserId(), environmentId, grantedByUserId);
+                targetUserId, environmentId, grantedByUserId);
 
-        auditService.logAccessGranted(grantedByUserId, dto.getUserId(), environmentId,
+        auditService.logAccessGranted(grantedByUserId, targetUserId, environmentId,
                 environment.getName(), dto.getAccessLevel().getValue());
 
-        notificationService.notifyAccessGranted(dto.getUserId(), environment.getName(), environmentId);
+        notificationService.notifyAccessGranted(targetUserId, environment.getName(), environmentId);
 
         return saved;
     }
