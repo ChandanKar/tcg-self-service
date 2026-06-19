@@ -218,7 +218,7 @@ class EksSyncServiceTest {
 
         int count = service.syncAllEksClusters();
 
-        assertEquals(0, count);
+        assertEquals(-1, count);
         verifyNoInteractions(environmentRepository);
     }
 

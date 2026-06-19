@@ -74,7 +74,7 @@ public class EksSyncService {
     public int syncAllEksClusters() {
         if (!eksService.isAvailable()) {
             log.warn("EKS cloud provider not available — skipping EKS sync");
-            return 0;
+            return -1;
         }
 
         autoDiscoverClusters();

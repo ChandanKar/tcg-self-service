@@ -129,6 +129,7 @@ const Config = (function() {
         monitoring: {
             syncStatus: `${API_BASE_URL}/monitoring/sync-status`,
             triggerSync: `${API_BASE_URL}/monitoring/sync`,
+            triggerEksSync: `${API_BASE_URL}/monitoring/sync/eks`,
             syncEnvironment: (envId) => `${API_BASE_URL}/monitoring/sync/environment/${envId}`,
             vmHistory: (vmId) => `${API_BASE_URL}/monitoring/vms/${vmId}/history`,
             stateChanges: `${API_BASE_URL}/monitoring/state-changes`,

@@ -183,6 +183,28 @@ const SystemHealth = (function () {
             });
     }
 
+    function triggerEksSync() {
+        const $btn = $('#trigger-eks-sync-btn');
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Syncing EKS…');
+
+        apiPost(Config.API.monitoring.triggerEksSync)
+            .done(data => {
+                const n = data && data.nodeGroupsSynced != null ? data.nodeGroupsSynced : 0;
+                Notifications.show(`EKS sync complete — ${n} node group(s) processed`, 'success');
+                setTimeout(() => load(), 2000);
+            })
+            .fail(xhr => {
+                if (xhr && xhr.status === 503) {
+                    Notifications.show('EKS not available — check AWS credentials in .env', 'warning');
+                } else {
+                    Notifications.show('EKS sync failed', 'danger');
+                }
+            })
+            .always(() => {
+                $btn.prop('disabled', false).html('<i class="fab fa-aws me-1"></i>EKS Sync Now');
+            });
+    }
+
     // ─── render ───────────────────────────────────────────────────────────────
 
     function render({ syncStatus, stateChanges, driftEvents, driftCount, auditReport, lockReport, vmOpsReport }) {
@@ -217,6 +239,9 @@ const SystemHealth = (function () {
                 <div class="d-flex gap-2 flex-shrink-0">
                     <button class="btn btn-sm btn-primary" id="trigger-sync-btn" onclick="SystemHealth.triggerSync()">
                         <i class="fas fa-sync me-1"></i>Trigger Sync
+                    </button>
+                    <button class="btn btn-sm btn-warning" id="trigger-eks-sync-btn" onclick="SystemHealth.triggerEksSync()">
+                        <i class="fab fa-aws me-1"></i>EKS Sync Now
                     </button>
                     <button class="btn btn-sm btn-outline-secondary" onclick="SystemHealth.load()">
                         <i class="fas fa-redo me-1"></i>Refresh
@@ -452,7 +477,7 @@ const SystemHealth = (function () {
             </div>`);
     }
 
-    return { load, triggerSync };
+    return { load, triggerSync, triggerEksSync };
 })();
 
 window.SystemHealth = SystemHealth;

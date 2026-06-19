@@ -3,6 +3,7 @@ package com.tcgdigital.vmcontrol.controller;
 import com.tcgdigital.vmcontrol.dto.StateSyncStatusDTO;
 import com.tcgdigital.vmcontrol.dto.VmStateHistoryDTO;
 import com.tcgdigital.vmcontrol.model.VmStateHistory;
+import com.tcgdigital.vmcontrol.service.EksSyncService;
 import com.tcgdigital.vmcontrol.service.StateSyncService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -30,9 +31,11 @@ import java.util.Map;
 public class MonitoringController {
 
     private final StateSyncService stateSyncService;
+    private final EksSyncService eksSyncService;
 
-    public MonitoringController(StateSyncService stateSyncService) {
+    public MonitoringController(StateSyncService stateSyncService, EksSyncService eksSyncService) {
         this.stateSyncService = stateSyncService;
+        this.eksSyncService = eksSyncService;
     }
 
     @GetMapping("/sync-status")
@@ -87,6 +90,30 @@ public class MonitoringController {
                 "environmentId", environmentId,
                 "driftDetected", driftCount,
                 "status", "completed"
+        ));
+    }
+
+    @PostMapping("/sync/eks")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(
+            summary = "Trigger manual EKS sync",
+            description = "Triggers an immediate EKS cluster and node group synchronisation"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "EKS sync completed"),
+            @ApiResponse(responseCode = "503", description = "EKS cloud provider not available")
+    })
+    public ResponseEntity<Map<String, Object>> triggerEksSync() {
+        int synced = eksSyncService.syncAllEksClusters();
+        if (synced < 0) {
+            return ResponseEntity.status(503).body(Map.of(
+                    "status", "unavailable",
+                    "message", "EKS cloud provider not available — check AWS credentials"
+            ));
+        }
+        return ResponseEntity.ok(Map.of(
+                "status", "completed",
+                "nodeGroupsSynced", synced
         ));
     }
 
