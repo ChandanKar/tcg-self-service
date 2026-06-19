@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
  * Disabled by default — enable with eks.sync.enabled=true.
  */
 @Component
-@ConditionalOnProperty(name = "eks.sync.enabled", havingValue = "true", matchIfMissing = false)
+@ConditionalOnProperty(name = "eks.sync.enabled", havingValue = "true", matchIfMissing = true)
 public class EksSyncScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(EksSyncScheduler.class);
