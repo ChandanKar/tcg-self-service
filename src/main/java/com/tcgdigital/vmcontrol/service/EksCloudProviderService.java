@@ -89,9 +89,8 @@ public class EksCloudProviderService implements CloudProviderService {
             // Restore saved minSize; desiredSize = minSize (start exactly that many nodes)
             int minSize = readSavedMinSize(providerVmId);
 
+            EksClient eks = getEksClient(region);
             try {
-                EksClient eks = getEksClient(region);
-
                 UpdateNodegroupConfigRequest request = UpdateNodegroupConfigRequest.builder()
                         .clusterName(clusterName)
                         .nodegroupName(nodeGroupName)
@@ -111,10 +110,33 @@ public class EksCloudProviderService implements CloudProviderService {
                 return VmOperationResult.success(updateId, finalStatus);
 
             } catch (EksException e) {
+                // Node group may already be updating (prior request in flight) — check actual state
                 log.error("EKS error starting node group {}/{}: {}", clusterName, nodeGroupName, e.getMessage());
+                try {
+                    VmStatus currentStatus = getVmStatus(providerVmId, region);
+                    if (currentStatus == VmStatus.STARTING || currentStatus == VmStatus.RUNNING) {
+                        log.info("EKS node group {}/{} already transitioning ({}) — waiting to complete",
+                                clusterName, nodeGroupName, currentStatus);
+                        VmStatus finalStatus = waitForNodegroupActive(eks, clusterName, nodeGroupName, true);
+                        return VmOperationResult.success("recovered", finalStatus);
+                    }
+                } catch (Exception inner) {
+                    log.warn("Could not verify EKS node group state after error: {}", inner.getMessage());
+                }
                 return VmOperationResult.failure("EKS Error: " + e.awsErrorDetails().errorMessage());
             } catch (Exception e) {
                 log.error("Error starting EKS node group {}/{}: {}", clusterName, nodeGroupName, e.getMessage());
+                try {
+                    VmStatus currentStatus = getVmStatus(providerVmId, region);
+                    if (currentStatus == VmStatus.STARTING || currentStatus == VmStatus.RUNNING) {
+                        log.info("EKS node group {}/{} is {} despite exception — waiting to complete",
+                                clusterName, nodeGroupName, currentStatus);
+                        VmStatus finalStatus = waitForNodegroupActive(eks, clusterName, nodeGroupName, true);
+                        return VmOperationResult.success("recovered", finalStatus);
+                    }
+                } catch (Exception inner) {
+                    log.warn("Could not verify EKS node group state after error: {}", inner.getMessage());
+                }
                 return VmOperationResult.failure("Error: " + e.getMessage());
             }
         });
@@ -130,9 +152,8 @@ public class EksCloudProviderService implements CloudProviderService {
             String clusterName = parts[0];
             String nodeGroupName = parts[1];
 
+            EksClient eks = getEksClient(region);
             try {
-                EksClient eks = getEksClient(region);
-
                 // Persist current scaling config BEFORE zeroing so startVm can restore it
                 saveScalingConfigToMetadata(providerVmId, eks, clusterName, nodeGroupName);
 
@@ -155,10 +176,33 @@ public class EksCloudProviderService implements CloudProviderService {
                 return VmOperationResult.success(updateId, finalStatus);
 
             } catch (EksException e) {
+                // Node group may already be updating — check whether it's scaling down
                 log.error("EKS error stopping node group {}/{}: {}", clusterName, nodeGroupName, e.getMessage());
+                try {
+                    VmStatus currentStatus = getVmStatus(providerVmId, region);
+                    if (currentStatus == VmStatus.STOPPING || currentStatus == VmStatus.STOPPED) {
+                        log.info("EKS node group {}/{} already transitioning to stopped ({}) — waiting",
+                                clusterName, nodeGroupName, currentStatus);
+                        VmStatus finalStatus = waitForNodegroupActive(eks, clusterName, nodeGroupName, false);
+                        return VmOperationResult.success("recovered", finalStatus);
+                    }
+                } catch (Exception inner) {
+                    log.warn("Could not verify EKS node group state after error: {}", inner.getMessage());
+                }
                 return VmOperationResult.failure("EKS Error: " + e.awsErrorDetails().errorMessage());
             } catch (Exception e) {
                 log.error("Error stopping EKS node group {}/{}: {}", clusterName, nodeGroupName, e.getMessage());
+                try {
+                    VmStatus currentStatus = getVmStatus(providerVmId, region);
+                    if (currentStatus == VmStatus.STOPPING || currentStatus == VmStatus.STOPPED) {
+                        log.info("EKS node group {}/{} is {} despite exception — waiting to complete",
+                                clusterName, nodeGroupName, currentStatus);
+                        VmStatus finalStatus = waitForNodegroupActive(eks, clusterName, nodeGroupName, false);
+                        return VmOperationResult.success("recovered", finalStatus);
+                    }
+                } catch (Exception inner) {
+                    log.warn("Could not verify EKS node group state after error: {}", inner.getMessage());
+                }
                 return VmOperationResult.failure("Error: " + e.getMessage());
             }
         });

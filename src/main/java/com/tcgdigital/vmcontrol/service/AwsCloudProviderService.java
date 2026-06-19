@@ -88,19 +88,24 @@ public class AwsCloudProviderService implements CloudProviderService {
                     }
                 }
 
-                // startingInstances is empty — instance may already be pending/running
-                // (double-click, prior attempt not recorded, or StateSyncService lag)
-                VmStatus currentStatus = getVmStatus(providerVmId, region);
-                if (currentStatus == VmStatus.STARTING || currentStatus == VmStatus.RUNNING) {
-                    log.info("AWS EC2 instance {} already in state {}, waiting for status checks", providerVmId, currentStatus);
-                    VmStatus finalStatus = waitForStatusChecks(ec2, providerVmId);
-                    return VmOperationResult.success(requestId, finalStatus);
+                // startingInstances is empty — instance may already be pending/running.
+                // AWS has eventual consistency: DescribeInstances may still show STOPPED for
+                // 1-3 s after StartInstances is accepted. Retry a few times before giving up.
+                for (int attempt = 0; attempt < 3; attempt++) {
+                    try { Thread.sleep(attempt == 0 ? 2000L : 5000L); }
+                    catch (InterruptedException ie) { Thread.currentThread().interrupt(); break; }
+                    VmStatus currentStatus = getVmStatus(providerVmId, region);
+                    if (currentStatus == VmStatus.STARTING || currentStatus == VmStatus.RUNNING) {
+                        log.info("AWS EC2 instance {} already in state {} (attempt {}), waiting for status checks",
+                                providerVmId, currentStatus, attempt + 1);
+                        VmStatus finalStatus = waitForStatusChecks(ec2, providerVmId);
+                        return VmOperationResult.success(requestId, finalStatus);
+                    }
                 }
-
                 return VmOperationResult.failure("No instance state change returned");
 
             } catch (Ec2Exception e) {
-                // Instance already in pending/running — recover instead of failing
+                // Instance already in pending/running state — recover instead of failing
                 if ("IncorrectInstanceState".equals(e.awsErrorDetails().errorCode())) {
                     VmStatus currentStatus = getVmStatus(providerVmId, region);
                     if (currentStatus == VmStatus.STARTING || currentStatus == VmStatus.RUNNING) {
@@ -112,7 +117,20 @@ public class AwsCloudProviderService implements CloudProviderService {
                 log.error("Failed to start AWS EC2 instance {}: {}", providerVmId, e.getMessage());
                 return VmOperationResult.failure("AWS Error: " + e.awsErrorDetails().errorMessage());
             } catch (Exception e) {
+                // Network timeout or similar — AWS may have accepted the request already.
+                // Check actual instance state before declaring failure.
                 log.error("Failed to start AWS EC2 instance {}: {}", providerVmId, e.getMessage());
+                try {
+                    VmStatus currentStatus = getVmStatus(providerVmId, region);
+                    if (currentStatus == VmStatus.STARTING || currentStatus == VmStatus.RUNNING) {
+                        log.info("AWS EC2 instance {} is {} despite exception — waiting for status checks",
+                                providerVmId, currentStatus);
+                        VmStatus finalStatus = waitForStatusChecks(getEc2Client(region), providerVmId);
+                        return VmOperationResult.success(null, finalStatus);
+                    }
+                } catch (Exception inner) {
+                    log.warn("Could not verify instance state after error for {}: {}", providerVmId, inner.getMessage());
+                }
                 return VmOperationResult.failure("Error: " + e.getMessage());
             }
         });
@@ -131,6 +149,9 @@ public class AwsCloudProviderService implements CloudProviderService {
 
                 StopInstancesResponse response = ec2.stopInstances(request);
 
+                String stopRequestId = response.responseMetadata() != null
+                        ? response.responseMetadata().requestId() : null;
+
                 if (!response.stoppingInstances().isEmpty()) {
                     InstanceStateChange stateChange = response.stoppingInstances().get(0);
                     log.info("Stopped AWS EC2 instance {}: {} -> {}",
@@ -138,23 +159,54 @@ public class AwsCloudProviderService implements CloudProviderService {
                             stateChange.previousState().nameAsString(),
                             stateChange.currentState().nameAsString());
 
-                    // Wait for instance to fully stop
                     VmStatus finalStatus = waitForStopped(ec2, providerVmId);
-
                     log.info("AWS EC2 instance {} stop complete, final status: {}", providerVmId, finalStatus);
-                    return VmOperationResult.success(
-                            response.responseMetadata().requestId(),
-                            finalStatus
-                    );
+                    return VmOperationResult.success(stopRequestId, finalStatus);
                 }
 
+                // stoppingInstances is empty — instance may already be stopping or stopped
+                // (double-click, prior op, or API consistency lag)
+                for (int attempt = 0; attempt < 3; attempt++) {
+                    try { Thread.sleep(attempt == 0 ? 2000L : 5000L); }
+                    catch (InterruptedException ie) { Thread.currentThread().interrupt(); break; }
+                    VmStatus currentStatus = getVmStatus(providerVmId, region);
+                    if (currentStatus == VmStatus.STOPPING) {
+                        log.info("AWS EC2 instance {} already STOPPING (attempt {}), waiting to complete",
+                                providerVmId, attempt + 1);
+                        return VmOperationResult.success(stopRequestId, waitForStopped(ec2, providerVmId));
+                    }
+                    if (currentStatus == VmStatus.STOPPED) {
+                        log.info("AWS EC2 instance {} already STOPPED", providerVmId);
+                        return VmOperationResult.success(stopRequestId, VmStatus.STOPPED);
+                    }
+                }
                 return VmOperationResult.failure("No instance state change returned");
 
             } catch (Ec2Exception e) {
+                if ("IncorrectInstanceState".equals(e.awsErrorDetails().errorCode())) {
+                    VmStatus currentStatus = getVmStatus(providerVmId, region);
+                    if (currentStatus == VmStatus.STOPPING || currentStatus == VmStatus.STOPPED) {
+                        log.info("AWS EC2 instance {} is already {} — treating stop as success", providerVmId, currentStatus);
+                        VmStatus finalStatus = currentStatus == VmStatus.STOPPING
+                                ? waitForStopped(getEc2Client(region), providerVmId) : VmStatus.STOPPED;
+                        return VmOperationResult.success(e.requestId(), finalStatus);
+                    }
+                }
                 log.error("Failed to stop AWS EC2 instance {}: {}", providerVmId, e.getMessage());
                 return VmOperationResult.failure("AWS Error: " + e.awsErrorDetails().errorMessage());
             } catch (Exception e) {
                 log.error("Failed to stop AWS EC2 instance {}: {}", providerVmId, e.getMessage());
+                try {
+                    VmStatus currentStatus = getVmStatus(providerVmId, region);
+                    if (currentStatus == VmStatus.STOPPING || currentStatus == VmStatus.STOPPED) {
+                        log.info("AWS EC2 instance {} is {} despite exception — treating stop as success", providerVmId, currentStatus);
+                        VmStatus finalStatus = currentStatus == VmStatus.STOPPING
+                                ? waitForStopped(getEc2Client(region), providerVmId) : VmStatus.STOPPED;
+                        return VmOperationResult.success(null, finalStatus);
+                    }
+                } catch (Exception inner) {
+                    log.warn("Could not verify instance state after error for {}: {}", providerVmId, inner.getMessage());
+                }
                 return VmOperationResult.failure("Error: " + e.getMessage());
             }
         });
