@@ -14,6 +14,7 @@ const AccessManagement = (function() {
     let allAccess = [];
     let filteredAccess = [];
     let pendingRequests = [];
+    let activityLogs = [];
     let selectedEnvironmentId = '';
     let currentPage = 1;
     let currentSearch = '';
@@ -45,7 +46,7 @@ const AccessManagement = (function() {
     }
 
     /**
-     * Fetch initial data: environments and pending requests
+     * Fetch initial data: environments, pending requests, and activity logs
      */
     async function fetchInitialData() {
         try {
@@ -62,9 +63,12 @@ const AccessManagement = (function() {
                 selectedEnvironmentId = environments[0].environmentId;
             }
 
-            // Fetch access for selected environment
+            // Fetch access and activity logs for selected environment
             if (selectedEnvironmentId) {
-                allAccess = await fetchEnvironmentAccess(selectedEnvironmentId);
+                [allAccess, activityLogs] = await Promise.all([
+                    fetchEnvironmentAccess(selectedEnvironmentId),
+                    fetchActivityLogs(selectedEnvironmentId)
+                ]);
                 filteredAccess = [...allAccess];
             }
 
@@ -104,6 +108,25 @@ const AccessManagement = (function() {
                     } else {
                         reject(xhr);
                     }
+                });
+        });
+    }
+
+    /**
+     * Fetch activity logs for an environment (access-related events only, latest 25)
+     */
+    function fetchActivityLogs(envId) {
+        if (!envId) return Promise.resolve([]);
+        return new Promise((resolve) => {
+            ApiClient.get(`${Config.API.audit.byEnvironment(envId)}?page=0&size=25`)
+                .done(function(data) {
+                    const entries = (data && data.content) ? data.content : (Array.isArray(data) ? data : []);
+                    // Filter to access-related actions only
+                    const accessActions = ['ACCESS_REQUESTED', 'ACCESS_GRANTED', 'ACCESS_REVOKED', 'ACCESS_DENIED', 'ACCESS_APPROVED'];
+                    resolve(entries.filter(e => accessActions.includes(e.action)));
+                })
+                .fail(function() {
+                    resolve([]);
                 });
         });
     }
@@ -150,6 +173,7 @@ const AccessManagement = (function() {
         renderAccessTable();
         renderAccessPagination();
         renderPendingRequestsTable();
+        renderActivityLogsTable();
         bindEvents();
     }
 
@@ -276,6 +300,30 @@ const AccessManagement = (function() {
                                 </thead>
                                 <tbody id="pending-table-body">
                                     <!-- Populated by renderPendingRequestsTable() -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Activity Log Section -->
+                <div class="access-section mt-3">
+                    <div class="access-section-header">
+                        <h5><i class="fas fa-history me-2"></i>Activity Log: ${escapeHtml(envName)}</h5>
+                    </div>
+                    <div class="access-table-card">
+                        <div class="access-table-wrapper">
+                            <table class="table table-hover access-table mb-0">
+                                <thead>
+                                    <tr>
+                                        <th style="width:140px">When</th>
+                                        <th style="width:160px">Action</th>
+                                        <th style="width:180px">Performed By</th>
+                                        <th>Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="activity-log-body">
+                                    <!-- Populated by renderActivityLogsTable() -->
                                 </tbody>
                             </table>
                         </div>
@@ -559,6 +607,53 @@ const AccessManagement = (function() {
     }
 
     /**
+     * Render activity log table
+     */
+    function renderActivityLogsTable() {
+        if (!activityLogs || activityLogs.length === 0) {
+            $('#activity-log-body').html(`
+                <tr>
+                    <td colspan="4" class="text-center text-muted py-4">
+                        <i class="fas fa-history fa-2x mb-2 d-block opacity-50"></i>
+                        No access activity recorded for this environment
+                    </td>
+                </tr>
+            `);
+            return;
+        }
+        const rows = activityLogs.map(log => buildActivityRow(log)).join('');
+        $('#activity-log-body').html(rows);
+    }
+
+    /**
+     * Build a single activity log row
+     */
+    function buildActivityRow(log) {
+        const when = log.createdAt ? Utils.formatRelativeTime(log.createdAt) : '-';
+        const action = escapeHtml(log.actionDisplay || (log.action || '').replace(/_/g, ' '));
+        const performedBy = escapeHtml(log.userEmail || log.userId || 'System');
+        const details = escapeHtml(log.details || '-');
+        const badgeClass = getActionBadgeClass(log.action);
+        return `
+            <tr>
+                <td class="text-muted small">${when}</td>
+                <td><span class="badge ${badgeClass}">${action}</span></td>
+                <td class="text-muted small">${performedBy}</td>
+                <td class="text-muted small">${details}</td>
+            </tr>
+        `;
+    }
+
+    function getActionBadgeClass(action) {
+        if (!action) return 'bg-secondary';
+        const s = String(action);
+        if (s.includes('GRANTED') || s.includes('APPROVED')) return 'bg-success';
+        if (s.includes('REVOKED') || s.includes('DENIED')) return 'bg-danger';
+        if (s.includes('REQUESTED')) return 'bg-warning text-dark';
+        return 'bg-secondary';
+    }
+
+    /**
      * Apply search filter
      */
     function applyFilters() {
@@ -604,22 +699,28 @@ const AccessManagement = (function() {
 
             if (selectedEnvironmentId) {
                 try {
-                    allAccess = await fetchEnvironmentAccess(selectedEnvironmentId);
+                    [allAccess, activityLogs] = await Promise.all([
+                        fetchEnvironmentAccess(selectedEnvironmentId),
+                        fetchActivityLogs(selectedEnvironmentId)
+                    ]);
                     filteredAccess = [...allAccess];
                 } catch (error) {
                     console.error('Failed to fetch access:', error);
                     allAccess = [];
                     filteredAccess = [];
+                    activityLogs = [];
                 }
             } else {
                 allAccess = [];
                 filteredAccess = [];
+                activityLogs = [];
             }
 
-            // Update section header
+            // Update section headers
             const selectedEnv = environments.find(e => e.environmentId === selectedEnvironmentId);
             const envName = selectedEnv ? (selectedEnv.displayName || selectedEnv.name) : 'Select Environment';
             $('.access-section-header h5').first().html(`<i class="fas fa-users me-2"></i>Environment Access: ${escapeHtml(envName)}`);
+            $('.access-section-header h5').last().html(`<i class="fas fa-history me-2"></i>Activity Log: ${escapeHtml(envName)}`);
 
             // Update stats
             const stats = calculateStats();
@@ -627,6 +728,7 @@ const AccessManagement = (function() {
 
             renderAccessTable();
             renderAccessPagination();
+            renderActivityLogsTable();
         });
 
         // Pagination
@@ -722,7 +824,7 @@ const AccessManagement = (function() {
             }
 
             const options = users.map(user =>
-                `<option value="${user.userId}">${escapeHtml(user.displayName || user.email)} (${escapeHtml(user.email)})</option>`
+                `<option value="${escapeHtml(user.email)}">${escapeHtml(user.displayName || user.email)} (${escapeHtml(user.email)})</option>`
             ).join('');
             $('#grant-user-id').html('<option value="">Select a user...</option>' + options);
         } catch (error) {
@@ -736,12 +838,12 @@ const AccessManagement = (function() {
      */
     async function handleGrantAccess() {
         const envId = $('#grant-environment').val();
-        const userId = $('#grant-user-id').val();
+        const userEmail = $('#grant-user-id').val();
         const accessLevel = $('#grant-access-level').val();
         const durationDays = $('#grant-duration').val() || null;
         const notes = $('#grant-notes').val().trim() || null;
 
-        if (!envId || !userId || !accessLevel) {
+        if (!envId || !userEmail || !accessLevel) {
             showToast('Please fill in all required fields', 'warning');
             return;
         }
@@ -752,7 +854,7 @@ const AccessManagement = (function() {
         try {
             await new Promise((resolve, reject) => {
                 ApiClient.post(Config.API.access.grantAccess(envId), {
-                    userId: userId,
+                    userEmail: userEmail,
                     accessLevel: accessLevel,
                     durationDays: durationDays ? parseInt(durationDays) : null,
                     notes: notes
@@ -766,12 +868,16 @@ const AccessManagement = (function() {
 
             // Refresh data
             if (envId === selectedEnvironmentId) {
-                allAccess = await fetchEnvironmentAccess(selectedEnvironmentId);
+                [allAccess, activityLogs] = await Promise.all([
+                    fetchEnvironmentAccess(selectedEnvironmentId),
+                    fetchActivityLogs(selectedEnvironmentId)
+                ]);
                 filteredAccess = [...allAccess];
                 const stats = calculateStats();
                 updateStatsDisplay(stats);
                 renderAccessTable();
                 renderAccessPagination();
+                renderActivityLogsTable();
             }
         } catch (error) {
             console.error('Grant access failed:', error);
@@ -800,11 +906,15 @@ const AccessManagement = (function() {
             showToast('Access revoked successfully', 'success');
 
             // Refresh data
-            allAccess = await fetchEnvironmentAccess(selectedEnvironmentId);
+            [allAccess, activityLogs] = await Promise.all([
+                fetchEnvironmentAccess(selectedEnvironmentId),
+                fetchActivityLogs(selectedEnvironmentId)
+            ]);
             filteredAccess = [...allAccess];
             const stats = calculateStats();
             updateStatsDisplay(stats);
             applyFilters();
+            renderActivityLogsTable();
         } catch (error) {
             console.error('Revoke access failed:', error);
             const message = error.responseJSON?.message || 'Failed to revoke access';
@@ -828,20 +938,24 @@ const AccessManagement = (function() {
 
             showToast('Request approved successfully', 'success');
 
-            // Refresh pending requests
-            pendingRequests = await fetchPendingRequests();
+            // Refresh pending requests and activity logs
+            [pendingRequests, activityLogs] = await Promise.all([
+                fetchPendingRequests(),
+                fetchActivityLogs(selectedEnvironmentId)
+            ]);
 
             // Update stats
             const stats = calculateStats();
             updateStatsDisplay(stats);
 
             // Update pending badge
-            $('.access-section-header h5').last().html(`
+            $('.access-section-header h5').eq(1).html(`
                 <i class="fas fa-clock me-2"></i>Pending Access Requests
                 ${pendingRequests.length > 0 ? `<span class="badge bg-warning text-dark ms-2">${pendingRequests.length}</span>` : ''}
             `);
 
             renderPendingRequestsTable();
+            renderActivityLogsTable();
 
             // Refresh access list if same environment
             const request = pendingRequests.find(r => r.requestId === requestId);
@@ -879,20 +993,24 @@ const AccessManagement = (function() {
             bootstrap.Modal.getInstance(document.getElementById('denyRequestModal')).hide();
             showToast('Request denied', 'success');
 
-            // Refresh pending requests
-            pendingRequests = await fetchPendingRequests();
+            // Refresh pending requests and activity logs
+            [pendingRequests, activityLogs] = await Promise.all([
+                fetchPendingRequests(),
+                fetchActivityLogs(selectedEnvironmentId)
+            ]);
 
             // Update stats
             const stats = calculateStats();
             updateStatsDisplay(stats);
 
             // Update pending badge
-            $('.access-section-header h5').last().html(`
+            $('.access-section-header h5').eq(1).html(`
                 <i class="fas fa-clock me-2"></i>Pending Access Requests
                 ${pendingRequests.length > 0 ? `<span class="badge bg-warning text-dark ms-2">${pendingRequests.length}</span>` : ''}
             `);
 
             renderPendingRequestsTable();
+            renderActivityLogsTable();
         } catch (error) {
             console.error('Deny request failed:', error);
             const message = error.responseJSON?.message || 'Failed to deny request';
