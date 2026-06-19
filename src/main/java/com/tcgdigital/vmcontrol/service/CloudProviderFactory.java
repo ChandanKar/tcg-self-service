@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.CloudProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,7 +34,8 @@ public class CloudProviderFactory {
     public CloudProviderService getService(CloudProvider provider) {
         CloudProviderService service = providerServices.get(provider);
         if (service == null) {
-            throw new UnsupportedOperationException("Cloud provider not supported: " + provider);
+            throw new ValidationException("Cloud provider not yet supported: " + provider +
+                    ". Currently only AWS and AWS_EKS are available.");
         }
         return service;
     }
