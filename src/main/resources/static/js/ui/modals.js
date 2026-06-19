@@ -309,6 +309,7 @@ const Modals = (function() {
 
                     <!-- EKS section (hidden by default) -->
                     <div id="cem-eks-section" style="display:none;">
+                        <input type="hidden" id="cem-eks-region" value="">
                         <div class="mb-3">
                             <label class="form-label">Select EKS Cluster from AWS</label>
                             <div id="cem-eks-picker" class="border rounded p-3 bg-light"
@@ -407,12 +408,15 @@ const Modals = (function() {
                                 `);
                                 return;
                             }
-                            const rows = clusters.map(name => `
+                            // API now returns [{clusterName, region}, ...]
+                            const rows = clusters.map(c => `
                                 <div class="cem-eks-cluster-row d-flex align-items-center gap-2 p-2 rounded mb-1"
                                      style="cursor:pointer; background:#fff; border:1px solid #e2e8f0;"
-                                     data-cluster="${name}">
+                                     data-cluster="${Utils.escapeHtml(c.clusterName)}"
+                                     data-region="${Utils.escapeHtml(c.region)}">
                                     <i class="fas fa-dharmachakra text-primary" style="font-size:0.85rem;"></i>
-                                    <span style="font-size:0.875rem; font-weight:500;">${name}</span>
+                                    <span style="font-size:0.875rem; font-weight:500;">${Utils.escapeHtml(c.clusterName)}</span>
+                                    <span class="ms-auto text-muted small">${Utils.escapeHtml(c.region)}</span>
                                 </div>
                             `).join('');
                             $('#cem-eks-picker').html(rows);
@@ -420,16 +424,19 @@ const Modals = (function() {
                             // Cluster row click
                             $('#cem-eks-picker').on('click', '.cem-eks-cluster-row', function() {
                                 const clusterName = $(this).data('cluster');
+                                const region = $(this).data('region');
                                 // Highlight selected
                                 $('.cem-eks-cluster-row').css({ background: '#fff', borderColor: '#e2e8f0' });
                                 $(this).css({ background: '#eff6ff', borderColor: '#3b82f6' });
-                                // Fill and lock name
+                                // Fill and lock name + store region
                                 $('#cem-eks-name').val(clusterName).prop('readonly', true);
+                                $('#cem-eks-region').val(region);
                                 $('#cem-eks-lock-icon').removeClass('d-none');
                                 // Auto-fill display name if empty
                                 if (!$('#cem-eks-displayName').val()) {
                                     $('#cem-eks-displayName').val(clusterName);
                                 }
+                                $('#cem-eks-region-val').text(region);
                                 $('#cem-eks-region-info').removeClass('d-none');
                             });
                         })
@@ -467,6 +474,7 @@ const Modals = (function() {
                         ? (document.getElementById('cem-eks-ownerTeam').value || '').trim() || null
                         : (document.getElementById('cem-ownerTeam').value || '').trim() || null;
                     const cloudProv   = isEks ? 'AWS' : (document.getElementById('cem-cloudProvider').value || 'AWS');
+                    const eksRegion   = isEks ? (document.getElementById('cem-eks-region').value || '') : '';
 
                     if (!envName) {
                         showModalError('createEnvModal', isEks
@@ -475,12 +483,16 @@ const Modals = (function() {
                         return;
                     }
 
+                    const metaObj = isEks
+                        ? { ownerTeam, defaultCloudProvider: 'AWS', ...(eksRegion && { region: eksRegion }) }
+                        : { ownerTeam, defaultCloudProvider: cloudProv };
+
                     const data = {
                         name: envName,
                         displayName: displayName,
                         description: description,
                         serviceType: serviceType,
-                        metadata: JSON.stringify({ ownerTeam, defaultCloudProvider: cloudProv })
+                        metadata: JSON.stringify(metaObj)
                     };
 
                     this.disabled = true;

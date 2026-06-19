@@ -49,6 +49,12 @@ public interface VmRepository extends JpaRepository<Vm, String> {
     boolean existsByProviderAndProviderVmId(com.tcgdigital.vmcontrol.model.CloudProvider provider, String providerVmId);
 
     /**
+     * Find a VM by cloud provider type and provider-assigned ID.
+     * Used by EksCloudProviderService to look up metadata before scale operations.
+     */
+    Optional<Vm> findByProviderAndProviderVmId(com.tcgdigital.vmcontrol.model.CloudProvider provider, String providerVmId);
+
+    /**
      * Find all active VMs in an environment (via group).
      */
     @Query("SELECT v FROM Vm v WHERE v.group.environment.environmentId = :environmentId AND v.isActive = true ORDER BY v.group.sequencePosition, v.sequencePosition")

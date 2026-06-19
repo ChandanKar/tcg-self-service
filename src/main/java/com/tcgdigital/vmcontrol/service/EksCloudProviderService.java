@@ -1,7 +1,10 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tcgdigital.vmcontrol.model.CloudProvider;
+import com.tcgdigital.vmcontrol.model.Vm;
 import com.tcgdigital.vmcontrol.model.VmStatus;
+import com.tcgdigital.vmcontrol.repository.VmRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,6 +19,7 @@ import software.amazon.awssdk.services.eks.model.*;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -25,16 +29,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * providerVmId convention: "{clusterName}/{nodeGroupName}"
  * region: AWS region string (e.g. "ap-south-1")
  *
- * Start = scale minSize/desiredSize from 0 → 1
- * Stop  = scale minSize/desiredSize from N → 0
+ * Start = restore saved minSize; set desiredSize = minSize
+ * Stop  = save current minSize/desiredSize to Vm.metadata; scale both to 0
  */
 @Service
 public class EksCloudProviderService implements CloudProviderService {
 
     private static final Logger log = LoggerFactory.getLogger(EksCloudProviderService.class);
-
-    private static final int POLL_INTERVAL_MS  = 15_000;  // 15 seconds
-    private static final int OPERATION_TIMEOUT_MS = 300_000; // 5 minutes
 
     @Value("${aws.access-key:}")
     private String accessKey;
@@ -45,7 +46,24 @@ public class EksCloudProviderService implements CloudProviderService {
     @Value("${aws.region:ap-south-1}")
     private String defaultRegion;
 
+    @Value("${eks.nodegroup.default-min-size:1}")
+    private int defaultMinSize;
+
+    @Value("${eks.nodegroup.poll-interval-ms:15000}")
+    private long pollIntervalMs;
+
+    @Value("${eks.nodegroup.operation-timeout-ms:900000}")
+    private long operationTimeoutMs;
+
     private final Map<String, EksClient> clientCache = new ConcurrentHashMap<>();
+
+    private final VmRepository vmRepository;
+    private final ObjectMapper objectMapper;
+
+    public EksCloudProviderService(VmRepository vmRepository, ObjectMapper objectMapper) {
+        this.vmRepository = vmRepository;
+        this.objectMapper = objectMapper;
+    }
 
     @Override
     public CloudProvider getProvider() {
@@ -68,6 +86,9 @@ public class EksCloudProviderService implements CloudProviderService {
             String clusterName = parts[0];
             String nodeGroupName = parts[1];
 
+            // Restore saved minSize; desiredSize = minSize (start exactly that many nodes)
+            int minSize = readSavedMinSize(providerVmId);
+
             try {
                 EksClient eks = getEksClient(region);
 
@@ -75,15 +96,16 @@ public class EksCloudProviderService implements CloudProviderService {
                         .clusterName(clusterName)
                         .nodegroupName(nodeGroupName)
                         .scalingConfig(NodegroupScalingConfig.builder()
-                                .minSize(1)
-                                .desiredSize(1)
+                                .minSize(minSize)
+                                .desiredSize(minSize)
                                 .build())
                         .build();
 
                 UpdateNodegroupConfigResponse response = eks.updateNodegroupConfig(request);
                 String updateId = response.update() != null ? response.update().id() : "unknown";
 
-                log.info("EKS node group {}/{} scale-up requested (updateId={})", clusterName, nodeGroupName, updateId);
+                log.info("EKS node group {}/{} scale-up to {} requested (updateId={})",
+                        clusterName, nodeGroupName, minSize, updateId);
 
                 VmStatus finalStatus = waitForNodegroupActive(eks, clusterName, nodeGroupName, true);
                 return VmOperationResult.success(updateId, finalStatus);
@@ -111,6 +133,9 @@ public class EksCloudProviderService implements CloudProviderService {
             try {
                 EksClient eks = getEksClient(region);
 
+                // Persist current scaling config BEFORE zeroing so startVm can restore it
+                saveScalingConfigToMetadata(providerVmId, eks, clusterName, nodeGroupName);
+
                 UpdateNodegroupConfigRequest request = UpdateNodegroupConfigRequest.builder()
                         .clusterName(clusterName)
                         .nodegroupName(nodeGroupName)
@@ -123,7 +148,8 @@ public class EksCloudProviderService implements CloudProviderService {
                 UpdateNodegroupConfigResponse response = eks.updateNodegroupConfig(request);
                 String updateId = response.update() != null ? response.update().id() : "unknown";
 
-                log.info("EKS node group {}/{} scale-down requested (updateId={})", clusterName, nodeGroupName, updateId);
+                log.info("EKS node group {}/{} scale-down to 0 requested (updateId={})",
+                        clusterName, nodeGroupName, updateId);
 
                 VmStatus finalStatus = waitForNodegroupActive(eks, clusterName, nodeGroupName, false);
                 return VmOperationResult.success(updateId, finalStatus);
@@ -155,7 +181,6 @@ public class EksCloudProviderService implements CloudProviderService {
                             .clusterName(clusterName)
                             .nodegroupName(nodeGroupName)
                             .build());
-
             return mapNodegroupToVmStatus(response.nodegroup());
 
         } catch (ResourceNotFoundException e) {
@@ -175,15 +200,12 @@ public class EksCloudProviderService implements CloudProviderService {
 
     /**
      * Lists all node group names for the given EKS cluster.
-     * Used by EksSyncService for discovery.
      */
     public List<String> listNodegroups(String clusterName, String region) {
         try {
             EksClient eks = getEksClient(region);
             ListNodegroupsResponse response = eks.listNodegroups(
-                    ListNodegroupsRequest.builder()
-                            .clusterName(clusterName)
-                            .build());
+                    ListNodegroupsRequest.builder().clusterName(clusterName).build());
             return response.nodegroups();
         } catch (Exception e) {
             log.error("Error listing EKS node groups for cluster {}: {}", clusterName, e.getMessage());
@@ -211,19 +233,100 @@ public class EksCloudProviderService implements CloudProviderService {
         }
     }
 
+    /**
+     * Lists all EKS cluster names in a region.
+     */
+    public List<String> listClusters(String region) {
+        try {
+            EksClient eks = getEksClient(region);
+            return eks.listClusters().clusters();
+        } catch (Exception e) {
+            log.error("Error listing EKS clusters in region {}: {}", region, e.getMessage());
+            return List.of();
+        }
+    }
+
     // ---- private helpers ----
 
     /**
-     * Polls until the node group reaches ACTIVE status after a scale operation.
-     * @param expectRunning true=start (wait for nodes up), false=stop (wait for nodes=0)
+     * Reads the saved minSize from Vm.metadata written by a previous stopVm.
+     * Falls back to the defaultMinSize property when no saved value exists.
      */
-    private VmStatus waitForNodegroupActive(EksClient eks, String clusterName, String nodeGroupName, boolean expectRunning) {
+    private int readSavedMinSize(String providerVmId) {
+        try {
+            Optional<Vm> vmOpt = vmRepository.findByProviderAndProviderVmId(CloudProvider.AWS_EKS, providerVmId);
+            if (vmOpt.isPresent() && vmOpt.get().getMetadata() != null) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> meta = objectMapper.readValue(vmOpt.get().getMetadata(), Map.class);
+                Object val = meta.get("minSize");
+                if (val instanceof Number n) {
+                    int saved = n.intValue();
+                    return saved > 0 ? saved : defaultMinSize;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to read saved minSize for EKS VM {}, using default {}: {}",
+                    providerVmId, defaultMinSize, e.getMessage());
+        }
+        return defaultMinSize;
+    }
+
+    /**
+     * Describes the live node group and writes {minSize, desiredSize} to Vm.metadata.
+     * Skips the write if the node group is already at zero (nothing useful to save).
+     * If anything fails, logs a warning and returns — the stop proceeds regardless.
+     */
+    private void saveScalingConfigToMetadata(String providerVmId, EksClient eks,
+                                              String clusterName, String nodeGroupName) {
+        try {
+            DescribeNodegroupResponse desc = eks.describeNodegroup(
+                    DescribeNodegroupRequest.builder()
+                            .clusterName(clusterName)
+                            .nodegroupName(nodeGroupName)
+                            .build());
+
+            Nodegroup ng = desc.nodegroup();
+            if (ng == null || ng.scalingConfig() == null) return;
+
+            int liveMin = ng.scalingConfig().minSize();
+            int liveDesired = ng.scalingConfig().desiredSize();
+
+            if (liveDesired <= 0 && liveMin <= 0) {
+                log.debug("EKS node group {}/{} already at zero — skipping metadata save", clusterName, nodeGroupName);
+                return;
+            }
+
+            int saveMin = liveMin > 0 ? liveMin : defaultMinSize;
+            String metaJson = objectMapper.writeValueAsString(
+                    Map.of("minSize", saveMin, "desiredSize", liveDesired));
+
+            Optional<Vm> vmOpt = vmRepository.findByProviderAndProviderVmId(CloudProvider.AWS_EKS, providerVmId);
+            vmOpt.ifPresentOrElse(vm -> {
+                vm.setMetadata(metaJson);
+                vmRepository.save(vm);
+                log.info("Saved EKS scaling config before stop for {}: minSize={}, desiredSize={}",
+                        providerVmId, saveMin, liveDesired);
+            }, () -> log.warn("EKS VM not found in DB for metadata save: {}", providerVmId));
+
+        } catch (Exception e) {
+            log.warn("Failed to save scaling config for EKS VM {} (stop will continue): {}",
+                    providerVmId, e.getMessage());
+        }
+    }
+
+    /**
+     * Polls until the node group reaches a stable state.
+     *
+     * @param expectRunning true = waiting for start (desired >= 1); false = waiting for stop (desired = 0)
+     */
+    private VmStatus waitForNodegroupActive(EksClient eks, String clusterName,
+                                             String nodeGroupName, boolean expectRunning) {
         long startTime = System.currentTimeMillis();
         VmStatus lastStatus = expectRunning ? VmStatus.STARTING : VmStatus.STOPPING;
 
-        while (System.currentTimeMillis() - startTime < OPERATION_TIMEOUT_MS) {
+        while (System.currentTimeMillis() - startTime < operationTimeoutMs) {
             try {
-                Thread.sleep(POLL_INTERVAL_MS);
+                if (pollIntervalMs > 0) Thread.sleep(pollIntervalMs);
 
                 DescribeNodegroupResponse response = eks.describeNodegroup(
                         DescribeNodegroupRequest.builder()
@@ -234,11 +337,9 @@ public class EksCloudProviderService implements CloudProviderService {
                 Nodegroup ng = response.nodegroup();
                 lastStatus = mapNodegroupToVmStatus(ng);
 
-                log.debug("EKS node group {}/{} — status={}, desired={}, running={}",
-                        clusterName, nodeGroupName,
-                        ng.status(),
-                        ng.scalingConfig() != null ? ng.scalingConfig().desiredSize() : "?",
-                        ng.resources() != null ? ng.resources().autoScalingGroups().size() : "?");
+                log.debug("EKS node group {}/{} — status={}, desired={}",
+                        clusterName, nodeGroupName, ng.status(),
+                        ng.scalingConfig() != null ? ng.scalingConfig().desiredSize() : "?");
 
                 if (ng.status() == NodegroupStatus.ACTIVE) {
                     int desired = ng.scalingConfig() != null ? ng.scalingConfig().desiredSize() : -1;
@@ -246,9 +347,11 @@ public class EksCloudProviderService implements CloudProviderService {
                     if (!expectRunning && desired == 0) return VmStatus.STOPPED;
                 }
 
-                if (ng.status() == NodegroupStatus.CREATE_FAILED || ng.status() == NodegroupStatus.DELETE_FAILED
+                if (ng.status() == NodegroupStatus.CREATE_FAILED
+                        || ng.status() == NodegroupStatus.DELETE_FAILED
                         || ng.status() == NodegroupStatus.DEGRADED) {
-                    log.warn("EKS node group {}/{} reached terminal error state: {}", clusterName, nodeGroupName, ng.status());
+                    log.warn("EKS node group {}/{} reached terminal error state: {}",
+                            clusterName, nodeGroupName, ng.status());
                     return VmStatus.ERROR;
                 }
 
@@ -260,11 +363,13 @@ public class EksCloudProviderService implements CloudProviderService {
             }
         }
 
-        log.warn("Timed out waiting for EKS node group {}/{} after {}ms", clusterName, nodeGroupName, OPERATION_TIMEOUT_MS);
+        log.warn("Timed out waiting for EKS node group {}/{} after {}ms",
+                clusterName, nodeGroupName, operationTimeoutMs);
         return lastStatus;
     }
 
-    private VmStatus mapNodegroupToVmStatus(Nodegroup ng) {
+    // package-private for testing
+    VmStatus mapNodegroupToVmStatus(Nodegroup ng) {
         if (ng == null) return VmStatus.NOT_FOUND;
         NodegroupStatus status = ng.status();
         int desired = ng.scalingConfig() != null ? ng.scalingConfig().desiredSize() : -1;
@@ -286,20 +391,6 @@ public class EksCloudProviderService implements CloudProviderService {
         int slash = providerVmId.indexOf('/');
         if (slash <= 0 || slash >= providerVmId.length() - 1) return null;
         return new String[]{providerVmId.substring(0, slash), providerVmId.substring(slash + 1)};
-    }
-
-    /**
-     * Lists all EKS cluster names in a region.
-     * Used by EksSyncService to auto-discover clusters not yet in the DB.
-     */
-    public List<String> listClusters(String region) {
-        try {
-            EksClient eks = getEksClient(region);
-            return eks.listClusters().clusters();
-        } catch (Exception e) {
-            log.error("Error listing EKS clusters in region {}: {}", region, e.getMessage());
-            return List.of();
-        }
     }
 
     private EksClient getEksClient(String region) {

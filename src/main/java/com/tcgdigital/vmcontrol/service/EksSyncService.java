@@ -178,7 +178,7 @@ public class EksSyncService {
 
     private void upsertNodeGroup(Environment environment, String clusterName,
                                   String nodeGroupName, String region, int defaultSeq) {
-        // Upsert VmGroup
+        // Upsert VmGroup — always write identity metadata so the DB record is self-describing
         VmGroup group = groupRepository
                 .findByEnvironmentEnvironmentIdAndName(environment.getEnvironmentId(), nodeGroupName)
                 .orElseGet(() -> {
@@ -191,14 +191,13 @@ public class EksSyncService {
                     log.info("Creating new VmGroup for EKS node group: {}/{}", clusterName, nodeGroupName);
                     return g;
                 });
+        group.setMetadata(buildVmGroupMetadata(clusterName, nodeGroupName, region));
         group = groupRepository.save(group);
 
-        // Fetch live status from EKS
+        // Fetch live status and scaling config from EKS
         String providerVmId = clusterName + "/" + nodeGroupName;
         Nodegroup nodegroup = eksService.describeNodegroup(clusterName, nodeGroupName, region);
-        VmStatus liveStatus = nodegroup != null
-                ? mapNodegroupToVmStatus(nodegroup)
-                : VmStatus.UNKNOWN;
+        VmStatus liveStatus = nodegroup != null ? mapNodegroupToVmStatus(nodegroup) : VmStatus.UNKNOWN;
 
         // Upsert Vm representing this node group
         final VmGroup savedGroup = group;
@@ -225,6 +224,16 @@ public class EksSyncService {
         vm.setProviderVmId(providerVmId);
         vm.setRegion(region);
 
+        // Update Vm.metadata with live scaling config ONLY when the node group is running.
+        // Preserve existing metadata when desiredSize == 0 so startVm can restore the correct count.
+        if (nodegroup != null && nodegroup.scalingConfig() != null) {
+            int liveDesired = nodegroup.scalingConfig().desiredSize();
+            int liveMin = nodegroup.scalingConfig().minSize();
+            if (liveDesired > 0 || liveMin > 0) {
+                vm.setMetadata(buildVmMetadata(liveMin, liveDesired));
+            }
+        }
+
         // Drift detection
         VmStatus currentStatus = vm.getStatus();
         if (liveStatus != VmStatus.UNKNOWN && currentStatus != liveStatus) {
@@ -239,6 +248,23 @@ public class EksSyncService {
         vm.setStatus(liveStatus != VmStatus.UNKNOWN ? liveStatus : currentStatus);
         vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
         vmRepository.save(vm);
+    }
+
+    private String buildVmGroupMetadata(String clusterName, String nodeGroupName, String region) {
+        try {
+            return objectMapper.writeValueAsString(
+                    java.util.Map.of("clusterName", clusterName, "nodeGroupName", nodeGroupName, "region", region));
+        } catch (Exception e) {
+            return "{\"clusterName\":\"" + clusterName + "\",\"nodeGroupName\":\"" + nodeGroupName + "\",\"region\":\"" + region + "\"}";
+        }
+    }
+
+    private String buildVmMetadata(int minSize, int desiredSize) {
+        try {
+            return objectMapper.writeValueAsString(java.util.Map.of("minSize", minSize, "desiredSize", desiredSize));
+        } catch (Exception e) {
+            return "{\"minSize\":" + minSize + ",\"desiredSize\":" + desiredSize + "}";
+        }
     }
 
     private void deactivateNodeGroup(VmGroup group, String clusterName) {

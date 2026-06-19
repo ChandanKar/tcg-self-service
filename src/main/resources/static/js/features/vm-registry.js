@@ -410,8 +410,8 @@ const VmRegistry = (function() {
             : '<span class="text-muted small">None</span>';
 
         const vmRows = vms.map(vm => {
-            const providerLabels = { AWS: 'AWS', AZURE: 'Azure', GCP: 'GCP', OCI: 'OCI' };
-            const providerIcons = { AWS: 'fab fa-aws', AZURE: 'fab fa-microsoft', GCP: 'fab fa-google', OCI: 'fas fa-cloud' };
+            const providerLabels = { AWS: 'AWS', AZURE: 'Azure', GCP: 'GCP', OCI: 'OCI', AWS_EKS: 'EKS' };
+            const providerIcons = { AWS: 'fab fa-aws', AZURE: 'fab fa-microsoft', GCP: 'fab fa-google', OCI: 'fas fa-cloud', AWS_EKS: 'fas fa-dharmachakra' };
             const statusConfig = Config.STATUS.vm[vm.status] || Config.STATUS.vm.UNKNOWN;
             return `
                 <tr>
@@ -429,9 +429,13 @@ const VmRegistry = (function() {
                     </td>
                     <td class="text-center">${vm.sequencePosition || '-'}</td>
                     <td class="text-end">
+                        ${!isEks ? `
                         <button class="btn btn-sm btn-outline-danger" onclick="VmRegistry.deleteVm('${vm.vmId}', '${Utils.escapeHtml(vm.name)}')" title="Remove VM">
                             <i class="fas fa-trash"></i>
-                        </button>
+                        </button>` : `
+                        <span class="text-muted small" title="EKS node groups are managed by sync">
+                            <i class="fas fa-sync-alt"></i>
+                        </span>`}
                     </td>
                 </tr>
             `;

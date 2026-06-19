@@ -155,10 +155,14 @@ public class EnvironmentController {
     @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Discover unregistered EKS clusters",
-            description = "Returns EKS cluster names that exist in AWS but are not yet registered as environments"
+            description = "Returns EKS clusters that exist in AWS but are not yet registered as environments, with their region"
     )
-    public ResponseEntity<List<String>> discoverEksClusters() {
-        return ResponseEntity.ok(eksSyncService.getUnregisteredEksClusters(defaultRegion));
+    public ResponseEntity<List<EksClusterInfoDTO>> discoverEksClusters() {
+        List<EksClusterInfoDTO> result = eksSyncService.getUnregisteredEksClusters(defaultRegion)
+                .stream()
+                .map(name -> new EksClusterInfoDTO(name, defaultRegion))
+                .toList();
+        return ResponseEntity.ok(result);
     }
 
     @PostMapping
