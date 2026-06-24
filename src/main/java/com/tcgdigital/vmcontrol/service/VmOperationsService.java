@@ -135,6 +135,16 @@ public class VmOperationsService {
         auditService.logOperationStarted(userId, environmentId, environment.getName(),
                 execution.getExecutionId(), dto.getOperationType().name());
 
+        runSideEffect("notify requested operation", execution.getExecutionId(), () ->
+                notificationService.notifyOperationRequestedForEnvironment(
+                        environmentId,
+                        environment.getName(),
+                        userId,
+                        dto.getOperationType().name(),
+                        operationScopeLabel(dto),
+                        targetVms.size()
+                ));
+
         // Fire async execution after this transaction commits so the execution row is visible
         final String executionId = execution.getExecutionId();
         final boolean continueOnFailure = dto.isContinueOnFailure();
@@ -672,10 +682,13 @@ public class VmOperationsService {
                             execution.getFailedTargets()
                     ));
             runTerminalSideEffect("notify completed operation", executionId, () ->
-                    notificationService.notifyOperationCompleted(
-                            execution.getInitiatedByUserId(),
+                    notificationService.notifyOperationCompletedForEnvironment(
+                            execution.getEnvironment().getEnvironmentId(),
                             execution.getEnvironment().getName(),
-                            execution.getOperationType().name()));
+                            execution.getInitiatedByUserId(),
+                            execution.getOperationType().name(),
+                            execution.getTotalTargets(),
+                            execution.getFailedTargets()));
         });
     }
 
@@ -701,10 +714,13 @@ public class VmOperationsService {
                             execution.getFailedTargets()
                     ));
             runTerminalSideEffect("notify partial-success operation", executionId, () ->
-                    notificationService.notifyOperationCompleted(
-                            execution.getInitiatedByUserId(),
+                    notificationService.notifyOperationCompletedForEnvironment(
+                            execution.getEnvironment().getEnvironmentId(),
                             execution.getEnvironment().getName(),
-                            execution.getOperationType().name()));
+                            execution.getInitiatedByUserId(),
+                            execution.getOperationType().name(),
+                            execution.getTotalTargets(),
+                            execution.getFailedTargets()));
         });
     }
 
@@ -726,19 +742,34 @@ public class VmOperationsService {
                             errorMessage
                     ));
             runTerminalSideEffect("notify failed operation", executionId, () ->
-                    notificationService.notifyOperationFailed(
-                            execution.getInitiatedByUserId(),
+                    notificationService.notifyOperationFailedForEnvironment(
+                            execution.getEnvironment().getEnvironmentId(),
                             execution.getEnvironment().getName(),
+                            execution.getInitiatedByUserId(),
                             execution.getOperationType().name(),
                             errorMessage));
         });
     }
 
     private void runTerminalSideEffect(String action, String executionId, Runnable runnable) {
+        runSideEffect(action, executionId, runnable);
+    }
+
+    private void runSideEffect(String action, String executionId, Runnable runnable) {
         try {
             runnable.run();
         } catch (Exception e) {
             log.warn("Could not {} for execution {}: {}", action, executionId, e.getMessage());
         }
+    }
+
+    private String operationScopeLabel(StartOperationDTO dto) {
+        if (dto.getVmIds() != null && !dto.getVmIds().isEmpty()) {
+            return dto.getVmIds().size() == 1 ? "1 VM" : dto.getVmIds().size() + " VMs";
+        }
+        if (dto.getGroupIds() != null && !dto.getGroupIds().isEmpty()) {
+            return dto.getGroupIds().size() == 1 ? "1 group" : dto.getGroupIds().size() + " groups";
+        }
+        return "the environment";
     }
 }

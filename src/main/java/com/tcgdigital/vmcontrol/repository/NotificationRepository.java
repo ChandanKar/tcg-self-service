@@ -1,6 +1,7 @@
 package com.tcgdigital.vmcontrol.repository;
 
 import com.tcgdigital.vmcontrol.model.Notification;
+import com.tcgdigital.vmcontrol.model.NotificationType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -17,6 +18,9 @@ public interface NotificationRepository extends JpaRepository<Notification, Stri
     Page<Notification> findByUserIdAndIsReadOrderByCreatedAtDesc(String userId, boolean isRead, Pageable pageable);
 
     long countByUserIdAndIsRead(String userId, boolean isRead);
+
+    boolean existsByUserIdAndTypeAndEntityTypeAndEntityId(
+            String userId, NotificationType type, String entityType, String entityId);
 
     @Modifying
     @Query("UPDATE Notification n SET n.isRead = true WHERE n.userId = :userId AND n.isRead = false")

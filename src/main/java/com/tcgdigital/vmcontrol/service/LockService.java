@@ -94,6 +94,13 @@ public class LockService {
         // Audit logging
         auditService.logLockAcquired(userId, environmentId, environment.getName(), reason);
 
+        runNotificationSideEffect("notify lock acquired", environmentId, () ->
+                notificationService.notifyLockAcquiredForEnvironment(
+                        environmentId,
+                        environment.getName(),
+                        userId,
+                        reason));
+
         log.info("Lock acquired on environment {} by user {}", environmentId, userId);
 
         return lock;
@@ -135,6 +142,12 @@ public class LockService {
         // Audit logging
         auditService.logLockReleased(userId, environmentId, environmentName);
 
+        runNotificationSideEffect("notify lock released", environmentId, () ->
+                notificationService.notifyLockReleasedForEnvironment(
+                        environmentId,
+                        environmentName,
+                        userId));
+
         log.info("Lock released on environment {} by user {}", environmentId, userId);
     }
 
@@ -167,7 +180,21 @@ public class LockService {
         log.warn("Lock on environment {} broken by admin {} (was held by {}). Reason: {}",
                 environmentId, adminUserId, originalLockHolder, breakReason);
 
-        notificationService.notifyLockBroken(originalLockHolder, environmentName, adminUserId, breakReason);
+        runNotificationSideEffect("notify lock broken", environmentId, () ->
+                notificationService.notifyLockBrokenForEnvironment(
+                        environmentId,
+                        environmentName,
+                        adminUserId,
+                        originalLockHolder,
+                        breakReason));
+    }
+
+    private void runNotificationSideEffect(String action, String environmentId, Runnable runnable) {
+        try {
+            runnable.run();
+        } catch (Exception e) {
+            log.warn("Could not {} for environment {}: {}", action, environmentId, e.getMessage());
+        }
     }
 
     /**

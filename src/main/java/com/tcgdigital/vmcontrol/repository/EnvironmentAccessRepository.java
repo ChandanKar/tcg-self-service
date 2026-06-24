@@ -46,6 +46,16 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
     List<EnvironmentAccess> findActiveAccessByEnvironment(@Param("environmentId") String environmentId);
 
     /**
+     * Find active access grants for an environment with users loaded for recipient resolution.
+     */
+    @Query("SELECT ea FROM EnvironmentAccess ea " +
+           "JOIN FETCH ea.user " +
+           "WHERE ea.environment.environmentId = :environmentId " +
+           "AND ea.status = 'ACTIVE' " +
+           "ORDER BY ea.user.displayName")
+    List<EnvironmentAccess> findActiveAccessWithUsersByEnvironment(@Param("environmentId") String environmentId);
+
+    /**
      * Find all access grants for a user.
      */
     List<EnvironmentAccess> findByUser_UserIdAndStatus(String userId, AccessStatus status);
@@ -111,6 +121,31 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
            "AND ea.expiresAt IS NOT NULL " +
            "AND ea.expiresAt <= :now")
     List<EnvironmentAccess> findExpiredAccess(@Param("now") Timestamp now);
+
+    /**
+     * Find expired access grants with user and environment loaded for notifications.
+     */
+    @Query("SELECT ea FROM EnvironmentAccess ea " +
+           "JOIN FETCH ea.user " +
+           "JOIN FETCH ea.environment " +
+           "WHERE ea.status = 'ACTIVE' " +
+           "AND ea.expiresAt IS NOT NULL " +
+           "AND ea.expiresAt <= :now")
+    List<EnvironmentAccess> findExpiredAccessWithDetails(@Param("now") Timestamp now);
+
+    /**
+     * Find active access grants expiring inside a warning window.
+     */
+    @Query("SELECT ea FROM EnvironmentAccess ea " +
+           "JOIN FETCH ea.user " +
+           "JOIN FETCH ea.environment " +
+           "WHERE ea.status = 'ACTIVE' " +
+           "AND ea.expiresAt IS NOT NULL " +
+           "AND ea.expiresAt > :start " +
+           "AND ea.expiresAt <= :end")
+    List<EnvironmentAccess> findAccessExpiringBetweenWithDetails(
+            @Param("start") Timestamp start,
+            @Param("end") Timestamp end);
 
     /**
      * Count active users with access to an environment.

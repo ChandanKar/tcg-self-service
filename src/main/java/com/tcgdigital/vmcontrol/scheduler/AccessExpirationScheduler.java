@@ -30,6 +30,11 @@ public class AccessExpirationScheduler {
         log.info("Starting access expiration check...");
 
         try {
+            int expiringCount = accessService.processExpiringAccessWarnings();
+            if (expiringCount > 0) {
+                log.info("Processed {} access expiration warning candidates", expiringCount);
+            }
+
             int expiredCount = accessService.processExpiredAccess();
 
             if (expiredCount > 0) {
@@ -48,6 +53,7 @@ public class AccessExpirationScheduler {
      */
     public int triggerManualExpiration() {
         log.info("Manual access expiration triggered");
+        accessService.processExpiringAccessWarnings();
         return accessService.processExpiredAccess();
     }
 }

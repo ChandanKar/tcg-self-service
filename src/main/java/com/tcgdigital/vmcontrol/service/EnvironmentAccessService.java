@@ -11,6 +11,7 @@ import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +28,9 @@ import java.util.Optional;
 public class EnvironmentAccessService {
 
     private static final Logger log = LoggerFactory.getLogger(EnvironmentAccessService.class);
+
+    @Value("${access.expiry.warning-days:1}")
+    private int expiryWarningDays;
 
     private final EnvironmentAccessRepository accessRepository;
     private final EnvironmentAccessRequestRepository requestRepository;
@@ -89,6 +93,14 @@ public class EnvironmentAccessService {
 
         auditService.logAccessRequested(requesterId, environmentId, environment.getName(),
                 dto.getAccessLevel().getValue());
+
+        runNotificationSideEffect("notify access request reviewers", saved.getRequestId(), () ->
+                notificationService.notifyAccessRequestedForReviewers(
+                        environmentId,
+                        environment.getName(),
+                        requesterId,
+                        saved.getRequestId(),
+                        dto.getAccessLevel().getValue()));
 
         return saved;
     }
@@ -368,16 +380,47 @@ public class EnvironmentAccessService {
     @Transactional
     public int processExpiredAccess() {
         Timestamp now = new Timestamp(System.currentTimeMillis());
-        List<EnvironmentAccess> expiredAccess = accessRepository.findExpiredAccess(now);
+        List<EnvironmentAccess> expiredAccess = accessRepository.findExpiredAccessWithDetails(now);
 
         for (EnvironmentAccess access : expiredAccess) {
             access.setStatus(AccessStatus.EXPIRED);
             accessRepository.save(access);
             log.info("Access expired for user {} on environment {}",
                     access.getUser().getUserId(), access.getEnvironment().getEnvironmentId());
+
+            runNotificationSideEffect("notify access expired", access.getAccessId(), () ->
+                    notificationService.notifyAccessExpired(
+                            access.getUser().getUserId(),
+                            access.getEnvironment().getName(),
+                            access.getEnvironment().getEnvironmentId(),
+                            access.getAccessId()));
         }
 
         return expiredAccess.size();
+    }
+
+    /**
+     * Send one-time warning notifications for access grants expiring soon.
+     */
+    @Transactional
+    public int processExpiringAccessWarnings() {
+        Timestamp now = new Timestamp(System.currentTimeMillis());
+        Timestamp warningWindowEnd = Timestamp.valueOf(LocalDateTime.now().plusDays(expiryWarningDays));
+        List<EnvironmentAccess> expiringAccess = accessRepository.findAccessExpiringBetweenWithDetails(
+                now,
+                warningWindowEnd);
+
+        for (EnvironmentAccess access : expiringAccess) {
+            runNotificationSideEffect("notify access expiring", access.getAccessId(), () ->
+                    notificationService.notifyAccessExpiring(
+                            access.getUser().getUserId(),
+                            access.getEnvironment().getName(),
+                            access.getEnvironment().getEnvironmentId(),
+                            access.getAccessId(),
+                            access.getExpiresAt()));
+        }
+
+        return expiringAccess.size();
     }
 
     // ============= Helper Methods =============
@@ -390,6 +433,14 @@ public class EnvironmentAccessService {
     private User getUser(String userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+    }
+
+    private void runNotificationSideEffect(String action, String entityId, Runnable runnable) {
+        try {
+            runnable.run();
+        } catch (Exception e) {
+            log.warn("Could not {} for {}: {}", action, entityId, e.getMessage());
+        }
     }
 }
 

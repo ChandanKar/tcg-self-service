@@ -37,6 +37,7 @@ public class EksSyncService {
     private final VmRepository vmRepository;
     private final EksCloudProviderService eksService;
     private final AuditService auditService;
+    private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
 
     @Value("${aws.region:ap-south-1}")
@@ -47,12 +48,14 @@ public class EksSyncService {
                           VmRepository vmRepository,
                           EksCloudProviderService eksService,
                           AuditService auditService,
+                          NotificationService notificationService,
                           ObjectMapper objectMapper) {
         this.environmentRepository = environmentRepository;
         this.groupRepository = groupRepository;
         this.vmRepository = vmRepository;
         this.eksService = eksService;
         this.auditService = auditService;
+        this.notificationService = notificationService;
         this.objectMapper = objectMapper;
     }
 
@@ -127,6 +130,7 @@ public class EksSyncService {
                 auditService.logAction(null, AuditAction.SCHEDULED_JOB_EXECUTED, "environment",
                         env.getEnvironmentId(), clusterName,
                         "EKS cluster auto-discovered and registered in region " + defaultRegion);
+                notifyEksChanges(env, new EksSyncChanges(1, 0, 0));
             } catch (Exception e) {
                 log.error("Failed to auto-register EKS cluster {}: {}", clusterName, e.getMessage());
             }
@@ -151,12 +155,13 @@ public class EksSyncService {
         }
 
         Set<String> liveNames = new HashSet<>(liveNodeGroups);
+        EksSyncChanges changes = new EksSyncChanges();
 
         // Upsert VmGroup + Vm for each live node group
         int seq = 1;
         for (String nodeGroupName : liveNodeGroups) {
             try {
-                upsertNodeGroup(environment, clusterName, nodeGroupName, region, seq++);
+                changes.add(upsertNodeGroup(environment, clusterName, nodeGroupName, region, seq++));
             } catch (Exception e) {
                 log.error("Failed to upsert node group {}/{}: {}", clusterName, nodeGroupName, e.getMessage());
             }
@@ -167,21 +172,24 @@ public class EksSyncService {
                 environment.getEnvironmentId());
         for (VmGroup group : existingGroups) {
             if (!liveNames.contains(group.getName())) {
-                deactivateNodeGroup(group, clusterName);
+                changes.removed += deactivateNodeGroup(group, clusterName);
             }
         }
 
+        notifyEksChanges(environment, changes);
         return liveNodeGroups.size();
     }
 
     // ---- private helpers ----
 
-    private void upsertNodeGroup(Environment environment, String clusterName,
-                                  String nodeGroupName, String region, int defaultSeq) {
+    private EksSyncChanges upsertNodeGroup(Environment environment, String clusterName,
+                                           String nodeGroupName, String region, int defaultSeq) {
+        EksSyncChanges changes = new EksSyncChanges();
         // Upsert VmGroup — always write identity metadata so the DB record is self-describing
-        VmGroup group = groupRepository
-                .findByEnvironmentEnvironmentIdAndName(environment.getEnvironmentId(), nodeGroupName)
-                .orElseGet(() -> {
+        Optional<VmGroup> groupOpt = groupRepository
+                .findByEnvironmentEnvironmentIdAndName(environment.getEnvironmentId(), nodeGroupName);
+        boolean groupCreated = groupOpt.isEmpty();
+        VmGroup group = groupOpt.orElseGet(() -> {
                     VmGroup g = new VmGroup();
                     g.setGroupId(UUID.randomUUID().toString());
                     g.setEnvironment(environment);
@@ -201,8 +209,9 @@ public class EksSyncService {
 
         // Upsert Vm representing this node group
         final VmGroup savedGroup = group;
-        Vm vm = vmRepository.findByGroupGroupIdAndName(savedGroup.getGroupId(), nodeGroupName)
-                .orElseGet(() -> {
+        Optional<Vm> vmOpt = vmRepository.findByGroupGroupIdAndName(savedGroup.getGroupId(), nodeGroupName);
+        boolean vmCreated = vmOpt.isEmpty();
+        Vm vm = vmOpt.orElseGet(() -> {
                     Vm v = new Vm();
                     v.setVmId(UUID.randomUUID().toString());
                     v.setGroup(savedGroup);
@@ -241,6 +250,9 @@ public class EksSyncService {
             vm.setStateDriftDetected(true);
             auditService.logAction(null, AuditAction.STATE_DRIFT_DETECTED, "vm", vm.getVmId(),
                     nodeGroupName, String.format("EKS node group drift: %s → %s", currentStatus, liveStatus));
+            if (!groupCreated && !vmCreated) {
+                changes.updated++;
+            }
         } else {
             vm.setStateDriftDetected(false);
         }
@@ -248,6 +260,10 @@ public class EksSyncService {
         vm.setStatus(liveStatus != VmStatus.UNKNOWN ? liveStatus : currentStatus);
         vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
         vmRepository.save(vm);
+        if (groupCreated || vmCreated) {
+            changes.created++;
+        }
+        return changes;
     }
 
     private String buildVmGroupMetadata(String clusterName, String nodeGroupName, String region) {
@@ -267,10 +283,11 @@ public class EksSyncService {
         }
     }
 
-    private void deactivateNodeGroup(VmGroup group, String clusterName) {
+    private int deactivateNodeGroup(VmGroup group, String clusterName) {
         log.info("Deactivating EKS node group no longer in cluster {}: {}", clusterName, group.getName());
         // Deactivate all Vms in the group
         List<Vm> vms = vmRepository.findByGroupGroupIdOrderBySequencePositionAsc(group.getGroupId());
+        int removed = 0;
         for (Vm vm : vms) {
             if (Boolean.TRUE.equals(vm.getIsActive())) {
                 vm.setIsActive(false);
@@ -280,7 +297,51 @@ public class EksSyncService {
                 vmRepository.save(vm);
                 auditService.logAction(null, AuditAction.STATE_DRIFT_DETECTED, "vm", vm.getVmId(),
                         vm.getName(), "EKS node group removed from cluster — marked inactive");
+                removed++;
             }
+        }
+        return removed;
+    }
+
+    private void notifyEksChanges(Environment environment, EksSyncChanges changes) {
+        if (changes.total() <= 0) {
+            return;
+        }
+        try {
+            notificationService.notifyEksSyncChanged(
+                    environment.getEnvironmentId(),
+                    environment.getName(),
+                    changes.created,
+                    changes.updated,
+                    changes.removed);
+        } catch (Exception e) {
+            log.warn("Could not notify EKS sync changes for environment {}: {}",
+                    environment.getEnvironmentId(), e.getMessage());
+        }
+    }
+
+    private static class EksSyncChanges {
+        private int created;
+        private int updated;
+        private int removed;
+
+        private EksSyncChanges() {
+        }
+
+        private EksSyncChanges(int created, int updated, int removed) {
+            this.created = created;
+            this.updated = updated;
+            this.removed = removed;
+        }
+
+        private void add(EksSyncChanges other) {
+            this.created += other.created;
+            this.updated += other.updated;
+            this.removed += other.removed;
+        }
+
+        private int total() {
+            return created + updated + removed;
         }
     }
 

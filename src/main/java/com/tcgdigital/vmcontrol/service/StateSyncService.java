@@ -40,6 +40,7 @@ public class StateSyncService {
     private final VmStateHistoryRepository stateHistoryRepository;
     private final CloudProviderFactory cloudProviderFactory;
     private final AuditService auditService;
+    private final NotificationService notificationService;
     private final Executor syncExecutor;
 
     @Value("${vm.state.sync.interval:300000}")
@@ -57,11 +58,13 @@ public class StateSyncService {
                             VmStateHistoryRepository stateHistoryRepository,
                             CloudProviderFactory cloudProviderFactory,
                             AuditService auditService,
+                            NotificationService notificationService,
                             @Qualifier("syncExecutor") Executor syncExecutor) {
         this.vmRepository = vmRepository;
         this.stateHistoryRepository = stateHistoryRepository;
         this.cloudProviderFactory = cloudProviderFactory;
         this.auditService = auditService;
+        this.notificationService = notificationService;
         this.syncExecutor = syncExecutor;
     }
 
@@ -259,6 +262,14 @@ public class StateSyncService {
                     "vm", vm.getVmId(), vm.getName(),
                     String.format("VM %s in cloud - marked inactive. Previous status: %s",
                             cloudStatus, currentStatus));
+            runNotificationSideEffect("notify state drift", vm.getVmId(), () ->
+                    notificationService.notifyStateDriftDetected(
+                            vm.getGroup().getEnvironment().getEnvironmentId(),
+                            vm.getGroup().getEnvironment().getName(),
+                            vm.getName(),
+                            currentStatus.name(),
+                            cloudStatus.name(),
+                            vm.getVmId()));
             return true;
         }
 
@@ -281,6 +292,14 @@ public class StateSyncService {
                     vm.getGroup().getEnvironment().getName(),
                     "vm", vm.getVmId(), vm.getName(),
                     String.format("State drift: %s -> %s", currentStatus, cloudStatus));
+            runNotificationSideEffect("notify state drift", vm.getVmId(), () ->
+                    notificationService.notifyStateDriftDetected(
+                            vm.getGroup().getEnvironment().getEnvironmentId(),
+                            vm.getGroup().getEnvironment().getName(),
+                            vm.getName(),
+                            currentStatus.name(),
+                            cloudStatus.name(),
+                            vm.getVmId()));
             return true;
         }
 
@@ -495,6 +514,14 @@ public class StateSyncService {
      */
     public boolean isSyncInProgress() {
         return syncInProgress.get();
+    }
+
+    private void runNotificationSideEffect(String action, String entityId, Runnable runnable) {
+        try {
+            runnable.run();
+        } catch (Exception e) {
+            log.warn("Could not {} for {}: {}", action, entityId, e.getMessage());
+        }
     }
 }
 

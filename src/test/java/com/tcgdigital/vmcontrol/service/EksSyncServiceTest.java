@@ -33,6 +33,7 @@ class EksSyncServiceTest {
     @Mock private VmRepository vmRepository;
     @Mock private EksCloudProviderService eksService;
     @Mock private AuditService auditService;
+    @Mock private NotificationService notificationService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -46,7 +47,7 @@ class EksSyncServiceTest {
     @BeforeEach
     void setUp() {
         service = new EksSyncService(environmentRepository, groupRepository, vmRepository,
-                eksService, auditService, objectMapper);
+                eksService, auditService, notificationService, objectMapper);
         ReflectionTestUtils.setField(service, "defaultRegion", REGION);
     }
 
