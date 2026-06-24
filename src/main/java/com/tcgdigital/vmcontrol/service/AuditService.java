@@ -323,8 +323,8 @@ public class AuditService {
 
         Map<AuditAction, Long> resultMap = new HashMap<>();
         for (Object[] row : results) {
-            String actionStr = (String) row[0];
-            Long count = (Long) row[1];
+            String actionStr = objectToString(row[0]);
+            Long count = objectToLong(row[1]);
             try {
                 AuditAction action = AuditAction.valueOf(actionStr);
                 resultMap.put(action, count);
@@ -347,8 +347,8 @@ public class AuditService {
         return results.stream()
                 .filter(row -> row[0] != null)
                 .collect(Collectors.toMap(
-                        row -> (String) row[0],
-                        row -> (Long) row[1]
+                        row -> objectToString(row[0]),
+                        row -> objectToLong(row[1])
                 ));
     }
 
@@ -361,12 +361,28 @@ public class AuditService {
 
         List<Object[]> results = auditLogRepository.countActionsByEnvironmentInRange(start, end);
 
+        List<String> environmentIds = results.stream()
+                .map(row -> objectToString(row[0]))
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .toList();
+
+        Map<String, String> namesById = environmentRepository.findAllById(environmentIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        Environment::getEnvironmentId,
+                        env -> firstNonBlank(env.getDisplayName(), env.getName(), env.getEnvironmentId())
+                ));
+
         return results.stream()
-                .map(row -> new EnvironmentActivitySummary(
-                        (String) row[0],
-                        (String) row[1],
-                        (Long) row[2]
-                ))
+                .map(row -> {
+                    String environmentId = objectToString(row[0]);
+                    return new EnvironmentActivitySummary(
+                            environmentId,
+                            firstNonBlank(namesById.get(environmentId), environmentId),
+                            objectToLong(row[1])
+                    );
+                })
                 .toList();
     }
 
@@ -482,6 +498,20 @@ public class AuditService {
             }
         }
         return null;
+    }
+
+    private String objectToString(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private Long objectToLong(Object value) {
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            return Long.parseLong(text);
+        }
+        return 0L;
     }
 
     public void logEnvironmentCreated(String userId, String environmentId, String environmentName) {

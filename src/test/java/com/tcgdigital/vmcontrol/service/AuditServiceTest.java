@@ -2,7 +2,9 @@ package com.tcgdigital.vmcontrol.service;
 
 import com.tcgdigital.vmcontrol.model.AuditAction;
 import com.tcgdigital.vmcontrol.model.AuditLog;
+import com.tcgdigital.vmcontrol.model.Environment;
 import com.tcgdigital.vmcontrol.repository.AuditLogRepository;
+import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +28,9 @@ class AuditServiceTest {
 
     @Autowired
     private AuditLogRepository auditLogRepository;
+
+    @Autowired
+    private EnvironmentRepository environmentRepository;
 
     @BeforeEach
     void setUp() {
@@ -160,6 +165,50 @@ class AuditServiceTest {
 
         // Then
         assertEquals(1, results.getTotalElements());
+    }
+
+    @Test
+    void testGetActionCountsByEnvironment_MapsAggregateProjection() {
+        // Given
+        Environment environment = new Environment();
+        environment.setEnvironmentId("env-report-001");
+        environment.setName("report-env");
+        environment.setDisplayName("Report Environment");
+        environment.setIsActive(true);
+        environmentRepository.save(environment);
+
+        auditLogRepository.save(AuditLog.builder()
+                .logId(UUID.randomUUID().toString())
+                .userId(null)
+                .action(AuditAction.VM_START_COMPLETED)
+                .environmentId(environment.getEnvironmentId())
+                .targetType("vm")
+                .targetId("vm-report-001")
+                .targetName("vm-report-001")
+                .success(true)
+                .build());
+        auditLogRepository.save(AuditLog.builder()
+                .logId(UUID.randomUUID().toString())
+                .userId(null)
+                .action(AuditAction.VM_STOP_COMPLETED)
+                .environmentId(environment.getEnvironmentId())
+                .targetType("vm")
+                .targetId("vm-report-002")
+                .targetName("vm-report-002")
+                .success(true)
+                .build());
+
+        // When
+        List<AuditService.EnvironmentActivitySummary> summaries =
+                auditService.getActionCountsByEnvironment(LocalDate.now().minusDays(1), LocalDate.now().plusDays(1));
+
+        // Then
+        AuditService.EnvironmentActivitySummary summary = summaries.stream()
+                .filter(item -> environment.getEnvironmentId().equals(item.getEnvironmentId()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("Report Environment", summary.getEnvironmentName());
+        assertEquals(2L, summary.getActionCount());
     }
 
     // ============= Helper Methods =============
