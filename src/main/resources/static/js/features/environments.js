@@ -127,14 +127,29 @@ const Environments = (function() {
         return new Promise((resolve, reject) => {
             ApiClient.get(Config.API.environments.list)
                 .done(async function(environments) {
-                    // Enrich with lock status
+                    // Enrich list rows with the same VM status data used by the detail view.
                     const enriched = await Promise.all(
                         environments.map(async (env) => {
                             try {
-                                const lock = await fetchLockStatus(env.environmentId);
-                                return { ...env, lockStatus: lock };
+                                const [lock, vmsData] = await Promise.all([
+                                    fetchLockStatus(env.environmentId),
+                                    fetchEnvironmentVms(env.environmentId)
+                                ]);
+                                const counts = calculateVmCounts(vmsData);
+                                return {
+                                    ...env,
+                                    ...counts,
+                                    groups: vmsData || [],
+                                    lockStatus: lock
+                                };
                             } catch (e) {
-                                return { ...env, lockStatus: { isLocked: false } };
+                                return {
+                                    ...env,
+                                    totalVms: env.vmCount || 0,
+                                    runningVms: 0,
+                                    groups: [],
+                                    lockStatus: { isLocked: false }
+                                };
                             }
                         })
                     );
@@ -156,16 +171,24 @@ const Environments = (function() {
         });
 
         // Fetch groups with VMs
-        const vmsData = await new Promise((resolve) => {
-            ApiClient.get(Config.API.vms.list(envId))
-                .done(resolve)
-                .fail(() => resolve([]));
-        });
+        const vmsData = await fetchEnvironmentVms(envId);
 
         // Fetch lock status
         const lockStatus = await fetchLockStatus(envId);
 
         // Calculate counts
+        const counts = calculateVmCounts(vmsData);
+
+        return {
+            ...env,
+            groups: vmsData || [],
+            totalVms: env.vmCount || counts.totalVms,
+            runningVms: counts.runningVms,
+            lockStatus
+        };
+    }
+
+    function calculateVmCounts(vmsData) {
         let totalVms = 0;
         let runningVms = 0;
 
@@ -182,13 +205,15 @@ const Environments = (function() {
             });
         }
 
-        return {
-            ...env,
-            groups: vmsData || [],
-            totalVms: env.vmCount || totalVms,
-            runningVms,
-            lockStatus
-        };
+        return { totalVms, runningVms };
+    }
+
+    function fetchEnvironmentVms(envId) {
+        return new Promise((resolve) => {
+            ApiClient.get(Config.API.vms.list(envId))
+                .done(resolve)
+                .fail(() => resolve([]));
+        });
     }
 
     /**

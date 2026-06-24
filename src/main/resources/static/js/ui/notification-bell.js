@@ -97,9 +97,10 @@ const NotificationBell = (function () {
         const ago    = Utils.timeAgo ? Utils.timeAgo(n.createdAt) : formatAgo(n.createdAt);
         const unread = !n.read;
         const icon   = typeIcon(n.type);
+        const tone   = typeTone(n.type);
 
         const $item = $(`
-            <div class="notification-item ${unread ? 'unread' : ''}"
+            <div class="notification-item ${unread ? 'unread' : ''} ${tone}"
                  data-id="${n.notificationId}" role="menuitem">
                 <div class="notification-item-icon">
                     <i class="fas ${icon}"></i>
@@ -146,15 +147,36 @@ const NotificationBell = (function () {
 
     function typeIcon(type) {
         const icons = {
+            LOCK_ACQUIRED:           'fa-lock',
+            LOCK_RELEASED:           'fa-unlock',
             LOCK_BROKEN:             'fa-lock-open',
+            ACCESS_REQUESTED:        'fa-user-clock',
             ACCESS_GRANTED:          'fa-user-check',
             ACCESS_REVOKED:          'fa-user-times',
             ACCESS_REQUEST_APPROVED: 'fa-thumbs-up',
             ACCESS_REQUEST_DENIED:   'fa-thumbs-down',
+            ACCESS_EXPIRING:         'fa-hourglass-half',
+            ACCESS_EXPIRED:          'fa-hourglass-end',
+            OPERATION_REQUESTED:     'fa-play-circle',
             OPERATION_COMPLETED:     'fa-check-circle',
-            OPERATION_FAILED:        'fa-times-circle'
+            OPERATION_FAILED:        'fa-times-circle',
+            STATE_DRIFT_DETECTED:    'fa-exclamation-triangle',
+            EKS_SYNC_CHANGED:        'fa-dharmachakra'
         };
         return icons[type] || 'fa-bell';
+    }
+
+    function typeTone(type) {
+        if (['OPERATION_FAILED', 'LOCK_BROKEN', 'STATE_DRIFT_DETECTED', 'ACCESS_EXPIRED'].includes(type)) {
+            return 'tone-danger';
+        }
+        if (['ACCESS_EXPIRING', 'ACCESS_REQUESTED', 'LOCK_ACQUIRED', 'OPERATION_REQUESTED'].includes(type)) {
+            return 'tone-warning';
+        }
+        if (['OPERATION_COMPLETED', 'ACCESS_GRANTED', 'ACCESS_REQUEST_APPROVED', 'EKS_SYNC_CHANGED'].includes(type)) {
+            return 'tone-success';
+        }
+        return 'tone-info';
     }
 
     function formatAgo(ts) {
