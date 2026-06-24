@@ -20,7 +20,7 @@ public class HomeController {
         return "forward:/login.html";
     }
 
-    @GetMapping("/home")
+    @GetMapping({"/home", "/home/"})
     public String getHome() {
         return "forward:/index.html";
     }

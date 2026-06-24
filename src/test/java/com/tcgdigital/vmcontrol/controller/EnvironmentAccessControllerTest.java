@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.*;
+import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -173,6 +174,27 @@ class EnvironmentAccessControllerTest {
                 .andExpect(jsonPath("$[0].requestedAccessLevel").value("USER"))
                 .andExpect(jsonPath("$[0].status").value("PENDING"))
                 .andExpect(jsonPath("$[0].businessJustification").value("I need access for testing purposes"));
+    }
+
+    @Test
+    @DisplayName("Should create access request via POST endpoint")
+    void createAccessRequest_postEndpoint_returnsCreated() throws Exception {
+        CreateAccessRequestDTO dto = new CreateAccessRequestDTO(
+                AccessLevel.USER,
+                "I need access for testing purposes",
+                null
+        );
+
+        mockMvc.perform(post("/api/v1/environments/{envId}/access-requests", testEnvironment.getEnvironmentId())
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.requestId", not(emptyString())))
+                .andExpect(jsonPath("$.environmentId").value(testEnvironment.getEnvironmentId()))
+                .andExpect(jsonPath("$.requesterId").value(testUser.getUserId()))
+                .andExpect(jsonPath("$.requestedAccessLevel").value("USER"))
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.businessJustification").value("I need access for testing purposes"));
     }
 
     @Test
