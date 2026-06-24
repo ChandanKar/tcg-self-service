@@ -5,6 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.sql.Timestamp;
@@ -20,6 +21,31 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, String> {
      * Find audit logs by user.
      */
     Page<AuditLog> findByUserIdOrderByCreatedAtDesc(String userId, Pageable pageable);
+
+    /**
+     * Find audit logs by user within a time range.
+     */
+    Page<AuditLog> findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(
+            String userId, Timestamp startTime, Timestamp endTime, Pageable pageable);
+
+    /**
+     * Find activity for a user with optional filters. The details fallback keeps
+     * legacy audit rows visible where older code stored the actor only in details.
+     */
+    @Query("SELECT a FROM AuditLog a " +
+           "WHERE (a.userId = :userId OR LOWER(a.details) LIKE LOWER(CONCAT('%', :userId, '%'))) " +
+           "AND (:startTime IS NULL OR a.createdAt >= :startTime) " +
+           "AND (:endTime IS NULL OR a.createdAt < :endTime) " +
+           "AND (:environmentId IS NULL OR a.environmentId = :environmentId OR a.targetId = :environmentId) " +
+           "AND (:action IS NULL OR a.action = :action) " +
+           "ORDER BY a.createdAt DESC")
+    Page<AuditLog> findUserActivity(
+            @Param("userId") String userId,
+            @Param("startTime") Timestamp startTime,
+            @Param("endTime") Timestamp endTime,
+            @Param("environmentId") String environmentId,
+            @Param("action") String action,
+            Pageable pageable);
 
     /**
      * Find audit logs by environment.

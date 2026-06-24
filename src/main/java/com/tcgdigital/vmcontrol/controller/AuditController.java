@@ -95,14 +95,21 @@ public class AuditController {
     @PreAuthorize("isAuthenticated()")
     @Operation(
             summary = "Get my activity logs",
-            description = "Returns audit logs for the currently authenticated user"
+            description = "Returns audit logs for the currently authenticated user, with optional date-range filter"
     )
     public ResponseEntity<Page<AuditLogDTO>> getMyLogs(
             @Parameter(description = "Page number") @RequestParam(defaultValue = "0") int page,
-            @Parameter(description = "Page size") @RequestParam(defaultValue = "50") int size) {
+            @Parameter(description = "Page size") @RequestParam(defaultValue = "50") int size,
+            @Parameter(description = "Filter by environment ID") @RequestParam(required = false) String environmentId,
+            @Parameter(description = "Filter by action type") @RequestParam(required = false) AuditAction action,
+            @Parameter(description = "Start date (YYYY-MM-DD)") @RequestParam(required = false)
+                @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @Parameter(description = "End date (YYYY-MM-DD)") @RequestParam(required = false)
+                @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
 
         String userId = userService.getCurrentUserId();
-        Page<AuditLog> logs = auditService.getLogsForUser(userId, page, size);
+        Page<AuditLog> logs = auditService.getUserActivityLogs(
+                userId, startDate, endDate, environmentId, action, page, size);
         Page<AuditLogDTO> dtos = logs.map(AuditLogDTO::fromEntity);
         return ResponseEntity.ok(dtos);
     }

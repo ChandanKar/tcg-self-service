@@ -190,7 +190,7 @@ const AllLogs = (function() {
             totalActions: total,
             successRate: `${successRate}%`,
             failures: failed,
-            topUser: topUser ? (allUsers.find(u => u.id === topUser[0])?.email || topUser[0]) : 'N/A',
+            topUser: topUser ? (allUsers.find(u => u.id === topUser[0])?.name || 'Unknown User') : 'N/A',
             topEnvironment: topEnv ? (allEnvironments.find(e => e.id === topEnv[0])?.name || topEnv[0]) : 'N/A'
         };
     }
@@ -260,7 +260,7 @@ const AllLogs = (function() {
                     </select>
                     <select class="form-select form-select-sm" id="user-filter">
                         <option value="">All Users</option>
-                        ${allUsers.map(u => `<option value="${u.id}" ${currentFilters.userId === u.id ? 'selected' : ''}>${u.email}</option>`).join('')}
+                        ${allUsers.map(u => `<option value="${u.id}" ${currentFilters.userId === u.id ? 'selected' : ''}>${escapeHtml(u.name)}</option>`).join('')}
                     </select>
                     <select class="form-select form-select-sm" id="environment-filter">
                         <option value="">All Environments</option>
@@ -404,7 +404,13 @@ const AllLogs = (function() {
         const actionDisplay = log.actionDisplay || formatActionName(log.action);
         const resultIcon = log.success !== false ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>';
         const details = log.details ? log.details.substring(0, 40) + (log.details.length > 40 ? '...' : '') : (log.errorMessage ? log.errorMessage.substring(0, 40) + (log.errorMessage.length > 40 ? '...' : '') : '-');
-        const userEmail = log.userEmail || log.userId || 'system';
+        const userName = getUserDisplay(log);
+        const environment = escapeHtml(getEnvironmentDisplay(log));
+        const safeUserName = escapeHtml(userName);
+        const safeActionDisplay = escapeHtml(actionDisplay);
+        const safeTargetName = escapeHtml(log.targetName || '-');
+        const safeDetails = escapeHtml(details);
+        const safeDetailsTitle = escapeHtml(log.details || log.errorMessage || '');
 
         return `
             <tr>
@@ -412,14 +418,14 @@ const AllLogs = (function() {
                     <div>${timestamp.relative}</div>
                     <small class="text-muted">${timestamp.absolute}</small>
                 </td>
-                <td><small>${userEmail}</small></td>
-                <td>${log.environmentName || log.environmentId || '-'}</td>
+                <td><small>${safeUserName}</small></td>
+                <td>${environment}</td>
                 <td>
-                    <span class="badge ${actionBadgeClass}">${actionDisplay}</span>
+                    <span class="badge ${actionBadgeClass}">${safeActionDisplay}</span>
                 </td>
-                <td>${log.targetName || '-'}</td>
+                <td>${safeTargetName}</td>
                 <td class="text-center">${resultIcon}</td>
-                <td title="${log.details || log.errorMessage || ''}">${details}</td>
+                <td title="${safeDetailsTitle}">${safeDetails}</td>
             </tr>
         `;
     }
@@ -584,8 +590,8 @@ const AllLogs = (function() {
                 const logs = data.content || [];
                 const rows = logs.map(log => [
                     log.createdAt,
-                    log.userEmail || log.userId || 'system',
-                    log.environmentName || log.environmentId || '',
+                    getUserDisplay(log),
+                    getEnvironmentDisplay(log),
                     log.actionDisplay || log.action || '',
                     log.targetName || '',
                     log.success !== false ? 'Success' : 'Failed',
@@ -677,6 +683,28 @@ const AllLogs = (function() {
             .split(' ')
             .map(word => word.charAt(0).toUpperCase() + word.slice(1))
             .join(' ');
+    }
+
+    function getEnvironmentDisplay(log) {
+        if (log.environmentName || log.environmentId) {
+            return log.environmentName || log.environmentId;
+        }
+        const targetType = (log.targetType || '').toLowerCase();
+        if (targetType === 'environment' || targetType === 'environment_access' || targetType === 'lock') {
+            return log.targetName || log.targetId || '-';
+        }
+        return '-';
+    }
+
+    function getUserDisplay(log) {
+        return log.userDisplayName || log.userEmail || 'System';
+    }
+
+    function escapeHtml(text) {
+        if (text === null || text === undefined) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     /**

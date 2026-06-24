@@ -13,6 +13,7 @@ public class AuditLogDTO {
     private String logId;
     private String userId;
     private String userEmail;
+    private String userDisplayName;
     private AuditAction action;
     private String actionDisplay;
     private String targetType;
@@ -35,6 +36,7 @@ public class AuditLogDTO {
         dto.setLogId(auditLog.getLogId());
         dto.setUserId(auditLog.getUserId());
         dto.setUserEmail(auditLog.getUserEmail());
+        dto.setUserDisplayName(auditLog.getUserDisplayName());
         dto.setAction(auditLog.getAction());
         dto.setActionDisplay(formatActionName(auditLog.getAction()));
         dto.setTargetType(auditLog.getTargetType());
@@ -82,6 +84,14 @@ public class AuditLogDTO {
 
     public void setUserEmail(String userEmail) {
         this.userEmail = userEmail;
+    }
+
+    public String getUserDisplayName() {
+        return userDisplayName;
+    }
+
+    public void setUserDisplayName(String userDisplayName) {
+        this.userDisplayName = userDisplayName;
     }
 
     public AuditAction getAction() {

@@ -62,6 +62,9 @@ public class AuditLog {
     private String userEmail;
 
     @Transient
+    private String userDisplayName;
+
+    @Transient
     private String environmentName;
 
     public AuditLog() {
@@ -178,6 +181,14 @@ public class AuditLog {
 
     public void setUserEmail(String userEmail) {
         this.userEmail = userEmail;
+    }
+
+    public String getUserDisplayName() {
+        return userDisplayName;
+    }
+
+    public void setUserDisplayName(String userDisplayName) {
+        this.userDisplayName = userDisplayName;
     }
 
     public AuditAction getAction() {

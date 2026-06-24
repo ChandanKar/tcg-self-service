@@ -94,6 +94,9 @@ public class GlobalExceptionHandler {
         log.warn("Validation failed: {}", errors);
         return ResponseEntity.badRequest().body(Map.of(
                 "error", "Validation Error",
+                "message", errors.stream()
+                        .map(error -> error.get("message"))
+                        .collect(Collectors.joining("; ")),
                 "errors", errors,
                 "timestamp", Instant.now().toString()
         ));

@@ -426,8 +426,7 @@ const AuditLogs = (function() {
                         <small>${Utils.formatDate(log.timestamp)}</small>
                     </td>
                     <td>
-                        <strong>${Utils.escapeHtml(log.userDisplayName || 'Unknown')}</strong>
-                        <br><small class="text-muted">${Utils.escapeHtml(log.userEmail || '')}</small>
+                        <strong>${Utils.escapeHtml(getUserDisplay(log))}</strong>
                     </td>
                     <td><strong>${Utils.escapeHtml(log.environmentName || '-')}</strong></td>
                     <td>${actionBadge}</td>
@@ -695,8 +694,7 @@ const AuditLogs = (function() {
         const details = `
             <table class="table table-sm">
                 <tr><th width="30%">Timestamp</th><td>${Utils.formatDate(log.timestamp)}</td></tr>
-                <tr><th>User</th><td>${Utils.escapeHtml(log.userDisplayName || log.userId || '-')}</td></tr>
-                <tr><th>Email</th><td>${Utils.escapeHtml(log.userEmail || '-')}</td></tr>
+                <tr><th>User</th><td>${Utils.escapeHtml(getUserDisplay(log))}</td></tr>
                 <tr><th>Environment</th><td>${Utils.escapeHtml(log.environmentName || '-')}</td></tr>
                 <tr><th>Action</th><td>${getActionBadge(log.actionType)}</td></tr>
                 <tr><th>Target</th><td>${Utils.escapeHtml(log.targetName || log.targetId || '-')}</td></tr>
@@ -744,6 +742,10 @@ const AuditLogs = (function() {
         document.body.removeChild(link);
 
         Notifications.success('Export started');
+    }
+
+    function getUserDisplay(log) {
+        return log.userDisplayName || log.userEmail || 'System';
     }
 
     // Public API

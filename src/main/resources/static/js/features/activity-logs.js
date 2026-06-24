@@ -18,20 +18,12 @@ const ActivityLogs = (function() {
     };
 
     let userEnvironments = [];
-    let userId = null;
 
     /**
      * Load activity logs page
      */
     async function loadMyActivityLogs() {
         try {
-            // Get current user ID
-            userId = Auth.getUserId();
-            if (!userId) {
-                showError('Unable to identify current user.');
-                return;
-            }
-
             showLoading();
 
             // Set default date range (last 7 days)
@@ -76,7 +68,7 @@ const ActivityLogs = (function() {
             if (filters.environmentId) params.append('environmentId', filters.environmentId);
             if (filters.actionType) params.append('action', filters.actionType);
 
-            const url = `${Config.API.audit.byUser(userId)}?${params.toString()}`;
+            const url = `${Config.API.audit.myLogs}?${params.toString()}`;
 
             ApiClient.get(url)
                 .done(function(data) {
@@ -269,9 +261,13 @@ const ActivityLogs = (function() {
     function buildActivityLogRow(log) {
         const timestamp = formatTimestamp(log.createdAt);
         const actionBadgeClass = getActionBadgeClass(log.action);
-        const actionDisplay = log.actionDisplay || formatActionName(log.action);
+        const actionDisplay = Utils.escapeHtml(log.actionDisplay || formatActionName(log.action));
         const resultIcon = log.success ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>';
         const details = log.details ? log.details.substring(0, 50) + (log.details.length > 50 ? '...' : '') : '-';
+        const environment = Utils.escapeHtml(getEnvironmentDisplay(log));
+        const targetName = Utils.escapeHtml(log.targetName || '-');
+        const detailsTitle = Utils.escapeHtml(log.details || '');
+        const detailsText = Utils.escapeHtml(details);
 
         return `
             <tr>
@@ -279,13 +275,13 @@ const ActivityLogs = (function() {
                     <div>${timestamp.relative}</div>
                     <small class="text-muted">${timestamp.absolute}</small>
                 </td>
-                <td>${log.environmentName || log.environmentId || '-'}</td>
+                <td>${environment}</td>
                 <td>
                     <span class="badge ${actionBadgeClass}">${actionDisplay}</span>
                 </td>
-                <td>${log.targetName || '-'}</td>
+                <td>${targetName}</td>
                 <td class="text-center">${resultIcon}</td>
-                <td title="${log.details || ''}">${details}</td>
+                <td title="${detailsTitle}">${detailsText}</td>
             </tr>
         `;
     }
@@ -426,7 +422,7 @@ const ActivityLogs = (function() {
                 const logs = data.content || [];
                 const rows = logs.map(log => [
                     log.createdAt,
-                    log.environmentName || log.environmentId || '',
+                    getEnvironmentDisplay(log),
                     log.actionDisplay || log.action || '',
                     log.targetName || '',
                     log.success ? 'Success' : 'Failed',
@@ -517,6 +513,17 @@ const ActivityLogs = (function() {
             .split(' ')
             .map(word => word.charAt(0).toUpperCase() + word.slice(1))
             .join(' ');
+    }
+
+    function getEnvironmentDisplay(log) {
+        if (log.environmentName || log.environmentId) {
+            return log.environmentName || log.environmentId;
+        }
+        const targetType = (log.targetType || '').toLowerCase();
+        if (targetType === 'environment' || targetType === 'environment_access' || targetType === 'lock') {
+            return log.targetName || log.targetId || '-';
+        }
+        return '-';
     }
 
     /**
