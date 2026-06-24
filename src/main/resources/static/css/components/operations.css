@@ -72,6 +72,8 @@
 #operationProgressModal .progress {
     border-radius: 12px;
     background: #e2e8f0;
+    position: relative;
+    overflow: hidden;
 }
 
 #operationProgressModal .progress-bar {
@@ -79,6 +81,23 @@
     font-weight: 600;
     font-size: 0.875rem;
     transition: width 0.3s ease;
+}
+
+#operationProgressModal #progress-percent {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.75rem;
+    color: #ffffff;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-shadow: 0 1px 2px rgba(15, 23, 42, 0.75);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
 }
 
 /* Operation status colors */

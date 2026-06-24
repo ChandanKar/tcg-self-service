@@ -198,8 +198,12 @@ public class VmService {
         }
         vm.setDiscoveryPending(false);
         vmRepository.save(vm);
-        auditService.logAction(userId, AuditAction.VM_REGISTERED, "vm", vmId,
-                vm.getName(), "Discovery review acknowledged by admin");
+        auditService.logVmRegistered(
+                userId,
+                vm.getGroup().getEnvironment().getEnvironmentId(),
+                vm.getGroup().getEnvironment().getName(),
+                vmId,
+                vm.getName());
         log.info("VM {} acknowledged by user {} — no longer pending review", vm.getName(), userId);
         return vm;
     }

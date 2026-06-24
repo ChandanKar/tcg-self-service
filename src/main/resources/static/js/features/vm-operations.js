@@ -76,6 +76,7 @@ const VmOperations = (function() {
      */
     // Operation timeout: 30 minutes (in milliseconds)
     const OPERATION_TIMEOUT = 30 * 60 * 1000;
+    const MAX_POLL_FAILURES = 3;
 
     function executeOperation(envId, operationData, title) {
         return new Promise((resolve, reject) => {
@@ -92,7 +93,8 @@ const VmOperations = (function() {
                         title,
                         state: 'running',  // Explicit state: running, completed, error, timeout
                         startTime: Date.now(),
-                        lastUpdateTime: Date.now()
+                        lastUpdateTime: Date.now(),
+                        pollFailures: 0
                     });
 
                     // Start polling for status
@@ -200,11 +202,11 @@ const VmOperations = (function() {
                 // Handle close
                 $('#btn-close-progress').off('click').on('click', function() {
                     Modals.hide('operationProgressModal');
-                    stopPolling();
+                    stopPollingIfNoRunningOperation();
                 });
             },
             onHide: function() {
-                stopPolling();
+                stopPollingIfNoRunningOperation();
                 stopElapsedTimer();
             }
         });
@@ -255,20 +257,46 @@ const VmOperations = (function() {
 
         if (execution) {
             const steps = execution.details || [];
-            const total = steps.length || 0;
-            const completed = steps.filter(s => (s.status || '').toUpperCase() === 'COMPLETED').length;
-            const failed = steps.filter(s => (s.status || '').toUpperCase() === 'FAILED').length;
+            const hasSteps = steps.length > 0;
+            const total = hasSteps ? steps.length : (Number(execution.totalTargets) || 0);
+            const completed = hasSteps
+                ? steps.filter(s => (s.status || '').toUpperCase() === 'COMPLETED').length
+                : (Number(execution.completedTargets) || 0);
+            const failed = hasSteps
+                ? steps.filter(s => (s.status || '').toUpperCase() === 'FAILED').length
+                : (Number(execution.failedTargets) || 0);
+            const inProgress = hasSteps
+                ? steps.filter(s => (s.status || '').toUpperCase() === 'IN_PROGRESS').length
+                : 0;
             const pending = Math.max(0, total - completed - failed);
+            const progressValues = hasSteps
+                ? steps.map(step => {
+                    const normalizedStatus = (step.status || '').toUpperCase();
+                    if (normalizedStatus === 'COMPLETED') return 100;
+                    if (normalizedStatus === 'FAILED') return 100;
+                    return Number(step.progressPercentage) || 0;
+                })
+                : [];
 
             // Calculate percent — for terminal states force meaningful values
             let percent;
             if (execution.status === 'COMPLETED') {
                 percent = 100;
+            } else if (execution.status === 'FAILED' || execution.status === 'PARTIAL_SUCCESS') {
+                percent = 100;
             } else if (total === 0) {
-                percent = execution.status === 'FAILED' ? 100 : 10; // show some progress if no steps yet
+                percent = Number(execution.progressPercentage) || 10; // show some progress if no steps yet
+            } else if (progressValues.length > 0 && progressValues.some(value => value > 0)) {
+                percent = Math.round(progressValues.reduce((sum, value) => sum + value, 0) / progressValues.length);
             } else {
-                percent = Math.round(((completed + failed) / total) * 100);
+                const activeCredit = inProgress > 0 ? 0.5 : 0;
+                percent = Math.round(((completed + failed + activeCredit) / total) * 100);
+                percent = Math.max(percent, Number(execution.progressPercentage) || 0);
+                percent = Math.min(percent, 95);
             }
+            percent = Math.max(0, Math.min(100, percent));
+            const currentStep = steps.find(s => (s.status || '').toUpperCase() === 'IN_PROGRESS');
+            const stageLabel = getProgressStageLabel(execution, steps, currentStep, percent);
 
             // Update counts
             $('#progress-completed').text(completed);
@@ -277,7 +305,7 @@ const VmOperations = (function() {
 
             // Update progress bar width + label
             $progressBar.css('width', `${percent}%`);
-            $progressPercent.text(`${percent}%`);
+            $progressPercent.text(stageLabel ? `${percent}% - ${stageLabel}` : `${percent}%`);
 
             // Update status text and bar style based on terminal/in-progress state
             if (execution.status === 'COMPLETED') {
@@ -307,9 +335,9 @@ const VmOperations = (function() {
                 stopElapsedTimer();
             } else {
                 // In progress — keep spinner
-                const currentStep = steps.find(s => (s.status || '').toUpperCase() === 'IN_PROGRESS');
                 if (currentStep) {
-                    $statusText.html(`<i class="fas fa-spinner fa-spin me-2"></i>Processing: ${Utils.escapeHtml(currentStep.targetName || currentStep.targetId)}`);
+                    const stepLabel = currentStep.stageLabel || `Processing: ${currentStep.targetName || currentStep.targetId}`;
+                    $statusText.html(`<i class="fas fa-spinner fa-spin me-2"></i>${Utils.escapeHtml(stepLabel)}`);
                 } else {
                     $statusText.html(`<i class="fas fa-spinner fa-spin me-2"></i>Processing...`);
                 }
@@ -318,6 +346,28 @@ const VmOperations = (function() {
             // Update VM status list
             updateVmStatusList(steps);
         }
+    }
+
+    function getProgressStageLabel(execution, steps, currentStep, percent) {
+        if (execution.status === 'COMPLETED') return 'Completed';
+        if (execution.status === 'FAILED') return 'Failed';
+        if (execution.status === 'PARTIAL_SUCCESS') return 'Completed with failures';
+        if (execution.status === 'CANCELLED') return 'Cancelled';
+
+        if (currentStep?.stageLabel) {
+            return currentStep.stageLabel;
+        }
+
+        const activeStep = steps.find(step =>
+            Number(step.progressPercentage) > 0 &&
+            (step.status || '').toUpperCase() !== 'COMPLETED'
+        );
+        if (activeStep?.stageLabel) {
+            return activeStep.stageLabel;
+        }
+
+        if (percent > 0) return 'Processing';
+        return 'Initializing';
     }
 
     /**
@@ -358,12 +408,15 @@ const VmOperations = (function() {
 
             const errorMsg = step.errorMessage ?
                 `<small class="text-danger d-block">${Utils.escapeHtml(step.errorMessage)}</small>` : '';
+            const stageMsg = step.stageLabel && normalizedStatus !== 'COMPLETED' ?
+                `<small class="text-muted d-block">${Utils.escapeHtml(step.stageLabel)}</small>` : '';
 
             return `
                 <div class="vm-status-item d-flex justify-content-between align-items-center py-2 border-bottom">
                     <div>
                         <i class="fas ${statusIcon} ${statusClass} me-2"></i>
                         <span>${Utils.escapeHtml(step.targetName || step.targetId)}</span>
+                        ${stageMsg}
                         ${errorMsg}
                     </div>
                     <span class="badge bg-${getStatusBadgeClass(normalizedStatus)}">${normalizedStatus}</span>
@@ -413,9 +466,11 @@ const VmOperations = (function() {
                     // Update last status check time
                     if (operation) {
                         operation.lastUpdateTime = Date.now();
+                        operation.pollFailures = 0;
                     }
 
                     updateProgressModal('progress', null, execution);
+                    publishOperationStatus(envId, execution);
 
                     if (execution.status === 'COMPLETED') {
                         stopPolling();
@@ -450,6 +505,17 @@ const VmOperations = (function() {
                     // Continue polling if still in progress
                 })
                 .fail(function(xhr) {
+                    if (operation) {
+                        operation.pollFailures = (operation.pollFailures || 0) + 1;
+                    }
+                    const failures = operation ? operation.pollFailures : MAX_POLL_FAILURES;
+                    console.warn('Failed to poll operation status:', xhr.status, xhr.statusText, `attempt ${failures}/${MAX_POLL_FAILURES}`);
+
+                    if (failures < MAX_POLL_FAILURES) {
+                        $('#progress-status-text').html('<i class="fas fa-spinner fa-spin me-2"></i>Reconnecting to operation status...');
+                        return;
+                    }
+
                     stopPolling();
                     if (operation) {
                         operation.state = 'error';
@@ -475,6 +541,25 @@ const VmOperations = (function() {
             clearInterval(pollInterval);
             pollInterval = null;
         }
+    }
+
+    function hasRunningOperation() {
+        return Array.from(activeOperations.values()).some(operation => operation.state === 'running');
+    }
+
+    function stopPollingIfNoRunningOperation() {
+        if (!hasRunningOperation()) {
+            stopPolling();
+        }
+    }
+
+    function publishOperationStatus(envId, execution) {
+        if (typeof window === 'undefined' || typeof CustomEvent === 'undefined') {
+            return;
+        }
+        window.dispatchEvent(new CustomEvent('vm-operation-status', {
+            detail: { envId, execution }
+        }));
     }
 
     /**

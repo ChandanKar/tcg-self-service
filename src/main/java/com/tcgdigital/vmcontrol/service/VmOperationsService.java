@@ -462,27 +462,49 @@ public class VmOperationsService {
             CloudProviderService providerService = cloudProviderFactory.getService(vm.getProvider());
 
             CloudProviderService.VmOperationResult result;
+            VmStatus previousStatus = vm.getStatus();
+            final String detailId = detail.getDetailId();
 
             if (operationType == OperationType.START) {
-                result = providerService.startVm(vm.getProviderVmId(), vm.getRegion()).join();
+                updateOperationProgress(detailId,
+                        CloudProviderService.VmOperationProgress.of(VmStatus.STARTING, "Start requested", 10));
+                result = providerService.startVm(vm.getProviderVmId(), vm.getRegion(),
+                        progress -> updateOperationProgress(detailId, progress)).join();
             } else if (operationType == OperationType.STOP) {
-                result = providerService.stopVm(vm.getProviderVmId(), vm.getRegion(), false).join();
+                updateOperationProgress(detailId,
+                        CloudProviderService.VmOperationProgress.of(VmStatus.STOPPING, "Stop requested", 10));
+                result = providerService.stopVm(vm.getProviderVmId(), vm.getRegion(), false,
+                        progress -> updateOperationProgress(detailId, progress)).join();
             } else {
                 // RESTART = stop then start
-                result = providerService.stopVm(vm.getProviderVmId(), vm.getRegion(), false).join();
+                updateOperationProgress(detailId,
+                        CloudProviderService.VmOperationProgress.of(VmStatus.STOPPING, "EC2 stopping", 50));
+                result = providerService.stopVm(vm.getProviderVmId(), vm.getRegion(), false,
+                        progress -> updateOperationProgress(detailId, progress)).join();
                 if (result.isSuccess()) {
                     Thread.sleep(5000);
-                    result = providerService.startVm(vm.getProviderVmId(), vm.getRegion()).join();
+                    updateOperationProgress(detailId,
+                            CloudProviderService.VmOperationProgress.of(VmStatus.STARTING, "Start requested", 10));
+                    result = providerService.startVm(vm.getProviderVmId(), vm.getRegion(),
+                            progress -> updateOperationProgress(detailId, progress)).join();
                 }
             }
 
-            if (result.isSuccess()) {
+            detail = detailRepository.findById(detailId).orElse(detail);
+
+            VmStatus reconciledStatus = result.isSuccess()
+                    ? result.getResultStatus()
+                    : reconcileCloudStateAfterFailure(providerService, vm, operationType);
+
+            if (result.isSuccess() || reconciledStatus != null) {
                 detail.setStatus("completed");
                 detail.setCloudOperationId(result.getRequestId());
+                detail.setProgressPercentage(100);
+                detail.setStageLabel(operationType == OperationType.STOP ? "Stop completed" : "Start completed");
 
                 // Update VM status
-                if (result.getResultStatus() != null) {
-                    vm.setStatus(result.getResultStatus());
+                if (reconciledStatus != null) {
+                    vm.setStatus(reconciledStatus);
                     vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
                     vmRepository.save(vm);
                 }
@@ -491,6 +513,11 @@ public class VmOperationsService {
             } else {
                 detail.setStatus("failed");
                 detail.setErrorMessage(result.getMessage());
+                if (shouldRestorePreviousStatus(operationType, result)) {
+                    vm.setStatus(previousStatus);
+                    vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
+                    vmRepository.save(vm);
+                }
                 updateExecutionCounters(detail.getExecution().getExecutionId(), false);
             }
 
@@ -510,6 +537,63 @@ public class VmOperationsService {
 
             updateExecutionCounters(detail.getExecution().getExecutionId(), false);
         }
+    }
+
+    private void markVmTransitioning(Vm vm, VmStatus status) {
+        vm.setStatus(status);
+        vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
+        vmRepository.save(vm);
+    }
+
+    private void updateOperationProgress(String detailId, CloudProviderService.VmOperationProgress progress) {
+        if (progress == null) {
+            return;
+        }
+
+        detailRepository.findById(detailId).ifPresent(detail -> {
+            detail.setStageLabel(progress.getStageLabel());
+            detail.setProgressPercentage(progress.getProgressPercentage());
+            detail.setStatusChecksPassed(progress.getStatusChecksPassed());
+            detail.setStatusChecksTotal(progress.getStatusChecksTotal());
+            detailRepository.save(detail);
+
+            Vm vm = vmRepository.findById(detail.getTargetId()).orElse(null);
+            if (vm != null && progress.getStatus() != null) {
+                markVmTransitioning(vm, progress.getStatus());
+            }
+        });
+    }
+
+    private VmStatus reconcileCloudStateAfterFailure(CloudProviderService providerService, Vm vm,
+                                                     OperationType operationType) {
+        try {
+            VmStatus currentStatus = providerService.getVmStatus(vm.getProviderVmId(), vm.getRegion());
+            if (isAcceptablePostFailureState(operationType, currentStatus)) {
+                log.warn("Provider reported failure for VM {}, but cloud state is {}; treating operation as accepted",
+                        vm.getName(), currentStatus);
+                return currentStatus;
+            }
+        } catch (Exception e) {
+            log.warn("Could not reconcile cloud state after provider failure for VM {}: {}",
+                    vm.getName(), e.getMessage());
+        }
+        return null;
+    }
+
+    private boolean isAcceptablePostFailureState(OperationType operationType, VmStatus status) {
+        if (operationType == OperationType.STOP) {
+            return status == VmStatus.STOPPING || status == VmStatus.STOPPED;
+        }
+        return false;
+    }
+
+    private boolean shouldRestorePreviousStatus(OperationType operationType,
+                                                CloudProviderService.VmOperationResult result) {
+        if (operationType != OperationType.START) {
+            return true;
+        }
+        String message = result != null ? result.getMessage() : null;
+        return message == null || !message.startsWith("AWS status checks");
     }
 
     // ============= Private Helper Methods =============
@@ -567,7 +651,7 @@ public class VmOperationsService {
     }
 
     private void markExecutionCompleted(String executionId) {
-        executionRepository.findById(executionId).ifPresent(execution -> {
+        executionRepository.findByIdWithEnvironment(executionId).ifPresent(execution -> {
             if (execution.getStatus() == ExecutionStatus.CANCELLED) {
                 log.info("Execution {} was already cancelled — skipping COMPLETED transition", executionId);
                 return;
@@ -577,25 +661,26 @@ public class VmOperationsService {
             executionRepository.save(execution);
             log.info("Execution {} completed successfully", executionId);
 
-            // Audit logging
-            auditService.logOperationCompleted(
-                    execution.getInitiatedByUserId(),
-                    execution.getEnvironment().getEnvironmentId(),
-                    execution.getEnvironment().getName(),
-                    executionId,
-                    execution.getOperationType().name(),
-                    execution.getTotalTargets(),
-                    execution.getFailedTargets()
-            );
-            notificationService.notifyOperationCompleted(
-                    execution.getInitiatedByUserId(),
-                    execution.getEnvironment().getName(),
-                    execution.getOperationType().name());
+            runTerminalSideEffect("audit completed operation", executionId, () ->
+                    auditService.logOperationCompleted(
+                            execution.getInitiatedByUserId(),
+                            execution.getEnvironment().getEnvironmentId(),
+                            execution.getEnvironment().getName(),
+                            executionId,
+                            execution.getOperationType().name(),
+                            execution.getTotalTargets(),
+                            execution.getFailedTargets()
+                    ));
+            runTerminalSideEffect("notify completed operation", executionId, () ->
+                    notificationService.notifyOperationCompleted(
+                            execution.getInitiatedByUserId(),
+                            execution.getEnvironment().getName(),
+                            execution.getOperationType().name()));
         });
     }
 
     private void markExecutionPartialSuccess(String executionId) {
-        executionRepository.findById(executionId).ifPresent(execution -> {
+        executionRepository.findByIdWithEnvironment(executionId).ifPresent(execution -> {
             if (execution.getStatus() == ExecutionStatus.CANCELLED) {
                 log.info("Execution {} was already cancelled — skipping PARTIAL_SUCCESS transition", executionId);
                 return;
@@ -605,45 +690,55 @@ public class VmOperationsService {
             executionRepository.save(execution);
             log.info("Execution {} completed with partial success", executionId);
 
-            // Audit logging
-            auditService.logOperationCompleted(
-                    execution.getInitiatedByUserId(),
-                    execution.getEnvironment().getEnvironmentId(),
-                    execution.getEnvironment().getName(),
-                    executionId,
-                    execution.getOperationType().name(),
-                    execution.getTotalTargets(),
-                    execution.getFailedTargets()
-            );
-            notificationService.notifyOperationCompleted(
-                    execution.getInitiatedByUserId(),
-                    execution.getEnvironment().getName(),
-                    execution.getOperationType().name());
+            runTerminalSideEffect("audit partial-success operation", executionId, () ->
+                    auditService.logOperationCompleted(
+                            execution.getInitiatedByUserId(),
+                            execution.getEnvironment().getEnvironmentId(),
+                            execution.getEnvironment().getName(),
+                            executionId,
+                            execution.getOperationType().name(),
+                            execution.getTotalTargets(),
+                            execution.getFailedTargets()
+                    ));
+            runTerminalSideEffect("notify partial-success operation", executionId, () ->
+                    notificationService.notifyOperationCompleted(
+                            execution.getInitiatedByUserId(),
+                            execution.getEnvironment().getName(),
+                            execution.getOperationType().name()));
         });
     }
 
     private void markExecutionFailed(String executionId, String errorMessage) {
-        executionRepository.findById(executionId).ifPresent(execution -> {
+        executionRepository.findByIdWithEnvironment(executionId).ifPresent(execution -> {
             execution.setStatus(ExecutionStatus.FAILED);
             execution.setCompletedAt(Timestamp.from(Instant.now()));
             execution.setErrorMessage(errorMessage);
             executionRepository.save(execution);
             log.error("Execution {} failed: {}", executionId, errorMessage);
 
-            // Audit logging
-            auditService.logOperationFailed(
-                    execution.getInitiatedByUserId(),
-                    execution.getEnvironment().getEnvironmentId(),
-                    execution.getEnvironment().getName(),
-                    executionId,
-                    execution.getOperationType().name(),
-                    errorMessage
-            );
-            notificationService.notifyOperationFailed(
-                    execution.getInitiatedByUserId(),
-                    execution.getEnvironment().getName(),
-                    execution.getOperationType().name(),
-                    errorMessage);
+            runTerminalSideEffect("audit failed operation", executionId, () ->
+                    auditService.logOperationFailed(
+                            execution.getInitiatedByUserId(),
+                            execution.getEnvironment().getEnvironmentId(),
+                            execution.getEnvironment().getName(),
+                            executionId,
+                            execution.getOperationType().name(),
+                            errorMessage
+                    ));
+            runTerminalSideEffect("notify failed operation", executionId, () ->
+                    notificationService.notifyOperationFailed(
+                            execution.getInitiatedByUserId(),
+                            execution.getEnvironment().getName(),
+                            execution.getOperationType().name(),
+                            errorMessage));
         });
+    }
+
+    private void runTerminalSideEffect(String action, String executionId, Runnable runnable) {
+        try {
+            runnable.run();
+        } catch (Exception e) {
+            log.warn("Could not {} for execution {}: {}", action, executionId, e.getMessage());
+        }
     }
 }

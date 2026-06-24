@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Repository for OperationExecution entity.
@@ -48,6 +49,12 @@ public interface OperationExecutionRepository extends JpaRepository<OperationExe
      */
     @Query("SELECT COUNT(e) > 0 FROM OperationExecution e WHERE e.environment.environmentId = :environmentId AND (e.status = 'pending' OR e.status = 'in_progress')")
     boolean hasActiveOperations(String environmentId);
+
+    /**
+     * Fetch execution with environment initialized for async terminal-status handling.
+     */
+    @Query("SELECT e FROM OperationExecution e JOIN FETCH e.environment WHERE e.executionId = :executionId")
+    Optional<OperationExecution> findByIdWithEnvironment(@Param("executionId") String executionId);
 
     /**
      * Find the last N completed executions for a given environment and operationType.

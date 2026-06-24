@@ -11,6 +11,8 @@ import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.services.ec2.Ec2Client;
 import software.amazon.awssdk.services.ec2.model.*;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
@@ -37,7 +39,8 @@ class AwsCloudProviderServiceTest {
         ReflectionTestUtils.setField(service, "secretKey", "test-secret");
         ReflectionTestUtils.setField(service, "defaultRegion", REGION);
         // Disable sleep delays in polling loops
-        ReflectionTestUtils.setField(service, "statusCheckPollIntervalMs", 0);
+        ReflectionTestUtils.setField(service, "statusCheckTimeoutMs", 50);
+        ReflectionTestUtils.setField(service, "statusCheckPollIntervalMs", 1);
         ReflectionTestUtils.setField(service, "stopPollIntervalMs", 0);
 
         // Inject mock client directly into the cache so no real client is created
@@ -62,6 +65,20 @@ class AwsCloudProviderServiceTest {
         return StartInstancesResponse.builder().build();
     }
 
+    private StopInstancesResponse stopResponse(InstanceStateName previous, InstanceStateName current) {
+        return StopInstancesResponse.builder()
+                .stoppingInstances(InstanceStateChange.builder()
+                        .instanceId(INSTANCE_ID)
+                        .previousState(InstanceState.builder().name(previous).build())
+                        .currentState(InstanceState.builder().name(current).build())
+                        .build())
+                .build();
+    }
+
+    private StopInstancesResponse emptyStopResponse() {
+        return StopInstancesResponse.builder().build();
+    }
+
     private DescribeInstanceStatusResponse statusChecksOk() {
         return DescribeInstanceStatusResponse.builder()
                 .instanceStatuses(InstanceStatus.builder()
@@ -71,6 +88,33 @@ class AwsCloudProviderServiceTest {
                         .instanceStatus(InstanceStatusSummary.builder().status(SummaryStatus.OK).build())
                         .build())
                 .build();
+    }
+
+    private DescribeInstanceStatusResponse statusChecksOkWithAttachedEbs() {
+        return DescribeInstanceStatusResponse.builder()
+                .instanceStatuses(InstanceStatus.builder()
+                        .instanceId(INSTANCE_ID)
+                        .instanceState(InstanceState.builder().name(InstanceStateName.RUNNING).build())
+                        .systemStatus(InstanceStatusSummary.builder().status(SummaryStatus.OK).build())
+                        .instanceStatus(InstanceStatusSummary.builder().status(SummaryStatus.OK).build())
+                        .attachedEbsStatus(EbsStatusSummary.builder().status(SummaryStatus.OK).build())
+                        .build())
+                .build();
+    }
+
+    private DescribeInstanceStatusResponse runningWithInitializingChecks() {
+        return DescribeInstanceStatusResponse.builder()
+                .instanceStatuses(InstanceStatus.builder()
+                        .instanceId(INSTANCE_ID)
+                        .instanceState(InstanceState.builder().name(InstanceStateName.RUNNING).build())
+                        .systemStatus(InstanceStatusSummary.builder().status(SummaryStatus.INITIALIZING).build())
+                        .instanceStatus(InstanceStatusSummary.builder().status(SummaryStatus.INITIALIZING).build())
+                        .build())
+                .build();
+    }
+
+    private DescribeInstanceStatusResponse noInstanceStatusYet() {
+        return DescribeInstanceStatusResponse.builder().build();
     }
 
     private DescribeInstancesResponse describeResponse(InstanceStateName stateName) {
@@ -106,6 +150,76 @@ class AwsCloudProviderServiceTest {
 
         assertTrue(result.isSuccess());
         assertEquals(VmStatus.RUNNING, result.getResultStatus());
+    }
+
+    @Test
+    void startVm_runningBeforeStatusChecksOk_returnsFailure() throws ExecutionException, InterruptedException {
+        when(mockEc2Client.startInstances(any(StartInstancesRequest.class)))
+                .thenReturn(startResponse(InstanceStateName.STOPPED, InstanceStateName.PENDING));
+        when(mockEc2Client.describeInstanceStatus(any(DescribeInstanceStatusRequest.class)))
+                .thenReturn(runningWithInitializingChecks());
+
+        List<CloudProviderService.VmOperationProgress> progress = new ArrayList<>();
+
+        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, REGION, progress::add).get();
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getMessage().contains("AWS status checks did not pass in time"));
+        assertTrue(progress.stream().anyMatch(p ->
+                p.getStageLabel() != null
+                        && p.getStageLabel().startsWith("AWS checks")
+                        && p.getStatus() == VmStatus.STARTING));
+    }
+
+    @Test
+    void startVm_statusChecksUnavailableButInstanceRunning_returnsFailure() throws ExecutionException, InterruptedException {
+        when(mockEc2Client.startInstances(any(StartInstancesRequest.class)))
+                .thenReturn(startResponse(InstanceStateName.STOPPED, InstanceStateName.PENDING));
+        when(mockEc2Client.describeInstanceStatus(any(DescribeInstanceStatusRequest.class)))
+                .thenReturn(noInstanceStatusYet());
+        when(mockEc2Client.describeInstances(any(DescribeInstancesRequest.class)))
+                .thenReturn(describeResponse(InstanceStateName.RUNNING));
+
+        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, REGION).get();
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getMessage().contains("AWS status checks did not become available in time"));
+    }
+
+    @Test
+    void startVm_threeStatusChecksOk_returnsSuccess() throws ExecutionException, InterruptedException {
+        when(mockEc2Client.startInstances(any(StartInstancesRequest.class)))
+                .thenReturn(startResponse(InstanceStateName.STOPPED, InstanceStateName.PENDING));
+        when(mockEc2Client.describeInstanceStatus(any(DescribeInstanceStatusRequest.class)))
+                .thenReturn(statusChecksOkWithAttachedEbs());
+
+        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, REGION).get();
+
+        assertTrue(result.isSuccess());
+        assertEquals(VmStatus.RUNNING, result.getResultStatus());
+    }
+
+    @Test
+    void startVm_reportsDynamicStatusCheckProgress() throws ExecutionException, InterruptedException {
+        when(mockEc2Client.startInstances(any(StartInstancesRequest.class)))
+                .thenReturn(startResponse(InstanceStateName.STOPPED, InstanceStateName.PENDING));
+        when(mockEc2Client.describeInstanceStatus(any(DescribeInstanceStatusRequest.class)))
+                .thenReturn(statusChecksOkWithAttachedEbs());
+
+        List<CloudProviderService.VmOperationProgress> progress = new ArrayList<>();
+
+        CloudProviderService.VmOperationResult result = service
+                .startVm(INSTANCE_ID, REGION, progress::add)
+                .get();
+
+        assertTrue(result.isSuccess());
+        assertTrue(progress.stream().anyMatch(p -> "Start requested".equals(p.getStageLabel())));
+        assertTrue(progress.stream().anyMatch(p ->
+                "AWS checks 3/3 passed".equals(p.getStageLabel())
+                        && p.getProgressPercentage() == 100
+                        && p.getStatus() == VmStatus.RUNNING
+                        && p.getStatusChecksPassed() == 3
+                        && p.getStatusChecksTotal() == 3));
     }
 
     // --- startVm: empty startingInstances recovery ---
@@ -213,6 +327,78 @@ class AwsCloudProviderServiceTest {
                         "You are not authorized to perform this operation"));
 
         CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, REGION).get();
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getMessage().contains("AWS Error:"));
+        assertTrue(result.getMessage().contains("not authorized"));
+    }
+
+    // --- stopVm ---
+
+    @Test
+    void stopVm_normalFlow_returnsSuccess() throws ExecutionException, InterruptedException {
+        when(mockEc2Client.stopInstances(any(StopInstancesRequest.class)))
+                .thenReturn(stopResponse(InstanceStateName.RUNNING, InstanceStateName.STOPPING));
+        when(mockEc2Client.describeInstances(any(DescribeInstancesRequest.class)))
+                .thenReturn(describeResponse(InstanceStateName.STOPPED));
+
+        CloudProviderService.VmOperationResult result = service.stopVm(INSTANCE_ID, REGION, false).get();
+
+        assertTrue(result.isSuccess());
+        assertEquals(VmStatus.STOPPED, result.getResultStatus());
+    }
+
+    @Test
+    void stopVm_emptyStoppingInstances_instanceAlreadyStopping_recoversAsSuccess()
+            throws ExecutionException, InterruptedException {
+        when(mockEc2Client.stopInstances(any(StopInstancesRequest.class)))
+                .thenReturn(emptyStopResponse());
+        when(mockEc2Client.describeInstances(any(DescribeInstancesRequest.class)))
+                .thenReturn(describeResponse(InstanceStateName.STOPPING))
+                .thenReturn(describeResponse(InstanceStateName.STOPPED));
+
+        CloudProviderService.VmOperationResult result = service.stopVm(INSTANCE_ID, REGION, false).get();
+
+        assertTrue(result.isSuccess());
+        assertEquals(VmStatus.STOPPED, result.getResultStatus());
+    }
+
+    @Test
+    void stopVm_emptyStoppingInstances_instanceAlreadyStopped_recoversAsSuccess()
+            throws ExecutionException, InterruptedException {
+        when(mockEc2Client.stopInstances(any(StopInstancesRequest.class)))
+                .thenReturn(emptyStopResponse());
+        when(mockEc2Client.describeInstances(any(DescribeInstancesRequest.class)))
+                .thenReturn(describeResponse(InstanceStateName.STOPPED));
+
+        CloudProviderService.VmOperationResult result = service.stopVm(INSTANCE_ID, REGION, false).get();
+
+        assertTrue(result.isSuccess());
+        assertEquals(VmStatus.STOPPED, result.getResultStatus());
+    }
+
+    @Test
+    void stopVm_incorrectInstanceState_instanceAlreadyStopping_recoversAsSuccess()
+            throws ExecutionException, InterruptedException {
+        when(mockEc2Client.stopInstances(any(StopInstancesRequest.class)))
+                .thenThrow(ec2Exception("IncorrectInstanceState", "Instance is already stopping"));
+        when(mockEc2Client.describeInstances(any(DescribeInstancesRequest.class)))
+                .thenReturn(describeResponse(InstanceStateName.STOPPING))
+                .thenReturn(describeResponse(InstanceStateName.STOPPED));
+
+        CloudProviderService.VmOperationResult result = service.stopVm(INSTANCE_ID, REGION, false).get();
+
+        assertTrue(result.isSuccess());
+        assertEquals(VmStatus.STOPPED, result.getResultStatus());
+    }
+
+    @Test
+    void stopVm_otherEc2Exception_returnsFailure() throws ExecutionException, InterruptedException {
+        when(mockEc2Client.stopInstances(any(StopInstancesRequest.class)))
+                .thenThrow(ec2Exception("UnauthorizedOperation",
+                        "You are not authorized to perform this operation"));
+
+        CloudProviderService.VmOperationResult result = service.stopVm(INSTANCE_ID, REGION, false).get();
 
         assertFalse(result.isSuccess());
         assertTrue(result.getMessage().contains("AWS Error:"));

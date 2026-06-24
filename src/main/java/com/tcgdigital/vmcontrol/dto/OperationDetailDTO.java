@@ -15,6 +15,10 @@ public class OperationDetailDTO {
     private String targetName;
     private String action;
     private String status;
+    private String stageLabel;
+    private Integer progressPercentage;
+    private Integer statusChecksPassed;
+    private Integer statusChecksTotal;
     private Integer sequencePosition;
     private Timestamp startedAt;
     private Timestamp completedAt;
@@ -32,6 +36,10 @@ public class OperationDetailDTO {
         dto.setTargetName(detail.getTargetName());
         dto.setAction(detail.getAction());
         dto.setStatus(detail.getStatus());
+        dto.setStageLabel(detail.getStageLabel());
+        dto.setProgressPercentage(detail.getProgressPercentage());
+        dto.setStatusChecksPassed(detail.getStatusChecksPassed());
+        dto.setStatusChecksTotal(detail.getStatusChecksTotal());
         dto.setSequencePosition(detail.getSequencePosition());
         dto.setStartedAt(detail.getStartedAt());
         dto.setCompletedAt(detail.getCompletedAt());
@@ -87,6 +95,38 @@ public class OperationDetailDTO {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getStageLabel() {
+        return stageLabel;
+    }
+
+    public void setStageLabel(String stageLabel) {
+        this.stageLabel = stageLabel;
+    }
+
+    public Integer getProgressPercentage() {
+        return progressPercentage;
+    }
+
+    public void setProgressPercentage(Integer progressPercentage) {
+        this.progressPercentage = progressPercentage;
+    }
+
+    public Integer getStatusChecksPassed() {
+        return statusChecksPassed;
+    }
+
+    public void setStatusChecksPassed(Integer statusChecksPassed) {
+        this.statusChecksPassed = statusChecksPassed;
+    }
+
+    public Integer getStatusChecksTotal() {
+        return statusChecksTotal;
+    }
+
+    public void setStatusChecksTotal(Integer statusChecksTotal) {
+        this.statusChecksTotal = statusChecksTotal;
     }
 
     public Integer getSequencePosition() {

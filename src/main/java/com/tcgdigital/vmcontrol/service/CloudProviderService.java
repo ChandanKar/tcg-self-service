@@ -25,6 +25,14 @@ public interface CloudProviderService {
     CompletableFuture<VmOperationResult> startVm(String providerVmId, String region);
 
     /**
+     * Start a VM and report intermediate progress where the provider supports it.
+     */
+    default CompletableFuture<VmOperationResult> startVm(String providerVmId, String region,
+                                                        OperationProgressListener progressListener) {
+        return startVm(providerVmId, region);
+    }
+
+    /**
      * Stop a VM.
      * @param providerVmId The cloud provider's VM ID
      * @param region The region where the VM is located
@@ -32,6 +40,14 @@ public interface CloudProviderService {
      * @return CompletableFuture with the operation result
      */
     CompletableFuture<VmOperationResult> stopVm(String providerVmId, String region, boolean force);
+
+    /**
+     * Stop a VM and report intermediate progress where the provider supports it.
+     */
+    default CompletableFuture<VmOperationResult> stopVm(String providerVmId, String region, boolean force,
+                                                       OperationProgressListener progressListener) {
+        return stopVm(providerVmId, region, force);
+    }
 
     /**
      * Get current VM status from the cloud provider.
@@ -80,6 +96,69 @@ public interface CloudProviderService {
      */
     default java.util.List<String> discoverInstanceIds(java.util.List<String> regions) {
         return java.util.Collections.emptyList();
+    }
+
+    /**
+     * Receives provider-specific operation progress for a single VM.
+     */
+    @FunctionalInterface
+    interface OperationProgressListener {
+        void onProgress(VmOperationProgress progress);
+    }
+
+    /**
+     * Progress snapshot for a VM operation.
+     */
+    class VmOperationProgress {
+        private final VmStatus status;
+        private final String stageLabel;
+        private final int progressPercentage;
+        private final Integer statusChecksPassed;
+        private final Integer statusChecksTotal;
+
+        public VmOperationProgress(VmStatus status, String stageLabel, int progressPercentage,
+                                   Integer statusChecksPassed, Integer statusChecksTotal) {
+            this.status = status;
+            this.stageLabel = stageLabel;
+            this.progressPercentage = progressPercentage;
+            this.statusChecksPassed = statusChecksPassed;
+            this.statusChecksTotal = statusChecksTotal;
+        }
+
+        public static VmOperationProgress of(VmStatus status, String stageLabel, int progressPercentage) {
+            return new VmOperationProgress(status, stageLabel, progressPercentage, null, null);
+        }
+
+        public static VmOperationProgress checks(VmStatus status, int progressPercentage,
+                                                 int statusChecksPassed, int statusChecksTotal) {
+            return new VmOperationProgress(
+                    status,
+                    "AWS checks " + statusChecksPassed + "/" + statusChecksTotal + " passed",
+                    progressPercentage,
+                    statusChecksPassed,
+                    statusChecksTotal
+            );
+        }
+
+        public VmStatus getStatus() {
+            return status;
+        }
+
+        public String getStageLabel() {
+            return stageLabel;
+        }
+
+        public int getProgressPercentage() {
+            return progressPercentage;
+        }
+
+        public Integer getStatusChecksPassed() {
+            return statusChecksPassed;
+        }
+
+        public Integer getStatusChecksTotal() {
+            return statusChecksTotal;
+        }
     }
 
     /**

@@ -253,8 +253,11 @@ public class StateSyncService {
             vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
             vmRepository.save(vm);
 
-            auditService.logAction(null, AuditAction.STATE_DRIFT_DETECTED, "vm", vm.getVmId(),
-                    vm.getName(), String.format("VM %s in cloud - marked inactive. Previous status: %s",
+            auditService.logEnvironmentAction(null, AuditAction.STATE_DRIFT_DETECTED,
+                    vm.getGroup().getEnvironment().getEnvironmentId(),
+                    vm.getGroup().getEnvironment().getName(),
+                    "vm", vm.getVmId(), vm.getName(),
+                    String.format("VM %s in cloud - marked inactive. Previous status: %s",
                             cloudStatus, currentStatus));
             return true;
         }
@@ -273,8 +276,11 @@ public class StateSyncService {
             vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
             vmRepository.save(vm);
 
-            auditService.logAction(null, AuditAction.STATE_DRIFT_DETECTED, "vm", vm.getVmId(),
-                    vm.getName(), String.format("State drift: %s -> %s", currentStatus, cloudStatus));
+            auditService.logEnvironmentAction(null, AuditAction.STATE_DRIFT_DETECTED,
+                    vm.getGroup().getEnvironment().getEnvironmentId(),
+                    vm.getGroup().getEnvironment().getName(),
+                    "vm", vm.getVmId(), vm.getName(),
+                    String.format("State drift: %s -> %s", currentStatus, cloudStatus));
             return true;
         }
 
@@ -329,8 +335,11 @@ public class StateSyncService {
                         oldName, newName, oldDisplayName, cloudVmName);
 
                 // Audit log the name sync
-                auditService.logAction(null, AuditAction.VM_NAME_SYNCED, "vm", vm.getVmId(),
-                        cloudVmName, String.format("VM name synced from cloud. Old: %s/%s, New: %s/%s",
+                auditService.logEnvironmentAction(null, AuditAction.VM_NAME_SYNCED,
+                        vm.getGroup().getEnvironment().getEnvironmentId(),
+                        vm.getGroup().getEnvironment().getName(),
+                        "vm", vm.getVmId(), cloudVmName,
+                        String.format("VM name synced from cloud. Old: %s/%s, New: %s/%s",
                                 oldName, oldDisplayName, newName, cloudVmName));
             } else {
                 log.debug("No name tag found in cloud for VM {}", vm.getVmId());

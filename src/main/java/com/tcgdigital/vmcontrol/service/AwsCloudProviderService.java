@@ -29,10 +29,12 @@ public class AwsCloudProviderService implements CloudProviderService {
 
     private static final Logger log = LoggerFactory.getLogger(AwsCloudProviderService.class);
 
-    private static final int STATUS_CHECK_TIMEOUT_MS = 300_000;  // 5 minutes
     private static final int STOP_TIMEOUT_MS = 180_000;          // 3 minutes
 
     // Overridable via ReflectionTestUtils in tests
+    @Value("${aws.status-check.timeout-ms:300000}")
+    private int statusCheckTimeoutMs;
+
     @Value("${aws.status-check.poll-interval-ms:10000}")
     private int statusCheckPollIntervalMs;
 
@@ -57,9 +59,17 @@ public class AwsCloudProviderService implements CloudProviderService {
 
     @Override
     public CompletableFuture<VmOperationResult> startVm(String providerVmId, String region) {
+        return startVm(providerVmId, region, null);
+    }
+
+    @Override
+    public CompletableFuture<VmOperationResult> startVm(String providerVmId, String region,
+                                                        OperationProgressListener progressListener) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 Ec2Client ec2 = getEc2Client(region);
+
+                notifyProgress(progressListener, VmOperationProgress.of(VmStatus.STARTING, "Start requested", 10));
 
                 StartInstancesRequest request = StartInstancesRequest.builder()
                         .instanceIds(providerVmId)
@@ -77,14 +87,16 @@ public class AwsCloudProviderService implements CloudProviderService {
                             stateChange.previousState().nameAsString(),
                             stateChange.currentState().nameAsString());
 
-                    VmStatus finalStatus = waitForStatusChecks(ec2, providerVmId);
+                    notifyProgress(progressListener, VmOperationProgress.of(VmStatus.STARTING, "EC2 starting", 30));
+                    StartReadiness finalReadiness = waitForStartReadiness(ec2, providerVmId, progressListener);
 
-                    if (finalStatus == VmStatus.RUNNING) {
-                        log.info("AWS EC2 instance {} passed 2/2 status checks — fully operational", providerVmId);
+                    if (finalReadiness.ready()) {
+                        log.info("AWS EC2 instance {} reached RUNNING state and passed all reported status checks", providerVmId);
                         return VmOperationResult.success(requestId, VmStatus.RUNNING);
                     } else {
-                        log.warn("AWS EC2 instance {} did not pass status checks in time, current status: {}", providerVmId, finalStatus);
-                        return VmOperationResult.success(requestId, finalStatus);
+                        log.warn("AWS EC2 instance {} did not pass all status checks in time, current status: {}",
+                                providerVmId, finalReadiness.status());
+                        return VmOperationResult.failure(finalReadiness.timeoutMessage());
                     }
                 }
 
@@ -96,10 +108,12 @@ public class AwsCloudProviderService implements CloudProviderService {
                     catch (InterruptedException ie) { Thread.currentThread().interrupt(); break; }
                     VmStatus currentStatus = getVmStatus(providerVmId, region);
                     if (currentStatus == VmStatus.STARTING || currentStatus == VmStatus.RUNNING) {
-                        log.info("AWS EC2 instance {} already in state {} (attempt {}), waiting for status checks",
+                        log.info("AWS EC2 instance {} already in state {} (attempt {}), waiting for RUNNING",
                                 providerVmId, currentStatus, attempt + 1);
-                        VmStatus finalStatus = waitForStatusChecks(ec2, providerVmId);
-                        return VmOperationResult.success(requestId, finalStatus);
+                        StartReadiness finalReadiness = waitForStartReadiness(ec2, providerVmId, progressListener);
+                        return finalReadiness.ready()
+                                ? VmOperationResult.success(requestId, VmStatus.RUNNING)
+                                : VmOperationResult.failure(finalReadiness.timeoutMessage());
                     }
                 }
                 return VmOperationResult.failure("No instance state change returned");
@@ -109,9 +123,11 @@ public class AwsCloudProviderService implements CloudProviderService {
                 if ("IncorrectInstanceState".equals(e.awsErrorDetails().errorCode())) {
                     VmStatus currentStatus = getVmStatus(providerVmId, region);
                     if (currentStatus == VmStatus.STARTING || currentStatus == VmStatus.RUNNING) {
-                        log.info("AWS EC2 instance {} is already {} — waiting for status checks", providerVmId, currentStatus);
-                        VmStatus finalStatus = waitForStatusChecks(getEc2Client(region), providerVmId);
-                        return VmOperationResult.success(e.requestId(), finalStatus);
+                        log.info("AWS EC2 instance {} is already {} - waiting for RUNNING", providerVmId, currentStatus);
+                        StartReadiness finalReadiness = waitForStartReadiness(getEc2Client(region), providerVmId, progressListener);
+                        return finalReadiness.ready()
+                                ? VmOperationResult.success(e.requestId(), VmStatus.RUNNING)
+                                : VmOperationResult.failure(finalReadiness.timeoutMessage());
                     }
                 }
                 log.error("Failed to start AWS EC2 instance {}: {}", providerVmId, e.getMessage());
@@ -123,10 +139,12 @@ public class AwsCloudProviderService implements CloudProviderService {
                 try {
                     VmStatus currentStatus = getVmStatus(providerVmId, region);
                     if (currentStatus == VmStatus.STARTING || currentStatus == VmStatus.RUNNING) {
-                        log.info("AWS EC2 instance {} is {} despite exception — waiting for status checks",
+                        log.info("AWS EC2 instance {} is {} despite exception - waiting for RUNNING",
                                 providerVmId, currentStatus);
-                        VmStatus finalStatus = waitForStatusChecks(getEc2Client(region), providerVmId);
-                        return VmOperationResult.success(null, finalStatus);
+                        StartReadiness finalReadiness = waitForStartReadiness(getEc2Client(region), providerVmId, progressListener);
+                        return finalReadiness.ready()
+                                ? VmOperationResult.success(null, VmStatus.RUNNING)
+                                : VmOperationResult.failure(finalReadiness.timeoutMessage());
                     }
                 } catch (Exception inner) {
                     log.warn("Could not verify instance state after error for {}: {}", providerVmId, inner.getMessage());
@@ -138,9 +156,17 @@ public class AwsCloudProviderService implements CloudProviderService {
 
     @Override
     public CompletableFuture<VmOperationResult> stopVm(String providerVmId, String region, boolean force) {
+        return stopVm(providerVmId, region, force, null);
+    }
+
+    @Override
+    public CompletableFuture<VmOperationResult> stopVm(String providerVmId, String region, boolean force,
+                                                       OperationProgressListener progressListener) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 Ec2Client ec2 = getEc2Client(region);
+
+                notifyProgress(progressListener, VmOperationProgress.of(VmStatus.STOPPING, "Stop requested", 10));
 
                 StopInstancesRequest request = StopInstancesRequest.builder()
                         .instanceIds(providerVmId)
@@ -159,7 +185,11 @@ public class AwsCloudProviderService implements CloudProviderService {
                             stateChange.previousState().nameAsString(),
                             stateChange.currentState().nameAsString());
 
+                    notifyProgress(progressListener, VmOperationProgress.of(VmStatus.STOPPING, "EC2 stopping", 50));
                     VmStatus finalStatus = waitForStopped(ec2, providerVmId);
+                    if (finalStatus == VmStatus.STOPPED) {
+                        notifyProgress(progressListener, VmOperationProgress.of(VmStatus.STOPPED, "Stop completed", 100));
+                    }
                     log.info("AWS EC2 instance {} stop complete, final status: {}", providerVmId, finalStatus);
                     return VmOperationResult.success(stopRequestId, finalStatus);
                 }
@@ -173,10 +203,16 @@ public class AwsCloudProviderService implements CloudProviderService {
                     if (currentStatus == VmStatus.STOPPING) {
                         log.info("AWS EC2 instance {} already STOPPING (attempt {}), waiting to complete",
                                 providerVmId, attempt + 1);
-                        return VmOperationResult.success(stopRequestId, waitForStopped(ec2, providerVmId));
+                        notifyProgress(progressListener, VmOperationProgress.of(VmStatus.STOPPING, "EC2 stopping", 50));
+                        VmStatus finalStatus = waitForStopped(ec2, providerVmId);
+                        if (finalStatus == VmStatus.STOPPED) {
+                            notifyProgress(progressListener, VmOperationProgress.of(VmStatus.STOPPED, "Stop completed", 100));
+                        }
+                        return VmOperationResult.success(stopRequestId, finalStatus);
                     }
                     if (currentStatus == VmStatus.STOPPED) {
                         log.info("AWS EC2 instance {} already STOPPED", providerVmId);
+                        notifyProgress(progressListener, VmOperationProgress.of(VmStatus.STOPPED, "Stop completed", 100));
                         return VmOperationResult.success(stopRequestId, VmStatus.STOPPED);
                     }
                 }
@@ -213,14 +249,19 @@ public class AwsCloudProviderService implements CloudProviderService {
     }
 
     /**
-     * Wait for EC2 instance to pass 2/2 status checks (System + Instance).
-     * Polls every 10 seconds, times out after 5 minutes.
+     * Wait for EC2 instance to reach RUNNING state.
+     * Polls every 10 seconds, times out after 5 minutes. Status checks are
+     * logged when available, but the app operation succeeds once AWS reports
+     * the instance as RUNNING because that is the user-visible console state.
      */
-    private VmStatus waitForStatusChecks(Ec2Client ec2, String instanceId) {
+    private StartReadiness waitForStartReadiness(Ec2Client ec2, String instanceId,
+                                                 OperationProgressListener progressListener) {
         long startTime = System.currentTimeMillis();
         VmStatus lastKnownStatus = VmStatus.STARTING;
+        int lastChecksPassed = 0;
+        int lastChecksTotal = 0;
 
-        while (System.currentTimeMillis() - startTime < STATUS_CHECK_TIMEOUT_MS) {
+        while (System.currentTimeMillis() - startTime < statusCheckTimeoutMs) {
             try {
                 Thread.sleep(statusCheckPollIntervalMs);
 
@@ -233,36 +274,125 @@ public class AwsCloudProviderService implements CloudProviderService {
                 if (!statusResponse.instanceStatuses().isEmpty()) {
                     InstanceStatus instanceStatus = statusResponse.instanceStatuses().get(0);
 
+                    String instanceState = instanceStatus.instanceState().nameAsString();
+                    StatusCheckCount statusChecks = countStatusChecks(instanceStatus);
+                    lastChecksPassed = statusChecks.passed();
+                    lastChecksTotal = statusChecks.total();
                     SummaryStatus systemCheck = instanceStatus.systemStatus().status();
                     SummaryStatus instanceCheck = instanceStatus.instanceStatus().status();
-                    String instanceState = instanceStatus.instanceState().nameAsString();
 
                     log.debug("Instance {} — state: {}, system: {}, instance: {}",
                             instanceId, instanceState, systemCheck, instanceCheck);
 
-                    if (systemCheck == SummaryStatus.OK && instanceCheck == SummaryStatus.OK) {
-                        return VmStatus.RUNNING;
-                    }
-
-                    // Update status based on current state
                     lastKnownStatus = mapAwsStateToVmStatus(instanceStatus.instanceState().name());
+                    if (lastKnownStatus == VmStatus.RUNNING && lastChecksTotal > 0) {
+                        int progress = lastChecksPassed == lastChecksTotal
+                                ? 100
+                                : Math.min(99, 70 + (int) Math.round(25.0 * lastChecksPassed / lastChecksTotal));
+                        VmStatus progressStatus = lastChecksPassed == lastChecksTotal
+                                ? VmStatus.RUNNING
+                                : VmStatus.STARTING;
+                        notifyProgress(progressListener, VmOperationProgress.checks(
+                                progressStatus, progress, lastChecksPassed, lastChecksTotal));
+
+                        if (lastChecksPassed == lastChecksTotal) {
+                            return new StartReadiness(VmStatus.RUNNING, true, lastChecksPassed, lastChecksTotal);
+                        }
+                    } else if (lastKnownStatus == VmStatus.RUNNING) {
+                        notifyProgress(progressListener, VmOperationProgress.of(VmStatus.STARTING, "EC2 running", 70));
+                    } else {
+                        notifyProgress(progressListener, VmOperationProgress.of(VmStatus.STARTING, "EC2 starting", 30));
+                    }
                 } else {
                     // Instance may not yet appear in describeInstanceStatus (still pending)
                     log.debug("Instance {} not yet reporting status checks, still starting...", instanceId);
+                    VmStatus currentState = describeInstanceState(ec2, instanceId);
+                    if (currentState != VmStatus.UNKNOWN && currentState != VmStatus.NOT_FOUND) {
+                        lastKnownStatus = currentState;
+                    }
+                    if (lastKnownStatus == VmStatus.RUNNING) {
+                        notifyProgress(progressListener, VmOperationProgress.of(VmStatus.STARTING, "EC2 running", 70));
+                    } else {
+                        notifyProgress(progressListener, VmOperationProgress.of(VmStatus.STARTING, "EC2 starting", 30));
+                    }
                 }
 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                log.warn("Status check polling interrupted for instance {}", instanceId);
-                return lastKnownStatus;
+                log.warn("Start polling interrupted for instance {}", instanceId);
+                return new StartReadiness(lastKnownStatus, false, lastChecksPassed, lastChecksTotal);
             } catch (Exception e) {
-                log.warn("Error polling status checks for instance {}: {}", instanceId, e.getMessage());
+                log.warn("Error polling running state for instance {}: {}", instanceId, e.getMessage());
                 // Continue polling — transient errors are common during startup
             }
         }
 
-        log.warn("Timed out waiting for status checks on instance {} after {}ms", instanceId, STATUS_CHECK_TIMEOUT_MS);
-        return lastKnownStatus;
+        log.warn("Timed out waiting for instance {} to pass AWS status checks after {}ms", instanceId, statusCheckTimeoutMs);
+        return new StartReadiness(lastKnownStatus, false, lastChecksPassed, lastChecksTotal);
+    }
+
+    private VmStatus describeInstanceState(Ec2Client ec2, String instanceId) {
+        DescribeInstancesResponse response = ec2.describeInstances(DescribeInstancesRequest.builder()
+                .instanceIds(instanceId)
+                .build());
+
+        if (!response.reservations().isEmpty() && !response.reservations().get(0).instances().isEmpty()) {
+            Instance instance = response.reservations().get(0).instances().get(0);
+            return mapAwsStateToVmStatus(instance.state().name());
+        }
+
+        return VmStatus.NOT_FOUND;
+    }
+
+    private StatusCheckCount countStatusChecks(InstanceStatus instanceStatus) {
+        int total = 0;
+        int passed = 0;
+
+        if (instanceStatus.systemStatus() != null && instanceStatus.systemStatus().status() != null) {
+            total++;
+            if (instanceStatus.systemStatus().status() == SummaryStatus.OK) {
+                passed++;
+            }
+        }
+
+        if (instanceStatus.instanceStatus() != null && instanceStatus.instanceStatus().status() != null) {
+            total++;
+            if (instanceStatus.instanceStatus().status() == SummaryStatus.OK) {
+                passed++;
+            }
+        }
+
+        if (instanceStatus.attachedEbsStatus() != null && instanceStatus.attachedEbsStatus().status() != null) {
+            total++;
+            if (instanceStatus.attachedEbsStatus().status() == SummaryStatus.OK) {
+                passed++;
+            }
+        }
+
+        return new StatusCheckCount(passed, total);
+    }
+
+    private void notifyProgress(OperationProgressListener listener, VmOperationProgress progress) {
+        if (listener == null || progress == null) {
+            return;
+        }
+        try {
+            listener.onProgress(progress);
+        } catch (Exception e) {
+            log.warn("Operation progress listener failed: {}", e.getMessage());
+        }
+    }
+
+    private record StatusCheckCount(int passed, int total) {
+    }
+
+    private record StartReadiness(VmStatus status, boolean ready, int checksPassed, int checksTotal) {
+        private String timeoutMessage() {
+            if (checksTotal > 0) {
+                return "AWS status checks did not pass in time (" + checksPassed + "/" + checksTotal + " passed)";
+            }
+            return "AWS status checks did not become available in time; current state: " + status;
+        }
     }
 
     /**

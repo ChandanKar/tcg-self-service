@@ -41,6 +41,18 @@ public class OperationDetail {
     @Column(nullable = false, length = 20)
     private String status = "pending"; // 'pending', 'waiting', 'in_progress', 'completed', 'failed', 'skipped'
 
+    @Column(name = "stage_label", length = 120)
+    private String stageLabel;
+
+    @Column(name = "progress_percentage", nullable = false)
+    private Integer progressPercentage = 0;
+
+    @Column(name = "status_checks_passed")
+    private Integer statusChecksPassed;
+
+    @Column(name = "status_checks_total")
+    private Integer statusChecksTotal;
+
     @Column(name = "started_at")
     private Timestamp startedAt;
 
@@ -137,6 +149,38 @@ public class OperationDetail {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getStageLabel() {
+        return stageLabel;
+    }
+
+    public void setStageLabel(String stageLabel) {
+        this.stageLabel = stageLabel;
+    }
+
+    public Integer getProgressPercentage() {
+        return progressPercentage;
+    }
+
+    public void setProgressPercentage(Integer progressPercentage) {
+        this.progressPercentage = progressPercentage;
+    }
+
+    public Integer getStatusChecksPassed() {
+        return statusChecksPassed;
+    }
+
+    public void setStatusChecksPassed(Integer statusChecksPassed) {
+        this.statusChecksPassed = statusChecksPassed;
+    }
+
+    public Integer getStatusChecksTotal() {
+        return statusChecksTotal;
+    }
+
+    public void setStatusChecksTotal(Integer statusChecksTotal) {
+        this.statusChecksTotal = statusChecksTotal;
     }
 
     public Timestamp getStartedAt() {
