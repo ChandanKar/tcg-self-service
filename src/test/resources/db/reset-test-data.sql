@@ -1,5 +1,5 @@
 -- Reset all test data in correct order (respecting FK constraints)
-SET REFERENTIAL_INTEGRITY FALSE;
+SET FOREIGN_KEY_CHECKS = 0;
 DELETE FROM job_execution_log;
 DELETE FROM scheduled_job;
 DELETE FROM cloud_provider_credential;
@@ -20,7 +20,7 @@ DELETE FROM environment_access_request;
 DELETE FROM environment_access;
 DELETE FROM environment;
 DELETE FROM app_user;
-SET REFERENTIAL_INTEGRITY TRUE;
+SET FOREIGN_KEY_CHECKS = 1;
 
 -- Insert test users for lock management tests
 INSERT INTO app_user (user_id, email, display_name, azure_ad_object_id, admin, env_admin, is_active) VALUES
@@ -44,4 +44,3 @@ INSERT INTO scheduled_job (job_id, job_type, schedule_cron, is_enabled, configur
 ('job-002', 'notification_cleanup', '0 0 2 * * *', TRUE, '{"retention_days": 90}'),
 ('job-003', 'lock_warning', '0 0 * * * *', TRUE, '{"warning_threshold_hours": 4}'),
 ('job-004', 'access_expiration', '0 0 1 * * *', TRUE, '{"check_expired_access": true}');
-

@@ -33,9 +33,8 @@ class FlywayMigrationTest {
     @Test
     void testFlywayMigrationApplied() {
         // Verify flyway_schema_history table exists and has V1 migration
-        // Use quoted identifier for H2 case sensitivity
         Integer count = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM \"flyway_schema_history\" WHERE \"version\" = '1'",
+            "SELECT COUNT(*) FROM flyway_schema_history WHERE version = '1'",
             Integer.class
         );
         assertNotNull(count);
@@ -45,7 +44,7 @@ class FlywayMigrationTest {
     @Test
     void testAppUserTableCreated() {
         Integer columnCount = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'APP_USER'",
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'app_user' AND TABLE_SCHEMA = DATABASE()",
             Integer.class
         );
         assertNotNull(columnCount);
@@ -55,7 +54,7 @@ class FlywayMigrationTest {
     @Test
     void testAuditLogTableCreated() {
         Integer columnCount = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'AUDIT_LOG'",
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'audit_log' AND TABLE_SCHEMA = DATABASE()",
             Integer.class
         );
         assertNotNull(columnCount);
@@ -65,7 +64,7 @@ class FlywayMigrationTest {
     @Test
     void testEnvironmentTableCreated() {
         Integer columnCount = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ENVIRONMENT'",
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'environment' AND TABLE_SCHEMA = DATABASE()",
             Integer.class
         );
         assertNotNull(columnCount);
@@ -75,7 +74,7 @@ class FlywayMigrationTest {
     @Test
     void testVmTableCreated() {
         Integer columnCount = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'VM'",
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'vm' AND TABLE_SCHEMA = DATABASE()",
             Integer.class
         );
         assertNotNull(columnCount);
@@ -141,7 +140,7 @@ class FlywayMigrationTest {
 
         assertNotNull(admins);
         assertTrue(admins.size() >= 1, "Should find at least one admin");
-        assertTrue(admins.stream().anyMatch(a -> "testadmin@example.com".equals(a.get("EMAIL"))));
+        assertTrue(admins.stream().anyMatch(a -> "testadmin@example.com".equals(a.get("email"))));
 
         // Cleanup
         jdbcTemplate.update("DELETE FROM app_user WHERE user_id = ?", adminId);
@@ -233,7 +232,7 @@ class FlywayMigrationTest {
 
         assertNotNull(userEnvs);
         assertEquals(1, userEnvs.size(), "User should have access to one environment");
-        assertEquals("admin", userEnvs.get(0).get("ACCESS_LEVEL"));
+        assertEquals("admin", userEnvs.get(0).get("access_level"));
 
         // Cleanup
         jdbcTemplate.update("DELETE FROM environment_access WHERE access_id = ?", accessId);
@@ -274,8 +273,8 @@ class FlywayMigrationTest {
 
         assertNotNull(vms);
         assertEquals(1, vms.size(), "Should find one VM");
-        assertEquals("test-vm", vms.get(0).get("VM_NAME"));
-        assertEquals("AWS", vms.get(0).get("PROVIDER"));
+        assertEquals("test-vm", vms.get(0).get("vm_name"));
+        assertEquals("AWS", vms.get(0).get("provider"));
 
         // Cleanup
         jdbcTemplate.update("DELETE FROM vm WHERE vm_id = ?", vmId);
@@ -349,7 +348,7 @@ class FlywayMigrationTest {
 
         assertNotNull(notifications);
         assertEquals(1, notifications.size(), "Should find one unread notification");
-        assertEquals("Test Title", notifications.get(0).get("TITLE"));
+        assertEquals("Test Title", notifications.get(0).get("title"));
 
         // Cleanup
         jdbcTemplate.update("DELETE FROM notification WHERE notification_id = ?", notificationId);
@@ -389,7 +388,7 @@ class FlywayMigrationTest {
 
         assertNotNull(auditLogs);
         assertEquals(1, auditLogs.size(), "Should find one audit entry");
-        assertEquals("vm_start", auditLogs.get(0).get("ACTION_TYPE"));
+        assertEquals("vm_start", auditLogs.get(0).get("action_type"));
 
         // Cleanup
         jdbcTemplate.update("DELETE FROM audit_log WHERE audit_id = ?", auditId);
@@ -433,8 +432,8 @@ class FlywayMigrationTest {
 
         assertNotNull(history);
         assertEquals(1, history.size(), "Should find one state change");
-        assertEquals("stopped", history.get(0).get("PREVIOUS_STATUS"));
-        assertEquals("running", history.get(0).get("NEW_STATUS"));
+        assertEquals("stopped", history.get(0).get("previous_status"));
+        assertEquals("running", history.get(0).get("new_status"));
 
         // Cleanup
         jdbcTemplate.update("DELETE FROM vm_state_history WHERE history_id = ?", historyId);

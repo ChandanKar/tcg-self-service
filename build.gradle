@@ -47,10 +47,11 @@ dependencies {
 	//implementation 'com.github.kstyrc:embedded-redis:0.6'
 	// removed Azure starter because it brings Spring Boot 4 autoconfiguration that conflicts with the project's Spring Boot 3.5.x
 	//implementation 'com.azure.spring:spring-cloud-azure-starter-active-directory'
-	runtimeOnly 'com.h2database:h2'
 	runtimeOnly 'com.mysql:mysql-connector-j'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
+	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	testImplementation 'org.testcontainers:mysql'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
