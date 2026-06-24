@@ -37,8 +37,8 @@ const App = (function() {
             // Update sidebar menu based on user role
             updateSidebarForRole();
 
-            // Load default content (Dashboard)
-            Dashboard.load();
+            // Initialise hash routing — restores last-visited section on refresh
+            ContentRouter.init();
 
             isInitialized = true;
             console.log('VM Self-Service Platform ready.');

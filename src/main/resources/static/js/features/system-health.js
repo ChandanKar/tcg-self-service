@@ -427,7 +427,7 @@ const SystemHealth = (function () {
                 : '';
             return `
                 <tr>
-                    <td>${log.userEmail || log.userId || 'system'}</td>
+                    <td>${log.userDisplayName || log.userEmail || 'System'}</td>
                     <td><span class="badge bg-secondary">${log.actionDisplay || actionLabel(log.action)}</span></td>
                     <td>${log.environmentName || log.environmentId || '—'}</td>
                     <td>${log.targetName || '—'}</td>

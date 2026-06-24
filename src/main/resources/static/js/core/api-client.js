@@ -80,7 +80,13 @@ const ApiClient = (function() {
             url: url,
             method: method,
             contentType: 'application/json',
-            dataType: 'json'
+            dataType: 'json',
+            dataFilter: function(data, type) {
+                if (type === 'json' && (!data || data.trim() === '')) {
+                    return 'null';
+                }
+                return data;
+            }
         };
 
         if (data && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
@@ -124,6 +130,9 @@ const ApiClient = (function() {
         if (xhr.status === 401) {
             // Redirect to login after showing message
             setTimeout(() => {
+                if (/^\/home\/?$/.test(window.location.pathname) && window.location.hash) {
+                    sessionStorage.setItem('vmcontrol.intendedRoute', window.location.hash);
+                }
                 window.location.href = '/login.html';
             }, 2000);
         }

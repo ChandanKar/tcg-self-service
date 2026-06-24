@@ -60,6 +60,9 @@ const Auth = (function() {
      */
     function redirectToLogin() {
         const loginUrl = Config.AUTH.loginUrl || '/oauth2/authorization/azure';
+        if (/^\/home\/?$/.test(window.location.pathname) && window.location.hash) {
+            sessionStorage.setItem('vmcontrol.intendedRoute', window.location.hash);
+        }
         window.location.href = loginUrl;
     }
 

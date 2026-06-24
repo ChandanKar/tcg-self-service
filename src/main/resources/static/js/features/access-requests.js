@@ -211,15 +211,6 @@ const AccessRequests = (function() {
      * Build environments list (uses module state: allEnvs, envQuery, envPage)
      */
     function buildEnvironmentsList() {
-        if (allEnvs.length === 0) {
-            return `
-                <div class="ra-empty-state">
-                    <i class="fas fa-check-circle fa-2x text-success d-block"></i>
-                    <p>You have access to all environments!</p>
-                </div>
-            `;
-        }
-
         const filtered   = getFilteredEnvs();
         const totalPages = Math.ceil(filtered.length / ENV_PAGE_SIZE);
         const pageEnvs   = filtered.slice(envPage * ENV_PAGE_SIZE, (envPage + 1) * ENV_PAGE_SIZE);
@@ -251,10 +242,15 @@ const AccessRequests = (function() {
     function getFilteredEnvs() {
         if (!envQuery) return allEnvs;
         const q = envQuery.toLowerCase();
-        return allEnvs.filter(env =>
-            (env.displayName || '').toLowerCase().includes(q) ||
-            (env.name || '').toLowerCase().includes(q)
-        );
+        return allEnvs.filter(env => [
+            env.displayName,
+            env.name,
+            env.description,
+            env.serviceType,
+            env.cloudProvider,
+            env.provider,
+            env.environmentId
+        ].some(value => String(value || '').toLowerCase().includes(q)));
     }
 
     /**
@@ -264,8 +260,17 @@ const AccessRequests = (function() {
         if (pageEnvs.length === 0) {
             const msg = envQuery
                 ? `No environments match "<strong>${Utils.escapeHtml(envQuery)}</strong>"`
-                : 'No environments available';
-            return `<tr><td colspan="3" class="text-center text-muted py-3">${msg}</td></tr>`;
+                : 'You have access to all environments!';
+            return `
+                <tr class="ra-empty-row">
+                    <td colspan="3">
+                        <div class="ra-empty-state">
+                            <i class="fas ${envQuery ? 'fa-search' : 'fa-check-circle'} fa-2x ${envQuery ? 'text-muted' : 'text-success'} d-block"></i>
+                            <p>${msg}</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
         }
 
         const rows = pageEnvs.map(env => {
@@ -300,7 +305,12 @@ const AccessRequests = (function() {
     function buildEnvPagination(total, currentPage, totalPages) {
         if (total === 0 || totalPages <= 1) {
             const label = envQuery ? `${total} of ${allEnvs.length}` : total;
-            return `<span class="text-muted small">${label} environment${total !== 1 ? 's' : ''}</span>`;
+            return `
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-muted small">${label} environment${total !== 1 ? 's' : ''}</span>
+                    <div class="ra-pagination-placeholder"></div>
+                </div>
+            `;
         }
 
         const start = currentPage * ENV_PAGE_SIZE + 1;
@@ -316,7 +326,7 @@ const AccessRequests = (function() {
         return `
             <div class="d-flex justify-content-between align-items-center">
                 <span class="text-muted small">
-                    Showing ${start}–${end} of ${total}${envQuery ? ` of ${allEnvs.length}` : ''} environments
+                    Showing ${start}-${end} of ${total}${envQuery ? ` of ${allEnvs.length}` : ''} environments
                 </span>
                 <div>
                     <button class="btn btn-sm btn-outline-secondary env-page" data-page="0" ${currentPage === 0 ? 'disabled' : ''} title="First">
@@ -344,10 +354,15 @@ const AccessRequests = (function() {
         const filtered   = getFilteredEnvs();
         const totalPages = Math.ceil(filtered.length / ENV_PAGE_SIZE);
         if (envPage >= totalPages && totalPages > 0) envPage = totalPages - 1;
+        if (envPage < 0 || totalPages === 0) envPage = 0;
         const pageEnvs   = filtered.slice(envPage * ENV_PAGE_SIZE, (envPage + 1) * ENV_PAGE_SIZE);
 
-        $('#env-list').html(buildEnvRows(pageEnvs, filtered.length));
-        $('#env-pagination').html(buildEnvPagination(filtered.length, envPage, totalPages));
+        if (!$('#env-list').length || !$('#env-pagination').length) {
+            $('.ra-env-card-body').html(buildEnvironmentsList());
+        } else {
+            $('#env-list').html(buildEnvRows(pageEnvs, filtered.length));
+            $('#env-pagination').html(buildEnvPagination(filtered.length, envPage, totalPages));
+        }
         // Update header badge: show filtered / total when searching
         $('#env-count-badge').text(envQuery ? `${filtered.length} / ${allEnvs.length}` : allEnvs.length);
     }
@@ -435,12 +450,12 @@ const AccessRequests = (function() {
                 <td title="${Utils.escapeHtml(req.businessJustification || '')}">
                     <span class="reason-text">${Utils.escapeHtml(req.businessJustification || '-')}</span>
                 </td>
-                <td class="text-end">
-                    <div class="btn-group btn-group-sm">
-                        <button class="btn btn-success" data-request-id="${req.requestId}" data-action="approve">
+                <td class="text-end ra-actions-cell">
+                    <div class="ra-action-buttons">
+                        <button class="btn btn-sm btn-success" data-request-id="${req.requestId}" data-action="approve">
                             <i class="fas fa-check"></i> Approve
                         </button>
-                        <button class="btn btn-danger" data-request-id="${req.requestId}" data-action="deny">
+                        <button class="btn btn-sm btn-danger" data-request-id="${req.requestId}" data-action="deny">
                             <i class="fas fa-times"></i> Deny
                         </button>
                     </div>
@@ -492,8 +507,8 @@ const AccessRequests = (function() {
      */
     function bindRequestAccessEvents() {
         // Search: filter in-memory list, reset to page 0, re-render table
-        $('#env-search').off('input').on('input', Utils.debounce(function() {
-            envQuery = $(this).val().trim();
+        $('#content-area').off('input', '#env-search').on('input', '#env-search', Utils.debounce(function(event) {
+            envQuery = $(event.currentTarget).val().trim();
             envPage  = 0;
             renderEnvTable();
         }, 300));
@@ -565,8 +580,9 @@ const AccessRequests = (function() {
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Reason for Request <span class="text-danger">*</span></label>
-                        <textarea class="form-control" id="requestReason" rows="3" required
+                        <textarea class="form-control" id="requestReason" rows="3" required minlength="10" maxlength="1000"
                                   placeholder="Explain why you need access to this environment..."></textarea>
+                        <div class="invalid-feedback">Reason must be between 10 and 1000 characters.</div>
                     </div>
                 </form>
             `,
@@ -575,11 +591,19 @@ const AccessRequests = (function() {
                 { text: 'Submit Request', class: 'btn-primary', id: 'submitRequest' }
             ],
             onShow: function() {
+                $('#requestReason').off('input').on('input', function() {
+                    $(this).removeClass('is-invalid');
+                });
+
                 $('#submitRequest').off('click').on('click', function() {
                     const accessLevel = $('#accessLevel').val();
                     const reason = $('#requestReason').val().trim();
 
                     if (!reason) {
+                        $('#requestReason').addClass('is-invalid');
+                        return;
+                    }
+                    if (reason.length < 10 || reason.length > 1000) {
                         $('#requestReason').addClass('is-invalid');
                         return;
                     }
@@ -599,7 +623,7 @@ const AccessRequests = (function() {
         ApiClient.post(Config.API.access.requestAccess(envId), {
             accessLevel: accessLevel,
             businessJustification: reason
-        })
+        }, { suppressGlobalError: true })
         .done(function() {
             Modals.hide('requestAccessModal');
             Notifications.success('Access request submitted successfully');
@@ -607,9 +631,23 @@ const AccessRequests = (function() {
         })
         .fail(function(xhr) {
             $('#submitRequest').prop('disabled', false).html('Submit Request');
-            const msg = xhr.responseJSON?.message || 'Failed to submit request';
+            const msg = getAccessRequestErrorMessage(xhr);
             Notifications.error(msg);
         });
+    }
+
+    function getAccessRequestErrorMessage(xhr) {
+        const response = xhr.responseJSON;
+        if (response?.message) {
+            return response.message;
+        }
+        if (Array.isArray(response?.errors) && response.errors.length > 0) {
+            return response.errors
+                .map(error => error.message)
+                .filter(Boolean)
+                .join('; ') || 'Failed to submit request';
+        }
+        return 'Failed to submit request';
     }
 
     /**

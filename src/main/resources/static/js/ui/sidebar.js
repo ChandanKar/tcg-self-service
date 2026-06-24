@@ -96,32 +96,27 @@ const Sidebar = (function() {
     }
 
     /**
-     * Handle main navigation clicks
+     * Handle main navigation clicks — update the hash; the router's hashchange
+     * listener handles active-state sync and content loading.
      */
     function handleNavigation(e) {
         e.preventDefault();
 
-        const $link = $(this);
-        const contentType = $link.data('content');
+        const contentType = $(this).data('content');
 
-        console.log('Navigation clicked:', contentType);
-
-        // Remove active class from all
+        // Immediate visual feedback before hashchange fires
         $('.sidebar-menu-link').removeClass('active');
+        $(this).addClass('active');
 
-        // Add active class to clicked item
-        $link.addClass('active');
-
-        // Load content via router
-        if (typeof ContentRouter !== 'undefined' && ContentRouter.loadContent) {
-            ContentRouter.loadContent(contentType);
+        if (typeof ContentRouter !== 'undefined' && ContentRouter.navigate) {
+            ContentRouter.navigate(contentType);
         } else {
             console.error('ContentRouter not available for content type:', contentType);
         }
     }
 
     /**
-     * Handle submenu item navigation
+     * Handle submenu item navigation (environment-detail links)
      */
     function handleSubmenuNavigation(e) {
         e.preventDefault();
@@ -130,11 +125,10 @@ const Sidebar = (function() {
         const contentType = $(this).data('content');
         const envName = $(this).data('env');
 
-        // Remove active from all menu links
         $('.sidebar-menu-link').removeClass('active');
 
         if (typeof ContentRouter !== 'undefined') {
-            ContentRouter.loadContent(contentType, { environmentName: envName });
+            ContentRouter.navigate(contentType, { environmentName: envName });
         }
     }
 

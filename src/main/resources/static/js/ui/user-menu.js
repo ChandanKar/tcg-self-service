@@ -177,10 +177,6 @@ const UserMenu = (function() {
                 </div>
                 <div class="profile-info">
                     <div class="info-row">
-                        <label>User ID:</label>
-                        <span>${user.userId}</span>
-                    </div>
-                    <div class="info-row">
                         <label>Role:</label>
                         <span class="role-badge ${getRoleBadgeClass(user)}">${Auth.getPrimaryRole()}</span>
                     </div>

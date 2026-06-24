@@ -409,6 +409,8 @@ const VmRegistry = (function() {
               }).join('')
             : '<span class="text-muted small">None</span>';
 
+        const isEks = (window.VmRegistryState.currentEnvironment?.serviceType || 'EC2') === 'EKS';
+
         const vmRows = vms.map(vm => {
             const providerLabels = { AWS: 'AWS', AZURE: 'Azure', GCP: 'GCP', OCI: 'OCI', AWS_EKS: 'EKS' };
             const providerIcons = { AWS: 'fab fa-aws', AZURE: 'fab fa-microsoft', GCP: 'fab fa-google', OCI: 'fas fa-cloud', AWS_EKS: 'fas fa-dharmachakra' };
@@ -443,7 +445,6 @@ const VmRegistry = (function() {
 
         const collapseId = `collapse-${group.groupId}`;
 
-        const isEks = (window.VmRegistryState.currentEnvironment?.serviceType || 'EC2') === 'EKS';
         const actionBtns = isEks
             ? `<button class="btn btn-sm btn-warning" onclick="VmRegistry.editGroup('${group.groupId}')" title="Edit sequence / display name">
                    <i class="fas fa-edit"></i>

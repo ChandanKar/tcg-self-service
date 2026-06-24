@@ -1,49 +1,120 @@
 /**
  * VM Self-Service Platform - Content Router
- * Handles navigation and content loading
+ * Handles navigation and content loading with hash-based routing.
+ *
+ * URL scheme:  /#/dashboard,  /#/vm-registry,  /#/my-environments, etc.
+ * Refreshing the page restores the last-visited section.
  */
 
 const ContentRouter = (function() {
     'use strict';
 
-    /**
-     * Get content loader for a content type
-     * Using a function to ensure lazy evaluation (modules loaded at runtime)
-     */
+    // content-type → hash  (single source of truth for all routes)
+    const ROUTES = {
+        'dashboard':          '#/dashboard',
+        'my-environments':    '#/my-environments',
+        'environment-detail': '#/environment-detail',
+        'request-access':     '#/request-access',
+        'pending-requests':   '#/pending-requests',
+        'activity-logs':      '#/activity-logs',
+        'user-management':    '#/user-management',
+        'access-management':  '#/access-management',
+        'vm-registry':        '#/vm-registry',
+        'audit-logs-all':     '#/audit-logs-all',
+        'automation-rules':   '#/automation-rules',
+        'cost-management':    '#/cost-management',
+        'system-health':      '#/system-health',
+        'settings':           '#/settings',
+        'help':               '#/help'
+    };
+
+    // hash → content-type  (derived from ROUTES — not hand-maintained)
+    const HASH_TO_CONTENT = Object.fromEntries(
+        Object.entries(ROUTES).map(([k, v]) => [v, k])
+    );
+
+    const INTENDED_ROUTE_KEY = 'vmcontrol.intendedRoute';
+
+    // Params that cannot be encoded in a plain hash (e.g. environment-detail env name)
+    let _pendingParams = {};
+
     function getLoader(contentType) {
         const loaders = {
-            'dashboard': () => Dashboard.load(),
-            'my-environments': () => Environments.loadList(),
+            'dashboard':          () => Dashboard.load(),
+            'my-environments':    () => Environments.loadList(),
             'environment-detail': (params) => Environments.loadDetail(params),
-            'request-access': () => AccessRequests.loadRequestAccessPage(),
-            'pending-requests': () => AccessRequests.loadPendingRequestsPage(),
-            'activity-logs': () => ActivityLogs.loadMyActivityLogs(),
-            'user-management': () => window.UserManagement?.load?.() || window.Features?.loadUserManagement?.(),
-            'access-management': () => window.AccessManagement?.load?.() || window.Features?.loadAccessManagement?.(),
-            'vm-registry': () => window.VmRegistry?.load?.(),
-            'automation-rules': () => window.Features?.loadAutomationRules?.(),
-            'audit-logs-all': () => AllLogs.loadAllAuditLogs(),
-            'cost-management': () => showPlaceholder('cost-management'),
-            'system-health': () => SystemHealth.load(),
-            'settings': () => showPlaceholder('settings'),
-            'help': () => showPlaceholder('help')
+            'request-access':     () => AccessRequests.loadRequestAccessPage(),
+            'pending-requests':   () => AccessRequests.loadPendingRequestsPage(),
+            'activity-logs':      () => ActivityLogs.loadMyActivityLogs(),
+            'user-management':    () => window.UserManagement?.load?.() || window.Features?.loadUserManagement?.(),
+            'access-management':  () => window.AccessManagement?.load?.() || window.Features?.loadAccessManagement?.(),
+            'vm-registry':        () => window.VmRegistry?.load?.(),
+            'automation-rules':   () => window.Features?.loadAutomationRules?.(),
+            'audit-logs-all':     () => AllLogs.loadAllAuditLogs(),
+            'cost-management':    () => showPlaceholder('cost-management'),
+            'system-health':      () => SystemHealth.load(),
+            'settings':           () => showPlaceholder('settings'),
+            'help':               () => showPlaceholder('help')
         };
         return loaders[contentType];
     }
 
     /**
-     * Load content based on type
-     * @param {string} contentType - Content type identifier
-     * @param {object} params - Optional parameters
+     * Navigate to a content section by updating the hash.
+     * The hashchange listener picks this up and calls loadContent.
+     * @param {string} contentType
+     * @param {object} params - extra params (e.g. { environmentName } for environment-detail)
+     */
+    function navigate(contentType, params) {
+        if (params && Object.keys(params).length > 0) {
+            _pendingParams = params;
+        }
+        const hash = ROUTES[contentType] || '#/dashboard';
+        if (window.location.hash === hash) {
+            // Same hash — hashchange won't fire, so load directly
+            _resolveCurrentHash();
+        } else {
+            window.location.hash = hash;
+        }
+    }
+
+    /**
+     * Return the hash string for a given content type (used by sidebar to set href).
+     */
+    function hashFor(contentType) {
+        return ROUTES[contentType] || '#/dashboard';
+    }
+
+    /**
+     * Normalize common hash variants to the canonical #/route format.
+     * Examples: #vm-registry, #/vm-registry/, #/vm-registry?tab=x.
+     */
+    function normalizeHash(rawHash) {
+        if (!rawHash || rawHash === '#') {
+            return '#/dashboard';
+        }
+
+        const hashPath = rawHash
+            .split('?')[0]
+            .replace(/^#\/?/, '')
+            .replace(/\/+$/, '');
+
+        if (!hashPath) {
+            return '#/dashboard';
+        }
+
+        return `#/${hashPath}`;
+    }
+
+    /**
+     * Load content based on type.
+     * @param {string} contentType
+     * @param {object} params
      */
     function loadContent(contentType, params = {}) {
         const loader = getLoader(contentType);
-
         if (loader) {
-            // Show loading state
             showLoading();
-
-            // Load content
             try {
                 loader(params);
             } catch (error) {
@@ -56,8 +127,52 @@ const ContentRouter = (function() {
     }
 
     /**
-     * Show loading indicator
+     * Read the current hash and load the matching section.
+     * Also updates the sidebar active item.
      */
+    function _resolveCurrentHash() {
+        const hash = normalizeHash(window.location.hash);
+        if (window.location.hash !== hash) {
+            window.location.replace(hash);
+            return;
+        }
+        const contentType = HASH_TO_CONTENT[hash] || 'dashboard';
+        const params = _pendingParams;
+        _pendingParams = {};
+
+        // Sync sidebar active state (covers browser back/forward too)
+        if (typeof Sidebar !== 'undefined' && Sidebar.setActiveItem) {
+            Sidebar.setActiveItem(contentType);
+        }
+
+        loadContent(contentType, params);
+    }
+
+    /**
+     * Initialise hash routing.  Call once after Auth is ready.
+     */
+    function init() {
+        window.addEventListener('hashchange', _resolveCurrentHash);
+        const intendedRoute = sessionStorage.getItem(INTENDED_ROUTE_KEY);
+        if (intendedRoute) {
+            sessionStorage.removeItem(INTENDED_ROUTE_KEY);
+            const hash = normalizeHash(intendedRoute);
+            if (window.location.hash === hash) {
+                _resolveCurrentHash();
+            } else {
+                window.location.hash = hash;
+            }
+            return;
+        }
+
+        // If there is no hash yet, default to dashboard
+        if (!window.location.hash || window.location.hash === '#') {
+            window.location.hash = '#/dashboard';
+        } else {
+            _resolveCurrentHash();
+        }
+    }
+
     function showLoading() {
         $('#content-area').html(`
             <div class="d-flex justify-content-center align-items-center" style="min-height: 400px;">
@@ -71,9 +186,6 @@ const ContentRouter = (function() {
         `);
     }
 
-    /**
-     * Show error message
-     */
     function showError(message) {
         $('#content-area').html(`
             <div class="d-flex justify-content-center align-items-center" style="min-height: 400px;">
@@ -87,12 +199,8 @@ const ContentRouter = (function() {
         `);
     }
 
-    /**
-     * Show placeholder for features not yet implemented
-     */
     function showPlaceholder(contentType) {
         const title = contentType.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-
         $('#content-area').html(`
             <div class="content-header">
                 <h1>${title}</h1>
@@ -106,8 +214,10 @@ const ContentRouter = (function() {
         `);
     }
 
-
     return {
+        init,
+        navigate,
+        hashFor,
         loadContent,
         showLoading,
         showError,

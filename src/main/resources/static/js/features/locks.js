@@ -193,7 +193,7 @@ const Locks = (function() {
                     return `
                         <tr>
                             <td>${Utils.formatRelativeTime(entry.acquiredAt || entry.timestamp)}</td>
-                            <td>${Utils.escapeHtml(entry.userDisplayName || entry.userId || '-')}</td>
+                            <td>${Utils.escapeHtml(entry.userDisplayName || '-')}</td>
                             <td>${actionBadge}</td>
                             <td>${Utils.escapeHtml(entry.reason || '-')}</td>
                             <td>${duration}</td>

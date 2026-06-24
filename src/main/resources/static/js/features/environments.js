@@ -30,6 +30,20 @@ const Environments = (function() {
     const ENV_PAGE_SIZE = 10;
     let envCurrentPage = 1;
     let envFiltered = [];
+    let operationRefreshTimer = null;
+    let operationStatusHandler = null;
+
+    function isTransitionalStatus(status) {
+        return ['STARTING', 'STOPPING'].includes((status || '').toUpperCase());
+    }
+
+    function getEnvironmentVms(env) {
+        return (env.groups || []).flatMap(groupData => groupData.vms || []);
+    }
+
+    function hasTransitionalVms(env) {
+        return getEnvironmentVms(env).some(vm => isTransitionalStatus(vm.status));
+    }
 
     /**
      * Load environment list view
@@ -518,7 +532,12 @@ const Environments = (function() {
                         <button class="btn btn-sm btn-outline-secondary" id="btn-operation-history">
                             <i class="fas fa-history"></i> History
                         </button>
-                        ${runningVms === 0 ?
+                        ${hasTransitionalVms(env) ?
+                            `<button class="btn btn-sm btn-secondary" id="btn-env-action" disabled
+                                     data-bs-toggle="tooltip" title="Operation already in progress">
+                                <i class="fas fa-spinner fa-spin"></i> In Progress
+                            </button>` :
+                        runningVms === 0 ?
                             `<button class="btn btn-sm btn-success" id="btn-env-action" data-action-type="start">
                                 <i class="fas fa-play-circle"></i> Start All
                             </button>` :
@@ -561,8 +580,10 @@ const Environments = (function() {
         const vms   = groupData.vms || [];
 
         const runningCount = vms.filter(v => v.status === 'RUNNING').length || 0;
+        const transitioningCount = vms.filter(v => isTransitionalStatus(v.status)).length || 0;
         const totalCount   = vms.length;
-        const statusClass  = runningCount === 0 ? 'bg-secondary' :
+        const statusClass  = transitioningCount > 0 ? 'bg-info' :
+                             runningCount === 0 ? 'bg-secondary' :
                              runningCount === totalCount ? 'bg-success' : 'bg-warning';
 
         let dependsText = 'None';
@@ -599,7 +620,12 @@ const Environments = (function() {
                                 data-bs-toggle="tooltip" title="Details">
                             <i class="fas fa-info-circle"></i>
                         </button>
-                        ${vm.status === 'RUNNING' ?
+                        ${isTransitionalStatus(vm.status) ?
+                            `<button class="btn btn-sm btn-outline-secondary btn-action ms-1" disabled
+                                     data-bs-toggle="tooltip" title="Operation in progress">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </button>` :
+                        vm.status === 'RUNNING' ?
                             `<button class="btn btn-sm btn-outline-danger btn-action ms-1"
                                      data-vm-id="${vm.vmId}" data-action="stop-vm"
                                      data-bs-toggle="tooltip" title="Stop VM">
@@ -616,7 +642,11 @@ const Environments = (function() {
         }).join('');
 
         // Group action buttons
-        const groupBtns = runningCount === 0 ?
+        const groupBtns = transitioningCount > 0 ?
+            `<button class="btn btn-sm btn-secondary" disabled data-bs-toggle="tooltip" title="Operation in progress">
+                <i class="fas fa-spinner fa-spin"></i> In Progress
+            </button>` :
+            runningCount === 0 ?
             `<button class="btn btn-sm btn-success" data-group-id="${group.groupId}" data-action="group-action" data-action-type="start">
                 <i class="fas fa-play-circle"></i> Start
             </button>` :
@@ -844,6 +874,39 @@ const Environments = (function() {
                 new bootstrap.Tooltip(el, { trigger: 'hover' });
             }
         });
+
+        bindOperationStatusRefresh(envId);
+    }
+
+    function bindOperationStatusRefresh(envId) {
+        if (operationStatusHandler) {
+            window.removeEventListener('vm-operation-status', operationStatusHandler);
+        }
+
+        operationStatusHandler = function(event) {
+            const detail = event.detail || {};
+            if (detail.envId !== envId) {
+                return;
+            }
+
+            if (operationRefreshTimer) {
+                return;
+            }
+
+            operationRefreshTimer = setTimeout(async function() {
+                operationRefreshTimer = null;
+                try {
+                    const latestEnv = await fetchEnvironmentDetails(envId);
+                    currentEnvironment = latestEnv;
+                    $('#content-area').html(buildDetailHtml(latestEnv));
+                    bindDetailEvents(latestEnv);
+                } catch (error) {
+                    console.warn('Could not refresh VM operation status:', error);
+                }
+            }, 750);
+        };
+
+        window.addEventListener('vm-operation-status', operationStatusHandler);
     }
 
     // Operation functions - delegate to VmOperations module for progress tracking

@@ -124,9 +124,9 @@
 #pending-requests-table thead th:nth-child(4),
 #pending-requests-table tbody td:nth-child(4) { width: 11%; }
 #pending-requests-table thead th:nth-child(5),
-#pending-requests-table tbody td:nth-child(5) { width: 25%; }
+#pending-requests-table tbody td:nth-child(5) { width: 19%; }
 #pending-requests-table thead th:nth-child(6),
-#pending-requests-table tbody td:nth-child(6) { width: 12%; text-align: right; }
+#pending-requests-table tbody td:nth-child(6) { width: 18%; text-align: right; }
 
 /* Truncate long text in fixed-width cells */
 .request-access-container .table tbody td {
@@ -161,6 +161,20 @@
     height: 26px;
     padding: 0.15rem 0.45rem;
     font-size: 0.78rem;
+}
+.request-access-container .table tbody td.ra-actions-cell {
+    overflow: visible;
+    white-space: normal;
+}
+.ra-action-buttons {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+}
+.ra-action-buttons .btn {
+    min-width: 72px;
 }
 
 /* ── Env card: fixed height, table scrolls, pagination pinned ── */
@@ -209,9 +223,20 @@
 /* ── Env table pagination bar: pinned, buttons right-aligned ── */
 .ra-env-pagination {
     flex-shrink: 0;
+    display: block;
     border-top: 1px solid #f1f5f9;
-    padding: 0.3rem 0.55rem;
-    min-height: 28px;
+    padding: 0.35rem 0.55rem;
+    min-height: 34px;
+    background: #fff;
+}
+
+.ra-env-pagination > .d-flex {
+    min-height: 24px;
+}
+
+.ra-pagination-placeholder {
+    width: 1px;
+    height: 24px;
 }
 
 /* ── Empty state ── */
@@ -227,4 +252,9 @@
 .ra-empty-state p {
     font-size: 0.875rem;
     margin-bottom: 0;
+}
+
+.ra-empty-row td {
+    height: 100%;
+    border-bottom: none;
 }
