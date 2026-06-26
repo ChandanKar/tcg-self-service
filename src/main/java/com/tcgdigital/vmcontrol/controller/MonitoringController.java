@@ -5,6 +5,9 @@ import com.tcgdigital.vmcontrol.dto.VmStateHistoryDTO;
 import com.tcgdigital.vmcontrol.model.VmStateHistory;
 import com.tcgdigital.vmcontrol.service.EksSyncService;
 import com.tcgdigital.vmcontrol.service.StateSyncService;
+import com.tcgdigital.vmcontrol.service.VmInventoryService;
+import com.tcgdigital.vmcontrol.service.VmMetricsArchiveService;
+import com.tcgdigital.vmcontrol.service.VmMetricsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -32,10 +35,20 @@ public class MonitoringController {
 
     private final StateSyncService stateSyncService;
     private final EksSyncService eksSyncService;
+    private final VmInventoryService inventoryService;
+    private final VmMetricsService metricsService;
+    private final VmMetricsArchiveService archiveService;
 
-    public MonitoringController(StateSyncService stateSyncService, EksSyncService eksSyncService) {
+    public MonitoringController(StateSyncService stateSyncService,
+                                EksSyncService eksSyncService,
+                                VmInventoryService inventoryService,
+                                VmMetricsService metricsService,
+                                VmMetricsArchiveService archiveService) {
         this.stateSyncService = stateSyncService;
         this.eksSyncService = eksSyncService;
+        this.inventoryService = inventoryService;
+        this.metricsService = metricsService;
+        this.archiveService = archiveService;
     }
 
     @GetMapping("/sync-status")
@@ -114,6 +127,48 @@ public class MonitoringController {
         return ResponseEntity.ok(Map.of(
                 "status", "completed",
                 "nodeGroupsSynced", synced
+        ));
+    }
+
+    @PostMapping("/inventory/sync")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(
+            summary = "Trigger manual VM inventory sync",
+            description = "Fetches cloud inventory snapshots for active VMs"
+    )
+    public ResponseEntity<Map<String, Object>> triggerInventorySync() {
+        int synced = inventoryService.syncAllInventory();
+        return ResponseEntity.ok(Map.of(
+                "status", "completed",
+                "vmsSynced", synced
+        ));
+    }
+
+    @PostMapping("/metrics/sync")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(
+            summary = "Trigger manual VM metrics sync",
+            description = "Fetches latest utilization metrics for running VMs"
+    )
+    public ResponseEntity<Map<String, Object>> triggerMetricsSync() {
+        int samples = metricsService.syncRunningVmMetrics();
+        return ResponseEntity.ok(Map.of(
+                "status", "completed",
+                "samplesSaved", samples
+        ));
+    }
+
+    @PostMapping("/metrics/archive")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(
+            summary = "Trigger manual VM metrics archive",
+            description = "Moves old raw metric samples from hot storage to archive storage"
+    )
+    public ResponseEntity<Map<String, Object>> triggerMetricsArchive() {
+        int archived = archiveService.archiveOldRawSamples();
+        return ResponseEntity.ok(Map.of(
+                "status", "completed",
+                "samplesArchived", archived
         ));
     }
 

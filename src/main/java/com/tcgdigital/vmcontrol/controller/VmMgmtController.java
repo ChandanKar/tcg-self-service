@@ -1,13 +1,18 @@
 package com.tcgdigital.vmcontrol.controller;
 
 import com.tcgdigital.vmcontrol.dto.RegisterVmDTO;
+import com.tcgdigital.vmcontrol.dto.VmInventoryDTO;
+import com.tcgdigital.vmcontrol.dto.VmMetricsDTO;
 import com.tcgdigital.vmcontrol.dto.VmDTO;
 import com.tcgdigital.vmcontrol.dto.VmGroupDTO;
+import com.tcgdigital.vmcontrol.dto.VmUtilizationSummaryDTO;
 import com.tcgdigital.vmcontrol.model.Vm;
 import com.tcgdigital.vmcontrol.model.VmGroup;
 import com.tcgdigital.vmcontrol.service.SecurityService;
 import com.tcgdigital.vmcontrol.service.UserService;
 import com.tcgdigital.vmcontrol.service.VmGroupService;
+import com.tcgdigital.vmcontrol.service.VmInventoryService;
+import com.tcgdigital.vmcontrol.service.VmMetricsService;
 import com.tcgdigital.vmcontrol.service.VmService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -38,13 +43,19 @@ public class VmMgmtController {
     private final VmGroupService groupService;
     private final SecurityService securityService;
     private final UserService userService;
+    private final VmInventoryService inventoryService;
+    private final VmMetricsService metricsService;
 
     public VmMgmtController(VmService vmService, VmGroupService groupService,
-                             SecurityService securityService, UserService userService) {
+                             SecurityService securityService, UserService userService,
+                             VmInventoryService inventoryService,
+                             VmMetricsService metricsService) {
         this.vmService = vmService;
         this.groupService = groupService;
         this.securityService = securityService;
         this.userService = userService;
+        this.inventoryService = inventoryService;
+        this.metricsService = metricsService;
     }
 
     @GetMapping
@@ -117,6 +128,52 @@ public class VmMgmtController {
 
         Vm vm = vmService.getVmById(vmId);
         return ResponseEntity.ok(VmDTO.fromEntity(vm));
+    }
+
+    @GetMapping("/{vmId}/inventory")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<VmInventoryDTO> getVmInventory(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId,
+            @Parameter(description = "VM ID") @PathVariable String vmId) {
+        if (!securityService.hasEnvironmentAccess(environmentId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        return ResponseEntity.ok(inventoryService.getInventory(environmentId, vmId));
+    }
+
+    @PostMapping("/{vmId}/inventory/refresh")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    public ResponseEntity<VmInventoryDTO> refreshVmInventory(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId,
+            @Parameter(description = "VM ID") @PathVariable String vmId) {
+        if (!securityService.hasEnvironmentAccess(environmentId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        return ResponseEntity.ok(inventoryService.refreshVmInventory(environmentId, vmId));
+    }
+
+    @GetMapping("/{vmId}/metrics")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<VmMetricsDTO> getVmMetrics(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId,
+            @Parameter(description = "VM ID") @PathVariable String vmId,
+            @RequestParam(defaultValue = "1h") String window,
+            @RequestParam(defaultValue = "300") int period) {
+        if (!securityService.hasEnvironmentAccess(environmentId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        return ResponseEntity.ok(metricsService.getMetrics(environmentId, vmId, window, period));
+    }
+
+    @GetMapping("/{vmId}/utilization-summary")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<VmUtilizationSummaryDTO> getVmUtilizationSummary(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId,
+            @Parameter(description = "VM ID") @PathVariable String vmId) {
+        if (!securityService.hasEnvironmentAccess(environmentId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        return ResponseEntity.ok(metricsService.getUtilizationSummary(environmentId, vmId));
     }
 
     @PostMapping

@@ -3,6 +3,7 @@ package com.tcgdigital.vmcontrol.controller;
 import com.tcgdigital.vmcontrol.dto.*;
 import com.tcgdigital.vmcontrol.model.Environment;
 import com.tcgdigital.vmcontrol.service.EksSyncService;
+import com.tcgdigital.vmcontrol.service.EnvironmentInsightsService;
 import com.tcgdigital.vmcontrol.service.EnvironmentService;
 import com.tcgdigital.vmcontrol.service.SecurityService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -33,16 +34,19 @@ public class EnvironmentController {
     private final EnvironmentService environmentService;
     private final SecurityService securityService;
     private final EksSyncService eksSyncService;
+    private final EnvironmentInsightsService environmentInsightsService;
 
     @Value("${aws.region:ap-south-1}")
     private String defaultRegion;
 
     public EnvironmentController(EnvironmentService environmentService,
                                  SecurityService securityService,
-                                 EksSyncService eksSyncService) {
+                                 EksSyncService eksSyncService,
+                                 EnvironmentInsightsService environmentInsightsService) {
         this.environmentService = environmentService;
         this.securityService = securityService;
         this.eksSyncService = eksSyncService;
+        this.environmentInsightsService = environmentInsightsService;
     }
 
     @GetMapping
@@ -149,6 +153,20 @@ public class EnvironmentController {
         );
 
         return ResponseEntity.ok(dto);
+    }
+
+    @GetMapping("/{environmentId}/insights")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "Get environment insights",
+            description = "Returns aggregate inventory, utilization, storage, idle, and recommendation data for an environment."
+    )
+    public ResponseEntity<EnvironmentInsightsDTO> getEnvironmentInsights(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId) {
+        if (!securityService.hasEnvironmentAccess(environmentId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        return ResponseEntity.ok(environmentInsightsService.getInsights(environmentId));
     }
 
     @GetMapping("/discover/eks")
