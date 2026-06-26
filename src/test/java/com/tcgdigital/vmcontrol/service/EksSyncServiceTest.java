@@ -72,6 +72,30 @@ class EksSyncServiceTest {
     }
 
     @Test
+    void syncEksEnvironment_createsEveryReturnedNodeGroup() {
+        Environment env = buildEnvironment();
+        List<String> nodegroups = List.of("system-workers", "app-workers", "spot-workers");
+        when(eksService.listNodegroups(CLUSTER, REGION)).thenReturn(nodegroups);
+        for (String nodegroup : nodegroups) {
+            when(eksService.describeNodegroup(CLUSTER, nodegroup, REGION)).thenReturn(buildNodegroup(nodegroup, 1, 2));
+            when(groupRepository.findByEnvironmentEnvironmentIdAndName(ENV_ID, nodegroup)).thenReturn(Optional.empty());
+            when(vmRepository.findByGroupGroupIdAndName(anyString(), eq(nodegroup))).thenReturn(Optional.empty());
+        }
+        when(groupRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(vmRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(groupRepository.findByEnvironmentEnvironmentIdOrderBySequencePositionAsc(ENV_ID)).thenReturn(List.of());
+
+        int count = service.syncEksEnvironment(env);
+
+        assertEquals(3, count);
+        verify(groupRepository, times(3)).save(any(VmGroup.class));
+        verify(vmRepository, times(3)).save(any(Vm.class));
+        for (String nodegroup : nodegroups) {
+            verify(eksService).describeNodegroup(CLUSTER, nodegroup, REGION);
+        }
+    }
+
+    @Test
     void syncEksEnvironment_enrichesVmGroupMetadataWithClusterIdentity() throws Exception {
         Environment env = buildEnvironment();
         when(eksService.listNodegroups(CLUSTER, REGION)).thenReturn(List.of(NODEGROUP));
@@ -236,9 +260,13 @@ class EksSyncServiceTest {
     }
 
     private Nodegroup buildNodegroup(int minSize, int desiredSize) {
+        return buildNodegroup(NODEGROUP, minSize, desiredSize);
+    }
+
+    private Nodegroup buildNodegroup(String nodegroupName, int minSize, int desiredSize) {
         return Nodegroup.builder()
                 .clusterName(CLUSTER)
-                .nodegroupName(NODEGROUP)
+                .nodegroupName(nodegroupName)
                 .status(desiredSize > 0 ? NodegroupStatus.ACTIVE : NodegroupStatus.ACTIVE)
                 .scalingConfig(NodegroupScalingConfig.builder()
                         .minSize(minSize)

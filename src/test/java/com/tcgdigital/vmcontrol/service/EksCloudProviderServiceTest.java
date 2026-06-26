@@ -16,6 +16,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import software.amazon.awssdk.services.eks.EksClient;
 import software.amazon.awssdk.services.eks.model.*;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
@@ -242,6 +243,48 @@ class EksCloudProviderServiceTest {
         assertEquals(VmStatus.ERROR,    service.mapNodegroupToVmStatus(buildNodegroup(NodegroupStatus.CREATE_FAILED, 0)));
         assertEquals(VmStatus.ERROR,    service.mapNodegroupToVmStatus(buildNodegroup(NodegroupStatus.DELETE_FAILED, 0)));
         assertEquals(VmStatus.NOT_FOUND, service.mapNodegroupToVmStatus(null));
+    }
+
+    @Test
+    void listNodegroups_followsAwsPagination() {
+        when(mockEksClient.listNodegroups(any(ListNodegroupsRequest.class)))
+                .thenReturn(
+                        ListNodegroupsResponse.builder()
+                                .nodegroups("ng-a")
+                                .nextToken("page-2")
+                                .build(),
+                        ListNodegroupsResponse.builder()
+                                .nodegroups("ng-b", "ng-c")
+                                .build());
+
+        List<String> nodegroups = service.listNodegroups(CLUSTER, REGION);
+
+        assertEquals(List.of("ng-a", "ng-b", "ng-c"), nodegroups);
+        ArgumentCaptor<ListNodegroupsRequest> captor = ArgumentCaptor.forClass(ListNodegroupsRequest.class);
+        verify(mockEksClient, times(2)).listNodegroups(captor.capture());
+        assertNull(captor.getAllValues().get(0).nextToken());
+        assertEquals("page-2", captor.getAllValues().get(1).nextToken());
+    }
+
+    @Test
+    void listClusters_followsAwsPagination() {
+        when(mockEksClient.listClusters(any(ListClustersRequest.class)))
+                .thenReturn(
+                        ListClustersResponse.builder()
+                                .clusters("cluster-a")
+                                .nextToken("page-2")
+                                .build(),
+                        ListClustersResponse.builder()
+                                .clusters("cluster-b", "cluster-c")
+                                .build());
+
+        List<String> clusters = service.listClusters(REGION);
+
+        assertEquals(List.of("cluster-a", "cluster-b", "cluster-c"), clusters);
+        ArgumentCaptor<ListClustersRequest> captor = ArgumentCaptor.forClass(ListClustersRequest.class);
+        verify(mockEksClient, times(2)).listClusters(captor.capture());
+        assertNull(captor.getAllValues().get(0).nextToken());
+        assertEquals("page-2", captor.getAllValues().get(1).nextToken());
     }
 
     @Test
