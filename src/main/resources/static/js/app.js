@@ -31,6 +31,9 @@ const App = (function() {
             Sidebar.init();
             Slideout.init();
             Notifications.init();
+            if (typeof VmCharts !== 'undefined') {
+                VmCharts.init();
+            }
             RealTime.init();
             Keyboard.init();
 

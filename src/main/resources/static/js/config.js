@@ -25,6 +25,11 @@ const Config = (function() {
             logout: '/logout'
         },
 
+        // Dashboard
+        dashboard: {
+            summary: `${API_BASE_URL}/dashboard/summary`
+        },
+
         // User Management
         users: {
             list: `${API_BASE_URL}/users`,
@@ -59,6 +64,7 @@ const Config = (function() {
             list: `${API_BASE_URL}/environments`,
             available: `${API_BASE_URL}/environments/available`,
             get: (id) => `${API_BASE_URL}/environments/${id}`,
+            insights: (id) => `${API_BASE_URL}/environments/${id}/insights`,
             create: `${API_BASE_URL}/environments`,
             update: (id) => `${API_BASE_URL}/environments/${id}`,
             delete: (id) => `${API_BASE_URL}/environments/${id}`,
@@ -81,7 +87,12 @@ const Config = (function() {
             get: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}`,
             register: (envId) => `${API_BASE_URL}/environments/${envId}/vms`,
             update: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}`,
-            delete: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}`
+            delete: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}`,
+            inventory: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}/inventory`,
+            refreshInventory: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}/inventory/refresh`,
+            metrics: (envId, vmId, window = '1h', period = 300) =>
+                `${API_BASE_URL}/environments/${envId}/vms/${vmId}/metrics?window=${encodeURIComponent(window)}&period=${encodeURIComponent(period)}`,
+            utilizationSummary: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}/utilization-summary`
         },
 
         // VM Operations
@@ -130,6 +141,9 @@ const Config = (function() {
             syncStatus: `${API_BASE_URL}/monitoring/sync-status`,
             triggerSync: `${API_BASE_URL}/monitoring/sync`,
             triggerEksSync: `${API_BASE_URL}/monitoring/sync/eks`,
+            triggerInventorySync: `${API_BASE_URL}/monitoring/inventory/sync`,
+            triggerMetricsSync: `${API_BASE_URL}/monitoring/metrics/sync`,
+            triggerMetricsArchive: `${API_BASE_URL}/monitoring/metrics/archive`,
             syncEnvironment: (envId) => `${API_BASE_URL}/monitoring/sync/environment/${envId}`,
             vmHistory: (vmId) => `${API_BASE_URL}/monitoring/vms/${vmId}/history`,
             stateChanges: `${API_BASE_URL}/monitoring/state-changes`,

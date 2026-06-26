@@ -52,11 +52,11 @@ const RealTime = (function() {
     /**
      * Start polling for a specific feature
      */
-    function startPolling(key, callback, interval) {
+    function startPolling(key, callback, interval, options = {}) {
         stopPolling(key);
 
         // Run immediately
-        if (isPageVisible) {
+        if (isPageVisible && options.immediate !== false) {
             callback();
         }
 

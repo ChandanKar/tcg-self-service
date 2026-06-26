@@ -1,10 +1,8 @@
 # VM Self-Service Platform - Frontend Build Script
-# Derives the file list from index.html (same as the Gradle buildFrontend task).
-# Use this for a quick local bundle during development.
-# For production, run: ./gradlew deploy  (which runs this logic automatically)
+# Derives the file list from index.html, matching the Gradle buildFrontend task.
 
 $staticDir = "src\main\resources\static"
-$distDir   = "$staticDir\dist"
+$distDir = "$staticDir\dist"
 $indexHtml = "$staticDir\index.html"
 
 if (-not (Test-Path $indexHtml)) {
@@ -17,18 +15,21 @@ if (-not (Test-Path $distDir)) {
 }
 
 $html = Get-Content $indexHtml -Raw
+$dq = [char]34
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
 
 Write-Host "Building frontend assets..." -ForegroundColor Cyan
 
-# --- CSS: extract local hrefs from <link rel="stylesheet" href="..."> ---
 Write-Host "Bundling CSS..." -ForegroundColor Yellow
-$cssPattern = '<link rel="stylesheet" href="([^"]+)"'
+$cssPattern = '<link rel=' + $dq + 'stylesheet' + $dq + ' href=' + $dq + '(.+?)' + $dq
 $cssMatches = [regex]::Matches($html, $cssPattern)
 $cssContent = ""
 $cssCount = 0
 foreach ($m in $cssMatches) {
     $href = $m.Groups[1].Value
-    if ($href -match "^https?://") { continue }   # skip CDN
+    if ($href -match "^https?://") { continue }
+    if ($href -match "^vendor/") { continue }
+
     $file = Join-Path $staticDir ($href -replace "/", "\")
     if (Test-Path $file) {
         $cssContent += "/* === $(Split-Path $file -Leaf) === */`n"
@@ -39,19 +40,20 @@ foreach ($m in $cssMatches) {
         Write-Host "  Warning: $file not found" -ForegroundColor Red
     }
 }
-$cssContent | Out-File -FilePath "$distDir\app.css" -Encoding utf8NoBOM
+[System.IO.File]::WriteAllText((Join-Path $PWD "$distDir\app.css"), $cssContent, $utf8NoBom)
 $cssSize = [math]::Round((Get-Item "$distDir\app.css").Length / 1KB, 2)
-Write-Host "  dist\app.css  — $cssCount files, $cssSize KB" -ForegroundColor Green
+Write-Host "  dist\app.css  - $cssCount files, $cssSize KB" -ForegroundColor Green
 
-# --- JS: extract local srcs from <script src="..."> ---
 Write-Host "Bundling JS..." -ForegroundColor Yellow
-$jsPattern = '<script src="([^"]+)"'
+$jsPattern = '<script src=' + $dq + '(.+?)' + $dq
 $jsMatches = [regex]::Matches($html, $jsPattern)
 $jsContent = ""
 $jsCount = 0
 foreach ($m in $jsMatches) {
     $src = $m.Groups[1].Value
-    if ($src -match "^https?://") { continue }    # skip CDN
+    if ($src -match "^https?://") { continue }
+    if ($src -match "^vendor/") { continue }
+
     $file = Join-Path $staticDir ($src -replace "/", "\")
     if (Test-Path $file) {
         $jsContent += "/* === $(Split-Path $file -Leaf) === */`n"
@@ -62,9 +64,9 @@ foreach ($m in $jsMatches) {
         Write-Host "  Warning: $file not found" -ForegroundColor Red
     }
 }
-$jsContent | Out-File -FilePath "$distDir\app.js" -Encoding utf8NoBOM
+[System.IO.File]::WriteAllText((Join-Path $PWD "$distDir\app.js"), $jsContent, $utf8NoBom)
 $jsSize = [math]::Round((Get-Item "$distDir\app.js").Length / 1KB, 2)
-Write-Host "  dist\app.js   — $jsCount files, $jsSize KB" -ForegroundColor Green
+Write-Host "  dist\app.js   - $jsCount files, $jsSize KB" -ForegroundColor Green
 
 Write-Host ""
 Write-Host "Done. Run './gradlew deploy' to build the production JAR." -ForegroundColor Cyan

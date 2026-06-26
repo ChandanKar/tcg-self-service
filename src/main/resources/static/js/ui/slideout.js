@@ -32,10 +32,19 @@ const Slideout = (function() {
     }
 
     /**
-     * Open a slideout panel
-     * @param {string} panelId - Panel element ID
+     * Open a slideout panel.
+     * Supports either an existing panel id, or dynamic content as (title, html).
+     * @param {string} panelIdOrTitle - Panel element ID or dynamic panel title
+     * @param {string=} html - Optional dynamic panel body
      */
-    function open(panelId) {
+    function open(panelIdOrTitle, html) {
+        if (typeof html === 'string') {
+            openDynamic(panelIdOrTitle, html);
+            return;
+        }
+
+        const panelId = panelIdOrTitle;
+
         // Close any open panels first
         $('.slideout-panel').removeClass('show');
 
@@ -47,10 +56,42 @@ const Slideout = (function() {
         $('body').css('overflow', 'hidden');
     }
 
+    function openDynamic(title, html) {
+        const panelId = 'dynamicSlideoutPanel';
+        let $panel = $(`#${panelId}`);
+
+        if ($panel.length === 0) {
+            $panel = $(`
+                <div class="slideout-panel dynamic-slideout-panel" id="${panelId}">
+                    <div class="slideout-panel-header">
+                        <h3></h3>
+                        <button class="close-btn" aria-label="Close">&times;</button>
+                    </div>
+                    <div class="slideout-panel-content"></div>
+                </div>
+            `);
+            $('body').append($panel);
+        }
+
+        if (typeof VmCharts !== 'undefined') {
+            VmCharts.disposeWithin($panel[0]);
+        }
+
+        $panel.find('.slideout-panel-header h3').html(title);
+        $panel.find('.slideout-panel-content').html(html);
+        open(panelId);
+        $(document).trigger('slideout:opened', [$panel[0]]);
+    }
+
     /**
      * Close all slideout panels
      */
     function close() {
+        if (typeof VmCharts !== 'undefined') {
+            $('.slideout-panel.show').each(function() {
+                VmCharts.disposeWithin(this);
+            });
+        }
         $('.slideout-panel').removeClass('show');
         $('#slideoutOverlay').removeClass('show');
 

@@ -32,6 +32,7 @@ const Environments = (function() {
     let envFiltered = [];
     let operationRefreshTimer = null;
     let operationStatusHandler = null;
+    let metricChartCounter = 0;
 
     function isTransitionalStatus(status) {
         return ['STARTING', 'STOPPING'].includes((status || '').toUpperCase());
@@ -70,6 +71,7 @@ const Environments = (function() {
      * Load environment detail view
      */
     async function loadDetail(params) {
+        disposeAllBootstrapTooltips();
         let envId = params.environmentId;
         const envName = params.environmentName;
 
@@ -480,6 +482,20 @@ const Environments = (function() {
             const tt = bootstrap.Tooltip.getInstance(el);
             if (tt) tt.dispose();
         });
+        document.querySelectorAll('.tooltip').forEach(el => el.remove());
+    }
+
+    function disposeAllBootstrapTooltips() {
+        if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+            document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+                const tt = bootstrap.Tooltip.getInstance(el);
+                if (tt) {
+                    tt.hide();
+                    tt.dispose();
+                }
+            });
+        }
+        document.querySelectorAll('.tooltip').forEach(el => el.remove());
     }
 
     /**
@@ -554,6 +570,10 @@ const Environments = (function() {
                         <div style="font-size:0.78rem;color:#64748b;">${escapeHtml(env.description || '')}</div>
                     </div>
                     <div class="d-flex gap-2 align-items-center">
+                        <button class="btn btn-sm btn-outline-primary" id="btn-env-insights"
+                                data-bs-toggle="tooltip" title="Environment insights">
+                            <i class="fas fa-info-circle"></i>
+                        </button>
                         <button class="btn btn-sm btn-outline-secondary" id="btn-operation-history">
                             <i class="fas fa-history"></i> History
                         </button>
@@ -732,6 +752,7 @@ const Environments = (function() {
     function bindListEvents() {
         // View environment
         $('#content-area').off('click', '[data-action="view"]').on('click', '[data-action="view"]', function() {
+            disposeAllBootstrapTooltips();
             const envId = $(this).data('env-id');
             const envName = $(this).data('env-name');
             loadDetail({ environmentId: envId, environmentName: envName });
@@ -739,6 +760,7 @@ const Environments = (function() {
 
         // Edit environment
         $('#content-area').off('click', '[data-action="edit-env"]').on('click', '[data-action="edit-env"]', function() {
+            disposeAllBootstrapTooltips();
             const envId = $(this).data('env-id');
             const env = environmentsList.find(e => e.environmentId === envId);
             if (env) {
@@ -750,6 +772,7 @@ const Environments = (function() {
 
         // Delete environment
         $('#content-area').off('click', '[data-action="delete-env"]').on('click', '[data-action="delete-env"]', function() {
+            disposeAllBootstrapTooltips();
             const envId = $(this).data('env-id');
             const envName = $(this).data('env-name');
             deleteEnvironment(envId, envName);
@@ -836,6 +859,11 @@ const Environments = (function() {
         });
 
         // Group action button (single contextual — Start or Stop)
+        $('#btn-env-insights').off('click').on('click', function(e) {
+            e.preventDefault();
+            showEnvironmentInsights(env);
+        });
+
         $('[data-action="group-action"]').off('click').on('click', function(e) {
             e.preventDefault();
             const groupId = $(this).data('group-id');
@@ -1176,56 +1204,720 @@ const Environments = (function() {
         return null;
     }
 
-    function showVmDetails(envId, vmId) {
+    function showEnvironmentInsights(env) {
+        const envId = env.environmentId;
+        ApiClient.get(Config.API.environments.insights(envId))
+            .done(function(insights) {
+                const title = buildEnvironmentInsightsTitle(env, insights);
+                const content = buildEnvironmentInsightsPanel(insights);
+                try {
+                    if (typeof Slideout !== 'undefined' && Slideout.open) {
+                        Slideout.open(title, content);
+                    } else {
+                        Notifications.info('Environment Insights: ' + (env.displayName || env.name));
+                    }
+                } catch (e) {
+                    console.error('Error opening environment insights:', e);
+                    Notifications.info('Could not display environment insights');
+                }
+            })
+            .fail(function() {
+                Notifications.error('Failed to load environment insights');
+            });
+    }
+
+    function buildEnvironmentInsightsTitle(env, insights) {
+        const idle = Number(insights.idleVms || 0);
+        return `
+            <div class="vm-slideout-title">
+                <span class="vm-slideout-name">Environment: ${escapeHtml(env.displayName || env.name)}</span>
+                <span class="vm-slideout-badges">
+                    <span class="vm-title-pill vm-title-status running">
+                        <i class="fas fa-layer-group"></i> ${insights.totalVms || 0} VMs
+                    </span>
+                    <span class="vm-title-pill vm-title-idle ${idle > 0 ? 'idle' : 'active'}">
+                        <i class="fas ${idle > 0 ? 'fa-moon' : 'fa-bolt'}"></i> ${idle} Idle
+                    </span>
+                </span>
+            </div>
+        `;
+    }
+
+    function buildEnvironmentInsightsPanel(insights) {
+        return `
+            <div class="vm-insights-panel env-insights-panel">
+                <div class="vm-insights-summary">
+                    ${buildInsightStat('Total VMs', insights.totalVms || 0, 'fa-server')}
+                    ${buildInsightStat('Running', insights.runningVms || 0, 'fa-play-circle')}
+                    ${buildInsightStat('Avg CPU', formatPercent(insights.avgCpuUtilization), 'fa-gauge-high')}
+                    ${buildInsightStat('Allocated EBS', insights.totalAllocatedStorageGib ? `${insights.totalAllocatedStorageGib} GiB` : '-', 'fa-hard-drive')}
+                </div>
+
+                <ul class="nav nav-tabs vm-insights-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#env-overview-tab" type="button" role="tab">Overview</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#env-utilization-tab" type="button" role="tab">Utilization</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#env-storage-tab" type="button" role="tab">Storage</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#env-groups-tab" type="button" role="tab">Groups</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#env-recommendations-tab" type="button" role="tab">Checks</button>
+                    </li>
+                </ul>
+
+                <div class="tab-content vm-insights-tab-content">
+                    <div class="tab-pane fade show active" id="env-overview-tab" role="tabpanel">
+                        ${buildEnvironmentOverviewSection(insights)}
+                    </div>
+                    <div class="tab-pane fade" id="env-utilization-tab" role="tabpanel">
+                        ${buildEnvironmentUtilizationSection(insights)}
+                    </div>
+                    <div class="tab-pane fade" id="env-storage-tab" role="tabpanel">
+                        ${buildEnvironmentStorageSection(insights)}
+                    </div>
+                    <div class="tab-pane fade" id="env-groups-tab" role="tabpanel">
+                        ${buildEnvironmentGroupsSection(insights)}
+                    </div>
+                    <div class="tab-pane fade" id="env-recommendations-tab" role="tabpanel">
+                        ${buildEnvironmentRecommendationsSection(insights)}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function buildEnvironmentOverviewSection(insights) {
+        return `
+            <div class="vm-insight-section">
+                <div class="vm-overview-clean">
+                    ${buildField('Service type', insights.serviceType || '-')}
+                    ${buildField('Groups', insights.groupCount || 0)}
+                    ${buildField('Running / Stopped', `${insights.runningVms || 0} / ${insights.stoppedVms || 0}`)}
+                    ${buildField('Unknown / Drifted', `${insights.unknownVms || 0} / ${insights.driftedVms || 0}`)}
+                    ${buildField('Last metric', formatVmInsightTime(insights.latestMetricSampleTime))}
+                    ${buildField('Last inventory', formatVmInsightTime(insights.latestInventoryRefreshTime))}
+                </div>
+                <div class="env-chip-grid">
+                    ${buildMapChips('Status', insights.statusCounts)}
+                    ${buildMapChips('Region', insights.regionCounts)}
+                </div>
+            </div>
+        `;
+    }
+
+    function buildEnvironmentUtilizationSection(insights) {
+        const busiestRows = buildVmInsightRows(insights.busiestVms || [], 'cpu');
+        const idleRows = buildVmInsightRows(insights.idleVmRows || [], 'idle');
+        return `
+            <div class="vm-insight-section">
+                <div class="vm-util-grid">
+                    ${buildMetricTile('Average CPU', formatPercent(insights.avgCpuUtilization), 'Top VMs, last 1h', insights.cpuSeries || [], 'cpu')}
+                    ${buildMetricTile('Network In', formatBytes(insights.totalNetworkInBytes), 'Top VMs, last 1h', insights.networkInSeries || [], 'network')}
+                    ${buildMetricTile('Network Out', formatBytes(insights.totalNetworkOutBytes), 'Top VMs, last 1h', insights.networkOutSeries || [], 'network')}
+                    ${buildMetricTile('Disk Read', formatBytes(insights.totalDiskReadBytes), 'Top VMs, last 1h', insights.diskReadSeries || [], 'disk')}
+                    ${buildMetricTile('Disk Write', formatBytes(insights.totalDiskWriteBytes), 'Top VMs, last 1h', insights.diskWriteSeries || [], 'disk')}
+                    <div class="vm-idle-panel ${(insights.idleVms || 0) > 0 ? 'idle' : 'active'}">
+                        <div class="vm-idle-label">Idle Detection</div>
+                        <strong>${insights.idleVms || 0} idle / ${insights.activeVms || 0} active</strong>
+                        <p>${insights.missingMetricVms || 0} VMs missing metric samples</p>
+                        <small>Based on latest collected idle summaries</small>
+                    </div>
+                </div>
+                <div class="env-two-column mt-2">
+                    <div>
+                        <div class="env-section-label">Busiest VMs</div>
+                        ${busiestRows || buildEmptyState('No CPU samples collected yet.')}
+                    </div>
+                    <div>
+                        <div class="env-section-label">Idle VMs</div>
+                        ${idleRows || buildEmptyState('No idle VMs detected.')}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function buildEnvironmentStorageSection(insights) {
+        return `
+            <div class="vm-insight-section">
+                <div class="vm-storage-summary">
+                    ${buildStorageMeter('Allocated', insights.totalAllocatedStorageGib ? `${insights.totalAllocatedStorageGib} GiB` : '-', 100)}
+                    ${buildStorageMeter('Volumes', insights.volumeCount || 0, 100)}
+                    ${buildStorageMeter('Used', 'Not collected', 0)}
+                </div>
+                <div class="env-chip-grid mt-2">
+                    ${buildMapChips('Volume type', insights.volumeTypeCounts)}
+                </div>
+                <div class="vm-storage-meter">
+                    <div style="width: 0%"></div>
+                </div>
+            </div>
+        `;
+    }
+
+    function buildEnvironmentGroupsSection(insights) {
+        const rows = (insights.groups || []).slice(0, 8).map(group => `
+            <div class="env-insight-row">
+                <div>
+                    <strong>${escapeHtml(group.name || '-')}</strong>
+                    <small>Seq ${group.sequencePosition || '-'}</small>
+                </div>
+                <span>${group.runningVms || 0}/${group.totalVms || 0} running</span>
+                <span>${formatPercent(group.avgCpuUtilization)}</span>
+                <span>${group.idleVms || 0} idle</span>
+            </div>
+        `).join('');
+
+        return `
+            <div class="vm-insight-section">
+                ${rows || buildEmptyState('No groups configured for this environment.')}
+            </div>
+        `;
+    }
+
+    function buildEnvironmentRecommendationsSection(insights) {
+        const rows = (insights.recommendations || []).map(item => `
+            <div class="vm-timeline-item env-check-${escapeHtml(item.tone || 'muted')}">
+                <div class="vm-timeline-dot ${escapeHtml(item.tone || 'muted')}"></div>
+                <div>
+                    <strong>${escapeHtml(item.title || '-')}</strong>
+                    <small>${escapeHtml(item.description || '')}</small>
+                </div>
+                <span class="env-check-count">${item.count || 0}</span>
+            </div>
+        `).join('');
+
+        return `
+            <div class="vm-insight-section">
+                <div class="vm-timeline">
+                    ${rows || buildEmptyState('No checks to show yet.')}
+                </div>
+            </div>
+        `;
+    }
+
+    function buildMapChips(label, values) {
+        const entries = Object.entries(values || {});
+        if (entries.length === 0) return buildEmptyState(`No ${label.toLowerCase()} data collected yet.`);
+        return `
+            <div class="env-chip-panel">
+                <span>${escapeHtml(label)}</span>
+                <div>
+                    ${entries.slice(0, 8).map(([key, value]) => `
+                        <span class="env-chip">${escapeHtml(key)} <strong>${value}</strong></span>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    function buildVmInsightRows(rows, mode) {
+        return rows.map(row => `
+            <div class="env-insight-row">
+                <div>
+                    <strong>${escapeHtml(row.name || '-')}</strong>
+                    <small>${escapeHtml(row.groupName || '-')}</small>
+                </div>
+                <span>${escapeHtml(row.status || '-')}</span>
+                <span>${mode === 'idle' ? formatMinutes(row.idleDurationMinutes || 0) : formatPercent(row.cpuUtilization)}</span>
+            </div>
+        `).join('');
+    }
+
+    function showVmDetails(envId, vmId, window = '1h', activeTab = 'overview') {
         ApiClient.get(Config.API.vms.get(envId, vmId))
             .done(function(vm) {
                 const providerConfig = Config.CLOUD_ICONS[vm.provider] || { icon: 'fas fa-cloud', label: vm.provider };
                 const statusConfig = Config.STATUS.vm[vm.status] || Config.STATUS.vm.UNKNOWN;
+                const inventoryRequest = resolveApiOrNull(ApiClient.get(Config.API.vms.inventory(envId, vmId), { suppressGlobalError: true }));
+                const metricsRequest = resolveApiOrNull(ApiClient.get(Config.API.vms.metrics(envId, vmId, window, 300), { suppressGlobalError: true }));
+                const summaryRequest = resolveApiOrNull(ApiClient.get(Config.API.vms.utilizationSummary(envId, vmId), { suppressGlobalError: true }));
 
-                const formatTime = (time) => {
-                    if (!time) return 'Never';
-                    try {
-                        return typeof Utils !== 'undefined' && Utils.formatRelativeTime ?
-                            Utils.formatRelativeTime(time) : new Date(time).toLocaleString();
-                    } catch (e) {
-                        return new Date(time).toLocaleString();
-                    }
-                };
+                $.when(inventoryRequest, metricsRequest, summaryRequest)
+                    .done(function(inventory, metrics, summary) {
+                        const insights = buildLiveVmInsightsData(vm, inventory, metrics, summary);
+                        const content = buildVmInsightsPanel(vm, providerConfig, statusConfig, insights, envId, window, activeTab);
+                        const title = buildVmInsightsTitle(vm, statusConfig, insights);
 
-                const content = `
-                    <div class="vm-details">
-                        <div class="mb-3">
-                            <span class="status-badge ${statusConfig.class} fs-6">
-                                <i class="fas ${statusConfig.icon}"></i> ${statusConfig.label}
-                            </span>
-                        </div>
-                        <table class="table table-sm">
-                            <tr><th>Name</th><td>${escapeHtml(vm.name)}</td></tr>
-                            <tr><th>Display Name</th><td>${escapeHtml(vm.displayName || vm.name)}</td></tr>
-                            <tr><th>Provider</th><td><i class="${providerConfig.icon}"></i> ${providerConfig.label}</td></tr>
-                            <tr><th>Region</th><td>${vm.region}</td></tr>
-                            <tr><th>Provider VM ID</th><td><code>${vm.providerVmId}</code></td></tr>
-                            <tr><th>Type</th><td>${vm.vmType || '-'}</td></tr>
-                            <tr><th>Sequence</th><td>${vm.sequencePosition}</td></tr>
-                            <tr><th>Last Sync</th><td>${formatTime(vm.lastStateSyncAt)}</td></tr>
-                        </table>
-                    </div>
-                `;
-
-                try {
-                    if (typeof Slideout !== 'undefined' && Slideout.open) {
-                        Slideout.open(`VM: ${escapeHtml(vm.name)}`, content);
-                    } else {
-                        Notifications.info('VM Details: ' + vm.name);
-                    }
-                } catch (e) {
-                    console.error('Error opening slideout:', e);
-                    Notifications.info('Could not display VM details');
-                }
+                        try {
+                            if (typeof Slideout !== 'undefined' && Slideout.open) {
+                                Slideout.open(title, content);
+                                bindMetricWindowInteractions();
+                            } else {
+                                Notifications.info('VM Details: ' + vm.name);
+                            }
+                        } catch (e) {
+                            console.error('Error opening slideout:', e);
+                            Notifications.info('Could not display VM details');
+                        }
+                    });
             })
             .fail(function() {
                 Notifications.error('Failed to load VM details');
             });
+    }
+
+    function resolveApiOrNull(request) {
+        const deferred = $.Deferred();
+        request.done(function(data) {
+            deferred.resolve(data);
+        }).fail(function() {
+            deferred.resolve(null);
+        });
+        return deferred.promise();
+    }
+
+    function bindMetricWindowInteractions() {
+        $(document).off('click.vmMetricWindow', '.vm-window-control button')
+            .on('click.vmMetricWindow', '.vm-window-control button', function() {
+                const $button = $(this);
+                showVmDetails($button.data('env-id'), $button.data('vm-id'), $button.data('window') || '1h', 'utilization');
+            });
+    }
+
+    function buildVmInsightsTitle(vm, statusConfig, mock) {
+        return `
+            <div class="vm-slideout-title">
+                <span class="vm-slideout-name">VM: ${escapeHtml(vm.displayName || vm.name)}</span>
+                <span class="vm-slideout-badges">
+                    <span class="vm-title-pill vm-title-status ${statusConfig.class}">
+                        <i class="fas ${statusConfig.icon}"></i> ${statusConfig.label}
+                    </span>
+                    <span class="vm-title-pill vm-title-idle ${mock.idle.isIdle ? 'idle' : 'active'}">
+                        <i class="fas ${mock.idle.isIdle ? 'fa-moon' : 'fa-bolt'}"></i>
+                        ${mock.idle.label}
+                    </span>
+                </span>
+            </div>
+        `;
+    }
+
+    function buildVmInsightsPanel(vm, providerConfig, statusConfig, mock, envId, selectedWindow = '1h', activeTab = 'overview') {
+        const providerLabel = providerConfig.label || vm.provider || 'Cloud';
+        const lastSync = formatVmInsightTime(vm.lastStateSyncAt);
+        const tab = ['overview', 'utilization', 'storage', 'history'].includes(activeTab) ? activeTab : 'overview';
+
+        return `
+            <div class="vm-insights-panel">
+                <div class="vm-insights-summary">
+                    ${buildInsightStat('Instance', mock.instanceType || '-', 'fa-microchip')}
+                    ${buildInsightStat('CPU', formatPercent(mock.cpu.latest), 'fa-gauge-high')}
+                    ${buildInsightStat('Storage', mock.storage.totalGiB ? `${mock.storage.totalGiB} GiB` : '-', 'fa-hard-drive')}
+                    ${buildInsightStat('Last metric', mock.lastMetricSample, 'fa-clock')}
+                </div>
+
+                <ul class="nav nav-tabs vm-insights-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link ${tab === 'overview' ? 'active' : ''}" data-bs-toggle="tab" data-bs-target="#vm-overview-tab" type="button" role="tab">Overview</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link ${tab === 'utilization' ? 'active' : ''}" data-bs-toggle="tab" data-bs-target="#vm-utilization-tab" type="button" role="tab">Utilization</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link ${tab === 'storage' ? 'active' : ''}" data-bs-toggle="tab" data-bs-target="#vm-storage-tab" type="button" role="tab">Storage</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link ${tab === 'history' ? 'active' : ''}" data-bs-toggle="tab" data-bs-target="#vm-history-tab" type="button" role="tab">History</button>
+                    </li>
+                </ul>
+
+                <div class="tab-content vm-insights-tab-content">
+                    <div class="tab-pane fade ${tab === 'overview' ? 'show active' : ''}" id="vm-overview-tab" role="tabpanel">
+                        ${buildOverviewSection(vm, providerLabel, providerConfig, mock, lastSync)}
+                    </div>
+                    <div class="tab-pane fade ${tab === 'utilization' ? 'show active' : ''}" id="vm-utilization-tab" role="tabpanel">
+                        ${buildUtilizationSection(mock, envId, vm.vmId, selectedWindow)}
+                    </div>
+                    <div class="tab-pane fade ${tab === 'storage' ? 'show active' : ''}" id="vm-storage-tab" role="tabpanel">
+                        ${buildStorageSection(mock)}
+                    </div>
+                    <div class="tab-pane fade ${tab === 'history' ? 'show active' : ''}" id="vm-history-tab" role="tabpanel">
+                        ${buildHistorySection(mock)}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function buildInsightStat(label, value, icon) {
+        return `
+            <div class="vm-insight-stat">
+                <i class="fas ${icon}" aria-hidden="true"></i>
+                <div>
+                    <span>${escapeHtml(value)}</span>
+                    <small>${escapeHtml(label)}</small>
+                </div>
+            </div>
+        `;
+    }
+
+    function buildOverviewSection(vm, providerLabel, providerConfig, mock, lastSync) {
+        return `
+            <div class="vm-insight-section">
+                <div class="vm-overview-clean">
+                    ${buildField('Private IP', mock.privateIp)}
+                    ${buildField('Public IP', mock.publicIp)}
+                    ${buildField('Instance type', mock.instanceType)}
+                    ${buildField('vCPU / Memory', `${mock.vcpu} vCPU / ${mock.memoryGiB} GiB`)}
+                    ${buildField('Region / AZ', `${vm.region || mock.region} / ${mock.availabilityZone}`)}
+                    ${buildField('Last state sync', lastSync)}
+                </div>
+                <div class="vm-provider-line">
+                    <span><i class="${providerConfig.icon}"></i> ${escapeHtml(providerLabel)}</span>
+                    <code>${escapeHtml(vm.providerVmId || 'pending-provider-id')}</code>
+                </div>
+            </div>
+        `;
+    }
+
+    function buildUtilizationSection(mock, envId, vmId, selectedWindow = '1h') {
+        const windows = ['1h', '6h', '12h', '24h', '7d'];
+        return `
+            <div class="vm-insight-section">
+                <div class="vm-window-control" aria-label="Metric window">
+                    ${windows.map(window => `
+                        <button class="${window === selectedWindow ? 'active' : ''}" type="button"
+                                data-env-id="${escapeHtml(envId)}" data-vm-id="${escapeHtml(vmId)}" data-window="${window}">
+                            ${window}
+                        </button>
+                    `).join('')}
+                </div>
+
+                <div class="vm-util-grid">
+                    ${buildMetricTile('CPU Utilization', formatPercent(mock.cpu.latest), 'Avg 1h', mock.cpu.series, 'cpu')}
+                    ${buildMetricTile('Network In', formatBytes(mock.network.inBytes), 'Last period', mock.network.inSeries, 'network')}
+                    ${buildMetricTile('Network Out', formatBytes(mock.network.outBytes), 'Last period', mock.network.outSeries, 'network')}
+                    ${buildMetricTile('Disk Read', formatBytes(mock.disk.readBytes), 'Last period', mock.disk.readSeries, 'disk')}
+                    ${buildMetricTile('Disk Write', formatBytes(mock.disk.writeBytes), 'Last period', mock.disk.writeSeries, 'disk')}
+                    <div class="vm-idle-panel ${mock.idle.isIdle ? 'idle' : 'active'}"
+                         title="${escapeHtml(mock.idle.reason)} Thresholds: CPU < 5%, low network, low disk IO for 30 minutes.">
+                        <div class="vm-idle-label">Idle Detection</div>
+                        <strong>${mock.idle.label}</strong>
+                        <p>${mock.idle.reason}</p>
+                        <small>CPU &lt; 5%, low network and disk IO</small>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function buildStorageSection(mock) {
+        const volumes = mock.storage.volumes.length > 0 ? mock.storage.volumes.map(volume => `
+            <div class="vm-volume-pill">
+                <div>
+                    <strong>${escapeHtml(volume.device)}</strong>
+                    <code>${escapeHtml(volume.volumeId)}</code>
+                </div>
+                <span>${escapeHtml(volume.type)} / ${volume.sizeGiB} GiB</span>
+                <small>${volume.iops} IOPS / ${volume.throughput} MB/s</small>
+            </div>
+        `).join('') : buildEmptyState('No EBS volume snapshot collected yet.');
+
+        return `
+            <div class="vm-insight-section">
+                <div class="vm-storage-summary">
+                    ${buildStorageMeter('Allocated', mock.storage.totalGiB ? `${mock.storage.totalGiB} GiB` : '-', 100)}
+                    ${buildStorageMeter('Used', 'Not collected', 0)}
+                    ${buildStorageMeter('Free', 'Not collected', 0)}
+                </div>
+                <div class="vm-storage-meter">
+                    <div style="width: 0%"></div>
+                </div>
+                <div class="vm-volume-list">
+                    ${volumes}
+                </div>
+            </div>
+        `;
+    }
+
+    function buildHistorySection(mock) {
+        if (!mock.history || mock.history.length === 0) {
+            return `
+                <div class="vm-insight-section">
+                    ${buildEmptyState('No inventory or metric events collected yet.')}
+                </div>
+            `;
+        }
+
+        return `
+            <div class="vm-insight-section">
+                <div class="vm-timeline">
+                    ${mock.history.slice(0, 3).map(item => `
+                        <div class="vm-timeline-item">
+                            <div class="vm-timeline-dot ${item.tone}"></div>
+                            <div>
+                                <strong>${escapeHtml(item.title)}</strong>
+                                <small>${escapeHtml(item.time)}</small>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    function buildField(label, value, isHtml = false) {
+        const displayValue = value === null || value === undefined || value === '' ? '-' : value;
+        return `
+            <div class="vm-field">
+                <span>${escapeHtml(label)}</span>
+                <strong>${isHtml ? displayValue : escapeHtml(displayValue)}</strong>
+            </div>
+        `;
+    }
+
+    function buildMetricTile(label, value, caption, series, tone = 'default') {
+        const lines = getColoredMetricLines(series, label, tone);
+        const multiSeries = lines.length > 1;
+        const chart = lines.length > 0
+            ? buildEchartLineChart(lines, tone, label)
+            : buildMetricPlaceholder();
+        return `
+            <div class="vm-metric-tile">
+                <div class="vm-metric-head">
+                    <span>${escapeHtml(label)}</span>
+                    <div class="vm-metric-value-wrap">
+                        ${multiSeries ? buildDotLegend(lines) : ''}
+                        <strong>${escapeHtml(value)}</strong>
+                    </div>
+                </div>
+                ${chart}
+                <small>${escapeHtml(caption)}</small>
+            </div>
+        `;
+    }
+
+    function buildEchartLineChart(lines, tone, label) {
+        const chartId = `vm-echart-${++metricChartCounter}`;
+        const configId = `${chartId}-config`;
+        const config = {
+            label,
+            tone,
+            unit: tone === 'cpu' ? 'percent' : 'mb',
+            series: lines
+        };
+        return `
+            <div id="${chartId}" class="vm-echart vm-echart-${tone}"
+                 data-chart-config-id="${configId}" role="img"
+                 aria-label="${escapeHtml(label)} utilization chart"></div>
+            <script type="application/json" id="${configId}">${safeJson(config)}</script>
+        `;
+    }
+
+    function buildDotLegend(lines) {
+        return `
+            <div class="vm-chart-dot-legend" aria-label="VM chart legend">
+                ${lines.map((line) => `
+                    <span class="vm-chart-dot"
+                          style="background:${line.color}"
+                          title="${escapeHtml(line.name || line.vmId || 'VM')}"></span>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    function getColoredMetricLines(series, label, tone) {
+        const palette = tone === 'cpu'
+            ? ['#2563eb', '#059669', '#d97706', '#dc2626', '#7c3aed']
+            : ['#0f766e', '#2563eb', '#d97706', '#7c3aed', '#dc2626'];
+
+        if (Array.isArray(series) && series.length > 1 && series.every(value => typeof value !== 'object')) {
+            return [{
+                name: label,
+                values: series,
+                color: palette[0]
+            }];
+        }
+
+        return (series || [])
+            .filter(item => item && Array.isArray(item.values) && item.values.length > 1)
+            .slice(0, palette.length)
+            .map((line, index) => ({
+                name: line.name || line.vmId || `VM ${index + 1}`,
+                vmId: line.vmId,
+                values: line.values,
+                color: palette[index]
+            }));
+    }
+
+    function safeJson(value) {
+        return JSON.stringify(value).replace(/</g, '\\u003c');
+    }
+
+    function buildMetricPlaceholder() {
+        return `
+            <div class="vm-metric-placeholder">
+                <span>No samples</span>
+            </div>
+        `;
+    }
+
+    function buildEmptyState(message) {
+        return `
+            <div class="vm-empty-state">
+                <i class="fas fa-circle-info" aria-hidden="true"></i>
+                <span>${escapeHtml(message)}</span>
+            </div>
+        `;
+    }
+
+    function buildStorageMeter(label, value, percent) {
+        return `
+            <div class="vm-storage-stat">
+                <span>${escapeHtml(label)}</span>
+                <strong>${escapeHtml(value)}</strong>
+                <small>${Math.max(0, Math.min(100, Math.round(percent)))}%</small>
+            </div>
+        `;
+    }
+
+    function buildLiveVmInsightsData(vm, inventory, metrics, summary) {
+        const volumes = inventory && Array.isArray(inventory.volumes) ? inventory.volumes : [];
+        const totalStorage = inventory?.totalStorageGib || sumVolumeSize(volumes) || summary?.totalStorageGib;
+        const samples = metrics && Array.isArray(metrics.series) ? metrics.series : [];
+        const latest = metrics?.latest || samples[samples.length - 1] || null;
+        const idle = metrics?.idle || null;
+        const isIdle = idle?.idle === true || summary?.idle === true;
+        const idleDuration = idle?.idleDurationMinutes ?? summary?.idleDurationMinutes ?? 0;
+
+        const insights = {
+            region: vm.region || '-',
+            availabilityZone: inventory?.availabilityZone || '-',
+            privateIp: inventory?.privateIp || vm.privateIp || '-',
+            publicIp: inventory?.publicIp || vm.publicIp || '-',
+            instanceType: inventory?.instanceType || summary?.instanceType || normalizeVmType(vm.vmType),
+            vcpu: inventory?.vcpuCount || '-',
+            memoryGiB: inventory?.memoryMib ? roundOneDecimal(inventory.memoryMib / 1024) : '-',
+            architecture: inventory?.architecture || '-',
+            launchTime: inventory?.launchTime ? formatVmInsightTime(inventory.launchTime) : '-',
+            lastInventoryRefresh: inventory?.lastRefreshedAt ? formatVmInsightTime(inventory.lastRefreshedAt) : null,
+            lastMetricSample: latest?.sampleTime ? formatVmInsightTime(latest.sampleTime) : 'No samples',
+            cpu: {
+                latest: latest?.cpuUtilization ?? summary?.latestCpuUtilization ?? null,
+                series: sampleSeries(samples, 'cpuUtilization', 'percent')
+            },
+            network: {
+                inBytes: latest?.networkInBytes ?? null,
+                outBytes: latest?.networkOutBytes ?? null,
+                inSeries: sampleSeries(samples, 'networkInBytes', 'bytes'),
+                outSeries: sampleSeries(samples, 'networkOutBytes', 'bytes')
+            },
+            disk: {
+                readBytes: latest?.diskReadBytes ?? null,
+                writeBytes: latest?.diskWriteBytes ?? null,
+                readSeries: sampleSeries(samples, 'diskReadBytes', 'bytes'),
+                writeSeries: sampleSeries(samples, 'diskWriteBytes', 'bytes')
+            },
+            idle: {
+                isIdle,
+                label: idle || summary
+                    ? (isIdle ? `Idle ${formatMinutes(idleDuration)}` : 'Active now')
+                    : 'Metrics pending',
+                reason: idle?.reason || (summary ? 'Latest utilization summary received.' : 'No metrics collected yet.')
+            },
+            storage: {
+                totalGiB: totalStorage || null,
+                usedGiB: null,
+                freeGiB: null,
+                usedPercent: 0,
+                volumes: volumes.map(volume => ({
+                    device: volume.deviceName || '-',
+                    volumeId: volume.volumeId || '-',
+                    type: volume.volumeType || '-',
+                    sizeGiB: volume.sizeGib || 0,
+                    iops: volume.iops || '-',
+                    throughput: volume.throughputMbps || '-',
+                    encrypted: volume.encrypted === true
+                }))
+            },
+            history: []
+        };
+
+        if (inventory?.lastRefreshedAt) {
+            insights.history.push({
+                tone: 'success',
+                title: 'Inventory refreshed',
+                time: formatVmInsightTime(inventory.lastRefreshedAt)
+            });
+        }
+
+        if (latest?.sampleTime) {
+            insights.history.push({
+                tone: isIdle ? 'warning' : 'primary',
+                title: isIdle ? 'Idle summary updated' : 'Metric sample collected',
+                time: formatVmInsightTime(latest.sampleTime)
+            });
+        }
+
+        return insights;
+    }
+
+    function sumVolumeSize(volumes) {
+        return volumes.reduce((total, volume) => total + (Number(volume.sizeGib) || 0), 0);
+    }
+
+    function sampleSeries(samples, field, unit) {
+        const values = samples
+            .slice(-12)
+            .map(sample => sample[field])
+            .filter(value => value !== null && value !== undefined)
+            .map(value => {
+                const numeric = Number(value);
+                return unit === 'bytes' ? Math.round(numeric / (1024 * 1024)) : Math.round(numeric);
+            });
+        return values.length > 1 ? values : [];
+    }
+
+    function normalizeVmType(vmType) {
+        return vmType && vmType !== 'UNKNOWN' ? vmType : '-';
+    }
+
+    function formatPercent(value) {
+        if (value === null || value === undefined || value === '') return '-';
+        const numeric = Number(value);
+        if (Number.isNaN(numeric)) return '-';
+        return `${Math.round(numeric)}%`;
+    }
+
+    function roundOneDecimal(value) {
+        return Math.round(value * 10) / 10;
+    }
+
+    function formatMinutes(minutes) {
+        const safeMinutes = Math.max(0, Number(minutes) || 0);
+        const hours = Math.floor(safeMinutes / 60);
+        const mins = safeMinutes % 60;
+        if (hours === 0) return `${mins}m`;
+        if (mins === 0) return `${hours}h`;
+        return `${hours}h ${mins}m`;
+    }
+
+    function formatBytes(bytes) {
+        if (!bytes && bytes !== 0) return '-';
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        let value = Number(bytes);
+        let unitIndex = 0;
+        while (value >= 1024 && unitIndex < units.length - 1) {
+            value = value / 1024;
+            unitIndex++;
+        }
+        return `${value >= 10 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`;
+    }
+
+    function formatVmInsightTime(time) {
+        if (!time) return 'Never';
+        try {
+            return typeof Utils !== 'undefined' && Utils.formatRelativeTime ?
+                Utils.formatRelativeTime(time) : new Date(time).toLocaleString();
+        } catch (e) {
+            return new Date(time).toLocaleString();
+        }
     }
 
     function showOperationHistory(envId, envName) {
