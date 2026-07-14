@@ -96,9 +96,10 @@ const SystemHealth = (function () {
                 { suppressGlobalError: true }
             )
             .done(data => {
-                // Backend may return a plain number or a wrapped object
+                // Backend may return a plain number or a wrapped object. The real field name
+                // from MonitoringController's /drift-events/count response is "driftEventCount".
                 if (typeof data === 'number') resolve(data);
-                else resolve(Number(data.count ?? data.driftCount ?? data.value ?? data) || 0);
+                else resolve(Number(data.driftEventCount ?? data.count ?? data.driftCount ?? data.value) || 0);
             })
             .fail(() => resolve(0));
         });
