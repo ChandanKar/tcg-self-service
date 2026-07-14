@@ -10,6 +10,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.domain.Page;
 import org.springframework.test.context.jdbc.Sql;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -309,6 +310,50 @@ class StateSyncServiceTest {
         verify(awsCloudProviderService, never()).getVmStatus(anyString(), anyString());
         Vm unchanged = vmRepository.findById(testVm.getVmId()).orElseThrow();
         assertEquals(VmStatus.STOPPING, unchanged.getStatus());
+    }
+
+    @Test
+    void testSyncVmState_ReconcilesStaleTransitionalVm_WhenStuckStarting() {
+        // A VM whose status was orphaned mid-operation (e.g. a crashed operation that never
+        // wrote back a terminal status) must eventually be corrected, not skipped forever.
+        ReflectionTestUtils.setField(stateSyncService, "staleTransitionalMinutes", 0L);
+        testVm.setStatus(VmStatus.STARTING);
+        testVm = vmRepository.save(testVm);
+        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.RUNNING);
+
+        boolean hasDrift = stateSyncService.syncVmState(testVm);
+
+        assertTrue(hasDrift);
+        verify(awsCloudProviderService).getVmStatus(anyString(), anyString());
+        Vm reconciled = vmRepository.findById(testVm.getVmId()).orElseThrow();
+        assertEquals(VmStatus.RUNNING, reconciled.getStatus());
+    }
+
+    @Test
+    void testSyncVmState_ReconcilesStaleTransitionalVm_WhenStuckStopping() {
+        ReflectionTestUtils.setField(stateSyncService, "staleTransitionalMinutes", 0L);
+        testVm.setStatus(VmStatus.STOPPING);
+        testVm = vmRepository.save(testVm);
+        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.STOPPED);
+
+        boolean hasDrift = stateSyncService.syncVmState(testVm);
+
+        assertTrue(hasDrift);
+        Vm reconciled = vmRepository.findById(testVm.getVmId()).orElseThrow();
+        assertEquals(VmStatus.STOPPED, reconciled.getStatus());
+    }
+
+    @Test
+    void testSyncVmState_StillSkipsFreshTransitionalVm_RegardlessOfThreshold() {
+        // Sanity check: a VM that just entered STARTING (updatedAt = now) must still be
+        // skipped under the real default threshold, not just under the test's threshold=0 cases.
+        testVm.setStatus(VmStatus.STARTING);
+        testVm = vmRepository.save(testVm);
+
+        boolean hasDrift = stateSyncService.syncVmState(testVm);
+
+        assertFalse(hasDrift);
+        verify(awsCloudProviderService, never()).getVmStatus(anyString(), anyString());
     }
 }
 

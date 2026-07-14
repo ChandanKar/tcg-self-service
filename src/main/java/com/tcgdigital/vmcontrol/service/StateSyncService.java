@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -45,6 +46,17 @@ public class StateSyncService {
 
     @Value("${vm.state.sync.interval:300000}")
     private long syncIntervalMs;
+
+    /**
+     * A VM in STARTING/STOPPING is assumed to be driven by an in-flight operation and is
+     * skipped from sync — but only while that assumption is plausible. The longest legitimate
+     * single-VM operation timeout in this app is 15 minutes (EKS node group scaling); this
+     * threshold is set comfortably above that so sync never interrupts a real operation, while
+     * still eventually reconciling a VM whose status update was orphaned by a crashed/failed
+     * operation that never wrote back a terminal status.
+     */
+    @Value("${vm.state.sync.stale-transitional-minutes:20}")
+    private long staleTransitionalMinutes;
 
     // Sync status tracking
     private final AtomicBoolean syncInProgress = new AtomicBoolean(false);
@@ -91,15 +103,18 @@ public class StateSyncService {
             List<Vm> activeVms = vmRepository.findByIsActiveTrue();
             vmCount.set(activeVms.size());
 
-            // VMs in transitional states are being driven by an in-flight operation — skip them
+            // VMs in transitional states are being driven by an in-flight operation — skip them,
+            // unless they've been transitional for longer than any real operation could take
+            // (see staleTransitionalMinutes), in which case something orphaned the status and
+            // sync should reconcile it rather than leave it stuck forever.
             List<Vm> vmsToSync = activeVms.stream()
-                    .filter(vm -> vm.getStatus() != VmStatus.STARTING
-                               && vm.getStatus() != VmStatus.STOPPING)
+                    .filter(vm -> !isFreshTransitional(vm))
                     .toList();
 
             int skipped = activeVms.size() - vmsToSync.size();
             if (skipped > 0) {
-                log.debug("Skipping {} VM(s) in transitional state (STARTING/STOPPING)", skipped);
+                log.debug("Skipping {} VM(s) in transitional state (STARTING/STOPPING) less than {}m old",
+                        skipped, staleTransitionalMinutes);
             }
 
             // Group by "PROVIDER:region" — one batch API call per group
@@ -219,13 +234,31 @@ public class StateSyncService {
      * The full-sync path uses {@link #applySyncedStatus} directly with batch-fetched statuses.
      */
     public boolean syncVmState(Vm vm) {
-        VmStatus currentStatus = vm.getStatus();
-        if (currentStatus == VmStatus.STARTING || currentStatus == VmStatus.STOPPING) {
-            log.debug("Skipping sync for VM {} — transitional state {}", vm.getVmId(), currentStatus);
+        if (isFreshTransitional(vm)) {
+            log.debug("Skipping sync for VM {} — transitional state {} less than {}m old",
+                    vm.getVmId(), vm.getStatus(), staleTransitionalMinutes);
             return false;
         }
         VmStatus cloudStatus = fetchCloudVmStatusWithRetry(vm, 2);
         return applySyncedStatus(vm, cloudStatus);
+    }
+
+    /**
+     * True if the VM is in STARTING/STOPPING and recently entered that status (within
+     * {@link #staleTransitionalMinutes}), meaning it's plausibly still driven by a real
+     * in-flight operation and should be left alone by sync.
+     */
+    private boolean isFreshTransitional(Vm vm) {
+        VmStatus status = vm.getStatus();
+        if (status != VmStatus.STARTING && status != VmStatus.STOPPING) {
+            return false;
+        }
+        Timestamp updatedAt = vm.getUpdatedAt();
+        if (updatedAt == null) {
+            return false;
+        }
+        long minutesInState = Duration.between(updatedAt.toInstant(), Instant.now()).toMinutes();
+        return minutesInState < staleTransitionalMinutes;
     }
 
     /**
