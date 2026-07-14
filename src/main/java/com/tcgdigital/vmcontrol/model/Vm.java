@@ -37,6 +37,12 @@ public class Vm {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    @Column(length = 255)
+    private String purpose;
+
+    @Column(columnDefinition = "TEXT")
+    private String remarks;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private CloudProvider provider;
@@ -163,6 +169,22 @@ public class Vm {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getPurpose() {
+        return purpose;
+    }
+
+    public void setPurpose(String purpose) {
+        this.purpose = purpose;
+    }
+
+    public String getRemarks() {
+        return remarks;
+    }
+
+    public void setRemarks(String remarks) {
+        this.remarks = remarks;
     }
 
     public CloudProvider getProvider() {

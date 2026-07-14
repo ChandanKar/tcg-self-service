@@ -11,11 +11,15 @@ import com.tcgdigital.vmcontrol.repository.VmGroupRepository;
 import com.tcgdigital.vmcontrol.repository.VmRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Service for VM management operations.
@@ -52,6 +56,22 @@ public class VmService {
      */
     public List<Vm> getVmsByGroupId(String groupId) {
         return vmRepository.findByGroupGroupIdOrderBySequencePositionAsc(groupId);
+    }
+
+    /**
+     * Get a page of VMs in a group, for scalable VM listing UIs.
+     */
+    public Page<Vm> getVmsByGroupIdPaged(String groupId, int page, int size) {
+        return vmRepository.findByGroupGroupIdAndIsActiveTrueOrderBySequencePositionAsc(groupId, PageRequest.of(page, size));
+    }
+
+    /**
+     * VM/running counts for every group in an environment, keyed by groupId — computed with a
+     * single query so a group listing doesn't need a pair of count queries per group.
+     */
+    public Map<String, VmRepository.GroupVmCounts> getVmCountsByGroupForEnvironment(String environmentId) {
+        return vmRepository.countVmsGroupedByGroup(environmentId, VmStatus.RUNNING).stream()
+                .collect(Collectors.toMap(VmRepository.GroupVmCounts::getGroupId, c -> c));
     }
 
     /**
@@ -98,6 +118,8 @@ public class VmService {
         vm.setName(dto.getName().toLowerCase().replaceAll("\\s+", "-"));
         vm.setDisplayName(dto.getDisplayName());
         vm.setDescription(dto.getDescription());
+        vm.setPurpose(dto.getPurpose());
+        vm.setRemarks(dto.getRemarks());
         vm.setProvider(dto.getProvider());
         vm.setRegion(dto.getRegion());
         vm.setProviderVmId(dto.getProviderVmId());
@@ -153,6 +175,8 @@ public class VmService {
         vm.setName(dto.getName().toLowerCase().replaceAll("\\s+", "-"));
         vm.setDisplayName(dto.getDisplayName());
         vm.setDescription(dto.getDescription());
+        vm.setPurpose(dto.getPurpose());
+        vm.setRemarks(dto.getRemarks());
         vm.setProvider(dto.getProvider());
         vm.setRegion(dto.getRegion());
         vm.setProviderVmId(dto.getProviderVmId());

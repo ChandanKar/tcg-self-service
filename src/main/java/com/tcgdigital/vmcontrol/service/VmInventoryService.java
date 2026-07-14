@@ -49,6 +49,20 @@ public class VmInventoryService {
         return VmInventoryDTO.from(inventory, volumes);
     }
 
+    /**
+     * Private IPs for a batch of VMs, keyed by vmId — one query regardless of how many VMs are
+     * requested, so a VM listing can show Private IP per row without a query per row.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, String> getPrivateIpsByVmIds(List<String> vmIds) {
+        if (vmIds.isEmpty()) {
+            return Map.of();
+        }
+        return inventoryRepository.findByVmVmIdIn(vmIds).stream()
+                .filter(snapshot -> snapshot.getPrivateIp() != null)
+                .collect(Collectors.toMap(snapshot -> snapshot.getVm().getVmId(), VmInventorySnapshot::getPrivateIp));
+    }
+
     @Transactional
     public int syncAllInventory() {
         return syncInventory(vmRepository.findByIsActiveTrue());

@@ -8,6 +8,7 @@ import com.tcgdigital.vmcontrol.dto.VmGroupDTO;
 import com.tcgdigital.vmcontrol.dto.VmUtilizationSummaryDTO;
 import com.tcgdigital.vmcontrol.model.Vm;
 import com.tcgdigital.vmcontrol.model.VmGroup;
+import com.tcgdigital.vmcontrol.repository.VmRepository;
 import com.tcgdigital.vmcontrol.service.SecurityService;
 import com.tcgdigital.vmcontrol.service.UserService;
 import com.tcgdigital.vmcontrol.service.VmGroupService;
@@ -23,13 +24,16 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * REST controller for VM management operations.
@@ -38,6 +42,8 @@ import java.util.List;
 @RequestMapping("/api/v1/environments/{environmentId}/vms")
 @Tag(name = "Virtual Machines", description = "Operations for managing VMs within environments")
 public class VmMgmtController {
+
+    private static final int DEFAULT_VM_PAGE_SIZE = 25;
 
     private final VmService vmService;
     private final VmGroupService groupService;
@@ -85,20 +91,68 @@ public class VmMgmtController {
         }
 
         List<VmGroup> groups = groupService.getGroupsByEnvironmentId(environmentId);
-        List<VmGroupWithVmsDTO> result = new ArrayList<>();
+        Map<String, VmRepository.GroupVmCounts> countsByGroup = vmService.getVmCountsByGroupForEnvironment(environmentId);
 
+        // Only the first page loads eagerly here — the rest is fetched on demand via
+        // GET .../vms/{groupId}/page so a group with many VMs doesn't slow this endpoint down.
+        Map<String, Page<Vm>> firstPageByGroup = new HashMap<>();
         for (VmGroup group : groups) {
-            List<Vm> vms = vmService.getVmsByGroupId(group.getGroupId());
+            firstPageByGroup.put(group.getGroupId(), vmService.getVmsByGroupIdPaged(group.getGroupId(), 0, DEFAULT_VM_PAGE_SIZE));
+        }
+
+        // Batch-fetch private IPs once across every VM about to be returned, rather than per group.
+        List<String> allVmIds = firstPageByGroup.values().stream()
+                .flatMap(page -> page.getContent().stream())
+                .map(Vm::getVmId)
+                .toList();
+        Map<String, String> privateIpsByVmId = inventoryService.getPrivateIpsByVmIds(allVmIds);
+
+        List<VmGroupWithVmsDTO> result = new ArrayList<>();
+        for (VmGroup group : groups) {
+            VmRepository.GroupVmCounts counts = countsByGroup.get(group.getGroupId());
+            int vmCount = counts != null ? (int) counts.getTotal() : 0;
+            int runningCount = counts != null ? (int) counts.getRunning() : 0;
+
+            Page<Vm> firstPage = firstPageByGroup.get(group.getGroupId());
+
             VmGroupWithVmsDTO dto = new VmGroupWithVmsDTO();
-            dto.setGroup(VmGroupDTO.fromEntityWithCounts(
-                    group,
-                    vms.size(),
-                    (int) vms.stream().filter(vm -> vm.getStatus() == com.tcgdigital.vmcontrol.model.VmStatus.RUNNING).count()
-            ));
-            dto.setVms(vms.stream().map(VmDTO::fromEntity).toList());
+            dto.setGroup(VmGroupDTO.fromEntityWithCounts(group, vmCount, runningCount));
+            dto.setVms(firstPage.getContent().stream()
+                    .map(vm -> withPrivateIp(VmDTO.fromEntity(vm), privateIpsByVmId))
+                    .toList());
             result.add(dto);
         }
 
+        return ResponseEntity.ok(result);
+    }
+
+    private VmDTO withPrivateIp(VmDTO dto, Map<String, String> privateIpsByVmId) {
+        dto.setPrivateIp(privateIpsByVmId.get(dto.getVmId()));
+        return dto;
+    }
+
+    @GetMapping("/{groupId}/page")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "List VMs in a group, paginated",
+            description = "Retrieves a page of VMs for a single group, ordered by sequence position. " +
+                    "Used to page through a group's VMs beyond the first page returned by the group listing."
+    )
+    public ResponseEntity<Page<VmDTO>> listVmsPage(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId,
+            @Parameter(description = "Group ID") @PathVariable String groupId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size) {
+
+        if (!securityService.hasEnvironmentAccess(environmentId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        Page<Vm> vmPage = vmService.getVmsByGroupIdPaged(groupId, page, size);
+        Map<String, String> privateIpsByVmId = inventoryService.getPrivateIpsByVmIds(
+                vmPage.getContent().stream().map(Vm::getVmId).toList());
+
+        Page<VmDTO> result = vmPage.map(vm -> withPrivateIp(VmDTO.fromEntity(vm), privateIpsByVmId));
         return ResponseEntity.ok(result);
     }
 
@@ -127,7 +181,8 @@ public class VmMgmtController {
         }
 
         Vm vm = vmService.getVmById(vmId);
-        return ResponseEntity.ok(VmDTO.fromEntity(vm));
+        Map<String, String> privateIpsByVmId = inventoryService.getPrivateIpsByVmIds(List.of(vmId));
+        return ResponseEntity.ok(withPrivateIp(VmDTO.fromEntity(vm), privateIpsByVmId));
     }
 
     @GetMapping("/{vmId}/inventory")
@@ -219,7 +274,8 @@ public class VmMgmtController {
             @Valid @RequestBody RegisterVmDTO dto) {
 
         Vm updated = vmService.updateVm(vmId, dto);
-        return ResponseEntity.ok(VmDTO.fromEntity(updated));
+        Map<String, String> privateIpsByVmId = inventoryService.getPrivateIpsByVmIds(List.of(vmId));
+        return ResponseEntity.ok(withPrivateIp(VmDTO.fromEntity(updated), privateIpsByVmId));
     }
 
     @DeleteMapping("/{vmId}")

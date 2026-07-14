@@ -27,6 +27,11 @@ public class RegisterVmDTO {
 
     private String description;
 
+    @Size(max = 255, message = "Purpose must be at most 255 characters")
+    private String purpose;
+
+    private String remarks;
+
     @NotNull(message = "Provider is required")
     private CloudProvider provider;
 
@@ -80,6 +85,22 @@ public class RegisterVmDTO {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getPurpose() {
+        return purpose;
+    }
+
+    public void setPurpose(String purpose) {
+        this.purpose = purpose;
+    }
+
+    public String getRemarks() {
+        return remarks;
+    }
+
+    public void setRemarks(String remarks) {
+        this.remarks = remarks;
     }
 
     public CloudProvider getProvider() {

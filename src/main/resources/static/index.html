@@ -483,8 +483,8 @@
                         <span class="text-muted">Group:</span> <strong id="vmGroupLabel"></strong>
                     </div>
 
-                    <!-- Import from AWS Section -->
-                    <div class="card mb-3 border-warning">
+                    <!-- Import from AWS Section (registration only, hidden when editing) -->
+                    <div class="card mb-3 border-warning" id="ec2ImportCard">
                         <div class="card-header bg-warning bg-opacity-10 d-flex justify-content-between align-items-center">
                             <span><i class="fab fa-aws text-warning me-2"></i><strong>Import from AWS</strong></span>
                             <button class="btn btn-sm btn-link p-0" type="button" data-bs-toggle="collapse" data-bs-target="#ec2ImportSection" aria-expanded="true">
@@ -572,6 +572,18 @@
                             <div class="col-md-6 mb-3">
                                 <label for="vmDescription" class="form-label">Description</label>
                                 <textarea class="form-control" id="vmDescription" rows="2" placeholder="Optional description"></textarea>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="vmPurpose" class="form-label">Purpose</label>
+                                <input type="text" class="form-control" id="vmPurpose" maxlength="255"
+                                       placeholder="e.g., Client X - Project Y">
+                                <div class="form-text">Associated client/project for this VM</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="vmRemarks" class="form-label">Remarks</label>
+                                <textarea class="form-control" id="vmRemarks" rows="2" placeholder="Optional remarks"></textarea>
                             </div>
                         </div>
                     </form>

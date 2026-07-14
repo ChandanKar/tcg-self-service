@@ -19,6 +19,9 @@ public class VmDTO {
     private String name;
     private String displayName;
     private String description;
+    private String purpose;
+    private String remarks;
+    private String privateIp;
     private CloudProvider provider;
     private String region;
     private String providerVmId;
@@ -43,6 +46,8 @@ public class VmDTO {
         dto.setName(vm.getName());
         dto.setDisplayName(vm.getDisplayName());
         dto.setDescription(vm.getDescription());
+        dto.setPurpose(vm.getPurpose());
+        dto.setRemarks(vm.getRemarks());
         dto.setProvider(vm.getProvider());
         dto.setRegion(vm.getRegion());
         dto.setProviderVmId(vm.getProviderVmId());
@@ -105,6 +110,30 @@ public class VmDTO {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getPurpose() {
+        return purpose;
+    }
+
+    public void setPurpose(String purpose) {
+        this.purpose = purpose;
+    }
+
+    public String getRemarks() {
+        return remarks;
+    }
+
+    public void setRemarks(String remarks) {
+        this.remarks = remarks;
+    }
+
+    public String getPrivateIp() {
+        return privateIp;
+    }
+
+    public void setPrivateIp(String privateIp) {
+        this.privateIp = privateIp;
     }
 
     public CloudProvider getProvider() {
