@@ -1554,9 +1554,13 @@ const Environments = (function() {
     }
 
     function buildOverviewSection(vm, providerLabel, providerConfig, mock, lastSync) {
+        const purposeValue = vm.purpose
+            ? `${escapeHtml(vm.purpose)}${vm.remarks ? `<div class="small text-muted">${escapeHtml(vm.remarks)}</div>` : ''}`
+            : null;
         return `
             <div class="vm-insight-section">
                 <div class="vm-overview-clean">
+                    ${buildField('Purpose', purposeValue, true)}
                     ${buildField('Private IP', mock.privateIp)}
                     ${buildField('Public IP', mock.publicIp)}
                     ${buildField('Instance type', mock.instanceType)}
