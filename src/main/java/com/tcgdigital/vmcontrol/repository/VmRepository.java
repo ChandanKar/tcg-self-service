@@ -132,6 +132,15 @@ public interface VmRepository extends JpaRepository<Vm, String> {
     Page<Vm> findByGroupGroupIdAndIsActiveTrueOrderBySequencePositionAsc(String groupId, Pageable pageable);
 
     /**
+     * All active VMs (in active environments) with group and environment eagerly fetched, for
+     * fleet-wide reporting (Cost Management) that needs every VM's environment/group display name
+     * without an N+1 lazy-load per distinct group.
+     */
+    @Query("SELECT v FROM Vm v JOIN FETCH v.group g JOIN FETCH g.environment e " +
+           "WHERE v.isActive = true AND e.isActive = true")
+    List<Vm> findByIsActiveTrueFetchGroupAndEnvironment();
+
+    /**
      * Per-group VM/running counts for every group in an environment, in a single query —
      * avoids querying each group individually when building a group listing with counts.
      */

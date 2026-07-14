@@ -1,0 +1,103 @@
+/*
+ * Cost Management Feature Styles
+ * Reuses .dashboard-kpi-grid / .dashboard-kpi / .dashboard-chart-panel / .dashboard-panel-head
+ * from dashboard.css and .table-baseline from tables.css for visual consistency — only the
+ * pieces unique to this page (breakdown grid, table cards, pagination, export/print) live here.
+ */
+
+.cost-toolbar {
+    display: flex;
+    gap: var(--space-sm, 0.5rem);
+    flex-wrap: wrap;
+}
+
+.cost-kpi-subtitle {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: var(--font-size-xs, 0.75rem);
+    font-weight: 400;
+    color: var(--text-secondary, #64748b);
+}
+
+.cost-breakdown-layout {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-lg, 1.5rem);
+    margin-bottom: var(--space-lg, 1.5rem);
+}
+
+@media (max-width: 992px) {
+    .cost-breakdown-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.dashboard-chart-panel.dashboard-wide {
+    margin-bottom: var(--space-lg, 1.5rem);
+}
+
+.cost-table-card {
+    background: #fff;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: var(--card-radius, 8px);
+    box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.1));
+    margin-bottom: var(--space-lg, 1.5rem);
+    overflow: hidden;
+}
+
+.cost-table-card .table {
+    margin-bottom: 0;
+}
+
+.cost-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.cost-partial-icon {
+    color: var(--warning-color, #f59e0b);
+    font-size: var(--font-size-xs, 0.75rem);
+}
+
+.cost-pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.6rem 1rem;
+    border-top: 1px solid var(--border-color, #e2e8f0);
+    background: var(--table-header-bg, #f8fafc);
+}
+
+.cost-pagination .page-btn {
+    min-width: 72px;
+}
+
+/* ============================================
+   Export / Print
+   ============================================ */
+@page {
+    size: A4;
+    margin: 15mm;
+}
+
+@media print {
+    .no-print {
+        display: none !important;
+    }
+
+    .cost-report .dashboard-kpi,
+    .cost-report .dashboard-chart-panel,
+    .cost-report .cost-table-card {
+        break-inside: avoid;
+    }
+
+    .cost-report table tr {
+        break-inside: avoid;
+    }
+
+    .cost-report .cost-table-card {
+        box-shadow: none;
+        border: 1px solid #cbd5e1;
+    }
+}

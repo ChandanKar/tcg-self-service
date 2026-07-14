@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Repository for VmStateHistory entity.
@@ -65,5 +66,18 @@ public interface VmStateHistoryRepository extends JpaRepository<VmStateHistory, 
      */
     @Query("SELECT h FROM VmStateHistory h WHERE h.vm.vmId = :vmId ORDER BY h.changedAt DESC")
     List<VmStateHistory> findLastStateChangeByVmId(String vmId, Pageable pageable);
+
+    /**
+     * Transitions for a batch of VMs within a time window, in one query — used to derive
+     * runtime hours for a whole page of VMs at once rather than per-VM (avoids N+1).
+     */
+    List<VmStateHistory> findByVmVmIdInAndChangedAtBetweenOrderByVmVmIdAscChangedAtAsc(
+            List<String> vmIds, Timestamp start, Timestamp end);
+
+    /**
+     * Fallback for a single VM whose seed state (the state it was in immediately before a
+     * window) wasn't found in the batched lookback query above.
+     */
+    Optional<VmStateHistory> findTopByVmVmIdAndChangedAtLessThanOrderByChangedAtDesc(String vmId, Timestamp before);
 }
 

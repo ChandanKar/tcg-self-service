@@ -176,6 +176,21 @@ const Utils = (function() {
     }
 
     /**
+     * Trigger a browser download of a client-generated Blob.
+     * @param {Blob} blob - The blob to download
+     * @param {string} filename - Suggested filename
+     */
+    function downloadBlob(blob, filename) {
+        const link = document.createElement('a');
+        link.setAttribute('href', URL.createObjectURL(blob));
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    /**
      * Render a VM status badge with screen reader text (TASK-033)
      * @param {string} status - VM status (RUNNING, STOPPED, etc.)
      * @returns {string} - HTML for the status badge
@@ -251,7 +266,8 @@ const Utils = (function() {
         escapeHtml,
         parseQueryString,
         formatRelativeTime,
-        renderStatusBadge
+        renderStatusBadge,
+        downloadBlob
     };
 })();
 

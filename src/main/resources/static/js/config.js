@@ -167,6 +167,19 @@ const Config = (function() {
         ec2: {
             listInstances: (region) => `/api/ec2/instances?region=${region}`,
             registeredIds: `/api/ec2/registered-ids`
+        },
+
+        // Cost Management (admin only)
+        costManagement: {
+            summary: `${API_BASE_URL}/cost-management/summary`,
+            spendByEnvironment: `${API_BASE_URL}/cost-management/spend-by-environment`,
+            spendByVmType: `${API_BASE_URL}/cost-management/spend-by-vm-type`,
+            spendByTeam: `${API_BASE_URL}/cost-management/spend-by-team`,
+            spendTrend: (days = 90) => `${API_BASE_URL}/cost-management/spend-trend?days=${days}`,
+            idleWaste: (page = 0, size = 10) => `${API_BASE_URL}/cost-management/idle-waste?page=${page}&size=${size}`,
+            rightsizing: (page = 0, size = 10) => `${API_BASE_URL}/cost-management/rightsizing?page=${page}&size=${size}`,
+            vmDetail: (page = 0, size = 10) => `${API_BASE_URL}/cost-management/vm-detail?page=${page}&size=${size}`,
+            backfill: (days = 30) => `${API_BASE_URL}/cost-management/snapshots/backfill?days=${days}`
         }
     };
 

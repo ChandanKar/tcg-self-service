@@ -36,6 +36,7 @@
     <link rel="stylesheet" href="css/features/activity-logs.css">
     <link rel="stylesheet" href="css/features/access-requests.css">
     <link rel="stylesheet" href="css/features/system-health.css">
+    <link rel="stylesheet" href="css/features/cost-management.css">
     <link rel="stylesheet" href="css/layout/mobile.css">
 </head>
 <body>
@@ -258,11 +259,10 @@
                         <span>Audit Logs (All)</span>
                     </a>
                 </li>
-                <li class="sidebar-menu-item">
-                    <a class="sidebar-menu-link sidebar-menu-link--disabled" tabindex="-1" aria-disabled="true" title="Coming soon">
+                <li class="sidebar-menu-item admin-only" id="cost-management-link">
+                    <a class="sidebar-menu-link" href="#/cost-management" data-content="cost-management" tabindex="0">
                         <i class="fas fa-dollar-sign" aria-hidden="true"></i>
                         <span>Cost Management</span>
-                        <span class="coming-soon-badge">Soon</span>
                     </a>
                 </li>
                 <li class="sidebar-menu-item">
@@ -695,6 +695,7 @@
 
     <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
     <script src="vendor/echarts/echarts.min.js"></script>
+    <script src="vendor/html2canvas/html2canvas.min.js"></script>
 
     <!-- Application JavaScript -->
     <script src="js/config.js"></script>
@@ -726,6 +727,7 @@
     <script src="js/features/user-management.js"></script>
     <script src="js/features/access-management.js"></script>
     <script src="js/features/system-health.js"></script>
+    <script src="js/features/cost-management.js"></script>
     <script src="js/features/features.js"></script>
     <script src="js/app.js"></script>
 
