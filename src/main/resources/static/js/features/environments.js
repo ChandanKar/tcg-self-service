@@ -129,27 +129,23 @@ const Environments = (function() {
         return new Promise((resolve, reject) => {
             ApiClient.get(Config.API.environments.list)
                 .done(async function(environments) {
-                    // Enrich list rows with the same VM status data used by the detail view.
+                    // Environment counts (vmCount/runningVmCount) already come from the list
+                    // endpoint itself — only the lock status still needs a per-row fetch.
                     const enriched = await Promise.all(
                         environments.map(async (env) => {
                             try {
-                                const [lock, vmsData] = await Promise.all([
-                                    fetchLockStatus(env.environmentId),
-                                    fetchEnvironmentVms(env.environmentId)
-                                ]);
-                                const counts = calculateVmCounts(vmsData);
+                                const lock = await fetchLockStatus(env.environmentId);
                                 return {
                                     ...env,
-                                    ...counts,
-                                    groups: vmsData || [],
+                                    totalVms: env.vmCount || 0,
+                                    runningVms: env.runningVmCount || 0,
                                     lockStatus: lock
                                 };
                             } catch (e) {
                                 return {
                                     ...env,
                                     totalVms: env.vmCount || 0,
-                                    runningVms: 0,
-                                    groups: [],
+                                    runningVms: env.runningVmCount || 0,
                                     lockStatus: { isLocked: false }
                                 };
                             }
