@@ -56,7 +56,8 @@
         transform: translateX(-100%);
         transition: transform 0.3s ease;
         width: 280px;
-        z-index: 1002;
+        /* Stays above .top-navbar (1030) so the open drawer still covers the navbar */
+        z-index: 1032;
     }
 
     .sidebar.mobile-open {
@@ -80,7 +81,8 @@
         right: 0;
         bottom: 0;
         background: rgba(0,0,0,0.5);
-        z-index: 1001;
+        /* Stays above .top-navbar (1030) so it dims the navbar too, below .sidebar (1032) */
+        z-index: 1031;
     }
 
     .mobile-overlay.show {

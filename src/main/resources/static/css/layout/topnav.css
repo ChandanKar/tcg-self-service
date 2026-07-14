@@ -10,7 +10,11 @@
     height: var(--topnav-height);
     background: white;
     border-bottom: 1px solid #e2e8f0;
-    z-index: 1000;
+    /* Above Bootstrap's default .dropdown-menu z-index (1000, see vendor/bootstrap)
+       so page-level dropdowns (e.g. a table row's "Actions" menu) never paint over
+       the fixed navbar's own dropdowns (My Access, notifications). Matches
+       Bootstrap's own .fixed-top convention (z-index: 1030) for the same reason. */
+    z-index: 1030;
     display: flex;
     align-items: center;
     padding: 0 1.5rem;
