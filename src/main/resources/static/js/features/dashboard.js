@@ -204,23 +204,23 @@ const Dashboard = (function() {
                     </div>
                     <div id="dash-util-trend" class="dashboard-chart"></div>
                 </section>
-                <section class="dashboard-chart-panel">
+                ${buildListPanel('Idle VMs', data.idleVms || [], 'low-utilization', true)}
+                <section class="dashboard-chart-panel dashboard-wide">
                     <div class="dashboard-panel-head">
                         <h2>Fleet State</h2>
                         <small>${data.summary?.totalVms || 0} VMs</small>
                     </div>
                     <div id="dash-vm-state" class="dashboard-chart"></div>
                 </section>
-                <section class="dashboard-chart-panel">
+                <section class="dashboard-chart-panel dashboard-wide">
                     <div class="dashboard-panel-head">
                         <h2>Cloud Coverage</h2>
                         <small>collection health</small>
                     </div>
                     <div id="dash-coverage" class="dashboard-chart"></div>
                 </section>
-                ${buildListPanel('Idle VMs', data.idleVms || [], 'low-utilization', true)}
-                ${buildRiskCompliancePanel(data.riskCompliance || [])}
                 ${buildSchedulerHealthPanel(data.schedulerHealth || [], true)}
+                ${buildRiskCompliancePanel(data.riskCompliance || [])}
             </div>
         `;
     }
@@ -346,7 +346,7 @@ const Dashboard = (function() {
         const total = rows.reduce((sum, row) => sum + (Number(row.count) || 0), 0);
 
         return `
-            <section class="dashboard-chart-panel">
+            <section class="dashboard-chart-panel dashboard-wide">
                 <div class="dashboard-panel-head">
                     <h2>Risk & Compliance</h2>
                     <small>${total} signals</small>

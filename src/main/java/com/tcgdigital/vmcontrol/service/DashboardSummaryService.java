@@ -67,9 +67,7 @@ public class DashboardSummaryService {
                 .map(Environment::getEnvironmentId)
                 .toList();
 
-        List<Vm> vms = environmentIds.stream()
-                .flatMap(environmentId -> vmRepository.findByEnvironmentId(environmentId).stream())
-                .toList();
+        List<Vm> vms = environmentIds.isEmpty() ? List.of() : vmRepository.findByEnvironmentIdIn(environmentIds);
         List<String> vmIds = vms.stream().map(Vm::getVmId).toList();
         Map<String, Environment> environmentById = environments.stream()
                 .collect(Collectors.toMap(Environment::getEnvironmentId, Function.identity()));
