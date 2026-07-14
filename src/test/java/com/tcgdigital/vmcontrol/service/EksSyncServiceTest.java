@@ -247,6 +247,50 @@ class EksSyncServiceTest {
         verifyNoInteractions(environmentRepository);
     }
 
+    @Test
+    void syncEksEnvironment_doesNotCrashWhenListNodegroupsFails() {
+        Environment env = buildEnvironment();
+        when(eksService.listNodegroups(CLUSTER, REGION)).thenThrow(new RuntimeException("EKS throttled"));
+
+        int count = service.syncEksEnvironment(env);
+
+        assertEquals(0, count);
+        verifyNoInteractions(groupRepository, vmRepository);
+    }
+
+    @Test
+    void autoDiscoverClusters_scansEveryConfiguredRegion() {
+        ReflectionTestUtils.setField(service, "configuredSyncRegions", "ap-south-1,us-east-1");
+        when(eksService.listClusters("ap-south-1")).thenReturn(List.of("prod-cluster"));
+        when(eksService.listClusters("us-east-1")).thenReturn(List.of("dr-cluster"));
+        when(environmentRepository.existsByName(anyString())).thenReturn(false);
+        when(environmentRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        service.autoDiscoverClusters();
+
+        verify(eksService).listClusters("ap-south-1");
+        verify(eksService).listClusters("us-east-1");
+        ArgumentCaptor<Environment> captor = ArgumentCaptor.forClass(Environment.class);
+        verify(environmentRepository, times(2)).save(captor.capture());
+        assertTrue(captor.getAllValues().stream().anyMatch(e -> "prod-cluster".equals(e.getName())
+                && e.getMetadata().contains("ap-south-1")));
+        assertTrue(captor.getAllValues().stream().anyMatch(e -> "dr-cluster".equals(e.getName())
+                && e.getMetadata().contains("us-east-1")));
+    }
+
+    @Test
+    void autoDiscoverClusters_oneRegionFailingDoesNotBlockOthers() {
+        ReflectionTestUtils.setField(service, "configuredSyncRegions", "ap-south-1,us-east-1");
+        when(eksService.listClusters("ap-south-1")).thenThrow(new RuntimeException("region unreachable"));
+        when(eksService.listClusters("us-east-1")).thenReturn(List.of("dr-cluster"));
+        when(environmentRepository.existsByName("dr-cluster")).thenReturn(false);
+        when(environmentRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        service.autoDiscoverClusters();
+
+        verify(environmentRepository).save(argThat(e -> "dr-cluster".equals(e.getName())));
+    }
+
     // ---- helpers ----
 
     private Environment buildEnvironment() {

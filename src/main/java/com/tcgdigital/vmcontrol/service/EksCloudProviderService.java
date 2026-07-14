@@ -245,29 +245,26 @@ public class EksCloudProviderService implements CloudProviderService {
 
     /**
      * Lists all node group names for the given EKS cluster.
+     * Propagates failures rather than swallowing them — a mid-pagination error must not
+     * silently discard pages already fetched and masquerade as "cluster has no node groups".
      */
     public List<String> listNodegroups(String clusterName, String region) {
-        try {
-            EksClient eks = getEksClient(region);
-            List<String> nodegroups = new ArrayList<>();
-            String nextToken = null;
+        EksClient eks = getEksClient(region);
+        List<String> nodegroups = new ArrayList<>();
+        String nextToken = null;
 
-            do {
-                ListNodegroupsResponse response = eks.listNodegroups(
-                        ListNodegroupsRequest.builder()
-                                .clusterName(clusterName)
-                                .maxResults(100)
-                                .nextToken(nextToken)
-                                .build());
-                nodegroups.addAll(response.nodegroups());
-                nextToken = response.nextToken();
-            } while (nextToken != null && !nextToken.isBlank());
+        do {
+            ListNodegroupsResponse response = eks.listNodegroups(
+                    ListNodegroupsRequest.builder()
+                            .clusterName(clusterName)
+                            .maxResults(100)
+                            .nextToken(nextToken)
+                            .build());
+            nodegroups.addAll(response.nodegroups());
+            nextToken = response.nextToken();
+        } while (nextToken != null && !nextToken.isBlank());
 
-            return nodegroups;
-        } catch (Exception e) {
-            log.error("Error listing EKS node groups for cluster {}: {}", clusterName, e.getMessage());
-            return List.of();
-        }
+        return nodegroups;
     }
 
     /**
@@ -292,28 +289,25 @@ public class EksCloudProviderService implements CloudProviderService {
 
     /**
      * Lists all EKS cluster names in a region.
+     * Propagates failures rather than swallowing them — a mid-pagination error must not
+     * silently discard pages already fetched and masquerade as "no clusters in this region".
      */
     public List<String> listClusters(String region) {
-        try {
-            EksClient eks = getEksClient(region);
-            List<String> clusters = new ArrayList<>();
-            String nextToken = null;
+        EksClient eks = getEksClient(region);
+        List<String> clusters = new ArrayList<>();
+        String nextToken = null;
 
-            do {
-                ListClustersResponse response = eks.listClusters(
-                        ListClustersRequest.builder()
-                                .maxResults(100)
-                                .nextToken(nextToken)
-                                .build());
-                clusters.addAll(response.clusters());
-                nextToken = response.nextToken();
-            } while (nextToken != null && !nextToken.isBlank());
+        do {
+            ListClustersResponse response = eks.listClusters(
+                    ListClustersRequest.builder()
+                            .maxResults(100)
+                            .nextToken(nextToken)
+                            .build());
+            clusters.addAll(response.clusters());
+            nextToken = response.nextToken();
+        } while (nextToken != null && !nextToken.isBlank());
 
-            return clusters;
-        } catch (Exception e) {
-            log.error("Error listing EKS clusters in region {}: {}", region, e.getMessage());
-            return List.of();
-        }
+        return clusters;
     }
 
     // ---- private helpers ----

@@ -43,6 +43,9 @@ public class EksSyncService {
     @Value("${aws.region:ap-south-1}")
     private String defaultRegion;
 
+    @Value("${eks.sync.regions:}")
+    private String configuredSyncRegions;
+
     public EksSyncService(EnvironmentRepository environmentRepository,
                           VmGroupRepository groupRepository,
                           VmRepository vmRepository,
@@ -63,9 +66,14 @@ public class EksSyncService {
      * Returns EKS cluster names that exist in AWS but are not yet registered in the DB.
      */
     public List<String> getUnregisteredEksClusters(String region) {
-        return eksService.listClusters(region).stream()
-                .filter(name -> !environmentRepository.existsByName(name))
-                .collect(Collectors.toList());
+        try {
+            return eksService.listClusters(region).stream()
+                    .filter(name -> !environmentRepository.existsByName(name))
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Failed to list EKS clusters in region {}: {}", region, e.getMessage());
+            return List.of();
+        }
     }
 
     /**
@@ -99,18 +107,32 @@ public class EksSyncService {
     }
 
     /**
-     * Discovers EKS clusters in AWS that have no corresponding Environment record in the DB.
+     * Discovers EKS clusters in AWS that have no corresponding Environment record in the DB,
+     * across every region configured in eks.sync.regions (falling back to aws.region if unset).
      * Creates an Environment (serviceType=EKS) for each new cluster found.
      */
     @Transactional
     public void autoDiscoverClusters() {
-        List<String> clusterNames = eksService.listClusters(defaultRegion);
-        if (clusterNames.isEmpty()) {
-            log.info("No EKS clusters found in region {} during auto-discovery", defaultRegion);
+        for (String region : resolveSyncRegions()) {
+            autoDiscoverClustersInRegion(region);
+        }
+    }
+
+    private void autoDiscoverClustersInRegion(String region) {
+        List<String> clusterNames;
+        try {
+            clusterNames = eksService.listClusters(region);
+        } catch (Exception e) {
+            log.error("Failed to list EKS clusters in region {} during auto-discovery: {}", region, e.getMessage());
             return;
         }
 
-        log.info("EKS auto-discovery found {} cluster(s) in region {}: {}", clusterNames.size(), defaultRegion, clusterNames);
+        if (clusterNames.isEmpty()) {
+            log.info("No EKS clusters found in region {} during auto-discovery", region);
+            return;
+        }
+
+        log.info("EKS auto-discovery found {} cluster(s) in region {}: {}", clusterNames.size(), region, clusterNames);
 
         for (String clusterName : clusterNames) {
             if (environmentRepository.existsByName(clusterName)) {
@@ -124,17 +146,35 @@ public class EksSyncService {
                 env.setDescription("Auto-discovered EKS cluster");
                 env.setServiceType("EKS");
                 env.setIsActive(true);
-                env.setMetadata("{\"region\":\"" + defaultRegion + "\"}");
+                env.setMetadata("{\"region\":\"" + region + "\"}");
                 environmentRepository.save(env);
                 log.info("Auto-registered EKS environment for cluster: {}", clusterName);
                 auditService.logAction(null, AuditAction.SCHEDULED_JOB_EXECUTED, "environment",
                         env.getEnvironmentId(), clusterName,
-                        "EKS cluster auto-discovered and registered in region " + defaultRegion);
+                        "EKS cluster auto-discovered and registered in region " + region);
                 notifyEksChanges(env, new EksSyncChanges(1, 0, 0));
             } catch (Exception e) {
                 log.error("Failed to auto-register EKS cluster {}: {}", clusterName, e.getMessage());
             }
         }
+    }
+
+    /**
+     * Parses eks.sync.regions (comma-separated) into a distinct region list,
+     * falling back to the single aws.region default when unset.
+     */
+    private List<String> resolveSyncRegions() {
+        if (configuredSyncRegions != null && !configuredSyncRegions.isBlank()) {
+            List<String> regions = Arrays.stream(configuredSyncRegions.split(","))
+                    .map(String::trim)
+                    .filter(r -> !r.isEmpty())
+                    .distinct()
+                    .collect(Collectors.toList());
+            if (!regions.isEmpty()) {
+                return regions;
+            }
+        }
+        return List.of(defaultRegion);
     }
 
     /**
@@ -148,7 +188,15 @@ public class EksSyncService {
 
         log.info("Syncing EKS cluster '{}' in region '{}'", clusterName, region);
 
-        List<String> liveNodeGroups = eksService.listNodegroups(clusterName, region);
+        List<String> liveNodeGroups;
+        try {
+            liveNodeGroups = eksService.listNodegroups(clusterName, region);
+        } catch (Exception e) {
+            log.error("Failed to list node groups for EKS cluster '{}' in region '{}' — skipping this sync cycle: {}",
+                    clusterName, region, e.getMessage());
+            return 0;
+        }
+
         if (liveNodeGroups.isEmpty()) {
             log.warn("No node groups returned for EKS cluster '{}' — skipping (cluster may not exist or credentials insufficient)", clusterName);
             return 0;

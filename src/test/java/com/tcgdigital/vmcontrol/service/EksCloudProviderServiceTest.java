@@ -288,6 +288,32 @@ class EksCloudProviderServiceTest {
     }
 
     @Test
+    void listNodegroups_propagatesFailureInsteadOfDiscardingEarlierPages() {
+        when(mockEksClient.listNodegroups(any(ListNodegroupsRequest.class)))
+                .thenReturn(
+                        ListNodegroupsResponse.builder()
+                                .nodegroups("ng-a")
+                                .nextToken("page-2")
+                                .build())
+                .thenThrow(EksException.builder().message("throttled").build());
+
+        assertThrows(EksException.class, () -> service.listNodegroups(CLUSTER, REGION));
+    }
+
+    @Test
+    void listClusters_propagatesFailureInsteadOfDiscardingEarlierPages() {
+        when(mockEksClient.listClusters(any(ListClustersRequest.class)))
+                .thenReturn(
+                        ListClustersResponse.builder()
+                                .clusters("cluster-a")
+                                .nextToken("page-2")
+                                .build())
+                .thenThrow(EksException.builder().message("throttled").build());
+
+        assertThrows(EksException.class, () -> service.listClusters(REGION));
+    }
+
+    @Test
     void startVm_returnsErrorOnEksException() throws Exception {
         when(vmRepository.findByProviderAndProviderVmId(any(), any())).thenReturn(Optional.empty());
         when(mockEksClient.updateNodegroupConfig(any(UpdateNodegroupConfigRequest.class)))
