@@ -6,6 +6,7 @@ import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.*;
 import com.tcgdigital.vmcontrol.repository.*;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,12 +93,15 @@ public class VmOperationsService {
             throw new ValidationException("An operation is already in progress for this environment");
         }
 
-        // Get target VMs based on request
+        // Get target VMs based on request, ordered so dependencies always precede dependents
         List<Vm> targetVms = resolveTargetVms(environment, dto);
 
         if (targetVms.isEmpty()) {
             throw new ValidationException("No VMs to operate on");
         }
+
+        List<Vm> orderedVms = dependencyValidator.orderForExecution(targetVms);
+        Map<String, List<String>> scopedDependencyVmIds = dependencyValidator.buildScopedDependencyMap(orderedVms);
 
         // Create execution record
         OperationExecution execution = new OperationExecution();
@@ -106,15 +110,17 @@ public class VmOperationsService {
         execution.setOperationType(dto.getOperationType());
         execution.setStatus(ExecutionStatus.PENDING);
         execution.setInitiatedByUserId(userId);
-        execution.setTotalTargets(targetVms.size());
+        execution.setTotalTargets(orderedVms.size());
 
         execution = executionRepository.save(execution);
 
-        // Create detail records for each VM
+        // Create detail records for each VM, recording which earlier details (by detailId)
+        // must complete successfully before this one may be attempted.
         String actionName = dto.getOperationType() == OperationType.START ? "start" : "stop";
         int sequencePosition = 0;
+        Map<String, String> detailIdByVmId = new HashMap<>();
 
-        for (Vm vm : targetVms) {
+        for (Vm vm : orderedVms) {
             OperationDetail detail = new OperationDetail();
             detail.setDetailId(UUID.randomUUID().toString());
             detail.setExecution(execution);
@@ -125,11 +131,21 @@ public class VmOperationsService {
             detail.setStatus("pending");
             detail.setSequencePosition(++sequencePosition);
 
+            List<String> depDetailIds = scopedDependencyVmIds.getOrDefault(vm.getVmId(), Collections.emptyList())
+                    .stream()
+                    .map(detailIdByVmId::get)
+                    .filter(Objects::nonNull)
+                    .toList();
+            if (!depDetailIds.isEmpty()) {
+                detail.setDependsOnDetailIds(writeJson(depDetailIds));
+            }
+
             detailRepository.save(detail);
+            detailIdByVmId.put(vm.getVmId(), detail.getDetailId());
         }
 
         log.info("Created operation execution {} for environment {} ({} VMs)",
-                execution.getExecutionId(), environmentId, targetVms.size());
+                execution.getExecutionId(), environmentId, orderedVms.size());
 
         // Audit logging
         auditService.logOperationStarted(userId, environmentId, environment.getName(),
@@ -142,7 +158,7 @@ public class VmOperationsService {
                         userId,
                         dto.getOperationType().name(),
                         operationScopeLabel(dto),
-                        targetVms.size()
+                        orderedVms.size()
                 ));
 
         // Fire async execution after this transaction commits so the execution row is visible
@@ -380,7 +396,11 @@ public class VmOperationsService {
     }
 
     /**
-     * Core execution logic - processes VMs sequentially by sequence position.
+     * Core execution logic - processes VMs in dependency order (sequence position).
+     * A VM whose dependency failed or was skipped is itself skipped rather than attempted;
+     * independent VMs always proceed regardless of unrelated failures elsewhere in the batch.
+     * continueOnFailure is retained on the signature for API compatibility but no longer
+     * triggers an all-or-nothing abort — dependency state is what decides skip vs. attempt now.
      */
     private void executeOperation(String executionId, boolean continueOnFailure) {
         OperationExecution execution = getExecution(executionId);
@@ -389,7 +409,7 @@ public class VmOperationsService {
         execution.setStatus(ExecutionStatus.IN_PROGRESS);
         executionRepository.save(execution);
 
-        // Get all pending details
+        // Get all pending details, in dependency order
         List<OperationDetail> details = detailRepository
                 .findByExecutionExecutionIdAndStatusOrderBySequencePositionAsc(executionId, "pending");
 
@@ -398,6 +418,9 @@ public class VmOperationsService {
             return;
         }
 
+        Map<String, String> targetNameByDetailId = details.stream()
+                .collect(Collectors.toMap(OperationDetail::getDetailId, OperationDetail::getTargetName));
+        Map<String, String> finalStatusByDetailId = new HashMap<>();
         boolean hasFailures = false;
 
         // Process each detail
@@ -407,6 +430,15 @@ public class VmOperationsService {
             if (execution.getStatus() == ExecutionStatus.CANCELLED) {
                 log.info("Execution {} was cancelled before VM {}", executionId, detail.getTargetName());
                 return;
+            }
+
+            String blockingDependencyName = findBlockingDependency(
+                    parseDependsOnDetailIds(detail.getDependsOnDetailIds()), finalStatusByDetailId, targetNameByDetailId);
+            if (blockingDependencyName != null) {
+                skipDetail(detail, blockingDependencyName);
+                finalStatusByDetailId.put(detail.getDetailId(), "skipped");
+                hasFailures = true;
+                continue;
             }
 
             try {
@@ -422,21 +454,14 @@ public class VmOperationsService {
                 }
 
                 detail = detailRepository.findById(detail.getDetailId()).orElse(detail);
+                finalStatusByDetailId.put(detail.getDetailId(), detail.getStatus());
                 if (detail.isFailed()) {
                     hasFailures = true;
-                    if (!continueOnFailure) {
-                        log.warn("VM operation failed, stopping execution {}", executionId);
-                        markExecutionFailed(executionId, "Failed at VM: " + detail.getTargetName());
-                        return;
-                    }
                 }
             } catch (Exception e) {
                 log.error("Error executing operation on {}: {}", detail.getTargetName(), e.getMessage());
+                finalStatusByDetailId.put(detail.getDetailId(), "failed");
                 hasFailures = true;
-                if (!continueOnFailure) {
-                    markExecutionFailed(executionId, e.getMessage());
-                    return;
-                }
             }
         }
 
@@ -445,6 +470,54 @@ public class VmOperationsService {
             markExecutionPartialSuccess(executionId);
         } else {
             markExecutionCompleted(executionId);
+        }
+    }
+
+    /**
+     * Returns the target name of the first dependency detail whose final status is failed or
+     * skipped, or null if all dependencies (so far known) are clear. Dependency ids with no
+     * recorded status yet are treated as satisfied — execution order guarantees dependencies
+     * are processed first, so this only happens for ids outside the current run's detail set.
+     */
+    private String findBlockingDependency(List<String> depDetailIds, Map<String, String> finalStatusByDetailId,
+                                          Map<String, String> targetNameByDetailId) {
+        for (String depId : depDetailIds) {
+            String status = finalStatusByDetailId.get(depId);
+            if ("failed".equals(status) || "skipped".equals(status)) {
+                return targetNameByDetailId.getOrDefault(depId, depId);
+            }
+        }
+        return null;
+    }
+
+    private void skipDetail(OperationDetail detail, String blockingDependencyName) {
+        detail.setStatus("skipped");
+        detail.setErrorMessage("Skipped: dependency '" + blockingDependencyName + "' failed to start");
+        detail.setCompletedAt(Timestamp.from(Instant.now()));
+        detailRepository.save(detail);
+        updateExecutionCounters(detail.getExecution().getExecutionId(), false);
+        log.warn("Skipping {} because dependency '{}' did not complete successfully",
+                detail.getTargetName(), blockingDependencyName);
+    }
+
+    private List<String> parseDependsOnDetailIds(String json) {
+        if (json == null || json.isBlank()) {
+            return Collections.emptyList();
+        }
+        try {
+            return objectMapper.readValue(json, new TypeReference<List<String>>() {});
+        } catch (Exception e) {
+            log.warn("Could not parse dependsOnDetailIds '{}': {}", json, e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    private String writeJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception e) {
+            log.warn("Could not serialize value to JSON: {}", e.getMessage());
+            return null;
         }
     }
 

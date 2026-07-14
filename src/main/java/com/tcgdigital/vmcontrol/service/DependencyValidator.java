@@ -168,6 +168,71 @@ public class DependencyValidator {
     }
 
     /**
+     * Orders VMs for execution respecting both intra-group (VM-level) and cross-group
+     * (group-level) dependencies. Dependencies that fall outside the given set are treated
+     * as already satisfied (e.g. a dependency VM already running and excluded from this run).
+     * Falls back to appending any unresolved remainder in its original order rather than
+     * throwing — cycles are already rejected at creation time by {@link #validateVmDependencies}
+     * and {@link #validateGroupDependencies}, so a subgraph of a validated graph cannot cycle.
+     */
+    public List<Vm> orderForExecution(List<Vm> vms) {
+        if (vms == null || vms.size() <= 1) {
+            return vms == null ? new ArrayList<>() : new ArrayList<>(vms);
+        }
+
+        Map<String, List<String>> dependsOn = buildScopedDependencyMap(vms);
+
+        List<Vm> remaining = new ArrayList<>(vms);
+        Set<String> done = new LinkedHashSet<>();
+        List<Vm> result = new ArrayList<>(vms.size());
+
+        while (!remaining.isEmpty()) {
+            List<Vm> ready = remaining.stream()
+                    .filter(vm -> done.containsAll(dependsOn.getOrDefault(vm.getVmId(), Collections.emptyList())))
+                    .toList();
+
+            if (ready.isEmpty()) {
+                log.warn("Could not fully resolve VM execution order (unexpected cycle?); appending remainder as-is");
+                result.addAll(remaining);
+                break;
+            }
+
+            result.addAll(ready);
+            ready.forEach(vm -> done.add(vm.getVmId()));
+            remaining.removeAll(ready);
+        }
+
+        return result;
+    }
+
+    /**
+     * Maps each VM to the vmIds (restricted to the given scope) that must complete before it,
+     * combining its own intra-group dependencies with its group's cross-group dependencies
+     * (a dependency on group G means "depends on every VM in G that's part of this scope").
+     */
+    public Map<String, List<String>> buildScopedDependencyMap(List<Vm> vms) {
+        Set<String> scopeIds = vms.stream().map(Vm::getVmId).collect(Collectors.toSet());
+        Map<String, List<String>> vmIdsByGroup = vms.stream()
+                .collect(Collectors.groupingBy(vm -> vm.getGroup().getGroupId(),
+                        Collectors.mapping(Vm::getVmId, Collectors.toList())));
+
+        Map<String, List<String>> result = new LinkedHashMap<>();
+        for (Vm vm : vms) {
+            Set<String> deps = new LinkedHashSet<>();
+            for (String depVmId : vm.getDependencies()) {
+                if (scopeIds.contains(depVmId)) {
+                    deps.add(depVmId);
+                }
+            }
+            for (String depGroupId : vm.getGroup().getDependencies()) {
+                deps.addAll(vmIdsByGroup.getOrDefault(depGroupId, Collections.emptyList()));
+            }
+            result.put(vm.getVmId(), new ArrayList<>(deps));
+        }
+        return result;
+    }
+
+    /**
      * Get VMs that can start in parallel (same sequence, all deps met).
      */
     public List<List<Vm>> getVmStartBatches(String groupId) {

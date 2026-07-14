@@ -255,5 +255,9 @@ public class OperationDetail {
     public boolean isFailed() {
         return "failed".equals(status);
     }
+
+    public boolean isSkipped() {
+        return "skipped".equals(status);
+    }
 }
 
