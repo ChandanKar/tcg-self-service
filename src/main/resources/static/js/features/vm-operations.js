@@ -187,19 +187,15 @@ const VmOperations = (function() {
                 </div>
             `,
             buttons: [
-                { text: 'Cancel Operation', class: 'btn-outline-danger', id: 'btn-cancel-operation' },
-                { text: 'Close', class: 'btn-secondary', id: 'btn-close-progress', disabled: true }
+                { text: 'Close', class: 'btn-secondary', id: 'btn-close-progress' }
             ],
             onShow: function() {
                 // Start elapsed time counter
                 startElapsedTimer();
 
-                // Handle cancel
-                $('#btn-cancel-operation').off('click').on('click', function() {
-                    cancelActiveOperation();
-                });
-
-                // Handle close
+                // Handle close — the operation keeps running server-side and polling
+                // continues in the background even after the modal is dismissed, so it's
+                // safe to let the user close this at any point, not just at completion.
                 $('#btn-close-progress').off('click').on('click', function() {
                     Modals.hide('operationProgressModal');
                     stopPollingIfNoRunningOperation();
@@ -219,16 +215,12 @@ const VmOperations = (function() {
         const $statusText = $('#progress-status-text');
         const $progressBar = $('#progress-bar');
         const $progressPercent = $('#progress-percent');
-        const $cancelBtn = $('#btn-cancel-operation');
-        const $closeBtn = $('#btn-close-progress');
 
         if (status === 'error') {
             $statusText.html(`<i class="fas fa-times-circle text-danger me-2"></i>${message}`);
             $progressBar.removeClass('progress-bar-animated progress-bar-striped')
                         .addClass('bg-danger').css('width', '100%');
             $progressPercent.text('Error');
-            $cancelBtn.hide();
-            $closeBtn.prop('disabled', false);
             stopElapsedTimer();
             return;
         }
@@ -238,8 +230,6 @@ const VmOperations = (function() {
             $progressBar.removeClass('progress-bar-animated progress-bar-striped')
                         .addClass('bg-warning').css('width', '100%');
             $progressPercent.text('Timed out');
-            $cancelBtn.hide();
-            $closeBtn.prop('disabled', false);
             stopElapsedTimer();
             return;
         }
@@ -249,8 +239,6 @@ const VmOperations = (function() {
             $progressBar.removeClass('progress-bar-animated progress-bar-striped')
                         .addClass('bg-secondary').css('width', '100%');
             $progressPercent.text('Cancelled');
-            $cancelBtn.hide();
-            $closeBtn.prop('disabled', false);
             stopElapsedTimer();
             return;
         }
@@ -311,27 +299,19 @@ const VmOperations = (function() {
             if (execution.status === 'COMPLETED') {
                 $statusText.html(`<i class="fas fa-check-circle text-success me-2"></i>Completed successfully`);
                 $progressBar.removeClass('progress-bar-animated progress-bar-striped').addClass('bg-success');
-                $cancelBtn.hide();
-                $closeBtn.prop('disabled', false);
                 stopElapsedTimer();
             } else if (execution.status === 'PARTIAL_SUCCESS') {
                 $statusText.html(`<i class="fas fa-exclamation-triangle text-warning me-2"></i>Completed with some failures`);
                 $progressBar.removeClass('progress-bar-animated progress-bar-striped').addClass('bg-warning');
-                $cancelBtn.hide();
-                $closeBtn.prop('disabled', false);
                 stopElapsedTimer();
             } else if (execution.status === 'FAILED') {
                 $statusText.html(`<i class="fas fa-times-circle text-danger me-2"></i>Operation failed`);
                 $progressBar.removeClass('progress-bar-animated progress-bar-striped').addClass('bg-danger').css('width', '100%');
                 $progressPercent.text('Failed');
-                $cancelBtn.hide();
-                $closeBtn.prop('disabled', false);
                 stopElapsedTimer();
             } else if (execution.status === 'CANCELLED') {
                 $statusText.html(`<i class="fas fa-ban text-secondary me-2"></i>Operation cancelled`);
                 $progressBar.removeClass('progress-bar-animated progress-bar-striped').addClass('bg-secondary');
-                $cancelBtn.hide();
-                $closeBtn.prop('disabled', false);
                 stopElapsedTimer();
             } else {
                 // In progress — keep spinner
@@ -560,30 +540,6 @@ const VmOperations = (function() {
         window.dispatchEvent(new CustomEvent('vm-operation-status', {
             detail: { envId, execution }
         }));
-    }
-
-    /**
-     * Cancel active operation
-     */
-    function cancelActiveOperation() {
-        const operation = Array.from(activeOperations.values())[0];
-        if (!operation) return;
-
-        Modals.confirm(
-            'Cancel Operation',
-            'Are you sure you want to cancel this operation? VMs that have already started/stopped will remain in their current state.',
-            function() {
-                ApiClient.post(Config.API.operations.cancel(operation.envId, operation.execution.executionId))
-                    .done(function() {
-                        updateProgressModal('cancelled');
-                        stopPolling();
-                    })
-                    .fail(function(xhr) {
-                        Notifications.error(xhr.responseJSON?.message || 'Failed to cancel operation');
-                    });
-            },
-            { confirmText: 'Cancel Operation', confirmClass: 'btn-warning' }
-        );
     }
 
     // Elapsed time tracking
