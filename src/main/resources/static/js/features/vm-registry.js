@@ -336,6 +336,8 @@ const VmRegistry = (function() {
     // Group Management
     // =========================================================================
 
+    const VM_PAGE_SIZE = 25;
+
     async function manageGroups(environmentId, environmentName) {
         const envRecord = window.VmRegistryState.environments.find(e => e.environmentId === environmentId);
         window.VmRegistryState.currentEnvironment = {
@@ -343,6 +345,7 @@ const VmRegistry = (function() {
             environmentName,
             serviceType: envRecord?.serviceType || 'EC2'
         };
+        window.VmRegistryState.groupVmPages = {};
         try {
             Loading.show('Loading groups and VMs...');
             const groupsWithVms = await ApiClient.get(`/api/v1/environments/${environmentId}/vms`);
@@ -355,6 +358,27 @@ const VmRegistry = (function() {
             console.error('Failed to load groups:', error);
             Notifications.error('Failed to load groups');
             Loading.hide();
+        }
+    }
+
+    /**
+     * Fetches one page of a group's VMs and re-renders just that group's table + pager,
+     * so paging through a large group doesn't require reloading the whole modal.
+     */
+    async function changeGroupVmPage(groupId, page) {
+        const environmentId = window.VmRegistryState.currentEnvironment.environmentId;
+        try {
+            const result = await ApiClient.get(Config.API.vms.groupPage(environmentId, groupId, page, VM_PAGE_SIZE));
+            window.VmRegistryState.groupVmPages[groupId] = page;
+
+            const group = window.VmRegistryState.currentGroups.find(g => g.groupId === groupId);
+            $(`#vm-rows-${groupId}`).html(buildVmRows(result.content || [], group));
+            $(`#vm-page-footer-${groupId}`).replaceWith(
+                buildVmPageFooter(groupId, group.vmCount, page, result.totalPages || 1)
+            );
+        } catch (error) {
+            console.error('Failed to load VM page:', error);
+            Notifications.error('Failed to load VMs');
         }
     }
 
@@ -393,11 +417,76 @@ const VmRegistry = (function() {
         groupsWithVms.forEach(gv => container.append(buildGroupCard(gv)));
     }
 
+    function buildVmRows(vms, group) {
+        const isEks = (window.VmRegistryState.currentEnvironment?.serviceType || 'EC2') === 'EKS';
+        const providerLabels = { AWS: 'AWS', AZURE: 'Azure', GCP: 'GCP', OCI: 'OCI', AWS_EKS: 'EKS' };
+        const providerIcons = { AWS: 'fab fa-aws', AZURE: 'fab fa-microsoft', GCP: 'fab fa-google', OCI: 'fas fa-cloud', AWS_EKS: 'fas fa-dharmachakra' };
+
+        return vms.map(vm => {
+            const statusConfig = Config.STATUS.vm[vm.status] || Config.STATUS.vm.UNKNOWN;
+            const purposeCell = vm.purpose
+                ? `${Utils.escapeHtml(vm.purpose)}${vm.remarks ? `<div class="small text-muted" title="${Utils.escapeHtml(vm.remarks)}">${Utils.escapeHtml(vm.remarks)}</div>` : ''}`
+                : '<span class="text-muted small">&mdash;</span>';
+            return `
+                <tr>
+                    <td>
+                        <strong>${Utils.escapeHtml(vm.name)}</strong>
+                        ${vm.displayName && vm.displayName !== vm.name ? `<div class="small text-muted">${Utils.escapeHtml(vm.displayName)}</div>` : ''}
+                    </td>
+                    <td>${purposeCell}</td>
+                    <td><i class="${providerIcons[vm.provider] || 'fas fa-cloud'}"></i> ${providerLabels[vm.provider] || vm.provider}</td>
+                    <td>${Utils.escapeHtml(vm.region)}</td>
+                    <td><code class="small">${Utils.escapeHtml(vm.providerVmId)}</code></td>
+                    <td><code class="small">${Utils.escapeHtml(vm.privateIp || '-')}</code></td>
+                    <td>
+                        <span class="status-badge ${statusConfig.class}">
+                            <i class="fas ${statusConfig.icon}"></i> ${statusConfig.label}
+                        </span>
+                    </td>
+                    <td class="text-center">${vm.sequencePosition || '-'}</td>
+                    <td class="text-end text-nowrap">
+                        <button class="btn btn-sm btn-outline-warning" onclick="VmRegistry.editVm('${vm.vmId}')" title="Edit VM">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        ${!isEks ? `
+                        <button class="btn btn-sm btn-outline-danger" onclick="VmRegistry.deleteVm('${vm.vmId}', '${Utils.escapeHtml(vm.name)}')" title="Remove VM">
+                            <i class="fas fa-trash"></i>
+                        </button>` : `
+                        <span class="text-muted small ms-1" title="EKS node groups are managed by sync">
+                            <i class="fas fa-sync-alt"></i>
+                        </span>`}
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function buildVmPageFooter(groupId, totalVmCount, currentPage, totalPages) {
+        if (totalPages <= 1) {
+            return `<div id="vm-page-footer-${groupId}"></div>`;
+        }
+        return `
+            <div id="vm-page-footer-${groupId}" class="d-flex justify-content-between align-items-center px-3 py-2 border-top">
+                <span class="text-muted small">Page ${currentPage + 1} of ${totalPages} (${totalVmCount} VMs)</span>
+                <div>
+                    <button class="btn btn-sm btn-outline-secondary" ${currentPage === 0 ? 'disabled' : ''}
+                            onclick="VmRegistry.changeGroupVmPage('${groupId}', ${currentPage - 1})">
+                        <i class="fas fa-chevron-left"></i> Prev
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary ms-1" ${currentPage >= totalPages - 1 ? 'disabled' : ''}
+                            onclick="VmRegistry.changeGroupVmPage('${groupId}', ${currentPage + 1})">
+                        Next <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
     function buildGroupCard(groupWithVms) {
         const group = groupWithVms.group;
         const vms = groupWithVms.vms || [];
-        const vmCount = vms.length;
-        const runningCount = vms.filter(v => v.status === 'RUNNING').length;
+        const vmCount = group.vmCount || 0;
+        const runningCount = group.runningVmCount || 0;
         const statusClass = vmCount === 0 ? 'bg-secondary' :
                            runningCount === vmCount ? 'bg-success' :
                            runningCount > 0 ? 'bg-warning' : 'bg-secondary';
@@ -410,38 +499,9 @@ const VmRegistry = (function() {
             : '<span class="text-muted small">None</span>';
 
         const isEks = (window.VmRegistryState.currentEnvironment?.serviceType || 'EC2') === 'EKS';
-
-        const vmRows = vms.map(vm => {
-            const providerLabels = { AWS: 'AWS', AZURE: 'Azure', GCP: 'GCP', OCI: 'OCI', AWS_EKS: 'EKS' };
-            const providerIcons = { AWS: 'fab fa-aws', AZURE: 'fab fa-microsoft', GCP: 'fab fa-google', OCI: 'fas fa-cloud', AWS_EKS: 'fas fa-dharmachakra' };
-            const statusConfig = Config.STATUS.vm[vm.status] || Config.STATUS.vm.UNKNOWN;
-            return `
-                <tr>
-                    <td>
-                        <strong>${Utils.escapeHtml(vm.name)}</strong>
-                        ${vm.displayName && vm.displayName !== vm.name ? `<div class="small text-muted">${Utils.escapeHtml(vm.displayName)}</div>` : ''}
-                    </td>
-                    <td><i class="${providerIcons[vm.provider] || 'fas fa-cloud'}"></i> ${providerLabels[vm.provider] || vm.provider}</td>
-                    <td>${Utils.escapeHtml(vm.region)}</td>
-                    <td><code class="small">${Utils.escapeHtml(vm.providerVmId)}</code></td>
-                    <td>
-                        <span class="status-badge ${statusConfig.class}">
-                            <i class="fas ${statusConfig.icon}"></i> ${statusConfig.label}
-                        </span>
-                    </td>
-                    <td class="text-center">${vm.sequencePosition || '-'}</td>
-                    <td class="text-end">
-                        ${!isEks ? `
-                        <button class="btn btn-sm btn-outline-danger" onclick="VmRegistry.deleteVm('${vm.vmId}', '${Utils.escapeHtml(vm.name)}')" title="Remove VM">
-                            <i class="fas fa-trash"></i>
-                        </button>` : `
-                        <span class="text-muted small" title="EKS node groups are managed by sync">
-                            <i class="fas fa-sync-alt"></i>
-                        </span>`}
-                    </td>
-                </tr>
-            `;
-        }).join('');
+        const vmRows = buildVmRows(vms, group);
+        const totalPages = Math.max(1, Math.ceil(vmCount / VM_PAGE_SIZE));
+        const vmPageFooter = buildVmPageFooter(group.groupId, vmCount, 0, totalPages);
 
         const collapseId = `collapse-${group.groupId}`;
 
@@ -481,20 +541,25 @@ const VmRegistry = (function() {
                 <div class="collapse show" id="${collapseId}">
                     <div class="card-body p-0">
                         ${vmCount > 0 ? `
+                            <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
                                 <thead class="table-light">
                                     <tr>
                                         <th>VM Name</th>
+                                        <th>Purpose</th>
                                         <th>Provider</th>
                                         <th>Region</th>
                                         <th>Instance ID</th>
+                                        <th>Private IP</th>
                                         <th>Status</th>
                                         <th class="text-center">Seq</th>
                                         <th class="text-end">Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody>${vmRows}</tbody>
+                                <tbody id="vm-rows-${group.groupId}">${vmRows}</tbody>
                             </table>
+                            </div>
+                            ${vmPageFooter}
                         ` : `
                             <p class="text-muted text-center py-3 mb-0">
                                 <i class="fas fa-server me-1"></i> No VMs registered.
@@ -628,6 +693,7 @@ const VmRegistry = (function() {
         $('#vmSequencePosition').val(1);
         $('#registerVmModalLabel').text(`Register VM in "${group.displayName}"`);
         $('#btnSubmitVm').html('<i class="fas fa-save"></i> Register VM');
+        $('#ec2ImportCard').show();
 
         _ec2FetchedInstances = [];
         $('#ec2InstancesList').html(`
@@ -644,9 +710,55 @@ const VmRegistry = (function() {
             regionSelect.append(`<option value="${r.value}">${r.label} (${r.value})</option>`);
         });
 
+        $('#vmName').prop('readonly', false);
         $('#vmProvider').prop('disabled', false);
         $('#vmRegion').prop('readonly', false);
         $('#vmProviderVmId').prop('readonly', false);
+
+        new bootstrap.Modal(document.getElementById('registerVmModal')).show();
+    }
+
+    /**
+     * Opens the same Register VM modal pre-filled for editing an existing VM.
+     * EKS-managed VMs lock identity fields that the sync job owns (name, provider,
+     * region, instance ID) — the next sync would otherwise re-diverge them anyway —
+     * but Purpose/Remarks and other business metadata stay editable.
+     */
+    function editVm(vmId) {
+        const groupWithVms = (window.VmRegistryState.currentGroupsWithVms || [])
+            .find(gv => (gv.vms || []).some(v => v.vmId === vmId));
+        const vm = groupWithVms && groupWithVms.vms.find(v => v.vmId === vmId);
+        if (!vm) {
+            Notifications.error('VM not found');
+            return;
+        }
+        const group = groupWithVms.group;
+        const isEks = (window.VmRegistryState.currentEnvironment?.serviceType || 'EC2') === 'EKS';
+
+        $('#registerVmForm')[0].reset();
+        $('#registerVmForm').removeClass('was-validated');
+        $('#vmId').val(vm.vmId);
+        $('#vmGroupId').val(group.groupId);
+        $('#vmGroupLabel').text(group.displayName);
+        $('#vmName').val(vm.name);
+        $('#vmDisplayName').val(vm.displayName);
+        $('#vmDescription').val(vm.description || '');
+        $('#vmPurpose').val(vm.purpose || '');
+        $('#vmRemarks').val(vm.remarks || '');
+        $('#vmProvider').val(vm.provider);
+        $('#vmRegion').val(vm.region);
+        $('#vmProviderVmId').val(vm.providerVmId);
+        $('#vmSequencePosition').val(vm.sequencePosition);
+        $('#registerVmModalLabel').text(`Edit VM "${vm.displayName}"`);
+        $('#btnSubmitVm').html('<i class="fas fa-save"></i> Save Changes');
+
+        // Importing from AWS only makes sense when registering a brand-new VM
+        $('#ec2ImportCard').hide();
+
+        $('#vmName').prop('readonly', isEks);
+        $('#vmProvider').prop('disabled', isEks);
+        $('#vmRegion').prop('readonly', isEks);
+        $('#vmProviderVmId').prop('readonly', isEks);
 
         new bootstrap.Modal(document.getElementById('registerVmModal')).show();
     }
@@ -844,6 +956,8 @@ const VmRegistry = (function() {
             $('#vmProviderVmId').prop('readonly', providerVmIdReadonly);
             return;
         }
+        const vmId = $('#vmId').val();
+        const isEdit = !!vmId;
         const groupId = $('#vmGroupId').val();
         const vmName = $('#vmName').val().trim();
         const vmDisplayName = $('#vmDisplayName').val().trim();
@@ -852,22 +966,29 @@ const VmRegistry = (function() {
             name: vmName,
             displayName: vmDisplayName || vmName,
             description: $('#vmDescription').val().trim() || null,
+            purpose: $('#vmPurpose').val().trim() || null,
+            remarks: $('#vmRemarks').val().trim() || null,
             provider: $('#vmProvider').val(),
             region: $('#vmRegion').val().trim(),
             providerVmId: $('#vmProviderVmId').val().trim(),
             sequencePosition: parseInt($('#vmSequencePosition').val()) || 1
         };
         try {
-            Loading.show('Registering VM...');
+            Loading.show(isEdit ? 'Saving VM...' : 'Registering VM...');
             const envId = window.VmRegistryState.currentEnvironment.environmentId;
-            await ApiClient.post(`/api/v1/environments/${envId}/vms`, data);
-            Notifications.success(`VM "${vmName}" registered successfully`);
+            if (isEdit) {
+                await ApiClient.put(`/api/v1/environments/${envId}/vms/${vmId}`, data);
+                Notifications.success(`VM "${vmName}" updated successfully`);
+            } else {
+                await ApiClient.post(`/api/v1/environments/${envId}/vms`, data);
+                Notifications.success(`VM "${vmName}" registered successfully`);
+            }
             bootstrap.Modal.getInstance(document.getElementById('registerVmModal')).hide();
             await refreshGroupsModal();
             await loadEnvironmentsData();
             Loading.hide();
         } catch (error) {
-            console.error('Failed to register VM:', error);
+            console.error(isEdit ? 'Failed to update VM:' : 'Failed to register VM:', error);
             $('#vmProvider').prop('disabled', providerDisabled);
             $('#vmRegion').prop('readonly', regionReadonly);
             $('#vmProviderVmId').prop('readonly', providerVmIdReadonly);
@@ -884,6 +1005,7 @@ const VmRegistry = (function() {
     async function refreshGroupsModal() {
         const envId = window.VmRegistryState.currentEnvironment.environmentId;
         const envName = window.VmRegistryState.currentEnvironment.environmentName;
+        window.VmRegistryState.groupVmPages = {};
         const groupsWithVms = await ApiClient.get(`/api/v1/environments/${envId}/vms`);
         window.VmRegistryState.currentGroupsWithVms = groupsWithVms;
         window.VmRegistryState.currentGroups = groupsWithVms.map(gv => gv.group);
@@ -926,6 +1048,7 @@ const VmRegistry = (function() {
         editEnvironment,
         deleteEnvironment,
         manageGroups,
+        changeGroupVmPage,
         renderGroupsModal,
         buildGroupCard,
         openGroupForm,
@@ -934,6 +1057,7 @@ const VmRegistry = (function() {
         editGroup,
         deleteGroup,
         openVmForm,
+        editVm,
         fetchEc2Instances,
         filterEc2Instances,
         selectEc2Instance,

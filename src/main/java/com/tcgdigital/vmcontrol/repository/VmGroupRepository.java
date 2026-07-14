@@ -3,6 +3,7 @@ package com.tcgdigital.vmcontrol.repository;
 import com.tcgdigital.vmcontrol.model.VmGroup;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -41,14 +42,23 @@ public interface VmGroupRepository extends JpaRepository<VmGroup, String> {
     Optional<VmGroup> findByIdWithVms(String groupId);
 
     /**
-     * Count groups in an environment.
-     */
-    long countByEnvironmentEnvironmentId(String environmentId);
-
-    /**
      * Find all groups in environment (for dependency validation).
      */
     @Query("SELECT g FROM VmGroup g WHERE g.environment.environmentId = :environmentId")
     List<VmGroup> findByEnvironmentId(String environmentId);
+
+    /**
+     * Group counts across many environments in a single query — avoids querying each
+     * environment individually when building an environment listing.
+     */
+    @Query("SELECT g.environment.environmentId AS environmentId, COUNT(g) AS total " +
+           "FROM VmGroup g WHERE g.environment.environmentId IN :environmentIds " +
+           "GROUP BY g.environment.environmentId")
+    List<EnvironmentGroupCounts> countGroupsGroupedByEnvironment(@Param("environmentIds") List<String> environmentIds);
+
+    interface EnvironmentGroupCounts {
+        String getEnvironmentId();
+        long getTotal();
+    }
 }
 

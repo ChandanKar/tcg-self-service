@@ -2,8 +2,11 @@ package com.tcgdigital.vmcontrol.repository;
 
 import com.tcgdigital.vmcontrol.model.Vm;
 import com.tcgdigital.vmcontrol.model.VmStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -61,6 +64,13 @@ public interface VmRepository extends JpaRepository<Vm, String> {
     List<Vm> findByEnvironmentId(String environmentId);
 
     /**
+     * Find all active VMs across many environments in a single query — avoids querying each
+     * environment individually when aggregating VMs for several environments at once.
+     */
+    @Query("SELECT v FROM Vm v WHERE v.group.environment.environmentId IN :environmentIds AND v.isActive = true")
+    List<Vm> findByEnvironmentIdIn(@Param("environmentIds") List<String> environmentIds);
+
+    /**
      * Find all VMs in an environment including inactive (for admin/reporting).
      */
     @Query("SELECT v FROM Vm v WHERE v.group.environment.environmentId = :environmentId ORDER BY v.group.sequencePosition, v.sequencePosition")
@@ -116,4 +126,42 @@ public interface VmRepository extends JpaRepository<Vm, String> {
     @Query("SELECT v.providerVmId FROM Vm v WHERE v.provider = :provider")
     List<String> findAllProviderVmIdsByProvider(com.tcgdigital.vmcontrol.model.CloudProvider provider);
 
+    /**
+     * Paginated active VMs for a single group, for scalable VM listing UIs.
+     */
+    Page<Vm> findByGroupGroupIdAndIsActiveTrueOrderBySequencePositionAsc(String groupId, Pageable pageable);
+
+    /**
+     * Per-group VM/running counts for every group in an environment, in a single query —
+     * avoids querying each group individually when building a group listing with counts.
+     */
+    @Query("SELECT v.group.groupId AS groupId, COUNT(v) AS total, " +
+           "SUM(CASE WHEN v.status = :runningStatus THEN 1L ELSE 0L END) AS running " +
+           "FROM Vm v WHERE v.group.environment.environmentId = :environmentId AND v.isActive = true " +
+           "GROUP BY v.group.groupId")
+    List<GroupVmCounts> countVmsGroupedByGroup(@Param("environmentId") String environmentId,
+                                                @Param("runningStatus") VmStatus runningStatus);
+
+    /**
+     * Per-environment VM/running counts across many environments in a single query —
+     * avoids querying each environment individually when building an environment listing.
+     */
+    @Query("SELECT v.group.environment.environmentId AS environmentId, COUNT(v) AS total, " +
+           "SUM(CASE WHEN v.status = :runningStatus THEN 1L ELSE 0L END) AS running " +
+           "FROM Vm v WHERE v.group.environment.environmentId IN :environmentIds AND v.isActive = true " +
+           "GROUP BY v.group.environment.environmentId")
+    List<EnvironmentVmCounts> countVmsGroupedByEnvironment(@Param("environmentIds") List<String> environmentIds,
+                                                            @Param("runningStatus") VmStatus runningStatus);
+
+    interface GroupVmCounts {
+        String getGroupId();
+        long getTotal();
+        long getRunning();
+    }
+
+    interface EnvironmentVmCounts {
+        String getEnvironmentId();
+        long getTotal();
+        long getRunning();
+    }
 }

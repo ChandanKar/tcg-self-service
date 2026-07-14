@@ -81,13 +81,7 @@ public class EnvironmentController {
             environments = environmentService.getEnvironmentsForCurrentUser();
         }
 
-        List<EnvironmentDTO> dtos = environments.stream()
-                .map(env -> EnvironmentDTO.fromEntityWithCounts(
-                        env,
-                        environmentService.getGroupCount(env.getEnvironmentId()),
-                        environmentService.getVmCount(env.getEnvironmentId())
-                ))
-                .toList();
+        List<EnvironmentDTO> dtos = toDtosWithBatchedCounts(environments);
 
         return ResponseEntity.ok(dtos);
     }
@@ -111,15 +105,26 @@ public class EnvironmentController {
     public ResponseEntity<List<EnvironmentDTO>> listAvailableEnvironments() {
         List<Environment> environments = environmentService.getEnvironmentsWithoutAccessForCurrentUser();
 
-        List<EnvironmentDTO> dtos = environments.stream()
-                .map(env -> EnvironmentDTO.fromEntityWithCounts(
-                        env,
-                        environmentService.getGroupCount(env.getEnvironmentId()),
-                        environmentService.getVmCount(env.getEnvironmentId())
-                ))
-                .toList();
+        List<EnvironmentDTO> dtos = toDtosWithBatchedCounts(environments);
 
         return ResponseEntity.ok(dtos);
+    }
+
+    /**
+     * Attaches group/VM/running counts to a batch of environments with exactly two count
+     * queries total, regardless of list size — avoids issuing a pair of count queries per
+     * environment (see EnvironmentService.getBatchCounts).
+     */
+    private List<EnvironmentDTO> toDtosWithBatchedCounts(List<Environment> environments) {
+        List<String> environmentIds = environments.stream().map(Environment::getEnvironmentId).toList();
+        var counts = environmentService.getBatchCounts(environmentIds);
+
+        return environments.stream()
+                .map(env -> {
+                    var c = counts.get(env.getEnvironmentId());
+                    return EnvironmentDTO.fromEntityWithCounts(env, c.groupCount(), c.vmCount(), c.runningVmCount());
+                })
+                .toList();
     }
 
     @GetMapping("/{environmentId}")
@@ -146,11 +151,7 @@ public class EnvironmentController {
         }
 
         Environment environment = environmentService.getEnvironmentById(environmentId);
-        EnvironmentDTO dto = EnvironmentDTO.fromEntityWithCounts(
-                environment,
-                environmentService.getGroupCount(environmentId),
-                environmentService.getVmCount(environmentId)
-        );
+        EnvironmentDTO dto = toDtosWithBatchedCounts(List.of(environment)).get(0);
 
         return ResponseEntity.ok(dto);
     }

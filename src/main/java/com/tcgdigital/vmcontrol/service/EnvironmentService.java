@@ -6,6 +6,7 @@ import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.Environment;
 import com.tcgdigital.vmcontrol.model.EnvironmentAccess;
+import com.tcgdigital.vmcontrol.model.VmStatus;
 import com.tcgdigital.vmcontrol.repository.EnvironmentAccessRepository;
 import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import com.tcgdigital.vmcontrol.repository.VmGroupRepository;
@@ -16,7 +17,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -191,16 +194,34 @@ public class EnvironmentService {
     }
 
     /**
-     * Get group count for an environment.
+     * Group/VM/running counts for a set of environments, computed with exactly two queries
+     * regardless of how many environments are requested — used by listing endpoints so they
+     * don't issue a pair of count queries per environment.
      */
-    public int getGroupCount(String environmentId) {
-        return (int) groupRepository.countByEnvironmentEnvironmentId(environmentId);
+    public Map<String, EnvironmentCounts> getBatchCounts(List<String> environmentIds) {
+        Map<String, EnvironmentCounts> result = new HashMap<>();
+        for (String id : environmentIds) {
+            result.put(id, new EnvironmentCounts(0, 0, 0));
+        }
+
+        for (VmGroupRepository.EnvironmentGroupCounts gc : groupRepository.countGroupsGroupedByEnvironment(environmentIds)) {
+            result.merge(gc.getEnvironmentId(), new EnvironmentCounts((int) gc.getTotal(), 0, 0), EnvironmentCounts::mergeGroupCount);
+        }
+
+        for (VmRepository.EnvironmentVmCounts vc : vmRepository.countVmsGroupedByEnvironment(environmentIds, VmStatus.RUNNING)) {
+            result.merge(vc.getEnvironmentId(), new EnvironmentCounts(0, (int) vc.getTotal(), (int) vc.getRunning()), EnvironmentCounts::mergeVmCounts);
+        }
+
+        return result;
     }
 
-    /**
-     * Get VM count for an environment.
-     */
-    public int getVmCount(String environmentId) {
-        return vmRepository.findByEnvironmentId(environmentId).size();
+    public record EnvironmentCounts(int groupCount, int vmCount, int runningVmCount) {
+        private static EnvironmentCounts mergeGroupCount(EnvironmentCounts existing, EnvironmentCounts groupUpdate) {
+            return new EnvironmentCounts(groupUpdate.groupCount(), existing.vmCount(), existing.runningVmCount());
+        }
+
+        private static EnvironmentCounts mergeVmCounts(EnvironmentCounts existing, EnvironmentCounts vmUpdate) {
+            return new EnvironmentCounts(existing.groupCount(), vmUpdate.vmCount(), vmUpdate.runningVmCount());
+        }
     }
 }

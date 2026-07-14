@@ -18,6 +18,7 @@ public class EnvironmentDTO {
     private Timestamp updatedAt;
     private int groupCount;
     private int vmCount;
+    private int runningVmCount;
     private String metadata;
     private String serviceType;
 
@@ -38,10 +39,12 @@ public class EnvironmentDTO {
         return dto;
     }
 
-    public static EnvironmentDTO fromEntityWithCounts(Environment environment, int groupCount, int vmCount) {
+    public static EnvironmentDTO fromEntityWithCounts(Environment environment, int groupCount, int vmCount,
+                                                       int runningVmCount) {
         EnvironmentDTO dto = fromEntity(environment);
         dto.setGroupCount(groupCount);
         dto.setVmCount(vmCount);
+        dto.setRunningVmCount(runningVmCount);
         return dto;
     }
 
@@ -116,6 +119,14 @@ public class EnvironmentDTO {
 
     public void setVmCount(int vmCount) {
         this.vmCount = vmCount;
+    }
+
+    public int getRunningVmCount() {
+        return runningVmCount;
+    }
+
+    public void setRunningVmCount(int runningVmCount) {
+        this.runningVmCount = runningVmCount;
     }
 
     public String getMetadata() {

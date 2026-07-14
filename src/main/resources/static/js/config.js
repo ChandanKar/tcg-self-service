@@ -92,7 +92,9 @@ const Config = (function() {
             refreshInventory: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}/inventory/refresh`,
             metrics: (envId, vmId, window = '1h', period = 300) =>
                 `${API_BASE_URL}/environments/${envId}/vms/${vmId}/metrics?window=${encodeURIComponent(window)}&period=${encodeURIComponent(period)}`,
-            utilizationSummary: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}/utilization-summary`
+            utilizationSummary: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}/utilization-summary`,
+            groupPage: (envId, groupId, page = 0, size = 25) =>
+                `${API_BASE_URL}/environments/${envId}/vms/${groupId}/page?page=${page}&size=${size}`
         },
 
         // VM Operations
