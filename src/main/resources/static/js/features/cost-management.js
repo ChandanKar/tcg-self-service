@@ -9,6 +9,11 @@ const CostManagement = (function() {
     const PAGE_SIZE = 10;
     const TREND_DAYS = 90;
     const EXPORT_SIZE = 100000;
+    const TOP_N_SLICES = 8;
+
+    // Fixed categorical order — never cycled/reassigned per filter. Last color is reserved for
+    // the "Other" residual bucket so it always reads as neutral rather than competing for attention.
+    const CATEGORICAL_COLORS = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#0891b2', '#db2777', '#65a30d', '#0d9488', '#94a3b8'];
 
     let chartRegistry = new Map();
     let exporting = false;
@@ -17,7 +22,7 @@ const CostManagement = (function() {
         summary: null,
         spendByEnvironment: [],
         spendByVmType: [],
-        spendByTeam: [],
+        teamTrend: [],
         trend: [],
         idle: emptyPageState(),
         rightsizing: emptyPageState(),
@@ -89,16 +94,16 @@ const CostManagement = (function() {
             fetchJson(Config.API.costManagement.summary),
             fetchJson(Config.API.costManagement.spendByEnvironment),
             fetchJson(Config.API.costManagement.spendByVmType),
-            fetchJson(Config.API.costManagement.spendByTeam),
+            fetchJson(Config.API.costManagement.spendTrendByTeam(TREND_DAYS)),
             fetchJson(Config.API.costManagement.spendTrend(TREND_DAYS)),
             fetchJson(Config.API.costManagement.idleWaste(state.idle.page, PAGE_SIZE)),
             fetchJson(Config.API.costManagement.rightsizing(state.rightsizing.page, PAGE_SIZE)),
             fetchJson(Config.API.costManagement.vmDetail(state.detail.page, PAGE_SIZE))
-        ]).then(([summary, byEnv, byType, byTeam, trend, idle, rightsizing, detail]) => {
+        ]).then(([summary, byEnv, byType, teamTrend, trend, idle, rightsizing, detail]) => {
             state.summary = summary;
             state.spendByEnvironment = byEnv || [];
             state.spendByVmType = byType || [];
-            state.spendByTeam = byTeam || [];
+            state.teamTrend = teamTrend || [];
             state.trend = trend || [];
             state.idle = mapPage(idle);
             state.rightsizing = mapPage(rightsizing);
@@ -218,7 +223,7 @@ const CostManagement = (function() {
             ? 'No prior-period data yet'
             : `${summary.monthOverMonthChangePercent >= 0 ? '+' : ''}${summary.monthOverMonthChangePercent}% vs prior 30 days`;
         return `
-            <div class="dashboard-kpi-grid">
+            <div class="dashboard-kpi-grid cost-kpi-grid">
                 ${buildKpi('Total Monthly Cost', Utils.formatCurrency(summary.totalMonthlyCost || 0), 'fa-dollar-sign', deltaText)}
                 ${buildKpi('Idle Waste', Utils.formatCurrency(summary.idleWasteMonthlyCost || 0), 'fa-moon', `${summary.idleVmCount || 0} idle VM(s)`)}
                 ${buildKpi('Rightsizing Potential', Utils.formatCurrency(summary.rightsizingPotentialSavings || 0), 'fa-compress-arrows-alt', `${summary.rightsizingCandidateCount || 0} candidate(s)`)}
@@ -262,7 +267,7 @@ const CostManagement = (function() {
                 <section class="dashboard-chart-panel">
                     <div class="dashboard-panel-head">
                         <h2>Spend by Team</h2>
-                        <small>${state.spendByTeam.length} team(s)</small>
+                        <small>Trend, last ${TREND_DAYS} days</small>
                     </div>
                     <div id="cost-chart-team" class="dashboard-chart"></div>
                 </section>
@@ -284,9 +289,9 @@ const CostManagement = (function() {
 
     function initCharts() {
         if (!window.echarts) return;
-        chart('cost-chart-env', buildBarOption(state.spendByEnvironment));
-        chart('cost-chart-type', buildBarOption(state.spendByVmType));
-        chart('cost-chart-team', buildBarOption(state.spendByTeam));
+        chart('cost-chart-env', buildEnvironmentPieOption(state.spendByEnvironment));
+        chart('cost-chart-type', buildVmTypePolarBarOption(state.spendByVmType));
+        chart('cost-chart-team', buildTeamStackedLineOption(state.teamTrend));
         chart('cost-chart-trend', buildTrendOption(state.trend));
         setTimeout(resizeCharts, 40);
     }
@@ -308,35 +313,133 @@ const CostManagement = (function() {
         chartRegistry.forEach(instance => instance.resize());
     }
 
-    function buildBarOption(rows) {
+    /**
+     * Collapses a dimension-breakdown list to its top N slices by cost plus one "Other" residual
+     * bucket, so a chart never has to render an unbounded number of categories/series.
+     */
+    function topSlicesWithOther(rows, topN, labelFn, valueFn) {
+        const sorted = [...rows].sort((a, b) => valueFn(b) - valueFn(a));
+        const top = sorted.slice(0, topN);
+        const rest = sorted.slice(topN);
+        const otherTotal = rest.reduce((sum, r) => sum + valueFn(r), 0);
+        const slices = top.map(r => ({ name: labelFn(r), value: valueFn(r) }));
+        if (otherTotal > 0) {
+            slices.push({ name: `Other (${rest.length})`, value: otherTotal });
+        }
+        return slices;
+    }
+
+    function buildEnvironmentPieOption(rows) {
         if (!rows.length) return emptyChartOption('No spend data yet.');
-        const labels = rows.map(r => r.dimensionLabel);
-        const values = rows.map(r => Number(r.cost) || 0);
+        const data = topSlicesWithOther(rows, TOP_N_SLICES, r => r.dimensionLabel, r => Number(r.cost) || 0);
         return {
-            color: ['#2563eb'],
+            color: CATEGORICAL_COLORS,
+            tooltip: { trigger: 'item', confine: true, valueFormatter: value => Utils.formatCurrency(value) },
+            legend: { bottom: 0, type: 'scroll', textStyle: chartTextStyle() },
+            series: [{
+                type: 'pie',
+                radius: ['38%', '68%'],
+                center: ['50%', '42%'],
+                label: { formatter: '{b}\n{d}%', fontSize: 11 },
+                itemStyle: { borderColor: '#fff', borderWidth: 2 },
+                data
+            }]
+        };
+    }
+
+    function buildVmTypePolarBarOption(rows) {
+        if (!rows.length) return emptyChartOption('No spend data yet.');
+        const sorted = [...rows].sort((a, b) => (Number(b.cost) || 0) - (Number(a.cost) || 0));
+        const labels = sorted.map(r => r.dimensionLabel);
+        const values = sorted.map(r => Number(r.cost) || 0);
+        return {
+            color: [CATEGORICAL_COLORS[0]],
+            tooltip: { trigger: 'item', confine: true, valueFormatter: value => Utils.formatCurrency(value) },
+            polar: { radius: ['20%', '75%'] },
+            angleAxis: {
+                type: 'value',
+                axisLabel: { ...chartTextStyle(), formatter: v => compactCurrency(v) },
+                splitLine: { lineStyle: { color: '#eef2f7' } }
+            },
+            radiusAxis: {
+                type: 'category',
+                data: labels,
+                axisLabel: chartTextStyle()
+            },
+            series: [{
+                type: 'bar',
+                data: values,
+                coordinateSystem: 'polar',
+                barCategoryGap: '30%',
+                itemStyle: { borderRadius: 4 }
+            }]
+        };
+    }
+
+    /**
+     * Pivots flat (date, team, cost) rows into one stacked line series per team — capped to the
+     * top N teams by total spend over the window (plus an "Other" series) so the chart never has
+     * an unbounded number of stacked lines.
+     */
+    function buildTeamStackedLineOption(rows) {
+        if (!rows.length) return emptyChartOption('No cost history yet — use "Backfill 30 Days" to populate it.');
+
+        const dates = [...new Set(rows.map(r => r.date))].sort();
+
+        const totalByTeam = new Map();
+        for (const row of rows) {
+            totalByTeam.set(row.team, (totalByTeam.get(row.team) || 0) + (Number(row.estimatedCost) || 0));
+        }
+        const rankedTeams = [...totalByTeam.entries()].sort((a, b) => b[1] - a[1]);
+        const topTeams = new Set(rankedTeams.slice(0, TOP_N_SLICES).map(([team]) => team));
+        const hasOther = rankedTeams.length > TOP_N_SLICES;
+
+        const costByTeamAndDate = new Map();
+        for (const row of rows) {
+            const seriesName = topTeams.has(row.team) ? row.team : 'Other';
+            if (!costByTeamAndDate.has(seriesName)) costByTeamAndDate.set(seriesName, new Map());
+            const byDate = costByTeamAndDate.get(seriesName);
+            byDate.set(row.date, (byDate.get(row.date) || 0) + (Number(row.estimatedCost) || 0));
+        }
+
+        const seriesNames = [...rankedTeams.filter(([team]) => topTeams.has(team)).map(([team]) => team)];
+        if (hasOther) seriesNames.push('Other');
+
+        const series = seriesNames.map((name, index) => ({
+            name,
+            type: 'line',
+            stack: 'total',
+            smooth: true,
+            showSymbol: false,
+            areaStyle: { opacity: 0.75 },
+            lineStyle: { width: 1 },
+            color: CATEGORICAL_COLORS[index % CATEGORICAL_COLORS.length],
+            data: dates.map(date => {
+                const byDate = costByTeamAndDate.get(name);
+                return byDate ? Math.round((byDate.get(date) || 0) * 100) / 100 : 0;
+            })
+        }));
+
+        return {
             tooltip: {
                 trigger: 'axis',
-                axisPointer: { type: 'shadow' },
                 confine: true,
                 valueFormatter: value => Utils.formatCurrency(value)
             },
-            grid: { left: 12, right: 16, top: 12, bottom: 44, containLabel: true },
+            legend: { bottom: 0, type: 'scroll', textStyle: chartTextStyle() },
+            grid: { left: 52, right: 24, top: 18, bottom: 56 },
             xAxis: {
                 type: 'category',
-                data: labels,
-                axisLabel: { ...chartTextStyle(), rotate: labels.length > 4 ? 25 : 0 }
+                boundaryGap: false,
+                data: dates.map(d => (d || '').slice(5)),
+                axisLabel: chartTextStyle()
             },
             yAxis: {
                 type: 'value',
                 axisLabel: { ...chartTextStyle(), formatter: v => compactCurrency(v) },
                 splitLine: { lineStyle: { color: '#eef2f7' } }
             },
-            series: [{
-                type: 'bar',
-                data: values,
-                barMaxWidth: 42,
-                itemStyle: { borderRadius: [4, 4, 0, 0] }
-            }]
+            series
         };
     }
 
@@ -726,3 +829,6 @@ const CostManagement = (function() {
         changePage
     };
 })();
+
+// Make available globally
+window.CostManagement = CostManagement;

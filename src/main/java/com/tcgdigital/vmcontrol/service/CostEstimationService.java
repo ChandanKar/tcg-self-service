@@ -7,7 +7,9 @@ import com.tcgdigital.vmcontrol.dto.IdleWasteRowDTO;
 import com.tcgdigital.vmcontrol.dto.RightsizingCandidateDTO;
 import com.tcgdigital.vmcontrol.dto.SpendByDimensionDTO;
 import com.tcgdigital.vmcontrol.dto.SpendTrendPointDTO;
+import com.tcgdigital.vmcontrol.dto.TeamSpendTrendPointDTO;
 import com.tcgdigital.vmcontrol.dto.VmCostDetailDTO;
+import com.tcgdigital.vmcontrol.model.CostDailySnapshot;
 import com.tcgdigital.vmcontrol.model.Vm;
 import com.tcgdigital.vmcontrol.model.VmIdleSummary;
 import com.tcgdigital.vmcontrol.repository.CostDailySnapshotRepository;
@@ -166,6 +168,31 @@ public class CostEstimationService {
         return costDailySnapshotRepository.findDailyTotalsSince(since).stream()
                 .map(t -> new SpendTrendPointDTO(t.getSnapshotDate(), nullToZero(t.getTotalEstimatedCost()), t.getTotalActualCost()))
                 .toList();
+    }
+
+    /**
+     * Per-team daily spend, derived from the same daily snapshots as {@link #getSpendTrend} but
+     * grouped by each snapshot's environment's team instead of summed fleet-wide.
+     */
+    public List<TeamSpendTrendPointDTO> getSpendTrendByTeam(int days) {
+        Date since = Date.valueOf(LocalDate.now().minusDays(days));
+        List<CostDailySnapshot> snapshots = costDailySnapshotRepository.findWithEnvironmentSince(since);
+
+        Map<String, Map<Date, BigDecimal>> costByTeamAndDate = new LinkedHashMap<>();
+        for (CostDailySnapshot snapshot : snapshots) {
+            String team = resolveTeamFromMetadata(snapshot.getEnvironment().getMetadata());
+            costByTeamAndDate
+                    .computeIfAbsent(team, k -> new LinkedHashMap<>())
+                    .merge(snapshot.getSnapshotDate(), nullToZero(snapshot.getEstimatedCost()), BigDecimal::add);
+        }
+
+        List<TeamSpendTrendPointDTO> result = new ArrayList<>();
+        for (Map.Entry<String, Map<Date, BigDecimal>> teamEntry : costByTeamAndDate.entrySet()) {
+            for (Map.Entry<Date, BigDecimal> dateEntry : teamEntry.getValue().entrySet()) {
+                result.add(new TeamSpendTrendPointDTO(dateEntry.getKey(), teamEntry.getKey(), dateEntry.getValue()));
+            }
+        }
+        return result;
     }
 
     // ---- internal ----
@@ -329,7 +356,10 @@ public class CostEstimationService {
     }
 
     private String resolveTeam(VmCostBundle b) {
-        String metadata = b.vm().getGroup().getEnvironment().getMetadata();
+        return resolveTeamFromMetadata(b.vm().getGroup().getEnvironment().getMetadata());
+    }
+
+    private String resolveTeamFromMetadata(String metadata) {
         if (metadata == null || metadata.isBlank()) {
             return "Unassigned";
         }

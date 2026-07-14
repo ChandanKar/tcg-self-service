@@ -25,6 +25,15 @@ public interface CostDailySnapshotRepository extends JpaRepository<CostDailySnap
            "GROUP BY c.snapshotDate ORDER BY c.snapshotDate ASC")
     List<DailyCostTotal> findDailyTotalsSince(@Param("sinceDate") Date sinceDate);
 
+    /**
+     * Snapshots since a given date with their environment eagerly fetched, so the per-team
+     * trend can read each environment's metadata (for team resolution) without an N+1 lazy-load
+     * per snapshot row.
+     */
+    @Query("SELECT c FROM CostDailySnapshot c JOIN FETCH c.environment WHERE c.snapshotDate >= :sinceDate " +
+           "ORDER BY c.snapshotDate ASC")
+    List<CostDailySnapshot> findWithEnvironmentSince(@Param("sinceDate") Date sinceDate);
+
     interface DailyCostTotal {
         Date getSnapshotDate();
         BigDecimal getTotalEstimatedCost();

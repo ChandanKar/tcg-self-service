@@ -11,6 +11,16 @@
     flex-wrap: wrap;
 }
 
+/*
+ * .dashboard-kpi-grid is hardcoded to 6 fixed columns (tuned for the Dashboard's 6 tiles) —
+ * this page only has 4, which left two empty column tracks. auto-fit sizes the grid to however
+ * many tiles actually exist instead of a fixed count, so there's no dead space at any tile count
+ * or viewport width, and no separate breakpoint rules are needed the way the 6-column grid has.
+ */
+.cost-kpi-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
 .cost-kpi-subtitle {
     display: block;
     margin-top: 0.15rem;

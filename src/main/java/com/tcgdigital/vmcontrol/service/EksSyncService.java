@@ -281,13 +281,21 @@ public class EksSyncService {
         vm.setProviderVmId(providerVmId);
         vm.setRegion(region);
 
-        // Update Vm.metadata with live scaling config ONLY when the node group is running.
-        // Preserve existing metadata when desiredSize == 0 so startVm can restore the correct count.
+        // Scaling numbers (minSize/desiredSize) are only trustworthy while the group has at
+        // least one of them > 0 — preserve the prior values when scaled to zero so startVm can
+        // restore the correct count. instanceType is different: it's static node-group
+        // configuration (from the same DescribeNodegroup call, no extra AWS API cost), not live
+        // scaling state, so it's captured on every sync regardless of running state — otherwise
+        // a node group that's currently stopped would never get priced by Cost Management.
         if (nodegroup != null && nodegroup.scalingConfig() != null) {
             int liveDesired = nodegroup.scalingConfig().desiredSize();
             int liveMin = nodegroup.scalingConfig().minSize();
+            String instanceType = (nodegroup.instanceTypes() != null && !nodegroup.instanceTypes().isEmpty())
+                    ? nodegroup.instanceTypes().get(0) : null;
             if (liveDesired > 0 || liveMin > 0) {
-                vm.setMetadata(buildVmMetadata(liveMin, liveDesired));
+                vm.setMetadata(buildVmMetadata(liveMin, liveDesired, instanceType));
+            } else if (instanceType != null) {
+                vm.setMetadata(mergeInstanceTypeIntoMetadata(vm.getMetadata(), instanceType));
             }
         }
 
@@ -323,11 +331,46 @@ public class EksSyncService {
         }
     }
 
-    private String buildVmMetadata(int minSize, int desiredSize) {
+    private String buildVmMetadata(int minSize, int desiredSize, String instanceType) {
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("minSize", minSize);
+        fields.put("desiredSize", desiredSize);
+        if (instanceType != null && !instanceType.isBlank()) {
+            fields.put("instanceType", instanceType);
+        }
         try {
-            return objectMapper.writeValueAsString(java.util.Map.of("minSize", minSize, "desiredSize", desiredSize));
+            return objectMapper.writeValueAsString(fields);
         } catch (Exception e) {
-            return "{\"minSize\":" + minSize + ",\"desiredSize\":" + desiredSize + "}";
+            String instanceTypeJson = instanceType != null ? ",\"instanceType\":\"" + instanceType + "\"" : "";
+            return "{\"minSize\":" + minSize + ",\"desiredSize\":" + desiredSize + instanceTypeJson + "}";
+        }
+    }
+
+    /**
+     * Refreshes just the instanceType field on an existing metadata JSON blob, preserving
+     * whatever minSize/desiredSize is already there (used when the group is scaled to zero,
+     * where those scaling numbers must NOT be overwritten but instanceType safely can be).
+     */
+    private String mergeInstanceTypeIntoMetadata(String existingMetadata, String instanceType) {
+        Map<String, Object> fields = new LinkedHashMap<>();
+        if (existingMetadata != null && !existingMetadata.isBlank()) {
+            try {
+                Map<?, ?> existing = objectMapper.readValue(existingMetadata, Map.class);
+                existing.forEach((key, value) -> fields.put(String.valueOf(key), value));
+            } catch (Exception e) {
+                log.debug("Could not parse existing Vm metadata while merging instanceType: {}", e.getMessage());
+            }
+        }
+        fields.putIfAbsent("minSize", 0);
+        fields.putIfAbsent("desiredSize", 0);
+        fields.put("instanceType", instanceType);
+        try {
+            return objectMapper.writeValueAsString(fields);
+        } catch (Exception e) {
+            return buildVmMetadata(
+                    ((Number) fields.getOrDefault("minSize", 0)).intValue(),
+                    ((Number) fields.getOrDefault("desiredSize", 0)).intValue(),
+                    instanceType);
         }
     }
 

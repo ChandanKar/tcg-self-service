@@ -1,11 +1,16 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tcgdigital.vmcontrol.model.CloudProvider;
 import com.tcgdigital.vmcontrol.model.Vm;
 import com.tcgdigital.vmcontrol.model.VmStateHistory;
 import com.tcgdigital.vmcontrol.model.VmStatus;
 import com.tcgdigital.vmcontrol.repository.VmInventorySnapshotRepository;
 import com.tcgdigital.vmcontrol.repository.VmStateHistoryRepository;
 import com.tcgdigital.vmcontrol.repository.VmVolumeSnapshotRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
@@ -26,22 +31,27 @@ import java.util.Optional;
 @ConditionalOnProperty(name = "cost.provider", havingValue = "estimated", matchIfMissing = true)
 public class EstimatedCostProvider implements CostDataProvider {
 
+    private static final Logger log = LoggerFactory.getLogger(EstimatedCostProvider.class);
+
     private final PricingReferenceService pricingReferenceService;
     private final VmCostCalculator vmCostCalculator;
     private final VmVolumeSnapshotRepository vmVolumeSnapshotRepository;
     private final VmStateHistoryRepository vmStateHistoryRepository;
     private final VmInventorySnapshotRepository vmInventorySnapshotRepository;
+    private final ObjectMapper objectMapper;
 
     public EstimatedCostProvider(PricingReferenceService pricingReferenceService,
                                   VmCostCalculator vmCostCalculator,
                                   VmVolumeSnapshotRepository vmVolumeSnapshotRepository,
                                   VmStateHistoryRepository vmStateHistoryRepository,
-                                  VmInventorySnapshotRepository vmInventorySnapshotRepository) {
+                                  VmInventorySnapshotRepository vmInventorySnapshotRepository,
+                                  ObjectMapper objectMapper) {
         this.pricingReferenceService = pricingReferenceService;
         this.vmCostCalculator = vmCostCalculator;
         this.vmVolumeSnapshotRepository = vmVolumeSnapshotRepository;
         this.vmStateHistoryRepository = vmStateHistoryRepository;
         this.vmInventorySnapshotRepository = vmInventorySnapshotRepository;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -81,13 +91,19 @@ public class EstimatedCostProvider implements CostDataProvider {
             VmStatus seedStatus = resolveSeedStatus(vm, transitions, windowStart);
             BigDecimal runtimeHours = vmCostCalculator.computeRuntimeHours(vm, seedStatus, transitions, windowStart, windowEnd);
 
-            String instanceType = instanceTypeByVmId.get(vmId);
+            boolean isEks = vm.getProvider() == CloudProvider.AWS_EKS;
+            EksNodeInfo eksNodeInfo = isEks ? resolveEksNodeInfo(vm) : null;
+            String pricingProvider = isEks ? "AWS" : vm.getProvider().name();
+            String instanceType = isEks ? eksNodeInfo.instanceType() : instanceTypeByVmId.get(vmId);
+            int nodeCount = isEks ? eksNodeInfo.nodeCount() : 1;
+
             PricingReferenceService.PriceLookupResult rate =
-                    pricingReferenceService.lookupHourlyRate(vm.getProvider().name(), instanceType, vm.getRegion());
+                    pricingReferenceService.lookupHourlyRate(pricingProvider, instanceType, vm.getRegion());
 
             if (rate.priceKnown()) {
-                BigDecimal cost = vmCostCalculator.estimateCost(rate.hourlyRate(), runtimeHours, storageGib, storageGbMonthRate, windowDays);
-                result.put(vmId, new VmCostEstimate(true, rate.hourlyRate(), runtimeHours, storageGib, cost));
+                BigDecimal effectiveHourlyRate = rate.hourlyRate().multiply(BigDecimal.valueOf(nodeCount));
+                BigDecimal cost = vmCostCalculator.estimateCost(effectiveHourlyRate, runtimeHours, storageGib, storageGbMonthRate, windowDays);
+                result.put(vmId, new VmCostEstimate(true, effectiveHourlyRate, runtimeHours, storageGib, cost));
             } else {
                 BigDecimal proratedStorageRate = storageGbMonthRate.multiply(windowDays)
                         .divide(BigDecimal.valueOf(30), 6, RoundingMode.HALF_UP);
@@ -99,6 +115,30 @@ public class EstimatedCostProvider implements CostDataProvider {
 
         return result;
     }
+
+    /**
+     * EKS node groups are represented as a single Vm per group (not per node), so there's no
+     * VmInventorySnapshot to read — instanceType and node count are captured instead in
+     * Vm.metadata by EksSyncService directly from the EKS DescribeNodegroup response. Nodes run
+     * on plain EC2 hardware, so the standard AWS pricing reference applies per node.
+     */
+    private EksNodeInfo resolveEksNodeInfo(Vm vm) {
+        String metadata = vm.getMetadata();
+        if (metadata == null || metadata.isBlank()) {
+            return new EksNodeInfo(null, 1);
+        }
+        try {
+            JsonNode node = objectMapper.readTree(metadata);
+            String instanceType = node.hasNonNull("instanceType") ? node.get("instanceType").asText() : null;
+            int desiredSize = node.hasNonNull("desiredSize") ? node.get("desiredSize").asInt() : 1;
+            return new EksNodeInfo(instanceType, Math.max(desiredSize, 1));
+        } catch (Exception e) {
+            log.debug("Could not parse EKS node group metadata for VM {}: {}", vm.getVmId(), e.getMessage());
+            return new EksNodeInfo(null, 1);
+        }
+    }
+
+    private record EksNodeInfo(String instanceType, int nodeCount) {}
 
     /**
      * The first in-window transition already carries its own previousStatus, so only VMs with

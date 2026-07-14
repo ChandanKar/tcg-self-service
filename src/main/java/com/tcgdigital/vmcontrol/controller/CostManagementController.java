@@ -5,6 +5,7 @@ import com.tcgdigital.vmcontrol.dto.IdleWasteRowDTO;
 import com.tcgdigital.vmcontrol.dto.RightsizingCandidateDTO;
 import com.tcgdigital.vmcontrol.dto.SpendByDimensionDTO;
 import com.tcgdigital.vmcontrol.dto.SpendTrendPointDTO;
+import com.tcgdigital.vmcontrol.dto.TeamSpendTrendPointDTO;
 import com.tcgdigital.vmcontrol.dto.VmCostDetailDTO;
 import com.tcgdigital.vmcontrol.service.CostEstimationService;
 import com.tcgdigital.vmcontrol.service.CostSnapshotService;
@@ -67,6 +68,12 @@ public class CostManagementController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<SpendTrendPointDTO>> getSpendTrend(@RequestParam(defaultValue = "90") int days) {
         return ResponseEntity.ok(costEstimationService.getSpendTrend(days));
+    }
+
+    @GetMapping("/spend-trend-by-team")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<TeamSpendTrendPointDTO>> getSpendTrendByTeam(@RequestParam(defaultValue = "90") int days) {
+        return ResponseEntity.ok(costEstimationService.getSpendTrendByTeam(days));
     }
 
     @GetMapping("/idle-waste")
