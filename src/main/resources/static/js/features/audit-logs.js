@@ -6,6 +6,22 @@
 const AuditLogs = (function() {
     'use strict';
 
+    /**
+     * Spring Data serializes Page<T> as { content: [...], page: { totalElements, totalPages,
+     * number, size } } — flatten that back onto the response so the rest of this module's
+     * data.totalPages/totalElements/number reads keep working regardless of shape.
+     */
+    function normalizePage(data) {
+        if (!data || !data.page) return data;
+        return {
+            ...data,
+            totalElements: data.page.totalElements ?? data.totalElements ?? 0,
+            totalPages: data.page.totalPages ?? data.totalPages ?? 0,
+            number: data.page.number ?? data.number ?? 0,
+            size: data.page.size ?? data.size
+        };
+    }
+
     // Cache for filter state
     let currentFilters = {
         environmentId: '',
@@ -67,7 +83,7 @@ const AuditLogs = (function() {
     function fetchMyLogs() {
         return new Promise((resolve, reject) => {
             ApiClient.get(Config.API.audit.myLogs)
-                .done(resolve)
+                .done(data => resolve(normalizePage(data)))
                 .fail(function(xhr) {
                     if (xhr.status === 404) {
                         resolve({ content: [], totalElements: 0, totalPages: 0 });
@@ -95,7 +111,7 @@ const AuditLogs = (function() {
             const url = `${Config.API.audit.allLogs}?${params.toString()}`;
 
             ApiClient.get(url)
-                .done(resolve)
+                .done(data => resolve(normalizePage(data)))
                 .fail(function(xhr) {
                     if (xhr.status === 404) {
                         resolve({ content: [], totalElements: 0, totalPages: 0 });

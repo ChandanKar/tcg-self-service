@@ -10,6 +10,22 @@ const VmRegistry = (function() {
     // Cache for fetched EC2 instances (used for client-side filtering)
     let _ec2FetchedInstances = [];
 
+    /**
+     * Spring Data serializes Page<T> as { content: [...], page: { totalElements, totalPages,
+     * number, size } } — flatten that back onto the response so the rest of this module's
+     * data.totalPages/totalElements/number reads keep working regardless of shape.
+     */
+    function normalizePage(data) {
+        if (!data || !data.page) return data;
+        return {
+            ...data,
+            totalElements: data.page.totalElements ?? data.totalElements ?? 0,
+            totalPages: data.page.totalPages ?? data.totalPages ?? 0,
+            number: data.page.number ?? data.number ?? 0,
+            size: data.page.size ?? data.size
+        };
+    }
+
     // =========================================================================
     // Entry Point
     // =========================================================================
@@ -368,7 +384,7 @@ const VmRegistry = (function() {
     async function changeGroupVmPage(groupId, page) {
         const environmentId = window.VmRegistryState.currentEnvironment.environmentId;
         try {
-            const result = await ApiClient.get(Config.API.vms.groupPage(environmentId, groupId, page, VM_PAGE_SIZE));
+            const result = normalizePage(await ApiClient.get(Config.API.vms.groupPage(environmentId, groupId, page, VM_PAGE_SIZE)));
             window.VmRegistryState.groupVmPages[groupId] = page;
 
             const group = window.VmRegistryState.currentGroups.find(g => g.groupId === groupId);
