@@ -627,25 +627,46 @@ public class AuditService {
     public void logAccessRequested(String userId, String environmentId, String environmentName, String accessLevel) {
         logEnvironmentAction(auditUserId(userId), AuditAction.ACCESS_REQUESTED, environmentId, environmentName,
                 "environment_access", environmentId, environmentName,
-                String.format("Access requested by user: %s. Level: %s", userId, accessLevel));
+                String.format("Access requested by %s. Level: %s", describeUser(userId), accessLevel));
     }
 
     public void logAccessGranted(String reviewerId, String userId, String environmentId, String environmentName, String accessLevel) {
         logEnvironmentAction(auditUserId(reviewerId), AuditAction.ACCESS_GRANTED, environmentId, environmentName,
                 "environment_access", environmentId, environmentName,
-                String.format("Access granted to user: %s. Level: %s. Approved by: %s", userId, accessLevel, reviewerId));
+                String.format("Access granted to %s. Level: %s. Approved by %s", describeUser(userId), accessLevel, describeUser(reviewerId)));
     }
 
     public void logAccessDenied(String reviewerId, String userId, String environmentId, String environmentName, String reason) {
         logEnvironmentAction(auditUserId(reviewerId), AuditAction.ACCESS_DENIED, environmentId, environmentName,
                 "environment_access", environmentId, environmentName,
-                String.format("Access denied for user: %s. Denied by: %s. Reason: %s", userId, reviewerId, reason));
+                String.format("Access denied for %s. Denied by %s. Reason: %s", describeUser(userId), describeUser(reviewerId), reason));
     }
 
     public void logAccessRevoked(String performedByUserId, String userId, String environmentId, String environmentName) {
         logEnvironmentAction(auditUserId(performedByUserId), AuditAction.ACCESS_REVOKED, environmentId, environmentName,
                 "environment_access", environmentId, environmentName,
-                String.format("Access revoked for user: %s. Revoked by: %s", userId, performedByUserId));
+                String.format("Access revoked for %s. Revoked by %s", describeUser(userId), describeUser(performedByUserId)));
+    }
+
+    /**
+     * Renders a user as "Display Name (email)" for embedding in free-text audit details,
+     * instead of the raw internal user UUID (or Entra object ID) that's meaningless to a reader.
+     * Falls back to the raw id if the user record no longer exists (e.g. deactivated/deleted).
+     */
+    private String describeUser(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return "unknown user";
+        }
+        return userRepository.findById(userId)
+                .map(user -> {
+                    String name = firstNonBlank(user.getDisplayName(), user.getEmail());
+                    String email = user.getEmail();
+                    if (name != null && email != null && !name.equals(email)) {
+                        return name + " (" + email + ")";
+                    }
+                    return firstNonBlank(name, email, userId);
+                })
+                .orElse(userId);
     }
 
     // ============= Inner Classes =============

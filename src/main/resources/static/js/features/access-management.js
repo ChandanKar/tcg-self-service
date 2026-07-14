@@ -19,6 +19,10 @@ const AccessManagement = (function() {
     let currentPage = 1;
     let currentSearch = '';
 
+    // Autocomplete instances for the Grant Access modal (initialized in bindEvents)
+    let grantEnvironmentAutocomplete = null;
+    let grantUserAutocomplete = null;
+
     /**
      * Initialize and load Access Management view
      */
@@ -358,19 +362,20 @@ const AccessManagement = (function() {
                         </div>
                         <div class="modal-body">
                             <form id="grant-access-form">
-                                <div class="mb-3">
-                                    <label class="form-label">Environment</label>
-                                    <select class="form-select" id="grant-environment" required>
-                                        ${envOptions}
-                                    </select>
+                                <div class="mb-3 access-autocomplete-field">
+                                    <label class="form-label" for="grant-environment-search">Environment</label>
+                                    <input type="text" class="form-control" id="grant-environment-search" autocomplete="off"
+                                           placeholder="Type at least 2 characters to search environments...">
+                                    <input type="hidden" id="grant-environment">
+                                    <div class="access-autocomplete-menu" id="grant-environment-menu"></div>
                                 </div>
-                                <div class="mb-3">
-                                    <label class="form-label">User</label>
-                                    <input type="text" class="form-control" id="grant-user-search"
-                                           placeholder="Search user by email...">
-                                    <select class="form-select mt-2" id="grant-user-id" required>
-                                        <option value="">Select a user...</option>
-                                    </select>
+                                <div class="mb-3 access-autocomplete-field">
+                                    <label class="form-label" for="grant-user-search">User</label>
+                                    <input type="text" class="form-control" id="grant-user-search" autocomplete="off"
+                                           placeholder="Type at least 2 characters to search by name or email...">
+                                    <input type="hidden" id="grant-user-id">
+                                    <div class="access-autocomplete-menu" id="grant-user-menu"></div>
+                                    <div class="form-text">Searches users who have already signed in to this app.</div>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Access Level</label>
@@ -661,7 +666,7 @@ const AccessManagement = (function() {
                         <span class="badge ${badgeClass}">${action}</span>
                         <span>${when}</span>
                     </div>
-                    <div class="access-activity-by">${performedBy}</div>
+                    <div class="access-activity-by"><i class="fas fa-user-circle me-1" aria-hidden="true"></i>${performedBy}</div>
                     <div class="access-activity-details">${details}</div>
                 </div>
             </div>
@@ -762,8 +767,37 @@ const AccessManagement = (function() {
         // Confirm grant
         $('#btn-confirm-grant').off('click').on('click', handleGrantAccess);
 
-        // User search in modal
-        $('#grant-user-search').off('input').on('input', Utils.debounce(handleUserSearch, 300));
+        // Environment / User autocompletes in the Grant Access modal
+        grantEnvironmentAutocomplete = initAutocomplete({
+            inputSelector: '#grant-environment-search',
+            hiddenSelector: '#grant-environment',
+            menuSelector: '#grant-environment-menu',
+            minChars: 2,
+            fetchSuggestions: (query) => {
+                const q = query.toLowerCase();
+                return Promise.resolve(
+                    environments
+                        .filter(env => (env.displayName || env.name || '').toLowerCase().includes(q))
+                        .slice(0, 20)
+                        .map(env => ({ id: env.environmentId, label: env.displayName || env.name }))
+                );
+            }
+        });
+
+        grantUserAutocomplete = initAutocomplete({
+            inputSelector: '#grant-user-search',
+            hiddenSelector: '#grant-user-id',
+            menuSelector: '#grant-user-menu',
+            minChars: 2,
+            fetchSuggestions: (query) => new Promise((resolve, reject) => {
+                ApiClient.get(Config.API.users.search(query))
+                    .done(users => resolve((users || []).map(user => ({
+                        id: user.email,
+                        label: `${user.displayName || user.email} (${user.email})`
+                    }))))
+                    .fail(reject);
+            })
+        });
 
         // Revoke access
         $('#access-table-body').off('click', '[data-action="revoke"]').on('click', '[data-action="revoke"]', function() {
@@ -807,9 +841,17 @@ const AccessManagement = (function() {
      * Show grant access modal
      */
     function showGrantAccessModal() {
-        $('#grant-environment').val(selectedEnvironmentId || '');
-        $('#grant-user-search').val('');
-        $('#grant-user-id').html('<option value="">Select a user...</option>');
+        if (grantUserAutocomplete) {
+            grantUserAutocomplete.reset();
+        }
+        if (grantEnvironmentAutocomplete) {
+            const preselected = selectedEnvironmentId && environments.find(env => env.environmentId === selectedEnvironmentId);
+            if (preselected) {
+                grantEnvironmentAutocomplete.setValue(preselected.displayName || preselected.name, preselected.environmentId);
+            } else {
+                grantEnvironmentAutocomplete.reset();
+            }
+        }
         $('#grant-access-level').val('USER');
         $('#grant-duration').val('');
         $('#grant-notes').val('');
@@ -819,36 +861,76 @@ const AccessManagement = (function() {
     }
 
     /**
-     * Handle user search in grant modal
+     * Wires a text input to a suggestion dropdown backed by a hidden id field — used for both
+     * the Environment and User fields in the Grant Access modal. Typing invalidates any
+     * previously selected value until a suggestion is clicked again.
      */
-    async function handleUserSearch() {
-        const query = $('#grant-user-search').val().trim();
-        if (query.length < 2) {
-            $('#grant-user-id').html('<option value="">Type at least 2 characters...</option>');
-            return;
+    function initAutocomplete({ inputSelector, hiddenSelector, menuSelector, minChars, fetchSuggestions }) {
+        const $input = $(inputSelector);
+        const $hidden = $(hiddenSelector);
+        const $menu = $(menuSelector);
+
+        function closeMenu() {
+            $menu.empty().hide();
         }
 
-        try {
-            const response = await new Promise((resolve, reject) => {
-                ApiClient.get(Config.API.users.search(query))
-                    .done(resolve)
-                    .fail(reject);
-            });
-
-            const users = response || [];
-            if (users.length === 0) {
-                $('#grant-user-id').html('<option value="">No users found</option>');
+        function renderSuggestions(items) {
+            if (!items || items.length === 0) {
+                $menu.html('<div class="access-autocomplete-empty">No matches</div>').show();
                 return;
             }
-
-            const options = users.map(user =>
-                `<option value="${escapeHtml(user.email)}">${escapeHtml(user.displayName || user.email)} (${escapeHtml(user.email)})</option>`
-            ).join('');
-            $('#grant-user-id').html('<option value="">Select a user...</option>' + options);
-        } catch (error) {
-            console.error('User search failed:', error);
-            $('#grant-user-id').html('<option value="">Search failed</option>');
+            $menu.data('items', items);
+            $menu.html(items.map((item, idx) => `
+                <button type="button" class="access-autocomplete-item" data-idx="${idx}">
+                    ${escapeHtml(item.label)}
+                </button>
+            `).join('')).show();
         }
+
+        async function handleInput() {
+            const query = $input.val().trim();
+            $hidden.val('');
+            if (query.length < minChars) {
+                closeMenu();
+                return;
+            }
+            try {
+                renderSuggestions(await fetchSuggestions(query));
+            } catch (error) {
+                console.error('Autocomplete search failed:', error);
+                $menu.html('<div class="access-autocomplete-empty">Search failed</div>').show();
+            }
+        }
+
+        $input.off('input.autocomplete').on('input.autocomplete', Utils.debounce(handleInput, 300));
+
+        $menu.off('click').on('click', '.access-autocomplete-item', function() {
+            const item = ($menu.data('items') || [])[$(this).data('idx')];
+            if (!item) return;
+            $input.val(item.label);
+            $hidden.val(item.id);
+            closeMenu();
+        });
+
+        const outsideClickNamespace = 'click.autocomplete-' + inputSelector.replace(/[^a-zA-Z0-9]/g, '');
+        $(document).off(outsideClickNamespace).on(outsideClickNamespace, function(e) {
+            if (!$(e.target).closest(inputSelector).length && !$(e.target).closest(menuSelector).length) {
+                closeMenu();
+            }
+        });
+
+        return {
+            reset() {
+                $input.val('');
+                $hidden.val('');
+                closeMenu();
+            },
+            setValue(label, id) {
+                $input.val(label || '');
+                $hidden.val(id || '');
+                closeMenu();
+            }
+        };
     }
 
     /**

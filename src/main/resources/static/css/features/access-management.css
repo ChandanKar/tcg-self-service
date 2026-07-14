@@ -530,13 +530,17 @@
 }
 
 .access-activity-item {
-    display: grid;
-    grid-template-columns: 10px minmax(0, 1fr);
-    gap: 0.55rem;
-    padding-bottom: 0.75rem;
+    display: flex;
+    gap: 0.6rem;
+    padding: 0.65rem 0.7rem;
+    margin-bottom: 0.55rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--sidebar-bg);
 }
 
 .access-activity-marker {
+    flex-shrink: 0;
     width: 8px;
     height: 8px;
     margin-top: 0.4rem;
@@ -546,14 +550,14 @@
 
 .access-activity-content {
     min-width: 0;
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 0.65rem;
+    flex: 1;
 }
 
 .access-activity-topline {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
-    gap: 0.5rem;
+    gap: 0.4rem 0.5rem;
     align-items: center;
     font-size: 0.72rem;
     color: var(--text-secondary);
@@ -561,21 +565,28 @@
 
 .access-activity-by,
 .access-activity-details {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    white-space: normal;
 }
 
 .access-activity-by {
-    margin-top: 0.25rem;
+    margin-top: 0.3rem;
     font-size: 0.73rem;
     color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.access-activity-by i {
+    color: var(--text-secondary);
+    opacity: 0.7;
 }
 
 .access-activity-details {
-    margin-top: 0.2rem;
+    margin-top: 0.25rem;
     font-size: 0.76rem;
     color: var(--text-primary);
+    line-height: 1.45;
 }
 
 .access-empty-panel {
@@ -598,6 +609,57 @@
 .access-empty-panel p {
     margin: 0;
     font-size: 0.82rem;
+}
+
+/* ============================================
+   Autocomplete (Grant Access modal)
+   ============================================ */
+.access-autocomplete-field {
+    position: relative;
+}
+
+.access-autocomplete-menu {
+    display: none;
+    position: absolute;
+    z-index: 1060;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 2px;
+    max-height: 220px;
+    overflow-y: auto;
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+.access-autocomplete-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+}
+
+.access-autocomplete-item:last-child {
+    border-bottom: none;
+}
+
+.access-autocomplete-item:hover,
+.access-autocomplete-item:focus {
+    background: var(--background-light);
+}
+
+.access-autocomplete-empty {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
 }
 
 /* ============================================
