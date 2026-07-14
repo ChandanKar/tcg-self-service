@@ -72,7 +72,7 @@ const NotificationBell = (function () {
         $empty.show();
         $markAllBtn.hide();
 
-        ApiClient.get(Config.API.notifications.list + '?page=0&size=15')
+        ApiClient.get(Config.API.notifications.unread + '?page=0&size=15')
             .then(function (page) {
                 const items = page.content || [];
                 if (items.length === 0) {
@@ -80,9 +80,7 @@ const NotificationBell = (function () {
                     return;
                 }
                 $empty.hide();
-
-                const hasUnread = items.some(function (n) { return !n.read; });
-                if (hasUnread) $markAllBtn.show();
+                $markAllBtn.show();
 
                 items.forEach(function (n) {
                     $list.append(buildItem(n));
@@ -127,9 +125,12 @@ const NotificationBell = (function () {
     function markOneRead(id, $item) {
         ApiClient.patch(Config.API.notifications.markRead(id), {})
             .then(function () {
-                $item.removeClass('unread').find('.notification-read-btn').remove();
+                $item.remove();
                 refreshCount();
-                if ($list.find('.unread').length === 0) $markAllBtn.hide();
+                if ($list.find('.notification-item').length === 0) {
+                    $markAllBtn.hide();
+                    $empty.show();
+                }
             })
             .catch(function () {});
     }
@@ -137,9 +138,9 @@ const NotificationBell = (function () {
     function markAllRead() {
         ApiClient.patch(Config.API.notifications.markAllRead, {})
             .then(function () {
-                $list.find('.notification-item').removeClass('unread')
-                     .find('.notification-read-btn').remove();
+                $list.find('.notification-item').remove();
                 $markAllBtn.hide();
+                $empty.show();
                 refreshCount();
             })
             .catch(function () {});
