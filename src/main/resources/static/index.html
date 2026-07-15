@@ -17,8 +17,10 @@
     <link rel="stylesheet" href="css/layout/content.css">
     <link rel="stylesheet" href="css/components/cards.css">
     <link rel="stylesheet" href="css/components/tables.css">
+    <link rel="stylesheet" href="css/components/pagination.css">
     <link rel="stylesheet" href="css/components/badges.css">
     <link rel="stylesheet" href="css/components/notification-bell.css">
+    <link rel="stylesheet" href="css/components/toasts.css">
     <link rel="stylesheet" href="css/components/buttons.css">
     <link rel="stylesheet" href="css/components/slideout.css">
     <link rel="stylesheet" href="css/components/modals.css">
@@ -37,6 +39,7 @@
     <link rel="stylesheet" href="css/features/access-requests.css">
     <link rel="stylesheet" href="css/features/system-health.css">
     <link rel="stylesheet" href="css/features/cost-management.css">
+    <link rel="stylesheet" href="css/features/automation-rules.css">
     <link rel="stylesheet" href="css/layout/mobile.css">
 </head>
 <body>
@@ -50,10 +53,12 @@
             <button class="hamburger-btn" id="toggleSidebar" aria-label="Toggle sidebar menu" title="Toggle menu">
                 <i class="fas fa-bars" aria-hidden="true"></i>
             </button>
-            <img class="tcg-logo" src="logo/tcg_blue_logo.png" alt="TCG Digital - VM Self-Service Platform">
-            <div class="logo">
-                Self-Service Platform
-            </div>
+            <a id="topnav-home-link" class="topnav-brand-link" href="#/dashboard" aria-label="Go to dashboard">
+                <img class="tcg-logo" src="logo/tcg_blue_logo.png" alt="TCG Digital - VM Self-Service Platform">
+                <div class="logo">
+                    Self-Service Platform
+                </div>
+            </a>
         </div>
 
         <div class="nav-center" style="display: none;">
@@ -247,10 +252,9 @@
                     </a>
                 </li>
                 <li class="sidebar-menu-item env-admin-only">
-                    <a class="sidebar-menu-link sidebar-menu-link--disabled" tabindex="-1" aria-disabled="true" title="Coming soon">
+                    <a class="sidebar-menu-link" href="#/automation-rules" data-content="automation-rules" tabindex="0">
                         <i class="fas fa-clock" aria-hidden="true"></i>
                         <span>Automation Rules</span>
-                        <span class="coming-soon-badge">Soon</span>
                     </a>
                 </li>
                 <li class="sidebar-menu-item env-admin-only">
@@ -715,6 +719,7 @@
     <script src="js/ui/loading.js"></script>
     <script src="js/ui/forms.js"></script>
     <script src="js/ui/charts.js"></script>
+    <script src="js/ui/pagination.js"></script>
     <script src="js/features/dashboard.js"></script>
     <script src="js/features/environments.js"></script>
     <script src="js/features/vm-operations.js"></script>
@@ -728,6 +733,7 @@
     <script src="js/features/access-management.js"></script>
     <script src="js/features/system-health.js"></script>
     <script src="js/features/cost-management.js"></script>
+    <script src="js/features/automation-rules.js"></script>
     <script src="js/features/features.js"></script>
     <script src="js/app.js"></script>
 

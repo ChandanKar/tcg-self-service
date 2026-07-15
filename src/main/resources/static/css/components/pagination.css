@@ -1,0 +1,74 @@
+/*
+ * Shared Pagination Component
+ * Rendered by js/ui/pagination.js. Single definition for the pagination bar and its buttons —
+ * previously reimplemented independently (with drifting bar heights of 28/34/40px and button
+ * classes .vm-reg-page / .page-btn / .all-logs-page / .al-page / .env-page / .env-list-page-btn,
+ * plus a completely separate Bootstrap-native widget on Audit Logs) across eight screens.
+ */
+
+.pagination-bar-wrap {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    min-height: 34px;
+    padding: 0.5rem 0.75rem;
+    border-top: 1px solid var(--border-color, #e2e8f0);
+    background: var(--table-header-bg, #f8fafc);
+}
+
+.pagination-info {
+    font-size: 0.75rem;
+    color: var(--text-secondary, #64748b);
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.pg-btn {
+    min-width: 28px;
+    height: 28px;
+    padding: 0 0.45rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--text-primary, #1e293b);
+    background: #fff;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.pg-btn:hover:not(:disabled) {
+    background: var(--background-light, #f8fafc);
+    border-color: #cbd5e1;
+}
+
+.pg-btn.active {
+    background: var(--primary-color, #2563eb);
+    border-color: var(--primary-color, #2563eb);
+    color: #fff;
+}
+
+.pg-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.pg-btn:focus-visible {
+    outline: 2px solid var(--primary-color, #2563eb);
+    outline-offset: 1px;
+}
+
+.pg-btn-wide {
+    min-width: 84px;
+}

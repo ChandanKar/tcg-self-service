@@ -26,15 +26,139 @@
     transform: translateY(-1px);
 }
 
-/* Action buttons */
-.btn-action {
-    padding: 0.5rem 1rem;
-    font-size: var(--table-body-font, 0.81rem);
-    border-radius: 6px;
+/* ================================================
+   Ghost buttons — secondary/navigation actions (History, Back, Refresh, a "Cancel" that
+   sits outside a modal footer) and text-labeled row actions (Revoke) that shouldn't
+   visually compete with primary committing actions. No border or fill at rest; a quiet,
+   semantically-colored tint on hover. Apply instead of btn-outline-*, not alongside it —
+   except when a text row action needs to keep its semantic color, in which case pair it
+   with btn-outline-danger/success/warning as you would with .btn-action.
+   ================================================ */
+.btn-ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--text-secondary, #64748b);
 }
 
-.btn-action i {
-    margin-right: 0.25rem;
+.btn-ghost:hover:not(:disabled) {
+    background: var(--background-light, #f8fafc);
+    border-color: transparent;
+    color: var(--text-primary, #1e293b);
+}
+
+.btn-ghost.btn-outline-danger {
+    color: #d99490;
+}
+
+.btn-ghost.btn-outline-danger:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: transparent;
+    color: var(--danger-color, #ef4444);
+}
+
+.btn-ghost.btn-outline-success {
+    color: #94a3b8;
+}
+
+.btn-ghost.btn-outline-success:hover:not(:disabled) {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: transparent;
+    color: var(--success-color, #10b981);
+}
+
+.btn-ghost.btn-outline-warning {
+    color: #94a3b8;
+}
+
+.btn-ghost.btn-outline-warning:hover:not(:disabled) {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: transparent;
+    color: var(--warning-color, #f59e0b);
+}
+
+.btn-ghost.btn-primary,
+.btn-ghost.btn-outline-primary {
+    color: #94a3b8;
+}
+
+.btn-ghost.btn-primary:hover:not(:disabled),
+.btn-ghost.btn-outline-primary:hover:not(:disabled) {
+    background: rgba(37, 99, 235, 0.1);
+    border-color: transparent;
+    color: var(--primary-color, #2563eb);
+    transform: none;
+    box-shadow: none;
+}
+
+/* ================================================
+   Row Action Buttons — icon-only (or short icon+label) view/edit/delete/start/stop
+   controls repeated down a table column. Previously each was a fully bordered, tinted
+   btn-outline-*/solid-* pill, so a column of them read as a wall of colored buttons and
+   gave delete/stop the same visual weight as view. No border or fill at rest; color and a
+   matching background tint appear only on hover — keyed off whichever Bootstrap variant
+   class is paired with .btn-action, solid or outline alike (btn-danger and
+   btn-outline-danger get the same treatment).
+   ================================================ */
+.btn-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    min-width: 30px;
+    height: 30px;
+    padding: 0 0.5rem;
+    font-size: var(--table-body-font, 0.81rem);
+    border-radius: 6px;
+    background-color: transparent;
+    border-color: transparent;
+    color: #94a3b8;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.btn-action.btn-danger,
+.btn-action.btn-outline-danger {
+    color: #e2a29e;
+}
+
+.btn-action.btn-warning,
+.btn-action.btn-outline-warning {
+    color: #d8b487;
+}
+
+.btn-action:hover:not(:disabled) {
+    background-color: var(--background-light, #f8fafc);
+    border-color: transparent;
+    color: #475569;
+    transform: none;
+    box-shadow: none;
+}
+
+.btn-action.btn-primary:hover:not(:disabled),
+.btn-action.btn-outline-primary:hover:not(:disabled) {
+    background-color: rgba(37, 99, 235, 0.1);
+    color: var(--primary-color);
+}
+
+.btn-action.btn-danger:hover:not(:disabled),
+.btn-action.btn-outline-danger:hover:not(:disabled) {
+    background-color: rgba(239, 68, 68, 0.1);
+    color: var(--danger-color);
+}
+
+.btn-action.btn-warning:hover:not(:disabled),
+.btn-action.btn-outline-warning:hover:not(:disabled) {
+    background-color: rgba(245, 158, 11, 0.12);
+    color: var(--warning-color);
+}
+
+.btn-action.btn-success:hover:not(:disabled),
+.btn-action.btn-outline-success:hover:not(:disabled) {
+    background-color: rgba(16, 185, 129, 0.1);
+    color: var(--success-color);
+}
+
+.btn-action:disabled {
+    opacity: 0.45;
 }
 
 /* ================================================

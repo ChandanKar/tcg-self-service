@@ -1,0 +1,113 @@
+/*
+ * Toast Notification Component
+ * Rendered by js/ui/notifications.js. Previously the toast's colors, radius, shadow, and
+ * entry/exit animation were all inline styles written at runtime — this file replaces that
+ * with the app's own status-color tokens (main.css) so toasts stay in sync with every other
+ * "success/warning/danger/info" surface (badges, alerts) instead of drifting independently.
+ */
+
+#notification-container {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    z-index: 9999;
+    max-width: 350px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.notification-toast {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    background: #fff;
+    color: var(--text-primary, #1e293b);
+    padding: 0.75rem 0.85rem;
+    border-radius: var(--card-radius, 8px);
+    border-left: 3px solid var(--info-color, #3b82f6);
+    box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.1));
+    animation: toast-slide-in 0.25s ease;
+}
+
+.notification-toast.toast-success { border-left-color: var(--success-color, #10b981); }
+.notification-toast.toast-error   { border-left-color: var(--danger-color, #ef4444); }
+.notification-toast.toast-warning { border-left-color: var(--warning-color, #f59e0b); }
+.notification-toast.toast-info    { border-left-color: var(--info-color, #3b82f6); }
+
+.notification-toast .toast-icon {
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+    font-size: 0.95rem;
+}
+
+.notification-toast.toast-success .toast-icon { color: var(--success-color, #10b981); }
+.notification-toast.toast-error   .toast-icon { color: var(--danger-color, #ef4444); }
+.notification-toast.toast-warning .toast-icon { color: var(--warning-color, #f59e0b); }
+.notification-toast.toast-info    .toast-icon { color: var(--info-color, #3b82f6); }
+
+.notification-toast .toast-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.notification-toast .toast-title {
+    font-weight: 600;
+    font-size: 0.88rem;
+    display: block;
+}
+
+.notification-toast .toast-message {
+    font-size: 0.86rem;
+    color: var(--text-secondary, #64748b);
+    margin: 0;
+    line-height: 1.45;
+}
+
+.notification-toast .toast-title + .toast-message {
+    margin-top: 0.2rem;
+}
+
+.notification-toast .toast-actions {
+    margin-top: 0.5rem;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.notification-toast .toast-close {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: var(--text-secondary, #64748b);
+    cursor: pointer;
+    padding: 0.1rem;
+    font-size: 0.85rem;
+    line-height: 1;
+    opacity: 0.7;
+    transition: opacity 0.15s;
+}
+
+.notification-toast .toast-close:hover {
+    opacity: 1;
+}
+
+.notification-toast.toast-dismissing {
+    animation: toast-slide-out 0.25s ease forwards;
+}
+
+@keyframes toast-slide-in {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes toast-slide-out {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(100%); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .notification-toast,
+    .notification-toast.toast-dismissing {
+        animation: none;
+    }
+}

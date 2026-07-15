@@ -80,3 +80,60 @@
     background-color: var(--primary-color) !important;
 }
 
+/* ================================================
+   Role Badges (top nav user menu, User Management table)
+   Single definition — previously duplicated with two different
+   shapes (pill vs rectangle) in topnav.css and user-management.css.
+   ================================================ */
+.role-badge {
+    display: inline-block;
+    padding: 0.15rem 0.65rem;
+    border-radius: 9999px;
+    font-size: var(--table-header-font, 0.7rem);
+    font-weight: 500;
+    letter-spacing: 0.025em;
+}
+
+.role-badge-admin {
+    background: var(--status-error-bg, #fee2e2);
+    color: var(--status-error-text, #991b1b);
+}
+
+.role-badge-env-admin {
+    background: var(--status-stopping-bg, #fef3c7);
+    color: var(--status-stopping-text, #92400e);
+}
+
+.role-badge-user {
+    background: var(--status-starting-bg, #dbeafe);
+    color: var(--status-starting-text, #1e40af);
+}
+
+/* ================================================
+   Access Level Badges (Access Management table)
+   Single definition — previously duplicated with two different
+   shapes (pill vs rectangle) in access.css and access-management.css.
+   ================================================ */
+.access-level-badge {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 9999px;
+    font-size: var(--table-header-font, 0.7rem);
+    font-weight: 600;
+}
+
+.access-level-badge.level-admin {
+    background: var(--status-error-bg, #fee2e2);
+    color: var(--status-error-text, #991b1b);
+}
+
+.access-level-badge.level-user {
+    background: var(--status-starting-bg, #dbeafe);
+    color: var(--status-starting-text, #1e40af);
+}
+
+.access-level-badge.level-viewer {
+    background: var(--status-stopped-bg, #f3f4f6);
+    color: var(--status-stopped-text, #4b5563);
+}
+

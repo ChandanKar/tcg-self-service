@@ -46,31 +46,8 @@
     word-break: break-word;
 }
 
-/* Access level badges */
-.access-level-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    padding: 0.25rem 0.75rem;
-    border-radius: 20px;
-    font-size: 0.75rem;
-    font-weight: 500;
-}
-
-.access-level-badge.viewer {
-    background: #f1f5f9;
-    color: #64748b;
-}
-
-.access-level-badge.user {
-    background: #dbeafe;
-    color: #1d4ed8;
-}
-
-.access-level-badge.admin {
-    background: #fee2e2;
-    color: #dc2626;
-}
+/* Access level badges — see components/badges.css for .access-level-badge (unused .viewer/.user/.admin
+   modifiers removed here; the live markup uses .level-viewer/.level-user/.level-admin) */
 
 /* Manage access modal */
 .manage-access-content .table {
