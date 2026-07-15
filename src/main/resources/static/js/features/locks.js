@@ -293,7 +293,7 @@ const Locks = (function() {
                         </div>
                     </div>
                     <div class="lock-actions">
-                        <button class="btn btn-sm btn-outline-secondary me-2" data-lock-action="history" data-env-id="${envId}">
+                        <button class="btn btn-sm btn-ghost me-2" data-lock-action="history" data-env-id="${envId}">
                             <i class="fas fa-history"></i> History
                         </button>
                         ${buttons}
@@ -308,7 +308,7 @@ const Locks = (function() {
                         <span>This environment is unlocked</span>
                     </div>
                     <div class="lock-actions">
-                        <button class="btn btn-sm btn-outline-secondary me-2" data-lock-action="history" data-env-id="${envId}">
+                        <button class="btn btn-sm btn-ghost me-2" data-lock-action="history" data-env-id="${envId}">
                             <i class="fas fa-history"></i> History
                         </button>
                         <button class="btn btn-sm btn-primary" data-lock-action="acquire" data-env-id="${envId}">

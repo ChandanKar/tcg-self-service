@@ -235,7 +235,7 @@ const AccessManagement = (function() {
                             <p>Grant or revoke user access to environments</p>
                         </div>
                         <div class="header-actions">
-                            <button class="btn btn-outline-secondary btn-sm" id="btn-refresh-access" title="Refresh">
+                            <button class="btn btn-ghost btn-sm" id="btn-refresh-access" title="Refresh">
                                 <i class="fas fa-sync-alt"></i>
                             </button>
                         </div>
@@ -313,7 +313,7 @@ const AccessManagement = (function() {
                                     </tbody>
                                 </table>
                             </div>
-                            <div id="access-pagination" class="access-pagination"></div>
+                            <div id="access-pagination" class="pagination-bar-wrap"></div>
                         </div>
                     </section>
 
@@ -508,7 +508,7 @@ const AccessManagement = (function() {
                     ${isExpiringSoon ? '<i class="fas fa-exclamation-triangle me-1"></i>' : ''}${expiresDate}
                 </td>
                 <td class="text-end">
-                    <button class="btn btn-sm btn-outline-danger access-icon-button" data-action="revoke"
+                    <button class="btn btn-sm btn-outline-danger btn-action" data-action="revoke"
                             data-env-id="${access.environmentId}" data-user-id="${access.userId}"
                             data-user-name="${escapeHtml(access.userDisplayName || access.userEmail)}"
                             title="Revoke access" aria-label="Revoke access">
@@ -523,53 +523,17 @@ const AccessManagement = (function() {
      * Render access pagination
      */
     function renderAccessPagination() {
-        const totalItems = filteredAccess.length;
-        const totalPages = Math.ceil(totalItems / PAGE_SIZE);
-
-        if (totalItems <= PAGE_SIZE) {
-            $('#access-pagination').html(
-                `<div class="pagination-info">Showing ${totalItems} user${totalItems !== 1 ? 's' : ''}</div>`
-            );
-            return;
-        }
-
-        const start = (currentPage - 1) * PAGE_SIZE + 1;
-        const end = Math.min(currentPage * PAGE_SIZE, totalItems);
-
-        // Build page buttons
-        const rangeStart = Math.max(1, currentPage - 2);
-        const rangeEnd = Math.min(totalPages, currentPage + 2);
-
-        let pageButtons = '';
-        for (let i = rangeStart; i <= rangeEnd; i++) {
-            pageButtons += `
-                <button class="btn btn-sm ${i === currentPage ? 'btn-primary' : 'btn-outline-secondary'} page-btn"
-                        data-page="${i}">${i}</button>
-            `;
-        }
-
-        $('#access-pagination').html(`
-            <div class="pagination-info">Showing ${start}-${end} of ${totalItems} users</div>
-            <div class="pagination-controls">
-                <button class="btn btn-sm btn-outline-secondary page-btn" data-page="1"
-                        ${currentPage === 1 ? 'disabled' : ''} title="First">
-                    <i class="fas fa-angle-double-left"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-secondary page-btn" data-page="${currentPage - 1}"
-                        ${currentPage === 1 ? 'disabled' : ''} title="Previous">
-                    <i class="fas fa-chevron-left"></i>
-                </button>
-                ${pageButtons}
-                <button class="btn btn-sm btn-outline-secondary page-btn" data-page="${currentPage + 1}"
-                        ${currentPage === totalPages ? 'disabled' : ''} title="Next">
-                    <i class="fas fa-chevron-right"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-secondary page-btn" data-page="${totalPages}"
-                        ${currentPage === totalPages ? 'disabled' : ''} title="Last">
-                    <i class="fas fa-angle-double-right"></i>
-                </button>
-            </div>
-        `);
+        Pagination.renderNumbered('#access-pagination', {
+            page: currentPage,
+            totalItems: filteredAccess.length,
+            pageSize: PAGE_SIZE,
+            itemLabel: 'users',
+            onPageChange: (target) => {
+                currentPage = target;
+                renderAccessTable();
+                renderAccessPagination();
+            }
+        });
     }
 
     /**
@@ -751,14 +715,6 @@ const AccessManagement = (function() {
             renderAccessTable();
             renderAccessPagination();
             renderActivityLogsTable();
-        });
-
-        // Pagination
-        $('#access-pagination').off('click', '.page-btn').on('click', '.page-btn', function() {
-            if ($(this).prop('disabled')) return;
-            currentPage = parseInt($(this).data('page'));
-            renderAccessTable();
-            renderAccessPagination();
         });
 
         // Grant Access button

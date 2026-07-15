@@ -194,7 +194,7 @@ const AccessRequests = (function() {
                     <div class="card mb-3">
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <h5><i class="fas fa-history me-2"></i>Request History</h5>
-                            <button class="btn btn-sm btn-outline-secondary" id="toggle-history">
+                            <button class="btn btn-sm btn-ghost" id="toggle-history">
                                 <i class="fas fa-chevron-down"></i>
                             </button>
                         </div>
@@ -212,7 +212,6 @@ const AccessRequests = (function() {
      */
     function buildEnvironmentsList() {
         const filtered   = getFilteredEnvs();
-        const totalPages = Math.ceil(filtered.length / ENV_PAGE_SIZE);
         const pageEnvs   = filtered.slice(envPage * ENV_PAGE_SIZE, (envPage + 1) * ENV_PAGE_SIZE);
 
         return `
@@ -230,9 +229,7 @@ const AccessRequests = (function() {
                     </tbody>
                 </table>
             </div>
-            <div class="ra-env-pagination" id="env-pagination">
-                ${buildEnvPagination(filtered.length, envPage, totalPages)}
-            </div>
+            <div class="pagination-bar-wrap" id="env-pagination"></div>
         `;
     }
 
@@ -300,54 +297,6 @@ const AccessRequests = (function() {
     }
 
     /**
-     * Build env pagination controls — same style as VM Registry
-     */
-    function buildEnvPagination(total, currentPage, totalPages) {
-        if (total === 0 || totalPages <= 1) {
-            const label = envQuery ? `${total} of ${allEnvs.length}` : total;
-            return `
-                <div class="d-flex justify-content-between align-items-center">
-                    <span class="text-muted small">${label} environment${total !== 1 ? 's' : ''}</span>
-                    <div class="ra-pagination-placeholder"></div>
-                </div>
-            `;
-        }
-
-        const start = currentPage * ENV_PAGE_SIZE + 1;
-        const end   = Math.min((currentPage + 1) * ENV_PAGE_SIZE, total);
-
-        const rangeStart = Math.max(0, currentPage - 2);
-        const rangeEnd   = Math.min(totalPages - 1, currentPage + 2);
-        let pageButtons  = '';
-        for (let i = rangeStart; i <= rangeEnd; i++) {
-            pageButtons += `<button class="btn btn-sm ${i === currentPage ? 'btn-primary' : 'btn-outline-secondary'} env-page ms-1" data-page="${i}">${i + 1}</button>`;
-        }
-
-        return `
-            <div class="d-flex justify-content-between align-items-center">
-                <span class="text-muted small">
-                    Showing ${start}-${end} of ${total}${envQuery ? ` of ${allEnvs.length}` : ''} environments
-                </span>
-                <div>
-                    <button class="btn btn-sm btn-outline-secondary env-page" data-page="0" ${currentPage === 0 ? 'disabled' : ''} title="First">
-                        <i class="fas fa-angle-double-left"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-secondary env-page ms-1" data-page="${currentPage - 1}" ${currentPage === 0 ? 'disabled' : ''} title="Previous">
-                        <i class="fas fa-chevron-left"></i>
-                    </button>
-                    ${pageButtons}
-                    <button class="btn btn-sm btn-outline-secondary env-page ms-1" data-page="${currentPage + 1}" ${currentPage >= totalPages - 1 ? 'disabled' : ''} title="Next">
-                        <i class="fas fa-chevron-right"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-secondary env-page ms-1" data-page="${totalPages - 1}" ${currentPage >= totalPages - 1 ? 'disabled' : ''} title="Last">
-                        <i class="fas fa-angle-double-right"></i>
-                    </button>
-                </div>
-            </div>
-        `;
-    }
-
-    /**
      * Re-render only the env tbody + pagination (used by search and page clicks)
      */
     function renderEnvTable() {
@@ -361,8 +310,21 @@ const AccessRequests = (function() {
             $('.ra-env-card-body').html(buildEnvironmentsList());
         } else {
             $('#env-list').html(buildEnvRows(pageEnvs, filtered.length));
-            $('#env-pagination').html(buildEnvPagination(filtered.length, envPage, totalPages));
         }
+
+        Pagination.renderNumbered('#env-pagination', {
+            page: envPage,
+            totalItems: filtered.length,
+            pageSize: ENV_PAGE_SIZE,
+            itemLabel: envQuery ? `of ${allEnvs.length} environments` : 'environments',
+            zeroIndexed: true,
+            bindAncestor: '#content-area',
+            onPageChange: (page) => {
+                envPage = page;
+                renderEnvTable();
+            }
+        });
+
         // Update header badge: show filtered / total when searching
         $('#env-count-badge').text(envQuery ? `${filtered.length} / ${allEnvs.length}` : allEnvs.length);
     }
@@ -512,15 +474,6 @@ const AccessRequests = (function() {
             envPage  = 0;
             renderEnvTable();
         }, 300));
-
-        // Env table pagination — delegated so it survives tbody re-render
-        $('#content-area').off('click', '.env-page').on('click', '.env-page', function() {
-            if ($(this).prop('disabled')) return;
-            const target = parseInt($(this).data('page'));
-            if (isNaN(target) || target < 0) return;
-            envPage = target;
-            renderEnvTable();
-        });
 
         // Request access button — delegated so it survives tbody re-render
         $('#content-area').off('click', '[data-action="request-access"]').on('click', '[data-action="request-access"]', function() {
@@ -867,7 +820,7 @@ const AccessRequests = (function() {
                 <td>${access.grantedAt ? Utils.formatRelativeTime(access.grantedAt) : '-'}</td>
                 <td>${access.expiresAt ? Utils.formatDate(access.expiresAt) : 'Never'}</td>
                 <td>
-                    <button class="btn btn-sm btn-outline-danger"
+                    <button class="btn btn-sm btn-outline-danger btn-ghost"
                             data-user-id="${access.userId}" data-action="revoke-access">
                         <i class="fas fa-times"></i> Revoke
                     </button>

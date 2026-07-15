@@ -95,7 +95,7 @@ const UserManagement = (function() {
                             <p>Manage platform users and their roles</p>
                         </div>
                         <div class="header-actions">
-                            <button class="btn btn-outline-secondary btn-sm" id="btn-refresh-users" title="Refresh">
+                            <button class="btn btn-ghost btn-sm" id="btn-refresh-users" title="Refresh">
                                 <i class="fas fa-sync-alt"></i>
                             </button>
                         </div>
@@ -165,7 +165,7 @@ const UserManagement = (function() {
                             </tbody>
                         </table>
                     </div>
-                    <div id="user-pagination" class="user-pagination"></div>
+                    <div id="user-pagination" class="pagination-bar-wrap"></div>
                 </div>
             </div>
         `;
@@ -214,7 +214,7 @@ const UserManagement = (function() {
      * Build a single user row
      */
     function buildUserRow(user) {
-        const roleClass = user.admin ? 'role-admin' : user.envAdmin ? 'role-env-admin' : 'role-user';
+        const roleClass = user.admin ? 'role-badge-admin' : user.envAdmin ? 'role-badge-env-admin' : 'role-badge-user';
         const roleLabel = user.admin ? 'Admin' : user.envAdmin ? 'Env Admin' : 'User';
         const statusClass = user.active ? 'bg-success' : 'bg-secondary';
         const statusLabel = user.active ? 'Active' : 'Inactive';
@@ -273,53 +273,18 @@ const UserManagement = (function() {
      * Render pagination controls
      */
     function renderPagination() {
-        const totalItems = filteredUsers.length;
-        const totalPages = Math.ceil(totalItems / PAGE_SIZE);
-
-        if (totalItems <= PAGE_SIZE) {
-            $('#user-pagination').html(
-                `<div class="pagination-info">Showing ${totalItems} user${totalItems !== 1 ? 's' : ''}</div>`
-            );
-            return;
-        }
-
-        const start = (currentPage - 1) * PAGE_SIZE + 1;
-        const end = Math.min(currentPage * PAGE_SIZE, totalItems);
-
-        // Build page buttons
-        const rangeStart = Math.max(1, currentPage - 2);
-        const rangeEnd = Math.min(totalPages, currentPage + 2);
-
-        let pageButtons = '';
-        for (let i = rangeStart; i <= rangeEnd; i++) {
-            pageButtons += `
-                <button class="btn btn-sm ${i === currentPage ? 'btn-primary' : 'btn-outline-secondary'} page-btn"
-                        data-page="${i}">${i}</button>
-            `;
-        }
-
-        $('#user-pagination').html(`
-            <div class="pagination-info">Showing ${start}–${end} of ${totalItems} users</div>
-            <div class="pagination-controls">
-                <button class="btn btn-sm btn-outline-secondary page-btn" data-page="1"
-                        ${currentPage === 1 ? 'disabled' : ''} title="First">
-                    <i class="fas fa-angle-double-left"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-secondary page-btn" data-page="${currentPage - 1}"
-                        ${currentPage === 1 ? 'disabled' : ''} title="Previous">
-                    <i class="fas fa-chevron-left"></i>
-                </button>
-                ${pageButtons}
-                <button class="btn btn-sm btn-outline-secondary page-btn" data-page="${currentPage + 1}"
-                        ${currentPage === totalPages ? 'disabled' : ''} title="Next">
-                    <i class="fas fa-chevron-right"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-secondary page-btn" data-page="${totalPages}"
-                        ${currentPage === totalPages ? 'disabled' : ''} title="Last">
-                    <i class="fas fa-angle-double-right"></i>
-                </button>
-            </div>
-        `);
+        Pagination.renderNumbered('#user-pagination', {
+            page: currentPage,
+            totalItems: filteredUsers.length,
+            pageSize: PAGE_SIZE,
+            itemLabel: 'users',
+            onPageChange: (target) => {
+                currentPage = target;
+                renderTable();
+                renderPagination();
+                $('.user-table-wrapper').scrollTop(0);
+            }
+        });
     }
 
     /**
@@ -406,18 +371,6 @@ const UserManagement = (function() {
         $('#filter-status').off('change').on('change', function() {
             currentStatusFilter = $(this).val();
             applyFilters();
-        });
-
-        // Pagination
-        $('#user-pagination').off('click', '.page-btn').on('click', '.page-btn', function() {
-            const page = parseInt($(this).data('page'));
-            if (page && page !== currentPage) {
-                currentPage = page;
-                renderTable();
-                renderPagination();
-                // Scroll to top of table
-                $('.user-table-wrapper').scrollTop(0);
-            }
         });
 
         // Action buttons

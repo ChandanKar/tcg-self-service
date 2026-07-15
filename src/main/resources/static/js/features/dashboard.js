@@ -112,7 +112,7 @@ const Dashboard = (function() {
                         <h1>Dashboard</h1>
                         <p>${subtitle}</p>
                     </div>
-                    <button class="btn btn-outline-secondary btn-sm" onclick="Dashboard.refresh()" title="Refresh">
+                    <button class="btn btn-ghost btn-sm" onclick="Dashboard.refresh()" title="Refresh">
                         <i class="fas fa-sync"></i> Refresh
                     </button>
                     <button class="btn btn-outline-secondary btn-sm ${autoRefreshEnabled ? 'active' : ''}"

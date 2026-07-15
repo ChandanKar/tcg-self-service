@@ -163,13 +163,7 @@
     pointer-events: none;
 }
 
-/* Pagination bar — always at bottom */
-#dashboard-view #env-pagination {
-    flex-shrink: 0;
-    border-top: 1px solid #f1f5f9;
-    padding-top: 0.3rem;
-    min-height: 28px;
-}
+/* Pagination — see components/pagination.css for .pagination-bar-wrap */
 
 /* ── My Environments list view — same style as dashboard ── */
 #environments-list-view {
@@ -298,13 +292,10 @@
 /* Spacer pushes pagination to bottom */
 #environments-list-view .env-list-spacer { display: none; }
 
-/* Pagination bar — always pinned to the bottom of the card */
+/* Pushes the shared .pagination-bar-wrap to the bottom of this flex-column card;
+   see components/pagination.css for the bar's own chrome. */
 #environments-list-view #env-list-pagination {
-    flex-shrink: 0;
     margin-top: auto;
-    border-top: 1px solid #f1f5f9;
-    padding-top: 0.3rem;
-    min-height: 28px;
 }
 
 /* ── All other views ── */

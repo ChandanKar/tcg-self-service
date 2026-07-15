@@ -318,7 +318,7 @@ const Environments = (function() {
                     </table>
                 </div>
                 <div class="env-list-spacer"></div>
-                <div id="env-list-pagination" class="flex-shrink-0" style="border-top:1px solid #f1f5f9;padding-top:0.3rem;min-height:28px;"></div>
+                <div id="env-list-pagination" class="pagination-bar-wrap"></div>
             </div>
             </div>
         `;
@@ -407,48 +407,21 @@ const Environments = (function() {
     function renderEnvPagination(totalItems, page) {
         const totalPages = Math.ceil(totalItems / ENV_PAGE_SIZE);
 
-        if (totalItems <= ENV_PAGE_SIZE) {
-            $('#env-list-pagination').html(
-                `<div class="text-muted small mt-1">Showing ${totalItems} environment${totalItems !== 1 ? 's' : ''}</div>`
-            );
-            return;
-        }
+        Pagination.renderNumbered('#env-list-pagination', {
+            page,
+            totalItems,
+            pageSize: ENV_PAGE_SIZE,
+            itemLabel: 'environments',
+            bindAncestor: '#content-area',
+            onPageChange: (target) => {
+                envCurrentPage = target;
+                disposeEnvListTooltips();
+                $('#env-list-body').html(buildEnvRows(envFiltered, envCurrentPage));
+                renderEnvPagination(envFiltered.length, envCurrentPage);
+            }
+        });
 
-        const start      = (page - 1) * ENV_PAGE_SIZE + 1;
-        const end        = Math.min(page * ENV_PAGE_SIZE, totalItems);
-        const rangeStart = Math.max(1, page - 2);
-        const rangeEnd   = Math.min(totalPages, page + 2);
-
-        let pageButtons = '';
-        for (let i = rangeStart; i <= rangeEnd; i++) {
-            pageButtons += `<button class="btn btn-sm ${i === page ? 'btn-primary' : 'btn-outline-secondary'} env-list-page-btn ms-1"
-                data-page="${i}">${i}</button>`;
-        }
-
-        $('#env-list-pagination').html(`
-            <div class="d-flex justify-content-between align-items-center">
-                <span class="text-muted small">Showing ${start}–${end} of ${totalItems} environments</span>
-                <div>
-                    <button class="btn btn-sm btn-outline-secondary env-list-page-btn" data-page="1"
-                            ${page === 1 ? 'disabled' : ''} title="First page">
-                        <i class="fas fa-angle-double-left"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-secondary env-list-page-btn ms-1" data-page="${page - 1}"
-                            ${page === 1 ? 'disabled' : ''} title="Previous page">
-                        <i class="fas fa-chevron-left"></i>
-                    </button>
-                    ${pageButtons}
-                    <button class="btn btn-sm btn-outline-secondary env-list-page-btn ms-1" data-page="${page + 1}"
-                            ${page === totalPages ? 'disabled' : ''} title="Next page">
-                        <i class="fas fa-chevron-right"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-secondary env-list-page-btn ms-1" data-page="${totalPages}"
-                            ${page === totalPages ? 'disabled' : ''} title="Last page">
-                        <i class="fas fa-angle-double-right"></i>
-                    </button>
-                </div>
-            </div>
-        `);
+        if (totalPages <= 1) return;
 
         // Dispose all existing tooltips in the table first (prevent leaks on re-render)
         document.querySelectorAll('#env-list-body [data-bs-toggle="tooltip"]').forEach(el => {
@@ -566,11 +539,11 @@ const Environments = (function() {
                         <div style="font-size:0.78rem;color:#64748b;">${escapeHtml(env.description || '')}</div>
                     </div>
                     <div class="d-flex gap-2 align-items-center">
-                        <button class="btn btn-sm btn-outline-primary" id="btn-env-insights"
+                        <button class="btn btn-sm btn-ghost" id="btn-env-insights"
                                 data-bs-toggle="tooltip" title="Environment insights">
                             <i class="fas fa-info-circle"></i>
                         </button>
-                        <button class="btn btn-sm btn-outline-secondary" id="btn-operation-history">
+                        <button class="btn btn-sm btn-ghost" id="btn-operation-history">
                             <i class="fas fa-history"></i> History
                         </button>
                         ${hasTransitionalVms(env) ?
@@ -593,7 +566,7 @@ const Environments = (function() {
                                 <i class="fas fa-stop-circle"></i> Stop All
                             </button>`
                         }
-                        <button class="btn btn-sm btn-outline-secondary" onclick="Environments.loadList()">
+                        <button class="btn btn-sm btn-ghost" onclick="Environments.loadList()">
                             <i class="fas fa-arrow-left"></i> Back
                         </button>
                     </div>
@@ -774,17 +747,6 @@ const Environments = (function() {
             deleteEnvironment(envId, envName);
         });
 
-        // Pagination
-        $('#content-area').off('click', '.env-list-page-btn').on('click', '.env-list-page-btn', function() {
-            const page = parseInt($(this).data('page'));
-            if (!page || page < 1) return;
-            const totalPages = Math.ceil(envFiltered.length / ENV_PAGE_SIZE);
-            if (page > totalPages) return;
-            envCurrentPage = page;
-            disposeEnvListTooltips();
-            $('#env-list-body').html(buildEnvRows(envFiltered, envCurrentPage));
-            renderEnvPagination(envFiltered.length, envCurrentPage);
-        });
 
         // Search — delegated binding + direct bind on rendered element (same pattern as dashboard)
         $('#content-area').off('input', '#env-list-search').on('input', '#env-list-search', function() {

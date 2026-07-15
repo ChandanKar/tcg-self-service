@@ -62,6 +62,7 @@ const ActivityLogs = (function() {
             const html = buildActivityLogsHtml(logs);
             $('#content-area').html(html);
             bindActivityLogEvents();
+            renderActivityLogsPagination(logs);
 
             console.log('Activity logs loaded successfully');
         } catch (error) {
@@ -129,9 +130,6 @@ const ActivityLogs = (function() {
      */
     function buildActivityLogsHtml(data) {
         const logs = data.content || [];
-        const totalElements = data.totalElements || 0;
-        const totalPages = data.totalPages || 0;
-        const currentPage = data.number || 0;
 
         return `
             <div class="activity-logs-container">
@@ -175,10 +173,10 @@ const ActivityLogs = (function() {
                         <option value="500"   ${currentFilters.size === 500   ? 'selected' : ''}>500</option>
                         <option value="10000" ${currentFilters.size === 10000 ? 'selected' : ''}>All</option>
                     </select>
-                    <button class="btn btn-outline-danger btn-sm" id="al-clear-filters-btn" title="Clear all filters">
+                    <button class="btn btn-outline-danger btn-ghost btn-sm" id="al-clear-filters-btn" title="Clear all filters">
                         <i class="fas fa-times"></i> Clear
                     </button>
-                    <button class="btn btn-outline-secondary btn-sm" id="al-export-logs-btn" title="Export CSV">
+                    <button class="btn btn-ghost btn-sm" id="al-export-logs-btn" title="Export CSV">
                         <i class="fas fa-download"></i> Export
                     </button>
                 </div>
@@ -218,9 +216,7 @@ const ActivityLogs = (function() {
                             </table>
                         </div>
                         <!-- Pagination: pinned to bottom of card -->
-                        <div class="activity-logs-pagination" id="al-pagination">
-                            ${buildActivityLogsPagination(totalElements, currentPage, totalPages)}
-                        </div>
+                        <div class="pagination-bar-wrap" id="al-pagination"></div>
                     </div>
                 </div>
             </div>
@@ -228,47 +224,22 @@ const ActivityLogs = (function() {
     }
 
     /**
-     * Build pagination controls — same style as VM Registry / All Logs
+     * Render pagination controls into #al-pagination — called after the container has been
+     * inserted into the DOM (buildActivityLogsHtml leaves it empty for this).
      */
-    function buildActivityLogsPagination(totalElements, currentPage, totalPages) {
-        if (totalElements === 0) {
-            return `<div class="text-muted small">No results</div>`;
-        }
-        const pageSize = currentFilters.size;
-        const start = currentPage * pageSize + 1;
-        const end = Math.min((currentPage + 1) * pageSize, totalElements);
-
-        if (totalPages <= 1) {
-            return `<div class="text-muted small">Showing ${start}–${end} of ${totalElements} entries</div>`;
-        }
-
-        const rangeStart = Math.max(0, currentPage - 2);
-        const rangeEnd = Math.min(totalPages - 1, currentPage + 2);
-        let pageButtons = '';
-        for (let i = rangeStart; i <= rangeEnd; i++) {
-            pageButtons += `<button class="btn btn-sm ${i === currentPage ? 'btn-primary' : 'btn-outline-secondary'} al-page ms-1" data-page="${i}">${i + 1}</button>`;
-        }
-
-        return `
-            <div class="d-flex justify-content-between align-items-center">
-                <span class="text-muted small">Showing ${start}–${end} of ${totalElements} entries</span>
-                <div>
-                    <button class="btn btn-sm btn-outline-secondary al-page" data-page="0" ${currentPage === 0 ? 'disabled' : ''} title="First page">
-                        <i class="fas fa-angle-double-left"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-secondary al-page ms-1" data-page="${currentPage - 1}" ${currentPage === 0 ? 'disabled' : ''} title="Previous page">
-                        <i class="fas fa-chevron-left"></i>
-                    </button>
-                    ${pageButtons}
-                    <button class="btn btn-sm btn-outline-secondary al-page ms-1" data-page="${currentPage + 1}" ${currentPage >= totalPages - 1 ? 'disabled' : ''} title="Next page">
-                        <i class="fas fa-chevron-right"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-secondary al-page ms-1" data-page="${totalPages - 1}" ${currentPage >= totalPages - 1 ? 'disabled' : ''} title="Last page">
-                        <i class="fas fa-angle-double-right"></i>
-                    </button>
-                </div>
-            </div>
-        `;
+    function renderActivityLogsPagination(logs) {
+        Pagination.renderNumbered('#al-pagination', {
+            page: logs.number || 0,
+            totalItems: logs.totalElements || 0,
+            pageSize: currentFilters.size,
+            itemLabel: 'entries',
+            zeroIndexed: true,
+            bindAncestor: '#content-area',
+            onPageChange: (page) => {
+                currentFilters.page = page;
+                loadActivityLogs();
+            }
+        });
     }
 
     /**
@@ -371,15 +342,6 @@ const ActivityLogs = (function() {
             loadActivityLogs();
         });
 
-        // Pagination — delegated on #content-area so it survives re-renders
-        $('#content-area').off('click', '.al-page').on('click', '.al-page', function() {
-            if ($(this).prop('disabled')) return;
-            const target = parseInt($(this).data('page'));
-            if (isNaN(target) || target < 0) return;
-            currentFilters.page = target;
-            loadActivityLogs();
-        });
-
         // Export
         $('#al-export-logs-btn').on('click', function() {
             exportActivityLogs();
@@ -417,6 +379,7 @@ const ActivityLogs = (function() {
                 const html = buildActivityLogsHtml(logs);
                 $('#content-area').html(html);
                 bindActivityLogEvents();
+                renderActivityLogsPagination(logs);
             })
             .catch(error => {
                 console.error('Error loading activity logs:', error);

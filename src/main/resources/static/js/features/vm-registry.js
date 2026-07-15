@@ -79,7 +79,7 @@ const VmRegistry = (function() {
                         </select>
                     </div>
                     <div class="col-md-3">
-                        <button class="btn btn-outline-secondary w-100" onclick="VmRegistry.loadEnvironmentsData()">
+                        <button class="btn btn-ghost w-100" onclick="VmRegistry.loadEnvironmentsData()">
                             <i class="fas fa-sync-alt"></i> Refresh
                         </button>
                     </div>
@@ -117,7 +117,7 @@ const VmRegistry = (function() {
                                 </table>
                             </div>
                         </div>
-                        <div id="vm-registry-pagination" class="vm-registry-pagination"></div>
+                        <div id="vm-registry-pagination" class="pagination-bar-wrap"></div>
                     </div>
                 </div>
             </div>
@@ -187,14 +187,6 @@ const VmRegistry = (function() {
         }
 
         renderVmRegistryPagination(total, state.currentPage, pageSize);
-        $('#vm-registry-pagination').off('click', '.vm-reg-page').on('click', '.vm-reg-page', function() {
-            const target = parseInt($(this).data('page'));
-            if (!target || target < 1) return;
-            const maxPage = Math.ceil(total / pageSize) || 1;
-            if (target > maxPage) return;
-            state.currentPage = target;
-            renderEnvironmentsList();
-        });
     }
 
     function buildEnvironmentRow(env) {
@@ -218,13 +210,13 @@ const VmRegistry = (function() {
                 <td class="text-center">${statusBadge}</td>
                 <td>${createdDate}</td>
                 <td class="text-end">
-                    <button class="btn btn-sm btn-primary" title="${tooltip}" onclick="VmRegistry.manageGroups('${env.environmentId}', '${displayName.replace(/'/g, "\\'")}')">
+                    <button class="btn btn-sm btn-primary btn-action" title="${tooltip}" onclick="VmRegistry.manageGroups('${env.environmentId}', '${displayName.replace(/'/g, "\\'")}')">
                         <i class="fas fa-layer-group"></i> Groups
                     </button>
-                    <button class="btn btn-sm btn-warning" onclick="VmRegistry.editEnvironment('${env.environmentId}')" title="Edit ${tooltip}">
+                    <button class="btn btn-sm btn-warning btn-action" onclick="VmRegistry.editEnvironment('${env.environmentId}')" title="Edit ${tooltip}">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button class="btn btn-sm btn-danger" onclick="VmRegistry.deleteEnvironment('${env.environmentId}')" title="Delete ${tooltip}">
+                    <button class="btn btn-sm btn-danger btn-action" onclick="VmRegistry.deleteEnvironment('${env.environmentId}')" title="Delete ${tooltip}">
                         <i class="fas fa-trash"></i>
                     </button>
                 </td>
@@ -244,42 +236,18 @@ const VmRegistry = (function() {
     }
 
     function renderVmRegistryPagination(totalItems, page, pageSize) {
-        const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-        if (totalItems <= pageSize) {
-            $('#vm-registry-pagination').html(`<div class="text-muted small mt-1">Showing ${totalItems} environment${totalItems !== 1 ? 's' : ''}</div>`);
-            return;
-        }
-
-        const start = (page - 1) * pageSize + 1;
-        const end = Math.min(page * pageSize, totalItems);
-        const rangeStart = Math.max(1, page - 2);
-        const rangeEnd = Math.min(totalPages, page + 2);
-
-        let pageButtons = '';
-        for (let i = rangeStart; i <= rangeEnd; i++) {
-            pageButtons += `<button class="btn btn-sm ${i === page ? 'btn-primary' : 'btn-outline-secondary'} vm-reg-page ms-1" data-page="${i}">${i}</button>`;
-        }
-
-        $('#vm-registry-pagination').html(`
-            <div class="d-flex justify-content-between align-items-center">
-                <span class="text-muted small">Showing ${start}–${end} of ${totalItems} environments</span>
-                <div>
-                    <button class="btn btn-sm btn-outline-secondary vm-reg-page" data-page="1" ${page === 1 ? 'disabled' : ''} title="First page">
-                        <i class="fas fa-angle-double-left"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-secondary vm-reg-page ms-1" data-page="${page - 1}" ${page === 1 ? 'disabled' : ''} title="Previous page">
-                        <i class="fas fa-chevron-left"></i>
-                    </button>
-                    ${pageButtons}
-                    <button class="btn btn-sm btn-outline-secondary vm-reg-page ms-1" data-page="${page + 1}" ${page === totalPages ? 'disabled' : ''} title="Next page">
-                        <i class="fas fa-chevron-right"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-secondary vm-reg-page ms-1" data-page="${totalPages}" ${page === totalPages ? 'disabled' : ''} title="Last page">
-                        <i class="fas fa-angle-double-right"></i>
-                    </button>
-                </div>
-            </div>
-        `);
+        Pagination.renderNumbered('#vm-registry-pagination', {
+            page,
+            totalItems,
+            pageSize,
+            itemLabel: 'environments',
+            onPageChange: (target) => {
+                const maxPage = Math.ceil(totalItems / pageSize) || 1;
+                if (target < 1 || target > maxPage) return;
+                state.currentPage = target;
+                renderEnvironmentsList();
+            }
+        });
     }
 
     // =========================================================================
@@ -461,11 +429,11 @@ const VmRegistry = (function() {
                     </td>
                     <td class="text-center">${vm.sequencePosition || '-'}</td>
                     <td class="text-end text-nowrap">
-                        <button class="btn btn-sm btn-outline-warning" onclick="VmRegistry.editVm('${vm.vmId}')" title="Edit VM">
+                        <button class="btn btn-sm btn-outline-warning btn-action" onclick="VmRegistry.editVm('${vm.vmId}')" title="Edit VM">
                             <i class="fas fa-edit"></i>
                         </button>
                         ${!isEks ? `
-                        <button class="btn btn-sm btn-outline-danger" onclick="VmRegistry.deleteVm('${vm.vmId}', '${Utils.escapeHtml(vm.name)}')" title="Remove VM">
+                        <button class="btn btn-sm btn-outline-danger btn-action" onclick="VmRegistry.deleteVm('${vm.vmId}', '${Utils.escapeHtml(vm.name)}')" title="Remove VM">
                             <i class="fas fa-trash"></i>
                         </button>` : `
                         <span class="text-muted small ms-1" title="EKS node groups are managed by sync">
@@ -485,11 +453,11 @@ const VmRegistry = (function() {
             <div id="vm-page-footer-${groupId}" class="d-flex justify-content-between align-items-center px-3 py-2 border-top">
                 <span class="text-muted small">Page ${currentPage + 1} of ${totalPages} (${totalVmCount} VMs)</span>
                 <div>
-                    <button class="btn btn-sm btn-outline-secondary" ${currentPage === 0 ? 'disabled' : ''}
+                    <button class="btn btn-sm btn-ghost" ${currentPage === 0 ? 'disabled' : ''}
                             onclick="VmRegistry.changeGroupVmPage('${groupId}', ${currentPage - 1})">
                         <i class="fas fa-chevron-left"></i> Prev
                     </button>
-                    <button class="btn btn-sm btn-outline-secondary ms-1" ${currentPage >= totalPages - 1 ? 'disabled' : ''}
+                    <button class="btn btn-sm btn-ghost ms-1" ${currentPage >= totalPages - 1 ? 'disabled' : ''}
                             onclick="VmRegistry.changeGroupVmPage('${groupId}', ${currentPage + 1})">
                         Next <i class="fas fa-chevron-right"></i>
                     </button>
@@ -522,16 +490,16 @@ const VmRegistry = (function() {
         const collapseId = `collapse-${group.groupId}`;
 
         const actionBtns = isEks
-            ? `<button class="btn btn-sm btn-warning" onclick="VmRegistry.editGroup('${group.groupId}')" title="Edit sequence / display name">
+            ? `<button class="btn btn-sm btn-warning btn-action" onclick="VmRegistry.editGroup('${group.groupId}')" title="Edit sequence / display name">
                    <i class="fas fa-edit"></i>
                </button>`
-            : `<button class="btn btn-sm btn-success me-1" onclick="VmRegistry.openVmForm('${group.groupId}')" title="Register VM">
+            : `<button class="btn btn-sm btn-success btn-action me-1" onclick="VmRegistry.openVmForm('${group.groupId}')" title="Register VM">
                    <i class="fas fa-plus"></i> VM
                </button>
-               <button class="btn btn-sm btn-warning me-1" onclick="VmRegistry.editGroup('${group.groupId}')" title="Edit Group">
+               <button class="btn btn-sm btn-warning btn-action me-1" onclick="VmRegistry.editGroup('${group.groupId}')" title="Edit Group">
                    <i class="fas fa-edit"></i>
                </button>
-               <button class="btn btn-sm btn-danger" onclick="VmRegistry.deleteGroup('${group.groupId}')" title="Delete Group"
+               <button class="btn btn-sm btn-danger btn-action" onclick="VmRegistry.deleteGroup('${group.groupId}')" title="Delete Group"
                        ${vmCount > 0 ? 'disabled' : ''}>
                    <i class="fas fa-trash"></i>
                </button>`;

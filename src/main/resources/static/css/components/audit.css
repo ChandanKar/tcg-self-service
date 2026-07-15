@@ -70,20 +70,7 @@
     text-align: center;
 }
 
-/* Pagination */
-.pagination .page-link {
-    border-color: #e2e8f0;
-    color: #475569;
-}
-
-.pagination .page-item.active .page-link {
-    background-color: var(--primary-color);
-    border-color: var(--primary-color);
-}
-
-.pagination .page-item.disabled .page-link {
-    color: #94a3b8;
-}
+/* Pagination — see components/pagination.css for .pagination-bar-wrap / .pg-btn */
 
 /* Export button */
 #export-logs,

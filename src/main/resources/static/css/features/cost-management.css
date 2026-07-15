@@ -70,18 +70,7 @@
     font-size: var(--font-size-xs, 0.75rem);
 }
 
-.cost-pagination {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.6rem 1rem;
-    border-top: 1px solid var(--border-color, #e2e8f0);
-    background: var(--table-header-bg, #f8fafc);
-}
-
-.cost-pagination .page-btn {
-    min-width: 72px;
-}
+/* Pagination — see components/pagination.css for .pagination-bar-wrap / .pg-btn */
 
 /* ============================================
    Export / Print

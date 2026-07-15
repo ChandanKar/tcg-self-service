@@ -69,13 +69,7 @@
     background: #f8fafc;
 }
 
-/* ── Pagination Bar ── */
-.vm-registry-pagination {
-    flex-shrink: 0;
-    border-top: 1px solid #f1f5f9;
-    padding-top: 0.3rem;
-    min-height: 28px;
-}
+/* Pagination bar — see components/pagination.css for .pagination-bar-wrap */
 
 /* ── Column Widths ── */
 #environmentsTable thead th:nth-child(1),

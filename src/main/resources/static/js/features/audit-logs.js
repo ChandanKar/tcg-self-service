@@ -71,6 +71,17 @@ const AuditLogs = (function() {
             const html = buildAllAuditLogsHtml(environments, logs);
             $('#content-area').html(html);
             bindAuditLogEvents();
+            Pagination.renderNumbered('#audit-pagination', {
+                page: currentFilters.page,
+                totalItems: logs.totalElements || 0,
+                pageSize: currentFilters.size,
+                itemLabel: 'entries',
+                zeroIndexed: true,
+                onPageChange: (page) => {
+                    currentFilters.page = page;
+                    loadAllAuditLogs();
+                }
+            });
         } catch (error) {
             console.error('Failed to load audit logs:', error);
             showError('Failed to load audit logs.');
@@ -197,7 +208,7 @@ const AuditLogs = (function() {
                     </div>
                 </div>
                 <div class="col-md-2">
-                    <button class="btn btn-outline-primary w-100" id="export-logs">
+                    <button class="btn btn-ghost w-100" id="export-logs">
                         <i class="fas fa-download"></i> Export
                     </button>
                 </div>
@@ -220,8 +231,6 @@ const AuditLogs = (function() {
      */
     function buildAllAuditLogsHtml(environments, logs) {
         const logsData = logs.content || logs || [];
-        const totalPages = logs.totalPages || 1;
-        const currentPage = currentFilters.page;
 
         const envOptions = environments.map(env =>
             `<option value="${env.environmentId}" ${currentFilters.environmentId === env.environmentId ? 'selected' : ''}>
@@ -235,7 +244,7 @@ const AuditLogs = (function() {
                     <h1>Audit Logs</h1>
                     <p>View all system activity across environments</p>
                 </div>
-                <button class="btn btn-outline-primary" id="export-all-logs">
+                <button class="btn btn-ghost" id="export-all-logs">
                     <i class="fas fa-download"></i> Export CSV
                 </button>
             </div>
@@ -293,7 +302,7 @@ const AuditLogs = (function() {
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-search"></i> Apply Filters
                             </button>
-                            <button type="button" class="btn btn-outline-secondary" id="clear-filters">
+                            <button type="button" class="btn btn-ghost" id="clear-filters">
                                 <i class="fas fa-times"></i> Clear
                             </button>
                         </div>
@@ -306,7 +315,7 @@ const AuditLogs = (function() {
                 <div class="card-body p-0">
                     ${buildAdminLogsTable(logsData)}
                 </div>
-                ${totalPages > 1 ? buildPagination(currentPage, totalPages) : ''}
+                <div class="pagination-bar-wrap" id="audit-pagination"></div>
             </div>
         `;
     }
@@ -387,7 +396,7 @@ const AuditLogs = (function() {
                     <td>${statusIcon} ${log.status || '-'}</td>
                     <td>
                         ${log.details || log.message ?
-                            `<button class="btn btn-sm btn-outline-secondary" data-log-id="${log.logId}" data-action="view-details">
+                            `<button class="btn btn-sm btn-outline-secondary btn-action" data-log-id="${log.logId}" data-action="view-details">
                                 <i class="fas fa-info-circle"></i>
                             </button>` : '-'
                         }
@@ -449,7 +458,7 @@ const AuditLogs = (function() {
                     <td>${Utils.escapeHtml(log.targetName || log.targetId || '-')}</td>
                     <td>${statusIcon}</td>
                     <td>
-                        <button class="btn btn-sm btn-outline-secondary" data-log='${JSON.stringify(log).replace(/'/g, "&#39;")}' data-action="view-log-details">
+                        <button class="btn btn-sm btn-outline-secondary btn-action" data-log='${JSON.stringify(log).replace(/'/g, "&#39;")}' data-action="view-log-details">
                             <i class="fas fa-eye"></i>
                         </button>
                     </td>
@@ -477,48 +486,6 @@ const AuditLogs = (function() {
         `;
     }
 
-    /**
-     * Build pagination
-     */
-    function buildPagination(currentPage, totalPages) {
-        let pages = '';
-        const maxVisible = 5;
-        let start = Math.max(0, currentPage - Math.floor(maxVisible / 2));
-        let end = Math.min(totalPages, start + maxVisible);
-
-        if (end - start < maxVisible) {
-            start = Math.max(0, end - maxVisible);
-        }
-
-        for (let i = start; i < end; i++) {
-            pages += `
-                <li class="page-item ${i === currentPage ? 'active' : ''}">
-                    <a class="page-link" href="#" data-page="${i}">${i + 1}</a>
-                </li>
-            `;
-        }
-
-        return `
-            <div class="card-footer d-flex justify-content-between align-items-center">
-                <span class="text-muted">Page ${currentPage + 1} of ${totalPages}</span>
-                <nav>
-                    <ul class="pagination pagination-sm mb-0">
-                        <li class="page-item ${currentPage === 0 ? 'disabled' : ''}">
-                            <a class="page-link" href="#" data-page="${currentPage - 1}">
-                                <i class="fas fa-chevron-left"></i>
-                            </a>
-                        </li>
-                        ${pages}
-                        <li class="page-item ${currentPage >= totalPages - 1 ? 'disabled' : ''}">
-                            <a class="page-link" href="#" data-page="${currentPage + 1}">
-                                <i class="fas fa-chevron-right"></i>
-                            </a>
-                        </li>
-                    </ul>
-                </nav>
-            </div>
-        `;
-    }
 
     /**
      * Get action badge HTML
@@ -605,16 +572,6 @@ const AuditLogs = (function() {
         // Clear filters
         $('#clear-filters').off('click').on('click', function() {
             clearFilters();
-        });
-
-        // Pagination
-        $('.page-link').off('click').on('click', function(e) {
-            e.preventDefault();
-            const page = $(this).data('page');
-            if (page >= 0) {
-                currentFilters.page = page;
-                loadAllAuditLogs();
-            }
         });
 
         // View details

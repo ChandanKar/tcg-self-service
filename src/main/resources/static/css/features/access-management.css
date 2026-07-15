@@ -295,33 +295,7 @@
     white-space: nowrap;
 }
 
-/* ============================================
-   Access Level Badges
-   ============================================ */
-.access-level-badge {
-    display: inline-block;
-    font-size: 0.70rem;
-    padding: 0.2rem 0.5rem;
-    border-radius: 4px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-}
-
-.access-level-badge.level-admin {
-    background: rgba(239, 68, 68, 0.1);
-    color: var(--danger-color);
-}
-
-.access-level-badge.level-user {
-    background: rgba(59, 130, 246, 0.1);
-    color: var(--info-color);
-}
-
-.access-level-badge.level-viewer {
-    background: rgba(100, 116, 139, 0.1);
-    color: var(--text-secondary);
-}
+/* Access Level Badges — see components/badges.css for .access-level-badge / .level-* */
 
 /* ============================================
    Justification Cell
@@ -337,43 +311,7 @@
     white-space: nowrap;
 }
 
-/* ============================================
-   Pagination - Like User Management
-   ============================================ */
-.access-pagination {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.5rem 0.75rem;
-    border-top: 1px solid var(--border-color);
-    background: var(--background-light);
-    min-height: 40px;
-}
-
-.access-pagination .pagination-info {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-}
-
-.access-pagination .pagination-controls {
-    display: flex;
-    gap: 0.25rem;
-}
-
-.access-pagination .pagination-controls .page-btn {
-    min-width: 28px;
-    height: 28px;
-    padding: 0 0.4rem;
-    font-size: 0.75rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.access-pagination .pagination-controls .page-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
+/* Pagination — see components/pagination.css for .pagination-bar-wrap / .pg-btn */
 
 /* ============================================
    Action Buttons
@@ -404,14 +342,7 @@
     min-height: 26px;
 }
 
-.access-icon-button {
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
+/* Row-action icon buttons — see components/buttons.css for .btn-action */
 
 .access-table th:nth-child(1),
 .access-table td:nth-child(1) { width: 18%; }

@@ -124,10 +124,4 @@
     max-width: 0;
 }
 
-/* ── Pagination Bar: pinned to bottom of card ── */
-.activity-logs-pagination {
-    flex-shrink: 0;
-    border-top: 1px solid #f1f5f9;
-    padding-top: 0.3rem;
-    min-height: 28px;
-}
+/* Pagination — see components/pagination.css for .pagination-bar-wrap */

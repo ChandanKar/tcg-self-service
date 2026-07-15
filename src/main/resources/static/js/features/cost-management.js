@@ -190,14 +190,14 @@ const CostManagement = (function() {
                         <p>Estimated spend across the fleet, from VM runtime and a static pricing reference &mdash; not live billing data.</p>
                     </div>
                     <div class="cost-toolbar no-print">
-                        <button class="btn btn-outline-secondary btn-sm" id="cost-backfill-btn"
+                        <button class="btn btn-ghost btn-sm" id="cost-backfill-btn"
                                 title="Populate cost history for the trend chart">
                             <i class="fas fa-history"></i> Backfill 30 Days
                         </button>
-                        <button class="btn btn-outline-secondary btn-sm" id="cost-export-png-btn">
+                        <button class="btn btn-ghost btn-sm" id="cost-export-png-btn">
                             <i class="fas fa-image"></i> Export PNG
                         </button>
-                        <button class="btn btn-outline-secondary btn-sm" id="cost-export-pdf-btn">
+                        <button class="btn btn-ghost btn-sm" id="cost-export-pdf-btn">
                             <i class="fas fa-file-pdf"></i> Export PDF
                         </button>
                     </div>
@@ -515,7 +515,7 @@ const CostManagement = (function() {
                         <tbody id="${opts.bodyId}">${opts.rowsHtml}</tbody>
                     </table>
                 </div>
-                <div class="cost-pagination" id="${opts.paginationId}">
+                <div class="pagination-bar-wrap" id="${opts.paginationId}">
                     ${buildPagination(opts.tableKey, opts.pageState)}
                 </div>
             </section>
@@ -523,24 +523,15 @@ const CostManagement = (function() {
     }
 
     function buildPagination(tableKey, pageState) {
-        const totalPages = pageState.totalPages || 0;
-        if (totalPages <= 1) {
-            return `<span class="text-muted small">${pageState.totalElements || 0} row(s)</span>`;
-        }
         const page = pageState.page || 0;
-        return `
-            <span class="text-muted small">Page ${page + 1} of ${totalPages} (${pageState.totalElements} rows)</span>
-            <div>
-                <button class="btn btn-sm btn-outline-secondary page-btn" ${page === 0 ? 'disabled' : ''}
-                        onclick="CostManagement.changePage('${tableKey}', ${page - 1})">
-                    <i class="fas fa-chevron-left"></i> Prev
-                </button>
-                <button class="btn btn-sm btn-outline-secondary page-btn ms-1" ${page >= totalPages - 1 ? 'disabled' : ''}
-                        onclick="CostManagement.changePage('${tableKey}', ${page + 1})">
-                    Next <i class="fas fa-chevron-right"></i>
-                </button>
-            </div>
-        `;
+        return Pagination.buildSimpleMarkup({
+            page,
+            totalPages: pageState.totalPages || 0,
+            totalItems: pageState.totalElements || 0,
+            itemLabel: 'rows',
+            prevOnClick: `CostManagement.changePage('${tableKey}', ${page - 1})`,
+            nextOnClick: `CostManagement.changePage('${tableKey}', ${page + 1})`
+        });
     }
 
     function costCell(amount, costKnown) {
@@ -778,7 +769,7 @@ const CostManagement = (function() {
             if (idleBody) idleBody.innerHTML = buildIdleRows(idleRows);
             if (rightsizingBody) rightsizingBody.innerHTML = buildRightsizingRows(rightsizingRows);
             if (detailBody) detailBody.innerHTML = buildDetailRows(detailRows);
-            clone.querySelectorAll('.cost-pagination').forEach(el => {
+            clone.querySelectorAll('.pagination-bar-wrap').forEach(el => {
                 el.innerHTML = '<span class="text-muted small">All rows shown for export</span>';
             });
 
