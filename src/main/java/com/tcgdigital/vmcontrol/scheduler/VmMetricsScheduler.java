@@ -10,7 +10,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnProperty(name = "vm.metrics.sync.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "cloudwatch.metric.enable", havingValue = "true", matchIfMissing = true)
 public class VmMetricsScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(VmMetricsScheduler.class);
@@ -19,7 +19,7 @@ public class VmMetricsScheduler {
     private final VmMetricsService metricsService;
     private final ScheduledJobLockService lockService;
 
-    @Value("${vm.metrics.sync.enabled:true}")
+    @Value("${cloudwatch.metric.enable:true}")
     private boolean enabled;
 
     public VmMetricsScheduler(VmMetricsService metricsService, ScheduledJobLockService lockService) {
@@ -27,8 +27,8 @@ public class VmMetricsScheduler {
         this.lockService = lockService;
     }
 
-    @Scheduled(fixedRateString = "${vm.metrics.sync.interval:300000}",
-            initialDelayString = "${vm.metrics.sync.initial-delay:90000}")
+    @Scheduled(fixedRateString = "#{${cloudwatch.metric.schedule.interval:5} * 60000}",
+            initialDelayString = "#{${cloudwatch.metric.schedule.initial-delay:2} * 60000}")
     public void scheduledMetricsSync() {
         if (!enabled || !lockService.tryAcquire(LOCK_NAME)) return;
         try {
