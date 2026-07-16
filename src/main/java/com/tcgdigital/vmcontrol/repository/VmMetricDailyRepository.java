@@ -16,6 +16,12 @@ public interface VmMetricDailyRepository extends JpaRepository<VmMetricDaily, St
     Optional<VmMetricDaily> findByVmVmIdAndBucketDate(String vmId, Date bucketDate);
 
     /**
+     * Bulk variant of {@link #findByVmVmIdAndBucketDate} for a whole day at once — lets the
+     * rollup job resolve every VM's existing row for a date with one query instead of one per VM.
+     */
+    List<VmMetricDaily> findByBucketDate(Date bucketDate);
+
+    /**
      * Average-of-daily-averages and max CPU per VM since a given date, for a batch of VMs in one
      * query — avoids a per-VM query when computing rightsizing candidates for a page of VMs.
      * Note: this averages each day's already-averaged value, not sample-weighted across days

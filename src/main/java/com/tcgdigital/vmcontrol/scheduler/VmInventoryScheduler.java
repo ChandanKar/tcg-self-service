@@ -30,8 +30,8 @@ public class VmInventoryScheduler {
     @Scheduled(fixedRateString = "${vm.inventory.sync.interval:3600000}",
             initialDelayString = "${vm.inventory.sync.initial-delay:60000}")
     public void scheduledInventorySync() {
-        if (!enabled || !lockService.tryAcquire(LOCK_NAME)) return;
         try {
+            if (!enabled || !lockService.tryAcquire(LOCK_NAME)) return;
             inventoryService.syncAllInventory();
         } catch (Exception e) {
             log.error("Error during scheduled VM inventory sync: {}", e.getMessage(), e);

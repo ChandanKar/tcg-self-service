@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -88,8 +89,10 @@ public class VmMetricRollupService {
                 sampleRepository.aggregateByVmForPeriod(dayStart, dayEnd);
 
         Map<String, Vm> vmsById = activeVms.stream().collect(Collectors.toMap(Vm::getVmId, Function.identity()));
+        Map<String, VmMetricDaily> existingByVmId = dailyRepository.findByBucketDate(bucketDate).stream()
+                .collect(Collectors.toMap(d -> d.getVm().getVmId(), Function.identity()));
         Set<String> vmIdsWithData = new HashSet<>();
-        int written = 0;
+        List<VmMetricDaily> toSave = new ArrayList<>();
 
         for (VmMetricSampleRepository.DailyAggregate agg : aggregates) {
             Vm vm = vmsById.get(agg.getVmId());
@@ -98,8 +101,7 @@ public class VmMetricRollupService {
             }
             vmIdsWithData.add(agg.getVmId());
 
-            VmMetricDaily daily = dailyRepository.findByVmVmIdAndBucketDate(agg.getVmId(), bucketDate)
-                    .orElseGet(VmMetricDaily::new);
+            VmMetricDaily daily = existingByVmId.getOrDefault(agg.getVmId(), new VmMetricDaily());
             daily.setVm(vm);
             daily.setBucketDate(bucketDate);
             daily.setAvgCpuUtilization(agg.getAvgCpu());
@@ -109,8 +111,7 @@ public class VmMetricRollupService {
             daily.setSumDiskReadBytes(agg.getSumDiskRead());
             daily.setSumDiskWriteBytes(agg.getSumDiskWrite());
             daily.setSampleCount(agg.getSampleCount() == null ? 0 : agg.getSampleCount().intValue());
-            dailyRepository.save(daily);
-            written++;
+            toSave.add(daily);
         }
 
         // Gap-fill VMs that had zero samples that day (not running, so CloudWatch had nothing to
@@ -120,7 +121,7 @@ public class VmMetricRollupService {
             if (vmIdsWithData.contains(vm.getVmId())) {
                 continue;
             }
-            VmMetricDaily existing = dailyRepository.findByVmVmIdAndBucketDate(vm.getVmId(), bucketDate).orElse(null);
+            VmMetricDaily existing = existingByVmId.get(vm.getVmId());
             if (existing != null && existing.getSampleCount() != null && existing.getSampleCount() > 0) {
                 continue; // real data from a prior run whose raw samples have since been archived — keep it
             }
@@ -135,10 +136,10 @@ public class VmMetricRollupService {
             daily.setSumDiskReadBytes(0L);
             daily.setSumDiskWriteBytes(0L);
             daily.setSampleCount(0);
-            dailyRepository.save(daily);
-            written++;
+            toSave.add(daily);
         }
 
-        return written;
+        dailyRepository.saveAll(toSave);
+        return toSave.size();
     }
 }

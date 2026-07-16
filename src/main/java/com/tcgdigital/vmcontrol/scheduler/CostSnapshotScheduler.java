@@ -29,8 +29,8 @@ public class CostSnapshotScheduler {
 
     @Scheduled(cron = "${cost.snapshot.cron:0 0 3 * * *}")
     public void scheduledCostSnapshot() {
-        if (!enabled || !lockService.tryAcquire(LOCK_NAME)) return;
         try {
+            if (!enabled || !lockService.tryAcquire(LOCK_NAME)) return;
             costSnapshotService.captureDailySnapshot();
         } catch (Exception e) {
             log.error("Error during scheduled cost snapshot capture: {}", e.getMessage(), e);
