@@ -25,6 +25,14 @@ public class AwsCloudMetricsProviderService implements CloudMetricsProviderServi
 
     private static final Logger log = LoggerFactory.getLogger(AwsCloudMetricsProviderService.class);
     private static final String NAMESPACE = "AWS/EC2";
+    /**
+     * Memory isn't part of standard EC2 monitoring — it only exists if the CloudWatch Agent is
+     * installed and configured on the instance, publishing "mem_used_percent" to this namespace
+     * with an InstanceId dimension (the unified agent's documented defaults). If the agent isn't
+     * present, GetMetricData simply returns no data points for this query and memoryUtilization
+     * stays null, same graceful-degradation behavior as every other missing-data case here.
+     */
+    private static final String CWAGENT_NAMESPACE = "CWAgent";
 
     @Value("${aws.access-key:}")
     private String accessKey;
@@ -72,7 +80,7 @@ public class AwsCloudMetricsProviderService implements CloudMetricsProviderServi
                                 .id(queryId)
                                 .metricStat(MetricStat.builder()
                                         .metric(Metric.builder()
-                                                .namespace(NAMESPACE)
+                                                .namespace(spec.namespace)
                                                 .metricName(spec.metricName)
                                                 .dimensions(Dimension.builder()
                                                         .name("InstanceId")
@@ -122,6 +130,7 @@ public class AwsCloudMetricsProviderService implements CloudMetricsProviderServi
         if (value == null) return;
         switch (spec) {
             case CPU -> data.setCpuUtilization(BigDecimal.valueOf(value).setScale(3, RoundingMode.HALF_UP));
+            case MEMORY -> data.setMemoryUtilization(BigDecimal.valueOf(value).setScale(3, RoundingMode.HALF_UP));
             case NETWORK_IN -> data.setNetworkInBytes(Math.round(value));
             case NETWORK_OUT -> data.setNetworkOutBytes(Math.round(value));
             case DISK_READ -> data.setDiskReadBytes(Math.round(value));
@@ -142,16 +151,19 @@ public class AwsCloudMetricsProviderService implements CloudMetricsProviderServi
     }
 
     private enum MetricSpec {
-        CPU("CPUUtilization", "Average"),
-        NETWORK_IN("NetworkIn", "Sum"),
-        NETWORK_OUT("NetworkOut", "Sum"),
-        DISK_READ("DiskReadBytes", "Sum"),
-        DISK_WRITE("DiskWriteBytes", "Sum");
+        CPU(NAMESPACE, "CPUUtilization", "Average"),
+        MEMORY(CWAGENT_NAMESPACE, "mem_used_percent", "Average"),
+        NETWORK_IN(NAMESPACE, "NetworkIn", "Sum"),
+        NETWORK_OUT(NAMESPACE, "NetworkOut", "Sum"),
+        DISK_READ(NAMESPACE, "DiskReadBytes", "Sum"),
+        DISK_WRITE(NAMESPACE, "DiskWriteBytes", "Sum");
 
+        private final String namespace;
         private final String metricName;
         private final String stat;
 
-        MetricSpec(String metricName, String stat) {
+        MetricSpec(String namespace, String metricName, String stat) {
+            this.namespace = namespace;
             this.metricName = metricName;
             this.stat = stat;
         }

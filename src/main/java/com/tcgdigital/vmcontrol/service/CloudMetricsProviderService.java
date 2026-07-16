@@ -22,6 +22,7 @@ public interface CloudMetricsProviderService {
         private Timestamp sampleTime;
         private Integer periodSeconds;
         private BigDecimal cpuUtilization;
+        private BigDecimal memoryUtilization;
         private Long networkInBytes;
         private Long networkOutBytes;
         private Long diskReadBytes;
@@ -35,6 +36,8 @@ public interface CloudMetricsProviderService {
         public void setPeriodSeconds(Integer periodSeconds) { this.periodSeconds = periodSeconds; }
         public BigDecimal getCpuUtilization() { return cpuUtilization; }
         public void setCpuUtilization(BigDecimal cpuUtilization) { this.cpuUtilization = cpuUtilization; }
+        public BigDecimal getMemoryUtilization() { return memoryUtilization; }
+        public void setMemoryUtilization(BigDecimal memoryUtilization) { this.memoryUtilization = memoryUtilization; }
         public Long getNetworkInBytes() { return networkInBytes; }
         public void setNetworkInBytes(Long networkInBytes) { this.networkInBytes = networkInBytes; }
         public Long getNetworkOutBytes() { return networkOutBytes; }

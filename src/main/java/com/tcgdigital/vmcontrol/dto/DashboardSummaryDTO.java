@@ -74,6 +74,7 @@ public record DashboardSummaryDTO(
     public record ChartPointDTO(
             String label,
             BigDecimal cpuUtilization,
+            BigDecimal memoryUtilization,
             Long networkInBytes,
             Long networkOutBytes,
             Long diskReadBytes,

@@ -222,6 +222,13 @@ public class DashboardSummaryService {
                 .toList());
     }
 
+    private BigDecimal averageMemory(List<VmMetricSample> samples) {
+        return average(samples.stream()
+                .map(VmMetricSample::getMemoryUtilization)
+                .filter(Objects::nonNull)
+                .toList());
+    }
+
     private BigDecimal average(List<BigDecimal> values) {
         if (values.isEmpty()) return null;
         BigDecimal sum = values.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -292,6 +299,7 @@ public class DashboardSummaryService {
             points.add(new DashboardSummaryDTO.ChartPointDTO(
                     "T" + (i + 1),
                     averageCpu(bucket),
+                    averageMemory(bucket),
                     sumLong(bucket, VmMetricSample::getNetworkInBytes),
                     sumLong(bucket, VmMetricSample::getNetworkOutBytes),
                     sumLong(bucket, VmMetricSample::getDiskReadBytes),

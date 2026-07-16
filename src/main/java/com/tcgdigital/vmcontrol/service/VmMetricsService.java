@@ -129,6 +129,7 @@ public class VmMetricsService {
         sample.setSampleTime(sampleTime);
         sample.setPeriodSeconds(samplePeriod);
         sample.setCpuUtilization(data.getCpuUtilization());
+        sample.setMemoryUtilization(data.getMemoryUtilization());
         sample.setNetworkInBytes(data.getNetworkInBytes());
         sample.setNetworkOutBytes(data.getNetworkOutBytes());
         sample.setDiskReadBytes(data.getDiskReadBytes());

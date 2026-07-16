@@ -35,6 +35,9 @@ public class VmMetricSample {
     @Column(name = "cpu_utilization", precision = 7, scale = 3)
     private BigDecimal cpuUtilization;
 
+    @Column(name = "memory_utilization", precision = 7, scale = 3)
+    private BigDecimal memoryUtilization;
+
     @Column(name = "network_in_bytes")
     private Long networkInBytes;
 
@@ -75,6 +78,8 @@ public class VmMetricSample {
     public void setPeriodSeconds(Integer periodSeconds) { this.periodSeconds = periodSeconds; }
     public BigDecimal getCpuUtilization() { return cpuUtilization; }
     public void setCpuUtilization(BigDecimal cpuUtilization) { this.cpuUtilization = cpuUtilization; }
+    public BigDecimal getMemoryUtilization() { return memoryUtilization; }
+    public void setMemoryUtilization(BigDecimal memoryUtilization) { this.memoryUtilization = memoryUtilization; }
     public Long getNetworkInBytes() { return networkInBytes; }
     public void setNetworkInBytes(Long networkInBytes) { this.networkInBytes = networkInBytes; }
     public Long getNetworkOutBytes() { return networkOutBytes; }

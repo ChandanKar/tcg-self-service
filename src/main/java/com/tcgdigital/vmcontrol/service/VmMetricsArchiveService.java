@@ -76,6 +76,7 @@ public class VmMetricsArchiveService {
         archive.setSampleTime(sample.getSampleTime());
         archive.setPeriodSeconds(sample.getPeriodSeconds());
         archive.setCpuUtilization(sample.getCpuUtilization());
+        archive.setMemoryUtilization(sample.getMemoryUtilization());
         archive.setNetworkInBytes(sample.getNetworkInBytes());
         archive.setNetworkOutBytes(sample.getNetworkOutBytes());
         archive.setDiskReadBytes(sample.getDiskReadBytes());
