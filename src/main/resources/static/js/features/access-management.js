@@ -945,34 +945,32 @@ const AccessManagement = (function() {
      * Handle revoke access
      */
     async function handleRevokeAccess(envId, userId, userName) {
-        if (!confirm(`Are you sure you want to revoke access for ${userName}?`)) {
-            return;
-        }
+        Modals.confirm('Revoke Access', `Are you sure you want to revoke access for ${userName}?`, async function() {
+            try {
+                await new Promise((resolve, reject) => {
+                    ApiClient.delete(Config.API.access.revokeAccess(envId, userId))
+                        .done(resolve)
+                        .fail(reject);
+                });
 
-        try {
-            await new Promise((resolve, reject) => {
-                ApiClient.delete(Config.API.access.revokeAccess(envId, userId))
-                    .done(resolve)
-                    .fail(reject);
-            });
+                showToast('Access revoked successfully', 'success');
 
-            showToast('Access revoked successfully', 'success');
-
-            // Refresh data
-            [allAccess, activityLogs] = await Promise.all([
-                fetchAccessForSelection(selectedEnvironmentId),
-                fetchActivityLogsForSelection(selectedEnvironmentId)
-            ]);
-            filteredAccess = [...allAccess];
-            const stats = calculateStats();
-            updateStatsDisplay(stats);
-            applyFilters();
-            renderActivityLogsTable();
-        } catch (error) {
-            console.error('Revoke access failed:', error);
-            const message = error.responseJSON?.message || 'Failed to revoke access';
-            showToast(message, 'danger');
-        }
+                // Refresh data
+                [allAccess, activityLogs] = await Promise.all([
+                    fetchAccessForSelection(selectedEnvironmentId),
+                    fetchActivityLogsForSelection(selectedEnvironmentId)
+                ]);
+                filteredAccess = [...allAccess];
+                const stats = calculateStats();
+                updateStatsDisplay(stats);
+                applyFilters();
+                renderActivityLogsTable();
+            } catch (error) {
+                console.error('Revoke access failed:', error);
+                const message = error.responseJSON?.message || 'Failed to revoke access';
+                showToast(message, 'danger');
+            }
+        }, { confirmText: 'Revoke', confirmClass: 'btn-danger' });
     }
 
     /**
@@ -1112,17 +1110,14 @@ const AccessManagement = (function() {
     }
 
     function showToast(message, type = 'info') {
-        // Use existing toast system if available, otherwise console
-        if (window.Toast && typeof Toast.show === 'function') {
-            Toast.show(message, type);
-        } else if (window.showNotification) {
-            showNotification(message, type);
+        // Delegate to the app-wide toast system (js/ui/notifications.js).
+        // 'danger' (Bootstrap naming, used by callers in this file) maps to
+        // Notifications' 'error' type.
+        if (window.Notifications && typeof Notifications.show === 'function') {
+            const notifType = (type === 'danger') ? 'error' : type;
+            Notifications.show(message, notifType);
         } else {
             console.log(`[${type.toUpperCase()}] ${message}`);
-            // Fallback: simple alert for errors
-            if (type === 'danger' || type === 'error') {
-                alert(message);
-            }
         }
     }
 

@@ -301,19 +301,19 @@ const VmRegistry = (function() {
     async function deleteEnvironment(environmentId) {
         const env = window.VmRegistryState.environments.find(e => e.environmentId === environmentId);
         if (!env) return;
-        const confirmed = confirm(`Are you sure you want to delete "${env.displayName}"? This action cannot be undone.`);
-        if (!confirmed) return;
-        try {
-            Loading.show('Deleting...');
-            await ApiClient.delete(`/api/v1/environments/${environmentId}`);
-            Notifications.success('Environment deleted');
-            await loadEnvironmentsData();
-            Loading.hide();
-        } catch (error) {
-            console.error('Failed to delete environment:', error);
-            Notifications.error(error.responseJSON?.message || 'Failed to delete');
-            Loading.hide();
-        }
+        DestructiveConfirm.confirmDeleteEnvironment(env.displayName, env.vmCount || 0, async function() {
+            try {
+                Loading.show('Deleting...');
+                await ApiClient.delete(`/api/v1/environments/${environmentId}`);
+                Notifications.success('Environment deleted');
+                await loadEnvironmentsData();
+                Loading.hide();
+            } catch (error) {
+                console.error('Failed to delete environment:', error);
+                Notifications.error(error.responseJSON?.message || 'Failed to delete');
+                Loading.hide();
+            }
+        });
     }
 
     // =========================================================================
@@ -643,20 +643,20 @@ const VmRegistry = (function() {
             Notifications.error('Cannot delete group with VMs');
             return;
         }
-        const confirmed = confirm(`Delete "${group.displayName}"?`);
-        if (!confirmed) return;
-        try {
-            Loading.show('Deleting...');
-            await ApiClient.delete(`/api/v1/environments/${window.VmRegistryState.currentEnvironment.environmentId}/groups/${groupId}`);
-            Notifications.success('Group deleted');
-            await refreshGroupsModal();
-            await loadEnvironmentsData();
-            Loading.hide();
-        } catch (error) {
-            console.error('Failed to delete group:', error);
-            Notifications.error(error.responseJSON?.message || 'Failed to delete');
-            Loading.hide();
-        }
+        Modals.confirm('Delete Group', `Delete "${group.displayName}"? This cannot be undone.`, async function() {
+            try {
+                Loading.show('Deleting...');
+                await ApiClient.delete(`/api/v1/environments/${window.VmRegistryState.currentEnvironment.environmentId}/groups/${groupId}`);
+                Notifications.success('Group deleted');
+                await refreshGroupsModal();
+                await loadEnvironmentsData();
+                Loading.hide();
+            } catch (error) {
+                console.error('Failed to delete group:', error);
+                Notifications.error(error.responseJSON?.message || 'Failed to delete');
+                Loading.hide();
+            }
+        }, { confirmText: 'Delete', confirmClass: 'btn-danger' });
     }
 
     // =========================================================================
@@ -997,24 +997,23 @@ const VmRegistry = (function() {
     }
 
     async function deleteVm(vmId, vmName) {
-        if (!confirm(`Are you sure you want to remove VM "${vmName}"? This only unregisters it from the platform.`)) {
-            return;
-        }
-        try {
-            Loading.show('Removing VM...');
-            const envId = window.VmRegistryState.currentEnvironment.environmentId;
-            await ApiClient.delete(`/api/v1/environments/${envId}/vms/${vmId}`);
-            Notifications.success(`VM "${vmName}" removed`);
-            await refreshGroupsModal();
-            await loadEnvironmentsData();
-            Loading.hide();
-        } catch (error) {
-            console.error('Failed to delete VM:', error);
-            if (!error?.responseJSON?.message) {
-                Notifications.error('Failed to remove VM');
+        Modals.confirm('Remove VM', `Remove VM "${vmName}"? This only unregisters it from the platform.`, async function() {
+            try {
+                Loading.show('Removing VM...');
+                const envId = window.VmRegistryState.currentEnvironment.environmentId;
+                await ApiClient.delete(`/api/v1/environments/${envId}/vms/${vmId}`);
+                Notifications.success(`VM "${vmName}" removed`);
+                await refreshGroupsModal();
+                await loadEnvironmentsData();
+                Loading.hide();
+            } catch (error) {
+                console.error('Failed to delete VM:', error);
+                if (!error?.responseJSON?.message) {
+                    Notifications.error('Failed to remove VM');
+                }
+                Loading.hide();
             }
-            Loading.hide();
-        }
+        }, { confirmText: 'Remove', confirmClass: 'btn-danger' });
     }
 
     // =========================================================================

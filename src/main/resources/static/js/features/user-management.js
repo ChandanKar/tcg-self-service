@@ -400,9 +400,9 @@ const UserManagement = (function() {
             e.preventDefault();
             const userId = $(this).data('user-id');
             const user = allUsers.find(u => u.userId === userId);
-            if (confirm(`Deactivate user "${user?.displayName || user?.email}"?`)) {
+            Modals.confirm('Deactivate User', `Deactivate user "${user?.displayName || user?.email}"?`, function() {
                 deactivateUser(userId);
-            }
+            }, { confirmText: 'Deactivate', confirmClass: 'btn-danger' });
         });
 
         // Reactivate

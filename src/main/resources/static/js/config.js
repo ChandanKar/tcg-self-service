@@ -181,6 +181,18 @@ const Config = (function() {
             rightsizing: (page = 0, size = 10) => `${API_BASE_URL}/cost-management/rightsizing?page=${page}&size=${size}`,
             vmDetail: (page = 0, size = 10) => `${API_BASE_URL}/cost-management/vm-detail?page=${page}&size=${size}`,
             backfill: (days = 30) => `${API_BASE_URL}/cost-management/snapshots/backfill?days=${days}`
+        },
+
+        // Automation Rules (admin / env admin)
+        automationRules: {
+            list: (environmentId) => environmentId
+                ? `${API_BASE_URL}/automation-rules?environmentId=${encodeURIComponent(environmentId)}`
+                : `${API_BASE_URL}/automation-rules`,
+            get: (ruleId) => `${API_BASE_URL}/automation-rules/${ruleId}`,
+            create: `${API_BASE_URL}/automation-rules`,
+            update: (ruleId) => `${API_BASE_URL}/automation-rules/${ruleId}`,
+            setEnabled: (ruleId) => `${API_BASE_URL}/automation-rules/${ruleId}/enabled`,
+            delete: (ruleId) => `${API_BASE_URL}/automation-rules/${ruleId}`
         }
     };
 
@@ -199,7 +211,7 @@ const Config = (function() {
     const STATUS = {
         vm: {
             RUNNING: { label: 'Running', class: 'running', icon: 'fa-circle', color: '#10b981' },
-            STOPPED: { label: 'Stopped', class: 'stopped', icon: 'fa-circle', color: '#ef4444' },
+            STOPPED: { label: 'Stopped', class: 'stopped', icon: 'fa-circle', color: '#4b5563' },
             STARTING: { label: 'Starting', class: 'pending', icon: 'fa-spinner fa-spin', color: '#f59e0b' },
             STOPPING: { label: 'Stopping', class: 'pending', icon: 'fa-spinner fa-spin', color: '#f59e0b' },
             UNKNOWN: { label: 'Unknown', class: 'partial', icon: 'fa-question-circle', color: '#6b7280' },
@@ -311,6 +323,20 @@ const Config = (function() {
         { value: 'ap-northeast-1', label: 'Asia Pacific (Tokyo)' }
     ];
 
+    // IANA timezones for Automation Rules schedule forms — curated, not exhaustive
+    const IANA_TIMEZONES = [
+        'Asia/Kolkata',
+        'UTC',
+        'America/New_York',
+        'America/Chicago',
+        'America/Los_Angeles',
+        'Europe/London',
+        'Europe/Berlin',
+        'Asia/Singapore',
+        'Asia/Tokyo',
+        'Australia/Sydney'
+    ];
+
     return {
         API_BASE_URL,
         AUTH,
@@ -321,6 +347,7 @@ const Config = (function() {
         renderStatusBadge,
         CLOUD_ICONS,
         ACCESS_LEVELS,
-        AWS_REGIONS
+        AWS_REGIONS,
+        IANA_TIMEZONES
     };
 })();

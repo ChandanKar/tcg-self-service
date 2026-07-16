@@ -385,16 +385,16 @@ const Dashboard = (function() {
     function riskToneColor(tone) {
         switch ((tone || '').toLowerCase()) {
             case 'success':
-                return '#059669';
+                return '#10b981';
             case 'warning':
-                return '#d97706';
+                return '#f59e0b';
             case 'danger':
-                return '#dc2626';
+                return '#ef4444';
             case 'primary':
                 return '#2563eb';
             case 'info':
             default:
-                return '#0891b2';
+                return '#3b82f6';
         }
     }
 
@@ -426,8 +426,8 @@ const Dashboard = (function() {
     function initCharts(data) {
         if (!window.echarts) return;
         chart('dash-util-trend', buildTrendOption(data));
-        chart('dash-vm-state', buildDonutOption(data.vmStatusCounts || {}, ['#059669', '#64748b', '#d97706', '#dc2626']));
-        chart('dash-storage-mix', buildDonutOption(data.volumeTypeCounts || {}, ['#2563eb', '#059669', '#d97706', '#7c3aed', '#0891b2']));
+        chart('dash-vm-state', buildDonutOption(data.vmStatusCounts || {}, ['#10b981', '#64748b', '#f59e0b', '#ef4444']));
+        chart('dash-storage-mix', buildDonutOption(data.volumeTypeCounts || {}, ['#2563eb', '#10b981', '#f59e0b', '#7c3aed', '#3b82f6']));
         chart('dash-coverage', buildGaugeOption(data.coverage?.metricsPercent || 0));
         chart('dash-risk-compliance', buildRiskComplianceOption(data.riskCompliance || []));
         setTimeout(resizeCharts, 40);
@@ -445,7 +445,7 @@ const Dashboard = (function() {
         const points = data.utilizationTrend || [];
         const labels = points.map(point => point.label);
         return {
-            color: ['#2563eb', '#059669', '#d97706'],
+            color: ['#2563eb', '#10b981', '#f59e0b'],
             tooltip: {
                 trigger: 'axis',
                 confine: true,
@@ -520,7 +520,7 @@ const Dashboard = (function() {
 
     function buildGaugeOption(value) {
         return {
-            color: ['#059669'],
+            color: ['#10b981'],
             series: [{
                 type: 'gauge',
                 min: 0,
@@ -693,7 +693,7 @@ const Dashboard = (function() {
     }
 
     function chartTextStyle() {
-        return { fontFamily: 'Inter, Segoe UI, Arial, sans-serif', color: '#64748b' };
+        return { fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", color: '#64748b' };
     }
 
     function bytesToMb(bytes) {

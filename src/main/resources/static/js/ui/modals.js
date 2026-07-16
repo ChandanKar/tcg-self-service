@@ -606,204 +606,6 @@ const Modals = (function() {
     }
 
     /**
-     * Create VM Group Modal
-     */
-    function showCreateGroup(envId, existingGroups, onSuccess) {
-        const groupOptions = existingGroups.map(g =>
-            `<option value="${g.group?.groupId || g.groupId}">${Utils.escapeHtml(g.group?.name || g.name)}</option>`
-        ).join('');
-
-        show({
-            id: 'createGroupModal',
-            title: 'Create VM Group',
-            body: `
-                <form id="createGroupForm">
-                    <div class="mb-3">
-                        <label class="form-label">Group Name <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="groupName" required
-                               pattern="[a-z0-9-]+" placeholder="e.g., database-tier">
-                        <div class="form-text">Lowercase letters, numbers, and hyphens only</div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Display Name</label>
-                        <input type="text" class="form-control" id="groupDisplayName"
-                               placeholder="e.g., Database Tier">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Description</label>
-                        <textarea class="form-control" id="groupDescription" rows="2"></textarea>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Sequence Position <span class="text-danger">*</span></label>
-                            <input type="number" class="form-control" id="groupSequence"
-                                   min="1" value="${existingGroups.length + 1}" required>
-                            <div class="form-text">Order in which to start/stop</div>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Depends On Groups</label>
-                            <select class="form-select" id="groupDependsOn" multiple size="3">
-                                ${groupOptions}
-                            </select>
-                            <div class="form-text">Hold Ctrl to select multiple</div>
-                        </div>
-                    </div>
-                </form>
-            `,
-            buttons: [
-                { text: 'Cancel', class: 'btn-secondary', dismiss: true },
-                { text: 'Create Group', class: 'btn-primary', id: 'createGroupBtn' }
-            ],
-            onShow: function() {
-                $('#groupName').focus();
-
-                $('#createGroupBtn').off('click').on('click', function() {
-                    if (!$('#createGroupForm')[0].checkValidity()) {
-                        $('#createGroupForm')[0].reportValidity();
-                        return;
-                    }
-
-                    const dependsOnIds = $('#groupDependsOn').val() || [];
-
-                    const data = {
-                        name: $('#groupName').val().trim(),
-                        displayName: $('#groupDisplayName').val().trim() || null,
-                        description: $('#groupDescription').val().trim() || null,
-                        sequencePosition: parseInt($('#groupSequence').val()),
-                        dependsOnGroupIds: dependsOnIds
-                    };
-
-                    $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Creating...');
-
-                    ApiClient.post(Config.API.groups.create(envId), data)
-                        .done(function(group) {
-                            hide('createGroupModal');
-                            Notifications.success(`Group "${group.name}" created`);
-                            if (onSuccess) onSuccess(group);
-                        })
-                        .fail(function(xhr) {
-                            $('#createGroupBtn').prop('disabled', false).html('Create Group');
-                            const msg = xhr.responseJSON?.message || 'Failed to create group';
-                            Notifications.error(msg);
-                        });
-                });
-            }
-        });
-    }
-
-    /**
-     * Register VM Modal
-     */
-    function showRegisterVm(envId, groups, onSuccess) {
-        const groupOptions = groups.map(g =>
-            `<option value="${g.group?.groupId || g.groupId}">${Utils.escapeHtml(g.group?.name || g.name)}</option>`
-        ).join('');
-
-        show({
-            id: 'registerVmModal',
-            title: 'Register VM',
-            size: 'lg',
-            body: `
-                <form id="registerVmForm">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">VM Name <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="vmName" required
-                                   placeholder="e.g., web-server-01">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Display Name</label>
-                            <input type="text" class="form-control" id="vmDisplayName"
-                                   placeholder="e.g., Web Server 01">
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Group <span class="text-danger">*</span></label>
-                            <select class="form-select" id="vmGroupId" required>
-                                <option value="">Select a group...</option>
-                                ${groupOptions}
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Cloud Provider <span class="text-danger">*</span></label>
-                            <select class="form-select" id="vmProvider" required>
-                                <option value="AWS">AWS</option>
-                                <option value="AZURE">Azure</option>
-                                <option value="GCP">Google Cloud</option>
-                                <option value="OCI">Oracle Cloud</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Provider VM ID <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="vmProviderId" required
-                                   placeholder="e.g., i-0123456789abcdef0">
-                            <div class="form-text">The instance ID from your cloud provider</div>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Region <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="vmRegion" required
-                                   placeholder="e.g., us-east-1">
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">VM Type</label>
-                            <input type="text" class="form-control" id="vmType"
-                                   placeholder="e.g., t3.medium">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Sequence Position</label>
-                            <input type="number" class="form-control" id="vmSequence" min="1" value="1">
-                        </div>
-                    </div>
-                </form>
-            `,
-            buttons: [
-                { text: 'Cancel', class: 'btn-secondary', dismiss: true },
-                { text: 'Register VM', class: 'btn-primary', id: 'registerVmBtn' }
-            ],
-            onShow: function() {
-                $('#vmName').focus();
-
-                $('#registerVmBtn').off('click').on('click', function() {
-                    if (!$('#registerVmForm')[0].checkValidity()) {
-                        $('#registerVmForm')[0].reportValidity();
-                        return;
-                    }
-
-                    const data = {
-                        name: $('#vmName').val().trim(),
-                        displayName: $('#vmDisplayName').val().trim() || null,
-                        groupId: $('#vmGroupId').val(),
-                        provider: $('#vmProvider').val(),
-                        providerVmId: $('#vmProviderId').val().trim(),
-                        region: $('#vmRegion').val().trim(),
-                        vmType: $('#vmType').val().trim() || null,
-                        sequencePosition: parseInt($('#vmSequence').val()) || 1
-                    };
-
-                    $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Registering...');
-
-                    ApiClient.post(Config.API.vms.register(envId), data)
-                        .done(function(vm) {
-                            hide('registerVmModal');
-                            Notifications.success(`VM "${vm.name}" registered`);
-                            if (onSuccess) onSuccess(vm);
-                        })
-                        .fail(function(xhr) {
-                            $('#registerVmBtn').prop('disabled', false).html('Register VM');
-                            const msg = xhr.responseJSON?.message || 'Failed to register VM';
-                            Notifications.error(msg);
-                        });
-                });
-            }
-        });
-    }
-
-    /**
      * Parse a Spring validation error response into a clean human-readable string.
      * Handles both {errors:[{field,message}]} and {message:"field: msg, field: msg"} formats.
      */
@@ -857,9 +659,7 @@ const Modals = (function() {
         confirm,
         prompt,
         showCreateEnvironment,
-        showEditEnvironment,
-        showCreateGroup,
-        showRegisterVm
+        showEditEnvironment
     };
 })();
 
@@ -1003,11 +803,29 @@ const DestructiveConfirm = (function() {
         });
     }
 
+    /**
+     * Convenience method for Delete Automation Rule (TASK-034)
+     */
+    function confirmDeleteAutomationRule(ruleName, onConfirm) {
+        show({
+            title: 'Delete Automation Rule',
+            message: `This will permanently delete the automation rule "${ruleName}".`,
+            impact: [
+                'The rule will stop running immediately',
+                'This action cannot be undone'
+            ],
+            confirmText: ruleName,
+            actionText: 'Delete Rule',
+            onConfirm
+        });
+    }
+
     return {
         show,
         confirmStopAll,
         confirmBreakLock,
-        confirmDeleteEnvironment
+        confirmDeleteEnvironment,
+        confirmDeleteAutomationRule
     };
 })();
 
