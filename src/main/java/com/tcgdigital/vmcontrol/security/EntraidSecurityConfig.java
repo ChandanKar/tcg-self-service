@@ -26,7 +26,7 @@ public class EntraidSecurityConfig {
         http
             .authorizeHttpRequests(authorize -> authorize
                 // allow static resources, login page, health/error endpoints, oauth callback, h2 console, and Swagger UI
-                .requestMatchers("/", "/login", "/login.html", "/css/**", "/js/**", "/logo/**", "/images/**", "/static/**",
+                .requestMatchers("/", "/login", "/login.html", "/css/**", "/js/**", "/vendor/**", "/logo/**", "/images/**", "/static/**",
                     "/error", "/h2-console/**", "/login/**", "/oauth2/**", "/logout",
                     "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/swagger-resources/**", "/webjars/**",
                     "/api/auth/login",

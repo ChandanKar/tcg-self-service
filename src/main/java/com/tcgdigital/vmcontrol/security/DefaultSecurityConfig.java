@@ -51,7 +51,7 @@ public class DefaultSecurityConfig {
         http
             .addFilterBefore(new DevUserHeaderFilter(), UsernamePasswordAuthenticationFilter.class)
             .authorizeHttpRequests(authorize -> authorize
-                .requestMatchers("/", "/login", "/login.html", "/css/**", "/js/**", "/logo/**", "/images/**",
+                .requestMatchers("/", "/login", "/login.html", "/css/**", "/js/**", "/vendor/**", "/logo/**", "/images/**",
                     "/static/**", "/error", "/h2-console/**", "/logout").permitAll()
                 .anyRequest().permitAll()
             )
