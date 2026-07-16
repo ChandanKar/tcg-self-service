@@ -141,17 +141,17 @@
 }
 
 #connection-status.connected {
-    background: #10b981;
+    background: var(--success-color, #10b981);
     color: white;
 }
 
 #connection-status.disconnected {
-    background: #ef4444;
+    background: var(--danger-color, #ef4444);
     color: white;
 }
 
 #connection-status.reconnecting {
-    background: #f59e0b;
+    background: var(--warning-color, #f59e0b);
     color: white;
 }
 

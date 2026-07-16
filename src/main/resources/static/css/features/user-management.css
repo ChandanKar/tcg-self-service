@@ -310,7 +310,7 @@
 }
 
 .user-stat-card .stat-value {
-    font-size: 1.55rem;
+    font-size: var(--font-size-2xl, 1.5rem);
     font-weight: 700;
     color: var(--text-primary);
 }

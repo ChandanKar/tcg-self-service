@@ -74,11 +74,7 @@
     overflow-y: auto;
     min-height: 0;
 }
-.activity-logs-table-wrapper::-webkit-scrollbar { width: 4px; }
-.activity-logs-table-wrapper::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 3px;
-}
+/* Scrollbar — see main.css for the shared ::-webkit-scrollbar rules */
 
 /* Table typography — dashboard baseline (uses CSS variables) */
 .activity-logs-table-wrapper .table td,

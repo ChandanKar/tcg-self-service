@@ -41,11 +41,7 @@
     overflow-y: auto;
     min-height: 0;
 }
-.vm-registry-table-wrapper::-webkit-scrollbar { width: 4px; }
-.vm-registry-table-wrapper::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 3px;
-}
+/* Scrollbar — see main.css for the shared ::-webkit-scrollbar rules */
 .vm-registry-table-wrapper #environmentsTableWrapper {
     height: 100%;
 }
@@ -98,16 +94,16 @@
 }
 #environmentsTable tbody td:last-child .btn + .btn { margin-left: 4px; }
 
-/* ── Table Typography & Spacing — match Dashboard baseline ── */
+/* ── Table Typography & Spacing — match Dashboard baseline (uses CSS variables) ── */
 .vm-registry-table-wrapper .table td,
 .vm-registry-table-wrapper .table th {
-    padding: 0.28rem 0.55rem;
-    font-size: 0.81rem;
+    padding: var(--table-cell-padding, 0.28rem 0.55rem);
+    font-size: var(--table-body-font, 0.81rem);
     vertical-align: middle;
     line-height: 1.5;
 }
 .vm-registry-table-wrapper .table thead th {
-    font-size: 0.7rem;
+    font-size: var(--table-header-font, 0.7rem);
     font-weight: 600;
     letter-spacing: 0.03em;
 }

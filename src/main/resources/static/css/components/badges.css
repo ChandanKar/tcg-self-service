@@ -2,6 +2,16 @@
  * Badge & Status Component Styles
  */
 
+/* Unify shape across the app: plain Bootstrap `badge bg-*` usage (audit log action
+   types, request-status labels, etc.) previously rendered as Bootstrap's default
+   rounded rectangle while .status-badge/.role-badge/.access-level-badge below are
+   full pills — same "status label" concept, two different shapes depending on the
+   page. More specific badge rules (sidebar counts, notification bell counter) keep
+   their own shape since they have higher selector specificity than this base rule. */
+.badge {
+    border-radius: 9999px;
+}
+
 .status-badge {
     display: inline-flex;
     align-items: center;

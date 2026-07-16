@@ -45,22 +45,7 @@
     width: var(--sidebar-collapsed-width);
 }
 
-.sidebar::-webkit-scrollbar {
-    width: 6px;
-}
-
-.sidebar::-webkit-scrollbar-track {
-    background: var(--sidebar-bg);
-}
-
-.sidebar::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 3px;
-}
-
-.sidebar::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
-}
+/* Scrollbar — see main.css for the shared ::-webkit-scrollbar rules this inherits */
 
 /* Sidebar Sections */
 .sidebar-section {

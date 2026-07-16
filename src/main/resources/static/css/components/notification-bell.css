@@ -8,7 +8,7 @@
     position: relative;
     background: none;
     border: none;
-    color: var(--text-muted, #6b7280);
+    color: var(--text-secondary, #64748b);
     font-size: 1.1rem;
     padding: 0.4rem 0.5rem;
     cursor: pointer;
@@ -17,7 +17,7 @@
 }
 
 .notification-bell:hover {
-    color: var(--primary, #3b82f6);
+    color: var(--primary-color, #3b82f6);
     background: rgba(59,130,246,0.08);
 }
 
@@ -44,7 +44,7 @@
     right: 0;
     width: min(440px, calc(100vw - 24px));
     background: #fff;
-    border: 1px solid #e5e7eb;
+    border: 1px solid #e2e8f0;
     border-radius: 8px;
     box-shadow: 0 18px 44px rgba(15, 23, 42, 0.18);
     z-index: 3000;
@@ -56,20 +56,20 @@
     align-items: center;
     justify-content: space-between;
     padding: 0.75rem 1rem;
-    border-bottom: 1px solid #f0f0f0;
-    background: #fafafa;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
 }
 
 .notification-dropdown-title {
     font-weight: 600;
     font-size: 0.875rem;
-    color: #111827;
+    color: #1e293b;
 }
 
 .notification-mark-all-btn {
     background: none;
     border: none;
-    color: var(--primary, #3b82f6);
+    color: var(--primary-color, #3b82f6);
     font-size: 0.78rem;
     cursor: pointer;
     padding: 0;
@@ -92,7 +92,7 @@
     flex-direction: column;
     align-items: center;
     padding: 2rem 1rem;
-    color: #9ca3af;
+    color: #94a3b8;
     font-size: 0.875rem;
     gap: 0.5rem;
 }
@@ -107,7 +107,7 @@
     align-items: flex-start;
     gap: 0.75rem;
     padding: 0.8rem 1rem;
-    border-bottom: 1px solid #f3f4f6;
+    border-bottom: 1px solid #f1f5f9;
     cursor: default;
     transition: background 0.1s;
     background: #fff;
@@ -118,7 +118,7 @@
 }
 
 .notification-item:hover {
-    background: #f9fafb;
+    background: #f8fafc;
 }
 
 .notification-item.unread {
@@ -174,7 +174,7 @@
 .notification-item-title {
     font-size: 0.84rem;
     font-weight: 600;
-    color: #111827;
+    color: #1e293b;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -183,7 +183,7 @@
 
 .notification-item-msg {
     font-size: 0.79rem;
-    color: #4b5563;
+    color: #64748b;
     margin-top: 2px;
     line-height: 1.35;
     display: -webkit-box;
@@ -194,15 +194,15 @@
 
 .notification-item-time {
     font-size: 0.7rem;
-    color: #9ca3af;
+    color: #94a3b8;
     margin-top: 4px;
 }
 
 .notification-read-btn {
     flex-shrink: 0;
     background: none;
-    border: 1px solid #d1d5db;
-    color: #6b7280;
+    border: 1px solid #cbd5e1;
+    color: #64748b;
     width: 24px;
     height: 24px;
     border-radius: 50%;

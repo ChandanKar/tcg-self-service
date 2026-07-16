@@ -33,7 +33,7 @@
     transform: none;
 }
 .all-logs-container .metric-value {
-    font-size: 1.55rem;
+    font-size: var(--font-size-2xl, 1.5rem);
     font-weight: 700;
     line-height: 1.2;
 }
@@ -111,11 +111,7 @@
     overflow-y: auto;
     min-height: 0;
 }
-.all-logs-table-wrapper::-webkit-scrollbar { width: 4px; }
-.all-logs-table-wrapper::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 3px;
-}
+/* Scrollbar — see main.css for the shared ::-webkit-scrollbar rules */
 
 /* Table typography — dashboard baseline (uses CSS variables) */
 .all-logs-table-wrapper .table td,

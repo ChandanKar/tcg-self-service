@@ -190,11 +190,7 @@
     overflow-y: auto;
     min-height: 0;
 }
-.ra-env-table-wrapper::-webkit-scrollbar { width: 4px; }
-.ra-env-table-wrapper::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 3px;
-}
+/* Scrollbar — see main.css for the shared ::-webkit-scrollbar rules */
 /* Table + tbody fill wrapper so filler row can expand */
 .ra-env-table-wrapper #env-list-table {
     table-layout: fixed;

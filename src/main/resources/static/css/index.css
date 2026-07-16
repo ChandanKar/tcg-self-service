@@ -33,13 +33,22 @@
  *    - locks.css     → Lock-related styles
  *    - access.css    → Access component styles
  *    - audit.css     → Audit log styles
+ *    - pagination.css → Shared pagination bar
+ *    - toasts.css    → Toast notifications
+ *    - notification-bell.css → Notification bell dropdown
  *
  * 4. FEATURES (Page/Feature-specific styles)
- *    - dashboard.css      → Dashboard view
- *    - environments.css   → Environment list/detail
- *    - access-requests.css → Access request workflow
- *    - activity-logs.css  → Activity/audit logs
- *    - user-management.css → Admin user management
+ *    - dashboard.css        → Dashboard view
+ *    - environments.css     → Environment list/detail
+ *    - vm-registry.css      → Admin VM Registry
+ *    - access-management.css → Admin Access Management
+ *    - access-requests.css  → Access request workflow
+ *    - activity-logs.css    → Activity/audit logs
+ *    - all-logs.css         → Admin Audit Logs (All)
+ *    - user-management.css  → Admin user management
+ *    - system-health.css    → System Health
+ *    - cost-management.css  → Cost Management
+ *    - automation-rules.css → Automation Rules
  *
  * NAMING CONVENTIONS:
  * ===================
@@ -61,6 +70,7 @@
 /* @import 'layout/topnav.css'; */
 /* @import 'layout/sidebar.css'; */
 /* @import 'layout/content.css'; */
+/* @import 'layout/mobile.css'; */
 
 /* === COMPONENTS === */
 /* @import 'components/cards.css'; */
@@ -74,11 +84,20 @@
 /* @import 'components/locks.css'; */
 /* @import 'components/access.css'; */
 /* @import 'components/audit.css'; */
+/* @import 'components/pagination.css'; */
+/* @import 'components/toasts.css'; */
+/* @import 'components/notification-bell.css'; */
 
 /* === FEATURES === */
 /* @import 'features/dashboard.css'; */
 /* @import 'features/environments.css'; */
+/* @import 'features/vm-registry.css'; */
+/* @import 'features/access-management.css'; */
 /* @import 'features/access-requests.css'; */
 /* @import 'features/activity-logs.css'; */
+/* @import 'features/all-logs.css'; */
 /* @import 'features/user-management.css'; */
+/* @import 'features/system-health.css'; */
+/* @import 'features/cost-management.css'; */
+/* @import 'features/automation-rules.css'; */
 

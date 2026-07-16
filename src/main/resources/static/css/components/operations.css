@@ -102,15 +102,15 @@
 
 /* Operation status colors */
 .operation-status-completed {
-    color: #10b981;
+    color: var(--success-color, #10b981);
 }
 
 .operation-status-failed {
-    color: #ef4444;
+    color: var(--danger-color, #ef4444);
 }
 
 .operation-status-in-progress {
-    color: #3b82f6;
+    color: var(--info-color, #3b82f6);
 }
 
 .operation-status-pending {

@@ -102,18 +102,9 @@
         height: 24px;
     }
 
-    /* Hide search on mobile (can be accessed from menu) */
-    .top-navbar .nav-center {
-        display: none;
-    }
-
     /* Content header adjustments */
     .content-header {
         padding-left: 0.75rem;
-    }
-
-    .content-header h1 {
-        font-size: 1.25rem;
     }
 
     /* Metric cards in 2-column grid */

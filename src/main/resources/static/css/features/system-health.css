@@ -11,11 +11,7 @@
     overflow-y: auto;
     overflow-x: hidden;
 }
-#system-health-view::-webkit-scrollbar { width: 4px; }
-#system-health-view::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 3px;
-}
+/* Scrollbar — see main.css for the shared ::-webkit-scrollbar rules */
 
 /* Compact header — same as dashboard */
 #system-health-view .content-header {
@@ -50,7 +46,7 @@
     font-weight: 600;
 }
 #system-health-view .metric-card .metric-value {
-    font-size: 1.45rem;
+    font-size: var(--font-size-2xl, 1.5rem);
     font-weight: 700;
     line-height: 1.2;
     margin-bottom: 0;
@@ -99,11 +95,7 @@
     overflow-y: auto;
     overflow-x: hidden;
 }
-#system-health-view .sh-table-wrapper::-webkit-scrollbar { width: 4px; }
-#system-health-view .sh-table-wrapper::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 3px;
-}
+/* Scrollbar — see main.css for the shared ::-webkit-scrollbar rules */
 
 /* Compliance report tables — slightly taller */
 #system-health-view .sh-compliance-wrapper {
@@ -111,11 +103,7 @@
     overflow-y: auto;
     overflow-x: hidden;
 }
-#system-health-view .sh-compliance-wrapper::-webkit-scrollbar { width: 4px; }
-#system-health-view .sh-compliance-wrapper::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 3px;
-}
+/* Scrollbar — see main.css for the shared ::-webkit-scrollbar rules */
 
 /* Uniform compact table styles */
 #system-health-view .table td,

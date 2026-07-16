@@ -123,26 +123,3 @@
     </div>
 </template>
 
-
-<!-- Pagination Template -->
-<template id="pagination-template">
-    <nav aria-label="Log pagination">
-        <ul class="pagination pagination-sm mb-0">
-            <li class="page-item {{prevDisabled}}">
-                <a class="page-link" href="#" data-page="prev">
-                    <i class="fas fa-chevron-left"></i>
-                </a>
-            </li>
-            <!-- Page numbers inserted here -->
-            <li class="page-item {{nextDisabled}}">
-                <a class="page-link" href="#" data-page="next">
-                    <i class="fas fa-chevron-right"></i>
-                </a>
-            </li>
-        </ul>
-    </nav>
-    <span class="page-info">
-        Showing {{startItem}}-{{endItem}} of {{totalItems}}
-    </span>
-</template>
-

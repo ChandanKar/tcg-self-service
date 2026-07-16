@@ -78,6 +78,26 @@
     --font-mono: 'SF Mono', 'Monaco', 'Consolas', 'Liberation Mono', monospace;
 }
 
+/* ================================================
+   Z-Index Scale (documentation only — reflects the values already in use
+   across the app; see each file for the live declaration). Check here
+   before picking a z-index for a new overlay so stacking stays predictable.
+   ================================================
+   100    loading.css        .loading-overlay (scoped to its own container)
+   999    sidebar.css        .sidebar
+   1000   operations.css     .operation-banner
+   1001   topnav.css          .user-dropdown / mobile.css .mobile-nav
+   1030   topnav.css          .top-navbar (above Bootstrap's default .dropdown-menu)
+   1031   mobile.css          .mobile-overlay (above .top-navbar)
+   1032   mobile.css          .sidebar.mobile-open (above .mobile-overlay)
+   1060   access-management.css .access-autocomplete-menu
+   1070   slideout.css        .slideout-overlay
+   1080   slideout.css        .slideout-panel
+   3000   notification-bell.css .notification-dropdown
+   9999   toasts.css/loading.css #notification-container / #connection-status
+   10000  main.css            .skip-link (always wins on keyboard focus)
+   ================================================ */
+
 /* Reset & Base */
 * {
     margin: 0;
@@ -120,6 +140,39 @@ a:hover {
     background: #94a3b8;
 }
 
+/* Shared "thin" scrollbar (4px, no hover) for dense table/list wrappers across the
+   app — single definition replacing ~10 previously copy-pasted per-page rules. */
+#dashboard-view .env-table-wrapper::-webkit-scrollbar,
+#environments-list-view .env-list-table-wrapper::-webkit-scrollbar,
+#env-groups-container::-webkit-scrollbar,
+.group-vm-table-wrapper::-webkit-scrollbar,
+.vm-registry-table-wrapper::-webkit-scrollbar,
+.activity-logs-table-wrapper::-webkit-scrollbar,
+.all-logs-table-wrapper::-webkit-scrollbar,
+.access-table-wrapper::-webkit-scrollbar,
+.ra-env-table-wrapper::-webkit-scrollbar,
+#system-health-view::-webkit-scrollbar,
+.sh-table-wrapper::-webkit-scrollbar,
+.sh-compliance-wrapper::-webkit-scrollbar {
+    width: 4px;
+}
+
+#dashboard-view .env-table-wrapper::-webkit-scrollbar-thumb,
+#environments-list-view .env-list-table-wrapper::-webkit-scrollbar-thumb,
+#env-groups-container::-webkit-scrollbar-thumb,
+.group-vm-table-wrapper::-webkit-scrollbar-thumb,
+.vm-registry-table-wrapper::-webkit-scrollbar-thumb,
+.activity-logs-table-wrapper::-webkit-scrollbar-thumb,
+.all-logs-table-wrapper::-webkit-scrollbar-thumb,
+.access-table-wrapper::-webkit-scrollbar-thumb,
+.ra-env-table-wrapper::-webkit-scrollbar-thumb,
+#system-health-view::-webkit-scrollbar-thumb,
+.sh-table-wrapper::-webkit-scrollbar-thumb,
+.sh-compliance-wrapper::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
 /* Smooth transitions */
 .btn, .card, .metric-card, .table tr, .sidebar-menu-link, .form-control, .form-select {
     transition: all 0.15s ease-in-out;
@@ -130,11 +183,7 @@ a:hover {
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
-/* Card hover effect */
-.metric-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
+/* Card hover effect — see components/cards.css for the live .metric-card:hover definition */
 
 /* Table row hover */
 .table tbody tr:hover {
@@ -187,10 +236,6 @@ kbd + kbd {
 
 /* Responsive spacing */
 @media (max-width: 768px) {
-    .content-header h1 {
-        font-size: 1.5rem;
-    }
-
     .metric-card {
         margin-bottom: 1rem;
     }

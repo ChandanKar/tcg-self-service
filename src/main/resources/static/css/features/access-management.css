@@ -191,14 +191,7 @@
     min-height: 0;
 }
 
-.access-table-wrapper::-webkit-scrollbar {
-    width: 4px;
-}
-
-.access-table-wrapper::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 3px;
-}
+/* Scrollbar — see main.css for the shared ::-webkit-scrollbar rules */
 
 /* ============================================
    Table Styles - Dashboard Baseline (uses CSS variables)
