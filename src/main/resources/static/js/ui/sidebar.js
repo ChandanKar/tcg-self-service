@@ -21,6 +21,9 @@ const Sidebar = (function() {
         // Toggle sidebar collapse/expand
         $(document).on('click', '#toggleSidebar', toggleSidebar);
 
+        // Logo / brand — navigate to dashboard via the router (no page reload)
+        $(document).on('click', '#topnav-home-link', handleLogoClick);
+
         // Section collapse/expand (Accordion behavior)
         $(document).on('click', '.sidebar-section-title', handleSectionClick);
 
@@ -93,6 +96,18 @@ const Sidebar = (function() {
 
         const targetId = $(this).data('target');
         $('#' + targetId).toggleClass('show');
+    }
+
+    /**
+     * Handle logo/brand click — same SPA navigation as a sidebar link, just
+     * outside the sidebar DOM so it isn't matched by the data-content delegate above.
+     */
+    function handleLogoClick(e) {
+        e.preventDefault();
+
+        if (typeof ContentRouter !== 'undefined' && ContentRouter.navigate) {
+            ContentRouter.navigate('dashboard');
+        }
     }
 
     /**
