@@ -137,7 +137,9 @@ const Dashboard = (function() {
         const summary = data.summary || {};
         const storage = data.storage || {};
         const coverage = data.coverage || {};
-        const idleTarget = data.persona === 'ADMIN' ? 'dashboard-low-utilization' : 'dashboard-idle-vms';
+        // Admin dashboard no longer has an Idle VMs panel to jump to (removed with the
+        // Global Utilization chart split) — only the non-admin dashboard's panel still exists.
+        const idleTarget = data.persona === 'ADMIN' ? null : 'dashboard-idle-vms';
         return `
             <div class="dashboard-kpi-grid">
                 ${buildKpi('Environments', summary.environments, 'fa-layer-group', 'Accessible active environments')}
@@ -197,14 +199,26 @@ const Dashboard = (function() {
     function buildAdminDashboard(data) {
         return `
             <div class="dashboard-layout dashboard-layout-admin">
-                <section class="dashboard-chart-panel dashboard-wide">
+                <section class="dashboard-chart-panel dashboard-full">
                     <div class="dashboard-panel-head">
                         <h2>Global Utilization</h2>
-                        <small>CPU, network, disk</small>
+                        <small>Last 24h</small>
                     </div>
-                    <div id="dash-util-trend" class="dashboard-chart"></div>
+                    <div class="dashboard-trio-grid">
+                        <div class="dashboard-trio-item">
+                            <h3>CPU</h3>
+                            <div id="dash-util-cpu" class="dashboard-chart"></div>
+                        </div>
+                        <div class="dashboard-trio-item">
+                            <h3>Memory</h3>
+                            <div id="dash-util-memory" class="dashboard-chart"></div>
+                        </div>
+                        <div class="dashboard-trio-item">
+                            <h3>Network</h3>
+                            <div id="dash-util-network" class="dashboard-chart"></div>
+                        </div>
+                    </div>
                 </section>
-                ${buildListPanel('Idle VMs', data.idleVms || [], 'low-utilization', true)}
                 <section class="dashboard-chart-panel dashboard-wide">
                     <div class="dashboard-panel-head">
                         <h2>Fleet State</h2>
@@ -346,7 +360,7 @@ const Dashboard = (function() {
         const total = rows.reduce((sum, row) => sum + (Number(row.count) || 0), 0);
 
         return `
-            <section class="dashboard-chart-panel dashboard-wide">
+            <section class="dashboard-chart-panel dashboard-wide" id="dashboard-risk-compliance-panel">
                 <div class="dashboard-panel-head">
                     <h2>Risk & Compliance</h2>
                     <small>${total} signals</small>
@@ -426,6 +440,9 @@ const Dashboard = (function() {
     function initCharts(data) {
         if (!window.echarts) return;
         chart('dash-util-trend', buildTrendOption(data));
+        chart('dash-util-cpu', buildSingleTrendOption(data, 'cpuUtilization', 'CPU %', '#2563eb', 'percent'));
+        chart('dash-util-memory', buildSingleTrendOption(data, 'memoryUtilization', 'Memory %', '#7c3aed', 'percent'));
+        chart('dash-util-network', buildSingleTrendOption(data, 'networkBytes', 'Network MB', '#10b981', 'mb'));
         chart('dash-vm-state', buildDonutOption(data.vmStatusCounts || {}, ['#10b981', '#64748b', '#f59e0b', '#ef4444']));
         chart('dash-storage-mix', buildDonutOption(data.volumeTypeCounts || {}, ['#2563eb', '#10b981', '#f59e0b', '#7c3aed', '#3b82f6']));
         chart('dash-coverage', buildGaugeOption(data.coverage?.metricsPercent || 0));
@@ -500,6 +517,51 @@ const Dashboard = (function() {
                 }
             ]
         };
+    }
+
+    /**
+     * Single-series variant of buildTrendOption used by the admin dashboard's split
+     * CPU / Memory / Network mini-charts (one metric each, in one row) instead of the combined
+     * multi-axis chart the non-admin dashboard still uses.
+     */
+    function buildSingleTrendOption(data, field, seriesName, color, unit) {
+        const points = data.utilizationTrend || [];
+        const labels = points.map(point => point.label);
+        const isPercent = unit === 'percent';
+        const values = points.map(point => extractTrendValue(point, field));
+        return {
+            color: [color],
+            tooltip: {
+                trigger: 'axis',
+                confine: true,
+                valueFormatter: value => isPercent ? `${Math.round(Number(value) || 0)}%` : `${compactNumber(value)} MB`
+            },
+            grid: { left: 36, right: 16, top: 18, bottom: 28 },
+            xAxis: { type: 'category', boundaryGap: false, data: labels, axisLabel: chartTextStyle() },
+            yAxis: {
+                type: 'value',
+                min: 0,
+                max: isPercent ? 100 : undefined,
+                scale: !isPercent,
+                axisLabel: { ...chartTextStyle(), formatter: isPercent ? '{value}%' : compactNumber },
+                splitLine: { lineStyle: { color: '#eef2f7' } }
+            },
+            series: [{
+                name: seriesName,
+                type: 'line',
+                smooth: true,
+                areaStyle: { opacity: 0.08 },
+                data: values
+            }]
+        };
+    }
+
+    function extractTrendValue(point, field) {
+        if (field === 'networkBytes') {
+            return bytesToMb((point.networkInBytes || 0) + (point.networkOutBytes || 0));
+        }
+        const raw = point[field];
+        return raw === null || raw === undefined ? null : Number(raw);
     }
 
     function buildDonutOption(values, colors) {
