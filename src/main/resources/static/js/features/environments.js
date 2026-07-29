@@ -1023,7 +1023,8 @@ const Environments = (function() {
         const { envId, opType, scope, note, onConfirm } = opts;
         const isStart     = opType === 'START';
         const verb        = isStart ? 'Start' : 'Stop';
-        const actionLabel = isStart ? `Start ${scope.level === 'vm' ? 'VM' : 'All'}` : `Stop ${scope.level === 'vm' ? 'VM' : 'All'}`;
+        const scopeNoun   = scope.level === 'vm' ? 'VM' : scope.level === 'group' ? 'Group' : 'All';
+        const actionLabel = `${verb} ${scopeNoun}`;
         const actionClass = isStart ? 'btn-success' : 'btn-danger';
 
         // Use div instead of p to avoid double-<p> wrap from Modals.confirm
