@@ -48,6 +48,15 @@ public interface VmGroupRepository extends JpaRepository<VmGroup, String> {
     List<VmGroup> findByEnvironmentId(String environmentId);
 
     /**
+     * Highest sequence position currently in use for an environment (across all groups ever
+     * created, including ones whose VMs have since been deactivated — VmGroup rows are never
+     * deleted, so their sequence_position stays permanently reserved). Used to assign a
+     * collision-free position to a newly-discovered group instead of guessing from list order.
+     */
+    @Query("SELECT MAX(g.sequencePosition) FROM VmGroup g WHERE g.environment.environmentId = :environmentId")
+    Integer findMaxSequencePositionByEnvironmentId(@Param("environmentId") String environmentId);
+
+    /**
      * Group counts across many environments in a single query — avoids querying each
      * environment individually when building an environment listing.
      */

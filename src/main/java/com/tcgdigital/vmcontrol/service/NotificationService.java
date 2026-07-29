@@ -261,14 +261,24 @@ public class NotificationService {
 
     public void notifyEksSyncChanged(String environmentId, String environmentName,
                                      int createdCount, int updatedCount, int removedCount) {
-        int totalChanges = createdCount + updatedCount + removedCount;
-        if (totalChanges <= 0) {
+        notifyEksSyncChanged(environmentId, environmentName, createdCount, updatedCount, removedCount, 0);
+    }
+
+    /**
+     * @param failedCount node groups that failed to sync this cycle (e.g. a sequence-position
+     *                    collision) — included so a cycle that fails on every item still
+     *                    notifies, instead of looking identical to "nothing changed".
+     */
+    public void notifyEksSyncChanged(String environmentId, String environmentName,
+                                     int createdCount, int updatedCount, int removedCount, int failedCount) {
+        if (createdCount + updatedCount + removedCount + failedCount <= 0) {
             return;
         }
         String message = "EKS sync updated \"" + environmentName + "\": "
                 + createdCount + " new, "
                 + updatedCount + " changed, "
-                + removedCount + " removed node group(s).";
+                + removedCount + " removed node group(s)"
+                + (failedCount > 0 ? ", " + failedCount + " FAILED to sync (see audit log)." : ".");
         broadcastToEnvironment(environmentId, null,
                 NotificationType.EKS_SYNC_CHANGED,
                 "EKS sync changes: " + environmentName,

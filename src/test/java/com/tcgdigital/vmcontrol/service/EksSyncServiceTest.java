@@ -11,6 +11,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 import software.amazon.awssdk.services.eks.model.Nodegroup;
 import software.amazon.awssdk.services.eks.model.NodegroupScalingConfig;
@@ -93,6 +94,69 @@ class EksSyncServiceTest {
         for (String nodegroup : nodegroups) {
             verify(eksService).describeNodegroup(CLUSTER, nodegroup, REGION);
         }
+    }
+
+    @Test
+    void syncEksEnvironment_newNodeGroupDoesNotCollideWithExistingSequencePosition() {
+        Environment env = buildEnvironment();
+
+        // Existing DB state: two groups already persisted, NOT in AWS-alphabetical order —
+        // simulates positions accumulated over time (manual reordering, or a group historically
+        // created when the AWS list was ordered differently). zebra-workers holds position 1,
+        // apple-workers holds position 2.
+        VmGroup zebraGroup = new VmGroup();
+        zebraGroup.setGroupId("grp-zebra");
+        zebraGroup.setName("zebra-workers");
+        zebraGroup.setSequencePosition(1);
+
+        VmGroup appleGroup = new VmGroup();
+        appleGroup.setGroupId("grp-apple");
+        appleGroup.setName("apple-workers");
+        appleGroup.setSequencePosition(2);
+
+        // AWS returns node groups alphabetically, including a brand new one — "middle-workers" —
+        // whose position in this list (2nd) would collide with apple-workers' real, already-
+        // persisted sequencePosition of 2 under a naive list-index-based assignment scheme.
+        List<String> nodegroups = List.of("apple-workers", "middle-workers", "zebra-workers");
+        when(eksService.listNodegroups(CLUSTER, REGION)).thenReturn(nodegroups);
+        for (String ng : nodegroups) {
+            when(eksService.describeNodegroup(CLUSTER, ng, REGION)).thenReturn(buildNodegroup(ng, 1, 1));
+            when(vmRepository.findByGroupGroupIdAndName(anyString(), eq(ng))).thenReturn(Optional.empty());
+        }
+        when(vmRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        when(groupRepository.findByEnvironmentEnvironmentIdAndName(ENV_ID, "apple-workers")).thenReturn(Optional.of(appleGroup));
+        when(groupRepository.findByEnvironmentEnvironmentIdAndName(ENV_ID, "zebra-workers")).thenReturn(Optional.of(zebraGroup));
+        when(groupRepository.findByEnvironmentEnvironmentIdAndName(ENV_ID, "middle-workers")).thenReturn(Optional.empty());
+        when(groupRepository.findByEnvironmentEnvironmentIdOrderBySequencePositionAsc(ENV_ID))
+                .thenReturn(List.of(zebraGroup, appleGroup));
+        when(groupRepository.findMaxSequencePositionByEnvironmentId(ENV_ID)).thenReturn(2);
+
+        // Simulate the real DB's unique index on (environment_id, sequence_position): saving a
+        // brand-new group at a position already held by an existing row must fail.
+        when(groupRepository.save(any(VmGroup.class))).thenAnswer(invocation -> {
+            VmGroup g = invocation.getArgument(0);
+            boolean isNewGroup = !"grp-zebra".equals(g.getGroupId()) && !"grp-apple".equals(g.getGroupId());
+            if (isNewGroup && g.getSequencePosition() != null
+                    && (g.getSequencePosition() == 1 || g.getSequencePosition() == 2)) {
+                throw new DataIntegrityViolationException("Unique index violation on (environment_id, sequence_position)");
+            }
+            return g;
+        });
+
+        int count = service.syncEksEnvironment(env);
+
+        assertEquals(3, count, "all 3 live node groups should be reported as processed");
+
+        ArgumentCaptor<VmGroup> savedGroups = ArgumentCaptor.forClass(VmGroup.class);
+        verify(groupRepository, atLeastOnce()).save(savedGroups.capture());
+        VmGroup middleSaved = savedGroups.getAllValues().stream()
+                .filter(g -> "middle-workers".equals(g.getName()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError(
+                        "middle-workers was never successfully saved — sync silently swallowed the new node group"));
+        assertEquals(3, middleSaved.getSequencePosition(),
+                "new group must be assigned max(existing)+1, never a position already reserved by an existing group");
     }
 
     @Test

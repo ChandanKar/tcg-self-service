@@ -130,6 +130,29 @@ public class MonitoringController {
         ));
     }
 
+    @PostMapping("/sync/eks/{environmentId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(
+            summary = "Sync a single EKS environment",
+            description = "Triggers an immediate node group sync for one EKS environment — use this to " +
+                    "pick up a newly-created node group (or retry one that failed to sync) without " +
+                    "waiting for the next scheduled cycle or re-syncing every other EKS environment."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "EKS sync completed"),
+            @ApiResponse(responseCode = "400", description = "Environment is not an EKS environment"),
+            @ApiResponse(responseCode = "404", description = "Environment not found")
+    })
+    public ResponseEntity<Map<String, Object>> triggerEksSyncForEnvironment(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId) {
+        int synced = eksSyncService.syncEksEnvironmentById(environmentId);
+        return ResponseEntity.ok(Map.of(
+                "environmentId", environmentId,
+                "nodeGroupsSynced", synced,
+                "status", "completed"
+        ));
+    }
+
     @PostMapping("/inventory/sync")
     @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(

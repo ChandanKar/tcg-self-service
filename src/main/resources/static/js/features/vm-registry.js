@@ -346,6 +346,28 @@ const VmRegistry = (function() {
     }
 
     /**
+     * Manually re-syncs the currently-open EKS environment's node groups from AWS right now,
+     * then reloads the modal — lets an admin pick up a newly-created node group (or retry one
+     * that failed on the last scheduled cycle) without waiting for the next 5-minute run.
+     */
+    async function syncEksNow() {
+        const env = window.VmRegistryState.currentEnvironment;
+        if (!env) return;
+
+        const $btn = $('#eks-sync-now-btn');
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Syncing...');
+        try {
+            const result = await ApiClient.post(Config.API.monitoring.triggerEksSyncForEnvironment(env.environmentId), {});
+            Notifications.success(`EKS sync complete — ${result.nodeGroupsSynced} node group(s) processed`);
+            await manageGroups(env.environmentId, env.environmentName);
+        } catch (error) {
+            console.error('EKS sync failed:', error);
+            Notifications.error(error?.responseJSON?.message || 'EKS sync failed');
+            $btn.prop('disabled', false).html('<i class="fas fa-sync me-1"></i>Sync Now');
+        }
+    }
+
+    /**
      * Fetches one page of a group's VMs and re-renders just that group's table + pager,
      * so paging through a large group doesn't require reloading the whole modal.
      */
@@ -377,9 +399,12 @@ const VmRegistry = (function() {
             // Show EKS info banner above groups
             $('#cem-eks-groups-banner').remove();
             $('#groupsContentArea').before(`
-                <div id="cem-eks-groups-banner" class="alert alert-info d-flex align-items-center gap-2 py-2 mb-3" style="font-size:0.875rem;">
-                    <i class="fas fa-info-circle"></i>
-                    <span>Node groups are auto-synced from AWS EKS. You can edit the sequence order but cannot add or delete groups manually.</span>
+                <div id="cem-eks-groups-banner" class="alert alert-info d-flex align-items-center justify-content-between gap-2 py-2 mb-3" style="font-size:0.875rem;">
+                    <span><i class="fas fa-info-circle me-1"></i>Node groups are auto-synced from AWS EKS every few minutes. You can edit the sequence order but cannot add or delete groups manually.</span>
+                    <button class="btn btn-sm btn-outline-primary flex-shrink-0" id="eks-sync-now-btn"
+                            title="Sync this environment's node groups from AWS right now" onclick="VmRegistry.syncEksNow()">
+                        <i class="fas fa-sync me-1"></i>Sync Now
+                    </button>
                 </div>
             `);
         } else {
@@ -1031,6 +1056,7 @@ const VmRegistry = (function() {
         editEnvironment,
         deleteEnvironment,
         manageGroups,
+        syncEksNow,
         changeGroupVmPage,
         renderGroupsModal,
         buildGroupCard,

@@ -1,6 +1,8 @@
 package com.tcgdigital.vmcontrol.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
+import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.*;
 import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import com.tcgdigital.vmcontrol.repository.VmGroupRepository;
@@ -15,6 +17,7 @@ import software.amazon.awssdk.services.eks.model.Nodegroup;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
@@ -205,13 +208,22 @@ public class EksSyncService {
         Set<String> liveNames = new HashSet<>(liveNodeGroups);
         EksSyncChanges changes = new EksSyncChanges();
 
+        // Next sequence position for any newly-discovered group, derived from what's actually
+        // persisted (not from this cycle's list order) — VmGroup rows are never deleted, so a
+        // position based purely on list index can collide with one already reserved by an
+        // existing (or long-removed) group and silently fail every cycle thereafter.
+        AtomicInteger nextSequence = new AtomicInteger(resolveNextSequencePosition(environment.getEnvironmentId()));
+
         // Upsert VmGroup + Vm for each live node group
-        int seq = 1;
         for (String nodeGroupName : liveNodeGroups) {
             try {
-                changes.add(upsertNodeGroup(environment, clusterName, nodeGroupName, region, seq++));
+                changes.add(upsertNodeGroup(environment, clusterName, nodeGroupName, region, nextSequence));
             } catch (Exception e) {
-                log.error("Failed to upsert node group {}/{}: {}", clusterName, nodeGroupName, e.getMessage());
+                log.error("Failed to upsert node group {}/{}: {}", clusterName, nodeGroupName, e.getMessage(), e);
+                changes.failed++;
+                changes.failedNames.add(nodeGroupName);
+                auditService.logAction(null, AuditAction.EKS_NODEGROUP_SYNC_FAILED, "vm_group", null,
+                        clusterName + "/" + nodeGroupName, "EKS node group sync failed: " + e.getMessage());
             }
         }
 
@@ -228,10 +240,36 @@ public class EksSyncService {
         return liveNodeGroups.size();
     }
 
+    /**
+     * Manually re-syncs a single EKS environment on demand, looked up by id. Used by the
+     * "resync this environment now" admin action — a node group added to AWS since the last
+     * scheduled cycle (or one that failed to sync, e.g. due to a since-fixed collision) doesn't
+     * have to wait for the next scheduled run.
+     */
+    @Transactional
+    public int syncEksEnvironmentById(String environmentId) {
+        Environment environment = environmentRepository.findById(environmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Environment not found: " + environmentId));
+        if (!"EKS".equalsIgnoreCase(environment.getServiceType())) {
+            throw new ValidationException("Environment '" + environment.getName() + "' is not an EKS environment");
+        }
+        return syncEksEnvironment(environment);
+    }
+
     // ---- private helpers ----
 
+    /**
+     * Next sequence position safe to assign to a newly-discovered node group, derived from
+     * the actual persisted max (not this cycle's list order) so it can never collide with an
+     * already-reserved position — see the comment in syncEksEnvironment for why that matters.
+     */
+    private int resolveNextSequencePosition(String environmentId) {
+        Integer max = groupRepository.findMaxSequencePositionByEnvironmentId(environmentId);
+        return (max != null ? max : 0) + 1;
+    }
+
     private EksSyncChanges upsertNodeGroup(Environment environment, String clusterName,
-                                           String nodeGroupName, String region, int defaultSeq) {
+                                           String nodeGroupName, String region, AtomicInteger nextSequence) {
         EksSyncChanges changes = new EksSyncChanges();
         // Upsert VmGroup — always write identity metadata so the DB record is self-describing
         Optional<VmGroup> groupOpt = groupRepository
@@ -243,7 +281,7 @@ public class EksSyncService {
                     g.setEnvironment(environment);
                     g.setName(nodeGroupName);
                     g.setDisplayName(nodeGroupName);
-                    g.setSequencePosition(defaultSeq);
+                    g.setSequencePosition(nextSequence.getAndIncrement());
                     log.info("Creating new VmGroup for EKS node group: {}/{}", clusterName, nodeGroupName);
                     return g;
                 });
@@ -398,13 +436,18 @@ public class EksSyncService {
         if (changes.total() <= 0) {
             return;
         }
+        if (!changes.failedNames.isEmpty()) {
+            log.warn("EKS sync for '{}' had {} failed node group(s): {}",
+                    environment.getName(), changes.failed, changes.failedNames);
+        }
         try {
             notificationService.notifyEksSyncChanged(
                     environment.getEnvironmentId(),
                     environment.getName(),
                     changes.created,
                     changes.updated,
-                    changes.removed);
+                    changes.removed,
+                    changes.failed);
         } catch (Exception e) {
             log.warn("Could not notify EKS sync changes for environment {}: {}",
                     environment.getEnvironmentId(), e.getMessage());
@@ -415,6 +458,8 @@ public class EksSyncService {
         private int created;
         private int updated;
         private int removed;
+        private int failed;
+        private final List<String> failedNames = new ArrayList<>();
 
         private EksSyncChanges() {
         }
@@ -429,10 +474,12 @@ public class EksSyncService {
             this.created += other.created;
             this.updated += other.updated;
             this.removed += other.removed;
+            this.failed += other.failed;
+            this.failedNames.addAll(other.failedNames);
         }
 
         private int total() {
-            return created + updated + removed;
+            return created + updated + removed + failed;
         }
     }
 

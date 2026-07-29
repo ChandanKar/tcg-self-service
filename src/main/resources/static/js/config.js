@@ -143,6 +143,7 @@ const Config = (function() {
             syncStatus: `${API_BASE_URL}/monitoring/sync-status`,
             triggerSync: `${API_BASE_URL}/monitoring/sync`,
             triggerEksSync: `${API_BASE_URL}/monitoring/sync/eks`,
+            triggerEksSyncForEnvironment: (envId) => `${API_BASE_URL}/monitoring/sync/eks/${envId}`,
             triggerInventorySync: `${API_BASE_URL}/monitoring/inventory/sync`,
             triggerMetricsSync: `${API_BASE_URL}/monitoring/metrics/sync`,
             triggerMetricsArchive: `${API_BASE_URL}/monitoring/metrics/archive`,
