@@ -24,6 +24,10 @@ const CostManagement = (function() {
         spendByVmType: [],
         teamTrend: [],
         trend: [],
+        forecast: null,
+        reconciliation: emptyPageState(),
+        reconciliationAll: [],
+        reservationCoverage: [],
         idle: emptyPageState(),
         rightsizing: emptyPageState(),
         detail: emptyPageState()
@@ -51,6 +55,7 @@ const CostManagement = (function() {
         state.idle.page = parsePageParam(params.idle);
         state.rightsizing.page = parsePageParam(params.rightsizing);
         state.detail.page = parsePageParam(params.detail);
+        state.reconciliation.page = parsePageParam(params.reconciliation);
     }
 
     function parsePageParam(value) {
@@ -63,6 +68,7 @@ const CostManagement = (function() {
         if (state.idle.page) params.set('idle', state.idle.page);
         if (state.rightsizing.page) params.set('rightsizing', state.rightsizing.page);
         if (state.detail.page) params.set('detail', state.detail.page);
+        if (state.reconciliation.page) params.set('reconciliation', state.reconciliation.page);
         const query = params.toString();
         const hash = '#/cost-management' + (query ? `?${query}` : '');
         if (window.location.hash !== hash) {
@@ -89,6 +95,22 @@ const CostManagement = (function() {
         };
     }
 
+    // Client-side paging for endpoints that return the full list already (reconciliation is one
+    // row per environment — small and bounded, unlike the per-VM tables — so it's cheaper to slice
+    // in the browser than to add server-side Pageable support for what's already an in-memory
+    // aggregation on the backend).
+    function paginateArray(items, page, size) {
+        const totalElements = items.length;
+        const totalPages = size > 0 ? Math.ceil(totalElements / size) : 0;
+        const safePage = Math.min(Math.max(page, 0), Math.max(totalPages - 1, 0));
+        return {
+            content: items.slice(safePage * size, safePage * size + size),
+            totalPages,
+            totalElements,
+            page: safePage
+        };
+    }
+
     function fetchAll() {
         Promise.all([
             fetchJson(Config.API.costManagement.summary),
@@ -96,15 +118,22 @@ const CostManagement = (function() {
             fetchJson(Config.API.costManagement.spendByVmType),
             fetchJson(Config.API.costManagement.spendTrendByTeam(TREND_DAYS)),
             fetchJson(Config.API.costManagement.spendTrend(TREND_DAYS)),
+            fetchJson(Config.API.costManagement.reconciliation(TREND_DAYS)),
+            fetchJson(Config.API.costManagement.reservationsCoverage(TREND_DAYS)),
+            fetchJson(Config.API.costManagement.forecast(30, 14)),
             fetchJson(Config.API.costManagement.idleWaste(state.idle.page, PAGE_SIZE)),
             fetchJson(Config.API.costManagement.rightsizing(state.rightsizing.page, PAGE_SIZE)),
             fetchJson(Config.API.costManagement.vmDetail(state.detail.page, PAGE_SIZE))
-        ]).then(([summary, byEnv, byType, teamTrend, trend, idle, rightsizing, detail]) => {
+        ]).then(([summary, byEnv, byType, teamTrend, trend, reconciliation, reservationCoverage, forecast, idle, rightsizing, detail]) => {
             state.summary = summary;
             state.spendByEnvironment = byEnv || [];
             state.spendByVmType = byType || [];
             state.teamTrend = teamTrend || [];
             state.trend = trend || [];
+            state.reconciliationAll = reconciliation || [];
+            state.reconciliation = paginateArray(state.reconciliationAll, state.reconciliation.page || 0, PAGE_SIZE);
+            state.reservationCoverage = reservationCoverage || [];
+            state.forecast = forecast || null;
             state.idle = mapPage(idle);
             state.rightsizing = mapPage(rightsizing);
             state.detail = mapPage(detail);
@@ -118,13 +147,20 @@ const CostManagement = (function() {
     const TABLE_CONFIG = {
         idle: { url: (p) => Config.API.costManagement.idleWaste(p, PAGE_SIZE), render: () => renderIdleTable() },
         rightsizing: { url: (p) => Config.API.costManagement.rightsizing(p, PAGE_SIZE), render: () => renderRightsizingTable() },
-        detail: { url: (p) => Config.API.costManagement.vmDetail(p, PAGE_SIZE), render: () => renderDetailTable() }
+        detail: { url: (p) => Config.API.costManagement.vmDetail(p, PAGE_SIZE), render: () => renderDetailTable() },
+        reconciliation: { clientPaged: true, render: () => renderReconciliationTable() }
     };
 
     function changePage(tableKey, page) {
         if (page < 0) return;
         const cfg = TABLE_CONFIG[tableKey];
         if (!cfg) return;
+        if (cfg.clientPaged) {
+            state[tableKey] = paginateArray(state[tableKey + 'All'], page, PAGE_SIZE);
+            syncHash();
+            cfg.render();
+            return;
+        }
         fetchJson(cfg.url(page)).then(pageData => {
             state[tableKey] = mapPage(pageData);
             syncHash();
@@ -194,6 +230,14 @@ const CostManagement = (function() {
                                 title="Populate cost history for the trend chart">
                             <i class="fas fa-history"></i> Backfill 30 Days
                         </button>
+                        <button class="btn btn-ghost btn-sm" id="cost-reconcile-tags-btn"
+                                title="Apply cost-allocation tags (tcg:managed-by/environment/team) to AWS resources now">
+                            <i class="fas fa-tags"></i> Reconcile Tags Now
+                        </button>
+                        <button class="btn btn-ghost btn-sm" id="cost-ingest-actuals-btn"
+                                title="Ingest real AWS billing data for the last 30 days now — calls Cost Explorer's billed API, use sparingly">
+                            <i class="fas fa-cloud-download-alt"></i> Ingest Actual Costs
+                        </button>
                         <button class="btn btn-ghost btn-sm" id="cost-export-png-btn">
                             <i class="fas fa-image"></i> Export PNG
                         </button>
@@ -207,6 +251,8 @@ const CostManagement = (function() {
                     ${buildKpiStrip(state.summary)}
                     ${buildBreakdownCharts()}
                     ${buildTrendChart()}
+                    ${buildReservationsChart()}
+                    ${buildReconciliationTable()}
                     ${buildIdleWasteTable()}
                     ${buildRightsizingTable()}
                     ${buildVmDetailTable()}
@@ -280,9 +326,33 @@ const CostManagement = (function() {
             <section class="dashboard-chart-panel dashboard-wide">
                 <div class="dashboard-panel-head">
                     <h2>Spend Trend</h2>
-                    <small>Estimated, last ${TREND_DAYS} days</small>
+                    <small>${trendSubtitle()}</small>
                 </div>
                 <div id="cost-chart-trend" class="dashboard-chart"></div>
+            </section>
+        `;
+    }
+
+    function trendSubtitle() {
+        const base = `Estimated, last ${TREND_DAYS} days`;
+        const forecast = state.forecast;
+        if (!forecast) return base;
+        if (!forecast.sufficientHistory) {
+            const daysNeeded = Math.max(0, forecast.minHistoryDaysRequired - forecast.historyDaysUsed);
+            return `${base} &mdash; forecast needs ${daysNeeded} more day(s) of history`;
+        }
+        const forecastDayCount = forecast.points.filter(p => p.isForecast).length;
+        return `${base} &mdash; with a ${forecastDayCount}-day forecast`;
+    }
+
+    function buildReservationsChart() {
+        return `
+            <section class="dashboard-chart-panel dashboard-wide">
+                <div class="dashboard-panel-head">
+                    <h2>Reserved Instance &amp; Savings Plan Coverage</h2>
+                    <small>Account-wide, last ${TREND_DAYS} days</small>
+                </div>
+                <div id="cost-chart-reservations" class="dashboard-chart"></div>
             </section>
         `;
     }
@@ -293,6 +363,7 @@ const CostManagement = (function() {
         chart('cost-chart-type', buildVmTypePolarBarOption(state.spendByVmType));
         chart('cost-chart-team', buildTeamStackedLineOption(state.teamTrend));
         chart('cost-chart-trend', buildTrendOption(state.trend));
+        chart('cost-chart-reservations', buildReservationsOption(state.reservationCoverage));
         setTimeout(resizeCharts, 40);
     }
 
@@ -445,35 +516,137 @@ const CostManagement = (function() {
 
     function buildTrendOption(rows) {
         if (!rows.length) return emptyChartOption('No cost history yet — use "Backfill 30 Days" to populate it.');
-        const labels = rows.map(r => (r.date || '').slice(5));
-        const values = rows.map(r => Number(r.estimatedCost) || 0);
+
+        // Forecast points come from a separate endpoint/state slice (state.forecast) — only the
+        // future-dated subset is used here, since the history it also returns duplicates rows
+        // already sourced from /spend-trend (which additionally carries the Actual Cost series
+        // the forecast response doesn't).
+        const forecastPoints = (state.forecast && state.forecast.sufficientHistory)
+            ? state.forecast.points.filter(p => p.isForecast)
+            : [];
+
+        const historyLabels = rows.map(r => (r.date || '').slice(5));
+        const forecastLabels = forecastPoints.map(p => (p.date || '').slice(5));
+        const labels = historyLabels.concat(forecastLabels);
+
+        const estimatedValues = rows.map(r => Number(r.estimatedCost) || 0)
+            .concat(forecastPoints.map(() => null));
+        // actualCost is null until Cost Management Phase 2 (real Cost Explorer ingestion) has
+        // populated it — render the series only once at least one point has real data, so an
+        // all-null trend doesn't draw a flat $0 line that looks like a real (zero-cost) answer.
+        const hasAnyActual = rows.some(r => r.actualCost !== null && r.actualCost !== undefined);
+        const actualValues = rows.map(r => (r.actualCost !== null && r.actualCost !== undefined) ? Number(r.actualCost) : null)
+            .concat(forecastPoints.map(() => null));
+        // Forecast series: null everywhere in the historical range except the very last historical
+        // point (seeded with that day's estimated cost so the dashed line connects seamlessly to
+        // the solid one), then the projected values.
+        const forecastValues = rows.map((r, i) => i === rows.length - 1 ? (Number(r.estimatedCost) || 0) : null)
+            .concat(forecastPoints.map(p => Number(p.cost) || 0));
+
+        const series = [{
+            name: 'Estimated Cost',
+            type: 'line',
+            smooth: true,
+            showSymbol: estimatedValues.length < 60,
+            areaStyle: { opacity: 0.08 },
+            data: estimatedValues
+        }];
+        if (hasAnyActual) {
+            series.push({
+                name: 'Actual Cost',
+                type: 'line',
+                smooth: true,
+                showSymbol: estimatedValues.length < 60,
+                connectNulls: true,
+                lineStyle: { type: 'dashed' },
+                data: actualValues
+            });
+        }
+        if (forecastPoints.length) {
+            series.push({
+                name: 'Forecast',
+                type: 'line',
+                showSymbol: false,
+                connectNulls: true,
+                lineStyle: { type: 'dashed', color: '#d97706' },
+                itemStyle: { color: '#d97706' },
+                data: forecastValues
+            });
+        }
+
+        const hasLegend = hasAnyActual || forecastPoints.length > 0;
+
         return {
-            color: ['#2563eb'],
+            color: ['#2563eb', '#059669'],
+            legend: hasLegend ? { bottom: 0, textStyle: chartTextStyle() } : undefined,
             tooltip: {
                 trigger: 'axis',
                 confine: true,
                 formatter: params => {
                     const point = params && params[0];
                     if (!point) return '';
-                    const row = rows[point.dataIndex] || {};
-                    return `${row.date || ''}<br/>Estimated: ${Utils.formatCurrency(Number(row.estimatedCost) || 0)}`;
+                    const idx = point.dataIndex;
+                    if (idx < rows.length) {
+                        const row = rows[idx];
+                        const lines = [`${row.date || ''}`, `Estimated: ${Utils.formatCurrency(Number(row.estimatedCost) || 0)}`];
+                        if (hasAnyActual) {
+                            lines.push(row.actualCost != null
+                                ? `Actual: ${Utils.formatCurrency(Number(row.actualCost))}`
+                                : 'Actual: not yet ingested');
+                        }
+                        return lines.join('<br/>');
+                    }
+                    const forecastPoint = forecastPoints[idx - rows.length];
+                    return forecastPoint
+                        ? `${forecastPoint.date}<br/>Forecast: ${Utils.formatCurrency(Number(forecastPoint.cost) || 0)}`
+                        : '';
                 }
             },
-            grid: { left: 52, right: 24, top: 18, bottom: 32 },
+            grid: { left: 52, right: 24, top: 18, bottom: hasLegend ? 48 : 32 },
             xAxis: { type: 'category', boundaryGap: false, data: labels, axisLabel: chartTextStyle() },
             yAxis: {
                 type: 'value',
                 axisLabel: { ...chartTextStyle(), formatter: v => compactCurrency(v) },
                 splitLine: { lineStyle: { color: '#eef2f7' } }
             },
-            series: [{
-                name: 'Estimated Cost',
-                type: 'line',
-                smooth: true,
-                showSymbol: values.length < 60,
-                areaStyle: { opacity: 0.08 },
-                data: values
-            }]
+            series
+        };
+    }
+
+    /**
+     * Account-wide RI/Savings Plan coverage % over time (Cost Management Phase 3) — a fixed
+     * two-line chart (RI coverage, SP coverage), not top-N/pivoted like the breakdown charts,
+     * since there's only ever these two fixed series. Either line simply stays absent from the
+     * legend/empty if that program (RIs or Savings Plans) was never purchased for this account.
+     */
+    function buildReservationsOption(rows) {
+        if (!rows.length) {
+            return emptyChartOption('No reservation/savings-plan data yet — enable Cost Management Phase 3 to populate it.');
+        }
+        const labels = rows.map(r => (r.snapshotDate || '').slice(5));
+        const riCoverage = rows.map(r => (r.coveragePercent !== null && r.coveragePercent !== undefined) ? Number(r.coveragePercent) : null);
+        const spCoverage = rows.map(r => (r.spCoveragePercent !== null && r.spCoveragePercent !== undefined) ? Number(r.spCoveragePercent) : null);
+
+        return {
+            color: ['#2563eb', '#7c3aed'],
+            tooltip: {
+                trigger: 'axis',
+                confine: true,
+                valueFormatter: value => value == null ? 'n/a' : `${value}%`
+            },
+            legend: { bottom: 0, textStyle: chartTextStyle() },
+            grid: { left: 52, right: 24, top: 18, bottom: 48 },
+            xAxis: { type: 'category', boundaryGap: false, data: labels, axisLabel: chartTextStyle() },
+            yAxis: {
+                type: 'value',
+                max: 100,
+                axisLabel: { ...chartTextStyle(), formatter: v => `${v}%` },
+                splitLine: { lineStyle: { color: '#eef2f7' } }
+            },
+            series: [
+                { name: 'RI Coverage %', type: 'line', smooth: true, connectNulls: true, showSymbol: false, data: riCoverage },
+                { name: 'Savings Plan Coverage %', type: 'line', smooth: true, connectNulls: true, showSymbol: false, data: spCoverage }
+            ]
         };
     }
 
@@ -498,19 +671,71 @@ const CostManagement = (function() {
         return `$${Math.round(n)}`;
     }
 
+    // ---- reconciliation (estimated vs. actual, Cost Management Phase 2) ----
+
+    function buildReconciliationTable() {
+        if (!state.reconciliation.totalElements) return '';
+        return buildTableCard({
+            title: 'Estimated vs. Actual Cost',
+            subtitle: 'Real AWS billing data, per environment, where ingested',
+            tableId: 'cost-reconciliation-table',
+            bodyId: 'cost-reconciliation-table-body',
+            paginationId: 'cost-reconciliation-pagination',
+            columns: ['Environment', { label: 'Estimated', numeric: true }, { label: 'Actual', numeric: true }, { label: 'Variance', numeric: true }],
+            rowsHtml: buildReconciliationRows(state.reconciliation.content),
+            pageState: state.reconciliation,
+            tableKey: 'reconciliation',
+            exportUrl: Config.API.costManagement.reconciliationExport(TREND_DAYS)
+        });
+    }
+
+    function buildReconciliationRows(rows) {
+        if (!rows.length) {
+            return `<tr><td colspan="4" class="text-center text-muted py-4">No cost reconciliation data found.</td></tr>`;
+        }
+        return rows.map(row => {
+            const hasActual = row.actualCost !== null && row.actualCost !== undefined;
+            const hasVariance = row.variancePercent !== null && row.variancePercent !== undefined;
+            const varianceText = hasVariance ? `${row.variancePercent >= 0 ? '+' : ''}${row.variancePercent}%` : '-';
+            return `
+                <tr>
+                    <td>${Utils.escapeHtml(row.environmentName || '-')}</td>
+                    <td class="cost-num">${Utils.formatCurrency(Number(row.estimatedCost) || 0)}</td>
+                    <td class="cost-num">${hasActual ? Utils.formatCurrency(Number(row.actualCost)) : '<span class="text-muted">Not yet ingested</span>'}</td>
+                    <td class="cost-num">${varianceText}</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function renderReconciliationTable() {
+        $('#cost-reconciliation-table-body').html(buildReconciliationRows(state.reconciliation.content));
+        $('#cost-reconciliation-pagination').html(buildPagination('reconciliation', state.reconciliation));
+    }
+
     // ---- tables ----
 
     function buildTableCard(opts) {
         return `
             <section class="cost-table-card">
                 <div class="dashboard-panel-head">
-                    <h2>${Utils.escapeHtml(opts.title)}</h2>
-                    <small>${Utils.escapeHtml(opts.subtitle)}</small>
+                    <div class="cost-panel-head-text">
+                        <h2>${Utils.escapeHtml(opts.title)}</h2>
+                        <small>${Utils.escapeHtml(opts.subtitle)}</small>
+                    </div>
+                    <a class="cost-export-excel-btn" href="${opts.exportUrl}" target="_blank" rel="noopener"
+                       title="Download as Excel" aria-label="Download ${Utils.escapeHtml(opts.title)} as Excel">
+                        <i class="fas fa-file-excel"></i>
+                    </a>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-baseline cost-table" id="${opts.tableId}">
                         <thead>
-                            <tr>${opts.columns.map(c => `<th>${Utils.escapeHtml(c)}</th>`).join('')}</tr>
+                            <tr>${opts.columns.map(c => {
+                                const label = typeof c === 'string' ? c : c.label;
+                                const cls = (typeof c !== 'string' && c.numeric) ? ' class="cost-num"' : '';
+                                return `<th${cls}>${Utils.escapeHtml(label)}</th>`;
+                            }).join('')}</tr>
                         </thead>
                         <tbody id="${opts.bodyId}">${opts.rowsHtml}</tbody>
                     </table>
@@ -542,14 +767,6 @@ const CostManagement = (function() {
         return formatted;
     }
 
-    function formatMinutes(minutes) {
-        const n = Number(minutes) || 0;
-        if (n < 60) return `${n}m`;
-        const hours = Math.floor(n / 60);
-        const mins = n % 60;
-        return mins ? `${hours}h ${mins}m` : `${hours}h`;
-    }
-
     // Idle & Waste
 
     function buildIdleWasteTable() {
@@ -559,26 +776,26 @@ const CostManagement = (function() {
             tableId: 'cost-idle-table',
             bodyId: 'cost-idle-table-body',
             paginationId: 'cost-idle-pagination',
-            columns: ['VM', 'Environment', 'Group', 'Monthly Cost', 'Latest CPU', 'Idle Since', 'Idle Duration'],
+            columns: ['VM', 'Group', { label: 'Monthly Cost', numeric: true }, { label: 'Latest CPU', numeric: true }, 'Idle Since', { label: 'Monthly Idle', numeric: true }],
             rowsHtml: buildIdleRows(state.idle.content),
             pageState: state.idle,
-            tableKey: 'idle'
+            tableKey: 'idle',
+            exportUrl: Config.API.costManagement.idleWasteExport()
         });
     }
 
     function buildIdleRows(rows) {
         if (!rows.length) {
-            return `<tr><td colspan="7" class="text-center text-muted py-4">No idle VMs found.</td></tr>`;
+            return `<tr><td colspan="6" class="text-center text-muted py-4">No idle VMs found.</td></tr>`;
         }
         return rows.map(row => `
             <tr>
-                <td>${Utils.escapeHtml(row.vmName || row.vmId)}</td>
-                <td>${Utils.escapeHtml(row.environmentName || '-')}</td>
+                <td class="cost-vm-cell" title="${Utils.escapeHtml(row.environmentName || 'Unknown environment')}">${Utils.escapeHtml(row.vmName || row.vmId)}</td>
                 <td>${Utils.escapeHtml(row.groupName || '-')}</td>
                 <td class="cost-num">${costCell(row.monthlyCost, row.costKnown)}</td>
                 <td class="cost-num">${row.latestCpuUtilization != null ? Number(row.latestCpuUtilization).toFixed(1) + '%' : '-'}</td>
                 <td>${row.idleSince ? Utils.formatRelativeTime(row.idleSince) : '-'}</td>
-                <td class="cost-num">${row.idleDurationMinutes != null ? formatMinutes(row.idleDurationMinutes) : '-'}</td>
+                <td class="cost-num">${costCell(row.monthlyIdleCost, row.costKnown)}</td>
             </tr>
         `).join('');
     }
@@ -593,32 +810,65 @@ const CostManagement = (function() {
     function buildRightsizingTable() {
         return buildTableCard({
             title: 'Rightsizing Recommendations',
-            subtitle: `${state.rightsizing.totalElements} candidate(s) — avg CPU < 5% and peak CPU < 30% over 30 days`,
+            subtitle: `${state.rightsizing.totalElements} candidate(s) — scale-down and scale-up, based on CPU utilization`,
             tableId: 'cost-rightsizing-table',
             bodyId: 'cost-rightsizing-table-body',
             paginationId: 'cost-rightsizing-pagination',
-            columns: ['VM', 'Environment', 'Current → Suggested', 'Avg CPU', 'Peak CPU', 'Current Cost', 'Est. Savings'],
+            columns: ['VM', 'Direction', 'Current → Suggested', 'Source', { label: 'Avg CPU', numeric: true }, { label: 'Peak CPU', numeric: true }, { label: 'Current Cost', numeric: true }, { label: 'Est. Savings', numeric: true }, 'Action'],
             rowsHtml: buildRightsizingRows(state.rightsizing.content),
             pageState: state.rightsizing,
-            tableKey: 'rightsizing'
+            tableKey: 'rightsizing',
+            exportUrl: Config.API.costManagement.rightsizingExport()
         });
     }
 
     function buildRightsizingRows(rows) {
         if (!rows.length) {
-            return `<tr><td colspan="7" class="text-center text-muted py-4">No rightsizing candidates found.</td></tr>`;
+            return `<tr><td colspan="9" class="text-center text-muted py-4">No rightsizing candidates found.</td></tr>`;
         }
         return rows.map(row => `
             <tr>
-                <td>${Utils.escapeHtml(row.vmName || row.vmId)}</td>
-                <td>${Utils.escapeHtml(row.environmentName || '-')}</td>
+                <td class="cost-vm-cell" title="${Utils.escapeHtml(row.environmentName || 'Unknown environment')}">${Utils.escapeHtml(row.vmName || row.vmId)}</td>
+                <td>${buildRightsizingDirectionBadge(row)}</td>
                 <td>${Utils.escapeHtml(row.currentInstanceType || '-')} &rarr; ${Utils.escapeHtml(row.suggestedInstanceType || 'n/a')}</td>
+                <td>${buildRightsizingSourceBadge(row)}</td>
                 <td class="cost-num">${row.avgCpuUtilization != null ? Number(row.avgCpuUtilization).toFixed(1) + '%' : '-'}</td>
                 <td class="cost-num">${row.peakCpuUtilization != null ? Number(row.peakCpuUtilization).toFixed(1) + '%' : '-'}</td>
                 <td class="cost-num">${costCell(row.currentMonthlyCost, true)}</td>
                 <td class="cost-num">${row.estimatedMonthlySavings != null ? costCell(row.estimatedMonthlySavings, row.costKnown) : '<span class="text-muted">Unknown</span>'}</td>
+                <td>${buildRightsizingApplyButton(row)}</td>
             </tr>
         `).join('');
+    }
+
+    function buildRightsizingDirectionBadge(row) {
+        return row.direction === 'SCALE_UP'
+            ? '<span class="badge bg-warning text-dark"><i class="fas fa-arrow-up"></i> Scale Up</span>'
+            : '<span class="badge bg-info text-dark"><i class="fas fa-arrow-down"></i> Scale Down</span>';
+    }
+
+    function buildRightsizingApplyButton(row) {
+        if (!row.suggestedInstanceType) {
+            return '<span class="text-muted small">No suggestion</span>';
+        }
+        const isStopped = row.vmStatus === 'STOPPED';
+        return `
+            <button class="btn btn-tonal btn-sm btn-primary rightsizing-apply-btn" ${isStopped ? '' : 'disabled'}
+                    title="${isStopped ? 'Apply this instance type change' : 'VM must be stopped to apply this change'}"
+                    data-vm-id="${row.vmId}" data-vm-name="${Utils.escapeHtml(row.vmName || row.vmId)}"
+                    data-current-type="${Utils.escapeHtml(row.currentInstanceType || '-')}"
+                    data-target-type="${Utils.escapeHtml(row.suggestedInstanceType)}">
+                Apply
+            </button>
+        `;
+    }
+
+    function buildRightsizingSourceBadge(row) {
+        if (row.source === 'compute-optimizer') {
+            const title = row.findingLevel ? ` title="${Utils.escapeHtml(row.findingLevel)}"` : '';
+            return `<span class="badge bg-primary"${title}>Compute Optimizer</span>`;
+        }
+        return `<span class="badge bg-secondary">CPU Rule</span>`;
     }
 
     function renderRightsizingTable() {
@@ -635,21 +885,21 @@ const CostManagement = (function() {
             tableId: 'cost-detail-table',
             bodyId: 'cost-detail-table-body',
             paginationId: 'cost-detail-pagination',
-            columns: ['VM', 'Environment', 'Group', 'Status', 'Instance Type', 'Region', 'Runtime', 'Storage', 'Monthly Cost'],
+            columns: ['VM', 'Group', 'Status', 'Instance Type', 'Region', { label: 'Runtime', numeric: true }, { label: 'Storage', numeric: true }, { label: 'Monthly Cost', numeric: true }],
             rowsHtml: buildDetailRows(state.detail.content),
             pageState: state.detail,
-            tableKey: 'detail'
+            tableKey: 'detail',
+            exportUrl: Config.API.costManagement.vmDetailExport()
         });
     }
 
     function buildDetailRows(rows) {
         if (!rows.length) {
-            return `<tr><td colspan="9" class="text-center text-muted py-4">No VMs found.</td></tr>`;
+            return `<tr><td colspan="8" class="text-center text-muted py-4">No VMs found.</td></tr>`;
         }
         return rows.map(row => `
             <tr>
-                <td>${Utils.escapeHtml(row.vmName || row.vmId)}</td>
-                <td>${Utils.escapeHtml(row.environmentName || '-')}</td>
+                <td class="cost-vm-cell" title="${Utils.escapeHtml(row.environmentName || 'Unknown environment')}">${Utils.escapeHtml(row.vmName || row.vmId)}</td>
                 <td>${Utils.escapeHtml(row.groupName || '-')}</td>
                 <td>${Config.renderStatusBadge(row.status)}</td>
                 <td>${Utils.escapeHtml(row.instanceType || '-')}</td>
@@ -670,9 +920,39 @@ const CostManagement = (function() {
 
     function bindEvents() {
         $('#cost-backfill-btn').off('click').on('click', triggerBackfill);
+        $('#cost-reconcile-tags-btn').off('click').on('click', triggerTagReconciliation);
+        $('#cost-ingest-actuals-btn').off('click').on('click', triggerActualsIngestion);
         $('#cost-export-png-btn').off('click').on('click', exportPng);
         $('#cost-export-pdf-btn').off('click').on('click', exportPdf);
         $(window).off('resize.costManagementCharts').on('resize.costManagementCharts', resizeCharts);
+
+        // Delegated (not direct) so it survives renderRightsizingTable()'s partial re-render of
+        // just the table body/pagination, not only the full-page render() that calls bindEvents.
+        $('#content-area').off('click.rightsizingApply')
+            .on('click.rightsizingApply', '.rightsizing-apply-btn', function() {
+                if ($(this).prop('disabled')) return;
+                applyRightsizing($(this).data());
+            });
+    }
+
+    function applyRightsizing(data) {
+        const vmName = Utils.escapeHtml(String(data.vmName));
+        const currentType = Utils.escapeHtml(String(data.currentType));
+        const targetType = Utils.escapeHtml(String(data.targetType));
+        Modals.confirm(
+            'Change Instance Type',
+            `Change <strong>${vmName}</strong> from <strong>${currentType}</strong> to <strong>${targetType}</strong>?`,
+            function() {
+                ApiClient.post(Config.API.costManagement.applyRightsizing(), {
+                    vmId: data.vmId,
+                    targetInstanceType: data.targetType
+                }).done(() => {
+                    Notifications.success(`Instance type change applied for ${data.vmName}.`);
+                    changePage('rightsizing', state.rightsizing.page);
+                });
+            },
+            { confirmText: 'Apply', confirmClass: 'btn-primary' }
+        );
     }
 
     function triggerBackfill() {
@@ -681,8 +961,12 @@ const CostManagement = (function() {
         ApiClient.post(Config.API.costManagement.backfill(30), null)
             .done(() => {
                 Notifications.success('Cost history backfilled for the last 30 days.');
-                fetchJson(Config.API.costManagement.spendTrend(TREND_DAYS)).then(trend => {
+                Promise.all([
+                    fetchJson(Config.API.costManagement.spendTrend(TREND_DAYS)),
+                    fetchJson(Config.API.costManagement.forecast(30, 14))
+                ]).then(([trend, forecast]) => {
                     state.trend = trend || [];
+                    state.forecast = forecast || null;
                     chart('cost-chart-trend', buildTrendOption(state.trend));
                 });
             })
@@ -691,6 +975,44 @@ const CostManagement = (function() {
             })
             .always(() => {
                 $btn.prop('disabled', false).html('<i class="fas fa-history"></i> Backfill 30 Days');
+            });
+    }
+
+    function triggerTagReconciliation() {
+        const $btn = $('#cost-reconcile-tags-btn');
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Reconciling&hellip;');
+        ApiClient.post(Config.API.costManagement.tagsReconcile, null)
+            .done(result => {
+                if (result.total === 0) {
+                    Notifications.info('Cost-allocation tagging is disabled (cost.tagging.enabled=false) — nothing to reconcile.');
+                } else {
+                    Notifications.success(`Tag reconciliation complete — ${result.tagged} tagged, ${result.failed} failed, ${result.total} total.`);
+                }
+            })
+            .fail(() => {
+                Notifications.error('Failed to reconcile cost-allocation tags.');
+            })
+            .always(() => {
+                $btn.prop('disabled', false).html('<i class="fas fa-tags"></i> Reconcile Tags Now');
+            });
+    }
+
+    function triggerActualsIngestion() {
+        const $btn = $('#cost-ingest-actuals-btn');
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Ingesting&hellip;');
+        ApiClient.post(Config.API.costManagement.actualsBackfill(30), null)
+            .done(result => {
+                if (result.updated === 0 && result.skippedNoEnvironment === 0 && result.skippedNoSnapshotRow === 0) {
+                    Notifications.info('No actual costs ingested — cost.actuals.enabled is likely false, or AWS is not configured.');
+                    $btn.prop('disabled', false).html('<i class="fas fa-cloud-download-alt"></i> Ingest Actual Costs');
+                    return;
+                }
+                Notifications.success(`Actual cost ingestion complete — ${result.updated} day/environment row(s) updated.`);
+                fetchAll();
+            })
+            .fail(() => {
+                Notifications.error('Failed to ingest actual costs.');
+                $btn.prop('disabled', false).html('<i class="fas fa-cloud-download-alt"></i> Ingest Actual Costs');
             });
     }
 
@@ -723,11 +1045,14 @@ const CostManagement = (function() {
             $('#cost-rightsizing-pagination').html(`<span class="text-muted small">All ${rightsizingRows.length} row(s) shown for export</span>`);
             $('#cost-detail-table-body').html(buildDetailRows(detailRows));
             $('#cost-detail-pagination').html(`<span class="text-muted small">All ${detailRows.length} row(s) shown for export</span>`);
+            $('#cost-reconciliation-table-body').html(buildReconciliationRows(state.reconciliationAll));
+            $('#cost-reconciliation-pagination').html(`<span class="text-muted small">All ${state.reconciliationAll.length} row(s) shown for export</span>`);
 
             const restore = () => {
                 renderIdleTable();
                 renderRightsizingTable();
                 renderDetailTable();
+                renderReconciliationTable();
                 exporting = false;
                 window.removeEventListener('afterprint', restore);
             };
@@ -766,9 +1091,11 @@ const CostManagement = (function() {
             const idleBody = clone.querySelector('#cost-idle-table-body');
             const rightsizingBody = clone.querySelector('#cost-rightsizing-table-body');
             const detailBody = clone.querySelector('#cost-detail-table-body');
+            const reconciliationBody = clone.querySelector('#cost-reconciliation-table-body');
             if (idleBody) idleBody.innerHTML = buildIdleRows(idleRows);
             if (rightsizingBody) rightsizingBody.innerHTML = buildRightsizingRows(rightsizingRows);
             if (detailBody) detailBody.innerHTML = buildDetailRows(detailRows);
+            if (reconciliationBody) reconciliationBody.innerHTML = buildReconciliationRows(state.reconciliationAll);
             clone.querySelectorAll('.pagination-bar-wrap').forEach(el => {
                 el.innerHTML = '<span class="text-muted small">All rows shown for export</span>';
             });

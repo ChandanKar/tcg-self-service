@@ -181,7 +181,19 @@ const Config = (function() {
             idleWaste: (page = 0, size = 10) => `${API_BASE_URL}/cost-management/idle-waste?page=${page}&size=${size}`,
             rightsizing: (page = 0, size = 10) => `${API_BASE_URL}/cost-management/rightsizing?page=${page}&size=${size}`,
             vmDetail: (page = 0, size = 10) => `${API_BASE_URL}/cost-management/vm-detail?page=${page}&size=${size}`,
-            backfill: (days = 30) => `${API_BASE_URL}/cost-management/snapshots/backfill?days=${days}`
+            idleWasteExport: () => `${API_BASE_URL}/cost-management/idle-waste/export`,
+            rightsizingExport: () => `${API_BASE_URL}/cost-management/rightsizing/export`,
+            applyRightsizing: () => `${API_BASE_URL}/cost-management/rightsizing/apply`,
+            vmDetailExport: () => `${API_BASE_URL}/cost-management/vm-detail/export`,
+            backfill: (days = 30) => `${API_BASE_URL}/cost-management/snapshots/backfill?days=${days}`,
+            tagsReconcile: `${API_BASE_URL}/cost-management/tags/reconcile`,
+            tagsStatus: `${API_BASE_URL}/cost-management/tags/status`,
+            reconciliation: (days = 30) => `${API_BASE_URL}/cost-management/reconciliation?days=${days}`,
+            reconciliationExport: (days = 90) => `${API_BASE_URL}/cost-management/reconciliation/export?days=${days}`,
+            actualsBackfill: (days = 30) => `${API_BASE_URL}/cost-management/actuals/backfill?days=${days}`,
+            reservationsCoverage: (days = 30) => `${API_BASE_URL}/cost-management/reservations/coverage?days=${days}`,
+            forecast: (historyDays = 30, forecastDays = 14) =>
+                `${API_BASE_URL}/cost-management/forecast?historyDays=${historyDays}&forecastDays=${forecastDays}`
         },
 
         // Automation Rules (admin / env admin)

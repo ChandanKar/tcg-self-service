@@ -629,6 +629,48 @@ public class AwsCloudProviderService implements CloudProviderService {
         }
     }
 
+    /**
+     * Applies (or overwrites) the given tags on the specified EC2 instances — used for
+     * cost-allocation tagging (tcg:managed-by/environment/team), never called during normal
+     * start/stop/discovery. Batches at 20 resources per CreateTags call, the actual EC2 API limit.
+     */
+    public void tagInstances(String region, List<String> instanceIds, Map<String, String> tags) {
+        if (instanceIds.isEmpty() || tags.isEmpty()) {
+            return;
+        }
+        Ec2Client ec2 = getEc2Client(region);
+        List<Tag> ec2Tags = tags.entrySet().stream()
+                .map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
+                .toList();
+
+        int chunkSize = 20;
+        for (int i = 0; i < instanceIds.size(); i += chunkSize) {
+            List<String> chunk = instanceIds.subList(i, Math.min(i + chunkSize, instanceIds.size()));
+            ec2.createTags(CreateTagsRequest.builder()
+                    .resources(chunk)
+                    .tags(ec2Tags)
+                    .build());
+        }
+        log.info("Tagged {} EC2 instance(s) in region {} with {}", instanceIds.size(), region, tags);
+    }
+
+    /**
+     * Changes an EC2 instance's type via {@code ModifyInstanceAttribute} — AWS only accepts this
+     * call while the instance is stopped (rejects it with {@code IncorrectInstanceState}
+     * otherwise); the caller is expected to have already verified the VM is stopped before
+     * calling this, this is defense-in-depth, not the only guard. Not part of the
+     * {@link CloudProviderService} interface — same as {@link #tagInstances}, there's no other
+     * real cloud-provider implementation this needs to stay compatible with.
+     */
+    public void changeInstanceType(String region, String providerVmId, String newInstanceType) {
+        Ec2Client ec2 = getEc2Client(region);
+        ec2.modifyInstanceAttribute(ModifyInstanceAttributeRequest.builder()
+                .instanceId(providerVmId)
+                .instanceType(AttributeValue.builder().value(newInstanceType).build())
+                .build());
+        log.info("Changed EC2 instance {} in region {} to instance type {}", providerVmId, region, newInstanceType);
+    }
+
     @Override
     public java.util.List<String> discoverInstanceIds(java.util.List<String> regions) {
         java.util.List<String> discovered = new java.util.ArrayList<>();

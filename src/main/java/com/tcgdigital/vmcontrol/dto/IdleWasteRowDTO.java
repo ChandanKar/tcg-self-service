@@ -15,5 +15,6 @@ public record IdleWasteRowDTO(
         Boolean costKnown,
         Integer idleDurationMinutes,
         Timestamp idleSince,
-        BigDecimal latestCpuUtilization
+        BigDecimal latestCpuUtilization,
+        BigDecimal monthlyIdleCost
 ) {}

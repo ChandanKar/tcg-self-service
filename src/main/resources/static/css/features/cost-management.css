@@ -65,6 +65,24 @@
     white-space: nowrap;
 }
 
+.cost-vm-cell {
+    cursor: help;
+    border-bottom: 1px dotted var(--text-secondary, #64748b);
+    width: fit-content;
+}
+
+.cost-export-excel-btn {
+    color: #1d6f42;
+    font-size: 1.4rem;
+    flex-shrink: 0;
+    align-self: center;
+    margin-right: 10px;
+}
+
+.cost-export-excel-btn:hover {
+    color: #14502f;
+}
+
 .cost-partial-icon {
     color: var(--warning-color, #f59e0b);
     font-size: var(--font-size-xs, 0.75rem);

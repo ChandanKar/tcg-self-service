@@ -1,7 +1,5 @@
 package com.tcgdigital.vmcontrol.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tcgdigital.vmcontrol.dto.CostSummaryDTO;
 import com.tcgdigital.vmcontrol.dto.IdleWasteRowDTO;
 import com.tcgdigital.vmcontrol.dto.RightsizingCandidateDTO;
@@ -9,16 +7,19 @@ import com.tcgdigital.vmcontrol.dto.SpendByDimensionDTO;
 import com.tcgdigital.vmcontrol.dto.SpendTrendPointDTO;
 import com.tcgdigital.vmcontrol.dto.TeamSpendTrendPointDTO;
 import com.tcgdigital.vmcontrol.dto.VmCostDetailDTO;
+import com.tcgdigital.vmcontrol.model.CloudProvider;
 import com.tcgdigital.vmcontrol.model.CostDailySnapshot;
 import com.tcgdigital.vmcontrol.model.Vm;
 import com.tcgdigital.vmcontrol.model.VmIdleSummary;
+import com.tcgdigital.vmcontrol.model.VmMetricDaily;
+import com.tcgdigital.vmcontrol.model.VmMetricSample;
 import com.tcgdigital.vmcontrol.repository.CostDailySnapshotRepository;
 import com.tcgdigital.vmcontrol.repository.VmInventorySnapshotRepository;
 import com.tcgdigital.vmcontrol.repository.VmIdleSummaryRepository;
 import com.tcgdigital.vmcontrol.repository.VmMetricDailyRepository;
+import com.tcgdigital.vmcontrol.repository.VmMetricSampleRepository;
 import com.tcgdigital.vmcontrol.repository.VmRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -37,8 +38,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Read facade for the Cost Management page. Builds a per-VM cost/utilization bundle once per
@@ -48,40 +49,54 @@ import java.util.function.Function;
 @Service
 public class CostEstimationService {
 
-    private static final Logger log = LoggerFactory.getLogger(CostEstimationService.class);
-
     private static final int COST_WINDOW_DAYS = 30;
-    private static final BigDecimal RIGHTSIZING_AVG_CPU_THRESHOLD = BigDecimal.valueOf(5);
-    private static final BigDecimal RIGHTSIZING_PEAK_CPU_THRESHOLD = BigDecimal.valueOf(30);
 
     private final VmRepository vmRepository;
     private final VmIdleSummaryRepository vmIdleSummaryRepository;
     private final VmMetricDailyRepository vmMetricDailyRepository;
+    private final VmMetricSampleRepository vmMetricSampleRepository;
     private final VmInventorySnapshotRepository vmInventorySnapshotRepository;
     private final CostDailySnapshotRepository costDailySnapshotRepository;
     private final CostDataProvider costDataProvider;
     private final PricingReferenceService pricingReferenceService;
     private final VmCostCalculator vmCostCalculator;
-    private final ObjectMapper objectMapper;
+    private final TeamResolver teamResolver;
+    private final ComputeOptimizerService computeOptimizerService;
+
+    @Value("${rightsizing.scale-down.cpu-threshold:15}")
+    private BigDecimal scaleDownCpuThreshold;
+
+    @Value("${rightsizing.scale-down.consecutive-days:3}")
+    private int scaleDownConsecutiveDays;
+
+    @Value("${rightsizing.scale-up.cpu-threshold:70}")
+    private BigDecimal scaleUpCpuThreshold;
+
+    @Value("${rightsizing.scale-up.consecutive-minutes:15}")
+    private int scaleUpConsecutiveMinutes;
 
     public CostEstimationService(VmRepository vmRepository,
                                   VmIdleSummaryRepository vmIdleSummaryRepository,
                                   VmMetricDailyRepository vmMetricDailyRepository,
+                                  VmMetricSampleRepository vmMetricSampleRepository,
                                   VmInventorySnapshotRepository vmInventorySnapshotRepository,
                                   CostDailySnapshotRepository costDailySnapshotRepository,
                                   CostDataProvider costDataProvider,
                                   PricingReferenceService pricingReferenceService,
                                   VmCostCalculator vmCostCalculator,
-                                  ObjectMapper objectMapper) {
+                                  TeamResolver teamResolver,
+                                  ComputeOptimizerService computeOptimizerService) {
         this.vmRepository = vmRepository;
         this.vmIdleSummaryRepository = vmIdleSummaryRepository;
         this.vmMetricDailyRepository = vmMetricDailyRepository;
+        this.vmMetricSampleRepository = vmMetricSampleRepository;
         this.vmInventorySnapshotRepository = vmInventorySnapshotRepository;
         this.costDailySnapshotRepository = costDailySnapshotRepository;
         this.costDataProvider = costDataProvider;
         this.pricingReferenceService = pricingReferenceService;
         this.vmCostCalculator = vmCostCalculator;
-        this.objectMapper = objectMapper;
+        this.teamResolver = teamResolver;
+        this.computeOptimizerService = computeOptimizerService;
     }
 
     public CostSummaryDTO getSummary() {
@@ -139,7 +154,9 @@ public class CostEstimationService {
     }
 
     public List<SpendByDimensionDTO> getSpendByTeam() {
-        return groupSpend(buildBundles(), this::resolveTeam, this::resolveTeam);
+        return groupSpend(buildBundles(),
+                b -> teamResolver.resolveTeam(b.vm().getGroup().getEnvironment().getMetadata()),
+                b -> teamResolver.resolveTeam(b.vm().getGroup().getEnvironment().getMetadata()));
     }
 
     public Page<IdleWasteRowDTO> getIdleWaste(Pageable pageable) {
@@ -180,7 +197,7 @@ public class CostEstimationService {
 
         Map<String, Map<Date, BigDecimal>> costByTeamAndDate = new LinkedHashMap<>();
         for (CostDailySnapshot snapshot : snapshots) {
-            String team = resolveTeamFromMetadata(snapshot.getEnvironment().getMetadata());
+            String team = teamResolver.resolveTeam(snapshot.getEnvironment().getMetadata());
             costByTeamAndDate
                     .computeIfAbsent(team, k -> new LinkedHashMap<>())
                     .merge(snapshot.getSnapshotDate(), nullToZero(snapshot.getEstimatedCost()), BigDecimal::add);
@@ -226,6 +243,9 @@ public class CostEstimationService {
             instanceTypeByVmId.put(projection.getVmId(), projection.getInstanceType());
         }
 
+        Map<String, Boolean> scaleDownByVmId = computeScaleDownCandidates(vmIds);
+        Map<String, Boolean> scaleUpByVmId = computeScaleUpCandidates(vmIds);
+
         List<VmCostBundle> bundles = new ArrayList<>();
         for (Vm vm : vms) {
             String vmId = vm.getVmId();
@@ -242,42 +262,135 @@ public class CostEstimationService {
                     idleSummary != null && Boolean.TRUE.equals(idleSummary.getIdle()),
                     idleSummary == null ? null : idleSummary.getIdleSince(),
                     idleSummary == null ? null : idleSummary.getIdleDurationMinutes(),
-                    idleSummary == null ? null : idleSummary.getLatestCpuUtilization()
+                    idleSummary == null ? null : idleSummary.getLatestCpuUtilization(),
+                    Boolean.TRUE.equals(scaleDownByVmId.get(vmId)),
+                    Boolean.TRUE.equals(scaleUpByVmId.get(vmId))
             ));
         }
         return bundles;
     }
 
     /**
-     * Candidacy rule: avg CPU &lt; 5% AND peak CPU &lt; 30% over the trailing 30 days. VMs
-     * without at least 30 days of metric history are skipped rather than guessed at.
+     * Scale-down candidacy: the most recent {@code scaleDownConsecutiveDays} daily rows must
+     * *each* have avg CPU below {@code scaleDownCpuThreshold} — not just the window's average —
+     * so a VM that had one legitimate busy day inside an otherwise-quiet window isn't flagged.
+     * Skipped (false) if fewer than that many days of daily-rollup history exist, same
+     * "don't guess with incomplete data" rule the old aggregate-based check used.
+     */
+    private Map<String, Boolean> computeScaleDownCandidates(List<String> vmIds) {
+        Date sinceDate = Date.valueOf(LocalDate.now().minusDays(scaleDownConsecutiveDays));
+        List<VmMetricDaily> dailyRows =
+                vmMetricDailyRepository.findByVmVmIdInAndBucketDateGreaterThanEqualOrderByVmVmIdAscBucketDateDesc(vmIds, sinceDate);
+
+        Map<String, List<VmMetricDaily>> rowsByVmId = dailyRows.stream()
+                .collect(Collectors.groupingBy(d -> d.getVm().getVmId(), LinkedHashMap::new, Collectors.toList()));
+
+        Map<String, Boolean> result = new LinkedHashMap<>();
+        for (Map.Entry<String, List<VmMetricDaily>> entry : rowsByVmId.entrySet()) {
+            List<VmMetricDaily> rows = entry.getValue();
+            boolean candidate = rows.size() >= scaleDownConsecutiveDays
+                    && rows.stream().limit(scaleDownConsecutiveDays)
+                            .allMatch(d -> d.getAvgCpuUtilization() != null
+                                    && d.getAvgCpuUtilization().compareTo(scaleDownCpuThreshold) < 0);
+            result.put(entry.getKey(), candidate);
+        }
+        return result;
+    }
+
+    /**
+     * Scale-up candidacy: every raw CloudWatch sample (collected every {@code
+     * cloudwatch.metric.schedule.interval} minutes, default 5) in the trailing {@code
+     * scaleUpConsecutiveMinutes} window must exceed {@code scaleUpCpuThreshold}. Requires at
+     * least 2 samples in the window so a single fluky high reading can't trigger a false
+     * positive — with the default 5-minute sampling interval and 15-minute window that's the
+     * minimum coverage that still reflects sustained (not momentary) load.
+     */
+    private Map<String, Boolean> computeScaleUpCandidates(List<String> vmIds) {
+        Timestamp windowStart = Timestamp.from(Instant.now().minus(scaleUpConsecutiveMinutes, ChronoUnit.MINUTES));
+        Timestamp windowEnd = Timestamp.from(Instant.now());
+        List<VmMetricSample> samples =
+                vmMetricSampleRepository.findByVmVmIdInAndSampleTimeBetweenOrderBySampleTimeAsc(vmIds, windowStart, windowEnd);
+
+        Map<String, List<VmMetricSample>> samplesByVmId = samples.stream()
+                .collect(Collectors.groupingBy(s -> s.getVm().getVmId(), LinkedHashMap::new, Collectors.toList()));
+
+        Map<String, Boolean> result = new LinkedHashMap<>();
+        for (Map.Entry<String, List<VmMetricSample>> entry : samplesByVmId.entrySet()) {
+            List<VmMetricSample> vmSamples = entry.getValue();
+            boolean candidate = vmSamples.size() >= 2
+                    && vmSamples.stream().allMatch(s -> s.getCpuUtilization() != null
+                            && s.getCpuUtilization().compareTo(scaleUpCpuThreshold) > 0);
+            result.put(entry.getKey(), candidate);
+        }
+        return result;
+    }
+
+    /**
+     * Candidacy rule: {@link #computeScaleDownCandidates} OR {@link #computeScaleUpCandidates}
+     * (never both — scale-down is checked first). Only plain {@code CloudProvider.AWS} VMs are
+     * eligible for either direction: {@code AWS_EKS} node-group VMs are resized via
+     * launch-template/node-group updates, not a per-instance API call, and that's out of scope
+     * here — such VMs never appear in this table regardless of their CPU pattern.
+     *
+     * Where AWS Compute Optimizer has a real recommendation for a scale-down candidate, its
+     * suggested instance type is used (source={@code compute-optimizer}) instead of the local
+     * downsize-map guess — it's a second, AWS-vetted signal that overlays the rule rather than
+     * replacing it. Compute Optimizer integration is scale-down only; scale-up candidates and
+     * {@code AWS_EKS} VMs always use the local sizing map (source={@code cpu-threshold-rule}).
      */
     private List<RightsizingCandidateDTO> buildRightsizingCandidates(List<VmCostBundle> bundles) {
         List<RightsizingCandidateDTO> candidates = new ArrayList<>();
+        Map<String, ComputeOptimizerService.Recommendation> recommendationsByInstanceId =
+                fetchComputeOptimizerRecommendations(bundles);
 
         for (VmCostBundle b : bundles) {
-            if (b.avgCpu() == null || b.peakCpu() == null) {
+            if (b.vm().getProvider() != CloudProvider.AWS) {
                 continue;
             }
-            if (b.avgCpu().compareTo(RIGHTSIZING_AVG_CPU_THRESHOLD) >= 0
-                    || b.peakCpu().compareTo(RIGHTSIZING_PEAK_CPU_THRESHOLD) >= 0) {
+
+            String direction;
+            if (b.scaleDownCandidate()) {
+                direction = "SCALE_DOWN";
+            } else if (b.scaleUpCandidate()) {
+                direction = "SCALE_UP";
+            } else {
                 continue;
             }
 
             String provider = b.vm().getProvider().name();
-            Optional<String> suggested = pricingReferenceService.suggestSmallerType(provider, b.instanceType());
+            boolean isScaleDown = "SCALE_DOWN".equals(direction);
+            ComputeOptimizerService.Recommendation recommendation =
+                    isScaleDown ? recommendationsByInstanceId.get(b.vm().getProviderVmId()) : null;
+
+            String suggestedType;
+            String source;
+            String findingLevel;
+            if (recommendation != null) {
+                suggestedType = recommendation.suggestedInstanceType();
+                source = "compute-optimizer";
+                findingLevel = recommendation.finding();
+            } else {
+                suggestedType = isScaleDown
+                        ? pricingReferenceService.suggestSmallerType(provider, b.instanceType()).orElse(null)
+                        : pricingReferenceService.suggestLargerType(provider, b.instanceType()).orElse(null);
+                source = "cpu-threshold-rule";
+                findingLevel = null;
+            }
+
             BigDecimal currentCost = b.estimate().cost();
             BigDecimal afterCost = null;
             BigDecimal savings = null;
             boolean costKnown = false;
 
-            if (suggested.isPresent() && b.estimate().costKnown()) {
+            if (suggestedType != null && b.estimate().costKnown()) {
                 PricingReferenceService.PriceLookupResult afterRate =
-                        pricingReferenceService.lookupHourlyRate(provider, suggested.get(), b.vm().getRegion());
+                        pricingReferenceService.lookupHourlyRate(provider, suggestedType, b.vm().getRegion());
                 if (afterRate.priceKnown()) {
                     afterCost = vmCostCalculator.estimateCost(afterRate.hourlyRate(), b.estimate().runtimeHours(),
                             b.estimate().storageGib(), pricingReferenceService.getStorageGbMonthRate(),
                             BigDecimal.valueOf(COST_WINDOW_DAYS));
+                    // Negative for scale-up (a cost increase) — expected, not a bug; the shared
+                    // sort below naturally ranks scale-up candidates after every real saving.
                     savings = currentCost.subtract(afterCost);
                     costKnown = true;
                 }
@@ -288,13 +401,17 @@ public class CostEstimationService {
                     b.vm().getDisplayName(),
                     b.vm().getGroup().getEnvironment().getDisplayName(),
                     b.instanceType(),
-                    suggested.orElse(null),
+                    suggestedType,
                     b.avgCpu(),
                     b.peakCpu(),
                     currentCost,
                     afterCost,
                     savings,
-                    costKnown
+                    costKnown,
+                    source,
+                    findingLevel,
+                    direction,
+                    b.vm().getStatus().name()
             ));
         }
 
@@ -302,6 +419,21 @@ public class CostEstimationService {
                 (RightsizingCandidateDTO d) -> d.estimatedMonthlySavings() == null ? BigDecimal.ZERO : d.estimatedMonthlySavings()
         ).reversed());
         return candidates;
+    }
+
+    /**
+     * One Compute Optimizer call per distinct region among the fleet's plain-EC2 VMs (never
+     * per-VM) — a no-op returning an empty map when {@code cost.optimizer.enabled=false}, so this
+     * fetch is safe to leave in the hot path unconditionally.
+     */
+    private Map<String, ComputeOptimizerService.Recommendation> fetchComputeOptimizerRecommendations(List<VmCostBundle> bundles) {
+        Map<String, ComputeOptimizerService.Recommendation> result = new LinkedHashMap<>();
+        bundles.stream()
+                .filter(b -> b.vm().getProvider() == CloudProvider.AWS)
+                .map(b -> b.vm().getRegion())
+                .distinct()
+                .forEach(region -> result.putAll(computeOptimizerService.getEc2Recommendations(region)));
+        return result;
     }
 
     private IdleWasteRowDTO toIdleWasteRow(VmCostBundle b) {
@@ -314,8 +446,23 @@ public class CostEstimationService {
                 b.estimate().costKnown(),
                 b.idleDurationMinutes(),
                 b.idleSince(),
-                b.latestCpuUtilization()
+                b.latestCpuUtilization(),
+                monthlyIdleCost(b)
         );
+    }
+
+    /**
+     * Dollars burned while idle, capped to the same {@link #COST_WINDOW_DAYS} window as
+     * {@code monthlyCost} so the two figures stay directly comparable (a VM idle longer than the
+     * window shows the same value as monthlyCost, never more).
+     */
+    private BigDecimal monthlyIdleCost(VmCostBundle b) {
+        if (b.estimate().hourlyRate() == null || b.idleDurationMinutes() == null) {
+            return BigDecimal.ZERO;
+        }
+        int cappedMinutes = Math.min(b.idleDurationMinutes(), COST_WINDOW_DAYS * 24 * 60);
+        BigDecimal hours = BigDecimal.valueOf(cappedMinutes).divide(BigDecimal.valueOf(60), 4, RoundingMode.HALF_UP);
+        return b.estimate().hourlyRate().multiply(hours).setScale(2, RoundingMode.HALF_UP);
     }
 
     private VmCostDetailDTO toVmCostDetail(VmCostBundle b) {
@@ -355,26 +502,6 @@ public class CostEstimationService {
                 .toList();
     }
 
-    private String resolveTeam(VmCostBundle b) {
-        return resolveTeamFromMetadata(b.vm().getGroup().getEnvironment().getMetadata());
-    }
-
-    private String resolveTeamFromMetadata(String metadata) {
-        if (metadata == null || metadata.isBlank()) {
-            return "Unassigned";
-        }
-        try {
-            JsonNode node = objectMapper.readTree(metadata);
-            JsonNode team = node.get("ownerTeam");
-            if (team != null && !team.isNull() && !team.asText().isBlank()) {
-                return team.asText();
-            }
-        } catch (Exception e) {
-            log.debug("Could not parse environment metadata JSON for team lookup: {}", e.getMessage());
-        }
-        return "Unassigned";
-    }
-
     private <T> Page<T> paginate(List<T> all, Pageable pageable) {
         int start = (int) Math.min(pageable.getOffset(), all.size());
         int end = (int) Math.min(start + pageable.getPageSize(), all.size());
@@ -402,6 +529,8 @@ public class CostEstimationService {
             boolean idle,
             Timestamp idleSince,
             Integer idleDurationMinutes,
-            BigDecimal latestCpuUtilization
+            BigDecimal latestCpuUtilization,
+            boolean scaleDownCandidate,
+            boolean scaleUpCandidate
     ) {}
 }

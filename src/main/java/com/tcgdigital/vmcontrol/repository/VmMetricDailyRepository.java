@@ -33,6 +33,14 @@ public interface VmMetricDailyRepository extends JpaRepository<VmMetricDaily, St
            "GROUP BY m.vm.vmId")
     List<CpuStats> findCpuStatsSince(@Param("vmIds") List<String> vmIds, @Param("sinceDate") Date sinceDate);
 
+    /**
+     * Individual per-day rows (not aggregated) for a batch of VMs since a given date, newest
+     * first per VM — used by the scale-down rightsizing rule, which needs to check that the
+     * most recent N days are *each* below threshold, not just that the window's average is.
+     */
+    List<VmMetricDaily> findByVmVmIdInAndBucketDateGreaterThanEqualOrderByVmVmIdAscBucketDateDesc(
+            List<String> vmIds, Date sinceDate);
+
     interface CpuStats {
         String getVmId();
         BigDecimal getAvgCpu();

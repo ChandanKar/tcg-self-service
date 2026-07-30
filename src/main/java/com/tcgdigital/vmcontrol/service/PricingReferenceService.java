@@ -29,6 +29,7 @@ public class PricingReferenceService {
     private final Map<String, BigDecimal> ratesByTypeAndRegion = new HashMap<>();
     private final Map<String, BigDecimal> ratesByTypeAnyRegion = new HashMap<>();
     private final Map<String, String> downsizeMap = new HashMap<>();
+    private final Map<String, String> upsizeMap = new HashMap<>();
     private BigDecimal storageGbMonthRate = BigDecimal.ZERO;
 
     @PostConstruct
@@ -56,8 +57,25 @@ public class PricingReferenceService {
                 downsizeMap.put(field.getKey(), field.getValue().asText());
             }
 
-            log.info("Loaded cost pricing reference: {} instance rates, {} downsize rules, storage rate ${}/GB-month",
-                    ratesByTypeAndRegion.size(), downsizeMap.size(), storageGbMonthRate);
+            // Upsize map is derived from downsizeMap rather than a second maintained list — for
+            // each "provider:largerType -> smallerType" downsize rule, the reverse
+            // "provider:smallerType -> largerType" is a reasonable scale-up suggestion. Where
+            // multiple downsize entries invert to the same key, first-seen wins (accepted
+            // approximation, same spirit as the CpuStats query's documented averaging shortcut).
+            for (Map.Entry<String, String> entry : downsizeMap.entrySet()) {
+                String key = entry.getKey(); // e.g. "AWS:m5.xlarge"
+                String smallerType = entry.getValue(); // e.g. "m5.large"
+                int separatorIndex = key.indexOf(':');
+                if (separatorIndex < 0) {
+                    continue;
+                }
+                String provider = key.substring(0, separatorIndex);
+                String largerType = key.substring(separatorIndex + 1);
+                upsizeMap.putIfAbsent(typeKey(provider, smallerType), largerType);
+            }
+
+            log.info("Loaded cost pricing reference: {} instance rates, {} downsize rules, {} upsize rules, storage rate ${}/GB-month",
+                    ratesByTypeAndRegion.size(), downsizeMap.size(), upsizeMap.size(), storageGbMonthRate);
         } catch (IOException e) {
             throw new IllegalStateException("Failed to load pricing reference data from " + RESOURCE_PATH, e);
         }
@@ -91,6 +109,13 @@ public class PricingReferenceService {
             return Optional.empty();
         }
         return Optional.ofNullable(downsizeMap.get(typeKey(provider, instanceType)));
+    }
+
+    public Optional<String> suggestLargerType(String provider, String instanceType) {
+        if (provider == null || instanceType == null) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(upsizeMap.get(typeKey(provider, instanceType)));
     }
 
     private static String typeAndRegionKey(String provider, String instanceType, String region) {
