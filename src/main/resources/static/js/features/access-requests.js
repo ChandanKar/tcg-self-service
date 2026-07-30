@@ -414,10 +414,10 @@ const AccessRequests = (function() {
                 </td>
                 <td class="text-end ra-actions-cell">
                     <div class="ra-action-buttons">
-                        <button class="btn btn-sm btn-success" data-request-id="${req.requestId}" data-action="approve">
+                        <button class="btn btn-sm btn-tonal btn-success" data-request-id="${req.requestId}" data-action="approve">
                             <i class="fas fa-check"></i> Approve
                         </button>
-                        <button class="btn btn-sm btn-danger" data-request-id="${req.requestId}" data-action="deny">
+                        <button class="btn btn-sm btn-tonal btn-danger" data-request-id="${req.requestId}" data-action="deny">
                             <i class="fas fa-times"></i> Deny
                         </button>
                     </div>

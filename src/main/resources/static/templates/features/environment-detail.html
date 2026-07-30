@@ -22,7 +22,7 @@
             </span>
         </div>
         <div class="lock-actions">
-            <button class="btn btn-sm btn-warning" id="btn-release-lock"
+            <button class="btn btn-sm btn-tonal btn-warning" id="btn-release-lock"
                     style="display: none;" aria-label="Release lock" title="Release Lock">
                 <i class="fas fa-unlock me-1" aria-hidden="true"></i> Release Lock
             </button>
@@ -48,17 +48,17 @@
                     aria-label="Refresh environment" title="Refresh">
                 <i class="fas fa-sync-alt" aria-hidden="true"></i>
             </button>
-            <div class="btn-group" role="group" aria-label="Environment actions">
-                <button class="btn btn-success btn-sm" id="btn-start-all"
+            <div class="d-flex gap-action-buttons" role="group" aria-label="Environment actions">
+                <button class="btn btn-tonal btn-success btn-sm" id="btn-start-all"
                         aria-label="Start all VMs" title="Start All VMs">
                     <i class="fas fa-play me-1" aria-hidden="true"></i> Start All
                 </button>
-                <button class="btn btn-danger btn-sm" id="btn-stop-all"
+                <button class="btn btn-tonal btn-danger btn-sm" id="btn-stop-all"
                         aria-label="Stop all VMs" title="Stop All VMs">
                     <i class="fas fa-stop me-1" aria-hidden="true"></i> Stop All
                 </button>
             </div>
-            <button class="btn btn-warning btn-sm" id="btn-toggle-lock"
+            <button class="btn btn-tonal btn-warning btn-sm" id="btn-toggle-lock"
                     aria-label="Toggle environment lock" title="Toggle Lock">
                 <i class="fas fa-lock me-1" aria-hidden="true"></i> <span id="lock-btn-text">Lock</span>
             </button>
@@ -154,10 +154,10 @@
                 <small class="text-muted ms-2">({{vmCount}} VMs)</small>
             </h5>
             <div class="group-actions">
-                <button class="btn btn-sm btn-success" data-action="start-group" title="Start Group">
+                <button class="btn btn-sm btn-tonal btn-success" data-action="start-group" title="Start Group">
                     <i class="fas fa-play"></i>
                 </button>
-                <button class="btn btn-sm btn-danger" data-action="stop-group"
+                <button class="btn btn-sm btn-tonal btn-danger" data-action="stop-group"
                         aria-label="Stop group" title="Stop Group">
                     <i class="fas fa-stop" aria-hidden="true"></i>
                 </button>
@@ -209,23 +209,23 @@
         </td>
         <td>{{region}}</td>
         <td>
-            <div class="btn-group btn-group-sm" role="group" aria-label="VM actions">
-                <button class="btn btn-success" data-action="start"
+            <div class="d-flex gap-action-buttons" role="group" aria-label="VM actions">
+                <button class="btn btn-sm btn-tonal btn-success" data-action="start"
                         {{#if isRunning}}disabled{{/if}}
                         aria-label="Start VM" title="Start">
                     <i class="fas fa-play" aria-hidden="true"></i>
                 </button>
-                <button class="btn btn-danger" data-action="stop"
+                <button class="btn btn-sm btn-tonal btn-danger" data-action="stop"
                         {{#unless isRunning}}disabled{{/unless}}
                         aria-label="Stop VM" title="Stop">
                     <i class="fas fa-stop" aria-hidden="true"></i>
                 </button>
-                <button class="btn btn-warning" data-action="restart"
+                <button class="btn btn-sm btn-tonal btn-warning" data-action="restart"
                         {{#unless isRunning}}disabled{{/unless}}
                         aria-label="Restart VM" title="Restart">
                     <i class="fas fa-sync" aria-hidden="true"></i>
                 </button>
-                <button class="btn btn-outline-secondary" data-action="details"
+                <button class="btn btn-sm btn-outline-secondary" data-action="details"
                         aria-label="View VM details" title="Details">
                     <i class="fas fa-info-circle" aria-hidden="true"></i>
                 </button>

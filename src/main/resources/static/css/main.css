@@ -59,6 +59,7 @@
 
     /* Card Standards */
     --card-radius: 8px;
+    --radius-btn: 6px;
 
     /* Status Badge Colors */
     --status-running-bg: #dcfce7;
@@ -153,7 +154,8 @@ a:hover {
 .ra-env-table-wrapper::-webkit-scrollbar,
 #system-health-view::-webkit-scrollbar,
 .sh-table-wrapper::-webkit-scrollbar,
-.sh-compliance-wrapper::-webkit-scrollbar {
+.sh-compliance-wrapper::-webkit-scrollbar,
+.ar-table-wrapper::-webkit-scrollbar {
     width: 4px;
 }
 
@@ -168,7 +170,8 @@ a:hover {
 .ra-env-table-wrapper::-webkit-scrollbar-thumb,
 #system-health-view::-webkit-scrollbar-thumb,
 .sh-table-wrapper::-webkit-scrollbar-thumb,
-.sh-compliance-wrapper::-webkit-scrollbar-thumb {
+.sh-compliance-wrapper::-webkit-scrollbar-thumb,
+.ar-table-wrapper::-webkit-scrollbar-thumb {
     background: #cbd5e1;
     border-radius: 3px;
 }

@@ -270,13 +270,13 @@ const Locks = (function() {
             let buttons = '';
             if (isMyLock) {
                 buttons = `
-                    <button class="btn btn-sm btn-warning" data-lock-action="release" data-env-id="${envId}">
+                    <button class="btn btn-sm btn-tonal btn-warning" data-lock-action="release" data-env-id="${envId}">
                         <i class="fas fa-unlock"></i> Release Lock
                     </button>
                 `;
             } else if (isEnvAdmin) {
                 buttons = `
-                    <button class="btn btn-sm btn-danger" data-lock-action="break" data-env-id="${envId}">
+                    <button class="btn btn-sm btn-tonal btn-danger" data-lock-action="break" data-env-id="${envId}">
                         <i class="fas fa-hammer"></i> Break Lock
                     </button>
                 `;

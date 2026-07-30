@@ -32,15 +32,15 @@
     </div>
 
     <div class="vm-card-actions">
-        <button class="btn btn-sm btn-success" data-action="start"
+        <button class="btn btn-sm btn-tonal btn-success" data-action="start"
                 {{#if isRunning}}disabled{{/if}} title="Start VM">
             <i class="fas fa-play"></i>
         </button>
-        <button class="btn btn-sm btn-danger" data-action="stop"
+        <button class="btn btn-sm btn-tonal btn-danger" data-action="stop"
                 {{#unless isRunning}}disabled{{/unless}} title="Stop VM">
             <i class="fas fa-stop"></i>
         </button>
-        <button class="btn btn-sm btn-warning" data-action="restart"
+        <button class="btn btn-sm btn-tonal btn-warning" data-action="restart"
                 {{#unless isRunning}}disabled{{/unless}} title="Restart VM">
             <i class="fas fa-sync"></i>
         </button>

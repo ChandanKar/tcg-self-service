@@ -162,6 +162,78 @@
 }
 
 /* ================================================
+   Tonal buttons — soft-tint state-action buttons (Start/Stop/Restart, Approve/Deny,
+   Release/Break Lock). Unlike .btn-action (transparent until hover — built for dense
+   repeated row icons where any color is visual noise), these are the small set of
+   high-visibility state actions where instant color recognition at rest matters (users
+   scan for green=Start vs red=Stop). A low-opacity semantic tint replaces the harsh
+   fully-saturated pill fill without losing that at-a-glance recognition. Compose with
+   the existing Bootstrap semantic class exactly like .btn-action:
+   class="btn btn-sm btn-tonal btn-success". Text color uses the existing dark
+   status-badge tokens (not the bright --success/--danger/--warning-color itself) because
+   the bright tokens fail WCAG AA against their own tint.
+   ================================================ */
+.btn-tonal {
+    border-radius: var(--radius-btn, 6px);
+    border-color: transparent;
+    font-weight: 600;
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.btn-tonal.btn-primary,
+.btn-tonal.btn-outline-primary {
+    background-color: rgba(37, 99, 235, 0.12);
+    color: var(--primary-dark, #1e40af);
+}
+
+.btn-tonal.btn-success,
+.btn-tonal.btn-outline-success {
+    background-color: rgba(16, 185, 129, 0.12);
+    color: var(--status-running-text, #166534);
+}
+
+.btn-tonal.btn-danger,
+.btn-tonal.btn-outline-danger {
+    background-color: rgba(239, 68, 68, 0.12);
+    color: var(--status-error-text, #991b1b);
+}
+
+.btn-tonal.btn-warning,
+.btn-tonal.btn-outline-warning {
+    background-color: rgba(245, 158, 11, 0.12);
+    color: var(--status-stopping-text, #92400e);
+}
+
+.btn-tonal:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.btn-tonal.btn-primary:hover:not(:disabled),
+.btn-tonal.btn-outline-primary:hover:not(:disabled) {
+    background-color: rgba(37, 99, 235, 0.20);
+}
+
+.btn-tonal.btn-success:hover:not(:disabled),
+.btn-tonal.btn-outline-success:hover:not(:disabled) {
+    background-color: rgba(16, 185, 129, 0.20);
+}
+
+.btn-tonal.btn-danger:hover:not(:disabled),
+.btn-tonal.btn-outline-danger:hover:not(:disabled) {
+    background-color: rgba(239, 68, 68, 0.20);
+}
+
+.btn-tonal.btn-warning:hover:not(:disabled),
+.btn-tonal.btn-outline-warning:hover:not(:disabled) {
+    background-color: rgba(245, 158, 11, 0.20);
+}
+
+.btn-tonal:disabled {
+    opacity: 0.45;
+    transform: none;
+}
+
+/* ================================================
    Button Size Standards (TASK-031)
    ================================================ */
 .btn-action-sm {

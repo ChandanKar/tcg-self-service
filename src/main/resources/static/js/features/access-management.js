@@ -584,7 +584,7 @@ const AccessManagement = (function() {
                 <div class="access-request-actions">
                     <span class="access-level-badge ${levelClass}">${request.requestedAccessLevel}</span>
                     <div class="access-action-buttons">
-                        <button class="btn btn-sm btn-success" data-action="approve" data-request-id="${request.requestId}">
+                        <button class="btn btn-sm btn-tonal btn-success" data-action="approve" data-request-id="${request.requestId}">
                             <i class="fas fa-check"></i> Approve
                         </button>
                         <button class="btn btn-sm btn-outline-danger" data-action="deny" data-request-id="${request.requestId}" title="Deny">

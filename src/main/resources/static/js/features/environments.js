@@ -552,17 +552,17 @@ const Environments = (function() {
                                 <i class="fas fa-spinner fa-spin"></i> In Progress
                             </button>` :
                         runningVms === 0 ?
-                            `<button class="btn btn-sm btn-success" id="btn-env-action" data-action-type="start">
+                            `<button class="btn btn-sm btn-tonal btn-success" id="btn-env-action" data-action-type="start">
                                 <i class="fas fa-play-circle"></i> Start All
                             </button>` :
                         runningVms === totalVms ?
-                            `<button class="btn btn-sm btn-danger" id="btn-env-action" data-action-type="stop">
+                            `<button class="btn btn-sm btn-tonal btn-danger" id="btn-env-action" data-action-type="stop">
                                 <i class="fas fa-stop-circle"></i> Stop All
                             </button>` :
-                            `<button class="btn btn-sm btn-success" id="btn-env-action" data-action-type="start">
+                            `<button class="btn btn-sm btn-tonal btn-success" id="btn-env-action" data-action-type="start">
                                 <i class="fas fa-play-circle"></i> Start All
                             </button>
-                            <button class="btn btn-sm btn-danger" id="btn-env-action-stop" data-action-type="stop">
+                            <button class="btn btn-sm btn-tonal btn-danger" id="btn-env-action-stop" data-action-type="stop">
                                 <i class="fas fa-stop-circle"></i> Stop All
                             </button>`
                         }
@@ -661,17 +661,17 @@ const Environments = (function() {
                 <i class="fas fa-spinner fa-spin"></i> In Progress
             </button>` :
             runningCount === 0 ?
-            `<button class="btn btn-sm btn-success" data-group-id="${group.groupId}" data-action="group-action" data-action-type="start">
+            `<button class="btn btn-sm btn-tonal btn-success" data-group-id="${group.groupId}" data-action="group-action" data-action-type="start">
                 <i class="fas fa-play-circle"></i> Start
             </button>` :
             runningCount === totalCount ?
-            `<button class="btn btn-sm btn-danger" data-group-id="${group.groupId}" data-action="group-action" data-action-type="stop">
+            `<button class="btn btn-sm btn-tonal btn-danger" data-group-id="${group.groupId}" data-action="group-action" data-action-type="stop">
                 <i class="fas fa-stop-circle"></i> Stop
             </button>` :
-            `<button class="btn btn-sm btn-success me-1" data-group-id="${group.groupId}" data-action="group-action" data-action-type="start">
+            `<button class="btn btn-sm btn-tonal btn-success me-1" data-group-id="${group.groupId}" data-action="group-action" data-action-type="start">
                 <i class="fas fa-play-circle"></i> Start
             </button>
-            <button class="btn btn-sm btn-danger" data-group-id="${group.groupId}" data-action="group-action" data-action-type="stop">
+            <button class="btn btn-sm btn-tonal btn-danger" data-group-id="${group.groupId}" data-action="group-action" data-action-type="stop">
                 <i class="fas fa-stop-circle"></i> Stop
             </button>`;
 

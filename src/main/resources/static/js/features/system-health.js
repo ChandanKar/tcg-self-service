@@ -241,7 +241,7 @@ const SystemHealth = (function () {
                     <button class="btn btn-sm btn-primary" id="trigger-sync-btn" onclick="SystemHealth.triggerSync()">
                         <i class="fas fa-sync me-1"></i>Trigger Sync
                     </button>
-                    <button class="btn btn-sm btn-warning" id="trigger-eks-sync-btn" onclick="SystemHealth.triggerEksSync()">
+                    <button class="btn btn-sm btn-tonal btn-warning" id="trigger-eks-sync-btn" onclick="SystemHealth.triggerEksSync()">
                         <i class="fab fa-aws me-1"></i>EKS Sync Now
                     </button>
                     <button class="btn btn-sm btn-ghost" onclick="SystemHealth.load()">
