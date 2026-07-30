@@ -648,6 +648,47 @@ public class AuditService {
                 String.format("Access revoked for %s. Revoked by %s", describeUser(userId), describeUser(performedByUserId)));
     }
 
+    // ============= Automation Rule Operations =============
+
+    public void logAutomationRuleCreated(String userId, String ruleId, String ruleName,
+                                         String environmentId, String environmentName) {
+        logEnvironmentAction(auditUserId(userId), AuditAction.AUTOMATION_RULE_CREATED, environmentId, environmentName,
+                "automation_rule", ruleId, ruleName,
+                "Automation rule created: " + ruleName + " by " + describeUser(userId));
+    }
+
+    public void logAutomationRuleUpdated(String userId, String ruleId, String ruleName,
+                                         String environmentId, String environmentName) {
+        logEnvironmentAction(auditUserId(userId), AuditAction.AUTOMATION_RULE_UPDATED, environmentId, environmentName,
+                "automation_rule", ruleId, ruleName,
+                "Automation rule updated: " + ruleName + " by " + describeUser(userId));
+    }
+
+    public void logAutomationRuleDeleted(String userId, String ruleId, String ruleName,
+                                         String environmentId, String environmentName) {
+        logEnvironmentAction(auditUserId(userId), AuditAction.AUTOMATION_RULE_DELETED, environmentId, environmentName,
+                "automation_rule", ruleId, ruleName,
+                "Automation rule deleted: " + ruleName + " by " + describeUser(userId));
+    }
+
+    public void logAutomationRuleTriggered(String userId, String ruleId, String ruleName,
+                                           String environmentId, String environmentName, String detail) {
+        logEnvironmentAction(auditUserId(userId), AuditAction.AUTOMATION_RULE_TRIGGERED, environmentId, environmentName,
+                "automation_rule", ruleId, ruleName, detail);
+    }
+
+    public void logAutomationRuleSkipped(String userId, String ruleId, String ruleName,
+                                         String environmentId, String environmentName, String reason) {
+        logEnvironmentAction(auditUserId(userId), AuditAction.AUTOMATION_RULE_SKIPPED, environmentId, environmentName,
+                "automation_rule", ruleId, ruleName, "Skipped: " + reason);
+    }
+
+    public void logAutomationRuleFailed(String userId, String ruleId, String ruleName,
+                                        String environmentId, String environmentName, String errorMessage) {
+        logEnvironmentFailure(auditUserId(userId), AuditAction.AUTOMATION_RULE_FAILED, environmentId, environmentName,
+                "automation_rule", ruleId, ruleName, errorMessage);
+    }
+
     /**
      * Renders a user as "Display Name (email)" for embedding in free-text audit details,
      * instead of the raw internal user UUID (or Entra object ID) that's meaningless to a reader.

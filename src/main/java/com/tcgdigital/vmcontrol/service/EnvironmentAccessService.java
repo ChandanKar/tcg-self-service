@@ -39,6 +39,7 @@ public class EnvironmentAccessService {
     private final AuditService auditService;
     private final NotificationService notificationService;
     private final UserService userService;
+    private final AutomationRuleService automationRuleService;
 
     public EnvironmentAccessService(EnvironmentAccessRepository accessRepository,
                                      EnvironmentAccessRequestRepository requestRepository,
@@ -46,7 +47,8 @@ public class EnvironmentAccessService {
                                      UserRepository userRepository,
                                      AuditService auditService,
                                      NotificationService notificationService,
-                                     UserService userService) {
+                                     UserService userService,
+                                     AutomationRuleService automationRuleService) {
         this.accessRepository = accessRepository;
         this.requestRepository = requestRepository;
         this.environmentRepository = environmentRepository;
@@ -54,6 +56,7 @@ public class EnvironmentAccessService {
         this.auditService = auditService;
         this.notificationService = notificationService;
         this.userService = userService;
+        this.automationRuleService = automationRuleService;
     }
 
     // ============= Access Request Operations =============
@@ -189,6 +192,9 @@ public class EnvironmentAccessService {
                 request.getEnvironment().getName(),
                 request.getEnvironment().getEnvironmentId());
 
+        runNotificationSideEffect("trigger access-granted automation rules", requestId, () ->
+                automationRuleService.handleAccessGranted(request.getEnvironment().getEnvironmentId()));
+
         return saved;
     }
 
@@ -298,6 +304,9 @@ public class EnvironmentAccessService {
                 environment.getName(), dto.getAccessLevel().getValue());
 
         notificationService.notifyAccessGranted(targetUserId, environment.getName(), environmentId);
+
+        runNotificationSideEffect("trigger access-granted automation rules", environmentId, () ->
+                automationRuleService.handleAccessGranted(environmentId));
 
         return saved;
     }

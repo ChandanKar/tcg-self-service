@@ -149,6 +149,15 @@ public class NotificationService {
                "ENVIRONMENT", environmentId);
     }
 
+    public void notifyAutomationRuleSkipped(String ruleOwnerUserId, String environmentName,
+                                            String ruleName, String lockedByDisplayName) {
+        create(ruleOwnerUserId, NotificationType.AUTOMATION_RULE_SKIPPED,
+               "Automation rule skipped: " + ruleName,
+               "Your automation rule \"" + ruleName + "\" on environment \"" + environmentName +
+                       "\" was skipped because it is locked by " + lockedByDisplayName + ".",
+               "ENVIRONMENT", null);
+    }
+
     public void notifyAccessRequestedForReviewers(String environmentId, String environmentName,
                                                   String requesterUserId, String requestId,
                                                   String requestedAccessLevel) {

@@ -10,6 +10,7 @@ import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import com.tcgdigital.vmcontrol.repository.LockHistoryRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,17 +34,20 @@ public class LockService {
     private final EnvironmentRepository environmentRepository;
     private final AuditService auditService;
     private final NotificationService notificationService;
+    private final AutomationRuleService automationRuleService;
 
     public LockService(EnvironmentLockRepository lockRepository,
                        LockHistoryRepository historyRepository,
                        EnvironmentRepository environmentRepository,
                        AuditService auditService,
-                       NotificationService notificationService) {
+                       NotificationService notificationService,
+                       @Lazy AutomationRuleService automationRuleService) {
         this.lockRepository = lockRepository;
         this.historyRepository = historyRepository;
         this.environmentRepository = environmentRepository;
         this.auditService = auditService;
         this.notificationService = notificationService;
+        this.automationRuleService = automationRuleService;
     }
 
     /**
@@ -100,6 +104,9 @@ public class LockService {
                         environment.getName(),
                         userId,
                         reason));
+
+        runNotificationSideEffect("trigger lock-acquire automation rules", environmentId, () ->
+                automationRuleService.handleLockAcquired(environmentId, userId));
 
         log.info("Lock acquired on environment {} by user {}", environmentId, userId);
 

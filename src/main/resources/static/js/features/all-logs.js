@@ -303,6 +303,14 @@ const AllLogs = (function() {
                             <option value="USER_CREATED" ${currentFilters.actionType === 'USER_CREATED' ? 'selected' : ''}>User Created</option>
                             <option value="USER_PROMOTED_TO_ADMIN" ${currentFilters.actionType === 'USER_PROMOTED_TO_ADMIN' ? 'selected' : ''}>User Promoted</option>
                         </optgroup>
+                        <optgroup label="Automation Rules">
+                            <option value="AUTOMATION_RULE_TRIGGERED" ${currentFilters.actionType === 'AUTOMATION_RULE_TRIGGERED' ? 'selected' : ''}>Rule Triggered</option>
+                            <option value="AUTOMATION_RULE_SKIPPED" ${currentFilters.actionType === 'AUTOMATION_RULE_SKIPPED' ? 'selected' : ''}>Rule Skipped</option>
+                            <option value="AUTOMATION_RULE_FAILED" ${currentFilters.actionType === 'AUTOMATION_RULE_FAILED' ? 'selected' : ''}>Rule Failed</option>
+                            <option value="AUTOMATION_RULE_CREATED" ${currentFilters.actionType === 'AUTOMATION_RULE_CREATED' ? 'selected' : ''}>Rule Created</option>
+                            <option value="AUTOMATION_RULE_UPDATED" ${currentFilters.actionType === 'AUTOMATION_RULE_UPDATED' ? 'selected' : ''}>Rule Updated</option>
+                            <option value="AUTOMATION_RULE_DELETED" ${currentFilters.actionType === 'AUTOMATION_RULE_DELETED' ? 'selected' : ''}>Rule Deleted</option>
+                        </optgroup>
                     </select>
                     <select class="form-select form-select-sm" id="result-filter">
                         <option value="">All Results</option>
@@ -646,6 +654,14 @@ const AllLogs = (function() {
         if (!action) return 'bg-secondary';
 
         const actionStr = action.toString().toLowerCase();
+        // Automation rule actions checked explicitly (before the generic substring
+        // checks below) — "automation_rule_triggered"/"_skipped" don't contain any of
+        // those generic keywords and would otherwise always fall through to bg-secondary.
+        if (actionStr === 'automation_rule_triggered') return 'bg-success';
+        if (actionStr === 'automation_rule_skipped') return 'bg-warning';
+        if (actionStr === 'automation_rule_failed') return 'bg-danger';
+        if (actionStr.startsWith('automation_rule_')) return 'bg-primary';
+
         if (actionStr.includes('start')) return 'bg-success';
         if (actionStr.includes('stop')) return 'bg-danger';
         if (actionStr.includes('lock')) return 'bg-warning';

@@ -1,0 +1,242 @@
+/*
+ * Automation Rules Feature Styles
+ * Reuses existing tokens (--primary-color, .status-badge, .metric-card, .btn-action) —
+ * only what isn't already covered lives here.
+ */
+
+.ar-type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.28rem 0.65rem;
+    border-radius: 9999px;
+    font-size: var(--table-body-font, 0.81rem);
+    font-weight: 600;
+}
+
+.ar-type-schedule {
+    background: #e0e7ff;
+    color: #3730a3;
+}
+
+.ar-type-access {
+    background: var(--status-starting-bg, #dbeafe);
+    color: var(--status-starting-text, #1e40af);
+}
+
+/* Trigger-type choice cards in the New/Edit Rule modal */
+.ar-choice-card {
+    border: 1.5px solid var(--border-color, #e2e8f0);
+    border-radius: 8px;
+    padding: 0.75rem 0.85rem;
+    cursor: pointer;
+    height: 100%;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.ar-choice-card:hover {
+    border-color: var(--primary-light, #3b82f6);
+}
+
+.ar-choice-card.selected {
+    border-color: var(--primary-color);
+    background: rgba(37, 99, 235, 0.06);
+}
+
+.ar-choice-top {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    font-size: 0.86rem;
+    margin-bottom: 0.3rem;
+    color: var(--text-primary);
+}
+
+.ar-choice-top i {
+    color: var(--primary-color);
+}
+
+/* Day-of-week toggle pills */
+.ar-day-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 32px;
+    border-radius: 7px;
+    border: 1px solid var(--border-color, #e2e8f0);
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: #fff;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.ar-day-pill.on {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: #fff;
+}
+
+/* ================================================
+   Page layout — brought to parity with other admin list pages
+   (VM Registry, Access Management): fills #content-area, filter bar,
+   compact stat cards, dashboard-baseline table density.
+   ================================================ */
+.ar-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+.ar-container > .content-header {
+    flex-shrink: 0;
+}
+/* #ar-content is the single scroll region for everything below the header
+   (stat grid, filters, table card, activity feed) — without this, the fixed-
+   height/overflow:hidden .ar-container silently clips whatever doesn't fit,
+   which is why "Recent Rule Activity" (rendered last) went missing. */
+#ar-content {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+/* ── Filters bar ── */
+.ar-filters-bar {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+    align-items: center;
+    flex-shrink: 0;
+}
+.ar-filters-bar .input-group {
+    flex: 0 0 calc(40% - 0.5rem);
+    min-width: 0;
+}
+.ar-filters-bar .form-select {
+    flex: 0 0 calc(20% - 0.5rem);
+    min-width: 0;
+    font-size: 0.81rem;
+}
+.ar-filters-bar .input-group .form-control,
+.ar-filters-bar .input-group-text {
+    font-size: 0.81rem;
+}
+
+/* ── Stat grid: always 4 across on desktop/tablet — grid, not Bootstrap's
+   viewport-based .col-md-3, so it doesn't wrap just because the sidebar
+   narrows the actual available width at a given browser width. ── */
+.ar-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+    flex-shrink: 0;
+}
+@media (max-width: 640px) {
+    .ar-stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* ── Compact stat cards — matches Dashboard/All Logs/System Health density ── */
+.ar-container .metric-card {
+    padding: 0.6rem 0.85rem;
+    text-align: center;
+    cursor: default;
+}
+.ar-container .metric-card:hover {
+    transform: none;
+}
+.ar-container .metric-value {
+    font-size: var(--font-size-2xl, 1.5rem);
+    font-weight: 700;
+    line-height: 1.2;
+}
+.ar-container .metric-label-hint {
+    font-size: 0.63rem;
+}
+
+/* ── Table card: sits in #ar-content's natural flow (see #ar-content above for
+   why); the table itself is capped with its own max-height + scroll as a safety
+   net, but with pagination already limiting rows to PAGE_SIZE this rarely engages. ── */
+.ar-table-card-body {
+    padding: 0 !important;
+}
+.ar-table-wrapper {
+    max-height: 480px;
+    overflow-y: auto;
+}
+/* Scrollbar — see main.css for the shared ::-webkit-scrollbar rules */
+
+.ar-table-wrapper .table {
+    table-layout: fixed;
+    width: 100%;
+    margin-bottom: 0;
+}
+.ar-table-wrapper .table td,
+.ar-table-wrapper .table th {
+    padding: var(--table-cell-padding, 0.28rem 0.55rem);
+    font-size: var(--table-body-font, 0.81rem);
+    vertical-align: middle;
+    line-height: 1.5;
+}
+.ar-table-wrapper .table thead th {
+    font-size: var(--table-header-font, 0.7rem);
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    background: var(--table-header-bg, #f8fafc);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+/* Rule | Type | Scope | Trigger | Status | Last Run | Actions */
+.ar-table-wrapper .table thead th:nth-child(1),
+.ar-table-wrapper .table tbody td:nth-child(1) { width: 24%; }
+.ar-table-wrapper .table thead th:nth-child(2),
+.ar-table-wrapper .table tbody td:nth-child(2) { width: 12%; }
+.ar-table-wrapper .table thead th:nth-child(3),
+.ar-table-wrapper .table tbody td:nth-child(3) { width: 16%; }
+.ar-table-wrapper .table thead th:nth-child(4),
+.ar-table-wrapper .table tbody td:nth-child(4) { width: 20%; }
+.ar-table-wrapper .table thead th:nth-child(5),
+.ar-table-wrapper .table tbody td:nth-child(5) { width: 8%; text-align: center; }
+.ar-table-wrapper .table thead th:nth-child(6),
+.ar-table-wrapper .table tbody td:nth-child(6) { width: 12%; }
+.ar-table-wrapper .table thead th:nth-child(7),
+.ar-table-wrapper .table tbody td:nth-child(7) { width: 8%; white-space: nowrap; text-align: end; }
+
+.ar-row-desc {
+    font-size: var(--table-header-font, 0.7rem);
+    color: var(--text-secondary);
+}
+
+/* Empty-state row — keeps the header visible instead of hiding the whole table */
+.ar-empty-row td {
+    height: 100%;
+    border-bottom: none;
+}
+
+/* Pagination — see components/pagination.css for .pagination-bar-wrap / .pg-btn */
+
+@media (max-width: 992px) {
+    .ar-filters-bar {
+        flex-wrap: wrap;
+    }
+    .ar-filters-bar .input-group {
+        flex: 1 1 100%;
+    }
+    .ar-filters-bar .form-select {
+        flex: 1 1 calc(50% - 0.5rem);
+    }
+}
