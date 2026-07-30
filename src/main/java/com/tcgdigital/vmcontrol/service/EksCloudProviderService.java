@@ -310,6 +310,24 @@ public class EksCloudProviderService implements CloudProviderService {
         return clusters;
     }
 
+    /**
+     * Applies (or overwrites) the given tags on an EKS managed node group, identified by its
+     * ARN (not clusterName/nodeGroupName — {@code TagResource} requires the real ARN, obtained
+     * via {@link #describeNodegroup}). Used for cost-allocation tagging, never called during
+     * normal start/stop/sync.
+     */
+    public void tagNodeGroup(String nodegroupArn, String region, Map<String, String> tags) {
+        if (nodegroupArn == null || tags.isEmpty()) {
+            return;
+        }
+        EksClient eks = getEksClient(region);
+        eks.tagResource(TagResourceRequest.builder()
+                .resourceArn(nodegroupArn)
+                .tags(tags)
+                .build());
+        log.info("Tagged EKS node group {} with {}", nodegroupArn, tags);
+    }
+
     // ---- private helpers ----
 
     /**

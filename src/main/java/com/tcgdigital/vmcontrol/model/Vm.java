@@ -93,6 +93,9 @@ public class Vm {
     @Column(columnDefinition = "TEXT")
     private String metadata;
 
+    @Column(name = "tags_synced_at")
+    private Timestamp tagsSyncedAt;
+
     public Vm() {
     }
 
@@ -305,6 +308,14 @@ public class Vm {
 
     public void setMetadata(String metadata) {
         this.metadata = metadata;
+    }
+
+    public Timestamp getTagsSyncedAt() {
+        return tagsSyncedAt;
+    }
+
+    public void setTagsSyncedAt(Timestamp tagsSyncedAt) {
+        this.tagsSyncedAt = tagsSyncedAt;
     }
 }
 

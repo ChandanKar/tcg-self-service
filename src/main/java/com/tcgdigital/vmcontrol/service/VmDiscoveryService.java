@@ -34,6 +34,7 @@ public class VmDiscoveryService {
     private final AwsCloudProviderService awsService;
     private final AuditService auditService;
     private final ObjectMapper objectMapper;
+    private final TagReconciliationService tagReconciliationService;
 
     @Value("${vm.discovery.strategy:tag}")
     private String discoveryStrategy;
@@ -52,13 +53,28 @@ public class VmDiscoveryService {
                               VmRepository vmRepository,
                               AwsCloudProviderService awsService,
                               AuditService auditService,
-                              ObjectMapper objectMapper) {
+                              ObjectMapper objectMapper,
+                              TagReconciliationService tagReconciliationService) {
         this.environmentRepository = environmentRepository;
         this.vmGroupRepository = vmGroupRepository;
         this.vmRepository = vmRepository;
         this.awsService = awsService;
         this.auditService = auditService;
         this.objectMapper = objectMapper;
+        this.tagReconciliationService = tagReconciliationService;
+    }
+
+    /**
+     * Reconciles cost-allocation tags for an environment right after discovering VMs for it, so
+     * newly-registered VMs don't have to wait for the nightly sweep. A tagging failure must
+     * never block discovery — it's a best-effort side effect, not a required step.
+     */
+    private void reconcileTagsSafely(Environment env) {
+        try {
+            tagReconciliationService.reconcileEnvironment(env);
+        } catch (Exception e) {
+            log.warn("Tag reconciliation failed for environment {} (discovery unaffected): {}", env.getName(), e.getMessage());
+        }
     }
 
     public int discoverAndRegisterVms() {
@@ -156,6 +172,7 @@ public class VmDiscoveryService {
         Set<String> liveIds = instances.stream().map(Instance::instanceId).collect(Collectors.toSet());
         flagMissingVms(group, liveIds);
 
+        reconcileTagsSafely(env);
         return registered;
     }
 
@@ -236,6 +253,7 @@ public class VmDiscoveryService {
             registered++;
         }
         flagMissingVms(discoveryGroup, liveInstanceIds);
+        reconcileTagsSafely(env);
         return registered;
     }
 

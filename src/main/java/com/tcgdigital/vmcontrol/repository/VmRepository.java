@@ -141,6 +141,14 @@ public interface VmRepository extends JpaRepository<Vm, String> {
     List<Vm> findByIsActiveTrueFetchGroupAndEnvironment();
 
     /**
+     * Counts for the cost-allocation tagging status banner: how many active VMs have never been
+     * successfully tagged yet (tagsSyncedAt IS NULL) vs. how many have.
+     */
+    long countByIsActiveTrueAndTagsSyncedAtIsNull();
+
+    long countByIsActiveTrueAndTagsSyncedAtIsNotNull();
+
+    /**
      * Per-group VM/running counts for every group in an environment, in a single query —
      * avoids querying each group individually when building a group listing with counts.
      */

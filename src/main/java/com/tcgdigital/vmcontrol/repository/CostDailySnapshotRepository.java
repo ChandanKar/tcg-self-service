@@ -17,6 +17,13 @@ public interface CostDailySnapshotRepository extends JpaRepository<CostDailySnap
     Optional<CostDailySnapshot> findByEnvironmentEnvironmentIdAndSnapshotDate(String environmentId, Date snapshotDate);
 
     /**
+     * Guards {@code ActualCostIngestionScheduler} against re-billing the Cost Explorer API for a
+     * day whose actuals were already ingested (e.g. after an app restart) — Cost Explorer charges
+     * per call, so this check is cheaper than a separate ingestion-watermark table.
+     */
+    boolean existsBySnapshotDateAndActualCostIsNotNull(Date snapshotDate);
+
+    /**
      * Fleet-wide daily totals since a given date, in one query — feeds the spend trend chart.
      */
     @Query("SELECT c.snapshotDate AS snapshotDate, SUM(c.estimatedCost) AS totalEstimatedCost, " +
