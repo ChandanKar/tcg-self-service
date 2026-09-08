@@ -10,6 +10,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.function.Function;
@@ -19,6 +21,8 @@ import java.util.stream.Collectors;
 public class DashboardSummaryService {
 
     private static final int TREND_BUCKETS = 7;
+    private static final DateTimeFormatter TREND_LABEL_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
+    private static final ZoneId TREND_LABEL_ZONE = ZoneId.of("Asia/Kolkata");
 
     private final EnvironmentService environmentService;
     private final UserService userService;
@@ -293,11 +297,20 @@ public class DashboardSummaryService {
             int index = (int) Math.min(TREND_BUCKETS - 1, ((sample.getSampleTime().getTime() - min) * TREND_BUCKETS) / span);
             buckets.get(index).add(sample);
         }
+        // Label each bucket with its IST clock time (24h, e.g. "14:32") instead of a bare ordinal
+        // ("T1", "T2", ...). Every bucket is labeled at its END boundary rather than its midpoint,
+        // so the buckets read as a progression toward "now" — and the very last bucket is forced
+        // to exactly `max` (the latest sample actually collected) rather than an end-boundary that
+        // integer-division rounding could leave a hair short of it, so the last point always shows
+        // the freshest data available, not a slightly-stale approximation of it.
+        long bucketWidth = span / TREND_BUCKETS;
         List<DashboardSummaryDTO.ChartPointDTO> points = new ArrayList<>();
         for (int i = 0; i < buckets.size(); i++) {
             List<VmMetricSample> bucket = buckets.get(i);
+            long bucketEnd = (i == buckets.size() - 1) ? max : min + (bucketWidth * (i + 1));
+            String label = TREND_LABEL_FORMAT.format(Instant.ofEpochMilli(bucketEnd).atZone(TREND_LABEL_ZONE));
             points.add(new DashboardSummaryDTO.ChartPointDTO(
-                    "T" + (i + 1),
+                    label,
                     averageCpu(bucket),
                     averageMemory(bucket),
                     sumLong(bucket, VmMetricSample::getNetworkInBytes),
