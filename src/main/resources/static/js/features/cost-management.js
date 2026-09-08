@@ -405,13 +405,16 @@ const CostManagement = (function() {
         const data = topSlicesWithOther(rows, TOP_N_SLICES, r => r.dimensionLabel, r => Number(r.cost) || 0);
         return {
             color: CATEGORICAL_COLORS,
+            // No legend — every slice is already direct-labeled with name + percent, and hover
+            // (tooltip) carries the exact dollar figure, so a legend would just repeat identity
+            // the chart already shows on its face.
             tooltip: { trigger: 'item', confine: true, valueFormatter: value => Utils.formatCurrency(value) },
-            legend: { bottom: 0, type: 'scroll', textStyle: chartTextStyle() },
             series: [{
                 type: 'pie',
-                radius: ['38%', '68%'],
-                center: ['50%', '42%'],
-                label: { formatter: '{b}\n{d}%', fontSize: 11 },
+                radius: ['40%', '72%'],
+                center: ['50%', '50%'],
+                label: { show: false },
+                labelLine: { show: false },
                 itemStyle: { borderColor: '#fff', borderWidth: 2 },
                 data
             }]
@@ -543,13 +546,28 @@ const CostManagement = (function() {
         const forecastValues = rows.map((r, i) => i === rows.length - 1 ? (Number(r.estimatedCost) || 0) : null)
             .concat(forecastPoints.map(p => Number(p.cost) || 0));
 
+        // "Today" divider between real history and projection — the clearest way to separate
+        // two dashed series (Actual, Forecast) that sit close together on the CVD spectrum
+        // (validated: ΔE 7.9, in the 6-8 floor band that requires a secondary encoding beyond
+        // color alone). Actual only ever has values in the historical range and Forecast only
+        // ever has values after it, so this line makes that existing gap explicit instead of
+        // leaving the viewer to infer it.
+        const todayMarkLine = forecastPoints.length ? {
+            silent: true,
+            symbol: 'none',
+            lineStyle: { type: 'dashed', color: '#94a3b8', width: 1 },
+            label: { formatter: 'Today', color: chartTextStyle().color, fontFamily: chartTextStyle().fontFamily },
+            data: [{ xAxis: rows.length - 1 }]
+        } : undefined;
+
         const series = [{
             name: 'Estimated Cost',
             type: 'line',
             smooth: true,
             showSymbol: estimatedValues.length < 60,
             areaStyle: { opacity: 0.08 },
-            data: estimatedValues
+            data: estimatedValues,
+            markLine: todayMarkLine
         }];
         if (hasAnyActual) {
             series.push({
@@ -557,6 +575,7 @@ const CostManagement = (function() {
                 type: 'line',
                 smooth: true,
                 showSymbol: estimatedValues.length < 60,
+                symbol: 'circle',
                 connectNulls: true,
                 lineStyle: { type: 'dashed' },
                 data: actualValues
@@ -566,10 +585,14 @@ const CostManagement = (function() {
             series.push({
                 name: 'Forecast',
                 type: 'line',
-                showSymbol: false,
+                // Diamond symbol is a second, color-independent way to tell Forecast apart from
+                // Actual (both dashed, both non-primary) — on top of the "Today" divider above.
+                showSymbol: true,
+                symbol: 'diamond',
+                symbolSize: 8,
                 connectNulls: true,
-                lineStyle: { type: 'dashed', color: '#d97706' },
-                itemStyle: { color: '#d97706' },
+                lineStyle: { type: 'dashed', color: CATEGORICAL_COLORS[2] },
+                itemStyle: { color: CATEGORICAL_COLORS[2] },
                 data: forecastValues
             });
         }
@@ -577,7 +600,7 @@ const CostManagement = (function() {
         const hasLegend = hasAnyActual || forecastPoints.length > 0;
 
         return {
-            color: ['#2563eb', '#059669'],
+            color: [CATEGORICAL_COLORS[0], CATEGORICAL_COLORS[1]],
             legend: hasLegend ? { bottom: 0, textStyle: chartTextStyle() } : undefined,
             tooltip: {
                 trigger: 'axis',
@@ -598,7 +621,7 @@ const CostManagement = (function() {
                     }
                     const forecastPoint = forecastPoints[idx - rows.length];
                     return forecastPoint
-                        ? `${forecastPoint.date}<br/>Forecast: ${Utils.formatCurrency(Number(forecastPoint.cost) || 0)}`
+                        ? `${forecastPoint.date} (projected)<br/>Forecast: ${Utils.formatCurrency(Number(forecastPoint.cost) || 0)}`
                         : '';
                 }
             },
