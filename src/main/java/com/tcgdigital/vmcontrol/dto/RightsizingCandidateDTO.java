@@ -25,6 +25,7 @@ import java.math.BigDecimal;
 public record RightsizingCandidateDTO(
         String vmId,
         String vmName,
+        String environmentId,
         String environmentName,
         String currentInstanceType,
         String suggestedInstanceType,

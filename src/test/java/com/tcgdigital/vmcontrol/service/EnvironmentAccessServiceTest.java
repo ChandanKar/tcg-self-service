@@ -392,6 +392,27 @@ class EnvironmentAccessServiceTest {
     }
 
     @Test
+    @DisplayName("Should return only environments where user holds ADMIN-level access")
+    void getAdministeredEnvironmentIds_returnsOnlyAdminLevelEnvironments() {
+        Environment secondEnvironment = new Environment();
+        secondEnvironment.setEnvironmentId(UUID.randomUUID().toString());
+        secondEnvironment.setName("test-env-2");
+        secondEnvironment.setDisplayName("Test Environment 2");
+        secondEnvironment.setIsActive(true);
+        secondEnvironment = environmentRepository.save(secondEnvironment);
+
+        // ADMIN-level access on testEnvironment, only VIEWER-level on secondEnvironment
+        GrantAccessDTO adminGrant = new GrantAccessDTO(requesterUser.getEmail(), AccessLevel.ADMIN, null, null);
+        GrantAccessDTO viewerGrant = new GrantAccessDTO(requesterUser.getEmail(), AccessLevel.VIEWER, null, null);
+        accessService.grantAccess(testEnvironment.getEnvironmentId(), adminUser.getUserId(), adminGrant);
+        accessService.grantAccess(secondEnvironment.getEnvironmentId(), adminUser.getUserId(), viewerGrant);
+
+        List<String> administered = accessService.getAdministeredEnvironmentIds(requesterUser.getUserId());
+
+        assertThat(administered).containsExactly(testEnvironment.getEnvironmentId());
+    }
+
+    @Test
     @DisplayName("Should get access for environment")
     void getAccessForEnvironment_success() {
         // Grant access to multiple users

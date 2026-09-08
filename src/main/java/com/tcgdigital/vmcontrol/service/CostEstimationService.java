@@ -399,6 +399,7 @@ public class CostEstimationService {
             candidates.add(new RightsizingCandidateDTO(
                     b.vm().getVmId(),
                     b.vm().getDisplayName(),
+                    b.vm().getGroup().getEnvironment().getEnvironmentId(),
                     b.vm().getGroup().getEnvironment().getDisplayName(),
                     b.instanceType(),
                     suggestedType,
@@ -440,6 +441,7 @@ public class CostEstimationService {
         return new IdleWasteRowDTO(
                 b.vm().getVmId(),
                 b.vm().getDisplayName(),
+                b.vm().getGroup().getEnvironment().getEnvironmentId(),
                 b.vm().getGroup().getEnvironment().getDisplayName(),
                 b.vm().getGroup().getDisplayName(),
                 b.estimate().cost(),

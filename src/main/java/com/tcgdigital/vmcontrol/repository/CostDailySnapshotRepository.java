@@ -41,8 +41,24 @@ public interface CostDailySnapshotRepository extends JpaRepository<CostDailySnap
            "ORDER BY c.snapshotDate ASC")
     List<CostDailySnapshot> findWithEnvironmentSince(@Param("sinceDate") Date sinceDate);
 
+    /**
+     * Per-environment totals over a date window — feeds the Weekly Cost Report's week-over-week
+     * comparison (called once for "this week", once for "last week").
+     */
+    @Query("SELECT c.environment.environmentId AS environmentId, " +
+           "SUM(c.estimatedCost) AS totalEstimatedCost, SUM(c.actualCost) AS totalActualCost " +
+           "FROM CostDailySnapshot c WHERE c.snapshotDate >= :start AND c.snapshotDate < :end " +
+           "GROUP BY c.environment.environmentId")
+    List<EnvironmentCostTotal> sumByEnvironmentBetween(@Param("start") Date start, @Param("end") Date end);
+
     interface DailyCostTotal {
         Date getSnapshotDate();
+        BigDecimal getTotalEstimatedCost();
+        BigDecimal getTotalActualCost();
+    }
+
+    interface EnvironmentCostTotal {
+        String getEnvironmentId();
         BigDecimal getTotalEstimatedCost();
         BigDecimal getTotalActualCost();
     }

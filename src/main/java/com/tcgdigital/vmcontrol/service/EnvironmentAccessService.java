@@ -350,6 +350,19 @@ public class EnvironmentAccessService {
     }
 
     /**
+     * Get IDs of environments where the user holds ADMIN-level access — i.e. environments
+     * this env-admin actually administers, as opposed to the global {@code envAdmin} role
+     * flag which says nothing about which environments they're scoped to.
+     */
+    public List<String> getAdministeredEnvironmentIds(String userId) {
+        Timestamp now = new Timestamp(System.currentTimeMillis());
+        return accessRepository.findByUserWithMinAccessLevel(userId, AccessLevel.ADMIN, now).stream()
+                .map(access -> access.getEnvironment().getEnvironmentId())
+                .distinct()
+                .toList();
+    }
+
+    /**
      * Check if user has access to an environment.
      */
     public boolean hasAccess(String environmentId, String userId) {

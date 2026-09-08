@@ -1,6 +1,7 @@
 package com.tcgdigital.vmcontrol.service;
 
 import com.tcgdigital.vmcontrol.dto.NotificationDTO;
+import com.tcgdigital.vmcontrol.model.AccessLevel;
 import com.tcgdigital.vmcontrol.model.EnvironmentAccess;
 import com.tcgdigital.vmcontrol.model.Notification;
 import com.tcgdigital.vmcontrol.model.NotificationType;
@@ -10,12 +11,14 @@ import com.tcgdigital.vmcontrol.repository.NotificationRepository;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,13 +32,35 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final EnvironmentAccessRepository accessRepository;
     private final UserRepository userRepository;
+    private final EmailService emailService;
+
+    @Value("${notification.email.access-requested.enabled:false}")
+    private boolean emailAccessRequestedEnabled;
+    @Value("${notification.email.access-expiring.enabled:false}")
+    private boolean emailAccessExpiringEnabled;
+    @Value("${notification.email.access-expired.enabled:false}")
+    private boolean emailAccessExpiredEnabled;
+    @Value("${notification.email.access-granted.enabled:false}")
+    private boolean emailAccessGrantedEnabled;
+    @Value("${notification.email.access-request-approved.enabled:false}")
+    private boolean emailAccessRequestApprovedEnabled;
+    @Value("${notification.email.access-request-denied.enabled:false}")
+    private boolean emailAccessRequestDeniedEnabled;
+    @Value("${notification.email.access-revoked.enabled:false}")
+    private boolean emailAccessRevokedEnabled;
+    @Value("${notification.email.operation-failed.enabled:false}")
+    private boolean emailOperationFailedEnabled;
+    @Value("${notification.email.lock-broken.enabled:false}")
+    private boolean emailLockBrokenEnabled;
 
     public NotificationService(NotificationRepository notificationRepository,
                                EnvironmentAccessRepository accessRepository,
-                               UserRepository userRepository) {
+                               UserRepository userRepository,
+                               EmailService emailService) {
         this.notificationRepository = notificationRepository;
         this.accessRepository = accessRepository;
         this.userRepository = userRepository;
+        this.emailService = emailService;
     }
 
     public Page<NotificationDTO> getNotifications(String userId, int page, int size) {
@@ -66,6 +91,15 @@ public class NotificationService {
     @Transactional
     public int markAllAsRead(String userId) {
         return notificationRepository.markAllReadForUser(userId);
+    }
+
+    /**
+     * Unconditional bell receipt for a weekly digest report (Cost / Idle Waste / Rightsizing) —
+     * fires regardless of whether that report's own email toggle is on, mirroring how every
+     * other notification type always fires its bell independent of email delivery.
+     */
+    public void notifyWeeklyReportSent(String userId, NotificationType type, String title, String message) {
+        create(userId, type, title, message, "ENVIRONMENT", null);
     }
 
     public void notifyLockBroken(String lockHolderUserId, String environmentName,
@@ -111,42 +145,57 @@ public class NotificationService {
         String adminName = resolveUserDisplayName(adminUserId);
         String holderName = resolveUserDisplayName(originalHolderUserId);
         String details = isBlank(reason) ? "" : " Reason: " + reason;
+        String actorTitle = "You broke the lock: " + environmentName;
+        String actorMessage = "You broke " + holderName + "'s lock on environment \"" + environmentName + "\"." + details;
+        String otherTitle = adminName + " broke the lock: " + environmentName;
+        String otherMessage = adminName + " broke " + holderName + "'s lock on environment \"" + environmentName + "\"." + details;
+
         broadcastToEnvironment(environmentId, adminUserId,
                 NotificationType.LOCK_BROKEN,
-                "You broke the lock: " + environmentName,
-                "You broke " + holderName + "'s lock on environment \"" + environmentName + "\"." + details,
-                adminName + " broke the lock: " + environmentName,
-                adminName + " broke " + holderName + "'s lock on environment \"" + environmentName + "\"." + details,
+                actorTitle, actorMessage, otherTitle, otherMessage,
                 "ENVIRONMENT",
                 environmentId);
+
+        if (emailLockBrokenEnabled) {
+            emailBroadcastSplitByActor(resolveEnvironmentRecipients(environmentId), adminUserId,
+                    actorTitle, actorMessage, otherTitle, otherMessage);
+        }
     }
 
     public void notifyAccessGranted(String userId, String environmentName, String environmentId) {
-        create(userId, NotificationType.ACCESS_GRANTED,
-               "Access granted: " + environmentName,
-               "You have been granted access to environment \"" + environmentName + "\".",
-               "ENVIRONMENT", environmentId);
+        String title = "Access granted: " + environmentName;
+        String message = "You have been granted access to environment \"" + environmentName + "\".";
+        create(userId, NotificationType.ACCESS_GRANTED, title, message, "ENVIRONMENT", environmentId);
+        if (emailAccessGrantedEnabled) {
+            sendEventEmailToUser(userId, title, message);
+        }
     }
 
     public void notifyAccessRevoked(String userId, String environmentName, String environmentId) {
-        create(userId, NotificationType.ACCESS_REVOKED,
-               "Access revoked: " + environmentName,
-               "Your access to environment \"" + environmentName + "\" has been revoked.",
-               "ENVIRONMENT", environmentId);
+        String title = "Access revoked: " + environmentName;
+        String message = "Your access to environment \"" + environmentName + "\" has been revoked.";
+        create(userId, NotificationType.ACCESS_REVOKED, title, message, "ENVIRONMENT", environmentId);
+        if (emailAccessRevokedEnabled) {
+            sendEventEmailToUser(userId, title, message);
+        }
     }
 
     public void notifyAccessRequestApproved(String userId, String environmentName, String environmentId) {
-        create(userId, NotificationType.ACCESS_REQUEST_APPROVED,
-               "Request approved: " + environmentName,
-               "Your access request for environment \"" + environmentName + "\" has been approved.",
-               "ENVIRONMENT", environmentId);
+        String title = "Request approved: " + environmentName;
+        String message = "Your access request for environment \"" + environmentName + "\" has been approved.";
+        create(userId, NotificationType.ACCESS_REQUEST_APPROVED, title, message, "ENVIRONMENT", environmentId);
+        if (emailAccessRequestApprovedEnabled) {
+            sendEventEmailToUser(userId, title, message);
+        }
     }
 
     public void notifyAccessRequestDenied(String userId, String environmentName, String environmentId) {
-        create(userId, NotificationType.ACCESS_REQUEST_DENIED,
-               "Request denied: " + environmentName,
-               "Your access request for environment \"" + environmentName + "\" has been denied.",
-               "ENVIRONMENT", environmentId);
+        String title = "Request denied: " + environmentName;
+        String message = "Your access request for environment \"" + environmentName + "\" has been denied.";
+        create(userId, NotificationType.ACCESS_REQUEST_DENIED, title, message, "ENVIRONMENT", environmentId);
+        if (emailAccessRequestDeniedEnabled) {
+            sendEventEmailToUser(userId, title, message);
+        }
     }
 
     public void notifyAutomationRuleSkipped(String ruleOwnerUserId, String environmentName,
@@ -163,30 +212,45 @@ public class NotificationService {
                                                   String requestedAccessLevel) {
         String requesterName = resolveUserDisplayName(requesterUserId);
         String level = isBlank(requestedAccessLevel) ? "access" : requestedAccessLevel.toUpperCase() + " access";
+        String title = "Access request: " + environmentName;
+        String message = requesterName + " requested " + level + " for environment \"" + environmentName + "\".";
+
         resolveEnvironmentReviewers(environmentId).forEach(user -> create(user.getUserId(),
-                NotificationType.ACCESS_REQUESTED,
-                "Access request: " + environmentName,
-                requesterName + " requested " + level + " for environment \"" + environmentName + "\".",
-                "ACCESS_REQUEST",
-                requestId));
+                NotificationType.ACCESS_REQUESTED, title, message, "ACCESS_REQUEST", requestId));
+
+        if (emailAccessRequestedEnabled) {
+            // Email is intentionally narrower than the bell's reviewer set — All Admin only,
+            // not env-admins (who are part of the bell's broadcast via resolveEnvironmentReviewers).
+            sendEventEmail(userRepository.findByAdminTrueAndIsActiveTrue(), title, message);
+        }
     }
 
     public void notifyAccessExpiring(String userId, String environmentName, String environmentId,
                                      String accessId, Timestamp expiresAt) {
-        createIfAbsent(userId, NotificationType.ACCESS_EXPIRING,
-                "Access expiring: " + environmentName,
-                "Your access to environment \"" + environmentName + "\" expires on " + formatDate(expiresAt) + ".",
-                "ACCESS",
-                accessId);
+        String title = "Access expiring: " + environmentName;
+        String message = "Your access to environment \"" + environmentName + "\" expires on " + formatDate(expiresAt) + ".";
+        boolean created = createIfAbsent(userId, NotificationType.ACCESS_EXPIRING, title, message, "ACCESS", accessId);
+
+        if (created && emailAccessExpiringEnabled) {
+            List<User> recipients = new ArrayList<>();
+            userRepository.findById(userId).ifPresent(recipients::add);
+            recipients.addAll(resolveAdministeringEnvAdmins(environmentId));
+            sendEventEmail(recipients, title, message);
+        }
     }
 
     public void notifyAccessExpired(String userId, String environmentName, String environmentId,
                                     String accessId) {
-        createIfAbsent(userId, NotificationType.ACCESS_EXPIRED,
-                "Access expired: " + environmentName,
-                "Your access to environment \"" + environmentName + "\" has expired.",
-                "ACCESS",
-                accessId);
+        String title = "Access expired: " + environmentName;
+        String message = "Your access to environment \"" + environmentName + "\" has expired.";
+        boolean created = createIfAbsent(userId, NotificationType.ACCESS_EXPIRED, title, message, "ACCESS", accessId);
+
+        if (created && emailAccessExpiredEnabled) {
+            List<User> recipients = new ArrayList<>();
+            userRepository.findById(userId).ifPresent(recipients::add);
+            recipients.addAll(resolveAdministeringEnvAdmins(environmentId));
+            sendEventEmail(recipients, title, message);
+        }
     }
 
     public void notifyOperationCompleted(String userId, String environmentName, String operationType) {
@@ -245,14 +309,22 @@ public class NotificationService {
         String actorName = resolveUserDisplayName(actorUserId);
         String verb = operationVerb(operationType);
         String failureReason = isBlank(reason) ? "Unknown error" : reason;
+        String actorTitle = "Your " + verb + " failed: " + environmentName;
+        String actorMessage = "Your " + verb + " operation on \"" + environmentName + "\" failed. Reason: " + failureReason;
+        String otherTitle = actorName + "'s " + verb + " failed: " + environmentName;
+        String otherMessage = actorName + "'s " + verb + " operation on \"" + environmentName + "\" failed. Reason: " + failureReason;
+
         broadcastToEnvironment(environmentId, actorUserId,
                 NotificationType.OPERATION_FAILED,
-                "Your " + verb + " failed: " + environmentName,
-                "Your " + verb + " operation on \"" + environmentName + "\" failed. Reason: " + failureReason,
-                actorName + "'s " + verb + " failed: " + environmentName,
-                actorName + "'s " + verb + " operation on \"" + environmentName + "\" failed. Reason: " + failureReason,
+                actorTitle, actorMessage, otherTitle, otherMessage,
                 "ENVIRONMENT",
                 environmentId);
+
+        if (emailOperationFailedEnabled) {
+            // Env admin explicitly excluded from this email per spec, unlike the bell broadcast.
+            emailBroadcastSplitByActor(resolveEnvironmentRecipients(environmentId, false), actorUserId,
+                    actorTitle, actorMessage, otherTitle, otherMessage);
+        }
     }
 
     public void notifyStateDriftDetected(String environmentId, String environmentName,
@@ -314,18 +386,32 @@ public class NotificationService {
     }
 
     private List<User> resolveEnvironmentRecipients(String environmentId) {
+        return resolveEnvironmentRecipients(environmentId, true);
+    }
+
+    /**
+     * @param includeEnvAdmin when false, env-admin-flagged users are excluded entirely — both
+     *                        from the direct-access-holder block (in case an env-admin also
+     *                        happens to hold a direct grant on this environment) and from the
+     *                        role-wide merge below. Used by Operation Failed, whose email spec
+     *                        explicitly excludes env admin while the bell still includes them.
+     */
+    private List<User> resolveEnvironmentRecipients(String environmentId, boolean includeEnvAdmin) {
         Map<String, User> recipients = new LinkedHashMap<>();
 
         accessRepository.findActiveAccessWithUsersByEnvironment(environmentId).stream()
                 .filter(EnvironmentAccess::isActive)
                 .map(EnvironmentAccess::getUser)
                 .filter(user -> user != null && Boolean.TRUE.equals(user.getIsActive()))
+                .filter(user -> includeEnvAdmin || !user.isEnvAdmin())
                 .forEach(user -> recipients.put(user.getUserId(), user));
 
         userRepository.findByAdminTrueAndIsActiveTrue()
                 .forEach(user -> recipients.put(user.getUserId(), user));
-        userRepository.findByEnvAdminTrueAndIsActiveTrue()
-                .forEach(user -> recipients.put(user.getUserId(), user));
+        if (includeEnvAdmin) {
+            resolveAdministeringEnvAdmins(environmentId)
+                    .forEach(user -> recipients.put(user.getUserId(), user));
+        }
 
         return List.copyOf(recipients.values());
     }
@@ -335,17 +421,33 @@ public class NotificationService {
 
         accessRepository.findActiveAccessWithUsersByEnvironment(environmentId).stream()
                 .filter(EnvironmentAccess::isActive)
-                .filter(access -> access.getAccessLevel() == com.tcgdigital.vmcontrol.model.AccessLevel.ADMIN)
+                .filter(access -> access.getAccessLevel() == AccessLevel.ADMIN)
                 .map(EnvironmentAccess::getUser)
                 .filter(user -> user != null && Boolean.TRUE.equals(user.getIsActive()))
                 .forEach(user -> recipients.put(user.getUserId(), user));
 
         userRepository.findByAdminTrueAndIsActiveTrue()
                 .forEach(user -> recipients.put(user.getUserId(), user));
-        userRepository.findByEnvAdminTrueAndIsActiveTrue()
+        resolveAdministeringEnvAdmins(environmentId)
                 .forEach(user -> recipients.put(user.getUserId(), user));
 
         return List.copyOf(recipients.values());
+    }
+
+    /**
+     * Env-admin-flagged users who actually administer this specific environment (hold an
+     * ADMIN-level {@link EnvironmentAccess} grant on it) — as opposed to the global {@code
+     * envAdmin} role flag, which by itself says nothing about which environments a user is
+     * scoped to. This is the fix for a prior bug where every env-admin was notified about
+     * every environment platform-wide.
+     */
+    private List<User> resolveAdministeringEnvAdmins(String environmentId) {
+        Timestamp now = new Timestamp(System.currentTimeMillis());
+        return userRepository.findByEnvAdminTrueAndIsActiveTrue().stream()
+                .filter(user -> accessRepository
+                        .findByUserWithMinAccessLevel(user.getUserId(), AccessLevel.ADMIN, now).stream()
+                        .anyMatch(access -> access.getEnvironment().getEnvironmentId().equals(environmentId)))
+                .toList();
     }
 
     private String resolveUserDisplayName(String userId) {
@@ -392,12 +494,54 @@ public class NotificationService {
         log.debug("Notification created for user {}: {}", userId, title);
     }
 
-    private void createIfAbsent(String userId, NotificationType type, String title, String message,
+    /**
+     * @return true if a new notification row was actually created (false if one already existed
+     *         for this user/type/entity) — callers use this to avoid re-sending email every time
+     *         a scheduled job re-evaluates an already-notified access grant.
+     */
+    private boolean createIfAbsent(String userId, NotificationType type, String title, String message,
                                 String entityType, String entityId) {
         if (notificationRepository.existsByUserIdAndTypeAndEntityTypeAndEntityId(
                 userId, type, entityType, entityId)) {
-            return;
+            return false;
         }
         create(userId, type, title, message, entityType, entityId);
+        return true;
+    }
+
+    // ============= Email dispatch helpers (Notification System v2) =============
+
+    private void sendEventEmailToUser(String userId, String subject, String bodyText) {
+        userRepository.findById(userId).ifPresent(user -> sendEventEmail(List.of(user), subject, bodyText));
+    }
+
+    private void sendEventEmail(List<User> recipients, String subject, String bodyText) {
+        List<String> addresses = recipients.stream()
+                .filter(user -> user != null && Boolean.TRUE.equals(user.getIsActive()) && !isBlank(user.getEmail()))
+                .map(User::getEmail)
+                .distinct()
+                .toList();
+        if (addresses.isEmpty()) {
+            return;
+        }
+        emailService.sendHtml(addresses, subject, EmailTemplates.eventEmail(subject, bodyText), null, null);
+    }
+
+    /**
+     * Splits a recipient list into "the actor" (one email, "your X" phrasing) and "everyone
+     * else" (one batched email, "actor's X" phrasing) — mirrors the bell's per-recipient
+     * actor/other title distinction, since email bodies can't vary per-address in one send.
+     */
+    private void emailBroadcastSplitByActor(List<User> recipients, String actorUserId,
+                                            String actorTitle, String actorMessage,
+                                            String otherTitle, String otherMessage) {
+        List<User> actor = recipients.stream().filter(u -> u.getUserId().equals(actorUserId)).toList();
+        List<User> others = recipients.stream().filter(u -> !u.getUserId().equals(actorUserId)).toList();
+        if (!actor.isEmpty()) {
+            sendEventEmail(actor, actorTitle, actorMessage);
+        }
+        if (!others.isEmpty()) {
+            sendEventEmail(others, otherTitle, otherMessage);
+        }
     }
 }

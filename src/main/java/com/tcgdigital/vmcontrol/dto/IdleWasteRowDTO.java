@@ -9,6 +9,7 @@ import java.sql.Timestamp;
 public record IdleWasteRowDTO(
         String vmId,
         String vmName,
+        String environmentId,
         String environmentName,
         String groupName,
         BigDecimal monthlyCost,
