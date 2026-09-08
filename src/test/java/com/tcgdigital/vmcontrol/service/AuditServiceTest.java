@@ -3,8 +3,10 @@ package com.tcgdigital.vmcontrol.service;
 import com.tcgdigital.vmcontrol.model.AuditAction;
 import com.tcgdigital.vmcontrol.model.AuditLog;
 import com.tcgdigital.vmcontrol.model.Environment;
+import com.tcgdigital.vmcontrol.model.User;
 import com.tcgdigital.vmcontrol.repository.AuditLogRepository;
 import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
+import com.tcgdigital.vmcontrol.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,10 +34,48 @@ class AuditServiceTest {
     @Autowired
     private EnvironmentRepository environmentRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
     @BeforeEach
     void setUp() {
         // Clear audit logs for clean test state
         auditLogRepository.deleteAll();
+    }
+
+    @Test
+    void testLogLockAcquired_detailsUseUsernameNotRawUserId() throws InterruptedException {
+        User user = User.fromUsernamePassword("audit.test.user", "irrelevant",
+                "audit.test.user@tcgdigital.com", "Audit Test User", "TCG");
+        user = userRepository.save(user);
+
+        auditService.logLockAcquired(user.getUserId(), "env-audit-1", "Audit Test Environment", "maintenance");
+        Thread.sleep(500);
+
+        List<AuditLog> logs = auditLogRepository.findTop100ByOrderByCreatedAtDesc();
+        AuditLog logEntry = logs.stream()
+                .filter(l -> l.getAction() == AuditAction.LOCK_ACQUIRED)
+                .findFirst().orElseThrow();
+
+        assertTrue(logEntry.getDetails().contains("audit.test.user"), "details should contain the username");
+        assertFalse(logEntry.getDetails().contains(user.getUserId()), "details should not contain the raw user id");
+    }
+
+    @Test
+    void testLogLockReleased_infersUsernameFromEmailWhenUsernameBlank() throws InterruptedException {
+        User user = User.fromAzureAd("audit-azure-oid", "jane.smith@example.com", "Jane Smith");
+        user = userRepository.save(user);
+
+        auditService.logLockReleased(user.getUserId(), "env-audit-2", "Audit Test Environment 2");
+        Thread.sleep(500);
+
+        List<AuditLog> logs = auditLogRepository.findTop100ByOrderByCreatedAtDesc();
+        AuditLog logEntry = logs.stream()
+                .filter(l -> l.getAction() == AuditAction.LOCK_RELEASED)
+                .findFirst().orElseThrow();
+
+        assertTrue(logEntry.getDetails().contains("jane.smith"), "details should contain the email-inferred username");
+        assertFalse(logEntry.getDetails().contains(user.getUserId()), "details should not contain the raw user id");
     }
 
     @Test

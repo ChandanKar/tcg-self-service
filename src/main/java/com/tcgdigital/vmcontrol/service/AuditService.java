@@ -517,53 +517,53 @@ public class AuditService {
     public void logEnvironmentCreated(String userId, String environmentId, String environmentName) {
         logEnvironmentAction(auditUserId(userId), AuditAction.ENVIRONMENT_CREATED, environmentId, environmentName,
                 "environment", environmentId, environmentName,
-                "Environment created: " + environmentName + " by user: " + userId);
+                "Environment created: " + environmentName + " by user: " + resolveUsername(userId));
     }
 
     public void logGroupCreated(String userId, String environmentId, String environmentName,
                                 String groupId, String groupName) {
         logEnvironmentAction(auditUserId(userId), AuditAction.GROUP_CREATED, environmentId, environmentName,
                 "group", groupId, groupName,
-                "Group created: " + groupName + " in environment: " + environmentName + " by user: " + userId);
+                "Group created: " + groupName + " in environment: " + environmentName + " by user: " + resolveUsername(userId));
     }
 
     public void logVmRegistered(String userId, String environmentId, String environmentName,
                                 String vmId, String vmName) {
         logEnvironmentAction(auditUserId(userId), AuditAction.VM_REGISTERED, environmentId, environmentName,
                 "vm", vmId, vmName,
-                "VM registered: " + vmName + " in environment: " + environmentName + " by user: " + userId);
+                "VM registered: " + vmName + " in environment: " + environmentName + " by user: " + resolveUsername(userId));
     }
 
     public void logLockAcquired(String userId, String environmentId, String environmentName, String reason) {
         logEnvironmentAction(auditUserId(userId), AuditAction.LOCK_ACQUIRED, environmentId, environmentName,
                 "lock", environmentId, environmentName,
-                "Lock acquired by user: " + userId + ". Environment: " + environmentName + ". Reason: " + reason);
+                "Lock acquired by user: " + resolveUsername(userId) + ". Environment: " + environmentName + ". Reason: " + reason);
     }
 
     public void logLockReleased(String userId, String environmentId, String environmentName) {
         logEnvironmentAction(auditUserId(userId), AuditAction.LOCK_RELEASED, environmentId, environmentName,
                 "lock", environmentId, environmentName,
-                "Lock released by user: " + userId + ". Environment: " + environmentName);
+                "Lock released by user: " + resolveUsername(userId) + ". Environment: " + environmentName);
     }
 
     public void logLockBroken(String adminId, String environmentId, String environmentName,
                               String originalHolder, String reason) {
         logEnvironmentAction(auditUserId(adminId), AuditAction.LOCK_BROKEN, environmentId, environmentName,
                 "lock", environmentId, environmentName,
-                "Lock broken by admin: " + adminId + ". Original holder: " + originalHolder + ". Reason: " + reason);
+                "Lock broken by admin: " + resolveUsername(adminId) + ". Original holder: " + originalHolder + ". Reason: " + reason);
     }
 
     public void logOperationStarted(String userId, String environmentId, String environmentName,
                                     String executionId, String operationType) {
         logEnvironmentAction(auditUserId(userId), AuditAction.OPERATION_STARTED, environmentId, environmentName,
                 "operation", executionId, operationType,
-                "Operation started by user: " + userId + ". Environment: " + environmentName);
+                "Operation started by user: " + resolveUsername(userId) + ". Environment: " + environmentName);
     }
 
     public void logOperationCompleted(String userId, String environmentId, String environmentName,
                                       String executionId, String operationType, int totalVms, int failed) {
         String details = String.format("Operation completed by user: %s. Environment: %s. Total VMs: %d, Failed: %d",
-                userId, environmentName, totalVms, failed);
+                resolveUsername(userId), environmentName, totalVms, failed);
         logEnvironmentAction(auditUserId(userId), AuditAction.OPERATION_COMPLETED, environmentId, environmentName,
                 "operation", executionId, operationType, details);
     }
@@ -572,31 +572,31 @@ public class AuditService {
                                    String executionId, String operationType, String errorMessage) {
         logEnvironmentFailure(auditUserId(userId), AuditAction.OPERATION_FAILED, environmentId, environmentName,
                 "operation", executionId, operationType,
-                "User: " + userId + ". Environment: " + environmentName + ". Error: " + errorMessage);
+                "User: " + resolveUsername(userId) + ". Environment: " + environmentName + ". Error: " + errorMessage);
     }
 
     public void logVmStarted(String userId, String vmId, String vmName, String environmentId) {
         logEnvironmentAction(auditUserId(userId), AuditAction.VM_START_COMPLETED, environmentId, null,
                 "vm", vmId, vmName,
-                "VM started successfully by user: " + userId);
+                "VM started successfully by user: " + resolveUsername(userId));
     }
 
     public void logVmStopped(String userId, String vmId, String vmName, String environmentId) {
         logEnvironmentAction(auditUserId(userId), AuditAction.VM_STOP_COMPLETED, environmentId, null,
                 "vm", vmId, vmName,
-                "VM stopped successfully by user: " + userId);
+                "VM stopped successfully by user: " + resolveUsername(userId));
     }
 
     public void logVmStartFailed(String userId, String vmId, String vmName, String environmentId, String error) {
         logEnvironmentFailure(auditUserId(userId), AuditAction.VM_START_FAILED, environmentId, null,
                 "vm", vmId, vmName,
-                "User: " + userId + ". Error: " + error);
+                "User: " + resolveUsername(userId) + ". Error: " + error);
     }
 
     public void logVmStopFailed(String userId, String vmId, String vmName, String environmentId, String error) {
         logEnvironmentFailure(auditUserId(userId), AuditAction.VM_STOP_FAILED, environmentId, null,
                 "vm", vmId, vmName,
-                "User: " + userId + ". Error: " + error);
+                "User: " + resolveUsername(userId) + ". Error: " + error);
     }
 
     // ============= User Operations =============
@@ -609,17 +609,17 @@ public class AuditService {
     public void logUserRoleChanged(String performedByUserId, String targetUserId, String role, boolean newValue) {
         String action = newValue ? "granted" : "revoked";
         logAction(auditUserId(performedByUserId), AuditAction.USER_UPDATED, "user", targetUserId, role,
-                String.format("Role '%s' %s by user: %s", role, action, performedByUserId));
+                String.format("Role '%s' %s by user: %s", role, action, resolveUsername(performedByUserId)));
     }
 
     public void logUserDeactivated(String performedByUserId, String targetUserId) {
         logAction(auditUserId(performedByUserId), AuditAction.USER_DEACTIVATED, "user", targetUserId, targetUserId,
-                "User deactivated by: " + performedByUserId);
+                "User deactivated by: " + resolveUsername(performedByUserId));
     }
 
     public void logUserReactivated(String performedByUserId, String targetUserId) {
         logAction(auditUserId(performedByUserId), AuditAction.USER_UPDATED, "user", targetUserId, targetUserId,
-                "User reactivated by: " + performedByUserId);
+                "User reactivated by: " + resolveUsername(performedByUserId));
     }
 
     // ============= Access Request Operations =============
@@ -694,6 +694,32 @@ public class AuditService {
      * instead of the raw internal user UUID (or Entra object ID) that's meaningless to a reader.
      * Falls back to the raw id if the user record no longer exists (e.g. deactivated/deleted).
      */
+    /**
+     * Resolves a user ID to a readable username for embedding in free-text audit details, instead
+     * of the raw internal UUID (or Entra object ID) that's meaningless to a reader — prefers the
+     * stored username, else infers one from the email's local part (e.g. {@code
+     * chandan.kar@tcgdigital.com} -> {@code chandan.kar}), same rule used for the System Health
+     * "Changed By" column ({@code VmStateHistoryDTO.resolveUsername}). Falls back to the raw id
+     * if the user record no longer exists (e.g. deactivated/deleted).
+     */
+    private String resolveUsername(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return "unknown user";
+        }
+        return userRepository.findById(userId)
+                .map(user -> {
+                    if (user.getUsername() != null && !user.getUsername().isBlank()) {
+                        return user.getUsername();
+                    }
+                    String email = user.getEmail();
+                    if (email != null && email.contains("@")) {
+                        return email.substring(0, email.indexOf('@'));
+                    }
+                    return firstNonBlank(email, userId);
+                })
+                .orElse(userId);
+    }
+
     private String describeUser(String userId) {
         if (userId == null || userId.isBlank()) {
             return "unknown user";
