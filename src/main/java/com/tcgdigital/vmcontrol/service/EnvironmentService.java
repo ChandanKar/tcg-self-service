@@ -13,6 +13,8 @@ import com.tcgdigital.vmcontrol.repository.VmGroupRepository;
 import com.tcgdigital.vmcontrol.repository.VmRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -83,6 +85,37 @@ public class EnvironmentService {
                 .distinct()
                 .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
                 .toList();
+    }
+
+    /**
+     * Paginated, optionally name/description-filtered active environments — backs the
+     * server-side-paginated "My Environments" table (admin view).
+     */
+    public Page<Environment> getAllActiveEnvironments(String search, Pageable pageable) {
+        return environmentRepository.searchActive(blankToNull(search), pageable);
+    }
+
+    /**
+     * Paginated, optionally name/description-filtered environments including inactive ones —
+     * the admin "include inactive" variant.
+     */
+    public Page<Environment> getAllEnvironments(String search, Pageable pageable) {
+        return environmentRepository.searchAll(blankToNull(search), pageable);
+    }
+
+    /**
+     * Paginated, optionally name/description-filtered environments the current user has access
+     * to — backs the server-side-paginated "My Environments" table (regular-user view).
+     */
+    public Page<Environment> getEnvironmentsForCurrentUser(String search, Pageable pageable) {
+        String userId = userService.getCurrentUserId();
+        Timestamp now = new Timestamp(System.currentTimeMillis());
+        return accessRepository.searchActiveAccessByUser(userId, blankToNull(search), now, pageable)
+                .map(EnvironmentAccess::getEnvironment);
+    }
+
+    private String blankToNull(String value) {
+        return (value == null || value.isBlank()) ? null : value.trim();
     }
 
     /**

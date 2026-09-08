@@ -3,6 +3,8 @@ package com.tcgdigital.vmcontrol.repository;
 import com.tcgdigital.vmcontrol.model.AccessLevel;
 import com.tcgdigital.vmcontrol.model.AccessStatus;
 import com.tcgdigital.vmcontrol.model.EnvironmentAccess;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -71,6 +73,24 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
     List<EnvironmentAccess> findActiveAccessByUser(
             @Param("userId") String userId,
             @Param("now") Timestamp now);
+
+    /**
+     * Paginated, optionally name/description-filtered active access grants for a user — backs
+     * the server-side-paginated "My Environments" table for non-admin users. A null {@code
+     * search} short-circuits the filter, matching the same query plan as the unfiltered case.
+     */
+    @Query("SELECT ea FROM EnvironmentAccess ea " +
+           "WHERE ea.user.userId = :userId " +
+           "AND ea.status = 'ACTIVE' " +
+           "AND (ea.expiresAt IS NULL OR ea.expiresAt > :now) " +
+           "AND (:search IS NULL OR LOWER(ea.environment.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "     OR LOWER(ea.environment.description) LIKE LOWER(CONCAT('%', :search, '%'))) " +
+           "ORDER BY ea.environment.name")
+    Page<EnvironmentAccess> searchActiveAccessByUser(
+            @Param("userId") String userId,
+            @Param("search") String search,
+            @Param("now") Timestamp now,
+            Pageable pageable);
 
     /**
      * Find environments where user has at least the specified access level.

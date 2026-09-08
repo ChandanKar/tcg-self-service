@@ -62,6 +62,8 @@ const Config = (function() {
         // Environments
         environments: {
             list: `${API_BASE_URL}/environments`,
+            page: (page = 0, size = 10, search = '') =>
+                `${API_BASE_URL}/environments/page?page=${page}&size=${size}${search ? '&search=' + encodeURIComponent(search) : ''}`,
             available: `${API_BASE_URL}/environments/available`,
             get: (id) => `${API_BASE_URL}/environments/${id}`,
             insights: (id) => `${API_BASE_URL}/environments/${id}/insights`,

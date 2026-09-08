@@ -24,12 +24,13 @@ const Environments = (function() {
 
     // Cache for current environment data
     let currentEnvironment = null;
-    let environmentsList = [];
+    let environmentsList = []; // holds only the currently-displayed server page, not the full set
 
-    // Pagination state for list view
+    // Pagination state for list view — server-side paginated, 0-indexed to match the backend
     const ENV_PAGE_SIZE = 10;
-    let envCurrentPage = 1;
-    let envFiltered = [];
+    let envCurrentPage = 0;
+    let envSearchTerm = null;
+    let envTotalElements = 0;
     let operationRefreshTimer = null;
     let operationStatusHandler = null;
     let metricChartCounter = 0;
@@ -53,8 +54,12 @@ const Environments = (function() {
         showLoading('Loading environments...');
 
         try {
-            environmentsList = await fetchEnvironments();
-            const html = buildListHtml(environmentsList);
+            envCurrentPage = 0;
+            envSearchTerm = null;
+            const pageResult = await fetchEnvironmentsPage(envCurrentPage, envSearchTerm);
+            environmentsList = pageResult.content;
+            envTotalElements = pageResult.totalElements;
+            const html = buildListHtml(environmentsList, envTotalElements);
             $('#content-area').html(html);
             bindListEvents();
         } catch (error) {
@@ -129,29 +134,59 @@ const Environments = (function() {
         return new Promise((resolve, reject) => {
             ApiClient.get(Config.API.environments.list)
                 .done(async function(environments) {
-                    // Environment counts (vmCount/runningVmCount) already come from the list
-                    // endpoint itself — only the lock status still needs a per-row fetch.
-                    const enriched = await Promise.all(
-                        environments.map(async (env) => {
-                            try {
-                                const lock = await fetchLockStatus(env.environmentId);
-                                return {
-                                    ...env,
-                                    totalVms: env.vmCount || 0,
-                                    runningVms: env.runningVmCount || 0,
-                                    lockStatus: lock
-                                };
-                            } catch (e) {
-                                return {
-                                    ...env,
-                                    totalVms: env.vmCount || 0,
-                                    runningVms: env.runningVmCount || 0,
-                                    lockStatus: { isLocked: false }
-                                };
-                            }
-                        })
-                    );
+                    const enriched = await Promise.all(environments.map(enrichWithLockStatus));
                     resolve(enriched);
+                })
+                .fail(reject);
+        });
+    }
+
+    /**
+     * Environment counts (vmCount/runningVmCount) already come from the list endpoint itself —
+     * only the lock status still needs a per-row fetch. Shared by fetchEnvironments() (unpaged,
+     * used only for the name-lookup path) and fetchEnvironmentsPage() (server-paginated).
+     */
+    async function enrichWithLockStatus(env) {
+        try {
+            const lock = await fetchLockStatus(env.environmentId);
+            return { ...env, totalVms: env.vmCount || 0, runningVms: env.runningVmCount || 0, lockStatus: lock };
+        } catch (e) {
+            return { ...env, totalVms: env.vmCount || 0, runningVms: env.runningVmCount || 0, lockStatus: { isLocked: false } };
+        }
+    }
+
+    /**
+     * Spring Data serializes Page<T> as { content: [...], page: { totalElements, totalPages,
+     * number, size } } — flatten that back onto the response, same pattern already used for VM
+     * group pagination in vm-registry.js.
+     */
+    function normalizeEnvPage(data) {
+        if (!data || !data.page) return data;
+        return {
+            ...data,
+            totalElements: data.page.totalElements ?? data.totalElements ?? 0,
+            totalPages: data.page.totalPages ?? data.totalPages ?? 0,
+            number: data.page.number ?? data.number ?? 0,
+            size: data.page.size ?? data.size
+        };
+    }
+
+    /**
+     * Server-side-paginated, optionally name/description-filtered fetch for the "My
+     * Environments" table — replaces the old fetch-everything-then-slice-client-side approach.
+     */
+    function fetchEnvironmentsPage(page, search) {
+        return new Promise((resolve, reject) => {
+            ApiClient.get(Config.API.environments.page(page, ENV_PAGE_SIZE, search || ''))
+                .done(async function(data) {
+                    const normalized = normalizeEnvPage(data);
+                    const enriched = await Promise.all((normalized.content || []).map(enrichWithLockStatus));
+                    resolve({
+                        content: enriched,
+                        totalElements: normalized.totalElements || 0,
+                        totalPages: normalized.totalPages || 0,
+                        number: normalized.number || 0
+                    });
                 })
                 .fail(reject);
         });
@@ -260,8 +295,9 @@ const Environments = (function() {
     /**
      * Build environment list HTML — dashboard-style compact table with pagination
      */
-    function buildListHtml(environments) {
+    function buildListHtml(environments, totalElements) {
         if (!environments || environments.length === 0) {
+            const searchActive = !!envSearchTerm;
             return `
                 <div class="content-header d-flex justify-content-between align-items-start">
                     <div>
@@ -271,15 +307,13 @@ const Environments = (function() {
                 </div>
                 <div class="empty-state">
                     <i class="fas fa-server fa-3x text-muted"></i>
-                    <p class="mt-3 mb-1">No environments assigned</p>
-                    <p class="text-muted small">You don't have access to any environments yet.<br>
-                    ${Auth.isEnvAdmin() ? 'Go to <strong>Admin › VM Registry</strong> to create environments.' : 'Please contact your administrator for environment access.'}</p>
+                    <p class="mt-3 mb-1">${searchActive ? 'No environments match your search' : 'No environments assigned'}</p>
+                    <p class="text-muted small">${searchActive
+                        ? 'Try a different search term.'
+                        : `You don't have access to any environments yet.<br>${Auth.isEnvAdmin() ? 'Go to <strong>Admin › VM Registry</strong> to create environments.' : 'Please contact your administrator for environment access.'}`}</p>
                 </div>
             `;
         }
-
-        envFiltered = environments;
-        envCurrentPage = 1;
 
         return `
             <div id="environments-list-view">
@@ -313,7 +347,7 @@ const Environments = (function() {
                             </tr>
                         </thead>
                         <tbody id="env-list-body">
-                            ${buildEnvRows(environments, 1)}
+                            ${buildEnvRows(environments)}
                         </tbody>
                     </table>
                 </div>
@@ -325,13 +359,11 @@ const Environments = (function() {
     }
 
     /**
-     * Build paginated table rows for the list view
+     * Build table rows for the list view — envList is already exactly one server page's worth
+     * of items, so no client-side slicing needed here anymore.
      */
-    function buildEnvRows(envList, page) {
-        const start = (page - 1) * ENV_PAGE_SIZE;
-        const pageItems = envList.slice(start, start + ENV_PAGE_SIZE);
-
-        const dataRows = pageItems.map(env => {
+    function buildEnvRows(envList) {
+        const dataRows = envList.map(env => {
             const runningVms = env.runningVms || 0;
             const totalVms = env.vmCount || env.totalVms || 0;
             const statusClass = runningVms === 0 ? 'stopped' :
@@ -412,12 +444,20 @@ const Environments = (function() {
             totalItems,
             pageSize: ENV_PAGE_SIZE,
             itemLabel: 'environments',
+            zeroIndexed: true,
             bindAncestor: '#content-area',
-            onPageChange: (target) => {
-                envCurrentPage = target;
-                disposeEnvListTooltips();
-                $('#env-list-body').html(buildEnvRows(envFiltered, envCurrentPage));
-                renderEnvPagination(envFiltered.length, envCurrentPage);
+            onPageChange: async (target) => {
+                try {
+                    const pageResult = await fetchEnvironmentsPage(target, envSearchTerm);
+                    envCurrentPage = target;
+                    environmentsList = pageResult.content;
+                    envTotalElements = pageResult.totalElements;
+                    disposeEnvListTooltips();
+                    $('#env-list-body').html(buildEnvRows(environmentsList));
+                    renderEnvPagination(envTotalElements, envCurrentPage);
+                } catch (error) {
+                    console.error('Failed to load environments page:', error);
+                }
             }
         });
 
@@ -468,19 +508,36 @@ const Environments = (function() {
     }
 
     /**
-     * Filter environments list and re-render
+     * Search environments server-side and re-render (page resets to 0 on every new search term).
      */
-    function filterAndRenderEnvList(searchTerm) {
-        envFiltered = searchTerm
-            ? environmentsList.filter(e =>
-                (e.name || '').toLowerCase().includes(searchTerm) ||
-                (e.description || '').toLowerCase().includes(searchTerm))
-            : environmentsList;
-        envCurrentPage = 1;
-        disposeEnvListTooltips();
-        $('#env-list-body').html(buildEnvRows(envFiltered, envCurrentPage));
-        renderEnvPagination(envFiltered.length, envCurrentPage);
+    async function doSearchEnvList(searchTerm) {
+        envSearchTerm = searchTerm || null;
+        try {
+            const pageResult = await fetchEnvironmentsPage(0, envSearchTerm);
+            envCurrentPage = 0;
+            environmentsList = pageResult.content;
+            envTotalElements = pageResult.totalElements;
+            disposeEnvListTooltips();
+            // Keep the search box/table shell mounted even on zero matches — swapping in
+            // buildListHtml's full empty-state would tear out #env-list-search itself, leaving
+            // the user with no way to clear or change their search term.
+            if (environmentsList.length === 0) {
+                $('#env-list-body').html(`
+                    <tr><td colspan="8" class="text-center text-muted py-4">
+                        No environments match your search.
+                    </td></tr>`);
+                $('#env-list-pagination').empty();
+                return;
+            }
+            $('#env-list-body').html(buildEnvRows(environmentsList));
+            renderEnvPagination(envTotalElements, envCurrentPage);
+        } catch (error) {
+            console.error('Failed to search environments:', error);
+        }
     }
+
+    // Debounced so a fresh server request doesn't fire on every keystroke.
+    const filterAndRenderEnvList = Utils.debounce(doSearchEnvList, 300);
 
     /**
      * Build environment detail HTML
@@ -757,7 +814,7 @@ const Environments = (function() {
         });
 
         // Initial pagination render
-        renderEnvPagination(environmentsList.length, envCurrentPage);
+        renderEnvPagination(envTotalElements, envCurrentPage);
     }
 
     /**

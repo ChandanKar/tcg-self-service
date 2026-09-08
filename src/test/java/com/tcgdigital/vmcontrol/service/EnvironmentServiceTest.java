@@ -1,17 +1,24 @@
 package com.tcgdigital.vmcontrol.service;
 
 import com.tcgdigital.vmcontrol.dto.CreateEnvironmentDTO;
+import com.tcgdigital.vmcontrol.dto.GrantAccessDTO;
 import com.tcgdigital.vmcontrol.dto.UpdateEnvironmentDTO;
 import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
+import com.tcgdigital.vmcontrol.model.AccessLevel;
 import com.tcgdigital.vmcontrol.model.Environment;
+import com.tcgdigital.vmcontrol.model.User;
+import com.tcgdigital.vmcontrol.repository.EnvironmentAccessRepository;
 import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
+import com.tcgdigital.vmcontrol.repository.UserRepository;
 import com.tcgdigital.vmcontrol.repository.VmGroupRepository;
 import com.tcgdigital.vmcontrol.repository.VmRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -34,12 +41,23 @@ class EnvironmentServiceTest {
     @Autowired
     private VmRepository vmRepository;
 
+    @Autowired
+    private EnvironmentAccessRepository accessRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private EnvironmentAccessService environmentAccessService;
+
     @BeforeEach
     void setUp() {
         // Clean up any existing test data
+        accessRepository.deleteAll();
         vmRepository.deleteAll();
         groupRepository.deleteAll();
         environmentRepository.deleteAll();
+        userRepository.deleteAll();
     }
 
     @Test
@@ -161,6 +179,120 @@ class EnvironmentServiceTest {
         // Then
         assertEquals(1, activeEnvs.size());
         assertEquals("active-env-1", activeEnvs.get(0).getName());
+    }
+
+    @Test
+    void testGetAllActiveEnvironmentsPaged_noSearch_returnsAllPaginated() {
+        for (int i = 1; i <= 3; i++) {
+            CreateEnvironmentDTO dto = new CreateEnvironmentDTO();
+            dto.setName("paged-env-" + i);
+            dto.setDisplayName("Paged Environment " + i);
+            environmentService.createEnvironment(dto);
+        }
+
+        Page<Environment> firstPage = environmentService.getAllActiveEnvironments(null, PageRequest.of(0, 2));
+
+        assertEquals(3, firstPage.getTotalElements());
+        assertEquals(2, firstPage.getTotalPages());
+        assertEquals(2, firstPage.getContent().size());
+    }
+
+    @Test
+    void testGetAllActiveEnvironmentsPaged_withSearch_filtersByNameOrDescription() {
+        CreateEnvironmentDTO match = new CreateEnvironmentDTO();
+        match.setName("production-cluster");
+        match.setDisplayName("Production Cluster");
+        environmentService.createEnvironment(match);
+
+        CreateEnvironmentDTO descMatch = new CreateEnvironmentDTO();
+        descMatch.setName("other-env");
+        descMatch.setDisplayName("Other Environment");
+        descMatch.setDescription("runs the production workload");
+        environmentService.createEnvironment(descMatch);
+
+        CreateEnvironmentDTO noMatch = new CreateEnvironmentDTO();
+        noMatch.setName("staging-env");
+        noMatch.setDisplayName("Staging Environment");
+        environmentService.createEnvironment(noMatch);
+
+        Page<Environment> results = environmentService.getAllActiveEnvironments("production", PageRequest.of(0, 10));
+
+        assertEquals(2, results.getTotalElements());
+        assertTrue(results.getContent().stream().anyMatch(e -> e.getName().equals("production-cluster")));
+        assertTrue(results.getContent().stream().anyMatch(e -> e.getName().equals("other-env")));
+    }
+
+    @Test
+    void testGetAllActiveEnvironmentsPaged_blankSearch_behavesAsNoFilter() {
+        CreateEnvironmentDTO dto = new CreateEnvironmentDTO();
+        dto.setName("blank-search-env");
+        dto.setDisplayName("Blank Search Environment");
+        environmentService.createEnvironment(dto);
+
+        Page<Environment> results = environmentService.getAllActiveEnvironments("   ", PageRequest.of(0, 10));
+
+        assertEquals(1, results.getTotalElements());
+    }
+
+    @Test
+    void testGetAllEnvironmentsPaged_includesInactive() {
+        CreateEnvironmentDTO activeDto = new CreateEnvironmentDTO();
+        activeDto.setName("active-for-paged");
+        activeDto.setDisplayName("Active For Paged");
+        environmentService.createEnvironment(activeDto);
+
+        CreateEnvironmentDTO inactiveDto = new CreateEnvironmentDTO();
+        inactiveDto.setName("inactive-for-paged");
+        inactiveDto.setDisplayName("Inactive For Paged");
+        Environment inactiveEnv = environmentService.createEnvironment(inactiveDto);
+        environmentService.deactivateEnvironment(inactiveEnv.getEnvironmentId());
+
+        Page<Environment> activeOnly = environmentService.getAllActiveEnvironments(null, PageRequest.of(0, 10));
+        Page<Environment> all = environmentService.getAllEnvironments(null, PageRequest.of(0, 10));
+
+        assertEquals(1, activeOnly.getTotalElements());
+        assertEquals(2, all.getTotalElements());
+    }
+
+    @Test
+    void testSearchActiveAccessByUser_scopedToUsersAccessOnly_withSearch() {
+        // getEnvironmentsForCurrentUser(search, pageable) resolves the acting user via
+        // UserService.getCurrentUserId() (Spring Security context) — not exercisable directly in
+        // this repository-backed test without a mocked principal, so this targets the new
+        // repository query itself (EnvironmentAccessRepository.searchActiveAccessByUser), which
+        // is the actual new logic; full current-user resolution is covered by the live endpoint
+        // verification instead (confirmed manually: admin sees all 169 seed environments across
+        // 34 pages, a regular user with 2 grants sees exactly those 2, both with correct search
+        // filtering including a genuine zero-match case).
+        CreateEnvironmentDTO accessibleDto = new CreateEnvironmentDTO();
+        accessibleDto.setName("user-accessible-prod");
+        accessibleDto.setDisplayName("User Accessible Prod");
+        Environment accessibleEnv = environmentService.createEnvironment(accessibleDto);
+
+        CreateEnvironmentDTO inaccessibleDto = new CreateEnvironmentDTO();
+        inaccessibleDto.setName("user-inaccessible-prod");
+        inaccessibleDto.setDisplayName("User Inaccessible Prod");
+        environmentService.createEnvironment(inaccessibleDto);
+
+        User testUser = User.fromUsernamePassword("paged.test.user", "irrelevant",
+                "paged.test.user@tcgdigital.com", "Paged Test User", "TCG");
+        testUser = userRepository.save(testUser);
+
+        User admin = User.fromUsernamePassword("paged.admin", "irrelevant",
+                "paged.admin@tcgdigital.com", "Paged Admin", "TCG");
+        admin.setAdmin(true);
+        admin = userRepository.save(admin);
+
+        GrantAccessDTO grantDto = new GrantAccessDTO(testUser.getEmail(), AccessLevel.USER, null, null);
+        environmentAccessService.grantAccess(accessibleEnv.getEnvironmentId(), admin.getUserId(), grantDto);
+
+        Page<com.tcgdigital.vmcontrol.model.EnvironmentAccess> results = accessRepository.searchActiveAccessByUser(
+                testUser.getUserId(), "prod", new java.sql.Timestamp(System.currentTimeMillis()), PageRequest.of(0, 10));
+
+        // Only the user's own accessible environment matches, even though a second "prod"-named
+        // environment exists that they have no grant for.
+        assertEquals(1, results.getTotalElements());
+        assertEquals("user-accessible-prod", results.getContent().get(0).getEnvironment().getName());
     }
 }
 

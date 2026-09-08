@@ -16,12 +16,16 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * REST controller for Environment management operations.
@@ -82,6 +86,42 @@ public class EnvironmentController {
         }
 
         List<EnvironmentDTO> dtos = toDtosWithBatchedCounts(environments);
+
+        return ResponseEntity.ok(dtos);
+    }
+
+    @GetMapping("/page")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "List environments, paginated",
+            description = "Server-side-paginated, optionally name/description-filtered variant of the " +
+                    "environments list, for the \"My Environments\" table. Admins see all environments; " +
+                    "regular users see only environments they have access to."
+    )
+    public ResponseEntity<Page<EnvironmentDTO>> listEnvironmentsPaged(
+            @Parameter(description = "Include inactive environments (admin only)")
+            @RequestParam(required = false, defaultValue = "false") boolean includeInactive,
+            @Parameter(description = "Optional name/description search filter")
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Environment> environments = securityService.isEnvAdmin()
+                ? (includeInactive
+                        ? environmentService.getAllEnvironments(search, pageable)
+                        : environmentService.getAllActiveEnvironments(search, pageable))
+                : environmentService.getEnvironmentsForCurrentUser(search, pageable);
+
+        List<String> environmentIds = environments.getContent().stream()
+                .map(Environment::getEnvironmentId)
+                .toList();
+        Map<String, EnvironmentService.EnvironmentCounts> counts = environmentService.getBatchCounts(environmentIds);
+
+        Page<EnvironmentDTO> dtos = environments.map(env -> {
+            var c = counts.get(env.getEnvironmentId());
+            return EnvironmentDTO.fromEntityWithCounts(env, c.groupCount(), c.vmCount(), c.runningVmCount());
+        });
 
         return ResponseEntity.ok(dtos);
     }
