@@ -46,6 +46,9 @@ class MonitoringControllerIntegrationTest {
     @Autowired
     private StateSyncService stateSyncService;
 
+    @Autowired
+    private UserRepository userRepository;
+
     @MockBean
     private CloudProviderFactory cloudProviderFactory;
 
@@ -139,6 +142,35 @@ class MonitoringControllerIntegrationTest {
         mockMvc.perform(get("/api/v1/monitoring/state-changes"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(1))));
+    }
+
+    @Test
+    void testGetRecentStateChanges_resolvesChangedByUsername() throws Exception {
+        User user = User.fromUsernamePassword("chandan.kar", "irrelevant", "chandan.kar@tcgdigital.com",
+                "Chandan Kar", "TCG");
+        user = userRepository.save(user);
+
+        stateSyncService.recordStateChange(testVm, VmStatus.STOPPED, VmStatus.RUNNING, "operation",
+                user.getUserId(), null, "Start operation completed");
+
+        mockMvc.perform(get("/api/v1/monitoring/state-changes"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.changeSource == 'operation')].changedByUsername",
+                        hasItem("chandan.kar")));
+    }
+
+    @Test
+    void testGetRecentStateChanges_infersUsernameFromEmailWhenUsernameBlank() throws Exception {
+        User user = User.fromAzureAd("azure-oid-123", "jane.doe@example.com", "Jane Doe");
+        user = userRepository.save(user);
+
+        stateSyncService.recordStateChange(testVm, VmStatus.STOPPED, VmStatus.RUNNING, "operation",
+                user.getUserId(), null, "Start operation completed");
+
+        mockMvc.perform(get("/api/v1/monitoring/state-changes"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.changeSource == 'operation')].changedByUsername",
+                        hasItem("jane.doe")));
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.dto;
 
+import com.tcgdigital.vmcontrol.model.User;
 import com.tcgdigital.vmcontrol.model.VmStateHistory;
 import com.tcgdigital.vmcontrol.model.VmStatus;
 
@@ -17,6 +18,7 @@ public class VmStateHistoryDTO {
     private VmStatus newStatus;
     private String changeSource;
     private String changedByUserId;
+    private String changedByUsername;
     private String operationId;
     private String details;
     private Timestamp changedAt;
@@ -96,6 +98,34 @@ public class VmStateHistoryDTO {
 
     public void setChangedByUserId(String changedByUserId) {
         this.changedByUserId = changedByUserId;
+    }
+
+    public String getChangedByUsername() {
+        return changedByUsername;
+    }
+
+    public void setChangedByUsername(String changedByUsername) {
+        this.changedByUsername = changedByUsername;
+    }
+
+    /**
+     * Prefers {@link User#getUsername()}; if blank (e.g. an Azure AD-provisioned user that never
+     * had a username set), infers one from the email's local part (the segment before {@code @}).
+     * Returns null only when neither a username nor an email is available — callers render that
+     * as "System", since a null {@code changedByUserId} row is always a {@code state_sync} event.
+     */
+    public static String resolveUsername(User user) {
+        if (user == null) {
+            return null;
+        }
+        if (user.getUsername() != null && !user.getUsername().isBlank()) {
+            return user.getUsername();
+        }
+        String email = user.getEmail();
+        if (email != null && email.contains("@")) {
+            return email.substring(0, email.indexOf('@'));
+        }
+        return email;
     }
 
     public String getOperationId() {

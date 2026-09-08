@@ -45,6 +45,7 @@ public class VmOperationsService {
     private final ObjectMapper objectMapper;
     private final AuditService auditService;
     private final NotificationService notificationService;
+    private final StateSyncService stateSyncService;
 
     // Self-reference via proxy so @Async is properly applied (self-invocation bypasses Spring proxy)
     @Lazy
@@ -61,7 +62,8 @@ public class VmOperationsService {
                                LockService lockService,
                                ObjectMapper objectMapper,
                                AuditService auditService,
-                               NotificationService notificationService) {
+                               NotificationService notificationService,
+                               StateSyncService stateSyncService) {
         this.executionRepository = executionRepository;
         this.detailRepository = detailRepository;
         this.environmentRepository = environmentRepository;
@@ -73,6 +75,7 @@ public class VmOperationsService {
         this.objectMapper = objectMapper;
         this.auditService = auditService;
         this.notificationService = notificationService;
+        this.stateSyncService = stateSyncService;
     }
 
     /**
@@ -587,6 +590,11 @@ public class VmOperationsService {
 
                 // Update VM status
                 if (reconciledStatus != null) {
+                    if (reconciledStatus != previousStatus) {
+                        stateSyncService.recordStateChange(vm, previousStatus, reconciledStatus, "operation",
+                                detail.getExecution().getInitiatedByUserId(), detail.getExecution().getExecutionId(),
+                                operationType + " operation completed");
+                    }
                     vm.setStatus(reconciledStatus);
                     vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
                     vmRepository.save(vm);

@@ -383,12 +383,13 @@ const SystemHealth = (function () {
                 <td>${stateBadge(c.previousStatus)}</td>
                 <td class="text-center text-muted px-0"><i class="fas fa-arrow-right"></i></td>
                 <td>${stateBadge(c.newStatus)}</td>
+                <td class="text-muted">${c.changedByUsername || 'System'}</td>
                 <td class="text-muted" title="${absTime(c.changedAt)}">${relativeTime(c.changedAt)}</td>
             </tr>`).join('');
         return `
             <div class="sh-table-wrapper">
                 <table class="table table-hover mb-0">
-                    <thead><tr><th>VM</th><th>From</th><th></th><th>To</th><th>When</th></tr></thead>
+                    <thead><tr><th>VM</th><th>From</th><th></th><th>To</th><th>Changed By</th><th>When</th></tr></thead>
                     <tbody>${rows}</tbody>
                 </table>
             </div>`;

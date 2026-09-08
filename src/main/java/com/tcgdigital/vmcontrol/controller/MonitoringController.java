@@ -2,7 +2,9 @@ package com.tcgdigital.vmcontrol.controller;
 
 import com.tcgdigital.vmcontrol.dto.StateSyncStatusDTO;
 import com.tcgdigital.vmcontrol.dto.VmStateHistoryDTO;
+import com.tcgdigital.vmcontrol.model.User;
 import com.tcgdigital.vmcontrol.model.VmStateHistory;
+import com.tcgdigital.vmcontrol.repository.UserRepository;
 import com.tcgdigital.vmcontrol.service.EksSyncService;
 import com.tcgdigital.vmcontrol.service.StateSyncService;
 import com.tcgdigital.vmcontrol.service.VmInventoryService;
@@ -24,6 +26,9 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * REST controller for monitoring and state sync operations.
@@ -38,17 +43,20 @@ public class MonitoringController {
     private final VmInventoryService inventoryService;
     private final VmMetricsService metricsService;
     private final VmMetricsArchiveService archiveService;
+    private final UserRepository userRepository;
 
     public MonitoringController(StateSyncService stateSyncService,
                                 EksSyncService eksSyncService,
                                 VmInventoryService inventoryService,
                                 VmMetricsService metricsService,
-                                VmMetricsArchiveService archiveService) {
+                                VmMetricsArchiveService archiveService,
+                                UserRepository userRepository) {
         this.stateSyncService = stateSyncService;
         this.eksSyncService = eksSyncService;
         this.inventoryService = inventoryService;
         this.metricsService = metricsService;
         this.archiveService = archiveService;
+        this.userRepository = userRepository;
     }
 
     @GetMapping("/sync-status")
@@ -222,6 +230,7 @@ public class MonitoringController {
         List<VmStateHistoryDTO> dtos = changes.stream()
                 .map(VmStateHistoryDTO::fromEntity)
                 .toList();
+        resolveUsernames(dtos);
         return ResponseEntity.ok(dtos);
     }
 
@@ -237,7 +246,29 @@ public class MonitoringController {
 
         Page<VmStateHistory> driftEvents = stateSyncService.getDriftEvents(page, size);
         Page<VmStateHistoryDTO> dtos = driftEvents.map(VmStateHistoryDTO::fromEntity);
+        resolveUsernames(dtos.getContent());
         return ResponseEntity.ok(dtos);
+    }
+
+    /**
+     * Batch-resolves {@code changedByUserId} -> a display username in one query, rather than one
+     * lookup per row (same N+1-avoidance convention used for the environments list endpoint).
+     * A no-op (zero extra queries) whenever every row's {@code changedByUserId} is null, which is
+     * always true for state_sync-sourced drift rows.
+     */
+    private void resolveUsernames(List<VmStateHistoryDTO> dtos) {
+        List<String> userIds = dtos.stream()
+                .map(VmStateHistoryDTO::getChangedByUserId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (userIds.isEmpty()) {
+            return;
+        }
+        Map<String, User> usersById = userRepository.findAllById(userIds).stream()
+                .collect(Collectors.toMap(User::getUserId, Function.identity()));
+        dtos.forEach(dto -> dto.setChangedByUsername(
+                VmStateHistoryDTO.resolveUsername(usersById.get(dto.getChangedByUserId()))));
     }
 
     @GetMapping("/drift-events/count")
