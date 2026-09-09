@@ -1,6 +1,7 @@
 package com.tcgdigital.vmcontrol.service;
 
 import com.tcgdigital.vmcontrol.dto.StartOperationDTO;
+import com.tcgdigital.vmcontrol.exception.UnauthorizedException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.*;
 import com.tcgdigital.vmcontrol.repository.*;
@@ -40,6 +41,16 @@ class VmOperationsServiceTest {
     @Autowired
     private OperationDetailRepository detailRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private EnvironmentAccessRepository accessRepository;
+
+    // A real, authorized user � group-scope operation authorization (step 5) now runs on
+    // startOperation, so a bare id string is no longer enough.
+    private String opsUserId;
+
     private Environment testEnvironment;
     private VmGroup testGroup;
     private Vm testVm1;
@@ -67,6 +78,11 @@ class VmOperationsServiceTest {
         // Create test VMs
         testVm1 = createTestVm("test-vm-1", 1);
         testVm2 = createTestVm("test-vm-2", 2);
+
+        User opsUser = User.fromUsernamePassword("ops.user." + UUID.randomUUID().toString().substring(0, 8),
+                "irrelevant", "ops@example.com", "Ops User", "TCG");
+        opsUser.setAdmin(true);
+        opsUserId = userRepository.saveAndFlush(opsUser).getUserId();
     }
 
     private Vm createTestVm(String name, int sequence) {
@@ -81,13 +97,84 @@ class VmOperationsServiceTest {
         vm.setVmType(VmType.DEV);
         vm.setSequencePosition(sequence);
         vm.setStatus(VmStatus.STOPPED);
+        vm.setIsActive(true);
         return vmRepository.saveAndFlush(vm);
+    }
+
+    private VmGroup createGroup(String name, int seq) {
+        VmGroup g = new VmGroup();
+        g.setGroupId(UUID.randomUUID().toString());
+        g.setEnvironment(testEnvironment);
+        g.setName(name);
+        g.setDisplayName(name);
+        g.setSequencePosition(seq);
+        return groupRepository.saveAndFlush(g);
+    }
+
+    private Vm createVmInGroup(VmGroup group, String name) {
+        Vm vm = new Vm();
+        vm.setVmId(UUID.randomUUID().toString());
+        vm.setGroup(group);
+        vm.setName(name);
+        vm.setDisplayName(name);
+        vm.setProvider(CloudProvider.AWS);
+        vm.setRegion("us-east-1");
+        vm.setProviderVmId("i-" + UUID.randomUUID().toString().substring(0, 17));
+        vm.setVmType(VmType.DEV);
+        vm.setSequencePosition(1);
+        vm.setStatus(VmStatus.STOPPED);
+        vm.setIsActive(true);
+        return vmRepository.saveAndFlush(vm);
+    }
+
+    private User createUserWithGroupGrant(VmGroup group, AccessLevel level) {
+        User u = userRepository.saveAndFlush(User.fromUsernamePassword(
+                "scoped." + UUID.randomUUID().toString().substring(0, 8), "x", "s@example.com", "Scoped", "TCG"));
+        EnvironmentAccess grant = EnvironmentAccess.create(testEnvironment, u, level, u);
+        grant.setScopeType(AccessScopeType.GROUP);
+        grant.setScopeId(group.getGroupId());
+        accessRepository.saveAndFlush(grant);
+        return u;
+    }
+
+    @Test
+    void startOperation_groupScopedUser_failsFastWhenTargetingADisallowedGroup() {
+        VmGroup otherGroup = createGroup("other-group", 2);
+        createVmInGroup(otherGroup, "other-vm");
+        User scoped = createUserWithGroupGrant(testGroup, AccessLevel.USER);   // USER on testGroup only
+        lockService.acquireLock(testEnvironment.getEnvironmentId(), scoped.getUserId(), "t", null);
+
+        StartOperationDTO dto = new StartOperationDTO();
+        dto.setOperationType(OperationType.START);
+        dto.setGroupIds(List.of(otherGroup.getGroupId()));
+        dto.setSkipAlreadyInTargetState(false);
+
+        assertThrows(UnauthorizedException.class, () ->
+                operationsService.startOperation(testEnvironment.getEnvironmentId(), scoped.getUserId(), dto));
+    }
+
+    @Test
+    void startOperation_groupScopedUser_wholeEnvironment_narrowsToOperableGroups() {
+        VmGroup otherGroup = createGroup("other-group", 2);
+        createVmInGroup(otherGroup, "other-vm");
+        User scoped = createUserWithGroupGrant(testGroup, AccessLevel.USER);   // USER on testGroup only
+        lockService.acquireLock(testEnvironment.getEnvironmentId(), scoped.getUserId(), "t", null);
+
+        StartOperationDTO dto = new StartOperationDTO();
+        dto.setOperationType(OperationType.START);
+        dto.setSkipAlreadyInTargetState(false);   // whole environment: testGroup (2 VMs) + otherGroup (1 VM)
+
+        OperationExecution execution = operationsService.startOperation(
+                testEnvironment.getEnvironmentId(), scoped.getUserId(), dto);
+
+        // otherGroup's VM is dropped — only the 2 VMs of testGroup remain.
+        assertEquals(2, execution.getTotalTargets());
     }
 
     @Test
     void testStartOperation_CreatesExecution() {
         // Given
-        String userId = "user-001";
+        String userId = opsUserId;
         lockService.acquireLock(testEnvironment.getEnvironmentId(), userId, "Test", null);
 
         StartOperationDTO dto = new StartOperationDTO();
@@ -111,7 +198,7 @@ class VmOperationsServiceTest {
     @Test
     void testStartOperation_CreatesDetails() {
         // Given
-        String userId = "user-001";
+        String userId = opsUserId;
         lockService.acquireLock(testEnvironment.getEnvironmentId(), userId, "Test", null);
 
         StartOperationDTO dto = new StartOperationDTO();
@@ -148,7 +235,7 @@ class VmOperationsServiceTest {
     @Test
     void testStartOperation_SkipsAlreadyRunning() {
         // Given
-        String userId = "user-001";
+        String userId = opsUserId;
         lockService.acquireLock(testEnvironment.getEnvironmentId(), userId, "Test", null);
 
         // Set one VM as already running
@@ -170,7 +257,7 @@ class VmOperationsServiceTest {
     @Test
     void testStartOperation_SpecificVms() {
         // Given
-        String userId = "user-001";
+        String userId = opsUserId;
         lockService.acquireLock(testEnvironment.getEnvironmentId(), userId, "Test", null);
 
         StartOperationDTO dto = new StartOperationDTO();
@@ -189,7 +276,7 @@ class VmOperationsServiceTest {
     @Test
     void testCancelExecution() {
         // Given
-        String userId = "user-001";
+        String userId = opsUserId;
         lockService.acquireLock(testEnvironment.getEnvironmentId(), userId, "Test", null);
 
         StartOperationDTO dto = new StartOperationDTO();
@@ -217,7 +304,7 @@ class VmOperationsServiceTest {
     @Test
     void testGetExecution() {
         // Given
-        String userId = "user-001";
+        String userId = opsUserId;
         lockService.acquireLock(testEnvironment.getEnvironmentId(), userId, "Test", null);
 
         StartOperationDTO dto = new StartOperationDTO();
@@ -245,7 +332,7 @@ class VmOperationsServiceTest {
         emptyEnv.setIsActive(true);
         emptyEnv = environmentRepository.saveAndFlush(emptyEnv);
 
-        String userId = "user-001";
+        String userId = opsUserId;
         lockService.acquireLock(emptyEnv.getEnvironmentId(), userId, "Test", null);
 
         StartOperationDTO dto = new StartOperationDTO();
@@ -262,7 +349,7 @@ class VmOperationsServiceTest {
     @Test
     void testDuplicateOperationThrowsException() throws InterruptedException {
         // Given
-        String userId = "user-001";
+        String userId = opsUserId;
         lockService.acquireLock(testEnvironment.getEnvironmentId(), userId, "Test", null);
 
         StartOperationDTO dto = new StartOperationDTO();

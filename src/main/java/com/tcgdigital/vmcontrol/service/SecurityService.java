@@ -173,12 +173,16 @@ public class SecurityService {
 
     // ============= Group-scoped access (env or group grant) =============
 
-    /**
-     * The current user's effective level on an environment: the greater of their global role
-     * and any active ENVIRONMENT-scoped grant. Null when they have neither.
-     */
+    /** The current user's effective environment level (see the {@link User} overload). */
     public AccessLevel effectiveEnvLevel(String environmentId) {
-        User user = userService.getCurrentUser();
+        return effectiveEnvLevel(userService.getCurrentUser(), environmentId);
+    }
+
+    /**
+     * A user's effective level on an environment: the greater of their global role and any
+     * active ENVIRONMENT-scoped grant. Null when they have neither.
+     */
+    public AccessLevel effectiveEnvLevel(User user, String environmentId) {
         if (user == null) {
             return null;
         }
@@ -192,13 +196,17 @@ public class SecurityService {
                 .orElse(null));
     }
 
-    /**
-     * The current user's effective level on one group: the greatest of their global role, an
-     * ENVIRONMENT grant on the group's environment, and a GROUP grant on the group itself.
-     * Null when they have none of those (and null for an unknown group unless a role covers it).
-     */
+    /** The current user's effective level on one group (see the {@link User} overload). */
     public AccessLevel effectiveGroupLevel(String groupId) {
-        User user = userService.getCurrentUser();
+        return effectiveGroupLevel(userService.getCurrentUser(), groupId);
+    }
+
+    /**
+     * A user's effective level on one group: the greatest of their global role, an ENVIRONMENT
+     * grant on the group's environment, and a GROUP grant on the group itself. Null when they
+     * have none of those (and null for an unknown group unless a role covers it).
+     */
+    public AccessLevel effectiveGroupLevel(User user, String groupId) {
         if (user == null) {
             return null;
         }
@@ -230,17 +238,56 @@ public class SecurityService {
      * Whether the current user has at least {@code requiredLevel} on a group.
      */
     public boolean hasGroupAccessLevel(String groupId, AccessLevel requiredLevel) {
-        AccessLevel level = effectiveGroupLevel(groupId);
-        return level != null && level.ordinal() >= requiredLevel.ordinal();
+        return atLeast(effectiveGroupLevel(groupId), requiredLevel);
     }
 
     /**
-     * Group ids in an environment the current user can see: every group when they have any
+     * Whether {@code userId} has at least {@code requiredLevel} on a group. Explicit-user
+     * variant for callers that act on behalf of someone other than the security principal
+     * (VM operations, automation rules).
+     */
+    public boolean hasGroupAccessLevelForUser(String userId, String groupId, AccessLevel requiredLevel) {
+        return atLeast(effectiveGroupLevel(loadUser(userId), groupId), requiredLevel);
+    }
+
+    /**
+     * Whether the current user can start/stop anything in an environment: environment-level
+     * USER (or a global role), or USER on at least one group in it.
+     */
+    public boolean canOperateInEnvironment(String environmentId) {
+        User user = userService.getCurrentUser();
+        if (user == null) {
+            return false;
+        }
+        if (atLeast(effectiveEnvLevel(user, environmentId), AccessLevel.USER)) {
+            return true;
+        }
+        List<String> groupIds = vmGroupRepository.findByEnvironmentId(environmentId).stream()
+                .map(VmGroup::getGroupId).toList();
+        return accessService.getActiveGroupGrantLevels(user.getUserId(), groupIds).values().stream()
+                .anyMatch(l -> l.ordinal() >= AccessLevel.USER.ordinal());
+    }
+
+    /**
+     * Whether the current user can see any part of an environment — any environment access, a
+     * global role, or a grant on at least one group in it.
+     */
+    public boolean canViewEnvironment(String environmentId) {
+        return !getVisibleGroupIds(environmentId).isEmpty()
+                || effectiveEnvLevel(environmentId) != null;
+    }
+
+    /** The current user's visible group ids in an environment (see the {@link User} overload). */
+    public List<String> getVisibleGroupIds(String environmentId) {
+        return getVisibleGroupIds(userService.getCurrentUser(), environmentId);
+    }
+
+    /**
+     * Group ids in an environment a user can see: every group when they have any
      * environment-wide access (a global role or an ENVIRONMENT grant), otherwise only the
      * groups they hold a GROUP grant on. Empty when they can see nothing.
      */
-    public List<String> getVisibleGroupIds(String environmentId) {
-        User user = userService.getCurrentUser();
+    public List<String> getVisibleGroupIds(User user, String environmentId) {
         if (user == null) {
             return List.of();
         }
@@ -255,9 +302,8 @@ public class SecurityService {
         if (environmentWide) {
             return allGroupIds;
         }
-        return allGroupIds.stream()
-                .filter(accessService.getActiveGroupGrantLevels(user.getUserId(), allGroupIds)::containsKey)
-                .toList();
+        java.util.Set<String> granted = accessService.getActiveGroupGrantLevels(user.getUserId(), allGroupIds).keySet();
+        return allGroupIds.stream().filter(granted::contains).toList();
     }
 
     /**
@@ -279,6 +325,22 @@ public class SecurityService {
             return AccessLevel.ADMIN;
         }
         return null;
+    }
+
+    private User loadUser(String userId) {
+        if (userId == null) {
+            return null;
+        }
+        try {
+            return userService.getUserById(userId);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** True when {@code level} is non-null and at least {@code required}. */
+    private static boolean atLeast(AccessLevel level, AccessLevel required) {
+        return level != null && level.ordinal() >= required.ordinal();
     }
 
     /** Greater of two nullable levels; null means "no access". */

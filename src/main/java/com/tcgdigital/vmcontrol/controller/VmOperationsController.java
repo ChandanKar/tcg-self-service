@@ -67,7 +67,7 @@ public class VmOperationsController {
             @Valid @RequestBody StartOperationDTO dto) {
 
         // Check USER level access for operations
-        if (!securityService.hasEnvironmentAccessLevel(environmentId, AccessLevel.USER)) {
+        if (!securityService.canOperateInEnvironment(environmentId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -100,7 +100,7 @@ public class VmOperationsController {
             @Parameter(description = "Environment ID") @PathVariable String environmentId) {
 
         // Check any level of access
-        if (!securityService.hasEnvironmentAccess(environmentId)) {
+        if (!securityService.canViewEnvironment(environmentId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -136,7 +136,7 @@ public class VmOperationsController {
             @Parameter(description = "Execution ID") @PathVariable String executionId) {
 
         // Check any level of access
-        if (!securityService.hasEnvironmentAccess(environmentId)) {
+        if (!securityService.canViewEnvironment(environmentId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -161,7 +161,7 @@ public class VmOperationsController {
             @Parameter(description = "Optional: scope to a specific VM")    @RequestParam(required = false) String vmId) {
 
         // Check any level of access
-        if (!securityService.hasEnvironmentAccess(environmentId)) {
+        if (!securityService.canViewEnvironment(environmentId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -190,7 +190,7 @@ public class VmOperationsController {
             @Parameter(description = "Execution ID") @PathVariable String executionId) {
 
         // Check USER level access for operations
-        if (!securityService.hasEnvironmentAccessLevel(environmentId, AccessLevel.USER)) {
+        if (!securityService.canOperateInEnvironment(environmentId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 

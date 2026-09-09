@@ -3,6 +3,7 @@ package com.tcgdigital.vmcontrol.service;
 import com.tcgdigital.vmcontrol.dto.OperationEstimateDTO;
 import com.tcgdigital.vmcontrol.dto.StartOperationDTO;
 import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
+import com.tcgdigital.vmcontrol.exception.UnauthorizedException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.*;
 import com.tcgdigital.vmcontrol.repository.*;
@@ -54,6 +55,12 @@ public class VmOperationsService {
     @Lazy
     @Autowired
     private VmOperationsService self;
+
+    // @Lazy to break the construction cycle VmOperationsService -> SecurityService ->
+    // EnvironmentAccessService -> AutomationRuleService -> VmOperationsService.
+    @Lazy
+    @Autowired
+    private SecurityService securityService;
 
     public VmOperationsService(OperationExecutionRepository executionRepository,
                                OperationDetailRepository detailRepository,
@@ -107,6 +114,11 @@ public class VmOperationsService {
         if (targetVms.isEmpty()) {
             throw new ValidationException("No VMs to operate on");
         }
+
+        // Group-scoped access: a user without environment-wide USER can only operate the groups
+        // they hold a grant on. An explicit group/VM target they can't touch fails the request;
+        // a whole-environment request is narrowed to the groups they can operate.
+        targetVms = enforceGroupScopeAccess(targetVms, dto, userId);
 
         List<Vm> orderedVms = dependencyValidator.orderForExecution(targetVms);
         Map<String, List<String>> scopedDependencyVmIds = dependencyValidator.buildScopedDependencyMap(orderedVms);
@@ -735,6 +747,55 @@ public class VmOperationsService {
     }
 
     // ============= Private Helper Methods =============
+
+    /**
+     * Applies group-scoped access to the target VM set.
+     * <ul>
+     *   <li>Users with environment-wide USER access (or a global role) pass unchanged.</li>
+     *   <li>For a request with explicit {@code vmIds}/{@code groupIds}: if any targeted group
+     *       is one the user cannot operate, the whole request is rejected (403), naming the
+     *       groups — no silent partial run.</li>
+     *   <li>For a whole-environment request: the set is narrowed to the groups the user can
+     *       operate; empty result is rejected.</li>
+     * </ul>
+     */
+    private List<Vm> enforceGroupScopeAccess(List<Vm> targetVms, StartOperationDTO dto, String userId) {
+        Map<String, Boolean> operableByGroup = new HashMap<>();
+        List<String> disallowedGroupIds = new ArrayList<>();
+        for (Vm vm : targetVms) {
+            String groupId = vm.getGroup().getGroupId();
+            boolean operable = operableByGroup.computeIfAbsent(groupId,
+                    g -> securityService.hasGroupAccessLevelForUser(userId, g, AccessLevel.USER));
+            if (!operable && !disallowedGroupIds.contains(groupId)) {
+                disallowedGroupIds.add(groupId);
+            }
+        }
+        if (disallowedGroupIds.isEmpty()) {
+            return targetVms;
+        }
+
+        boolean wholeEnvironment = (dto.getVmIds() == null || dto.getVmIds().isEmpty())
+                && (dto.getGroupIds() == null || dto.getGroupIds().isEmpty());
+        if (wholeEnvironment) {
+            List<Vm> narrowed = targetVms.stream()
+                    .filter(vm -> operableByGroup.get(vm.getGroup().getGroupId()))
+                    .toList();
+            if (narrowed.isEmpty()) {
+                throw new UnauthorizedException(
+                        "You do not have access to operate any VM group in this environment");
+            }
+            log.info("Operation by {} narrowed to {} of {} target VMs (group-scoped access)",
+                    userId, narrowed.size(), targetVms.size());
+            return narrowed;
+        }
+
+        Map<String, String> names = groupRepository.findAllById(disallowedGroupIds).stream()
+                .collect(Collectors.toMap(VmGroup::getGroupId, VmGroup::getDisplayName));
+        String label = disallowedGroupIds.stream()
+                .map(g -> names.getOrDefault(g, g))
+                .collect(Collectors.joining(", "));
+        throw new UnauthorizedException("You cannot operate on VM group(s): " + label);
+    }
 
     private List<Vm> resolveTargetVms(Environment environment, StartOperationDTO dto) {
         List<Vm> targetVms;

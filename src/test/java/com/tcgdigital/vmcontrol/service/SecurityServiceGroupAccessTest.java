@@ -215,4 +215,55 @@ class SecurityServiceGroupAccessTest {
 
         assertThat(security.canManageGroupAccess(G1)).isFalse();
     }
+
+    // ---- operate / view checks (step 5) ----
+
+    @Test
+    void canOperateInEnvironment_true_forEnvUser() {
+        when(userService.getCurrentUser()).thenReturn(plainUser());
+        when(accessService.getActiveGrant(UID, AccessScopeType.ENVIRONMENT, ENV))
+                .thenReturn(Optional.of(grant(AccessScopeType.ENVIRONMENT, ENV, AccessLevel.USER)));
+
+        assertThat(security.canOperateInEnvironment(ENV)).isTrue();
+    }
+
+    @Test
+    void canOperateInEnvironment_true_forGroupUser() {
+        when(userService.getCurrentUser()).thenReturn(plainUser());
+        when(accessService.getActiveGrant(UID, AccessScopeType.ENVIRONMENT, ENV)).thenReturn(Optional.empty());
+        when(vmGroupRepository.findByEnvironmentId(ENV)).thenReturn(List.of(group(G1), group(G2)));
+        when(accessService.getActiveGroupGrantLevels(UID, List.of(G1, G2)))
+                .thenReturn(Map.of(G2, AccessLevel.USER));
+
+        assertThat(security.canOperateInEnvironment(ENV)).isTrue();
+    }
+
+    @Test
+    void canOperateInEnvironment_false_forGroupViewerOnly() {
+        when(userService.getCurrentUser()).thenReturn(plainUser());
+        when(accessService.getActiveGrant(UID, AccessScopeType.ENVIRONMENT, ENV)).thenReturn(Optional.empty());
+        when(vmGroupRepository.findByEnvironmentId(ENV)).thenReturn(List.of(group(G1)));
+        when(accessService.getActiveGroupGrantLevels(UID, List.of(G1)))
+                .thenReturn(Map.of(G1, AccessLevel.VIEWER));
+
+        assertThat(security.canOperateInEnvironment(ENV)).isFalse();
+    }
+
+    @Test
+    void hasGroupAccessLevelForUser_loadsUserById_andComposes() {
+        when(userService.getUserById(UID)).thenReturn(plainUser());
+        when(vmGroupRepository.findById(G1)).thenReturn(Optional.of(group(G1)));
+        when(accessService.getActiveGrant(UID, AccessScopeType.ENVIRONMENT, ENV)).thenReturn(Optional.empty());
+        when(accessService.getActiveGrant(UID, AccessScopeType.GROUP, G1))
+                .thenReturn(Optional.of(grant(AccessScopeType.GROUP, G1, AccessLevel.USER)));
+
+        assertThat(security.hasGroupAccessLevelForUser(UID, G1, AccessLevel.USER)).isTrue();
+        assertThat(security.hasGroupAccessLevelForUser(UID, G1, AccessLevel.ADMIN)).isFalse();
+    }
+
+    @Test
+    void hasGroupAccessLevelForUser_unknownUser_isFalse() {
+        when(userService.getUserById("ghost")).thenThrow(new RuntimeException("no such user"));
+        assertThat(security.hasGroupAccessLevelForUser("ghost", G1, AccessLevel.USER)).isFalse();
+    }
 }
