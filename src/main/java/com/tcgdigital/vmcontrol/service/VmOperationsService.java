@@ -731,10 +731,22 @@ public class VmOperationsService {
     }
 
     private boolean isAcceptablePostFailureState(OperationType operationType, VmStatus status) {
-        if (operationType == OperationType.STOP) {
-            return status == VmStatus.STOPPING || status == VmStatus.STOPPED;
+        switch (operationType) {
+            case STOP:
+                return status == VmStatus.STOPPING || status == VmStatus.STOPPED;
+            case START:
+                // The provider poll gave up (typically because AWS status checks were slow
+                // to all report OK, or a transient DescribeInstances error), but the cloud
+                // shows the instance actually RUNNING — the start succeeded and the VM is
+                // usable. Mirrors the STOP branch above so a healthy start is not recorded
+                // as a failed step (which would turn the whole execution PARTIAL_SUCCESS and
+                // surface "Completed with some failures" for a VM that is up).
+                return status == VmStatus.RUNNING;
+            default:
+                // RESTART is multi-phase (stop then start); "is it actually fine?" is
+                // ambiguous on a mid-sequence failure, so leave it strict.
+                return false;
         }
-        return false;
     }
 
     private boolean shouldRestorePreviousStatus(OperationType operationType,

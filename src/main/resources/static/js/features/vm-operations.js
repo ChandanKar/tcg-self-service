@@ -160,19 +160,25 @@ const VmOperations = (function() {
 
                     <div class="progress-details">
                         <div class="row text-center mb-3">
-                            <div class="col-4">
+                            <div class="col-3">
                                 <div class="metric-mini">
                                     <div class="metric-value text-success" id="progress-completed">0</div>
                                     <div class="metric-label">Completed</div>
                                 </div>
                             </div>
-                            <div class="col-4">
+                            <div class="col-3">
                                 <div class="metric-mini">
                                     <div class="metric-value text-primary" id="progress-pending">0</div>
                                     <div class="metric-label">Pending</div>
                                 </div>
                             </div>
-                            <div class="col-4">
+                            <div class="col-3">
+                                <div class="metric-mini">
+                                    <div class="metric-value text-muted" id="progress-skipped">0</div>
+                                    <div class="metric-label">Skipped</div>
+                                </div>
+                            </div>
+                            <div class="col-3">
                                 <div class="metric-mini">
                                     <div class="metric-value text-danger" id="progress-failed">0</div>
                                     <div class="metric-label">Failed</div>
@@ -253,15 +259,19 @@ const VmOperations = (function() {
             const failed = hasSteps
                 ? steps.filter(s => (s.status || '').toUpperCase() === 'FAILED').length
                 : (Number(execution.failedTargets) || 0);
+            const skipped = hasSteps
+                ? steps.filter(s => (s.status || '').toUpperCase() === 'SKIPPED').length
+                : 0;
             const inProgress = hasSteps
                 ? steps.filter(s => (s.status || '').toUpperCase() === 'IN_PROGRESS').length
                 : 0;
-            const pending = Math.max(0, total - completed - failed);
+            const pending = Math.max(0, total - completed - failed - skipped);
             const progressValues = hasSteps
                 ? steps.map(step => {
                     const normalizedStatus = (step.status || '').toUpperCase();
                     if (normalizedStatus === 'COMPLETED') return 100;
                     if (normalizedStatus === 'FAILED') return 100;
+                    if (normalizedStatus === 'SKIPPED') return 100;
                     return Number(step.progressPercentage) || 0;
                 })
                 : [];
@@ -289,6 +299,7 @@ const VmOperations = (function() {
             // Update counts
             $('#progress-completed').text(completed);
             $('#progress-pending').text(pending);
+            $('#progress-skipped').text(skipped);
             $('#progress-failed').text(failed);
 
             // Update progress bar width + label
@@ -301,7 +312,10 @@ const VmOperations = (function() {
                 $progressBar.removeClass('progress-bar-animated progress-bar-striped').addClass('bg-success');
                 stopElapsedTimer();
             } else if (execution.status === 'PARTIAL_SUCCESS') {
-                $statusText.html(`<i class="fas fa-exclamation-triangle text-warning me-2"></i>Completed with some failures`);
+                const partialMsg = failed > 0
+                    ? 'Completed with some failures'
+                    : `Completed — ${skipped} step${skipped === 1 ? '' : 's'} skipped`;
+                $statusText.html(`<i class="fas fa-exclamation-triangle text-warning me-2"></i>${partialMsg}`);
                 $progressBar.removeClass('progress-bar-animated progress-bar-striped').addClass('bg-warning');
                 stopElapsedTimer();
             } else if (execution.status === 'FAILED') {
@@ -331,7 +345,10 @@ const VmOperations = (function() {
     function getProgressStageLabel(execution, steps, currentStep, percent) {
         if (execution.status === 'COMPLETED') return 'Completed';
         if (execution.status === 'FAILED') return 'Failed';
-        if (execution.status === 'PARTIAL_SUCCESS') return 'Completed with failures';
+        if (execution.status === 'PARTIAL_SUCCESS') {
+            const anyFailed = (steps || []).some(s => (s.status || '').toUpperCase() === 'FAILED');
+            return anyFailed ? 'Completed with failures' : 'Completed, some skipped';
+        }
         if (execution.status === 'CANCELLED') return 'Cancelled';
 
         if (currentStep?.stageLabel) {
@@ -381,13 +398,20 @@ const VmOperations = (function() {
                     statusIcon = 'fa-ban';
                     statusClass = 'text-secondary';
                     break;
+                case 'SKIPPED':
+                    statusIcon = 'fa-forward';
+                    statusClass = 'text-warning';
+                    break;
                 default:
                     statusIcon = 'fa-clock';
                     statusClass = 'text-muted';
             }
 
+            // A skipped step's message ("dependency X failed to start") is a reason, not an
+            // error on this VM — show it amber, not red.
+            const msgClass = normalizedStatus === 'SKIPPED' ? 'text-warning' : 'text-danger';
             const errorMsg = step.errorMessage ?
-                `<small class="text-danger d-block">${Utils.escapeHtml(step.errorMessage)}</small>` : '';
+                `<small class="${msgClass} d-block">${Utils.escapeHtml(step.errorMessage)}</small>` : '';
             const stageMsg = step.stageLabel && normalizedStatus !== 'COMPLETED' ?
                 `<small class="text-muted d-block">${Utils.escapeHtml(step.stageLabel)}</small>` : '';
 
@@ -417,6 +441,7 @@ const VmOperations = (function() {
             case 'FAILED': return 'danger';
             case 'IN_PROGRESS': return 'primary';
             case 'CANCELLED': return 'secondary';
+            case 'SKIPPED': return 'warning';
             default: return 'secondary';
         }
     }
@@ -464,7 +489,11 @@ const VmOperations = (function() {
                         if (operation) {
                             operation.state = 'completed';
                         }
-                        Notifications.warning('Operation completed with some failures. Check the details for more information.');
+                        const details = execution.details || [];
+                        const anyFailed = details.some(s => (s.status || '').toUpperCase() === 'FAILED');
+                        Notifications.warning(anyFailed
+                            ? 'Operation completed with some failures. Check the details for more information.'
+                            : 'Operation completed. Some steps were skipped because a dependency did not start.');
                         resolve(execution);
                     } else if (execution.status === 'FAILED') {
                         stopPolling();
