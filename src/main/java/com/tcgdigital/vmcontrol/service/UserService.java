@@ -57,6 +57,24 @@ public class UserService {
                 log.info("Updated display name for user: {} -> {}", user.getEmail(), displayName);
             }
 
+            // Refresh the email from the token if it moved on — e.g. a directory onboard that
+            // could only store the userPrincipalName (Graph 'mail' was null) now gets the real
+            // address. Skip if some other row already holds that email.
+            if (email != null && !email.equalsIgnoreCase(user.getEmail())) {
+                Optional<User> emailHolder = userRepository.findByEmail(email);
+                if (emailHolder.isPresent() && !emailHolder.get().getUserId().equals(user.getUserId())) {
+                    log.warn("Not refreshing email for user {} to {}: already held by user {}",
+                            user.getUserId(), email, emailHolder.get().getUserId());
+                } else {
+                    log.info("Updated email for user {}: {} -> {}", user.getUserId(), user.getEmail(), email);
+                    user.setEmail(email);
+                }
+            }
+
+            if (user.getOnboardedBy() != null && user.getLastLoginAt() == null) {
+                log.info("Onboarded user {} ({}) signed in for the first time", user.getEmail(), user.getUserId());
+            }
+
             // Check if this user should be promoted to admin based on initial-admin-email
             if (initialAdminEmail != null && !initialAdminEmail.isEmpty()
                 && email.equalsIgnoreCase(initialAdminEmail) && !user.isAdmin()) {
