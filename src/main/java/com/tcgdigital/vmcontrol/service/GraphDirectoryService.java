@@ -9,6 +9,7 @@ import com.tcgdigital.vmcontrol.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -44,7 +45,7 @@ public class GraphDirectoryService {
     @Value("${graph.directory.enabled:false}")
     private boolean directoryEnabled;
 
-    public GraphDirectoryService(ObjectProvider<RestClient> graphRestClientProvider,
+    public GraphDirectoryService(@Qualifier("graphRestClient") ObjectProvider<RestClient> graphRestClientProvider,
                                  UserRepository userRepository) {
         this.graphRestClientProvider = graphRestClientProvider;
         this.userRepository = userRepository;

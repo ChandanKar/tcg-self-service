@@ -20,6 +20,7 @@ const UserManagement = (function() {
     let onboardSelected = null;   // picked directory user, or null
     let onboardManual = false;    // manual-entry mode (directory disabled / not found)
     let onboardEnvs = [];         // environments for the optional grant picker
+    let onboardResults = [];      // last directory-search results, indexed by data-idx
 
     /**
      * Initialize and load User Management view
@@ -621,8 +622,7 @@ const UserManagement = (function() {
 
         // delegate: pick a directory result
         $('#onboard-dir-results').off('click', '[data-oid]').on('click', '[data-oid]', function() {
-            const idx = $(this).data('idx');
-            pickDirectoryUser(window.__onboardResults ? window.__onboardResults[idx] : null);
+            pickDirectoryUser(onboardResults[$(this).data('idx')]);
         });
 
         $('#onboard-selected').off('click', '.onboard-clear').on('click', '.onboard-clear', function(e) {
@@ -655,10 +655,12 @@ const UserManagement = (function() {
     function runDirectorySearch(q) {
         const $results = $('#onboard-dir-results');
         $results.removeAttr('hidden').html('<div class="p-2 text-muted small"><i class="fas fa-spinner fa-spin me-1"></i>Searching…</div>');
-        ApiClient.get(Config.API.directory.search(q))
+        // suppressGlobalError: an expected 409 (lookup disabled) / 502 is handled inline here;
+        // ApiClient's global handler would otherwise pop a misleading red toast.
+        ApiClient.get(Config.API.directory.search(q), { suppressGlobalError: true })
             .done(function(list) {
-                window.__onboardResults = list || [];
-                renderDirectoryResults(list || []);
+                onboardResults = list || [];
+                renderDirectoryResults(onboardResults);
             })
             .fail(function(xhr) {
                 if (xhr.status === 409) {
@@ -721,7 +723,7 @@ const UserManagement = (function() {
     }
 
     function loadOnboardEnvironments() {
-        ApiClient.get(Config.API.environments.list)
+        ApiClient.get(Config.API.environments.list, { suppressGlobalError: true })
             .done(function(envs) {
                 onboardEnvs = envs || [];
                 const opts = ['<option value="">Select an environment…</option>']
@@ -742,7 +744,7 @@ const UserManagement = (function() {
         const $list = $('#onboard-group-list');
         if (!envId) { $list.html('<li class="text-muted small">Pick an environment first.</li>'); return; }
         $list.html('<li class="text-muted small"><i class="fas fa-spinner fa-spin me-1"></i>Loading groups…</li>');
-        ApiClient.get(Config.API.groups.list(envId))
+        ApiClient.get(Config.API.groups.list(envId), { suppressGlobalError: true })
             .done(function(groups) {
                 if (!groups || !groups.length) {
                     $list.html('<li class="text-muted small">This environment has no groups.</li>');
@@ -799,7 +801,9 @@ const UserManagement = (function() {
         }
 
         const $btn = $('#onboard-submit').prop('disabled', true);
-        ApiClient.post(Config.API.users.create, payload)
+        // suppressGlobalError: 409 (already a user) / 400 (validation) are shown inline in the
+        // modal; the global toast would duplicate or mislead.
+        ApiClient.post(Config.API.users.create, payload, { suppressGlobalError: true })
             .done(function(res) {
                 const name = res.user?.displayName || res.user?.email || 'user';
                 const grantMsg = res.grants && res.grants.length ? ` with ${res.grants.length} access grant(s)` : '';

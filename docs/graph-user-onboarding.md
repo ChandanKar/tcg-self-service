@@ -236,9 +236,11 @@ graph.api.timeout-ms=${GRAPH_API_TIMEOUT_MS:5000}
 - `$search` requires `ConsistencyLevel: eventual`; strip `"` from `q` to prevent
   breaking out of the `$search` string.
 - `RestClient` timeout 5 s; Graph error → `502`, never a 500 stack to the client.
-- `POST /users` is ADMIN-only, so the delegated grant's
-  `canManageEnvironmentAccess` / `canManageGroupAccess` checks always pass — but they
-  are still executed for a single audit/notification code path.
+- `POST /users` is ADMIN-only. The onboard path calls `EnvironmentAccessService.grantScoped`
+  **directly**, which does not run the per-scope `canManageEnvironmentAccess` /
+  `canManageGroupAccess` checks that `AccessGrantController` does — this is safe only
+  because a global ADMIN can manage access on every scope. If ENV_ADMIN onboarding is
+  added (v2), that step must add the per-scope authz.
 - No caching of search results (directory changes); a 60 s micro-cache of identical
   `(q, top)` is allowed.
 
