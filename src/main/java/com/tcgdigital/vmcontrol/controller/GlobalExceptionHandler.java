@@ -82,6 +82,16 @@ public class GlobalExceptionHandler {
         ));
     }
 
+    @ExceptionHandler(DirectoryLookupException.class)
+    public ResponseEntity<Map<String, Object>> handleDirectoryLookup(DirectoryLookupException ex) {
+        log.warn("Directory lookup ({}): {}", ex.getStatus(), ex.getMessage());
+        return ResponseEntity.status(ex.getStatus()).body(Map.of(
+                "error", ex.getErrorCode(),
+                "message", ex.getMessage(),
+                "timestamp", Instant.now().toString()
+        ));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleMethodArgumentNotValid(MethodArgumentNotValidException ex) {
         java.util.List<Map<String, String>> errors = ex.getBindingResult().getFieldErrors().stream()
