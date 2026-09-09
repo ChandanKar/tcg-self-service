@@ -1,8 +1,34 @@
-# Requirement — Onboard a directory user from the admin panel (Microsoft Graph)
+# Onboard a directory user from the admin panel (Microsoft Graph)
 
-Status: **DRAFT — awaiting "lock it"**
+Status: **IMPLEMENTED** (steps 1–5). Disabled by default — see "Enabling in production" below.
 Owner: platform
 Related: [access-grants-requirement.md](access-grants-requirement.md)
+
+## Enabling in production
+
+1. On the existing Azure app registration → **API permissions** → Microsoft Graph →
+   **Application permissions** → add **`User.ReadBasic.All`**.
+2. **Grant admin consent** for the tenant.
+3. Set `GRAPH_DIRECTORY_ENABLED=true` (the `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` /
+   `AZURE_TENANT_ID` already used for login are reused for the client-credentials token).
+
+Until then, `graph.directory.enabled` stays `false`: `GET /api/v1/directory/search`
+returns `409 directory_lookup_disabled` and the Onboard User dialog offers manual
+entry only (email + display name → an *Unverified* row, adopted by email on first
+Entra sign-in).
+
+## As shipped
+
+| Step | Commit | Contents |
+|---|---|---|
+| 1 | `6cc4883` | `graph` client-credentials registration + `GraphConfig` (`graphRestClient` + token manager), `graph.directory.enabled` / `graph.api.*` keys |
+| 2 | `15cd5a0` | `GraphDirectoryService.search` + `GET /api/v1/directory/search` (ADMIN) + `DirectoryUserDTO` + `DirectoryLookupException` (409/502) |
+| 3 | `192f413` | `POST /api/v1/users` onboard + migration **V21** (`onboarded_by`, `onboarded_at`) + `UserService.createOnboardedUser` + `UserOnboardingService` (dedupe → 409, `initialGrant` → `grantScoped`, one transaction) + `AuditAction.USER_ONBOARDED` |
+| 4 | `c2867ac` | `findOrCreateUser`: refresh stored email on first sign-in when it moved on; `UserServiceFindOrCreateTest` |
+| 5 | `01ab84b` | "Onboard User" modal in User Management (directory typeahead / manual fallback / role checkboxes / optional env-or-group grant); "Not signed in" + "Unverified" badges; `config.js` `users.create` + `directory.search` |
+
+Tests: `GraphDirectoryServiceTest` (12, `MockRestServiceServer`), `UserOnboardingServiceTest` (8),
+`UserServiceFindOrCreateTest` (5) — all pure-unit. `@SpringBootTest` classes still need Docker.
 
 ---
 
@@ -218,23 +244,23 @@ graph.api.timeout-ms=${GRAPH_API_TIMEOUT_MS:5000}
 
 ## 9. Build plan — one commit per step
 
-1. **Graph client plumbing** — `graph` registration (properties + `.env.example`),
-   `GraphConfig` (`RestClient` bean + `AuthorizedClientServiceOAuth2AuthorizedClientManager`),
-   `graph.directory.enabled` / `graph.api.*` props. No endpoint yet.
-2. **`GraphDirectoryService` + `DirectoryUserDTO` + `GET /api/v1/directory/search`** —
-   `$search` query, input escaping, timeout, `alreadyInApp` enrichment, ADMIN-gated.
-   Unit tests with `MockRestServiceServer` / a stub `RestClient`.
-3. **Onboard endpoint** — `OnboardUserDTO`, `UserService.onboardUser` (Graph re-fetch,
-   dedupe, create, audit), `AuditAction.USER_ONBOARDED`, migration **V21**
-   (`onboarded_by`, `onboarded_at`), `POST /api/v1/users`. `initialGrant` delegation
-   to `EnvironmentAccessService.grantScoped`. Tests.
-4. **First-login adoption polish** — `findOrCreateUser` email refresh on `oid` match;
-   test that an onboarded row is adopted, not duplicated.
-5. **Admin-panel UI** — "Onboard User" button + modal (directory typeahead + manual
-   fallback + role checkboxes + optional grant section), `config.js`, "Not signed in
-   yet" / "Unverified" badges, `build-frontend.ps1`.
-6. **Docs** — finalize this file; README + `.env.example` notes on the `User.ReadBasic.All`
-   consent and `GRAPH_DIRECTORY_ENABLED`.
+All done — see the "As shipped" table at the top for the commit per step.
+
+1. ✅ Graph client plumbing (`GraphConfig`, `graph` registration, flags).
+2. ✅ `GraphDirectoryService` + `GET /api/v1/directory/search` + `DirectoryUserDTO`.
+3. ✅ `POST /api/v1/users` onboard + V21 + `UserOnboardingService` + `USER_ONBOARDED`.
+4. ✅ First-login adoption polish (email refresh on `oid` match).
+5. ✅ "Onboard User" modal, badges, `config.js` keys, frontend bundle.
+6. ✅ Docs (this file). No README (empty in this repo); `.env.example` carries the
+   `GRAPH_DIRECTORY_ENABLED` note, this file carries the consent steps.
+
+### Deviations from the plan
+
+- `UserOnboardingService` is a **separate service**, not a method on `UserService` —
+  avoids a `UserService` ↔ `EnvironmentAccessService` bean cycle. `UserService` keeps
+  only the low-level `createOnboardedUser` (persist + audit).
+- The onboard modal implements the **group-scoped** grant option directly (scope
+  toggle + checklist), not just environment scope.
 
 ## 10. v2 backlog
 
@@ -243,3 +269,5 @@ graph.api.timeout-ms=${GRAPH_API_TIMEOUT_MS:5000}
 - Bulk CSV onboarding.
 - Optional Entra `accountEnabled` / `userType` display (needs `User.Read.All`).
 - De-provisioning: nightly reconcile against Entra, flag/disable removed accounts.
+- `USER_FIRST_LOGIN` audit event (currently just a log line) for a stale-invite report.
+- 60 s micro-cache of identical directory `(q, top)` searches (not implemented).
