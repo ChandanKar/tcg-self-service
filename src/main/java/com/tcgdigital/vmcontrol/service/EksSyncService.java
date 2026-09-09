@@ -9,8 +9,11 @@ import com.tcgdigital.vmcontrol.repository.VmGroupRepository;
 import com.tcgdigital.vmcontrol.repository.VmRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import software.amazon.awssdk.services.eks.model.Nodegroup;
 
@@ -48,6 +51,12 @@ public class EksSyncService {
 
     @Value("${eks.sync.regions:}")
     private String configuredSyncRegions;
+
+    // Self-reference via the Spring proxy so the per-node-group @Transactional(REQUIRES_NEW)
+    // boundaries below actually take effect (a direct this.method() call bypasses them).
+    @Lazy
+    @Autowired
+    private EksSyncService self;
 
     public EksSyncService(EnvironmentRepository environmentRepository,
                           VmGroupRepository groupRepository,
@@ -182,9 +191,12 @@ public class EksSyncService {
 
     /**
      * Syncs a single EKS environment: discovers node groups and upserts VmGroups + Vms.
+     * <p>Deliberately <b>not</b> {@code @Transactional} — each node group is upserted (and each
+     * stale group deactivated) in its own {@code REQUIRES_NEW} transaction via {@link #self},
+     * so a constraint violation or transient DB error on one node group can't roll back every
+     * other node group's changes for this environment.
      * @return number of node groups synced
      */
-    @Transactional
     public int syncEksEnvironment(Environment environment) {
         String clusterName = environment.getName();
         String region = resolveRegion(environment);
@@ -214,25 +226,37 @@ public class EksSyncService {
         // existing (or long-removed) group and silently fail every cycle thereafter.
         AtomicInteger nextSequence = new AtomicInteger(resolveNextSequencePosition(environment.getEnvironmentId()));
 
-        // Upsert VmGroup + Vm for each live node group
+        // Upsert VmGroup + Vm for each live node group — each in its own transaction, so one
+        // bad node group doesn't discard the rest (or the newly-added one).
         for (String nodeGroupName : liveNodeGroups) {
             try {
-                changes.add(upsertNodeGroup(environment, clusterName, nodeGroupName, region, nextSequence));
+                changes.add(self.upsertNodeGroup(environment, clusterName, nodeGroupName, region, nextSequence));
             } catch (Exception e) {
                 log.error("Failed to upsert node group {}/{}: {}", clusterName, nodeGroupName, e.getMessage(), e);
                 changes.failed++;
                 changes.failedNames.add(nodeGroupName);
-                auditService.logAction(null, AuditAction.EKS_NODEGROUP_SYNC_FAILED, "vm_group", null,
-                        clusterName + "/" + nodeGroupName, "EKS node group sync failed: " + e.getMessage());
+                try {
+                    auditService.logAction(null, AuditAction.EKS_NODEGROUP_SYNC_FAILED, "vm_group", null,
+                            clusterName + "/" + nodeGroupName, "EKS node group sync failed: " + e.getMessage());
+                } catch (Exception auditEx) {
+                    log.warn("Could not audit EKS node group sync failure for {}/{}: {}",
+                            clusterName, nodeGroupName, auditEx.getMessage());
+                }
             }
         }
 
-        // Deactivate VmGroups (and their Vms) that no longer exist in the cluster
+        // Deactivate VmGroups (and their Vms) that no longer exist in the cluster — again one
+        // transaction per group.
         List<VmGroup> existingGroups = groupRepository.findByEnvironmentEnvironmentIdOrderBySequencePositionAsc(
                 environment.getEnvironmentId());
         for (VmGroup group : existingGroups) {
             if (!liveNames.contains(group.getName())) {
-                changes.removed += deactivateNodeGroup(group, clusterName);
+                try {
+                    changes.removed += self.deactivateNodeGroup(group, clusterName);
+                } catch (Exception e) {
+                    log.error("Failed to deactivate removed EKS node group {}/{}: {}",
+                            clusterName, group.getName(), e.getMessage());
+                }
             }
         }
 
@@ -245,8 +269,9 @@ public class EksSyncService {
      * "resync this environment now" admin action — a node group added to AWS since the last
      * scheduled cycle (or one that failed to sync, e.g. due to a since-fixed collision) doesn't
      * have to wait for the next scheduled run.
+     * <p>Not {@code @Transactional} for the same reason as {@link #syncEksEnvironment} — the
+     * per-node-group commits must be independent.
      */
-    @Transactional
     public int syncEksEnvironmentById(String environmentId) {
         Environment environment = environmentRepository.findById(environmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Environment not found: " + environmentId));
@@ -268,8 +293,14 @@ public class EksSyncService {
         return (max != null ? max : 0) + 1;
     }
 
-    private EksSyncChanges upsertNodeGroup(Environment environment, String clusterName,
-                                           String nodeGroupName, String region, AtomicInteger nextSequence) {
+    /**
+     * Upserts one node group's {@code VmGroup} + {@code Vm} in its own transaction — public and
+     * called via {@link #self} so {@code REQUIRES_NEW} applies. A failure here rolls back only
+     * this node group.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public EksSyncChanges upsertNodeGroup(Environment environment, String clusterName,
+                                          String nodeGroupName, String region, AtomicInteger nextSequence) {
         EksSyncChanges changes = new EksSyncChanges();
         // Upsert VmGroup — always write identity metadata so the DB record is self-describing
         Optional<VmGroup> groupOpt = groupRepository
@@ -412,7 +443,9 @@ public class EksSyncService {
         }
     }
 
-    private int deactivateNodeGroup(VmGroup group, String clusterName) {
+    /** Deactivates one removed node group's Vms in its own transaction (see {@link #self}). */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public int deactivateNodeGroup(VmGroup group, String clusterName) {
         log.info("Deactivating EKS node group no longer in cluster {}: {}", clusterName, group.getName());
         // Deactivate all Vms in the group
         List<Vm> vms = vmRepository.findByGroupGroupIdOrderBySequencePositionAsc(group.getGroupId());
@@ -454,7 +487,7 @@ public class EksSyncService {
         }
     }
 
-    private static class EksSyncChanges {
+    static class EksSyncChanges {
         private int created;
         private int updated;
         private int removed;

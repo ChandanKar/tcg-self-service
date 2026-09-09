@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -50,6 +51,9 @@ class EksSyncServiceTest {
         service = new EksSyncService(environmentRepository, groupRepository, vmRepository,
                 eksService, auditService, notificationService, objectMapper);
         ReflectionTestUtils.setField(service, "defaultRegion", REGION);
+        // In production `self` is the Spring proxy (for REQUIRES_NEW boundaries); in this unit
+        // test point it at the instance so `self.upsertNodeGroup(...)` is a plain call.
+        ReflectionTestUtils.setField(service, "self", service);
     }
 
     // ---- syncEksEnvironment tests ----
@@ -157,6 +161,40 @@ class EksSyncServiceTest {
                         "middle-workers was never successfully saved — sync silently swallowed the new node group"));
         assertEquals(3, middleSaved.getSequencePosition(),
                 "new group must be assigned max(existing)+1, never a position already reserved by an existing group");
+    }
+
+    @Test
+    void syncEksEnvironment_oneFailingNodeGroupDoesNotBlockOthers() {
+        Environment env = buildEnvironment();
+        List<String> nodegroups = List.of("good-1", "bad", "good-2");
+        when(eksService.listNodegroups(CLUSTER, REGION)).thenReturn(nodegroups);
+        // "bad" fails at groupRepository.save, before describe/vm lookups run — so those stubs
+        // are lenient (not reached for "bad").
+        for (String ng : nodegroups) {
+            lenient().when(eksService.describeNodegroup(CLUSTER, ng, REGION)).thenReturn(buildNodegroup(ng, 1, 2));
+            lenient().when(groupRepository.findByEnvironmentEnvironmentIdAndName(ENV_ID, ng)).thenReturn(Optional.empty());
+            lenient().when(vmRepository.findByGroupGroupIdAndName(anyString(), eq(ng))).thenReturn(Optional.empty());
+        }
+        when(vmRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(groupRepository.findByEnvironmentEnvironmentIdOrderBySequencePositionAsc(ENV_ID)).thenReturn(List.of());
+        // "bad" hits a persistent DB error on every attempt (not a recoverable sequence collision).
+        when(groupRepository.save(any(VmGroup.class))).thenAnswer(inv -> {
+            VmGroup g = inv.getArgument(0);
+            if ("bad".equals(g.getName())) {
+                throw new DataIntegrityViolationException("constraint violation for 'bad'");
+            }
+            return g;
+        });
+
+        // Must not propagate — the two healthy node groups still get their Vm rows.
+        assertDoesNotThrow(() -> service.syncEksEnvironment(env));
+
+        ArgumentCaptor<Vm> savedVms = ArgumentCaptor.forClass(Vm.class);
+        verify(vmRepository, times(2)).save(savedVms.capture());
+        assertEquals(List.of("good-1", "good-2"),
+                savedVms.getAllValues().stream().map(Vm::getName).sorted().toList());
+        verify(auditService).logAction(isNull(), eq(AuditAction.EKS_NODEGROUP_SYNC_FAILED),
+                eq("vm_group"), isNull(), eq(CLUSTER + "/bad"), anyString());
     }
 
     @Test
