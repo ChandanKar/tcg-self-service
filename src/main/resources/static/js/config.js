@@ -33,6 +33,7 @@ const Config = (function() {
         // User Management
         users: {
             list: `${API_BASE_URL}/users`,
+            create: `${API_BASE_URL}/users`,
             get: (id) => `${API_BASE_URL}/users/${id}`,
             updateRole: (id) => `${API_BASE_URL}/users/${id}/role`,
             setAdmin: (id) => `${API_BASE_URL}/users/${id}/admin`,
@@ -41,6 +42,12 @@ const Config = (function() {
             reactivate: (id) => `${API_BASE_URL}/users/${id}/reactivate`,
             search: (query) => `${API_BASE_URL}/users/search?q=${encodeURIComponent(query)}`,
             admins: `${API_BASE_URL}/users/admins`
+        },
+
+        // Entra ID directory lookup (admin onboarding)
+        directory: {
+            search: (query, top) => `${API_BASE_URL}/directory/search?q=${encodeURIComponent(query)}`
+                + (top ? `&top=${encodeURIComponent(top)}` : '')
         },
 
         // Environment Access

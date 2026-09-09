@@ -16,6 +16,11 @@ const UserManagement = (function() {
     let currentRoleFilter = '';
     let currentStatusFilter = '';
 
+    // Onboard-modal state
+    let onboardSelected = null;   // picked directory user, or null
+    let onboardManual = false;    // manual-entry mode (directory disabled / not found)
+    let onboardEnvs = [];         // environments for the optional grant picker
+
     /**
      * Initialize and load User Management view
      */
@@ -95,6 +100,9 @@ const UserManagement = (function() {
                             <p>Manage platform users and their roles</p>
                         </div>
                         <div class="header-actions">
+                            <button class="btn btn-primary btn-sm" id="btn-onboard-user">
+                                <i class="fas fa-user-plus me-1"></i> Onboard User
+                            </button>
                             <button class="btn btn-ghost btn-sm" id="btn-refresh-users" title="Refresh">
                                 <i class="fas fa-sync-alt"></i>
                             </button>
@@ -221,6 +229,15 @@ const UserManagement = (function() {
         const initials = getInitials(user.displayName || user.email);
         const lastLogin = user.lastLoginAt ? Utils.formatRelativeTime(user.lastLoginAt) : 'Never';
 
+        const onboardBadges = [
+            user.pendingFirstLogin
+                ? '<span class="onboard-badge onboard-badge-pending" title="Onboarded from the panel — has not signed in yet">Not signed in</span>'
+                : '',
+            user.unverified
+                ? '<span class="onboard-badge onboard-badge-unverified" title="Added by manual entry — not checked against the Entra directory">Unverified</span>'
+                : ''
+        ].join('');
+
         return `
             <tr data-user-id="${user.userId}">
                 <td>
@@ -229,6 +246,7 @@ const UserManagement = (function() {
                         <div class="user-info">
                             <div class="user-name">${escapeHtml(user.displayName || 'Unknown')}</div>
                             <div class="user-email">${escapeHtml(user.email)}</div>
+                            ${onboardBadges ? `<div class="user-onboard-badges">${onboardBadges}</div>` : ''}
                         </div>
                     </div>
                 </td>
@@ -336,6 +354,9 @@ const UserManagement = (function() {
             fetchUsers();
             setTimeout(() => $btn.find('i').removeClass('fa-spin'), 500);
         });
+
+        // Onboard User button
+        $('#btn-onboard-user').off('click').on('click', showOnboardModal);
 
         // Search input - auto search on typing (3+ chars with debounce)
         $('#user-search').off('input').on('input', Utils.debounce(function() {
@@ -466,6 +487,336 @@ const UserManagement = (function() {
             })
             .fail(function(xhr) {
                 Notifications.error(xhr.responseJSON?.message || 'Failed to reactivate user');
+            });
+    }
+
+    // ===================== Onboard User =====================
+
+    function showOnboardModal() {
+        onboardSelected = null;
+        onboardManual = false;
+        onboardEnvs = [];
+
+        Modals.show({
+            id: 'onboardUserModal',
+            title: '<i class="fas fa-user-plus me-2"></i>Onboard User',
+            size: 'lg',
+            body: onboardModalBody(),
+            buttons: [
+                { text: 'Cancel', class: 'btn-secondary', dismiss: true },
+                { text: 'Onboard', class: 'btn-primary', id: 'onboard-submit' }
+            ],
+            onShow: function() {
+                bindOnboardEvents();
+                loadOnboardEnvironments();
+            }
+        });
+    }
+
+    function onboardModalBody() {
+        return `
+            <div id="onboard-error" class="alert alert-danger py-2 px-3 small" hidden></div>
+
+            <div id="onboard-dir-block">
+                <label class="form-label" for="onboard-dir-search">Find in directory</label>
+                <div class="onboard-autocomplete">
+                    <input type="text" class="form-control" id="onboard-dir-search" autocomplete="off"
+                           placeholder="Search name or email in Entra ID…">
+                    <div class="onboard-autocomplete-menu" id="onboard-dir-results" hidden></div>
+                </div>
+                <div id="onboard-selected" class="onboard-selected" hidden></div>
+                <div class="form-text">
+                    Can't find them?
+                    <a href="#" id="onboard-manual-toggle">Enter details manually</a>.
+                </div>
+            </div>
+
+            <div id="onboard-manual-block" hidden>
+                <div class="row g-2">
+                    <div class="col-sm-7">
+                        <label class="form-label" for="onboard-email">Email</label>
+                        <input type="email" class="form-control" id="onboard-email" placeholder="person@company.com">
+                    </div>
+                    <div class="col-sm-5">
+                        <label class="form-label" for="onboard-name">Display name</label>
+                        <input type="text" class="form-control" id="onboard-name" placeholder="(defaults to email)">
+                    </div>
+                </div>
+                <div class="form-text text-warning-emphasis">
+                    <i class="fas fa-triangle-exclamation me-1"></i>Not checked against the directory — the row is marked
+                    <em>Unverified</em> until this person signs in.
+                    <a href="#" id="onboard-dir-toggle">Search the directory instead</a>.
+                </div>
+            </div>
+
+            <hr class="my-3">
+
+            <div class="d-flex gap-4">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="onboard-admin">
+                    <label class="form-check-label" for="onboard-admin">Admin</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="onboard-envadmin">
+                    <label class="form-check-label" for="onboard-envadmin">Env Admin</label>
+                </div>
+            </div>
+
+            <hr class="my-3">
+
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="onboard-grant-toggle">
+                <label class="form-check-label" for="onboard-grant-toggle">Also grant environment access now</label>
+            </div>
+            <div id="onboard-grant-fields" hidden>
+                <div class="row g-2">
+                    <div class="col-sm-7">
+                        <label class="form-label" for="onboard-grant-env">Environment</label>
+                        <select class="form-select" id="onboard-grant-env"><option value="">Loading…</option></select>
+                    </div>
+                    <div class="col-sm-5">
+                        <label class="form-label" for="onboard-grant-level">Access level</label>
+                        <select class="form-select" id="onboard-grant-level">
+                            <option value="VIEWER">Viewer</option>
+                            <option value="USER" selected>User</option>
+                            <option value="ADMIN">Admin</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="onboard-scope" id="onboard-scope-env" value="ENVIRONMENT" checked>
+                        <label class="form-check-label" for="onboard-scope-env">Whole environment</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="onboard-scope" id="onboard-scope-grp" value="GROUP">
+                        <label class="form-check-label" for="onboard-scope-grp">Specific groups</label>
+                    </div>
+                </div>
+                <div id="onboard-group-checklist" class="onboard-group-checklist mt-2" hidden>
+                    <input type="text" class="form-control form-control-sm mb-1" id="onboard-group-filter" placeholder="Filter groups…">
+                    <ul id="onboard-group-list" class="list-unstyled mb-0"></ul>
+                </div>
+            </div>
+        `;
+    }
+
+    function bindOnboardEvents() {
+        $('#onboard-dir-search').off('input').on('input', Utils.debounce(function() {
+            const q = $(this).val().trim();
+            if (q.length < 2) { $('#onboard-dir-results').attr('hidden', true).empty(); return; }
+            runDirectorySearch(q);
+        }, 300));
+
+        $('#onboard-manual-toggle').off('click').on('click', function(e) {
+            e.preventDefault();
+            enableManualMode(false);
+        });
+        $('#onboard-dir-toggle').off('click').on('click', function(e) {
+            e.preventDefault();
+            onboardManual = false;
+            $('#onboard-manual-block').attr('hidden', true);
+            $('#onboard-dir-block').removeAttr('hidden');
+        });
+
+        // delegate: pick a directory result
+        $('#onboard-dir-results').off('click', '[data-oid]').on('click', '[data-oid]', function() {
+            const idx = $(this).data('idx');
+            pickDirectoryUser(window.__onboardResults ? window.__onboardResults[idx] : null);
+        });
+
+        $('#onboard-selected').off('click', '.onboard-clear').on('click', '.onboard-clear', function(e) {
+            e.preventDefault();
+            clearDirectoryPick();
+        });
+
+        $('#onboard-grant-toggle').off('change').on('change', function() {
+            document.getElementById('onboard-grant-fields').hidden = !this.checked;
+        });
+        $('input[name="onboard-scope"]').off('change').on('change', function() {
+            const isGroup = onboardScope() === 'GROUP';
+            document.getElementById('onboard-group-checklist').hidden = !isGroup;
+            if (isGroup) loadOnboardGroups($('#onboard-grant-env').val());
+        });
+        $('#onboard-grant-env').off('change').on('change', function() {
+            if (onboardScope() === 'GROUP') loadOnboardGroups(this.value);
+        });
+        $('#onboard-group-filter').off('input').on('input', function() {
+            const q = this.value.trim().toLowerCase();
+            $('#onboard-group-list li').each(function() {
+                const name = ($(this).data('name') || '').toLowerCase();
+                $(this).toggle(!q || name.includes(q));
+            });
+        });
+
+        $('#onboard-submit').off('click').on('click', submitOnboard);
+    }
+
+    function runDirectorySearch(q) {
+        const $results = $('#onboard-dir-results');
+        $results.removeAttr('hidden').html('<div class="p-2 text-muted small"><i class="fas fa-spinner fa-spin me-1"></i>Searching…</div>');
+        ApiClient.get(Config.API.directory.search(q))
+            .done(function(list) {
+                window.__onboardResults = list || [];
+                renderDirectoryResults(list || []);
+            })
+            .fail(function(xhr) {
+                if (xhr.status === 409) {
+                    enableManualMode(true);
+                } else if (xhr.status === 502) {
+                    $results.html('<div class="p-2 text-danger small">Directory lookup is unavailable right now. Enter details manually.</div>');
+                } else {
+                    $results.html('<div class="p-2 text-danger small">Search failed.</div>');
+                }
+            });
+    }
+
+    function renderDirectoryResults(list) {
+        const $results = $('#onboard-dir-results');
+        if (!list.length) {
+            $results.html('<div class="p-2 text-muted small">No matches.</div>');
+            return;
+        }
+        $results.html(list.map((u, idx) => `
+            <button type="button" class="onboard-result" data-oid="${escapeHtml(u.directoryObjectId)}" data-idx="${idx}"
+                    ${u.alreadyInApp ? 'disabled' : ''}>
+                <span class="onboard-result-name">${escapeHtml(u.displayName || u.email || u.userPrincipalName || '')}</span>
+                <span class="onboard-result-email">${escapeHtml(u.email || u.userPrincipalName || '')}</span>
+                ${u.alreadyInApp ? '<span class="onboard-result-tag">already a user</span>' : ''}
+            </button>
+        `).join(''));
+    }
+
+    function pickDirectoryUser(u) {
+        if (!u) return;
+        onboardSelected = u;
+        onboardManual = false;
+        $('#onboard-dir-results').attr('hidden', true).empty();
+        $('#onboard-dir-search').val('');
+        $('#onboard-selected').removeAttr('hidden').html(`
+            <div>
+                <div class="onboard-selected-name">${escapeHtml(u.displayName || '')}</div>
+                <div class="onboard-selected-email">${escapeHtml(u.email || u.userPrincipalName || '')}</div>
+            </div>
+            <a href="#" class="onboard-clear">change</a>
+        `);
+    }
+
+    function clearDirectoryPick() {
+        onboardSelected = null;
+        $('#onboard-selected').attr('hidden', true).empty();
+        $('#onboard-dir-search').val('').focus();
+    }
+
+    function enableManualMode(becauseDisabled) {
+        onboardManual = true;
+        onboardSelected = null;
+        $('#onboard-dir-results').attr('hidden', true).empty();
+        $('#onboard-selected').attr('hidden', true).empty();
+        $('#onboard-dir-block').attr('hidden', true);
+        $('#onboard-manual-block').removeAttr('hidden');
+        if (becauseDisabled) {
+            $('#onboard-dir-toggle').hide();
+        }
+    }
+
+    function loadOnboardEnvironments() {
+        ApiClient.get(Config.API.environments.list)
+            .done(function(envs) {
+                onboardEnvs = envs || [];
+                const opts = ['<option value="">Select an environment…</option>']
+                    .concat(onboardEnvs.map(e =>
+                        `<option value="${escapeHtml(e.environmentId)}">${escapeHtml(e.displayName || e.name)}</option>`));
+                $('#onboard-grant-env').html(opts.join(''));
+            })
+            .fail(function() {
+                $('#onboard-grant-env').html('<option value="">Failed to load environments</option>');
+            });
+    }
+
+    function onboardScope() {
+        return $('input[name="onboard-scope"]:checked').val() || 'ENVIRONMENT';
+    }
+
+    function loadOnboardGroups(envId) {
+        const $list = $('#onboard-group-list');
+        if (!envId) { $list.html('<li class="text-muted small">Pick an environment first.</li>'); return; }
+        $list.html('<li class="text-muted small"><i class="fas fa-spinner fa-spin me-1"></i>Loading groups…</li>');
+        ApiClient.get(Config.API.groups.list(envId))
+            .done(function(groups) {
+                if (!groups || !groups.length) {
+                    $list.html('<li class="text-muted small">This environment has no groups.</li>');
+                    return;
+                }
+                $list.html(groups.map(g => `
+                    <li data-name="${escapeHtml(g.displayName || g.name)}">
+                        <label class="d-flex align-items-center gap-2 mb-1">
+                            <input type="checkbox" class="onboard-group-cb" value="${escapeHtml(g.groupId)}">
+                            <span>${escapeHtml(g.displayName || g.name)}</span>
+                            <span class="text-muted small ms-auto">${g.vmCount || 0} VMs</span>
+                        </label>
+                    </li>`).join(''));
+            })
+            .fail(() => $list.html('<li class="text-danger small">Failed to load groups.</li>'));
+    }
+
+    function onboardError(msg) {
+        $('#onboard-error').text(msg).removeAttr('hidden');
+    }
+
+    function clearOnboardError() {
+        $('#onboard-error').attr('hidden', true).empty();
+    }
+
+    function submitOnboard() {
+        clearOnboardError();
+        const payload = {};
+
+        if (onboardManual) {
+            payload.email = $('#onboard-email').val().trim();
+            payload.displayName = $('#onboard-name').val().trim() || undefined;
+            if (!payload.email) { onboardError('Email is required.'); return; }
+        } else {
+            if (!onboardSelected) { onboardError('Pick someone from the directory, or switch to manual entry.'); return; }
+            payload.directoryObjectId = onboardSelected.directoryObjectId;
+            payload.email = onboardSelected.email || onboardSelected.userPrincipalName;
+            payload.displayName = onboardSelected.displayName || undefined;
+        }
+
+        payload.admin = $('#onboard-admin').is(':checked');
+        payload.envAdmin = $('#onboard-envadmin').is(':checked');
+
+        if ($('#onboard-grant-toggle').is(':checked')) {
+            const environmentId = $('#onboard-grant-env').val();
+            if (!environmentId) { onboardError('Choose an environment for the grant, or turn off "grant access".'); return; }
+            const scopeType = onboardScope();
+            const grant = { environmentId, accessLevel: $('#onboard-grant-level').val(), scopeType };
+            if (scopeType === 'GROUP') {
+                grant.groupIds = $('#onboard-group-list .onboard-group-cb:checked').map((i, el) => el.value).get();
+                if (!grant.groupIds.length) { onboardError('Select at least one group, or use "Whole environment".'); return; }
+            }
+            payload.initialGrant = grant;
+        }
+
+        const $btn = $('#onboard-submit').prop('disabled', true);
+        ApiClient.post(Config.API.users.create, payload)
+            .done(function(res) {
+                const name = res.user?.displayName || res.user?.email || 'user';
+                const grantMsg = res.grants && res.grants.length ? ` with ${res.grants.length} access grant(s)` : '';
+                Notifications.success(`Onboarded ${name}${grantMsg}.`);
+                Modals.hide('onboardUserModal');
+                fetchUsers();
+            })
+            .fail(function(xhr) {
+                const j = xhr.responseJSON || {};
+                if (xhr.status === 409 && j.error === 'user_inactive') {
+                    onboardError('A deactivated user with this identity already exists — reactivate them from the list instead.');
+                } else if (xhr.status === 409) {
+                    onboardError('This person already has an account.');
+                } else {
+                    onboardError(j.message || 'Onboarding failed.');
+                }
+                $btn.prop('disabled', false);
             });
     }
 
