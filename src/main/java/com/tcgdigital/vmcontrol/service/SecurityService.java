@@ -1,10 +1,16 @@
 package com.tcgdigital.vmcontrol.service;
 
 import com.tcgdigital.vmcontrol.model.AccessLevel;
+import com.tcgdigital.vmcontrol.model.AccessScopeType;
+import com.tcgdigital.vmcontrol.model.EnvironmentAccess;
 import com.tcgdigital.vmcontrol.model.User;
+import com.tcgdigital.vmcontrol.model.VmGroup;
+import com.tcgdigital.vmcontrol.repository.VmGroupRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 /**
  * Service for security and authorization checks.
@@ -17,10 +23,13 @@ public class SecurityService {
 
     private final UserService userService;
     private final EnvironmentAccessService accessService;
+    private final VmGroupRepository vmGroupRepository;
 
-    public SecurityService(UserService userService, EnvironmentAccessService accessService) {
+    public SecurityService(UserService userService, EnvironmentAccessService accessService,
+                           VmGroupRepository vmGroupRepository) {
         this.userService = userService;
         this.accessService = accessService;
+        this.vmGroupRepository = vmGroupRepository;
     }
 
     /**
@@ -160,6 +169,127 @@ public class SecurityService {
         return accessService.getAccess(environmentId, currentUser.getUserId())
                 .map(access -> access.getAccessLevel())
                 .orElse(null);
+    }
+
+    // ============= Group-scoped access (env or group grant) =============
+
+    /**
+     * The current user's effective level on an environment: the greater of their global role
+     * and any active ENVIRONMENT-scoped grant. Null when they have neither.
+     */
+    public AccessLevel effectiveEnvLevel(String environmentId) {
+        User user = userService.getCurrentUser();
+        if (user == null) {
+            return null;
+        }
+        AccessLevel level = globalRoleLevel(user);
+        if (level == AccessLevel.ADMIN) {
+            return level;
+        }
+        return higher(level, accessService
+                .getActiveGrant(user.getUserId(), AccessScopeType.ENVIRONMENT, environmentId)
+                .map(EnvironmentAccess::getAccessLevel)
+                .orElse(null));
+    }
+
+    /**
+     * The current user's effective level on one group: the greatest of their global role, an
+     * ENVIRONMENT grant on the group's environment, and a GROUP grant on the group itself.
+     * Null when they have none of those (and null for an unknown group unless a role covers it).
+     */
+    public AccessLevel effectiveGroupLevel(String groupId) {
+        User user = userService.getCurrentUser();
+        if (user == null) {
+            return null;
+        }
+        AccessLevel level = globalRoleLevel(user);
+        if (level == AccessLevel.ADMIN) {
+            return level;
+        }
+        VmGroup group = vmGroupRepository.findById(groupId).orElse(null);
+        if (group == null) {
+            return level;
+        }
+        level = higher(level, accessService.getActiveGrant(user.getUserId(),
+                        AccessScopeType.ENVIRONMENT, group.getEnvironment().getEnvironmentId())
+                .map(EnvironmentAccess::getAccessLevel).orElse(null));
+        level = higher(level, accessService.getActiveGrant(user.getUserId(),
+                        AccessScopeType.GROUP, groupId)
+                .map(EnvironmentAccess::getAccessLevel).orElse(null));
+        return level;
+    }
+
+    /**
+     * Whether the current user has any access (env or group) to a group.
+     */
+    public boolean hasGroupAccess(String groupId) {
+        return effectiveGroupLevel(groupId) != null;
+    }
+
+    /**
+     * Whether the current user has at least {@code requiredLevel} on a group.
+     */
+    public boolean hasGroupAccessLevel(String groupId, AccessLevel requiredLevel) {
+        AccessLevel level = effectiveGroupLevel(groupId);
+        return level != null && level.ordinal() >= requiredLevel.ordinal();
+    }
+
+    /**
+     * Group ids in an environment the current user can see: every group when they have any
+     * environment-wide access (a global role or an ENVIRONMENT grant), otherwise only the
+     * groups they hold a GROUP grant on. Empty when they can see nothing.
+     */
+    public List<String> getVisibleGroupIds(String environmentId) {
+        User user = userService.getCurrentUser();
+        if (user == null) {
+            return List.of();
+        }
+        List<VmGroup> groups = vmGroupRepository.findByEnvironmentId(environmentId);
+        if (groups.isEmpty()) {
+            return List.of();
+        }
+        List<String> allGroupIds = groups.stream().map(VmGroup::getGroupId).toList();
+
+        boolean environmentWide = globalRoleLevel(user) != null
+                || accessService.getActiveGrant(user.getUserId(), AccessScopeType.ENVIRONMENT, environmentId).isPresent();
+        if (environmentWide) {
+            return allGroupIds;
+        }
+        return allGroupIds.stream()
+                .filter(accessService.getActiveGroupGrantLevels(user.getUserId(), allGroupIds)::containsKey)
+                .toList();
+    }
+
+    /**
+     * Whether the current user can manage access on a group — resolved to "can manage access
+     * on the group's environment". A group whose environment cannot be resolved is denied.
+     */
+    public boolean canManageGroupAccess(String groupId) {
+        return vmGroupRepository.findById(groupId)
+                .map(g -> canManageEnvironmentAccess(g.getEnvironment().getEnvironmentId()))
+                .orElse(false);
+    }
+
+    /**
+     * The level a user gets from their global role alone: ADMIN and ENV_ADMIN both act as
+     * ADMIN for visibility and operations; every other user gets nothing from their role.
+     */
+    private AccessLevel globalRoleLevel(User user) {
+        if (user != null && (user.isAdmin() || user.isEnvAdmin())) {
+            return AccessLevel.ADMIN;
+        }
+        return null;
+    }
+
+    /** Greater of two nullable levels; null means "no access". */
+    private static AccessLevel higher(AccessLevel a, AccessLevel b) {
+        if (a == null) {
+            return b;
+        }
+        if (b == null) {
+            return a;
+        }
+        return a.ordinal() >= b.ordinal() ? a : b;
     }
 }
 

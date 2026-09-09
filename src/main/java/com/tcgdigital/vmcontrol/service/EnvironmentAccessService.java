@@ -17,7 +17,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -474,6 +477,32 @@ public class EnvironmentAccessService {
     public Optional<EnvironmentAccess> getAccess(String environmentId, String userId) {
         Timestamp now = new Timestamp(System.currentTimeMillis());
         return accessRepository.findActiveAccess(environmentId, userId, now);
+    }
+
+    /**
+     * The user's active grant on one specific scope (ENVIRONMENT or GROUP), or empty.
+     * Unlike {@link #getAccess}, this can return a GROUP-scoped grant.
+     */
+    public Optional<EnvironmentAccess> getActiveGrant(String userId, AccessScopeType scopeType, String scopeId) {
+        Timestamp now = new Timestamp(System.currentTimeMillis());
+        return accessRepository.findActiveByUserAndScope(userId, scopeType, scopeId, now);
+    }
+
+    /**
+     * The user's active GROUP-scoped access level for each group id they hold a grant on —
+     * {@code groupId -> level}. Groups with no grant are absent from the map.
+     */
+    public Map<String, AccessLevel> getActiveGroupGrantLevels(String userId, Collection<String> groupIds) {
+        if (groupIds == null || groupIds.isEmpty()) {
+            return Map.of();
+        }
+        Timestamp now = new Timestamp(System.currentTimeMillis());
+        Map<String, AccessLevel> byGroup = new HashMap<>();
+        for (EnvironmentAccess ea : accessRepository.findActiveGroupGrantsForUser(userId, groupIds, now)) {
+            byGroup.merge(ea.getScopeId(), ea.getAccessLevel(),
+                    (a, b) -> a.ordinal() >= b.ordinal() ? a : b);
+        }
+        return byGroup;
     }
 
     // ============= Expiration Handling =============
