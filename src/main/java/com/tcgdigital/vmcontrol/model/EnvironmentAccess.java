@@ -47,6 +47,26 @@ public class EnvironmentAccess {
     @Column(nullable = false, length = 20)
     private AccessStatus status = AccessStatus.ACTIVE;
 
+    /**
+     * What this grant applies to. {@code environment} is always the enclosing environment;
+     * for a {@code GROUP}-scoped grant {@code scopeId} is the {@code vm_group} id, otherwise
+     * {@code scopeId} equals {@code environment.environmentId}.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "scope_type", nullable = false, length = 20)
+    private AccessScopeType scopeType = AccessScopeType.ENVIRONMENT;
+
+    @Column(name = "scope_id", nullable = false, length = 36)
+    private String scopeId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "initiation", nullable = false, length = 20)
+    private AccessInitiation initiation = AccessInitiation.DIRECT;
+
+    /** Set only when {@link #initiation} is {@link AccessInitiation#REQUEST}. */
+    @Column(name = "source_request_id", length = 36)
+    private String sourceRequestId;
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 
@@ -69,6 +89,9 @@ public class EnvironmentAccess {
         access.setAccessLevel(accessLevel);
         access.setGrantedBy(grantedBy);
         access.setStatus(AccessStatus.ACTIVE);
+        access.setScopeType(AccessScopeType.ENVIRONMENT);
+        access.setScopeId(environment.getEnvironmentId());
+        access.setInitiation(AccessInitiation.DIRECT);
         return access;
     }
 
@@ -164,6 +187,38 @@ public class EnvironmentAccess {
 
     public void setStatus(AccessStatus status) {
         this.status = status;
+    }
+
+    public AccessScopeType getScopeType() {
+        return scopeType;
+    }
+
+    public void setScopeType(AccessScopeType scopeType) {
+        this.scopeType = scopeType;
+    }
+
+    public String getScopeId() {
+        return scopeId;
+    }
+
+    public void setScopeId(String scopeId) {
+        this.scopeId = scopeId;
+    }
+
+    public AccessInitiation getInitiation() {
+        return initiation;
+    }
+
+    public void setInitiation(AccessInitiation initiation) {
+        this.initiation = initiation;
+    }
+
+    public String getSourceRequestId() {
+        return sourceRequestId;
+    }
+
+    public void setSourceRequestId(String sourceRequestId) {
+        this.sourceRequestId = sourceRequestId;
     }
 
     public String getNotes() {

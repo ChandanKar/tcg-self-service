@@ -1,6 +1,7 @@
 package com.tcgdigital.vmcontrol.repository;
 
 import com.tcgdigital.vmcontrol.model.AccessLevel;
+import com.tcgdigital.vmcontrol.model.AccessScopeType;
 import com.tcgdigital.vmcontrol.model.AccessStatus;
 import com.tcgdigital.vmcontrol.model.EnvironmentAccess;
 import org.springframework.data.domain.Page;
@@ -11,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.sql.Timestamp;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,11 +23,14 @@ import java.util.Optional;
 public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAccess, String> {
 
     /**
-     * Find active access for a user on an environment.
+     * Find active ENVIRONMENT-scoped access for a user on an environment. Group-scoped grants
+     * are deliberately excluded — this backs the "does the user have the whole environment"
+     * checks.
      */
     @Query("SELECT ea FROM EnvironmentAccess ea " +
            "WHERE ea.environment.environmentId = :environmentId " +
            "AND ea.user.userId = :userId " +
+           "AND ea.scopeType = 'ENVIRONMENT' " +
            "AND ea.status = 'ACTIVE' " +
            "AND (ea.expiresAt IS NULL OR ea.expiresAt > :now)")
     Optional<EnvironmentAccess> findActiveAccess(
@@ -97,6 +102,7 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
      */
     @Query("SELECT ea FROM EnvironmentAccess ea " +
            "WHERE ea.user.userId = :userId " +
+           "AND ea.scopeType = 'ENVIRONMENT' " +
            "AND ea.status = 'ACTIVE' " +
            "AND ea.accessLevel >= :minLevel " +
            "AND (ea.expiresAt IS NULL OR ea.expiresAt > :now)")
@@ -105,12 +111,63 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
             @Param("minLevel") AccessLevel minLevel,
             @Param("now") Timestamp now);
 
+    // ============= Scope-aware finders (env or group) =============
+
     /**
-     * Check if user has access to environment.
+     * The user's single active grant on one specific scope. Backs the applyGrant upsert:
+     * one active grant per (user, scopeType, scopeId).
+     */
+    @Query("SELECT ea FROM EnvironmentAccess ea " +
+           "WHERE ea.user.userId = :userId " +
+           "AND ea.scopeType = :scopeType " +
+           "AND ea.scopeId = :scopeId " +
+           "AND ea.status = 'ACTIVE' " +
+           "AND (ea.expiresAt IS NULL OR ea.expiresAt > :now)")
+    Optional<EnvironmentAccess> findActiveByUserAndScope(
+            @Param("userId") String userId,
+            @Param("scopeType") AccessScopeType scopeType,
+            @Param("scopeId") String scopeId,
+            @Param("now") Timestamp now);
+
+    /**
+     * All active grants on one specific scope, users loaded — "who has access to this group"
+     * and recipient resolution.
+     */
+    @Query("SELECT ea FROM EnvironmentAccess ea " +
+           "JOIN FETCH ea.user " +
+           "WHERE ea.scopeType = :scopeType " +
+           "AND ea.scopeId = :scopeId " +
+           "AND ea.status = 'ACTIVE' " +
+           "AND (ea.expiresAt IS NULL OR ea.expiresAt > :now) " +
+           "ORDER BY ea.user.displayName")
+    List<EnvironmentAccess> findActiveByScopeTypeAndScopeId(
+            @Param("scopeType") AccessScopeType scopeType,
+            @Param("scopeId") String scopeId,
+            @Param("now") Timestamp now);
+
+    /**
+     * A user's active GROUP-scoped grants across a set of group ids — resolves the user's
+     * effective level over an environment's groups in one query.
+     */
+    @Query("SELECT ea FROM EnvironmentAccess ea " +
+           "WHERE ea.user.userId = :userId " +
+           "AND ea.scopeType = 'GROUP' " +
+           "AND ea.scopeId IN :groupIds " +
+           "AND ea.status = 'ACTIVE' " +
+           "AND (ea.expiresAt IS NULL OR ea.expiresAt > :now)")
+    List<EnvironmentAccess> findActiveGroupGrantsForUser(
+            @Param("userId") String userId,
+            @Param("groupIds") Collection<String> groupIds,
+            @Param("now") Timestamp now);
+
+    /**
+     * Check if user has ENVIRONMENT-scoped access to environment (a group-scoped grant does
+     * not count as environment access).
      */
     @Query("SELECT COUNT(ea) > 0 FROM EnvironmentAccess ea " +
            "WHERE ea.environment.environmentId = :environmentId " +
            "AND ea.user.userId = :userId " +
+           "AND ea.scopeType = 'ENVIRONMENT' " +
            "AND ea.status = 'ACTIVE' " +
            "AND (ea.expiresAt IS NULL OR ea.expiresAt > :now)")
     boolean hasAccess(
@@ -119,11 +176,12 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
             @Param("now") Timestamp now);
 
     /**
-     * Check if user has at least the required access level.
+     * Check if user has at least the required ENVIRONMENT-scoped access level.
      */
     @Query("SELECT COUNT(ea) > 0 FROM EnvironmentAccess ea " +
            "WHERE ea.environment.environmentId = :environmentId " +
            "AND ea.user.userId = :userId " +
+           "AND ea.scopeType = 'ENVIRONMENT' " +
            "AND ea.status = 'ACTIVE' " +
            "AND ea.accessLevel >= :requiredLevel " +
            "AND (ea.expiresAt IS NULL OR ea.expiresAt > :now)")

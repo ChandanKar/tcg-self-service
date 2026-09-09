@@ -16,6 +16,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.Timestamp;
 import java.util.List;
 import java.util.UUID;
 
@@ -73,6 +74,46 @@ class EnvironmentAccessServiceTest {
         adminUser = User.fromAzureAd("admin-oid", "admin@example.com", "Admin User");
         adminUser.setAdmin(true);
         adminUser = userRepository.save(adminUser);
+    }
+
+    // ============= Access Scope (V20) Tests =============
+
+    @Test
+    @DisplayName("A direct env grant is ENVIRONMENT-scoped and resolvable by the scope-aware finders")
+    void directGrant_isEnvironmentScoped() {
+        GrantAccessDTO dto = new GrantAccessDTO(requesterUser.getEmail(), AccessLevel.USER, null, "step-1 check");
+        EnvironmentAccess granted = accessService.grantAccess(
+                testEnvironment.getEnvironmentId(), adminUser.getUserId(), dto);
+
+        assertThat(granted.getScopeType()).isEqualTo(AccessScopeType.ENVIRONMENT);
+        assertThat(granted.getScopeId()).isEqualTo(testEnvironment.getEnvironmentId());
+        assertThat(granted.getInitiation()).isEqualTo(AccessInitiation.DIRECT);
+
+        Timestamp now = new Timestamp(System.currentTimeMillis());
+        assertThat(accessRepository.findActiveByUserAndScope(
+                requesterUser.getUserId(), AccessScopeType.ENVIRONMENT,
+                testEnvironment.getEnvironmentId(), now)).isPresent();
+        assertThat(accessRepository.findActiveByUserAndScope(
+                requesterUser.getUserId(), AccessScopeType.GROUP, "no-such-group", now)).isEmpty();
+        assertThat(accessRepository.findActiveGroupGrantsForUser(
+                requesterUser.getUserId(), List.of("no-such-group"), now)).isEmpty();
+
+        // The strict environment-authorization checks still see the grant.
+        assertThat(accessRepository.hasAccess(
+                testEnvironment.getEnvironmentId(), requesterUser.getUserId(), now)).isTrue();
+        assertThat(accessRepository.hasAccessLevel(
+                testEnvironment.getEnvironmentId(), requesterUser.getUserId(), AccessLevel.USER, now)).isTrue();
+    }
+
+    @Test
+    @DisplayName("An access request is ENVIRONMENT-scoped by default")
+    void request_isEnvironmentScopedByDefault() {
+        EnvironmentAccessRequest request = accessService.createAccessRequest(
+                testEnvironment.getEnvironmentId(), requesterUser.getUserId(),
+                new CreateAccessRequestDTO(AccessLevel.USER, "need it", 7));
+
+        assertThat(request.getScopeType()).isEqualTo(AccessScopeType.ENVIRONMENT);
+        assertThat(request.getScopeId()).isEqualTo(testEnvironment.getEnvironmentId());
     }
 
     // ============= Access Request Tests =============

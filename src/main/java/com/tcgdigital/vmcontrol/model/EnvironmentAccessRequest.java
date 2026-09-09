@@ -61,6 +61,18 @@ public class EnvironmentAccessRequest {
     @Column(name = "auto_expire_at")
     private Timestamp autoExpireAt;
 
+    /**
+     * What the requester is asking for access to. {@code environment} is always the enclosing
+     * environment; for a {@code GROUP}-scoped request {@code scopeId} is the {@code vm_group}
+     * id, otherwise it equals {@code environment.environmentId}.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "scope_type", nullable = false, length = 20)
+    private AccessScopeType scopeType = AccessScopeType.ENVIRONMENT;
+
+    @Column(name = "scope_id", nullable = false, length = 36)
+    private String scopeId;
+
     public EnvironmentAccessRequest() {
     }
 
@@ -83,6 +95,8 @@ public class EnvironmentAccessRequest {
         request.setBusinessJustification(businessJustification);
         request.setDurationDays(durationDays);
         request.setStatus(AccessRequestStatus.PENDING);
+        request.setScopeType(AccessScopeType.ENVIRONMENT);
+        request.setScopeId(environment.getEnvironmentId());
         return request;
     }
 
@@ -127,6 +141,22 @@ public class EnvironmentAccessRequest {
 
     public void setRequestId(String requestId) {
         this.requestId = requestId;
+    }
+
+    public AccessScopeType getScopeType() {
+        return scopeType;
+    }
+
+    public void setScopeType(AccessScopeType scopeType) {
+        this.scopeType = scopeType;
+    }
+
+    public String getScopeId() {
+        return scopeId;
+    }
+
+    public void setScopeId(String scopeId) {
+        this.scopeId = scopeId;
     }
 
     public Environment getEnvironment() {
