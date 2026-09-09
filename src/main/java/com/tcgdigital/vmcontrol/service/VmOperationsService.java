@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Async;
@@ -23,6 +24,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 /**
@@ -46,6 +48,7 @@ public class VmOperationsService {
     private final AuditService auditService;
     private final NotificationService notificationService;
     private final StateSyncService stateSyncService;
+    private final Executor vmOperationExecutor;
 
     // Self-reference via proxy so @Async is properly applied (self-invocation bypasses Spring proxy)
     @Lazy
@@ -63,7 +66,8 @@ public class VmOperationsService {
                                ObjectMapper objectMapper,
                                AuditService auditService,
                                NotificationService notificationService,
-                               StateSyncService stateSyncService) {
+                               StateSyncService stateSyncService,
+                               @Qualifier("vmOperationExecutor") Executor vmOperationExecutor) {
         this.executionRepository = executionRepository;
         this.detailRepository = detailRepository;
         this.environmentRepository = environmentRepository;
@@ -76,6 +80,7 @@ public class VmOperationsService {
         this.auditService = auditService;
         this.notificationService = notificationService;
         this.stateSyncService = stateSyncService;
+        this.vmOperationExecutor = vmOperationExecutor;
     }
 
     /**
@@ -399,9 +404,12 @@ public class VmOperationsService {
     }
 
     /**
-     * Core execution logic - processes VMs in dependency order (sequence position).
-     * A VM whose dependency failed or was skipped is itself skipped rather than attempted;
-     * independent VMs always proceed regardless of unrelated failures elsewhere in the batch.
+     * Core execution logic - processes VMs in dependency-ordered waves.
+     * Each wave is every still-pending VM whose dependencies have all reached a terminal
+     * state; the whole wave is submitted to {@code vmOperationExecutor} at once, so
+     * independent VMs (the common case for a group start) start and poll their AWS status
+     * checks in parallel instead of one blocking the next. A VM whose dependency failed or
+     * was skipped is itself skipped rather than attempted.
      * continueOnFailure is retained on the signature for API compatibility but no longer
      * triggers an all-or-nothing abort — dependency state is what decides skip vs. attempt now.
      */
@@ -411,6 +419,10 @@ public class VmOperationsService {
         // Mark as in progress
         execution.setStatus(ExecutionStatus.IN_PROGRESS);
         executionRepository.save(execution);
+        // Captured up front so the per-VM steps (which run on worker threads, off any session)
+        // never have to navigate detail.getExecution() for a non-id property.
+        final OperationType operationType = execution.getOperationType();
+        final String initiatedByUserId = execution.getInitiatedByUserId();
 
         // Get all pending details, in dependency order
         List<OperationDetail> details = detailRepository
@@ -423,48 +435,82 @@ public class VmOperationsService {
 
         Map<String, String> targetNameByDetailId = details.stream()
                 .collect(Collectors.toMap(OperationDetail::getDetailId, OperationDetail::getTargetName));
+        Map<String, List<String>> depsByDetailId = details.stream()
+                .collect(Collectors.toMap(OperationDetail::getDetailId,
+                        d -> parseDependsOnDetailIds(d.getDependsOnDetailIds())));
+        Set<String> runDetailIds = new HashSet<>(targetNameByDetailId.keySet());
+
         Map<String, String> finalStatusByDetailId = new HashMap<>();
+        List<OperationDetail> remaining = new ArrayList<>(details);
         boolean hasFailures = false;
 
-        // Process each detail
-        for (OperationDetail detail : details) {
-            // Check before starting each VM
-            execution = getExecution(executionId);
-            if (execution.getStatus() == ExecutionStatus.CANCELLED) {
-                log.info("Execution {} was cancelled before VM {}", executionId, detail.getTargetName());
+        while (!remaining.isEmpty()) {
+            if (getExecution(executionId).getStatus() == ExecutionStatus.CANCELLED) {
+                log.info("Execution {} was cancelled before the next wave", executionId);
                 return;
             }
 
-            String blockingDependencyName = findBlockingDependency(
-                    parseDependsOnDetailIds(detail.getDependsOnDetailIds()), finalStatusByDetailId, targetNameByDetailId);
-            if (blockingDependencyName != null) {
-                skipDetail(detail, blockingDependencyName);
-                finalStatusByDetailId.put(detail.getDetailId(), "skipped");
-                hasFailures = true;
-                continue;
+            // A detail is ready once every in-scope dependency has a recorded terminal status.
+            // Dependency ids outside this run's detail set are treated as already satisfied.
+            List<OperationDetail> ready = remaining.stream()
+                    .filter(d -> depsByDetailId.getOrDefault(d.getDetailId(), List.of()).stream()
+                            .filter(runDetailIds::contains)
+                            .allMatch(finalStatusByDetailId::containsKey))
+                    .toList();
+
+            if (ready.isEmpty()) {
+                // Shouldn't happen — cycles are rejected at creation time. Run the remainder
+                // as one final wave rather than spin forever.
+                log.warn("Execution {}: {} detail(s) with unresolved dependencies; running them as a final wave",
+                        executionId, remaining.size());
+                ready = new ArrayList<>(remaining);
             }
 
-            try {
-                executeVmOperation(detail, execution.getOperationType());
-
-                // Re-check after the cloud call returns — a cancel request may have arrived
-                // while the provider API was blocking (cloud calls are non-interruptible)
-                execution = getExecution(executionId);
-                if (execution.getStatus() == ExecutionStatus.CANCELLED) {
-                    log.info("Execution {} was cancelled after completing VM {}, stopping",
-                            executionId, detail.getTargetName());
-                    return;
-                }
-
-                detail = detailRepository.findById(detail.getDetailId()).orElse(detail);
-                finalStatusByDetailId.put(detail.getDetailId(), detail.getStatus());
-                if (detail.isFailed()) {
+            // Split the wave into VMs blocked by a failed/skipped dependency vs. runnable ones.
+            List<OperationDetail> runnable = new ArrayList<>();
+            for (OperationDetail detail : ready) {
+                String blockingDependencyName = findBlockingDependency(
+                        depsByDetailId.getOrDefault(detail.getDetailId(), List.of()),
+                        finalStatusByDetailId, targetNameByDetailId);
+                if (blockingDependencyName != null) {
+                    skipDetail(detail, blockingDependencyName, executionId);
+                    finalStatusByDetailId.put(detail.getDetailId(), "skipped");
                     hasFailures = true;
+                } else {
+                    runnable.add(detail);
                 }
-            } catch (Exception e) {
-                log.error("Error executing operation on {}: {}", detail.getTargetName(), e.getMessage());
-                finalStatusByDetailId.put(detail.getDetailId(), "failed");
-                hasFailures = true;
+            }
+
+            if (!runnable.isEmpty()) {
+                CompletableFuture<?>[] futures = runnable.stream()
+                        .map(detail -> CompletableFuture.runAsync(() -> {
+                            try {
+                                executeVmOperation(detail, operationType, executionId, initiatedByUserId);
+                            } catch (Exception e) {
+                                log.error("Error executing operation on {}: {}",
+                                        detail.getTargetName(), e.getMessage());
+                            }
+                        }, vmOperationExecutor))
+                        .toArray(CompletableFuture[]::new);
+                CompletableFuture.allOf(futures).join();
+
+                for (OperationDetail detail : runnable) {
+                    OperationDetail reloaded = detailRepository.findById(detail.getDetailId()).orElse(detail);
+                    boolean terminal = reloaded.isCompleted() || reloaded.isFailed() || reloaded.isSkipped();
+                    // Task threw before persisting a terminal status — count it as failed.
+                    String status = terminal ? reloaded.getStatus() : "failed";
+                    finalStatusByDetailId.put(detail.getDetailId(), status);
+                    if (!terminal || reloaded.isFailed()) {
+                        hasFailures = true;
+                    }
+                }
+            }
+
+            remaining.removeAll(ready);
+
+            if (getExecution(executionId).getStatus() == ExecutionStatus.CANCELLED) {
+                log.info("Execution {} was cancelled after a wave completed, stopping", executionId);
+                return;
             }
         }
 
@@ -493,12 +539,12 @@ public class VmOperationsService {
         return null;
     }
 
-    private void skipDetail(OperationDetail detail, String blockingDependencyName) {
+    private void skipDetail(OperationDetail detail, String blockingDependencyName, String executionId) {
         detail.setStatus("skipped");
         detail.setErrorMessage("Skipped: dependency '" + blockingDependencyName + "' failed to start");
         detail.setCompletedAt(Timestamp.from(Instant.now()));
         detailRepository.save(detail);
-        updateExecutionCounters(detail.getExecution().getExecutionId(), false);
+        updateExecutionCounters(executionId, false);
         log.warn("Skipping {} because dependency '{}' did not complete successfully",
                 detail.getTargetName(), blockingDependencyName);
     }
@@ -527,7 +573,8 @@ public class VmOperationsService {
     /**
      * Execute operation on a single VM.
      */
-    private void executeVmOperation(OperationDetail detail, OperationType operationType) {
+    private void executeVmOperation(OperationDetail detail, OperationType operationType,
+                                   String executionId, String initiatedByUserId) {
         try {
             // Mark as in progress
             detail.setStatus("in_progress");
@@ -541,7 +588,7 @@ public class VmOperationsService {
                 detail.setErrorMessage("VM not found: " + detail.getTargetId());
                 detail.setCompletedAt(Timestamp.from(Instant.now()));
                 detailRepository.save(detail);
-                updateExecutionCounters(detail.getExecution().getExecutionId(), false);
+                updateExecutionCounters(executionId, false);
                 return;
             }
 
@@ -592,7 +639,7 @@ public class VmOperationsService {
                 if (reconciledStatus != null) {
                     if (reconciledStatus != previousStatus) {
                         stateSyncService.recordStateChange(vm, previousStatus, reconciledStatus, "operation",
-                                detail.getExecution().getInitiatedByUserId(), detail.getExecution().getExecutionId(),
+                                initiatedByUserId, executionId,
                                 operationType + " operation completed");
                     }
                     vm.setStatus(reconciledStatus);
@@ -600,7 +647,7 @@ public class VmOperationsService {
                     vmRepository.save(vm);
                 }
 
-                updateExecutionCounters(detail.getExecution().getExecutionId(), true);
+                updateExecutionCounters(executionId, true);
             } else {
                 detail.setStatus("failed");
                 detail.setErrorMessage(result.getMessage());
@@ -609,7 +656,7 @@ public class VmOperationsService {
                     vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
                     vmRepository.save(vm);
                 }
-                updateExecutionCounters(detail.getExecution().getExecutionId(), false);
+                updateExecutionCounters(executionId, false);
             }
 
             detail.setCompletedAt(Timestamp.from(Instant.now()));
@@ -626,7 +673,7 @@ public class VmOperationsService {
             detail.setCompletedAt(Timestamp.from(Instant.now()));
             detailRepository.save(detail);
 
-            updateExecutionCounters(detail.getExecution().getExecutionId(), false);
+            updateExecutionCounters(executionId, false);
         }
     }
 

@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * AWS EC2 implementation of CloudProviderService.
@@ -31,8 +33,12 @@ public class AwsCloudProviderService implements CloudProviderService {
 
     private static final int STOP_TIMEOUT_MS = 180_000;          // 3 minutes
 
-    // Overridable via ReflectionTestUtils in tests
-    @Value("${aws.status-check.timeout-ms:300000}")
+    // Overridable via ReflectionTestUtils in tests.
+    // EC2 status checks (system + instance + attached-EBS) routinely take 2-5+ min after an
+    // instance reaches RUNNING; a too-short window here reports a perfectly healthy VM as a
+    // failed start. Keep below vm.state.sync.stale-transitional-minutes so a genuinely stuck
+    // transitional VM is still eventually reconciled.
+    @Value("${aws.status-check.timeout-ms:900000}")
     private int statusCheckTimeoutMs;
 
     @Value("${aws.status-check.poll-interval-ms:10000}")
@@ -51,6 +57,17 @@ public class AwsCloudProviderService implements CloudProviderService {
     private String defaultRegion;
 
     private final Map<String, Ec2Client> clientCache = new ConcurrentHashMap<>();
+
+    // Runs the start/stop bodies (each of which blocks in a status-check poll loop for up to
+    // statusCheckTimeoutMs). A dedicated pool rather than the common ForkJoinPool so that a
+    // batch of concurrent VM operations actually polls in parallel instead of being throttled
+    // to the common pool's small parallelism. Upstream concurrency is already bounded by
+    // vmOperationExecutor (vm.operations.parallelism) and one-operation-per-environment.
+    private final ExecutorService operationExecutor = Executors.newCachedThreadPool(runnable -> {
+        Thread thread = new Thread(runnable, "aws-op-" + System.nanoTime());
+        thread.setDaemon(true);
+        return thread;
+    });
 
     @Override
     public CloudProvider getProvider() {
@@ -151,7 +168,7 @@ public class AwsCloudProviderService implements CloudProviderService {
                 }
                 return VmOperationResult.failure("Error: " + e.getMessage());
             }
-        });
+        }, operationExecutor);
     }
 
     @Override
@@ -245,14 +262,23 @@ public class AwsCloudProviderService implements CloudProviderService {
                 }
                 return VmOperationResult.failure("Error: " + e.getMessage());
             }
-        });
+        }, operationExecutor);
     }
 
     /**
-     * Wait for EC2 instance to reach RUNNING state.
-     * Polls every 10 seconds, times out after 5 minutes. Status checks are
-     * logged when available, but the app operation succeeds once AWS reports
-     * the instance as RUNNING because that is the user-visible console state.
+     * Wait for an EC2 instance to reach RUNNING and pass all reported AWS status checks.
+     * Polls every {@code aws.status-check.poll-interval-ms} (default 10s), times out after
+     * {@code aws.status-check.timeout-ms} (default 15min).
+     *
+     * <p>TODO: replace this hand-rolled poll loop with AWS SDK v2 waiters —
+     * {@code Ec2Client.waiter().waitUntilInstanceRunning(...)} followed by
+     * {@code waitUntilInstanceStatusOk(...)}. The SDK waiter gives configurable backoff +
+     * max-attempts for free and, more importantly, cleanly separates the two conditions this
+     * method currently conflates: "instance is RUNNING" (usually &lt;60s, and the user-visible
+     * console state) versus "all status checks OK" (routinely 2-5+ min). A start that reaches
+     * RUNNING but whose checks are still pending should be reported as success-with-warning,
+     * not failure — today {@link #startVm} turns the whole operation into a failed step even
+     * though the VM is up. Until then, the enlarged timeout above is the mitigation.
      */
     private StartReadiness waitForStartReadiness(Ec2Client ec2, String instanceId,
                                                  OperationProgressListener progressListener) {
