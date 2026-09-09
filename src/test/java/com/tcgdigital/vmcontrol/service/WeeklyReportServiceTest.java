@@ -49,6 +49,7 @@ class WeeklyReportServiceTest {
                 environmentAccessService, userRepository, costEstimationService, weeklySnapshotService,
                 excelExportService, emailService, notificationService);
         lenient().when(excelExportService.toWorkbook(any(), any(), any())).thenReturn(new byte[]{1});
+        lenient().when(costEstimationService.getUptimeHoursByEnvironment(any(), any())).thenReturn(Map.of());
     }
 
     // ---- Weekly Cost Report ----
@@ -72,6 +73,34 @@ class WeeklyReportServiceTest {
 
         assertEquals(1, rows.size());
         assertEquals(0, new BigDecimal("10.0").compareTo(rows.get(0).weekOverWeekChangePercent()));
+    }
+
+    @Test
+    void buildCostRows_carriesPerEnvironmentUptimeHoursRoundedToOneDecimal() {
+        Date currentStart = Date.valueOf(LocalDate.of(2026, 7, 20));
+        Date currentEnd = Date.valueOf(LocalDate.of(2026, 7, 27));
+        Date previousStart = Date.valueOf(LocalDate.of(2026, 7, 13));
+        Date previousEnd = currentStart;
+
+        var totalA = costTotal("env-A", "110.00", null);
+        var totalB = costTotal("env-B", "40.00", null);
+        when(costDailySnapshotRepository.sumByEnvironmentBetween(currentStart, currentEnd))
+                .thenReturn(List.of(totalA, totalB));
+        when(costDailySnapshotRepository.sumByEnvironmentBetween(previousStart, previousEnd))
+                .thenReturn(List.of());
+        when(environmentRepository.findAll())
+                .thenReturn(List.of(environment("env-A", "Env A"), environment("env-B", "Env B")));
+        when(costEstimationService.getUptimeHoursByEnvironment(any(), any()))
+                .thenReturn(Map.of("env-A", new BigDecimal("123.456")));
+
+        List<WeeklyCostReportRowDTO> rows = service.buildCostRows(currentStart, currentEnd, previousStart, previousEnd);
+
+        Map<String, BigDecimal> uptimeByEnv = rows.stream()
+                .collect(java.util.stream.Collectors.toMap(WeeklyCostReportRowDTO::environmentId,
+                        WeeklyCostReportRowDTO::uptimeHours));
+        assertEquals(0, new BigDecimal("123.5").compareTo(uptimeByEnv.get("env-A")));
+        // an environment with no uptime entry falls back to 0, never null
+        assertEquals(0, BigDecimal.ZERO.compareTo(uptimeByEnv.get("env-B")));
     }
 
     @Test

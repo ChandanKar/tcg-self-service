@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Date;
+import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -126,6 +127,14 @@ public class WeeklyReportService {
         Map<String, String> environmentNames = environmentRepository.findAll().stream()
                 .collect(Collectors.toMap(Environment::getEnvironmentId, Environment::getDisplayName));
 
+        // Running-hours over the same week the cost totals cover (snapshotDate >= start, < end).
+        Map<String, BigDecimal> uptimeHoursByEnvironment = costEstimationService.getUptimeHoursByEnvironment(
+                Timestamp.valueOf(currentStart.toLocalDate().atStartOfDay()),
+                Timestamp.valueOf(currentEnd.toLocalDate().atStartOfDay()));
+        if (uptimeHoursByEnvironment == null) {
+            uptimeHoursByEnvironment = Map.of();
+        }
+
         List<WeeklyCostReportRowDTO> rows = new ArrayList<>();
         for (Map.Entry<String, CostDailySnapshotRepository.EnvironmentCostTotal> entry : currentTotals.entrySet()) {
             String environmentId = entry.getKey();
@@ -137,7 +146,9 @@ public class WeeklyReportService {
             BigDecimal deltaPercent = percentDelta(estimated, previousEstimated);
 
             String name = environmentNames.getOrDefault(environmentId, environmentId);
-            rows.add(new WeeklyCostReportRowDTO(environmentId, name, estimated, actual, deltaPercent));
+            BigDecimal uptimeHours = uptimeHoursByEnvironment.getOrDefault(environmentId, BigDecimal.ZERO)
+                    .setScale(1, RoundingMode.HALF_UP);
+            rows.add(new WeeklyCostReportRowDTO(environmentId, name, estimated, actual, deltaPercent, uptimeHours));
         }
 
         rows.sort(Comparator.comparing(WeeklyCostReportRowDTO::estimatedCost).reversed());
@@ -164,11 +175,12 @@ public class WeeklyReportService {
                         row.environmentName(),
                         row.estimatedCost(),
                         row.actualCost() != null ? row.actualCost() : "N/A",
-                        row.weekOverWeekChangePercent() != null ? row.weekOverWeekChangePercent() + "%" : "N/A"
+                        row.weekOverWeekChangePercent() != null ? row.weekOverWeekChangePercent() + "%" : "N/A",
+                        row.uptimeHours() != null ? row.uptimeHours() : BigDecimal.ZERO
                 })
                 .toList();
         return excelExportService.toWorkbook("Weekly Cost Report",
-                List.of("Environment", "Estimated Cost", "Actual Cost", "Week-over-Week Change"), data);
+                List.of("Environment", "Estimated Cost", "Actual Cost", "Week-over-Week Change", "Uptime (hrs)"), data);
     }
 
     // ============= Weekly Idle Waste Report (Admin only) =============

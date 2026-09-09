@@ -180,6 +180,31 @@ public class CostEstimationService {
         return paginate(rows, pageable);
     }
 
+    /**
+     * Total VM running-hours per environment id over an arbitrary window, derived from
+     * state-transition history — the same runtime basis the cost figures use. Only active VMs
+     * count; environments with no active VMs (or no runtime in the window) are absent from the
+     * map. Feeds the Weekly Cost Report's uptime column.
+     */
+    public Map<String, BigDecimal> getUptimeHoursByEnvironment(Timestamp windowStart, Timestamp windowEnd) {
+        List<Vm> vms = vmRepository.findByIsActiveTrueFetchGroupAndEnvironment();
+        if (vms.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, CostDataProvider.VmCostEstimate> estimates =
+                costDataProvider.estimateCosts(vms, windowStart, windowEnd);
+        Map<String, BigDecimal> uptimeByEnvironment = new LinkedHashMap<>();
+        for (Vm vm : vms) {
+            CostDataProvider.VmCostEstimate estimate = estimates.get(vm.getVmId());
+            if (estimate == null || estimate.runtimeHours() == null) {
+                continue;
+            }
+            String environmentId = vm.getGroup().getEnvironment().getEnvironmentId();
+            uptimeByEnvironment.merge(environmentId, estimate.runtimeHours(), BigDecimal::add);
+        }
+        return uptimeByEnvironment;
+    }
+
     public List<SpendTrendPointDTO> getSpendTrend(int days) {
         Date since = Date.valueOf(LocalDate.now().minusDays(days));
         return costDailySnapshotRepository.findDailyTotalsSince(since).stream()
