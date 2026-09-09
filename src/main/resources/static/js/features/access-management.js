@@ -23,6 +23,9 @@ const AccessManagement = (function() {
     let grantEnvironmentAutocomplete = null;
     let grantUserAutocomplete = null;
 
+    // Set by openForEnvironment() before navigating here; consumed once the view renders.
+    let pendingOpenEnvId = null;
+
     /**
      * Initialize and load Access Management view
      */
@@ -210,6 +213,7 @@ const AccessManagement = (function() {
         renderPendingRequestsTable();
         renderActivityLogsTable();
         bindEvents();
+        applyPendingOpen();
     }
 
     /**
@@ -300,6 +304,7 @@ const AccessManagement = (function() {
                                     <thead>
                                         <tr>
                                             <th>Environment</th>
+                                            <th>Scope</th>
                                             <th>User</th>
                                             <th>Access Level</th>
                                             <th>Granted By</th>
@@ -357,11 +362,12 @@ const AccessManagement = (function() {
                 <div class="modal-dialog">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title"><i class="fas fa-user-plus me-2"></i>Grant Access</h5>
+                            <h5 class="modal-title" id="grant-modal-title"><i class="fas fa-user-plus me-2"></i>Grant Access</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
                             <form id="grant-access-form">
+                                <input type="hidden" id="grant-access-id">
                                 <div class="mb-3 access-autocomplete-field">
                                     <label class="form-label" for="grant-environment-search">Environment</label>
                                     <input type="text" class="form-control" id="grant-environment-search" autocomplete="off"
@@ -376,6 +382,26 @@ const AccessManagement = (function() {
                                     <input type="hidden" id="grant-user-id">
                                     <div class="access-autocomplete-menu" id="grant-user-menu"></div>
                                     <div class="form-text">Searches users who have already signed in to this app.</div>
+                                </div>
+                                <div class="mb-3" id="grant-scope-block">
+                                    <label class="form-label d-block">Scope</label>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="grant-scope" id="grant-scope-env" value="ENVIRONMENT" checked>
+                                        <label class="form-check-label" for="grant-scope-env">Whole environment <span class="text-muted">— every group, now and future</span></label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="grant-scope" id="grant-scope-group" value="GROUP">
+                                        <label class="form-check-label" for="grant-scope-group">Specific groups</label>
+                                    </div>
+                                </div>
+                                <div class="mb-3 grant-group-checklist" id="grant-group-checklist" hidden>
+                                    <div class="grant-checklist-head">
+                                        <input type="text" class="form-control form-control-sm" id="grant-group-filter" placeholder="Filter groups">
+                                        <label class="grant-selall mb-0"><input type="checkbox" id="grant-group-selall"> Select all</label>
+                                    </div>
+                                    <ul id="grant-group-list" class="grant-checklist-items">
+                                        <li class="text-muted small p-2">Pick an environment first.</li>
+                                    </ul>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Access Level</label>
@@ -406,7 +432,7 @@ const AccessManagement = (function() {
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                             <button type="button" class="btn btn-primary" id="btn-confirm-grant">
-                                <i class="fas fa-check me-1"></i>Grant Access
+                                <i class="fas fa-check me-1"></i><span id="btn-confirm-grant-label">Grant Access</span>
                             </button>
                         </div>
                     </div>
@@ -466,7 +492,7 @@ const AccessManagement = (function() {
         if (pageAccess.length === 0) {
             $('#access-table-body').html(`
                 <tr>
-                    <td colspan="7" class="text-center text-muted py-4">
+                    <td colspan="8" class="text-center text-muted py-4">
                         <i class="fas fa-users-slash fa-2x mb-2 d-block opacity-50"></i>
                         ${currentSearch ? 'No users match your search' : 'No users have access for this selection'}
                     </td>
@@ -489,9 +515,15 @@ const AccessManagement = (function() {
         const expiresDate = access.expiresAt ? Utils.formatRelativeTime(access.expiresAt) : 'Never';
         const isExpiringSoon = access.expiresAt && isWithinDays(access.expiresAt, 7);
 
+        const isGroup = access.scopeType === 'GROUP';
+        const scopeChip = isGroup
+            ? `<span class="access-scope-chip access-scope-chip--group" title="Group scope"><i class="fas fa-layer-group me-1"></i>${escapeHtml(access.scopeName || access.scopeId)}</span>`
+            : `<span class="access-scope-chip">Environment</span>`;
+
         return `
             <tr data-access-id="${access.accessId}">
                 <td>${escapeHtml(access.environmentName || access.environmentId || '-')}</td>
+                <td>${scopeChip}</td>
                 <td>
                     <div class="user-cell">
                         <div class="user-avatar-sm">${initials}</div>
@@ -507,10 +539,16 @@ const AccessManagement = (function() {
                 <td class="${isExpiringSoon ? 'text-warning' : 'text-muted'}">
                     ${isExpiringSoon ? '<i class="fas fa-exclamation-triangle me-1"></i>' : ''}${expiresDate}
                 </td>
-                <td class="text-end">
+                <td class="text-end text-nowrap">
+                    <button class="btn btn-sm btn-outline-secondary btn-action me-1" data-action="edit"
+                            data-access-id="${access.accessId}"
+                            title="Edit grant" aria-label="Edit grant">
+                        <i class="fas fa-pen"></i>
+                    </button>
                     <button class="btn btn-sm btn-outline-danger btn-action" data-action="revoke"
-                            data-env-id="${access.environmentId}" data-user-id="${access.userId}"
+                            data-access-id="${access.accessId}"
                             data-user-name="${escapeHtml(access.userDisplayName || access.userEmail)}"
+                            data-scope-name="${escapeHtml(isGroup ? (access.scopeName || 'this group') : 'the environment')}"
                             title="Revoke access" aria-label="Revoke access">
                         <i class="fas fa-user-minus"></i>
                     </button>
@@ -737,7 +775,28 @@ const AccessManagement = (function() {
                         .slice(0, 20)
                         .map(env => ({ id: env.environmentId, label: env.displayName || env.name }))
                 );
+            },
+            onSelect: (envId) => { if (grantScope() === 'GROUP') loadGroupsForGrant(envId); }
+        });
+
+        // Scope toggle + group checklist wiring
+        $('input[name="grant-scope"]').off('change').on('change', function() {
+            const isGroup = grantScope() === 'GROUP';
+            document.getElementById('grant-group-checklist').hidden = !isGroup;
+            if (isGroup) {
+                const envId = $('#grant-environment').val();
+                if (envId) loadGroupsForGrant(envId);
             }
+        });
+        $('#grant-group-selall').off('change').on('change', function() {
+            $('#grant-group-list .grant-group-cb:visible').prop('checked', this.checked);
+        });
+        $('#grant-group-filter').off('input').on('input', function() {
+            const q = this.value.trim().toLowerCase();
+            $('#grant-group-list li').each(function() {
+                const name = ($(this).data('name') || '').toLowerCase();
+                $(this).toggle(!q || name.includes(q));
+            });
         });
 
         grantUserAutocomplete = initAutocomplete({
@@ -757,10 +816,13 @@ const AccessManagement = (function() {
 
         // Revoke access
         $('#access-table-body').off('click', '[data-action="revoke"]').on('click', '[data-action="revoke"]', function() {
-            const envId = $(this).data('env-id');
-            const userId = $(this).data('user-id');
-            const userName = $(this).data('user-name');
-            handleRevokeAccess(envId, userId, userName);
+            handleRevokeAccess($(this).data('access-id'), $(this).data('user-name'), $(this).data('scope-name'));
+        });
+
+        // Edit grant
+        $('#access-table-body').off('click', '[data-action="edit"]').on('click', '[data-action="edit"]', function() {
+            const access = allAccess.find(a => a.accessId === $(this).data('access-id'));
+            if (access) showGrantAccessModal(access);
         });
 
         // Approve request
@@ -796,24 +858,108 @@ const AccessManagement = (function() {
     /**
      * Show grant access modal
      */
-    function showGrantAccessModal() {
-        if (grantUserAutocomplete) {
-            grantUserAutocomplete.reset();
-        }
-        if (grantEnvironmentAutocomplete) {
-            const preselected = selectedEnvironmentId && environments.find(env => env.environmentId === selectedEnvironmentId);
-            if (preselected) {
-                grantEnvironmentAutocomplete.setValue(preselected.displayName || preselected.name, preselected.environmentId);
-            } else {
-                grantEnvironmentAutocomplete.reset();
-            }
-        }
-        $('#grant-access-level').val('USER');
-        $('#grant-duration').val('');
-        $('#grant-notes').val('');
+    function grantScope() {
+        return $('input[name="grant-scope"]:checked').val() || 'ENVIRONMENT';
+    }
 
-        const modal = new bootstrap.Modal(document.getElementById('grantAccessModal'));
-        modal.show();
+    /**
+     * Load an environment's groups into the modal checklist (name · N VMs · M running).
+     */
+    function loadGroupsForGrant(envId, preCheckedGroupIds, readOnly) {
+        const $list = $('#grant-group-list');
+        if (!envId) { $list.html('<li class="text-muted small p-2">Pick an environment first.</li>'); return; }
+        $list.html('<li class="text-muted small p-2"><i class="fas fa-spinner fa-spin me-1"></i>Loading groups…</li>');
+        ApiClient.get(Config.API.groups.list(envId))
+            .done(groups => {
+                const checked = new Set(preCheckedGroupIds || []);
+                if (!groups || groups.length === 0) {
+                    $list.html('<li class="text-muted small p-2">This environment has no groups.</li>');
+                    return;
+                }
+                const rows = readOnly ? groups.filter(g => checked.has(g.groupId)) : groups;
+                $list.html(rows.map(g => `
+                    <li data-name="${escapeHtml(g.displayName || g.name)}">
+                        <label>
+                            <input type="checkbox" class="grant-group-cb" value="${g.groupId}"
+                                   ${checked.has(g.groupId) ? 'checked' : ''} ${readOnly ? 'disabled' : ''}>
+                            <span class="grant-group-name">${escapeHtml(g.displayName || g.name)}</span>
+                        </label>
+                        <span class="grant-group-meta">${g.vmCount || 0} VMs · ${g.runningVmCount || 0} running</span>
+                    </li>`).join(''));
+            })
+            .fail(() => $list.html('<li class="text-danger small p-2">Failed to load groups.</li>'));
+    }
+
+    /**
+     * Open the Grant / Edit Access modal. Pass a grant object to edit an existing one.
+     */
+    function showGrantAccessModal(editAccess) {
+        const editing = !!editAccess;
+        $('#grant-access-id').val(editing ? editAccess.accessId : '');
+        $('#grant-modal-title').html(`<i class="fas fa-user-${editing ? 'pen' : 'plus'} me-2"></i>${editing ? 'Edit Access' : 'Grant Access'}`);
+        $('#btn-confirm-grant-label').text(editing ? 'Save changes' : 'Grant Access');
+
+        // Scope selector + group search are only meaningful for a NEW grant.
+        $('#grant-scope-block, #grant-group-filter').toggle(!editing);
+        $('#grant-user-search, #grant-environment-search').prop('disabled', editing);
+
+        if (editing) {
+            grantUserAutocomplete && grantUserAutocomplete.setValue(
+                `${editAccess.userDisplayName || editAccess.userEmail} (${editAccess.userEmail})`, editAccess.userEmail);
+            grantEnvironmentAutocomplete && grantEnvironmentAutocomplete.setValue(
+                editAccess.environmentName || editAccess.environmentId, editAccess.environmentId);
+            const isGroup = editAccess.scopeType === 'GROUP';
+            $('#grant-scope-env').prop('checked', !isGroup);
+            $('#grant-scope-group').prop('checked', isGroup);
+            document.getElementById('grant-group-checklist').hidden = !isGroup;
+            if (isGroup) loadGroupsForGrant(editAccess.environmentId, [editAccess.scopeId], true);
+            $('#grant-access-level').val(editAccess.accessLevel || 'USER');
+            $('#grant-duration').val('');
+            $('#grant-notes').val(editAccess.notes || '');
+        } else {
+            grantUserAutocomplete && grantUserAutocomplete.reset();
+            const preselected = selectedEnvironmentId && environments.find(env => env.environmentId === selectedEnvironmentId);
+            if (grantEnvironmentAutocomplete) {
+                preselected
+                    ? grantEnvironmentAutocomplete.setValue(preselected.displayName || preselected.name, preselected.environmentId)
+                    : grantEnvironmentAutocomplete.reset();
+            }
+            $('#grant-scope-env').prop('checked', true);
+            $('#grant-scope-group').prop('checked', false);
+            document.getElementById('grant-group-checklist').hidden = true;
+            $('#grant-group-list').html('<li class="text-muted small p-2">Pick an environment first.</li>');
+            $('#grant-group-selall').prop('checked', false);
+            $('#grant-group-filter').val('');
+            $('#grant-access-level').val('USER');
+            $('#grant-duration').val('');
+            $('#grant-notes').val('');
+        }
+
+        new bootstrap.Modal(document.getElementById('grantAccessModal')).show();
+    }
+
+    /**
+     * Public entry point: jump to Access Management scoped to one environment and open the
+     * grant modal. Used by the "Manage access" button on the environment detail view.
+     */
+    function openForEnvironment(envId) {
+        pendingOpenEnvId = envId;
+        if ($('#access-table-body').length) {
+            applyPendingOpen();
+        } else if (typeof Router !== 'undefined' && Router.navigate) {
+            Router.navigate('access-management');
+        }
+    }
+
+    function applyPendingOpen() {
+        if (!pendingOpenEnvId) return;
+        const envId = pendingOpenEnvId;
+        pendingOpenEnvId = null;
+        if (environments.find(e => e.environmentId === envId)) {
+            selectedEnvironmentId = envId;
+            $('#filter-environment').val(envId).trigger('change');
+        }
+        setTimeout(() => showGrantAccessModal(), 150);
     }
 
     /**
@@ -821,7 +967,7 @@ const AccessManagement = (function() {
      * the Environment and User fields in the Grant Access modal. Typing invalidates any
      * previously selected value until a suggestion is clicked again.
      */
-    function initAutocomplete({ inputSelector, hiddenSelector, menuSelector, minChars, fetchSuggestions }) {
+    function initAutocomplete({ inputSelector, hiddenSelector, menuSelector, minChars, fetchSuggestions, onSelect }) {
         const $input = $(inputSelector);
         const $hidden = $(hiddenSelector);
         const $menu = $(menuSelector);
@@ -866,6 +1012,7 @@ const AccessManagement = (function() {
             $input.val(item.label);
             $hidden.val(item.id);
             closeMenu();
+            if (typeof onSelect === 'function') onSelect(item.id, item.label);
         });
 
         const outsideClickNamespace = 'click.autocomplete-' + inputSelector.replace(/[^a-zA-Z0-9]/g, '');
@@ -889,86 +1036,92 @@ const AccessManagement = (function() {
         };
     }
 
+    async function refreshAccessData() {
+        [allAccess, activityLogs] = await Promise.all([
+            fetchAccessForSelection(selectedEnvironmentId),
+            fetchActivityLogsForSelection(selectedEnvironmentId)
+        ]);
+        filteredAccess = [...allAccess];
+        updateStatsDisplay(calculateStats());
+        applyFilters();
+        renderActivityLogsTable();
+    }
+
     /**
-     * Handle grant access form submission
+     * Handle grant / edit access form submission.
      */
     async function handleGrantAccess() {
+        const accessId = $('#grant-access-id').val();
+        const editing = !!accessId;
         const envId = $('#grant-environment').val();
         const userEmail = $('#grant-user-id').val();
         const accessLevel = $('#grant-access-level').val();
-        const durationDays = $('#grant-duration').val() || null;
+        const durationRaw = $('#grant-duration').val();
+        const durationDays = durationRaw ? parseInt(durationRaw, 10) : null;
         const notes = $('#grant-notes').val().trim() || null;
+        const scopeType = grantScope();
+        const groupIds = scopeType === 'GROUP'
+            ? $('#grant-group-list .grant-group-cb:checked').map((_, el) => el.value).get()
+            : [];
 
-        if (!envId || !userEmail || !accessLevel) {
-            showToast('Please fill in all required fields', 'warning');
+        if (!editing && (!envId || !userEmail || !accessLevel)) {
+            showToast('Pick a user, an environment and an access level', 'warning');
+            return;
+        }
+        if (!editing && scopeType === 'GROUP' && groupIds.length === 0) {
+            showToast('Tick at least one group', 'warning');
             return;
         }
 
         const $btn = $('#btn-confirm-grant');
-        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Granting...');
+        const origLabel = $('#btn-confirm-grant-label').text();
+        $btn.prop('disabled', true).find('#btn-confirm-grant-label').text(editing ? 'Saving…' : 'Granting…');
 
         try {
             await new Promise((resolve, reject) => {
-                ApiClient.post(Config.API.access.grantAccess(envId), {
-                    userEmail: userEmail,
-                    accessLevel: accessLevel,
-                    durationDays: durationDays ? parseInt(durationDays) : null,
-                    notes: notes
-                })
-                .done(resolve)
-                .fail(reject);
+                const req = editing
+                    ? ApiClient.patch(Config.API.access.updateGrant(accessId), {
+                        accessLevel, durationDays,
+                        clearExpiry: durationRaw === '' ? true : null,
+                        notes
+                    })
+                    : ApiClient.post(Config.API.access.accessGrants, {
+                        userEmail, environmentId: envId, accessLevel, scopeType,
+                        groupIds, durationDays, notes
+                    });
+                req.done(resolve).fail(reject);
             });
 
             bootstrap.Modal.getInstance(document.getElementById('grantAccessModal')).hide();
-            showToast('Access granted successfully', 'success');
-
-            // Refresh data
-            [allAccess, activityLogs] = await Promise.all([
-                fetchAccessForSelection(selectedEnvironmentId),
-                fetchActivityLogsForSelection(selectedEnvironmentId)
-            ]);
-            filteredAccess = [...allAccess];
-            const stats = calculateStats();
-            updateStatsDisplay(stats);
-            applyFilters();
-            renderActivityLogsTable();
+            showToast(editing ? 'Grant updated' : 'Access granted', 'success');
+            await refreshAccessData();
         } catch (error) {
-            console.error('Grant access failed:', error);
-            const message = error.responseJSON?.message || 'Failed to grant access';
-            showToast(message, 'danger');
+            console.error('Grant/edit access failed:', error);
+            showToast(error.responseJSON?.message || 'Failed to save access', 'danger');
         } finally {
-            $btn.prop('disabled', false).html('<i class="fas fa-check me-1"></i>Grant Access');
+            $btn.prop('disabled', false).find('#btn-confirm-grant-label').text(origLabel);
         }
     }
 
     /**
-     * Handle revoke access
+     * Handle revoke access (by grant id — works for environment and group scopes).
      */
-    async function handleRevokeAccess(envId, userId, userName) {
-        Modals.confirm('Revoke Access', `Are you sure you want to revoke access for ${userName}?`, async function() {
+    async function handleRevokeAccess(accessId, userName, scopeName) {
+        Modals.confirm('Revoke Access',
+            `Revoke access for <strong>${escapeHtml(userName || 'this user')}</strong> on <strong>${escapeHtml(scopeName || 'this scope')}</strong>?`,
+            async function() {
             try {
                 await new Promise((resolve, reject) => {
-                    ApiClient.delete(Config.API.access.revokeAccess(envId, userId))
+                    ApiClient.delete(Config.API.access.revokeGrant(accessId))
                         .done(resolve)
                         .fail(reject);
                 });
 
-                showToast('Access revoked successfully', 'success');
-
-                // Refresh data
-                [allAccess, activityLogs] = await Promise.all([
-                    fetchAccessForSelection(selectedEnvironmentId),
-                    fetchActivityLogsForSelection(selectedEnvironmentId)
-                ]);
-                filteredAccess = [...allAccess];
-                const stats = calculateStats();
-                updateStatsDisplay(stats);
-                applyFilters();
-                renderActivityLogsTable();
+                showToast('Access revoked', 'success');
+                await refreshAccessData();
             } catch (error) {
                 console.error('Revoke access failed:', error);
-                const message = error.responseJSON?.message || 'Failed to revoke access';
-                showToast(message, 'danger');
+                showToast(error.responseJSON?.message || 'Failed to revoke access', 'danger');
             }
         }, { confirmText: 'Revoke', confirmClass: 'btn-danger' });
     }
@@ -1123,7 +1276,8 @@ const AccessManagement = (function() {
 
     // Public API
     return {
-        load: load
+        load: load,
+        openForEnvironment: openForEnvironment
     };
 
 })();

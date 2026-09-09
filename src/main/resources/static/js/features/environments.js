@@ -603,6 +603,11 @@ const Environments = (function() {
                         <button class="btn btn-sm btn-ghost" id="btn-operation-history">
                             <i class="fas fa-history"></i> History
                         </button>
+                        ${(typeof Auth !== 'undefined' && Auth.isEnvAdmin && Auth.isEnvAdmin())
+                            ? `<button class="btn btn-sm btn-ghost" id="btn-env-manage-access"
+                                       data-bs-toggle="tooltip" title="Manage access for this environment">
+                                <i class="fas fa-user-shield"></i> Access
+                            </button>` : ''}
                         ${hasTransitionalVms(env) ?
                             `<button class="btn btn-sm btn-secondary" id="btn-env-action" disabled
                                      data-bs-toggle="tooltip" title="Operation already in progress">
@@ -877,6 +882,13 @@ const Environments = (function() {
         $('#btn-env-insights').off('click').on('click', function(e) {
             e.preventDefault();
             showEnvironmentInsights(env);
+        });
+
+        $('#btn-env-manage-access').off('click').on('click', function(e) {
+            e.preventDefault();
+            if (typeof AccessManagement !== 'undefined' && AccessManagement.openForEnvironment) {
+                AccessManagement.openForEnvironment(env.environmentId);
+            }
         });
 
         $('[data-action="group-action"]').off('click').on('click', function(e) {

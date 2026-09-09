@@ -49,6 +49,10 @@ const Config = (function() {
             environmentAccess: (envId) => `${API_BASE_URL}/environments/${envId}/access`,
             grantAccess: (envId) => `${API_BASE_URL}/environments/${envId}/access`,
             revokeAccess: (envId, userId) => `${API_BASE_URL}/environments/${envId}/access/${userId}`,
+            // Scoped grants (environment or group), keyed by accessId
+            accessGrants: `${API_BASE_URL}/access-grants`,
+            updateGrant: (accessId) => `${API_BASE_URL}/access-grants/${accessId}`,
+            revokeGrant: (accessId) => `${API_BASE_URL}/access-grants/${accessId}`,
             requestAccess: (envId) => `${API_BASE_URL}/environments/${envId}/access-requests`,
             myRequests: `${API_BASE_URL}/access-requests/my`,
             pendingRequests: `${API_BASE_URL}/access-requests/pending`,

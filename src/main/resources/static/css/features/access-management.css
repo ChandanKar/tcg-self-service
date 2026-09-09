@@ -662,17 +662,96 @@
 }
 
 @media (max-width: 768px) {
-    .access-table th:nth-child(3),
-    .access-table td:nth-child(3),
     .access-table th:nth-child(4),
     .access-table td:nth-child(4),
     .access-table th:nth-child(5),
-    .access-table td:nth-child(5) {
+    .access-table td:nth-child(5),
+    .access-table th:nth-child(6),
+    .access-table td:nth-child(6) {
         display: none;
     }
 
     .justification-cell {
         max-width: 120px;
     }
+}
+
+/* ---- Scope chip (access table) ---- */
+.access-scope-chip {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: .02em;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: var(--surface-2, #eef1f5);
+    border: 1px solid var(--border-color, #e0e4ea);
+    color: var(--text-muted, #64748b);
+    white-space: nowrap;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.access-scope-chip--group {
+    color: #2f6bff;
+    border-color: rgba(47, 107, 255, 0.4);
+    background: rgba(47, 107, 255, 0.08);
+}
+
+/* ---- Group checklist in the Grant / Edit Access modal ---- */
+.grant-group-checklist {
+    border: 1px solid var(--border-color, #d7dde5);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+}
+.grant-checklist-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    background: var(--surface-2, #f4f6f8);
+    border-bottom: 1px solid var(--border-color, #e5e9ef);
+}
+.grant-checklist-head .form-control { flex: 1; }
+.grant-selall {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: var(--text-muted, #64748b);
+    white-space: nowrap;
+    cursor: pointer;
+}
+.grant-checklist-items {
+    list-style: none;
+    margin: 0;
+    padding: 4px;
+    max-height: 220px;
+    overflow-y: auto;
+}
+.grant-checklist-items li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 8px;
+    border-radius: 6px;
+}
+.grant-checklist-items li:hover { background: var(--surface-2, #f4f6f8); }
+.grant-checklist-items li label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    margin: 0;
+    cursor: pointer;
+    font-size: 0.88rem;
+}
+.grant-group-name { font-weight: 500; }
+.grant-group-meta {
+    font-size: 0.75rem;
+    color: var(--text-muted, #64748b);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 
