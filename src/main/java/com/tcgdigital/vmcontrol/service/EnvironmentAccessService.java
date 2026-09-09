@@ -1,7 +1,9 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.dto.AccessGrantRequestDTO;
 import com.tcgdigital.vmcontrol.dto.CreateAccessRequestDTO;
 import com.tcgdigital.vmcontrol.dto.GrantAccessDTO;
+import com.tcgdigital.vmcontrol.dto.UpdateAccessGrantDTO;
 import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.*;
@@ -9,6 +11,7 @@ import com.tcgdigital.vmcontrol.repository.EnvironmentAccessRepository;
 import com.tcgdigital.vmcontrol.repository.EnvironmentAccessRequestRepository;
 import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
+import com.tcgdigital.vmcontrol.repository.VmGroupRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,10 +38,14 @@ public class EnvironmentAccessService {
     @Value("${access.expiry.warning-days:1}")
     private int expiryWarningDays;
 
+    @Value("${access.group-scope.enabled:true}")
+    private boolean groupScopeEnabled;
+
     private final EnvironmentAccessRepository accessRepository;
     private final EnvironmentAccessRequestRepository requestRepository;
     private final EnvironmentRepository environmentRepository;
     private final UserRepository userRepository;
+    private final VmGroupRepository vmGroupRepository;
     private final AuditService auditService;
     private final NotificationService notificationService;
     private final UserService userService;
@@ -48,6 +55,7 @@ public class EnvironmentAccessService {
                                      EnvironmentAccessRequestRepository requestRepository,
                                      EnvironmentRepository environmentRepository,
                                      UserRepository userRepository,
+                                     VmGroupRepository vmGroupRepository,
                                      AuditService auditService,
                                      NotificationService notificationService,
                                      UserService userService,
@@ -56,10 +64,15 @@ public class EnvironmentAccessService {
         this.requestRepository = requestRepository;
         this.environmentRepository = environmentRepository;
         this.userRepository = userRepository;
+        this.vmGroupRepository = vmGroupRepository;
         this.auditService = auditService;
         this.notificationService = notificationService;
         this.userService = userService;
         this.automationRuleService = automationRuleService;
+    }
+
+    public boolean isGroupScopeEnabled() {
+        return groupScopeEnabled;
     }
 
     // ============= Access Request Operations =============
@@ -180,6 +193,9 @@ public class EnvironmentAccessService {
                 request.getEnvironment().getName(),
                 request.getEnvironment().getEnvironmentId());
 
+        if (outcome.created() || outcome.levelChanged()) {
+            fireAccessGrantedAutomation(request.getEnvironment().getEnvironmentId());
+        }
         return outcome.access();
     }
 
@@ -256,14 +272,140 @@ public class EnvironmentAccessService {
                 environment, targetUser, grantedBy, dto.getAccessLevel(),
                 dto.getDurationDays(), Boolean.TRUE.equals(dto.getClearExpiry()), dto.getNotes()));
 
-        if (outcome.created()) {
-            notificationService.notifyAccessGranted(targetUser.getUserId(), environment.getName(), environmentId);
-        } else if (outcome.levelChanged()) {
-            notificationService.notifyAccessLevelChanged(targetUser.getUserId(), environment.getName(),
-                    environmentId, outcome.previousLevel(), dto.getAccessLevel());
+        notifyGrantOutcome(outcome, targetUser.getUserId(), environment.getName(), environmentId);
+        if (outcome.created() || outcome.levelChanged()) {
+            fireAccessGrantedAutomation(environmentId);
+        }
+        return outcome.access();
+    }
+
+    /**
+     * Grant access directly to the environment or to specific groups within it, in one call.
+     * One {@code resource_access} row is upserted per scope; access-granted automation fires
+     * once for the environment.
+     */
+    @Transactional
+    public List<EnvironmentAccess> grantScoped(String actorUserId, AccessGrantRequestDTO dto) {
+        Environment environment = getEnvironment(dto.getEnvironmentId());
+        User actor = getUser(actorUserId);
+        User targetUser = userService.getUserByEmail(dto.getUserEmail())
+                .orElseThrow(() -> new ResourceNotFoundException("User with email", dto.getUserEmail()));
+        boolean clearExpiry = Boolean.TRUE.equals(dto.getClearExpiry());
+
+        List<GrantSpec> specs = new java.util.ArrayList<>();
+        if (dto.getScopeType() == AccessScopeType.GROUP) {
+            assertGroupScopeEnabled();
+            List<String> groupIds = dto.getGroupIds();
+            if (groupIds == null || groupIds.isEmpty()) {
+                throw new ValidationException("At least one group id is required for GROUP scope");
+            }
+            for (String groupId : groupIds.stream().distinct().toList()) {
+                VmGroup group = vmGroupRepository.findById(groupId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Group", groupId));
+                if (!group.getEnvironment().getEnvironmentId().equals(environment.getEnvironmentId())) {
+                    throw new ValidationException("Group " + groupId + " is not in environment "
+                            + environment.getEnvironmentId());
+                }
+                specs.add(GrantSpec.directGroup(environment, group, targetUser, actor,
+                        dto.getAccessLevel(), dto.getDurationDays(), clearExpiry, dto.getNotes()));
+            }
+        } else {
+            specs.add(GrantSpec.directEnv(environment, targetUser, actor, dto.getAccessLevel(),
+                    dto.getDurationDays(), clearExpiry, dto.getNotes()));
         }
 
+        List<EnvironmentAccess> results = new java.util.ArrayList<>();
+        boolean anyChange = false;
+        for (GrantSpec spec : specs) {
+            GrantOutcome outcome = applyGrant(spec);
+            notifyGrantOutcome(outcome, targetUser.getUserId(), environment.getName(), environment.getEnvironmentId());
+            anyChange |= outcome.created() || outcome.levelChanged();
+            results.add(outcome.access());
+        }
+        if (anyChange) {
+            fireAccessGrantedAutomation(environment.getEnvironmentId());
+        }
+        return results;
+    }
+
+    /**
+     * Change an existing grant's level and/or expiry in place. The grant keeps its scope and
+     * initiation. Authorization is the caller's responsibility (done in the controller).
+     */
+    @Transactional
+    public EnvironmentAccess updateGrant(String actorUserId, String accessId, UpdateAccessGrantDTO dto) {
+        EnvironmentAccess existing = getGrantById(accessId);
+        if (existing.getStatus() != AccessStatus.ACTIVE) {
+            throw new ValidationException("Grant is not active");
+        }
+        User actor = getUser(actorUserId);
+        Environment environment = existing.getEnvironment();
+        AccessLevel level = dto.getAccessLevel() != null ? dto.getAccessLevel() : existing.getAccessLevel();
+        String notes = dto.getNotes() != null ? dto.getNotes() : existing.getNotes();
+
+        GrantSpec spec = GrantSpec.forExisting(existing, actor, level, dto.getDurationDays(),
+                Boolean.TRUE.equals(dto.getClearExpiry()), notes);
+        GrantOutcome outcome = applyGrant(spec);
+
+        notifyGrantOutcome(outcome, existing.getUser().getUserId(), environment.getName(),
+                environment.getEnvironmentId());
+        if (outcome.levelChanged()) {
+            fireAccessGrantedAutomation(environment.getEnvironmentId());
+        }
         return outcome.access();
+    }
+
+    /**
+     * Revoke a single grant by its id — works for any scope (env or group).
+     */
+    @Transactional
+    public void revokeGrantById(String actorUserId, String accessId) {
+        EnvironmentAccess access = getGrantById(accessId);
+        if (access.getStatus() != AccessStatus.ACTIVE) {
+            throw new ValidationException("Grant is not active");
+        }
+        Environment environment = access.getEnvironment();
+        String targetUserId = access.getUser().getUserId();
+
+        access.revoke();
+        accessRepository.save(access);
+
+        log.info("Grant {} ({}:{}) revoked for user {} by {}", accessId, access.getScopeType(),
+                access.getScopeId(), targetUserId, actorUserId);
+
+        auditService.logAccessRevoked(actorUserId, targetUserId,
+                environment.getEnvironmentId(), environment.getName());
+        notificationService.notifyAccessRevoked(targetUserId, environment.getName(),
+                environment.getEnvironmentId());
+    }
+
+    /**
+     * A grant by id, or 404.
+     */
+    public EnvironmentAccess getGrantById(String accessId) {
+        return accessRepository.findById(accessId)
+                .orElseThrow(() -> new ResourceNotFoundException("AccessGrant", accessId));
+    }
+
+    private void assertGroupScopeEnabled() {
+        if (!groupScopeEnabled) {
+            throw new ResourceNotFoundException("Group-scoped access", "feature disabled");
+        }
+    }
+
+    private void notifyGrantOutcome(GrantOutcome outcome, String targetUserId,
+                                    String environmentName, String environmentId) {
+        if (outcome.created()) {
+            notificationService.notifyAccessGranted(targetUserId, environmentName, environmentId);
+        } else if (outcome.levelChanged()) {
+            notificationService.notifyAccessLevelChanged(targetUserId, environmentName, environmentId,
+                    outcome.previousLevel(), outcome.access().getAccessLevel());
+        }
+    }
+
+    private void fireAccessGrantedAutomation(String environmentId) {
+        runNotificationSideEffect("trigger access-granted automation rules", environmentId, () ->
+                automationRuleService.handleAccessGranted(environmentId));
     }
 
     // ============= Grant application (shared by direct grant + request approval) =============
@@ -319,11 +461,6 @@ public class EnvironmentAccessService {
         } else if (levelChanged) {
             auditService.logAccessLevelChanged(actorId, targetUserId, environmentId, environmentName,
                     previousLevel.getValue(), spec.level.getValue());
-        }
-
-        if (created || levelChanged) {
-            runNotificationSideEffect("trigger access-granted automation rules", environmentId, () ->
-                    automationRuleService.handleAccessGranted(environmentId));
         }
 
         log.info("Access {} for user {} on {} scope {}:{} by {}",
@@ -389,11 +526,25 @@ public class EnvironmentAccessService {
                     environment.getEnvironmentId(), AccessInitiation.DIRECT, null, durationDays, clearExpiry, notes);
         }
 
+        static GrantSpec directGroup(Environment environment, VmGroup group, User targetUser, User actor,
+                                     AccessLevel level, Integer durationDays, boolean clearExpiry, String notes) {
+            return new GrantSpec(environment, targetUser, actor, level, AccessScopeType.GROUP,
+                    group.getGroupId(), AccessInitiation.DIRECT, null, durationDays, clearExpiry, notes);
+        }
+
         static GrantSpec fromApprovedRequest(EnvironmentAccessRequest request, User reviewer,
                                              Integer durationDays, String notes) {
             return new GrantSpec(request.getEnvironment(), request.getRequester(), reviewer,
                     request.getRequestedAccessLevel(), request.getScopeType(), request.getScopeId(),
                     AccessInitiation.REQUEST, request.getRequestId(), durationDays, false, notes);
+        }
+
+        /** Re-apply an existing grant with a possibly-changed level / expiry, keeping its scope and origin. */
+        static GrantSpec forExisting(EnvironmentAccess existing, User actor, AccessLevel level,
+                                     Integer durationDays, boolean clearExpiry, String notes) {
+            return new GrantSpec(existing.getEnvironment(), existing.getUser(), actor, level,
+                    existing.getScopeType(), existing.getScopeId(), existing.getInitiation(),
+                    existing.getSourceRequestId(), durationDays, clearExpiry, notes);
         }
     }
 

@@ -1,6 +1,8 @@
 package com.tcgdigital.vmcontrol.dto;
 
+import com.tcgdigital.vmcontrol.model.AccessInitiation;
 import com.tcgdigital.vmcontrol.model.AccessLevel;
+import com.tcgdigital.vmcontrol.model.AccessScopeType;
 import com.tcgdigital.vmcontrol.model.AccessStatus;
 import com.tcgdigital.vmcontrol.model.EnvironmentAccess;
 
@@ -19,6 +21,10 @@ public class EnvironmentAccessDTO {
     private String userDisplayName;
     private AccessLevel accessLevel;
     private AccessStatus status;
+    private AccessScopeType scopeType;
+    private String scopeId;
+    private String scopeName;
+    private AccessInitiation initiation;
     private String grantedByUserId;
     private String grantedByUserName;
     private Timestamp grantedAt;
@@ -29,13 +35,23 @@ public class EnvironmentAccessDTO {
     }
 
     /**
-     * Create DTO from EnvironmentAccess entity.
+     * Create DTO from EnvironmentAccess entity. {@code scopeName} falls back to the
+     * environment name for an ENVIRONMENT grant and the raw scope id for a GROUP grant —
+     * pass {@link #fromEntity(EnvironmentAccess, String)} with the resolved group name to
+     * get a human label for group grants.
      */
     public static EnvironmentAccessDTO fromEntity(EnvironmentAccess access) {
+        return fromEntity(access, null);
+    }
+
+    public static EnvironmentAccessDTO fromEntity(EnvironmentAccess access, String resolvedScopeName) {
         EnvironmentAccessDTO dto = new EnvironmentAccessDTO();
         dto.setAccessId(access.getAccessId());
         dto.setAccessLevel(access.getAccessLevel());
         dto.setStatus(access.getStatus());
+        dto.setScopeType(access.getScopeType());
+        dto.setScopeId(access.getScopeId());
+        dto.setInitiation(access.getInitiation());
         dto.setGrantedAt(access.getGrantedAt());
         dto.setExpiresAt(access.getExpiresAt());
         dto.setNotes(access.getNotes());
@@ -43,6 +59,14 @@ public class EnvironmentAccessDTO {
         if (access.getEnvironment() != null) {
             dto.setEnvironmentId(access.getEnvironment().getEnvironmentId());
             dto.setEnvironmentName(access.getEnvironment().getDisplayName());
+        }
+
+        if (resolvedScopeName != null) {
+            dto.setScopeName(resolvedScopeName);
+        } else if (access.getScopeType() == AccessScopeType.ENVIRONMENT) {
+            dto.setScopeName(dto.getEnvironmentName());
+        } else {
+            dto.setScopeName(access.getScopeId());
         }
 
         if (access.getUser() != null) {
@@ -122,6 +146,38 @@ public class EnvironmentAccessDTO {
 
     public void setStatus(AccessStatus status) {
         this.status = status;
+    }
+
+    public AccessScopeType getScopeType() {
+        return scopeType;
+    }
+
+    public void setScopeType(AccessScopeType scopeType) {
+        this.scopeType = scopeType;
+    }
+
+    public String getScopeId() {
+        return scopeId;
+    }
+
+    public void setScopeId(String scopeId) {
+        this.scopeId = scopeId;
+    }
+
+    public String getScopeName() {
+        return scopeName;
+    }
+
+    public void setScopeName(String scopeName) {
+        this.scopeName = scopeName;
+    }
+
+    public AccessInitiation getInitiation() {
+        return initiation;
+    }
+
+    public void setInitiation(AccessInitiation initiation) {
+        this.initiation = initiation;
     }
 
     public String getGrantedByUserId() {

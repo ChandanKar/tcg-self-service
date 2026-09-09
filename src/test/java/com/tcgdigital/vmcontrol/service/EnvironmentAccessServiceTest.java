@@ -1,19 +1,24 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.dto.AccessGrantRequestDTO;
 import com.tcgdigital.vmcontrol.dto.CreateAccessRequestDTO;
 import com.tcgdigital.vmcontrol.dto.GrantAccessDTO;
+import com.tcgdigital.vmcontrol.dto.UpdateAccessGrantDTO;
+import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.*;
 import com.tcgdigital.vmcontrol.repository.EnvironmentAccessRepository;
 import com.tcgdigital.vmcontrol.repository.EnvironmentAccessRequestRepository;
 import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
+import com.tcgdigital.vmcontrol.repository.VmGroupRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
@@ -46,6 +51,9 @@ class EnvironmentAccessServiceTest {
     @Autowired
     private EnvironmentAccessRequestRepository requestRepository;
 
+    @Autowired
+    private VmGroupRepository groupRepository;
+
     private Environment testEnvironment;
     private User requesterUser;
     private User adminUser;
@@ -55,6 +63,7 @@ class EnvironmentAccessServiceTest {
         // Clean up
         requestRepository.deleteAll();
         accessRepository.deleteAll();
+        groupRepository.deleteAll();
         userRepository.deleteAll();
 
         // Create test environment (reuse existing or create new)
@@ -372,6 +381,129 @@ class EnvironmentAccessServiceTest {
         // Should still only have one access record
         List<EnvironmentAccess> accessList = accessService.getAccessForUser(requesterUser.getUserId());
         assertThat(accessList).hasSize(1);
+    }
+
+    // ============= Scoped grants (step 4) =============
+
+    private VmGroup createGroup(String name, int seq) {
+        VmGroup g = new VmGroup();
+        g.setGroupId(UUID.randomUUID().toString());
+        g.setEnvironment(testEnvironment);
+        g.setName(name);
+        g.setDisplayName(name);
+        g.setSequencePosition(seq);
+        return groupRepository.save(g);
+    }
+
+    private AccessGrantRequestDTO groupGrant(AccessLevel level, List<String> groupIds) {
+        AccessGrantRequestDTO dto = new AccessGrantRequestDTO();
+        dto.setUserEmail(requesterUser.getEmail());
+        dto.setEnvironmentId(testEnvironment.getEnvironmentId());
+        dto.setAccessLevel(level);
+        dto.setScopeType(AccessScopeType.GROUP);
+        dto.setGroupIds(groupIds);
+        return dto;
+    }
+
+    @Test
+    @DisplayName("grantScoped GROUP creates one active grant per group")
+    void grantScoped_group_createsOneRowPerGroup() {
+        VmGroup g1 = createGroup("grp-a", 1);
+        VmGroup g2 = createGroup("grp-b", 2);
+
+        List<EnvironmentAccess> grants = accessService.grantScoped(adminUser.getUserId(),
+                groupGrant(AccessLevel.USER, List.of(g1.getGroupId(), g2.getGroupId())));
+
+        assertThat(grants).hasSize(2);
+        assertThat(grants).allSatisfy(ea -> {
+            assertThat(ea.getScopeType()).isEqualTo(AccessScopeType.GROUP);
+            assertThat(ea.getInitiation()).isEqualTo(AccessInitiation.DIRECT);
+            assertThat(ea.getAccessLevel()).isEqualTo(AccessLevel.USER);
+            assertThat(ea.getStatus()).isEqualTo(AccessStatus.ACTIVE);
+        });
+        assertThat(grants).extracting(EnvironmentAccess::getScopeId)
+                .containsExactlyInAnyOrder(g1.getGroupId(), g2.getGroupId());
+
+        Timestamp now = new Timestamp(System.currentTimeMillis());
+        assertThat(accessService.getActiveGroupGrantLevels(requesterUser.getUserId(),
+                List.of(g1.getGroupId(), g2.getGroupId()))).hasSize(2);
+        // A group grant is NOT environment access.
+        assertThat(accessRepository.hasAccess(testEnvironment.getEnvironmentId(),
+                requesterUser.getUserId(), now)).isFalse();
+    }
+
+    @Test
+    @DisplayName("grantScoped GROUP rejects a group from another environment")
+    void grantScoped_group_wrongEnvironment_throws() {
+        Environment other = new Environment();
+        other.setEnvironmentId(UUID.randomUUID().toString());
+        other.setName("other-env");
+        other.setDisplayName("Other");
+        other.setIsActive(true);
+        other = environmentRepository.save(other);
+
+        VmGroup foreign = new VmGroup();
+        foreign.setGroupId(UUID.randomUUID().toString());
+        foreign.setEnvironment(other);
+        foreign.setName("foreign");
+        foreign.setDisplayName("foreign");
+        foreign.setSequencePosition(1);
+        foreign = groupRepository.save(foreign);
+
+        AccessGrantRequestDTO dto = groupGrant(AccessLevel.USER, List.of(foreign.getGroupId()));
+        assertThatThrownBy(() -> accessService.grantScoped(adminUser.getUserId(), dto))
+                .isInstanceOf(ValidationException.class);
+    }
+
+    @Test
+    @DisplayName("grantScoped GROUP is rejected when group scope is disabled")
+    void grantScoped_group_disabled_throws() {
+        VmGroup g1 = createGroup("grp-a", 1);
+        AccessGrantRequestDTO dto = groupGrant(AccessLevel.USER, List.of(g1.getGroupId()));
+
+        ReflectionTestUtils.setField(accessService, "groupScopeEnabled", false);
+        try {
+            assertThatThrownBy(() -> accessService.grantScoped(adminUser.getUserId(), dto))
+                    .isInstanceOf(ResourceNotFoundException.class);
+        } finally {
+            ReflectionTestUtils.setField(accessService, "groupScopeEnabled", true);
+        }
+    }
+
+    @Test
+    @DisplayName("updateGrant changes level in place, keeping scope")
+    void updateGrant_changesLevelInPlace() {
+        EnvironmentAccess granted = accessService.grantAccess(testEnvironment.getEnvironmentId(),
+                adminUser.getUserId(), new GrantAccessDTO(requesterUser.getEmail(), AccessLevel.USER, null, null));
+
+        UpdateAccessGrantDTO patch = new UpdateAccessGrantDTO();
+        patch.setAccessLevel(AccessLevel.ADMIN);
+        EnvironmentAccess updated = accessService.updateGrant(adminUser.getUserId(), granted.getAccessId(), patch);
+
+        assertThat(updated.getAccessId()).isEqualTo(granted.getAccessId());
+        assertThat(updated.getAccessLevel()).isEqualTo(AccessLevel.ADMIN);
+        assertThat(updated.getScopeType()).isEqualTo(AccessScopeType.ENVIRONMENT);
+        assertThat(accessService.getAccessForUser(requesterUser.getUserId())).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("revokeGrantById marks the grant revoked")
+    void revokeGrantById_marksRevoked() {
+        VmGroup g1 = createGroup("grp-a", 1);
+        List<EnvironmentAccess> grants = accessService.grantScoped(adminUser.getUserId(),
+                groupGrant(AccessLevel.USER, List.of(g1.getGroupId())));
+        String accessId = grants.get(0).getAccessId();
+
+        accessService.revokeGrantById(adminUser.getUserId(), accessId);
+
+        assertThat(accessService.getGrantById(accessId).getStatus()).isEqualTo(AccessStatus.REVOKED);
+    }
+
+    @Test
+    @DisplayName("getGrantById throws for an unknown id")
+    void getGrantById_unknown_throws() {
+        assertThatThrownBy(() -> accessService.getGrantById("no-such-id"))
+                .isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test

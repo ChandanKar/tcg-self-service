@@ -1,8 +1,11 @@
 package com.tcgdigital.vmcontrol.controller;
 
 import com.tcgdigital.vmcontrol.dto.*;
+import com.tcgdigital.vmcontrol.model.AccessScopeType;
 import com.tcgdigital.vmcontrol.model.EnvironmentAccess;
 import com.tcgdigital.vmcontrol.model.EnvironmentAccessRequest;
+import com.tcgdigital.vmcontrol.model.VmGroup;
+import com.tcgdigital.vmcontrol.repository.VmGroupRepository;
 import com.tcgdigital.vmcontrol.service.EnvironmentAccessService;
 import com.tcgdigital.vmcontrol.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,10 +34,29 @@ public class EnvironmentAccessController {
 
     private final EnvironmentAccessService accessService;
     private final UserService userService;
+    private final VmGroupRepository vmGroupRepository;
 
-    public EnvironmentAccessController(EnvironmentAccessService accessService, UserService userService) {
+    public EnvironmentAccessController(EnvironmentAccessService accessService, UserService userService,
+                                      VmGroupRepository vmGroupRepository) {
         this.accessService = accessService;
         this.userService = userService;
+        this.vmGroupRepository = vmGroupRepository;
+    }
+
+    /** Map grants to DTOs, resolving GROUP scope ids to group display names in one query. */
+    private List<EnvironmentAccessDTO> toAccessDtos(List<EnvironmentAccess> grants) {
+        List<String> groupIds = grants.stream()
+                .filter(g -> g.getScopeType() == AccessScopeType.GROUP)
+                .map(EnvironmentAccess::getScopeId)
+                .distinct()
+                .toList();
+        java.util.Map<String, String> groupNames = groupIds.isEmpty() ? java.util.Map.of()
+                : vmGroupRepository.findAllById(groupIds).stream()
+                        .collect(java.util.stream.Collectors.toMap(VmGroup::getGroupId, VmGroup::getDisplayName));
+        return grants.stream()
+                .map(g -> EnvironmentAccessDTO.fromEntity(g,
+                        g.getScopeType() == AccessScopeType.GROUP ? groupNames.get(g.getScopeId()) : null))
+                .toList();
     }
 
     // ============= Access Grant Endpoints =============
@@ -61,11 +83,7 @@ public class EnvironmentAccessController {
             @Parameter(description = "Environment ID") @PathVariable String environmentId) {
 
         List<EnvironmentAccess> accessList = accessService.getAccessForEnvironment(environmentId);
-        List<EnvironmentAccessDTO> dtos = accessList.stream()
-                .map(EnvironmentAccessDTO::fromEntity)
-                .toList();
-
-        return ResponseEntity.ok(dtos);
+        return ResponseEntity.ok(toAccessDtos(accessList));
     }
 
     @PostMapping("/environments/{environmentId}/access")
@@ -135,11 +153,7 @@ public class EnvironmentAccessController {
     public ResponseEntity<List<EnvironmentAccessDTO>> getMyAccess() {
         String currentUserId = userService.getCurrentUserId();
         List<EnvironmentAccess> accessList = accessService.getAccessForUser(currentUserId);
-        List<EnvironmentAccessDTO> dtos = accessList.stream()
-                .map(EnvironmentAccessDTO::fromEntity)
-                .toList();
-
-        return ResponseEntity.ok(dtos);
+        return ResponseEntity.ok(toAccessDtos(accessList));
     }
 
     // ============= Access Request Endpoints =============
