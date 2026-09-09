@@ -47,6 +47,7 @@ public enum AuditAction {
     // Access operations
     ACCESS_REQUESTED,
     ACCESS_GRANTED,
+    ACCESS_LEVEL_CHANGED,
     ACCESS_DENIED,
     ACCESS_REVOKED,
 

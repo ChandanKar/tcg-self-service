@@ -636,6 +636,14 @@ public class AuditService {
                 String.format("Access granted to %s. Level: %s. Approved by %s", describeUser(userId), accessLevel, describeUser(reviewerId)));
     }
 
+    public void logAccessLevelChanged(String performedByUserId, String userId, String environmentId,
+                                      String environmentName, String previousLevel, String newLevel) {
+        logEnvironmentAction(auditUserId(performedByUserId), AuditAction.ACCESS_LEVEL_CHANGED, environmentId, environmentName,
+                "environment_access", environmentId, environmentName,
+                String.format("Access level for %s changed %s -> %s by %s",
+                        describeUser(userId), previousLevel, newLevel, describeUser(performedByUserId)));
+    }
+
     public void logAccessDenied(String reviewerId, String userId, String environmentId, String environmentName, String reason) {
         logEnvironmentAction(auditUserId(reviewerId), AuditAction.ACCESS_DENIED, environmentId, environmentName,
                 "environment_access", environmentId, environmentName,

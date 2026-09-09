@@ -145,7 +145,10 @@ public class EnvironmentAccessService {
     }
 
     /**
-     * Approve an access request.
+     * Approve an access request. The grant it produces goes through the same {@link #applyGrant}
+     * path as a direct admin grant (upsert + audit + automation); the requester additionally
+     * gets an {@code ACCESS_REQUEST_APPROVED} notification since that is the event they were
+     * waiting on.
      */
     @Transactional
     public EnvironmentAccess approveRequest(String requestId, String reviewerUserId, String notes,
@@ -161,41 +164,20 @@ public class EnvironmentAccessService {
         request.approve(reviewer, notes);
         requestRepository.save(request);
 
-        // Create the access grant
-        EnvironmentAccess access = EnvironmentAccess.create(
-                request.getEnvironment(),
-                request.getRequester(),
-                request.getRequestedAccessLevel(),
-                reviewer
-        );
-
         // Reviewer-specified duration overrides what the requester asked for
         Integer effectiveDays = reviewerDurationDays != null ? reviewerDurationDays : request.getDurationDays();
-        if (effectiveDays != null) {
-            LocalDateTime expiresAt = LocalDateTime.now().plusDays(effectiveDays);
-            access.setExpiresAt(Timestamp.valueOf(expiresAt));
-        }
-
-        access.setNotes(notes);
-        EnvironmentAccess saved = accessRepository.save(access);
+        GrantOutcome outcome = applyGrant(GrantSpec.fromApprovedRequest(request, reviewer, effectiveDays, notes));
 
         log.info("Access request {} approved by {} for user {} on environment {}",
                 requestId, reviewerUserId, request.getRequester().getUserId(),
                 request.getEnvironment().getEnvironmentId());
-
-        auditService.logAccessGranted(reviewerUserId, request.getRequester().getUserId(),
-                request.getEnvironment().getEnvironmentId(), request.getEnvironment().getName(),
-                request.getRequestedAccessLevel().getValue());
 
         notificationService.notifyAccessRequestApproved(
                 request.getRequester().getUserId(),
                 request.getEnvironment().getName(),
                 request.getEnvironment().getEnvironmentId());
 
-        runNotificationSideEffect("trigger access-granted automation rules", requestId, () ->
-                automationRuleService.handleAccessGranted(request.getEnvironment().getEnvironmentId()));
-
-        return saved;
+        return outcome.access();
     }
 
     /**
@@ -255,7 +237,10 @@ public class EnvironmentAccessService {
     // ============= Direct Access Grant Operations =============
 
     /**
-     * Grant access directly (admin operation, bypasses request workflow).
+     * Grant access directly (admin operation, bypasses request workflow). New grant or a
+     * change to an existing one both flow through {@link #applyGrant}; the user is notified
+     * ({@code ACCESS_GRANTED} on a new grant, {@code ACCESS_LEVEL_CHANGED} when the level
+     * moved, nothing on a no-op refresh).
      */
     @Transactional
     public EnvironmentAccess grantAccess(String environmentId, String grantedByUserId, GrantAccessDTO dto) {
@@ -264,51 +249,149 @@ public class EnvironmentAccessService {
         User targetUser = userService.getUserByEmail(dto.getUserEmail())
                 .orElseThrow(() -> new ResourceNotFoundException("User with email", dto.getUserEmail()));
 
-        String targetUserId = targetUser.getUserId();
+        GrantOutcome outcome = applyGrant(GrantSpec.directEnv(
+                environment, targetUser, grantedBy, dto.getAccessLevel(),
+                dto.getDurationDays(), Boolean.TRUE.equals(dto.getClearExpiry()), dto.getNotes()));
 
-        // Check if user already has active access
+        if (outcome.created()) {
+            notificationService.notifyAccessGranted(targetUser.getUserId(), environment.getName(), environmentId);
+        } else if (outcome.levelChanged()) {
+            notificationService.notifyAccessLevelChanged(targetUser.getUserId(), environment.getName(),
+                    environmentId, outcome.previousLevel(), dto.getAccessLevel());
+        }
+
+        return outcome.access();
+    }
+
+    // ============= Grant application (shared by direct grant + request approval) =============
+
+    /**
+     * The single place a grant is created or changed. Upserts the active grant for
+     * {@code (user, scopeType, scopeId)}, records audit ({@code ACCESS_GRANTED} on create,
+     * {@code ACCESS_LEVEL_CHANGED} when the level moved), and fires access-granted automation
+     * on create or level change. Callers own the user-facing notification, since its wording
+     * differs (granted vs. request approved vs. level changed).
+     */
+    private GrantOutcome applyGrant(GrantSpec spec) {
         Timestamp now = new Timestamp(System.currentTimeMillis());
-        Optional<EnvironmentAccess> existingAccess = accessRepository.findActiveAccess(
-                environmentId, targetUserId, now);
+        Optional<EnvironmentAccess> existing = accessRepository.findActiveByUserAndScope(
+                spec.targetUser.getUserId(), spec.scopeType, spec.scopeId, now);
 
-        if (existingAccess.isPresent()) {
-            // Update existing access level instead of creating new
-            EnvironmentAccess access = existingAccess.get();
-            access.setAccessLevel(dto.getAccessLevel());
-            access.setNotes(dto.getNotes());
-            if (dto.getDurationDays() != null) {
-                LocalDateTime expiresAt = LocalDateTime.now().plusDays(dto.getDurationDays());
-                access.setExpiresAt(Timestamp.valueOf(expiresAt));
+        boolean created;
+        AccessLevel previousLevel = null;
+        EnvironmentAccess access;
+
+        if (existing.isPresent()) {
+            access = existing.get();
+            previousLevel = access.getAccessLevel();
+            access.setAccessLevel(spec.level);
+            access.setGrantedBy(spec.actor);
+            if (spec.notes != null) {
+                access.setNotes(spec.notes);
             }
-            EnvironmentAccess saved = accessRepository.save(access);
-            log.info("Access updated for user {} on environment {} by {}",
-                    targetUserId, environmentId, grantedByUserId);
-            return saved;
+            applyExpiry(access, spec);
+            created = false;
+        } else {
+            access = EnvironmentAccess.create(spec.environment, spec.targetUser, spec.level, spec.actor);
+            access.setScopeType(spec.scopeType);
+            access.setScopeId(spec.scopeId);
+            access.setInitiation(spec.initiation);
+            access.setSourceRequestId(spec.sourceRequestId);
+            access.setNotes(spec.notes);
+            applyExpiry(access, spec);
+            created = true;
         }
 
-        // Create new access
-        EnvironmentAccess access = EnvironmentAccess.create(environment, targetUser, dto.getAccessLevel(), grantedBy);
-
-        if (dto.getDurationDays() != null) {
-            LocalDateTime expiresAt = LocalDateTime.now().plusDays(dto.getDurationDays());
-            access.setExpiresAt(Timestamp.valueOf(expiresAt));
-        }
-
-        access.setNotes(dto.getNotes());
         EnvironmentAccess saved = accessRepository.save(access);
+        boolean levelChanged = !created && previousLevel != spec.level;
 
-        log.info("Access granted to user {} on environment {} by {}",
-                targetUserId, environmentId, grantedByUserId);
+        String environmentId = spec.environment.getEnvironmentId();
+        String environmentName = spec.environment.getName();
+        String actorId = spec.actor.getUserId();
+        String targetUserId = spec.targetUser.getUserId();
 
-        auditService.logAccessGranted(grantedByUserId, targetUserId, environmentId,
-                environment.getName(), dto.getAccessLevel().getValue());
+        if (created) {
+            auditService.logAccessGranted(actorId, targetUserId, environmentId, environmentName,
+                    spec.level.getValue());
+        } else if (levelChanged) {
+            auditService.logAccessLevelChanged(actorId, targetUserId, environmentId, environmentName,
+                    previousLevel.getValue(), spec.level.getValue());
+        }
 
-        notificationService.notifyAccessGranted(targetUserId, environment.getName(), environmentId);
+        if (created || levelChanged) {
+            runNotificationSideEffect("trigger access-granted automation rules", environmentId, () ->
+                    automationRuleService.handleAccessGranted(environmentId));
+        }
 
-        runNotificationSideEffect("trigger access-granted automation rules", environmentId, () ->
-                automationRuleService.handleAccessGranted(environmentId));
+        log.info("Access {} for user {} on {} scope {}:{} by {}",
+                created ? "granted" : (levelChanged ? "level-changed" : "refreshed"),
+                targetUserId, environmentId, spec.scopeType, spec.scopeId, actorId);
 
-        return saved;
+        return new GrantOutcome(saved, created, previousLevel);
+    }
+
+    private void applyExpiry(EnvironmentAccess access, GrantSpec spec) {
+        if (spec.durationDays != null) {
+            access.setExpiresAt(Timestamp.valueOf(LocalDateTime.now().plusDays(spec.durationDays)));
+        } else if (spec.clearExpiry) {
+            access.setExpiresAt(null);
+        }
+        // else: leave the existing grant's expiry untouched (null for a brand-new grant)
+    }
+
+    /** What {@link #applyGrant} did, so the caller can pick the right user notification. */
+    private record GrantOutcome(EnvironmentAccess access, boolean created, AccessLevel previousLevel) {
+        boolean levelChanged() {
+            return !created && previousLevel != access.getAccessLevel();
+        }
+    }
+
+    /**
+     * A grant to apply. Always carries the enclosing environment; {@code scopeType}/{@code
+     * scopeId} say whether it lands on the whole environment or one group. Built via the
+     * static factories, never directly.
+     */
+    private static final class GrantSpec {
+        final Environment environment;
+        final User targetUser;
+        final User actor;
+        final AccessLevel level;
+        final AccessScopeType scopeType;
+        final String scopeId;
+        final AccessInitiation initiation;
+        final String sourceRequestId;
+        final Integer durationDays;
+        final boolean clearExpiry;
+        final String notes;
+
+        private GrantSpec(Environment environment, User targetUser, User actor, AccessLevel level,
+                          AccessScopeType scopeType, String scopeId, AccessInitiation initiation,
+                          String sourceRequestId, Integer durationDays, boolean clearExpiry, String notes) {
+            this.environment = environment;
+            this.targetUser = targetUser;
+            this.actor = actor;
+            this.level = level;
+            this.scopeType = scopeType;
+            this.scopeId = scopeId;
+            this.initiation = initiation;
+            this.sourceRequestId = sourceRequestId;
+            this.durationDays = durationDays;
+            this.clearExpiry = clearExpiry;
+            this.notes = notes;
+        }
+
+        static GrantSpec directEnv(Environment environment, User targetUser, User actor, AccessLevel level,
+                                   Integer durationDays, boolean clearExpiry, String notes) {
+            return new GrantSpec(environment, targetUser, actor, level, AccessScopeType.ENVIRONMENT,
+                    environment.getEnvironmentId(), AccessInitiation.DIRECT, null, durationDays, clearExpiry, notes);
+        }
+
+        static GrantSpec fromApprovedRequest(EnvironmentAccessRequest request, User reviewer,
+                                             Integer durationDays, String notes) {
+            return new GrantSpec(request.getEnvironment(), request.getRequester(), reviewer,
+                    request.getRequestedAccessLevel(), request.getScopeType(), request.getScopeId(),
+                    AccessInitiation.REQUEST, request.getRequestId(), durationDays, false, notes);
+        }
     }
 
     /**

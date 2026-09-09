@@ -171,6 +171,17 @@ public class NotificationService {
         }
     }
 
+    public void notifyAccessLevelChanged(String userId, String environmentName, String environmentId,
+                                         AccessLevel previousLevel, AccessLevel newLevel) {
+        String title = "Access level changed: " + environmentName;
+        String message = "Your access to environment \"" + environmentName + "\" changed from "
+                + previousLevel + " to " + newLevel + ".";
+        create(userId, NotificationType.ACCESS_LEVEL_CHANGED, title, message, "ENVIRONMENT", environmentId);
+        if (emailAccessGrantedEnabled) {
+            sendEventEmailToUser(userId, title, message);
+        }
+    }
+
     public void notifyAccessRevoked(String userId, String environmentName, String environmentId) {
         String title = "Access revoked: " + environmentName;
         String message = "Your access to environment \"" + environmentName + "\" has been revoked.";

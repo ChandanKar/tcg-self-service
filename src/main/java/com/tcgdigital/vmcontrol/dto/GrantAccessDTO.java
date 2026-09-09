@@ -22,6 +22,12 @@ public class GrantAccessDTO {
     private Integer durationDays;
 
     /**
+     * Optional: when granting over an existing time-boxed grant, set true to drop its expiry
+     * and make it permanent. Ignored when {@code durationDays} is also given.
+     */
+    private Boolean clearExpiry;
+
+    /**
      * Optional notes about the access grant.
      */
     private String notes;
@@ -58,6 +64,14 @@ public class GrantAccessDTO {
 
     public void setDurationDays(Integer durationDays) {
         this.durationDays = durationDays;
+    }
+
+    public Boolean getClearExpiry() {
+        return clearExpiry;
+    }
+
+    public void setClearExpiry(Boolean clearExpiry) {
+        this.clearExpiry = clearExpiry;
     }
 
     public String getNotes() {

@@ -228,6 +228,22 @@ class EnvironmentAccessServiceTest {
     }
 
     @Test
+    @DisplayName("Approving a request produces a REQUEST-initiated grant linked to the request")
+    void approveRequest_grantIsRequestInitiated() {
+        EnvironmentAccessRequest request = accessService.createAccessRequest(
+                testEnvironment.getEnvironmentId(), requesterUser.getUserId(),
+                new CreateAccessRequestDTO(AccessLevel.USER, "dev work", 14));
+
+        EnvironmentAccess access = accessService.approveRequest(
+                request.getRequestId(), adminUser.getUserId(), "ok", null);
+
+        assertThat(access.getInitiation()).isEqualTo(AccessInitiation.REQUEST);
+        assertThat(access.getSourceRequestId()).isEqualTo(request.getRequestId());
+        assertThat(access.getScopeType()).isEqualTo(AccessScopeType.ENVIRONMENT);
+        assertThat(access.getExpiresAt()).isNotNull();
+    }
+
+    @Test
     @DisplayName("Should deny access request")
     void denyRequest_success() {
         // Create request
@@ -356,6 +372,21 @@ class EnvironmentAccessServiceTest {
         // Should still only have one access record
         List<EnvironmentAccess> accessList = accessService.getAccessForUser(requesterUser.getUserId());
         assertThat(accessList).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("Re-granting with clearExpiry drops the expiry of a time-boxed grant")
+    void grantAccess_clearExpiry_makesPermanent() {
+        accessService.grantAccess(testEnvironment.getEnvironmentId(), adminUser.getUserId(),
+                new GrantAccessDTO(requesterUser.getEmail(), AccessLevel.USER, 30, "time-boxed"));
+
+        GrantAccessDTO permanent = new GrantAccessDTO(requesterUser.getEmail(), AccessLevel.USER, null, "made permanent");
+        permanent.setClearExpiry(true);
+        EnvironmentAccess updated = accessService.grantAccess(
+                testEnvironment.getEnvironmentId(), adminUser.getUserId(), permanent);
+
+        assertThat(updated.getExpiresAt()).isNull();
+        assertThat(accessService.getAccessForUser(requesterUser.getUserId())).hasSize(1);
     }
 
     @Test
