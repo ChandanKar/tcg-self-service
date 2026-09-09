@@ -186,7 +186,7 @@ public class EnvironmentController {
             @Parameter(description = "Environment ID") @PathVariable String environmentId) {
 
         // Check access
-        if (!securityService.hasEnvironmentAccess(environmentId)) {
+        if (!securityService.canViewEnvironment(environmentId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -204,7 +204,7 @@ public class EnvironmentController {
     )
     public ResponseEntity<EnvironmentInsightsDTO> getEnvironmentInsights(
             @Parameter(description = "Environment ID") @PathVariable String environmentId) {
-        if (!securityService.hasEnvironmentAccess(environmentId)) {
+        if (!securityService.canViewEnvironment(environmentId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         return ResponseEntity.ok(environmentInsightsService.getInsights(environmentId));

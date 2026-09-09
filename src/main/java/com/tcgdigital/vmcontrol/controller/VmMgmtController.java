@@ -86,11 +86,15 @@ public class VmMgmtController {
             @Parameter(description = "Environment ID") @PathVariable String environmentId) {
 
         // Check access
-        if (!securityService.hasEnvironmentAccess(environmentId)) {
+        if (!securityService.canViewEnvironment(environmentId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        List<VmGroup> groups = groupService.getGroupsByEnvironmentId(environmentId);
+        java.util.Set<String> visibleGroupIds =
+                new java.util.HashSet<>(securityService.getVisibleGroupIds(environmentId));
+        List<VmGroup> groups = groupService.getGroupsByEnvironmentId(environmentId).stream()
+                .filter(g -> visibleGroupIds.contains(g.getGroupId()))
+                .toList();
         Map<String, VmRepository.GroupVmCounts> countsByGroup = vmService.getVmCountsByGroupForEnvironment(environmentId);
 
         // Only the first page loads eagerly here — the rest is fetched on demand via
@@ -131,6 +135,15 @@ public class VmMgmtController {
         return dto;
     }
 
+    /** Whether the current user can see the VM's group (env-level access, or a grant on that group). */
+    private boolean canSeeVm(String vmId) {
+        try {
+            return securityService.hasGroupAccess(vmService.getVmById(vmId).getGroup().getGroupId());
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
     @GetMapping("/{groupId}/page")
     @PreAuthorize("isAuthenticated()")
     @Operation(
@@ -144,7 +157,7 @@ public class VmMgmtController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "25") int size) {
 
-        if (!securityService.hasEnvironmentAccess(environmentId)) {
+        if (!securityService.canViewEnvironment(environmentId) || !securityService.hasGroupAccess(groupId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -176,7 +189,7 @@ public class VmMgmtController {
             @Parameter(description = "VM ID") @PathVariable String vmId) {
 
         // Check access
-        if (!securityService.hasEnvironmentAccess(environmentId)) {
+        if (!securityService.canViewEnvironment(environmentId) || !canSeeVm(vmId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -190,7 +203,7 @@ public class VmMgmtController {
     public ResponseEntity<VmInventoryDTO> getVmInventory(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Parameter(description = "VM ID") @PathVariable String vmId) {
-        if (!securityService.hasEnvironmentAccess(environmentId)) {
+        if (!securityService.canViewEnvironment(environmentId) || !canSeeVm(vmId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         return ResponseEntity.ok(inventoryService.getInventory(environmentId, vmId));
@@ -201,7 +214,7 @@ public class VmMgmtController {
     public ResponseEntity<VmInventoryDTO> refreshVmInventory(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Parameter(description = "VM ID") @PathVariable String vmId) {
-        if (!securityService.hasEnvironmentAccess(environmentId)) {
+        if (!securityService.canViewEnvironment(environmentId) || !canSeeVm(vmId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         return ResponseEntity.ok(inventoryService.refreshVmInventory(environmentId, vmId));
@@ -214,7 +227,7 @@ public class VmMgmtController {
             @Parameter(description = "VM ID") @PathVariable String vmId,
             @RequestParam(defaultValue = "1h") String window,
             @RequestParam(defaultValue = "300") int period) {
-        if (!securityService.hasEnvironmentAccess(environmentId)) {
+        if (!securityService.canViewEnvironment(environmentId) || !canSeeVm(vmId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         return ResponseEntity.ok(metricsService.getMetrics(environmentId, vmId, window, period));
@@ -225,7 +238,7 @@ public class VmMgmtController {
     public ResponseEntity<VmUtilizationSummaryDTO> getVmUtilizationSummary(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Parameter(description = "VM ID") @PathVariable String vmId) {
-        if (!securityService.hasEnvironmentAccess(environmentId)) {
+        if (!securityService.canViewEnvironment(environmentId) || !canSeeVm(vmId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         return ResponseEntity.ok(metricsService.getUtilizationSummary(environmentId, vmId));

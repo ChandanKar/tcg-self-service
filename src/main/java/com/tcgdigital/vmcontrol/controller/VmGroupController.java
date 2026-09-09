@@ -3,6 +3,7 @@ package com.tcgdigital.vmcontrol.controller;
 import com.tcgdigital.vmcontrol.dto.CreateVmGroupDTO;
 import com.tcgdigital.vmcontrol.dto.VmGroupDTO;
 import com.tcgdigital.vmcontrol.model.VmGroup;
+import com.tcgdigital.vmcontrol.service.SecurityService;
 import com.tcgdigital.vmcontrol.service.VmGroupService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -29,9 +30,11 @@ import java.util.List;
 public class VmGroupController {
 
     private final VmGroupService groupService;
+    private final SecurityService securityService;
 
-    public VmGroupController(VmGroupService groupService) {
+    public VmGroupController(VmGroupService groupService, SecurityService securityService) {
         this.groupService = groupService;
+        this.securityService = securityService;
     }
 
     @GetMapping
@@ -53,9 +56,13 @@ public class VmGroupController {
     public ResponseEntity<List<VmGroupDTO>> listGroups(
             @Parameter(description = "Environment ID") @PathVariable String environmentId) {
 
-        List<VmGroup> groups = groupService.getGroupsByEnvironmentId(environmentId);
+        if (!securityService.canViewEnvironment(environmentId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
 
-        List<VmGroupDTO> dtos = groups.stream()
+        java.util.Set<String> visible = new java.util.HashSet<>(securityService.getVisibleGroupIds(environmentId));
+        List<VmGroupDTO> dtos = groupService.getGroupsByEnvironmentId(environmentId).stream()
+                .filter(group -> visible.contains(group.getGroupId()))
                 .map(group -> VmGroupDTO.fromEntityWithCounts(
                         group,
                         groupService.getVmCount(group.getGroupId()),
@@ -83,6 +90,10 @@ public class VmGroupController {
     public ResponseEntity<VmGroupDTO> getGroup(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Parameter(description = "Group ID") @PathVariable String groupId) {
+
+        if (!securityService.hasGroupAccess(groupId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
 
         VmGroup group = groupService.getGroupById(groupId);
         VmGroupDTO dto = VmGroupDTO.fromEntityWithCounts(

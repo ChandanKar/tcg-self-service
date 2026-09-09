@@ -17,6 +17,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
@@ -504,6 +506,23 @@ class EnvironmentAccessServiceTest {
     void getGrantById_unknown_throws() {
         assertThatThrownBy(() -> accessService.getGrantById("no-such-id"))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("findDistinctActiveEnvironmentsForUser collapses several grants in one environment")
+    void distinctEnvironmentsForUser_dedupesAcrossScopes() {
+        VmGroup g1 = createGroup("grp-x", 1);
+        accessService.grantAccess(testEnvironment.getEnvironmentId(), adminUser.getUserId(),
+                new GrantAccessDTO(requesterUser.getEmail(), AccessLevel.VIEWER, null, null));
+        accessService.grantScoped(adminUser.getUserId(),
+                groupGrant(AccessLevel.USER, List.of(g1.getGroupId())));
+
+        Page<Environment> envs = accessRepository.findDistinctActiveEnvironmentsForUser(
+                requesterUser.getUserId(), null, new Timestamp(System.currentTimeMillis()), PageRequest.of(0, 10));
+
+        assertThat(envs.getTotalElements()).isEqualTo(1);
+        assertThat(envs.getContent()).extracting(Environment::getEnvironmentId)
+                .containsExactly(testEnvironment.getEnvironmentId());
     }
 
     @Test

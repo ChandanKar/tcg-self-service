@@ -3,6 +3,7 @@ package com.tcgdigital.vmcontrol.repository;
 import com.tcgdigital.vmcontrol.model.AccessLevel;
 import com.tcgdigital.vmcontrol.model.AccessScopeType;
 import com.tcgdigital.vmcontrol.model.AccessStatus;
+import com.tcgdigital.vmcontrol.model.Environment;
 import com.tcgdigital.vmcontrol.model.EnvironmentAccess;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -110,6 +111,34 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
             @Param("userId") String userId,
             @Param("minLevel") AccessLevel minLevel,
             @Param("now") Timestamp now);
+
+    /**
+     * DISTINCT active environments a user can reach through any grant (ENVIRONMENT or GROUP),
+     * optionally name/description-filtered — backs the paginated "My Environments" table so a
+     * user with several grants in one environment sees it once.
+     */
+    @Query(value =
+           "SELECT DISTINCT e FROM Environment e JOIN EnvironmentAccess ea ON ea.environment = e " +
+           "WHERE ea.user.userId = :userId " +
+           "AND ea.status = 'ACTIVE' " +
+           "AND (ea.expiresAt IS NULL OR ea.expiresAt > :now) " +
+           "AND e.isActive = true " +
+           "AND (:search IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "     OR LOWER(e.description) LIKE LOWER(CONCAT('%', :search, '%'))) " +
+           "ORDER BY e.name",
+           countQuery =
+           "SELECT COUNT(DISTINCT e.environmentId) FROM Environment e JOIN EnvironmentAccess ea ON ea.environment = e " +
+           "WHERE ea.user.userId = :userId " +
+           "AND ea.status = 'ACTIVE' " +
+           "AND (ea.expiresAt IS NULL OR ea.expiresAt > :now) " +
+           "AND e.isActive = true " +
+           "AND (:search IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "     OR LOWER(e.description) LIKE LOWER(CONCAT('%', :search, '%')))")
+    Page<Environment> findDistinctActiveEnvironmentsForUser(
+            @Param("userId") String userId,
+            @Param("search") String search,
+            @Param("now") Timestamp now,
+            Pageable pageable);
 
     // ============= Scope-aware finders (env or group) =============
 

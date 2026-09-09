@@ -79,10 +79,16 @@ public class EnvironmentService {
 
         List<EnvironmentAccess> accessList = accessRepository.findActiveAccessByUser(userId, now);
 
-        return accessList.stream()
-                .map(EnvironmentAccess::getEnvironment)
-                .filter(env -> env.getIsActive())
-                .distinct()
+        // A user can hold several grants in one environment (an ENVIRONMENT grant plus GROUP
+        // grants) — collapse to one entry per environment.
+        java.util.Map<String, Environment> byId = new java.util.LinkedHashMap<>();
+        for (EnvironmentAccess ea : accessList) {
+            Environment env = ea.getEnvironment();
+            if (Boolean.TRUE.equals(env.getIsActive())) {
+                byId.putIfAbsent(env.getEnvironmentId(), env);
+            }
+        }
+        return byId.values().stream()
                 .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
                 .toList();
     }
@@ -110,8 +116,9 @@ public class EnvironmentService {
     public Page<Environment> getEnvironmentsForCurrentUser(String search, Pageable pageable) {
         String userId = userService.getCurrentUserId();
         Timestamp now = new Timestamp(System.currentTimeMillis());
-        return accessRepository.searchActiveAccessByUser(userId, blankToNull(search), now, pageable)
-                .map(EnvironmentAccess::getEnvironment);
+        // DISTINCT environments — a user with an ENVIRONMENT grant plus GROUP grants in the
+        // same environment must still see it once, not once per grant.
+        return accessRepository.findDistinctActiveEnvironmentsForUser(userId, blankToNull(search), now, pageable);
     }
 
     private String blankToNull(String value) {
