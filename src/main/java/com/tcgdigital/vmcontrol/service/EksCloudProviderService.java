@@ -405,6 +405,8 @@ public class EksCloudProviderService implements CloudProviderService {
                                              String nodeGroupName, boolean expectRunning) {
         long startTime = System.currentTimeMillis();
         VmStatus lastStatus = expectRunning ? VmStatus.STARTING : VmStatus.STOPPING;
+        NodegroupStatus lastNgStatus = null;
+        int lastDesired = -1;
 
         while (System.currentTimeMillis() - startTime < operationTimeoutMs) {
             try {
@@ -418,20 +420,22 @@ public class EksCloudProviderService implements CloudProviderService {
 
                 Nodegroup ng = response.nodegroup();
                 lastStatus = mapNodegroupToVmStatus(ng);
+                lastNgStatus = ng.status();
+                lastDesired = ng.scalingConfig() != null ? ng.scalingConfig().desiredSize() : -1;
 
                 log.debug("EKS node group {}/{} — status={}, desired={}",
-                        clusterName, nodeGroupName, ng.status(),
-                        ng.scalingConfig() != null ? ng.scalingConfig().desiredSize() : "?");
+                        clusterName, nodeGroupName, ng.status(), lastDesired);
 
                 if (ng.status() == NodegroupStatus.ACTIVE) {
-                    int desired = ng.scalingConfig() != null ? ng.scalingConfig().desiredSize() : -1;
-                    if (expectRunning && desired >= 1) return VmStatus.RUNNING;
-                    if (!expectRunning && desired == 0) return VmStatus.STOPPED;
+                    if (expectRunning && lastDesired >= 1) return VmStatus.RUNNING;
+                    if (!expectRunning && lastDesired == 0) return VmStatus.STOPPED;
                 }
 
+                // Only CREATE_FAILED / DELETE_FAILED are genuinely terminal. DEGRADED is
+                // routinely transient while new nodes boot and register during a scale-up —
+                // it clears to ACTIVE on its own, so keep polling rather than reporting ERROR.
                 if (ng.status() == NodegroupStatus.CREATE_FAILED
-                        || ng.status() == NodegroupStatus.DELETE_FAILED
-                        || ng.status() == NodegroupStatus.DEGRADED) {
+                        || ng.status() == NodegroupStatus.DELETE_FAILED) {
                     log.warn("EKS node group {}/{} reached terminal error state: {}",
                             clusterName, nodeGroupName, ng.status());
                     return VmStatus.ERROR;
@@ -445,8 +449,15 @@ public class EksCloudProviderService implements CloudProviderService {
             }
         }
 
-        log.warn("Timed out waiting for EKS node group {}/{} after {}ms",
-                clusterName, nodeGroupName, operationTimeoutMs);
+        log.warn("Timed out waiting for EKS node group {}/{} after {}ms (last status {}, desired {})",
+                clusterName, nodeGroupName, operationTimeoutMs, lastNgStatus, lastDesired);
+        // The wait window closed, but if the node group is actually up (ACTIVE, or DEGRADED
+        // with nodes requested) don't paint it ERROR — the app-visible state is "running".
+        if (expectRunning
+                && (lastNgStatus == NodegroupStatus.ACTIVE
+                    || (lastNgStatus == NodegroupStatus.DEGRADED && lastDesired >= 1))) {
+            return VmStatus.RUNNING;
+        }
         return lastStatus;
     }
 
@@ -460,7 +471,11 @@ public class EksCloudProviderService implements CloudProviderService {
             return desired > 0 ? VmStatus.RUNNING : VmStatus.STOPPED;
         } else if (status == NodegroupStatus.CREATING || status == NodegroupStatus.UPDATING) {
             return VmStatus.STARTING;
-        } else if (status == NodegroupStatus.DELETING || status == NodegroupStatus.DEGRADED) {
+        } else if (status == NodegroupStatus.DEGRADED) {
+            // Up but unhealthy (often just nodes still registering after a scale-up) when
+            // nodes are requested; genuinely winding down when desired is 0.
+            return desired > 0 ? VmStatus.RUNNING : VmStatus.STOPPING;
+        } else if (status == NodegroupStatus.DELETING) {
             return VmStatus.STOPPING;
         } else if (status == NodegroupStatus.CREATE_FAILED || status == NodegroupStatus.DELETE_FAILED) {
             return VmStatus.ERROR;

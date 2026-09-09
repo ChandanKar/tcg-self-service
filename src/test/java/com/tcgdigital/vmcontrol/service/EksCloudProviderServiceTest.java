@@ -239,6 +239,9 @@ class EksCloudProviderServiceTest {
         assertEquals(VmStatus.STARTING, service.mapNodegroupToVmStatus(buildNodegroup(NodegroupStatus.CREATING, 0)));
         assertEquals(VmStatus.STARTING, service.mapNodegroupToVmStatus(buildNodegroup(NodegroupStatus.UPDATING, 0)));
         assertEquals(VmStatus.STOPPING, service.mapNodegroupToVmStatus(buildNodegroup(NodegroupStatus.DELETING, 0)));
+        // DEGRADED with nodes requested = up but unhealthy (transient during scale-up), not an error;
+        // DEGRADED with desired 0 = winding down.
+        assertEquals(VmStatus.RUNNING,  service.mapNodegroupToVmStatus(buildNodegroup(NodegroupStatus.DEGRADED, 2)));
         assertEquals(VmStatus.STOPPING, service.mapNodegroupToVmStatus(buildNodegroup(NodegroupStatus.DEGRADED, 0)));
         assertEquals(VmStatus.ERROR,    service.mapNodegroupToVmStatus(buildNodegroup(NodegroupStatus.CREATE_FAILED, 0)));
         assertEquals(VmStatus.ERROR,    service.mapNodegroupToVmStatus(buildNodegroup(NodegroupStatus.DELETE_FAILED, 0)));
@@ -325,6 +328,39 @@ class EksCloudProviderServiceTest {
         VmOperationResult result = service.startVm(PROVIDER_VM_ID, REGION).get();
         assertFalse(result.isSuccess());
         assertTrue(result.getMessage().contains("Cluster not found"));
+    }
+
+    @Test
+    void startVm_keepsPollingThroughTransientDegraded() throws Exception {
+        when(vmRepository.findByProviderAndProviderVmId(any(), any())).thenReturn(Optional.empty());
+        when(mockEksClient.updateNodegroupConfig(any(UpdateNodegroupConfigRequest.class)))
+                .thenReturn(UpdateNodegroupConfigResponse.builder()
+                        .update(Update.builder().id("upd-deg").build()).build());
+        // First poll: DEGRADED (new nodes still registering); then it settles to ACTIVE.
+        when(mockEksClient.describeNodegroup(any(DescribeNodegroupRequest.class)))
+                .thenReturn(buildDescribeResponse(NodegroupStatus.DEGRADED, 3, 3))
+                .thenReturn(buildDescribeResponse(NodegroupStatus.ACTIVE, 3, 3));
+
+        VmOperationResult result = service.startVm(PROVIDER_VM_ID, REGION).get();
+
+        assertTrue(result.isSuccess());
+        assertEquals(VmStatus.RUNNING, result.getResultStatus());
+    }
+
+    @Test
+    void startVm_reportsRunningNotErrorWhenDegradedButUpAtTimeout() throws Exception {
+        when(vmRepository.findByProviderAndProviderVmId(any(), any())).thenReturn(Optional.empty());
+        when(mockEksClient.updateNodegroupConfig(any(UpdateNodegroupConfigRequest.class)))
+                .thenReturn(UpdateNodegroupConfigResponse.builder()
+                        .update(Update.builder().id("upd-deg2").build()).build());
+        // Never clears within the wait window, but nodes are requested and it's not FAILED.
+        when(mockEksClient.describeNodegroup(any(DescribeNodegroupRequest.class)))
+                .thenReturn(buildDescribeResponse(NodegroupStatus.DEGRADED, 3, 3));
+
+        VmOperationResult result = service.startVm(PROVIDER_VM_ID, REGION).get();
+
+        assertTrue(result.isSuccess());
+        assertEquals(VmStatus.RUNNING, result.getResultStatus());
     }
 
     // ---- helpers ----
