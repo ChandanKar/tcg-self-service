@@ -1,6 +1,7 @@
 package com.tcgdigital.vmcontrol.dto;
 
 import com.tcgdigital.vmcontrol.model.AccessLevel;
+import com.tcgdigital.vmcontrol.model.AccessScopeType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -22,6 +23,12 @@ public class CreateAccessRequestDTO {
      * If null, access is permanent until revoked.
      */
     private Integer durationDays;
+
+    /** ENVIRONMENT (default when null) or GROUP. */
+    private AccessScopeType scopeType;
+
+    /** Required when {@link #scopeType} is GROUP; the group must be in the target environment. */
+    private String groupId;
 
     public CreateAccessRequestDTO() {
     }
@@ -54,6 +61,22 @@ public class CreateAccessRequestDTO {
 
     public void setDurationDays(Integer durationDays) {
         this.durationDays = durationDays;
+    }
+
+    public AccessScopeType getScopeType() {
+        return scopeType;
+    }
+
+    public void setScopeType(AccessScopeType scopeType) {
+        this.scopeType = scopeType;
+    }
+
+    public String getGroupId() {
+        return groupId;
+    }
+
+    public void setGroupId(String groupId) {
+        this.groupId = groupId;
     }
 }
 

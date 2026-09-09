@@ -2,6 +2,7 @@ package com.tcgdigital.vmcontrol.dto;
 
 import com.tcgdigital.vmcontrol.model.AccessLevel;
 import com.tcgdigital.vmcontrol.model.AccessRequestStatus;
+import com.tcgdigital.vmcontrol.model.AccessScopeType;
 import com.tcgdigital.vmcontrol.model.EnvironmentAccessRequest;
 
 import java.sql.Timestamp;
@@ -20,6 +21,9 @@ public class EnvironmentAccessRequestDTO {
     private AccessLevel requestedAccessLevel;
     private String businessJustification;
     private Integer durationDays;
+    private AccessScopeType scopeType;
+    private String scopeId;
+    private String scopeName;
     private AccessRequestStatus status;
     private String reviewedByUserId;
     private String reviewedByUserName;
@@ -34,11 +38,17 @@ public class EnvironmentAccessRequestDTO {
      * Create DTO from EnvironmentAccessRequest entity.
      */
     public static EnvironmentAccessRequestDTO fromEntity(EnvironmentAccessRequest request) {
+        return fromEntity(request, null);
+    }
+
+    public static EnvironmentAccessRequestDTO fromEntity(EnvironmentAccessRequest request, String resolvedScopeName) {
         EnvironmentAccessRequestDTO dto = new EnvironmentAccessRequestDTO();
         dto.setRequestId(request.getRequestId());
         dto.setRequestedAccessLevel(request.getRequestedAccessLevel());
         dto.setBusinessJustification(request.getBusinessJustification());
         dto.setDurationDays(request.getDurationDays());
+        dto.setScopeType(request.getScopeType());
+        dto.setScopeId(request.getScopeId());
         dto.setStatus(request.getStatus());
         dto.setReviewedAt(request.getReviewedAt());
         dto.setReviewDecisionNotes(request.getReviewDecisionNotes());
@@ -47,6 +57,14 @@ public class EnvironmentAccessRequestDTO {
         if (request.getEnvironment() != null) {
             dto.setEnvironmentId(request.getEnvironment().getEnvironmentId());
             dto.setEnvironmentName(request.getEnvironment().getDisplayName());
+        }
+
+        if (resolvedScopeName != null) {
+            dto.setScopeName(resolvedScopeName);
+        } else if (request.getScopeType() == AccessScopeType.ENVIRONMENT) {
+            dto.setScopeName(dto.getEnvironmentName());
+        } else {
+            dto.setScopeName(request.getScopeId());
         }
 
         if (request.getRequester() != null) {
@@ -134,6 +152,30 @@ public class EnvironmentAccessRequestDTO {
 
     public void setDurationDays(Integer durationDays) {
         this.durationDays = durationDays;
+    }
+
+    public AccessScopeType getScopeType() {
+        return scopeType;
+    }
+
+    public void setScopeType(AccessScopeType scopeType) {
+        this.scopeType = scopeType;
+    }
+
+    public String getScopeId() {
+        return scopeId;
+    }
+
+    public void setScopeId(String scopeId) {
+        this.scopeId = scopeId;
+    }
+
+    public String getScopeName() {
+        return scopeName;
+    }
+
+    public void setScopeName(String scopeName) {
+        this.scopeName = scopeName;
     }
 
     public AccessRequestStatus getStatus() {

@@ -127,6 +127,55 @@ class EnvironmentAccessServiceTest {
         assertThat(request.getScopeId()).isEqualTo(testEnvironment.getEnvironmentId());
     }
 
+    @Test
+    @DisplayName("A GROUP-scoped request, once approved, becomes a GROUP grant")
+    void groupScopedRequest_approvedToGroupGrant() {
+        VmGroup g1 = createGroup("grp-req", 1);
+
+        CreateAccessRequestDTO dto = new CreateAccessRequestDTO(AccessLevel.USER, "just the batch group", 14);
+        dto.setScopeType(AccessScopeType.GROUP);
+        dto.setGroupId(g1.getGroupId());
+
+        EnvironmentAccessRequest request = accessService.createAccessRequest(
+                testEnvironment.getEnvironmentId(), requesterUser.getUserId(), dto);
+        assertThat(request.getScopeType()).isEqualTo(AccessScopeType.GROUP);
+        assertThat(request.getScopeId()).isEqualTo(g1.getGroupId());
+
+        EnvironmentAccess grant = accessService.approveRequest(
+                request.getRequestId(), adminUser.getUserId(), "ok", null);
+
+        assertThat(grant.getScopeType()).isEqualTo(AccessScopeType.GROUP);
+        assertThat(grant.getScopeId()).isEqualTo(g1.getGroupId());
+        assertThat(grant.getInitiation()).isEqualTo(AccessInitiation.REQUEST);
+        assertThat(grant.getSourceRequestId()).isEqualTo(request.getRequestId());
+    }
+
+    @Test
+    @DisplayName("A GROUP request for a group outside the environment is rejected")
+    void groupScopedRequest_wrongEnvironment_throws() {
+        Environment other = new Environment();
+        other.setEnvironmentId(UUID.randomUUID().toString());
+        other.setName("other-env-req");
+        other.setDisplayName("Other");
+        other.setIsActive(true);
+        other = environmentRepository.save(other);
+        VmGroup foreign = new VmGroup();
+        foreign.setGroupId(UUID.randomUUID().toString());
+        foreign.setEnvironment(other);
+        foreign.setName("foreign");
+        foreign.setDisplayName("foreign");
+        foreign.setSequencePosition(1);
+        foreign = groupRepository.save(foreign);
+
+        CreateAccessRequestDTO dto = new CreateAccessRequestDTO(AccessLevel.USER, "should fail here", null);
+        dto.setScopeType(AccessScopeType.GROUP);
+        dto.setGroupId(foreign.getGroupId());
+
+        assertThatThrownBy(() -> accessService.createAccessRequest(
+                testEnvironment.getEnvironmentId(), requesterUser.getUserId(), dto))
+                .isInstanceOf(ValidationException.class);
+    }
+
     // ============= Access Request Tests =============
 
     @Test

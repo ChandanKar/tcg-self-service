@@ -78,7 +78,7 @@ public class EnvironmentAccessService {
     // ============= Access Request Operations =============
 
     /**
-     * Create a new access request.
+     * Create a new access request, for the whole environment or for one group within it.
      */
     @Transactional
     public EnvironmentAccessRequest createAccessRequest(String environmentId, String requesterId,
@@ -86,16 +86,28 @@ public class EnvironmentAccessService {
         Environment environment = getEnvironment(environmentId);
         User requester = getUser(requesterId);
 
-        // Check if user already has active access
-        Timestamp now = new Timestamp(System.currentTimeMillis());
-        Optional<EnvironmentAccess> existingAccess = accessRepository.findActiveAccess(environmentId, requesterId, now);
-        if (existingAccess.isPresent()) {
-            throw new ValidationException("You already have active access to this environment");
+        AccessScopeType scopeType = dto.getScopeType() != null ? dto.getScopeType() : AccessScopeType.ENVIRONMENT;
+        String scopeId = environmentId;
+        if (scopeType == AccessScopeType.GROUP) {
+            assertGroupScopeEnabled();
+            if (dto.getGroupId() == null || dto.getGroupId().isBlank()) {
+                throw new ValidationException("groupId is required for a GROUP-scoped request");
+            }
+            VmGroup group = vmGroupRepository.findById(dto.getGroupId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Group", dto.getGroupId()));
+            if (!group.getEnvironment().getEnvironmentId().equals(environmentId)) {
+                throw new ValidationException("Group " + dto.getGroupId() + " is not in environment " + environmentId);
+            }
+            scopeId = dto.getGroupId();
         }
+        String scopeLabel = scopeType == AccessScopeType.GROUP ? "group" : "environment";
 
-        // Check if user already has a pending request
-        if (requestRepository.hasPendingRequest(environmentId, requesterId)) {
-            throw new ValidationException("You already have a pending access request for this environment");
+        Timestamp now = new Timestamp(System.currentTimeMillis());
+        if (accessRepository.findActiveByUserAndScope(requesterId, scopeType, scopeId, now).isPresent()) {
+            throw new ValidationException("You already have active access to this " + scopeLabel);
+        }
+        if (requestRepository.hasPendingRequestForScope(requesterId, scopeType, scopeId)) {
+            throw new ValidationException("You already have a pending access request for this " + scopeLabel);
         }
 
         EnvironmentAccessRequest request = EnvironmentAccessRequest.create(
@@ -105,6 +117,8 @@ public class EnvironmentAccessService {
                 dto.getBusinessJustification(),
                 dto.getDurationDays()
         );
+        request.setScopeType(scopeType);
+        request.setScopeId(scopeId);
 
         EnvironmentAccessRequest saved = requestRepository.save(request);
         log.info("Access request created: {} for environment {} by user {}",

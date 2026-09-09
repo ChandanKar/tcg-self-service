@@ -1,6 +1,7 @@
 package com.tcgdigital.vmcontrol.repository;
 
 import com.tcgdigital.vmcontrol.model.AccessRequestStatus;
+import com.tcgdigital.vmcontrol.model.AccessScopeType;
 import com.tcgdigital.vmcontrol.model.EnvironmentAccessRequest;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -64,6 +65,21 @@ public interface EnvironmentAccessRequestRepository extends JpaRepository<Enviro
     boolean hasPendingRequest(
             @Param("environmentId") String environmentId,
             @Param("userId") String userId);
+
+    /**
+     * Check if the user has a pending request for one specific scope (ENVIRONMENT or GROUP).
+     * A pending environment request and a pending group request in the same environment can
+     * coexist — they are different scopes.
+     */
+    @Query("SELECT COUNT(ear) > 0 FROM EnvironmentAccessRequest ear " +
+           "WHERE ear.requester.userId = :userId " +
+           "AND ear.scopeType = :scopeType " +
+           "AND ear.scopeId = :scopeId " +
+           "AND ear.status = 'PENDING'")
+    boolean hasPendingRequestForScope(
+            @Param("userId") String userId,
+            @Param("scopeType") AccessScopeType scopeType,
+            @Param("scopeId") String scopeId);
 
     /**
      * Find recent requests (last 30 days) for audit/history purposes.

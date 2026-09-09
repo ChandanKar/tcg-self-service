@@ -59,6 +59,22 @@ public class EnvironmentAccessController {
                 .toList();
     }
 
+    /** Map access requests to DTOs, resolving GROUP scope ids to group display names in one query. */
+    private List<EnvironmentAccessRequestDTO> toRequestDtos(List<EnvironmentAccessRequest> requests) {
+        List<String> groupIds = requests.stream()
+                .filter(r -> r.getScopeType() == AccessScopeType.GROUP)
+                .map(EnvironmentAccessRequest::getScopeId)
+                .distinct()
+                .toList();
+        java.util.Map<String, String> groupNames = groupIds.isEmpty() ? java.util.Map.of()
+                : vmGroupRepository.findAllById(groupIds).stream()
+                        .collect(java.util.stream.Collectors.toMap(VmGroup::getGroupId, VmGroup::getDisplayName));
+        return requests.stream()
+                .map(r -> EnvironmentAccessRequestDTO.fromEntity(r,
+                        r.getScopeType() == AccessScopeType.GROUP ? groupNames.get(r.getScopeId()) : null))
+                .toList();
+    }
+
     // ============= Access Grant Endpoints =============
 
     @GetMapping("/environments/{environmentId}/access")
@@ -202,9 +218,7 @@ public class EnvironmentAccessController {
     })
     public ResponseEntity<List<EnvironmentAccessRequestDTO>> listPendingRequests() {
         List<EnvironmentAccessRequest> requests = accessService.getPendingRequests();
-        List<EnvironmentAccessRequestDTO> dtos = requests.stream()
-                .map(EnvironmentAccessRequestDTO::fromEntity)
-                .toList();
+        List<EnvironmentAccessRequestDTO> dtos = toRequestDtos(requests);
 
         return ResponseEntity.ok(dtos);
     }
@@ -227,9 +241,7 @@ public class EnvironmentAccessController {
     public ResponseEntity<List<EnvironmentAccessRequestDTO>> getMyRequests() {
         String currentUserId = userService.getCurrentUserId();
         List<EnvironmentAccessRequest> requests = accessService.getRequestsByUser(currentUserId);
-        List<EnvironmentAccessRequestDTO> dtos = requests.stream()
-                .map(EnvironmentAccessRequestDTO::fromEntity)
-                .toList();
+        List<EnvironmentAccessRequestDTO> dtos = toRequestDtos(requests);
 
         return ResponseEntity.ok(dtos);
     }
@@ -350,9 +362,7 @@ public class EnvironmentAccessController {
             @Parameter(description = "Environment ID") @PathVariable String environmentId) {
 
         List<EnvironmentAccessRequest> requests = accessService.getRequestsForEnvironment(environmentId);
-        List<EnvironmentAccessRequestDTO> dtos = requests.stream()
-                .map(EnvironmentAccessRequestDTO::fromEntity)
-                .toList();
+        List<EnvironmentAccessRequestDTO> dtos = toRequestDtos(requests);
 
         return ResponseEntity.ok(dtos);
     }
