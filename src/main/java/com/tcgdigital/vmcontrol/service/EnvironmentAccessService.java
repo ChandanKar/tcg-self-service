@@ -407,6 +407,16 @@ public class EnvironmentAccessService {
         }
     }
 
+    /** Human label for a grant's scope — the environment name, or {@code group X (env)}. */
+    private String scopeLabel(EnvironmentAccess access) {
+        if (access.getScopeType() == AccessScopeType.GROUP) {
+            String groupName = vmGroupRepository.findById(access.getScopeId())
+                    .map(VmGroup::getDisplayName).orElse(access.getScopeId());
+            return "group " + groupName + " (" + access.getEnvironment().getName() + ")";
+        }
+        return access.getEnvironment().getName();
+    }
+
     private void notifyGrantOutcome(GrantOutcome outcome, String targetUserId,
                                     String environmentName, String environmentId) {
         if (outcome.created()) {
@@ -690,7 +700,7 @@ public class EnvironmentAccessService {
             runNotificationSideEffect("notify access expired", access.getAccessId(), () ->
                     notificationService.notifyAccessExpired(
                             access.getUser().getUserId(),
-                            access.getEnvironment().getName(),
+                            scopeLabel(access),
                             access.getEnvironment().getEnvironmentId(),
                             access.getAccessId()));
         }
@@ -713,7 +723,7 @@ public class EnvironmentAccessService {
             runNotificationSideEffect("notify access expiring", access.getAccessId(), () ->
                     notificationService.notifyAccessExpiring(
                             access.getUser().getUserId(),
-                            access.getEnvironment().getName(),
+                            scopeLabel(access),
                             access.getEnvironment().getEnvironmentId(),
                             access.getAccessId(),
                             access.getExpiresAt()));

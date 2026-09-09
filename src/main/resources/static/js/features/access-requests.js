@@ -340,9 +340,14 @@ const AccessRequests = (function() {
                     <i class="fas fa-times"></i> Cancel
                 </button>` : '-';
 
+            const scopeCell = req.scopeType === 'GROUP'
+                ? `<span class="badge bg-primary-subtle text-primary">Group: ${Utils.escapeHtml(req.scopeName || req.scopeId)}</span>`
+                : `<span class="text-muted small">Environment</span>`;
+
             return `
                 <tr>
                     <td class="ra-wrap"><strong>${Utils.escapeHtml(req.environmentName || 'Unknown')}</strong></td>
+                    <td>${scopeCell}</td>
                     <td>${statusBadge}</td>
                     <td>${Utils.escapeHtml(req.requestedAccessLevel || 'USER')}</td>
                     <td>${Utils.formatRelativeTime(req.createdAt)}</td>
@@ -357,6 +362,7 @@ const AccessRequests = (function() {
                 <thead class="table-light">
                     <tr>
                         <th>Environment</th>
+                        <th>Scope</th>
                         <th>Status</th>
                         <th>Access Level</th>
                         <th>Requested</th>
@@ -524,17 +530,33 @@ const AccessRequests = (function() {
             body: `
                 <form id="requestAccessForm">
                     <div class="mb-3">
+                        <label class="form-label d-block">Scope</label>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="reqScope" id="reqScopeEnv" value="ENVIRONMENT" checked>
+                            <label class="form-check-label" for="reqScopeEnv">Whole environment</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="reqScope" id="reqScopeGroup" value="GROUP">
+                            <label class="form-check-label" for="reqScopeGroup">One group</label>
+                        </div>
+                    </div>
+                    <div class="mb-3" id="reqGroupField" hidden>
+                        <label class="form-label" for="reqGroupId">Group</label>
+                        <select class="form-select" id="reqGroupId"></select>
+                        <div class="form-text" id="reqGroupHint"></div>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label">Access Level</label>
                         <select class="form-select" id="accessLevel">
-                            <option value="VIEWER">Viewer - Can view environment details</option>
+                            <option value="VIEWER">Viewer - Can view details</option>
                             <option value="USER" selected>User - Can start/stop VMs</option>
-                            <option value="ADMIN">Admin - Full environment control</option>
+                            <option value="ADMIN">Admin - Full control</option>
                         </select>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Reason for Request <span class="text-danger">*</span></label>
                         <textarea class="form-control" id="requestReason" rows="3" required minlength="10" maxlength="1000"
-                                  placeholder="Explain why you need access to this environment..."></textarea>
+                                  placeholder="Explain why you need access..."></textarea>
                         <div class="invalid-feedback">Reason must be between 10 and 1000 characters.</div>
                     </div>
                 </form>
@@ -548,22 +570,39 @@ const AccessRequests = (function() {
                     $(this).removeClass('is-invalid');
                 });
 
+                $('input[name="reqScope"]').off('change').on('change', function() {
+                    const isGroup = $('input[name="reqScope"]:checked').val() === 'GROUP';
+                    document.getElementById('reqGroupField').hidden = !isGroup;
+                    if (isGroup && !$('#reqGroupId option').length) {
+                        $('#reqGroupHint').text('Loading groups…');
+                        ApiClient.get(Config.API.groups.list(envId))
+                            .done(groups => {
+                                if (!groups || !groups.length) { $('#reqGroupHint').text('This environment has no groups.'); return; }
+                                $('#reqGroupId').html(groups.map(g =>
+                                    `<option value="${g.groupId}">${Utils.escapeHtml(g.displayName || g.name)} — ${g.vmCount || 0} VMs</option>`).join(''));
+                                $('#reqGroupHint').text('');
+                            })
+                            .fail(() => $('#reqGroupHint').text('You need view access to this environment before you can request a specific group.'));
+                    }
+                });
+
                 $('#submitRequest').off('click').on('click', function() {
                     const accessLevel = $('#accessLevel').val();
                     const reason = $('#requestReason').val().trim();
+                    const scopeType = $('input[name="reqScope"]:checked').val();
+                    const groupId = scopeType === 'GROUP' ? $('#reqGroupId').val() : null;
 
-                    if (!reason) {
-                        $('#requestReason').addClass('is-invalid');
-                        return;
-                    }
                     if (reason.length < 10 || reason.length > 1000) {
                         $('#requestReason').addClass('is-invalid');
                         return;
                     }
+                    if (scopeType === 'GROUP' && !groupId) {
+                        $('#reqGroupHint').text('Pick a group.');
+                        return;
+                    }
 
                     $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Submitting...');
-
-                    submitAccessRequest(envId, accessLevel, reason);
+                    submitAccessRequest(envId, accessLevel, reason, scopeType, groupId);
                 });
             }
         });
@@ -572,10 +611,12 @@ const AccessRequests = (function() {
     /**
      * Submit access request
      */
-    function submitAccessRequest(envId, accessLevel, reason) {
+    function submitAccessRequest(envId, accessLevel, reason, scopeType, groupId) {
         ApiClient.post(Config.API.access.requestAccess(envId), {
             accessLevel: accessLevel,
-            businessJustification: reason
+            businessJustification: reason,
+            scopeType: scopeType || 'ENVIRONMENT',
+            groupId: groupId || null
         }, { suppressGlobalError: true })
         .done(function() {
             Modals.hide('requestAccessModal');

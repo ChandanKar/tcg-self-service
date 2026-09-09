@@ -207,7 +207,10 @@ public class EnvironmentController {
         if (!securityService.canViewEnvironment(environmentId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        return ResponseEntity.ok(environmentInsightsService.getInsights(environmentId));
+        // Restrict to the caller's visible groups — a no-op for anyone with environment-wide
+        // access (getVisibleGroupIds returns every group for them).
+        return ResponseEntity.ok(environmentInsightsService.getInsights(
+                environmentId, securityService.getVisibleGroupIds(environmentId)));
     }
 
     @GetMapping("/discover/eks")

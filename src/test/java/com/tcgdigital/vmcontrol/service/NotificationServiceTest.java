@@ -39,6 +39,7 @@ class NotificationServiceTest {
     private User envAdmin;      // globally env_admin=true, but only administers envA
     private User platformAdmin; // globally admin=true
     private User regularUser;  // direct USER-level access on envA
+    private User groupScopedUser; // only a GROUP-scoped grant on envA
 
     @BeforeEach
     void setUp() {
@@ -60,10 +61,15 @@ class NotificationServiceTest {
         lenient().when(accessRepository.findByUserWithMinAccessLevel(eq("user-envadmin"), eq(AccessLevel.ADMIN), any(Timestamp.class)))
                 .thenReturn(List.of(envAdminAccessOnA));
 
-        // Direct access holders on envA: the env-admin's own ADMIN grant + a regular USER grant.
+        // Direct access holders on envA: the env-admin's own ADMIN grant + a regular USER grant
+        // + a user with ONLY a GROUP-scoped grant (must be excluded from environment broadcasts).
         EnvironmentAccess regularAccessOnA = EnvironmentAccess.create(envA, regularUser, AccessLevel.USER, null);
+        groupScopedUser = user("user-groupscoped", "groupscoped@tcg.com", false, false);
+        EnvironmentAccess groupAccessOnA = EnvironmentAccess.create(envA, groupScopedUser, AccessLevel.USER, null);
+        groupAccessOnA.setScopeType(com.tcgdigital.vmcontrol.model.AccessScopeType.GROUP);
+        groupAccessOnA.setScopeId("grp-1");
         lenient().when(accessRepository.findActiveAccessWithUsersByEnvironment("env-A"))
-                .thenReturn(List.of(envAdminAccessOnA, regularAccessOnA));
+                .thenReturn(List.of(envAdminAccessOnA, regularAccessOnA, groupAccessOnA));
         lenient().when(accessRepository.findActiveAccessWithUsersByEnvironment("env-B"))
                 .thenReturn(List.of());
 
@@ -101,6 +107,15 @@ class NotificationServiceTest {
         service.notifyLockAcquiredForEnvironment("env-B", "Env B", "user-regular", null);
 
         verify(notificationRepository).save(argThat(n -> "user-admin".equals(n.getUserId())));
+    }
+
+    @Test
+    void broadcast_excludesUserWithOnlyAGroupScopedGrant() {
+        service.notifyLockAcquiredForEnvironment("env-A", "Env A", "user-regular", null);
+
+        verify(notificationRepository, never()).save(argThat(n -> "user-groupscoped".equals(n.getUserId())));
+        // sanity: the ENVIRONMENT-scoped regular user IS notified
+        verify(notificationRepository).save(argThat(n -> "user-regular".equals(n.getUserId())));
     }
 
     // ---- Phase 3: per-type email dispatch ----

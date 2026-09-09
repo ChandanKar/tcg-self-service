@@ -62,9 +62,25 @@ public class EnvironmentInsightsService {
 
     @Transactional(readOnly = true)
     public EnvironmentInsightsDTO getInsights(String environmentId) {
+        return getInsights(environmentId, null);
+    }
+
+    /**
+     * @param visibleGroupIds when non-null, groups (and their VMs) are restricted to this set —
+     *                        so a group-scoped viewer only sees insights for the groups they
+     *                        can access. Null means every group.
+     */
+    @Transactional(readOnly = true)
+    public EnvironmentInsightsDTO getInsights(String environmentId, java.util.Collection<String> visibleGroupIds) {
         Environment environment = environmentService.getEnvironmentById(environmentId);
         List<VmGroup> groups = groupRepository.findByEnvironmentEnvironmentIdOrderBySequencePositionAsc(environmentId);
         List<Vm> vms = vmRepository.findByEnvironmentId(environmentId);
+
+        if (visibleGroupIds != null) {
+            java.util.Set<String> visible = new java.util.HashSet<>(visibleGroupIds);
+            groups = groups.stream().filter(g -> visible.contains(g.getGroupId())).toList();
+            vms = vms.stream().filter(vm -> vm.getGroup() != null && visible.contains(vm.getGroup().getGroupId())).toList();
+        }
 
         Map<String, Integer> statusCounts = new LinkedHashMap<>();
         Map<String, Integer> regionCounts = new LinkedHashMap<>();

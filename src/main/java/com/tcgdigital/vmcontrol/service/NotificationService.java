@@ -2,6 +2,7 @@ package com.tcgdigital.vmcontrol.service;
 
 import com.tcgdigital.vmcontrol.dto.NotificationDTO;
 import com.tcgdigital.vmcontrol.model.AccessLevel;
+import com.tcgdigital.vmcontrol.model.AccessScopeType;
 import com.tcgdigital.vmcontrol.model.EnvironmentAccess;
 import com.tcgdigital.vmcontrol.model.Notification;
 import com.tcgdigital.vmcontrol.model.NotificationType;
@@ -236,10 +237,10 @@ public class NotificationService {
         }
     }
 
-    public void notifyAccessExpiring(String userId, String environmentName, String environmentId,
+    public void notifyAccessExpiring(String userId, String scopeLabel, String environmentId,
                                      String accessId, Timestamp expiresAt) {
-        String title = "Access expiring: " + environmentName;
-        String message = "Your access to environment \"" + environmentName + "\" expires on " + formatDate(expiresAt) + ".";
+        String title = "Access expiring: " + scopeLabel;
+        String message = "Your access to \"" + scopeLabel + "\" expires on " + formatDate(expiresAt) + ".";
         boolean created = createIfAbsent(userId, NotificationType.ACCESS_EXPIRING, title, message, "ACCESS", accessId);
 
         if (created && emailAccessExpiringEnabled) {
@@ -250,10 +251,10 @@ public class NotificationService {
         }
     }
 
-    public void notifyAccessExpired(String userId, String environmentName, String environmentId,
+    public void notifyAccessExpired(String userId, String scopeLabel, String environmentId,
                                     String accessId) {
-        String title = "Access expired: " + environmentName;
-        String message = "Your access to environment \"" + environmentName + "\" has expired.";
+        String title = "Access expired: " + scopeLabel;
+        String message = "Your access to \"" + scopeLabel + "\" has expired.";
         boolean created = createIfAbsent(userId, NotificationType.ACCESS_EXPIRED, title, message, "ACCESS", accessId);
 
         if (created && emailAccessExpiredEnabled) {
@@ -410,8 +411,11 @@ public class NotificationService {
     private List<User> resolveEnvironmentRecipients(String environmentId, boolean includeEnvAdmin) {
         Map<String, User> recipients = new LinkedHashMap<>();
 
+        // Environment-wide notification — only ENVIRONMENT-scoped access holders. A user with
+        // only GROUP grants is not an "environment member" for broadcast purposes.
         accessRepository.findActiveAccessWithUsersByEnvironment(environmentId).stream()
                 .filter(EnvironmentAccess::isActive)
+                .filter(ea -> ea.getScopeType() == AccessScopeType.ENVIRONMENT)
                 .map(EnvironmentAccess::getUser)
                 .filter(user -> user != null && Boolean.TRUE.equals(user.getIsActive()))
                 .filter(user -> includeEnvAdmin || !user.isEnvAdmin())
@@ -432,6 +436,7 @@ public class NotificationService {
 
         accessRepository.findActiveAccessWithUsersByEnvironment(environmentId).stream()
                 .filter(EnvironmentAccess::isActive)
+                .filter(access -> access.getScopeType() == AccessScopeType.ENVIRONMENT)
                 .filter(access -> access.getAccessLevel() == AccessLevel.ADMIN)
                 .map(EnvironmentAccess::getUser)
                 .filter(user -> user != null && Boolean.TRUE.equals(user.getIsActive()))
