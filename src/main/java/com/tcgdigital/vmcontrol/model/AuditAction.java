@@ -53,6 +53,7 @@ public enum AuditAction {
 
     // User operations
     USER_CREATED,
+    USER_ONBOARDED,
     USER_UPDATED,
     USER_DEACTIVATED,
     USER_PROMOTED_TO_ADMIN,

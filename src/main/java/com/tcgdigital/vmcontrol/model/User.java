@@ -62,6 +62,13 @@ public class User {
     @Column(name = "last_login_at")
     private Timestamp lastLoginAt;
 
+    /** user_id of the admin who onboarded this row from the panel; null for self-registered / legacy. */
+    @Column(name = "onboarded_by", length = 36)
+    private String onboardedBy;
+
+    @Column(name = "onboarded_at")
+    private Timestamp onboardedAt;
+
     public User() {
     }
 
@@ -222,6 +229,22 @@ public class User {
 
     public void setLastLoginAt(Timestamp lastLoginAt) {
         this.lastLoginAt = lastLoginAt;
+    }
+
+    public String getOnboardedBy() {
+        return onboardedBy;
+    }
+
+    public void setOnboardedBy(String onboardedBy) {
+        this.onboardedBy = onboardedBy;
+    }
+
+    public Timestamp getOnboardedAt() {
+        return onboardedAt;
+    }
+
+    public void setOnboardedAt(Timestamp onboardedAt) {
+        this.onboardedAt = onboardedAt;
     }
 
     /**

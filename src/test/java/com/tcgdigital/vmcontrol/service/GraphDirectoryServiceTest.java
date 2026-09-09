@@ -2,6 +2,7 @@ package com.tcgdigital.vmcontrol.service;
 
 import com.tcgdigital.vmcontrol.dto.DirectoryUserDTO;
 import com.tcgdigital.vmcontrol.exception.DirectoryLookupException;
+import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.User;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +27,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withResourceNotFound;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 import static org.springframework.http.HttpMethod.GET;
@@ -158,5 +160,47 @@ class GraphDirectoryServiceTest {
 
         when(restClientProvider.getIfAvailable()).thenReturn(null);
         assertFalse(service.isEnabled());
+    }
+
+    // ---- fetchByObjectId ----
+
+    @Test
+    void fetchByObjectId_happyPath_returnsDto() {
+        String json = """
+                { "id": "oid-1", "displayName": "Bob One", "mail": "bob.one@corp.com", "userPrincipalName": "bone@corp.com" }
+                """;
+        server.expect(method(GET)).andRespond(withSuccess(json, MediaType.APPLICATION_JSON));
+
+        DirectoryUserDTO dto = service.fetchByObjectId("oid-1");
+
+        assertEquals("oid-1", dto.directoryObjectId());
+        assertEquals("Bob One", dto.displayName());
+        assertEquals("bob.one@corp.com", dto.email());
+        server.verify();
+    }
+
+    @Test
+    void fetchByObjectId_graph404_throwsValidation() {
+        server.expect(method(GET)).andRespond(withResourceNotFound());
+
+        assertThrows(ValidationException.class, () -> service.fetchByObjectId("missing"));
+    }
+
+    @Test
+    void fetchByObjectId_graph500_throwsBadGateway() {
+        server.expect(method(GET)).andRespond(withServerError());
+
+        DirectoryLookupException ex = assertThrows(DirectoryLookupException.class,
+                () -> service.fetchByObjectId("oid-1"));
+        assertEquals(HttpStatus.BAD_GATEWAY, ex.getStatus());
+    }
+
+    @Test
+    void fetchByObjectId_disabled_throwsConflict() {
+        ReflectionTestUtils.setField(service, "directoryEnabled", false);
+
+        DirectoryLookupException ex = assertThrows(DirectoryLookupException.class,
+                () -> service.fetchByObjectId("oid-1"));
+        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
     }
 }

@@ -1,8 +1,12 @@
 package com.tcgdigital.vmcontrol.controller;
 
+import com.tcgdigital.vmcontrol.dto.EnvironmentAccessDTO;
+import com.tcgdigital.vmcontrol.dto.OnboardUserDTO;
+import com.tcgdigital.vmcontrol.dto.OnboardUserResponseDTO;
 import com.tcgdigital.vmcontrol.dto.UpdateUserRoleDTO;
 import com.tcgdigital.vmcontrol.dto.UserDTO;
 import com.tcgdigital.vmcontrol.model.User;
+import com.tcgdigital.vmcontrol.service.UserOnboardingService;
 import com.tcgdigital.vmcontrol.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -12,6 +16,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -27,9 +33,11 @@ import java.util.List;
 public class UserController {
 
     private final UserService userService;
+    private final UserOnboardingService userOnboardingService;
 
-    public UserController(UserService userService) {
+    public UserController(UserService userService, UserOnboardingService userOnboardingService) {
         this.userService = userService;
+        this.userOnboardingService = userOnboardingService;
     }
 
     @GetMapping
@@ -62,6 +70,32 @@ public class UserController {
                 .toList();
 
         return ResponseEntity.ok(dtos);
+    }
+
+    @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(
+            summary = "Onboard a user",
+            description = "Create an app_user for a person who has not signed in yet — from the "
+                    + "Entra directory (pass directoryObjectId) or manual entry. Optionally applies a "
+                    + "first access grant in the same transaction. Requires admin role."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "User onboarded",
+                    content = @Content(schema = @Schema(implementation = OnboardUserResponseDTO.class))),
+            @ApiResponse(responseCode = "400", description = "Missing email / unknown directory id"),
+            @ApiResponse(responseCode = "403", description = "Access denied - requires admin role"),
+            @ApiResponse(responseCode = "409", description = "A user with this identity already exists"),
+            @ApiResponse(responseCode = "502", description = "Directory lookup unavailable")
+    })
+    public ResponseEntity<OnboardUserResponseDTO> onboardUser(@Valid @RequestBody OnboardUserDTO dto) {
+        String actorUserId = userService.getCurrentUserId();
+        UserOnboardingService.OnboardResult result = userOnboardingService.onboard(dto, actorUserId);
+
+        OnboardUserResponseDTO body = new OnboardUserResponseDTO(
+                UserDTO.fromEntity(result.user()),
+                result.grants().stream().map(EnvironmentAccessDTO::fromEntity).toList());
+        return ResponseEntity.status(HttpStatus.CREATED).body(body);
     }
 
     @GetMapping("/me")

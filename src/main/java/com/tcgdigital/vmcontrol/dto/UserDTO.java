@@ -17,6 +17,10 @@ public class UserDTO {
     private boolean active;
     private Timestamp createdAt;
     private Timestamp lastLoginAt;
+    /** Onboarded from the admin panel and has not signed in yet. */
+    private boolean pendingFirstLogin;
+    /** Onboarded by manual entry — not checked against the Entra directory. */
+    private boolean unverified;
 
     public UserDTO() {
     }
@@ -34,6 +38,9 @@ public class UserDTO {
         dto.setActive(user.isActive());
         dto.setCreatedAt(user.getCreatedAt());
         dto.setLastLoginAt(user.getLastLoginAt());
+        boolean onboarded = user.getOnboardedBy() != null;
+        dto.setPendingFirstLogin(onboarded && user.getLastLoginAt() == null);
+        dto.setUnverified(onboarded && user.getAzureAdObjectId() == null);
         return dto;
     }
 
@@ -100,6 +107,22 @@ public class UserDTO {
 
     public void setLastLoginAt(Timestamp lastLoginAt) {
         this.lastLoginAt = lastLoginAt;
+    }
+
+    public boolean isPendingFirstLogin() {
+        return pendingFirstLogin;
+    }
+
+    public void setPendingFirstLogin(boolean pendingFirstLogin) {
+        this.pendingFirstLogin = pendingFirstLogin;
+    }
+
+    public boolean isUnverified() {
+        return unverified;
+    }
+
+    public void setUnverified(boolean unverified) {
+        this.unverified = unverified;
     }
 }
 

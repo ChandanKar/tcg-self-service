@@ -3,6 +3,7 @@ package com.tcgdigital.vmcontrol.service;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.tcgdigital.vmcontrol.dto.DirectoryUserDTO;
 import com.tcgdigital.vmcontrol.exception.DirectoryLookupException;
+import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.User;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
 import org.slf4j.Logger;
@@ -13,6 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -119,6 +121,49 @@ public class GraphDirectoryService {
                     existing.map(User::getUserId).orElse(null)));
         }
         return results;
+    }
+
+    /**
+     * Re-fetch one directory user by Entra object id, used by onboarding to trust
+     * server-side data rather than the request body.
+     *
+     * @throws DirectoryLookupException disabled() when lookup is off; unavailable() on a Graph error
+     * @throws ValidationException      when the id is unknown to the directory
+     */
+    public DirectoryUserDTO fetchByObjectId(String directoryObjectId) {
+        if (!directoryEnabled) {
+            throw DirectoryLookupException.disabled();
+        }
+        RestClient client = graphRestClientProvider.getIfAvailable();
+        if (client == null) {
+            throw DirectoryLookupException.disabled();
+        }
+
+        GraphUser gu;
+        try {
+            gu = client.get()
+                    .uri(uri -> uri.path("/users/{id}")
+                            .queryParam("$select", SELECT_FIELDS)
+                            .build(directoryObjectId))
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(GraphUser.class);
+        } catch (RestClientResponseException e) {
+            if (e.getStatusCode().value() == 404) {
+                throw new ValidationException("No directory user with id " + directoryObjectId);
+            }
+            log.warn("Graph fetch of user {} failed: {}", directoryObjectId, e.getMessage());
+            throw DirectoryLookupException.unavailable(e.getMessage());
+        } catch (RestClientException e) {
+            log.warn("Graph fetch of user {} failed: {}", directoryObjectId, e.getMessage());
+            throw DirectoryLookupException.unavailable(e.getMessage());
+        }
+
+        if (gu == null || gu.id() == null) {
+            throw new ValidationException("No directory user with id " + directoryObjectId);
+        }
+        String email = gu.mail() != null ? gu.mail() : gu.userPrincipalName();
+        return new DirectoryUserDTO(gu.id(), gu.displayName(), email, gu.userPrincipalName(), false, null);
     }
 
     /** Strip characters that would break out of the {@code $search} token or the request. */

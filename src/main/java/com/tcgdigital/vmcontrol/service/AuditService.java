@@ -606,6 +606,12 @@ public class AuditService {
                 "User created via OAuth2 login: " + email);
     }
 
+    /** @param via {@code "directory"} (Graph lookup) or {@code "manual"} (typed-in). */
+    public void logUserOnboarded(String actorUserId, String targetUserId, String email, String via) {
+        logAction(auditUserId(actorUserId), AuditAction.USER_ONBOARDED, "user", targetUserId, email,
+                "User onboarded from admin panel (" + via + "): " + email);
+    }
+
     public void logUserRoleChanged(String performedByUserId, String targetUserId, String role, boolean newValue) {
         String action = newValue ? "granted" : "revoked";
         logAction(auditUserId(performedByUserId), AuditAction.USER_UPDATED, "user", targetUserId, role,

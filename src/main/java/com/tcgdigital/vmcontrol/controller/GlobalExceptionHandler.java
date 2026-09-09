@@ -92,6 +92,17 @@ public class GlobalExceptionHandler {
         ));
     }
 
+    @ExceptionHandler(UserAlreadyExistsException.class)
+    public ResponseEntity<Map<String, Object>> handleUserAlreadyExists(UserAlreadyExistsException ex) {
+        log.warn("Onboard rejected — user already exists: {} (active={})", ex.getUserId(), ex.isActive());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                "error", ex.isActive() ? "user_exists" : "user_inactive",
+                "message", ex.getMessage(),
+                "userId", ex.getUserId() != null ? ex.getUserId() : "",
+                "timestamp", Instant.now().toString()
+        ));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleMethodArgumentNotValid(MethodArgumentNotValidException ex) {
         java.util.List<Map<String, String>> errors = ex.getBindingResult().getFieldErrors().stream()

@@ -111,6 +111,35 @@ public class UserService {
     }
 
     /**
+     * Create an {@code app_user} row for a person who has not signed in yet — driven by an
+     * admin from the panel (Microsoft Graph directory lookup, or manual entry).
+     * {@code azureAdObjectId} is the authoritative Entra {@code oid} for the directory path, or
+     * {@code null} for a manual/unverified onboard (first login then adopts the row by email).
+     * Caller is responsible for the dedupe check; this is the low-level persist + audit.
+     */
+    @Transactional
+    public User createOnboardedUser(String email, String displayName, String azureAdObjectId,
+                                    boolean admin, boolean envAdmin, String actorUserId) {
+        User user = new User();
+        user.setUserId(java.util.UUID.randomUUID().toString());
+        user.setEmail(email);
+        user.setDisplayName(displayName);
+        user.setAzureAdObjectId(azureAdObjectId);
+        user.setAdmin(admin);
+        user.setEnvAdmin(envAdmin);
+        user.setIsActive(true);
+        user.setOnboardedBy(actorUserId);
+        user.setOnboardedAt(new Timestamp(System.currentTimeMillis()));
+
+        User saved = userRepository.saveAndFlush(user);
+        log.info("Onboarded user {} ({}) by {} [{}]", saved.getEmail(), saved.getUserId(), actorUserId,
+                azureAdObjectId != null ? "directory" : "manual");
+        auditService.logUserOnboarded(actorUserId, saved.getUserId(), saved.getEmail(),
+                azureAdObjectId != null ? "directory" : "manual");
+        return saved;
+    }
+
+    /**
      * Update last login timestamp for a user.
      */
     @Transactional
