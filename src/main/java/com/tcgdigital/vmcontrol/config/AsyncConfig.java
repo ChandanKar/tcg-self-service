@@ -57,4 +57,44 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    /**
+     * Backs {@code VmOperationsService.executeOperationAsync} — one thread per environment
+     * operation, held for the operation's entire duration (it blocks on the per-VM waves via
+     * {@code CompletableFuture.join}). Kept separate from the default {@code @Async} executor
+     * (shared by audit logging and email) so a burst of concurrent environment operations can't
+     * starve unrelated fire-and-forget work, or vice versa. Queue is large rather than relying
+     * on {@code CallerRunsPolicy}, since the caller here is the HTTP request thread committing
+     * the transaction — running the task on it would block the request for the whole operation.
+     */
+    @Bean(name = "operationExecutionExecutor")
+    public Executor operationExecutionExecutor(@Value("${vm.operations.max-concurrent:20}") int maxConcurrent) {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(maxConcurrent);
+        executor.setMaxPoolSize(maxConcurrent);
+        executor.setQueueCapacity(1000);
+        executor.setThreadNamePrefix("vm-op-exec-");
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
+        executor.initialize();
+        return executor;
+    }
+
+    /**
+     * Backs fire-and-forget notification work (audit logging, email) so it never queues behind
+     * — or blocks — VM operation execution on the shared default executor.
+     */
+    @Bean(name = "notificationExecutor")
+    public Executor notificationExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(5);
+        executor.setMaxPoolSize(10);
+        executor.setQueueCapacity(500);
+        executor.setThreadNamePrefix("notify-");
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(30);
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
+    }
 }

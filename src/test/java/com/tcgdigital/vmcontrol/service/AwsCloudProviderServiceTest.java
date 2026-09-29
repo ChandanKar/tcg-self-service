@@ -153,7 +153,10 @@ class AwsCloudProviderServiceTest {
     }
 
     @Test
-    void startVm_runningBeforeStatusChecksOk_returnsFailure() throws ExecutionException, InterruptedException {
+    void startVm_runningBeforeStatusChecksOk_returnsSuccess() throws ExecutionException, InterruptedException {
+        // The instance reaches RUNNING but its status checks never all report OK before the
+        // poll times out — that's still a successful start, not a failure (checks routinely
+        // take 2-5+ min and shouldn't hold the whole operation hostage).
         when(mockEc2Client.startInstances(any(StartInstancesRequest.class)))
                 .thenReturn(startResponse(InstanceStateName.STOPPED, InstanceStateName.PENDING));
         when(mockEc2Client.describeInstanceStatus(any(DescribeInstanceStatusRequest.class)))
@@ -163,8 +166,8 @@ class AwsCloudProviderServiceTest {
 
         CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, REGION, progress::add).get();
 
-        assertFalse(result.isSuccess());
-        assertTrue(result.getMessage().contains("AWS status checks did not pass in time"));
+        assertTrue(result.isSuccess());
+        assertEquals(VmStatus.RUNNING, result.getResultStatus());
         assertTrue(progress.stream().anyMatch(p ->
                 p.getStageLabel() != null
                         && p.getStageLabel().startsWith("AWS checks")
@@ -172,7 +175,9 @@ class AwsCloudProviderServiceTest {
     }
 
     @Test
-    void startVm_statusChecksUnavailableButInstanceRunning_returnsFailure() throws ExecutionException, InterruptedException {
+    void startVm_statusChecksUnavailableButInstanceRunning_returnsSuccess() throws ExecutionException, InterruptedException {
+        // Status checks never became available at all, but the instance itself is RUNNING —
+        // still a successful start.
         when(mockEc2Client.startInstances(any(StartInstancesRequest.class)))
                 .thenReturn(startResponse(InstanceStateName.STOPPED, InstanceStateName.PENDING));
         when(mockEc2Client.describeInstanceStatus(any(DescribeInstanceStatusRequest.class)))
@@ -182,8 +187,8 @@ class AwsCloudProviderServiceTest {
 
         CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, REGION).get();
 
-        assertFalse(result.isSuccess());
-        assertTrue(result.getMessage().contains("AWS status checks did not become available in time"));
+        assertTrue(result.isSuccess());
+        assertEquals(VmStatus.RUNNING, result.getResultStatus());
     }
 
     @Test

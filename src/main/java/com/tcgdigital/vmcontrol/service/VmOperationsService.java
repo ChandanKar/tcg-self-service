@@ -2,6 +2,7 @@ package com.tcgdigital.vmcontrol.service;
 
 import com.tcgdigital.vmcontrol.dto.OperationEstimateDTO;
 import com.tcgdigital.vmcontrol.dto.StartOperationDTO;
+import com.tcgdigital.vmcontrol.exception.OperationCancelledException;
 import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
 import com.tcgdigital.vmcontrol.exception.UnauthorizedException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
@@ -25,6 +26,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
@@ -119,6 +121,13 @@ public class VmOperationsService {
         // they hold a grant on. An explicit group/VM target they can't touch fails the request;
         // a whole-environment request is narrowed to the groups they can operate.
         targetVms = enforceGroupScopeAccess(targetVms, dto, userId);
+
+        // A dependency outside this run's scope is never started here, so nothing will ever
+        // wait on it — verify it's actually running now rather than assuming it based on order.
+        // Not relevant for a pure STOP, which doesn't require its dependency to be up.
+        if (dto.getOperationType() != OperationType.STOP) {
+            dependencyValidator.validateLiveDependencies(targetVms);
+        }
 
         List<Vm> orderedVms = dependencyValidator.orderForExecution(targetVms);
         Map<String, List<String>> scopedDependencyVmIds = dependencyValidator.buildScopedDependencyMap(orderedVms);
@@ -405,7 +414,7 @@ public class VmOperationsService {
     /**
      * Execute operation asynchronously.
      */
-    @Async
+    @Async("operationExecutionExecutor")
     public void executeOperationAsync(String executionId, boolean continueOnFailure) {
         try {
             executeOperation(executionId, continueOnFailure);
@@ -508,7 +517,8 @@ public class VmOperationsService {
 
                 for (OperationDetail detail : runnable) {
                     OperationDetail reloaded = detailRepository.findById(detail.getDetailId()).orElse(detail);
-                    boolean terminal = reloaded.isCompleted() || reloaded.isFailed() || reloaded.isSkipped();
+                    boolean terminal = reloaded.isCompleted() || reloaded.isFailed() || reloaded.isSkipped()
+                            || reloaded.isCancelled();
                     // Task threw before persisting a terminal status — count it as failed.
                     String status = terminal ? reloaded.getStatus() : "failed";
                     finalStatusByDetailId.put(detail.getDetailId(), status);
@@ -611,27 +621,27 @@ public class VmOperationsService {
             final String detailId = detail.getDetailId();
 
             if (operationType == OperationType.START) {
-                updateOperationProgress(detailId,
+                updateOperationProgress(executionId, detailId,
                         CloudProviderService.VmOperationProgress.of(VmStatus.STARTING, "Start requested", 10));
                 result = providerService.startVm(vm.getProviderVmId(), vm.getRegion(),
-                        progress -> updateOperationProgress(detailId, progress)).join();
+                        progress -> updateOperationProgress(executionId, detailId, progress)).join();
             } else if (operationType == OperationType.STOP) {
-                updateOperationProgress(detailId,
+                updateOperationProgress(executionId, detailId,
                         CloudProviderService.VmOperationProgress.of(VmStatus.STOPPING, "Stop requested", 10));
                 result = providerService.stopVm(vm.getProviderVmId(), vm.getRegion(), false,
-                        progress -> updateOperationProgress(detailId, progress)).join();
+                        progress -> updateOperationProgress(executionId, detailId, progress)).join();
             } else {
                 // RESTART = stop then start
-                updateOperationProgress(detailId,
+                updateOperationProgress(executionId, detailId,
                         CloudProviderService.VmOperationProgress.of(VmStatus.STOPPING, "EC2 stopping", 50));
                 result = providerService.stopVm(vm.getProviderVmId(), vm.getRegion(), false,
-                        progress -> updateOperationProgress(detailId, progress)).join();
+                        progress -> updateOperationProgress(executionId, detailId, progress)).join();
                 if (result.isSuccess()) {
                     Thread.sleep(5000);
-                    updateOperationProgress(detailId,
+                    updateOperationProgress(executionId, detailId,
                             CloudProviderService.VmOperationProgress.of(VmStatus.STARTING, "Start requested", 10));
                     result = providerService.startVm(vm.getProviderVmId(), vm.getRegion(),
-                            progress -> updateOperationProgress(detailId, progress)).join();
+                            progress -> updateOperationProgress(executionId, detailId, progress)).join();
                 }
             }
 
@@ -677,6 +687,19 @@ public class VmOperationsService {
             log.info("VM operation {} on {} completed: {}",
                     operationType, vm.getName(), detail.getStatus());
 
+        } catch (OperationCancelledException e) {
+            markDetailCancelled(detail, e.getMessage());
+        } catch (CompletionException ce) {
+            if (ce.getCause() instanceof OperationCancelledException) {
+                markDetailCancelled(detail, ce.getCause().getMessage());
+                return;
+            }
+            log.error("Error executing operation on {}: {}", detail.getTargetName(), ce.getMessage());
+            detail.setStatus("failed");
+            detail.setErrorMessage(ce.getMessage());
+            detail.setCompletedAt(Timestamp.from(Instant.now()));
+            detailRepository.save(detail);
+            updateExecutionCounters(executionId, false);
         } catch (Exception e) {
             log.error("Error executing operation on {}: {}", detail.getTargetName(), e.getMessage());
 
@@ -689,15 +712,38 @@ public class VmOperationsService {
         }
     }
 
+    /**
+     * Marks a detail whose in-flight cloud call was aborted because its execution was
+     * cancelled — deliberately not counted via {@link #updateExecutionCounters}, since this
+     * isn't a failure and the wave loop stops once it notices the execution is CANCELLED.
+     */
+    private void markDetailCancelled(OperationDetail detail, String message) {
+        log.info("Operation on {} stopped: {}", detail.getTargetName(), message);
+        detail.setStatus("cancelled");
+        detail.setErrorMessage(message);
+        detail.setCompletedAt(Timestamp.from(Instant.now()));
+        detailRepository.save(detail);
+    }
+
     private void markVmTransitioning(Vm vm, VmStatus status) {
         vm.setStatus(status);
         vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
         vmRepository.save(vm);
     }
 
-    private void updateOperationProgress(String detailId, CloudProviderService.VmOperationProgress progress) {
+    /**
+     * Persists provider progress for a detail and, on each tick, checks whether its execution
+     * has been cancelled — if so, throws to unwind the cloud provider's poll loop early instead
+     * of waiting out its full timeout (see {@link OperationCancelledException}).
+     */
+    private void updateOperationProgress(String executionId, String detailId,
+                                         CloudProviderService.VmOperationProgress progress) {
         if (progress == null) {
             return;
+        }
+
+        if (getExecution(executionId).getStatus() == ExecutionStatus.CANCELLED) {
+            throw new OperationCancelledException("Execution " + executionId + " was cancelled");
         }
 
         detailRepository.findById(detailId).ifPresent(detail -> {

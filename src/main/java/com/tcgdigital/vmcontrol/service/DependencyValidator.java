@@ -206,6 +206,48 @@ public class DependencyValidator {
     }
 
     /**
+     * Verifies that every dependency (VM-level or group-level) falling outside the given scope
+     * is currently RUNNING. Dependencies inside scope are enforced by execution ordering
+     * ({@link #orderForExecution}) instead, so only out-of-scope ones need a live check here —
+     * without this, a start operation would happily order a VM after an out-of-scope dependency
+     * that has actually drifted to stopped/unhealthy, rather than rejecting the request.
+     * Throws {@link ValidationException} naming the first unmet dependency found.
+     */
+    public void validateLiveDependencies(List<Vm> vms) {
+        Set<String> scopeVmIds = vms.stream().map(Vm::getVmId).collect(Collectors.toSet());
+        Set<String> scopeGroupIds = vms.stream().map(vm -> vm.getGroup().getGroupId()).collect(Collectors.toSet());
+
+        for (Vm vm : vms) {
+            for (String depVmId : vm.getDependencies()) {
+                if (scopeVmIds.contains(depVmId)) {
+                    continue;
+                }
+                Vm depVm = vmRepository.findById(depVmId).orElse(null);
+                if (depVm == null || depVm.getStatus() != VmStatus.RUNNING) {
+                    throw new ValidationException("VM '" + vm.getName() + "' depends on '" +
+                            (depVm != null ? depVm.getName() : depVmId) + "' which is not currently running");
+                }
+            }
+
+            for (String depGroupId : vm.getGroup().getDependencies()) {
+                if (scopeGroupIds.contains(depGroupId)) {
+                    continue;
+                }
+                List<Vm> depGroupVms = vmRepository.findByGroupId(depGroupId);
+                boolean allRunning = depGroupVms.stream().allMatch(v -> v.getStatus() == VmStatus.RUNNING);
+                if (!allRunning) {
+                    VmGroup depGroup = groupRepository.findById(depGroupId).orElse(null);
+                    String depGroupName = depGroup != null
+                            ? (depGroup.getDisplayName() != null ? depGroup.getDisplayName() : depGroup.getName())
+                            : depGroupId;
+                    throw new ValidationException("Group '" + vm.getGroup().getName() + "' depends on group '" +
+                            depGroupName + "' which is not fully running");
+                }
+            }
+        }
+    }
+
+    /**
      * Maps each VM to the vmIds (restricted to the given scope) that must complete before it,
      * combining its own intra-group dependencies with its group's cross-group dependencies
      * (a dependency on group G means "depends on every VM in G that's part of this scope").

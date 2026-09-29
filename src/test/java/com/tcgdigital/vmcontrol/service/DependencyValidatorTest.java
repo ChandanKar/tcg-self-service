@@ -193,6 +193,69 @@ class DependencyValidatorTest {
     }
 
     @Test
+    void testValidateLiveDependencies_OutOfScopeVmDependencyRunning_doesNotThrow() {
+        // Given: vm1 depends on vm0, but only vm1 is in the scope being started (vm0 is assumed
+        // already running outside this operation)
+        VmGroup group = createGroup("test-group", 1, null);
+        Vm vm0 = createVm(group, "vm0", 1, null);
+        vm0.setStatus(VmStatus.RUNNING);
+        vmRepository.save(vm0);
+        Vm vm1 = createVm(group, "vm1", 2, List.of(vm0.getVmId()));
+
+        // When/Then: no exception
+        assertDoesNotThrow(() -> dependencyValidator.validateLiveDependencies(List.of(vm1)));
+    }
+
+    @Test
+    void testValidateLiveDependencies_OutOfScopeVmDependencyNotRunning_throws() {
+        // Given: vm1 depends on vm0, vm0 is stopped and not part of this operation's scope
+        VmGroup group = createGroup("test-group", 1, null);
+        Vm vm0 = createVm(group, "vm0", 1, null);
+        vm0.setStatus(VmStatus.STOPPED);
+        vmRepository.save(vm0);
+        Vm vm1 = createVm(group, "vm1", 2, List.of(vm0.getVmId()));
+
+        // When/Then
+        assertThrows(ValidationException.class, () ->
+                dependencyValidator.validateLiveDependencies(List.of(vm1)));
+    }
+
+    @Test
+    void testValidateLiveDependencies_InScopeVmDependencyNotRunning_doesNotThrow() {
+        // Given: vm1 depends on vm0, and BOTH are in this operation's scope — execution ordering
+        // (not a live check) is what enforces this, so it shouldn't matter that vm0 isn't
+        // running yet at validation time.
+        VmGroup group = createGroup("test-group", 1, null);
+        Vm vm0 = createVm(group, "vm0", 1, null);
+        vm0.setStatus(VmStatus.STOPPED);
+        vmRepository.save(vm0);
+        Vm vm1 = createVm(group, "vm1", 2, List.of(vm0.getVmId()));
+
+        // When/Then: no exception
+        assertDoesNotThrow(() -> dependencyValidator.validateLiveDependencies(List.of(vm0, vm1)));
+    }
+
+    @Test
+    void testValidateLiveDependencies_OutOfScopeGroupDependencyNotFullyRunning_throws() {
+        // Given: group2 depends on group1, group1 has one running and one stopped VM, and only
+        // group2's VM is part of this operation's scope
+        VmGroup group1 = createGroup("group1", 1, null);
+        Vm group1Vm1 = createVm(group1, "group1-vm1", 1, null);
+        group1Vm1.setStatus(VmStatus.RUNNING);
+        vmRepository.save(group1Vm1);
+        Vm group1Vm2 = createVm(group1, "group1-vm2", 2, null);
+        group1Vm2.setStatus(VmStatus.STOPPED);
+        vmRepository.save(group1Vm2);
+
+        VmGroup group2 = createGroup("group2", 2, List.of(group1.getGroupId()));
+        Vm group2Vm = createVm(group2, "group2-vm1", 1, null);
+
+        // When/Then
+        assertThrows(ValidationException.class, () ->
+                dependencyValidator.validateLiveDependencies(List.of(group2Vm)));
+    }
+
+    @Test
     void testGetVmStartBatches() {
         // Given: 3 VMs with sequence positions 1, 2, 3
         // Note: sequence_position must be unique per group due to DB constraint

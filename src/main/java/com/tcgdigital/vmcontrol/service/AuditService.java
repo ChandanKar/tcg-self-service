@@ -54,7 +54,7 @@ public class AuditService {
     /**
      * Log an audit action asynchronously.
      */
-    @Async
+    @Async("notificationExecutor")
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void logAction(String userId, AuditAction action, String targetType, String targetId,
                           String targetName, String details) {
@@ -81,7 +81,7 @@ public class AuditService {
     /**
      * Log an audit action with environment context.
      */
-    @Async
+    @Async("notificationExecutor")
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void logEnvironmentAction(String userId, AuditAction action, String environmentId,
                                      String environmentName, String targetType, String targetId,
@@ -112,7 +112,7 @@ public class AuditService {
      * Log an audit action with change tracking.
      * Note: old/new values are embedded in details since V1 schema doesn't have separate columns.
      */
-    @Async
+    @Async("notificationExecutor")
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void logChange(String userId, AuditAction action, String targetType, String targetId,
                           String targetName, String oldValue, String newValue, String details) {
@@ -143,7 +143,7 @@ public class AuditService {
     /**
      * Log a failed action.
      */
-    @Async
+    @Async("notificationExecutor")
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void logFailure(String userId, AuditAction action, String targetType, String targetId,
                            String targetName, String errorMessage) {
@@ -170,7 +170,7 @@ public class AuditService {
     /**
      * Log a failed action with environment context.
      */
-    @Async
+    @Async("notificationExecutor")
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void logEnvironmentFailure(String userId, AuditAction action, String environmentId,
                                       String environmentName, String targetType, String targetId,

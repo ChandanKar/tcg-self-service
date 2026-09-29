@@ -259,5 +259,9 @@ public class OperationDetail {
     public boolean isSkipped() {
         return "skipped".equals(status);
     }
+
+    public boolean isCancelled() {
+        return "cancelled".equals(status);
+    }
 }
 
