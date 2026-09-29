@@ -1,0 +1,2282 @@
+{
+  ".claude/settings.json": {
+    "mtime": 1790649385.0005472,
+    "seen": 1790650382.5097148,
+    "ast_hash": "6ebcb47b7791b0b7338cdcc27d39f84d",
+    "semantic_hash": ""
+  },
+  ".claude/settings.local.json": {
+    "mtime": 1781788171.6682396,
+    "seen": 1790650382.5097148,
+    "ast_hash": "7d94dba8b70e51d6216b6870a5e8b878",
+    "semantic_hash": ""
+  },
+  ".codex/hooks.json": {
+    "mtime": 1790649407.6349933,
+    "seen": 1790650382.5098739,
+    "ast_hash": "f968a4705db70b71b1f40249b1d45a8e",
+    "semantic_hash": ""
+  },
+  ".mcp.json": {
+    "mtime": 1789744489.2898767,
+    "seen": 1790650382.5098739,
+    "ast_hash": "c164a3fe21b75964ec36f25025b58b0c",
+    "semantic_hash": ""
+  },
+  "build-frontend.ps1": {
+    "mtime": 1789121464.5206335,
+    "seen": 1790650382.5098739,
+    "ast_hash": "b639149bc8cdda65be05da9b0fb3603f",
+    "semantic_hash": ""
+  },
+  "build.gradle": {
+    "mtime": 1789121475.1123836,
+    "seen": 1790650382.5098739,
+    "ast_hash": "3ae99d465e6b3ce8e3c495cf20c576b9",
+    "semantic_hash": ""
+  },
+  "data/parse-vm-data.py": {
+    "mtime": 1772555533.273417,
+    "seen": 1790650382.5098739,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "generate_v4_migration.py": {
+    "mtime": 1772555865.5321028,
+    "seen": 1790650382.5098739,
+    "ast_hash": "cdf5eb140f18c3ca782d365043f6f69a",
+    "semantic_hash": ""
+  },
+  "gradlew": {
+    "mtime": 1770984387.488073,
+    "seen": 1790650382.5098739,
+    "ast_hash": "780b1d3e23a3b82154795f73df943a14",
+    "semantic_hash": ""
+  },
+  "settings.gradle": {
+    "mtime": 1770984387.7898436,
+    "seen": 1790650382.5098739,
+    "ast_hash": "753f62ded6b9e9a71ce002fef9fb8700",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/Application.java": {
+    "mtime": 1781859070.3031392,
+    "seen": 1790650382.5098739,
+    "ast_hash": "3927b255fa3a7905279ab8394c31523b",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/config/AsyncConfig.java": {
+    "mtime": 1788878478.0612981,
+    "seen": 1790650382.5098739,
+    "ast_hash": "ce11f0df94875971a9d1a99dedf56b64",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/config/AwsConfig.java": {
+    "mtime": 1771003940.1492712,
+    "seen": 1790650382.5098739,
+    "ast_hash": "c72836ecbd1ab73e0bdd534c68f4f23a",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/config/FlywayConfig.java": {
+    "mtime": 1780904800.1220098,
+    "seen": 1790650382.5098739,
+    "ast_hash": "8f2b4eb600bbecc576e71b725e8e49bd",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/config/GraphConfig.java": {
+    "mtime": 1788967576.546535,
+    "seen": 1790650382.5098739,
+    "ast_hash": "7c565209078fdbcaaff0ea18cc70fb0f",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/config/H2MysqlCompatibilityPostProcessor.java": {
+    "mtime": 1781894288.4023678,
+    "seen": 1790650382.5098739,
+    "ast_hash": "cc75e6f8290f2d6c52897a36641d1a63",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/controller/AccessGrantController.java": {
+    "mtime": 1789016725.7729878,
+    "seen": 1790650382.5098739,
+    "ast_hash": "5d3033beebc097cb623c279737948641",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/controller/AuditController.java": {
+    "mtime": 1782285570.1096392,
+    "seen": 1790650382.5098739,
+    "ast_hash": "8d9d8e238500a454abb10092b13cfd15",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/controller/AuthController.java": {
+    "mtime": 1772551632.7145288,
+    "seen": 1790650382.5098739,
+    "ast_hash": "a766bfc927b1ac33b8811830602b6c9a",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/controller/AutomationRuleController.java": {
+    "mtime": 1784096761.0801973,
+    "seen": 1790650382.5098739,
+    "ast_hash": "d4a24135055bb1225f4d7c04e7b47b45",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/controller/CostManagementController.java": {
+    "mtime": 1785405669.873448,
+    "seen": 1790650382.5098739,
+    "ast_hash": "fd381ed8b300372075c60998ff911703",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/controller/DashboardController.java": {
+    "mtime": 1782386939.7157826,
+    "seen": 1790650382.5098739,
+    "ast_hash": "761cb44b99f8496aaa7bce99246b8b21",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/controller/DirectoryController.java": {
+    "mtime": 1788967835.31591,
+    "seen": 1790650382.5098739,
+    "ast_hash": "0c77849f2fa323c3cb1911e75cb1b626",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/controller/Ec2Controller.java": {
+    "mtime": 1772344281.1210933,
+    "seen": 1790650382.5098739,
+    "ast_hash": "b2f5570a89da38bea144cf4fbf99afba",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/controller/EnvironmentAccessController.java": {
+    "mtime": 1788931129.0569544,
+    "seen": 1790650382.5098739,
+    "ast_hash": "0174b2c1cfc60abf38132c314c06e98f",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/controller/EnvironmentController.java": {
+    "mtime": 1789120870.7299225,
+    "seen": 1790650382.5098739,
+    "ast_hash": "9f764f63659b9511e0f66549df336558",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/controller/GlobalExceptionHandler.java": {
+    "mtime": 1788968366.9192123,
+    "seen": 1790650382.5098739,
+    "ast_hash": "72a960ca9fa5fa448d9e4331f05abf3e",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/controller/HomeController.java": {
+    "mtime": 1782292361.0356655,
+    "seen": 1790650382.5098739,
+    "ast_hash": "a93756c0a1ca07c3cf5a8d484798d7ed",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/controller/LockController.java": {
+    "mtime": 1775541398.1757803,
+    "seen": 1790650382.5098739,
+    "ast_hash": "e51f3b9dc1a185ff26e1002ac693e74a",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/controller/MonitoringController.java": {
+    "mtime": 1785508986.5861893,
+    "seen": 1790650382.5098739,
+    "ast_hash": "0c8b7edb94a966357c095e83d974aaf0",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/controller/NotificationController.java": {
+    "mtime": 1789120650.6229649,
+    "seen": 1790650382.5098739,
+    "ast_hash": "10436ee25747b3a4707e839b5da65e9b",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/controller/UserController.java": {
+    "mtime": 1788968357.4425516,
+    "seen": 1790650382.5098739,
+    "ast_hash": "4dca0e8a94a7bfa33234364a4bf5efc4",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/controller/VmGroupController.java": {
+    "mtime": 1788930433.3663206,
+    "seen": 1790650382.5098739,
+    "ast_hash": "c6c1b1ba9183a5767379c0cf9c3f7ee7",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/controller/VmMgmtController.java": {
+    "mtime": 1788930497.9240599,
+    "seen": 1790650382.5098739,
+    "ast_hash": "e744924f571671560105f6bc970ec408",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/controller/VmOperationsController.java": {
+    "mtime": 1788929760.9473526,
+    "seen": 1790650382.5098739,
+    "ast_hash": "db102f2b12fd38d2084f2d14d472fecd",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/AccessGrantRequestDTO.java": {
+    "mtime": 1789016725.7882094,
+    "seen": 1790650382.5098739,
+    "ast_hash": "9f8175a42d8755397aeb1950f8f77950",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/AcquireLockDTO.java": {
+    "mtime": 1771045150.2264667,
+    "seen": 1790650382.5098739,
+    "ast_hash": "4dcc0df36bef83d41828b49a84d21069",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/ApplyRightsizingRequestDTO.java": {
+    "mtime": 1785405642.9082327,
+    "seen": 1790650382.5098739,
+    "ast_hash": "4ebc8269a678966a6a9c67fe1b6c5095",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/AuditLogDTO.java": {
+    "mtime": 1782294532.9770107,
+    "seen": 1790650382.5098739,
+    "ast_hash": "0b0a2241808652b06930ee696fe865c7",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/AuditReportDTO.java": {
+    "mtime": 1771050717.4980397,
+    "seen": 1790650382.5098739,
+    "ast_hash": "2aba80a1f3aaa0e0fb2163bac78657a7",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/AutomationRuleDTO.java": {
+    "mtime": 1784096535.3850076,
+    "seen": 1790650382.5098739,
+    "ast_hash": "f0c193e7ae1bbd212d00da58f43c5a30",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/AutomationRuleRequestDTO.java": {
+    "mtime": 1784096517.6059616,
+    "seen": 1790650382.5098739,
+    "ast_hash": "38531fda97980ccf69fde6457b7ce56e",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/BreakLockDTO.java": {
+    "mtime": 1771045150.1541126,
+    "seen": 1790650382.5098739,
+    "ast_hash": "da1a15814b3d38f58ea58942db83acbf",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/CostForecastDTO.java": {
+    "mtime": 1785377453.7542994,
+    "seen": 1790650382.5098739,
+    "ast_hash": "99d8456b0dde3e461fbd20c8109e2192",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/CostForecastPointDTO.java": {
+    "mtime": 1785377445.5045023,
+    "seen": 1790650382.5098739,
+    "ast_hash": "3e28d36acd15e0b17d215a85632fc5d3",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/CostReconciliationRowDTO.java": {
+    "mtime": 1785339395.4106703,
+    "seen": 1790650382.5098739,
+    "ast_hash": "900916075fc097c1d740b2aef9967d3d",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/CostSummaryDTO.java": {
+    "mtime": 1784003319.5296352,
+    "seen": 1790650382.5098739,
+    "ast_hash": "245730ae2bb6a6182319de4996fbc8ec",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/CreateAccessRequestDTO.java": {
+    "mtime": 1788931023.2366054,
+    "seen": 1790650382.5098739,
+    "ast_hash": "efe01c2b92f243b32b4e04718a19c5bc",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/CreateEnvironmentDTO.java": {
+    "mtime": 1780841818.3380122,
+    "seen": 1790650382.5098739,
+    "ast_hash": "4832d8fcbc7a04d04b5037fdae3694f9",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/CreateVmGroupDTO.java": {
+    "mtime": 1771041676.2151766,
+    "seen": 1790650382.5098739,
+    "ast_hash": "3a893ba677b01e340e8eea5fdc74f9ef",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/DashboardSummaryDTO.java": {
+    "mtime": 1784216872.7821963,
+    "seen": 1790650382.5098739,
+    "ast_hash": "30d30f513873f6b5b48f5e50b1063f0d",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/DirectoryUserDTO.java": {
+    "mtime": 1788967786.692845,
+    "seen": 1790650382.5098739,
+    "ast_hash": "2d9a46d139d178270364f9e8f92482a0",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/Ec2InstanceActionResponse.java": {
+    "mtime": 1771006145.2137454,
+    "seen": 1790650382.5098739,
+    "ast_hash": "16d95dcc7aca6eec3f3063273e1eca4c",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/Ec2InstanceInfo.java": {
+    "mtime": 1771004613.3972964,
+    "seen": 1790650382.5099533,
+    "ast_hash": "68696af150428dcfc50a3960947539f3",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/Ec2InstanceStatus.java": {
+    "mtime": 1771006145.0765731,
+    "seen": 1790650382.5099533,
+    "ast_hash": "6e3ff250e6f831502aed200adbedfb83",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/EksClusterInfoDTO.java": {
+    "mtime": 1781839959.7371776,
+    "seen": 1790650382.5099533,
+    "ast_hash": "0e80cc553b722fa02ff818135695386d",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/EmailLogDTO.java": {
+    "mtime": 1789120607.7379043,
+    "seen": 1790650382.5099533,
+    "ast_hash": "570a22d03ed6f1031cbcac460efb2209",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/EnvironmentAccessDTO.java": {
+    "mtime": 1788928829.332636,
+    "seen": 1790650382.5099533,
+    "ast_hash": "63abd0b4ef5c0e1b62dd8cf8df9bcc17",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/EnvironmentAccessRequestDTO.java": {
+    "mtime": 1788931099.8033843,
+    "seen": 1790650382.5099533,
+    "ast_hash": "4d352d3c9805c01f042284da957a29cc",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/EnvironmentDTO.java": {
+    "mtime": 1783948126.8002183,
+    "seen": 1790650382.5099533,
+    "ast_hash": "60270856172a4ca9a8aabe243c42b89a",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/EnvironmentInsightsDTO.java": {
+    "mtime": 1782377431.1905437,
+    "seen": 1790650382.5099533,
+    "ast_hash": "8d1b78411f003b1c48606ea8ef79412d",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/GrantAccessDTO.java": {
+    "mtime": 1788927904.5565455,
+    "seen": 1790650382.5099533,
+    "ast_hash": "5cbe36287d1a952746f2fb0ca6581e44",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/IdleWasteRowDTO.java": {
+    "mtime": 1785470814.0138607,
+    "seen": 1790650382.5099533,
+    "ast_hash": "9a22f26e595e8afa08f7c67196823ddb",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/LockHistoryDTO.java": {
+    "mtime": 1775541387.8116288,
+    "seen": 1790650382.5099533,
+    "ast_hash": "03a9d678338cd3f75e13d4e54e6a21e5",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/LockStatusDTO.java": {
+    "mtime": 1775539461.952969,
+    "seen": 1790650382.5099533,
+    "ast_hash": "11d2d306162b78f3812ebe53e78023af",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/LoginRequest.java": {
+    "mtime": 1772519916.5508907,
+    "seen": 1790650382.5099533,
+    "ast_hash": "5559f6f80ef7418e7c6d4efce8981c5d",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/LoginResponse.java": {
+    "mtime": 1772519916.5658412,
+    "seen": 1790650382.5099533,
+    "ast_hash": "a5b81cf0c665097c57a2ab8a04e2e28e",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/NotificationDTO.java": {
+    "mtime": 1781797988.8951514,
+    "seen": 1790650382.5099533,
+    "ast_hash": "ba1572a13dd3b3ddb5eabb1f4beb1b7a",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/OnboardUserDTO.java": {
+    "mtime": 1789016725.8056154,
+    "seen": 1790650382.5099533,
+    "ast_hash": "b8408941a0c3c916800ad79c87cba094",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/OnboardUserResponseDTO.java": {
+    "mtime": 1788968279.6309686,
+    "seen": 1790650382.5099533,
+    "ast_hash": "4f3cca9f97623d291d99997af053c1e1",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/OperationDetailDTO.java": {
+    "mtime": 1782300448.7258935,
+    "seen": 1790650382.5099533,
+    "ast_hash": "2636e2edd10534e7eceb1d0430c9c13e",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/OperationEstimateDTO.java": {
+    "mtime": 1772431224.1760285,
+    "seen": 1790650382.5099533,
+    "ast_hash": "39711159efdbb876855ff45e0fc8408d",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/OperationExecutionDTO.java": {
+    "mtime": 1775541786.6169803,
+    "seen": 1790650382.5099533,
+    "ast_hash": "3ac6feefae65d2f99440a6e39d4d44fe",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/RegisterVmDTO.java": {
+    "mtime": 1783952135.832585,
+    "seen": 1790650382.5099533,
+    "ast_hash": "58c4a02cc347efcc52af28c495ca88e5",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/ReservationCoverageSnapshotDTO.java": {
+    "mtime": 1785346711.8365276,
+    "seen": 1790650382.5099533,
+    "ast_hash": "70503efdf8fa15133b4e3b8ec1fb51f1",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/ReviewAccessRequestDTO.java": {
+    "mtime": 1781842490.954857,
+    "seen": 1790650382.5099533,
+    "ast_hash": "c5040eb38eac4778e3e9dd219f4bbb21",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/RightsizingCandidateDTO.java": {
+    "mtime": 1785470808.5594523,
+    "seen": 1790650382.5099533,
+    "ast_hash": "f92e1f7fdb905f8b19833a99e7bc4aa3",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/SpendByDimensionDTO.java": {
+    "mtime": 1784003323.9643974,
+    "seen": 1790650382.5099533,
+    "ast_hash": "f8b8eb07baf0d3150d85e27894511cae",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/SpendTrendPointDTO.java": {
+    "mtime": 1784003346.9885962,
+    "seen": 1790650382.5099533,
+    "ast_hash": "d0ac069868390d6707f42e656248f615",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/StartOperationDTO.java": {
+    "mtime": 1771048596.0061173,
+    "seen": 1790650382.5099533,
+    "ast_hash": "f710bc11a23d1a582e260a32304c0ed4",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/StateSyncStatusDTO.java": {
+    "mtime": 1771056377.8474061,
+    "seen": 1790650382.5099533,
+    "ast_hash": "eebee45a344c50e1ca651fc4386db1e1",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/TeamSpendTrendPointDTO.java": {
+    "mtime": 1784013135.1559062,
+    "seen": 1790650382.5099533,
+    "ast_hash": "d03e2f2903af72a65fa6c8c7e3fcf14d",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/UpdateAccessGrantDTO.java": {
+    "mtime": 1788928803.1202648,
+    "seen": 1790650382.5099533,
+    "ast_hash": "97a8c4ac737855219a95ca970d5df6ee",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/UpdateEnvironmentDTO.java": {
+    "mtime": 1780841818.3680263,
+    "seen": 1790650382.5099533,
+    "ast_hash": "c0367407f562ca515c2244c70c6bb89a",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/UpdateUserRoleDTO.java": {
+    "mtime": 1771084282.5680776,
+    "seen": 1790650382.5099533,
+    "ast_hash": "7a1a0f1e7b59ddf92ea38db20a8e7f8d",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/UserDTO.java": {
+    "mtime": 1788968384.7112823,
+    "seen": 1790650382.5099533,
+    "ast_hash": "47112328dd53c3256262794851e2cb10",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/VmCostDetailDTO.java": {
+    "mtime": 1784003342.1529534,
+    "seen": 1790650382.5099533,
+    "ast_hash": "91ff0351b2dd1c624a3d0055a8e4d20c",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/VmDTO.java": {
+    "mtime": 1783952156.503011,
+    "seen": 1790650382.5099533,
+    "ast_hash": "6808b1a0b627a5298cb4cc4eaba52b4d",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/VmGroupDTO.java": {
+    "mtime": 1771041635.963927,
+    "seen": 1790650382.5099533,
+    "ast_hash": "35c2e6c18d7d55ec82d91f31c0c68352",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/VmInventoryDTO.java": {
+    "mtime": 1782361284.123454,
+    "seen": 1790650382.5099533,
+    "ast_hash": "6bda0211f0bce35004c5db02595752ce",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/VmMetricsDTO.java": {
+    "mtime": 1782361305.8719857,
+    "seen": 1790650382.5099533,
+    "ast_hash": "d904c5fe552a970461574c6b518901c9",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/VmStateHistoryDTO.java": {
+    "mtime": 1785508911.724108,
+    "seen": 1790650382.5099533,
+    "ast_hash": "7ae40cf8bf59d72d88b3f71b2de8c091",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/VmUtilizationSummaryDTO.java": {
+    "mtime": 1782361315.1466641,
+    "seen": 1790650382.5099533,
+    "ast_hash": "9a18be80c1e1f79b58bad75fe30bd776",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/dto/WeeklyCostReportRowDTO.java": {
+    "mtime": 1788965240.0805664,
+    "seen": 1790650382.5099533,
+    "ast_hash": "93d5e790ac8ff150c536135635ecf137",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/exception/CircularDependencyException.java": {
+    "mtime": 1771041676.051731,
+    "seen": 1790650382.5099533,
+    "ast_hash": "fd399502260065abd41f9c42c9c1dcc6",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/exception/DirectoryLookupException.java": {
+    "mtime": 1788967779.9179707,
+    "seen": 1790650382.5099533,
+    "ast_hash": "e9ec24069a245be101355e707455ea30",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/exception/LockAlreadyHeldException.java": {
+    "mtime": 1771045150.1171281,
+    "seen": 1790650382.5099533,
+    "ast_hash": "01b449a9f26e5b2daefe7d76f09c080c",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/exception/NoActiveLockException.java": {
+    "mtime": 1771045150.0850675,
+    "seen": 1790650382.5099533,
+    "ast_hash": "7acb06c91dd529be5db42a1e73c8b0c8",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/exception/ResourceNotFoundException.java": {
+    "mtime": 1771041675.969146,
+    "seen": 1790650382.5099533,
+    "ast_hash": "b7f4bebfa3c4b8203fdb7b54a2aa2d1d",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/exception/UnauthorizedException.java": {
+    "mtime": 1771045150.1987932,
+    "seen": 1790650382.5099533,
+    "ast_hash": "723507d54c626f0e9025e4c9aa5311c0",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/exception/UserAlreadyExistsException.java": {
+    "mtime": 1788968254.0132916,
+    "seen": 1790650382.5099533,
+    "ast_hash": "214d967585494ff88773e6e7929caf8d",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/exception/ValidationException.java": {
+    "mtime": 1771041676.1832445,
+    "seen": 1790650382.5099533,
+    "ast_hash": "bd88963c1f44b94673fa80b9d85e7e51",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/AccessGrantMode.java": {
+    "mtime": 1784096457.0126755,
+    "seen": 1790650382.5099533,
+    "ast_hash": "cfee2a9a887badd9d0dd0bb14f707e8a",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/AccessInitiation.java": {
+    "mtime": 1788926579.524057,
+    "seen": 1790650382.5099533,
+    "ast_hash": "7178a63e738c0f2fa24a7b54ed5a174c",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/AccessLevel.java": {
+    "mtime": 1771084197.7301135,
+    "seen": 1790650382.5099533,
+    "ast_hash": "dce7e89e25cb06e33d22fa2fd44ccda5",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/AccessRequestStatus.java": {
+    "mtime": 1771084197.7998135,
+    "seen": 1790650382.5099533,
+    "ast_hash": "c5883af38686b917a2675c736c4fbd7f",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/AccessScopeType.java": {
+    "mtime": 1788926574.6309223,
+    "seen": 1790650382.5099533,
+    "ast_hash": "214fe706625e1021b199a533c19bda01",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/AccessStatus.java": {
+    "mtime": 1771084197.8453984,
+    "seen": 1790650382.5099533,
+    "ast_hash": "dc145d476a6260bfada7daebde99479e",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/AuditAction.java": {
+    "mtime": 1788968216.9568126,
+    "seen": 1790650382.5099533,
+    "ast_hash": "81b21d7eb54e1cb09b50de9c0ac006f2",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/AuditLog.java": {
+    "mtime": 1782294511.5438745,
+    "seen": 1790650382.5099533,
+    "ast_hash": "a812583665f72f602152d22392d3ab16",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/AutomationRule.java": {
+    "mtime": 1784096485.9928668,
+    "seen": 1790650382.5099533,
+    "ast_hash": "1704aac0974b93f49d55040ce0d9897c",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/AutomationRunStatus.java": {
+    "mtime": 1784096461.1720586,
+    "seen": 1790650382.5099533,
+    "ast_hash": "f6a125a933b21d0e05a63a96b8eca49b",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/AutomationScopeType.java": {
+    "mtime": 1784096446.7597592,
+    "seen": 1790650382.5099533,
+    "ast_hash": "6cec64735127d51df07d16c845476d0d",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/AutomationTriggerType.java": {
+    "mtime": 1784096451.0265958,
+    "seen": 1790650382.5099533,
+    "ast_hash": "3a1d2b7c89b0b994a8ab08f5d79e7703",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/CloudProvider.java": {
+    "mtime": 1780841818.4186778,
+    "seen": 1790650382.5099533,
+    "ast_hash": "023f5fa32cce4c7a06a73f87c2d2079f",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/CostDailySnapshot.java": {
+    "mtime": 1784003439.9196494,
+    "seen": 1790650382.5099533,
+    "ast_hash": "f922fa3e91606f71bd265137cacafa54",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/EmailLog.java": {
+    "mtime": 1789120587.3131974,
+    "seen": 1790650382.5099533,
+    "ast_hash": "db647de2f863ea6ababcc7558c987fc2",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/Environment.java": {
+    "mtime": 1780841818.4374971,
+    "seen": 1790650382.5099533,
+    "ast_hash": "adab8af59bf3323eee22c2a9e0dd3ace",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/EnvironmentAccess.java": {
+    "mtime": 1788926618.4635582,
+    "seen": 1790650382.5099533,
+    "ast_hash": "c6aa8ca1246a982e10bd9b602f67d8a8",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/EnvironmentAccessRequest.java": {
+    "mtime": 1788926643.8967896,
+    "seen": 1790650382.5099533,
+    "ast_hash": "108309cb78b6c33212bb1a7895f25503",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/EnvironmentLock.java": {
+    "mtime": 1771045119.2321737,
+    "seen": 1790650382.5099533,
+    "ast_hash": "1e7bc91c57be7884377a3dda3f7df21c",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/ExecutionStatus.java": {
+    "mtime": 1771048596.0316749,
+    "seen": 1790650382.5099533,
+    "ast_hash": "239c448ea29c1ec7517c681d5cb17914",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/LockAction.java": {
+    "mtime": 1771045119.2722068,
+    "seen": 1790650382.5099533,
+    "ast_hash": "9ba0e3c8fb6c94237fda772584e21ae5",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/LockHistory.java": {
+    "mtime": 1771045119.254174,
+    "seen": 1790650382.5099533,
+    "ast_hash": "87c24d919848cc7f375b0727bc80f216",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/Notification.java": {
+    "mtime": 1781797564.8490188,
+    "seen": 1790650382.5099533,
+    "ast_hash": "0497bf5efb20b8b71d3e4b1cdb4b39b7",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/NotificationType.java": {
+    "mtime": 1789120781.6033366,
+    "seen": 1790650382.5099533,
+    "ast_hash": "4c9eecdbaec634d21f8042d4f82ec13f",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/OperationDetail.java": {
+    "mtime": 1783926514.5642657,
+    "seen": 1790650382.5099533,
+    "ast_hash": "e31a4e2b3dc17ec6e0572e582e6ab8e4",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/OperationExecution.java": {
+    "mtime": 1772362599.3914278,
+    "seen": 1790650382.5099533,
+    "ast_hash": "5385133b8300fc6a035e157a8499b89a",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/OperationType.java": {
+    "mtime": 1771048596.0186687,
+    "seen": 1790650382.5099533,
+    "ast_hash": "121098ab6c20d6f9da4ab9d3afc61efa",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/ReservationCoverageSnapshot.java": {
+    "mtime": 1785346616.166474,
+    "seen": 1790650382.5099533,
+    "ast_hash": "0459ec42a9704e540c5023cd24ba3be0",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/ScheduledJobLock.java": {
+    "mtime": 1782360907.0991955,
+    "seen": 1790650382.5099533,
+    "ast_hash": "715c1e9b0d1dc1da87f882da6e24557e",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/User.java": {
+    "mtime": 1788968207.9327757,
+    "seen": 1790650382.5099533,
+    "ast_hash": "4a05b7776f4769dfb08a80138cb2312e",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/Vm.java": {
+    "mtime": 1785333982.030417,
+    "seen": 1790650382.5099533,
+    "ast_hash": "a37ea9f223a59cac09c507ad718b4904",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/VmGroup.java": {
+    "mtime": 1771041579.0082037,
+    "seen": 1790650382.5099533,
+    "ast_hash": "61beb8de0979cc242e5e3d805d69d5b5",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/VmIdleSummary.java": {
+    "mtime": 1782360974.41414,
+    "seen": 1790650382.5099533,
+    "ast_hash": "2fd2259e9146ea8f29c61e33b50c08b2",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/VmInventorySnapshot.java": {
+    "mtime": 1782360918.3659947,
+    "seen": 1790650382.5099533,
+    "ast_hash": "15a20f7451f296f3cc5b7e3a96a663d7",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/VmMetricDaily.java": {
+    "mtime": 1782361006.5973904,
+    "seen": 1790650382.5099533,
+    "ast_hash": "9e4d3c02ba83648f4e9b1aa3c0bd7813",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/VmMetricHourly.java": {
+    "mtime": 1782360984.1828647,
+    "seen": 1790650382.5099533,
+    "ast_hash": "6ea0f9f03faa2da34e8640533b830255",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/VmMetricSample.java": {
+    "mtime": 1784216790.8119612,
+    "seen": 1790650382.5099533,
+    "ast_hash": "a44f4c888065c1bfc76e75f9875d237f",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/VmMetricSampleArchive.java": {
+    "mtime": 1784216805.2373383,
+    "seen": 1790650382.5099533,
+    "ast_hash": "878e6a6fa0c937ee7d5f62c96199c75d",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/VmStateHistory.java": {
+    "mtime": 1771056865.86958,
+    "seen": 1790650382.5099533,
+    "ast_hash": "cc641fc07b0bd747ecfe6b87479fcaef",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/VmStatus.java": {
+    "mtime": 1775364250.5205271,
+    "seen": 1790650382.5099533,
+    "ast_hash": "1618d882c7c3541d3bfb9f0afa7b4f29",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/VmType.java": {
+    "mtime": 1771041578.961655,
+    "seen": 1790650382.5099533,
+    "ast_hash": "24ea934349a0a0646c8f36008bc73e62",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/VmVolumeSnapshot.java": {
+    "mtime": 1782360931.462502,
+    "seen": 1790650382.5099533,
+    "ast_hash": "9fde01044254ea39bba8829e47785a52",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/WeeklyOptimizationReportType.java": {
+    "mtime": 1785470763.8380802,
+    "seen": 1790650382.5099533,
+    "ast_hash": "3f414a40d50bc673c8330256781baf53",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/model/WeeklyOptimizationSnapshot.java": {
+    "mtime": 1785470773.7931392,
+    "seen": 1790650382.5099533,
+    "ast_hash": "e895038da44c2076f334b39481819f45",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/AuditLogRepository.java": {
+    "mtime": 1782285491.4499135,
+    "seen": 1790650382.5099533,
+    "ast_hash": "1a0aa76ee7f3a127a141db0086cee52d",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/AutomationRuleRepository.java": {
+    "mtime": 1784096495.965567,
+    "seen": 1790650382.5099533,
+    "ast_hash": "008313b40c42584703b675b307c94f47",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/CostDailySnapshotRepository.java": {
+    "mtime": 1785470596.440349,
+    "seen": 1790650382.5099533,
+    "ast_hash": "bebb5b29bbd5b3dcab22e4f8c2ac2841",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/EmailLogRepository.java": {
+    "mtime": 1789120599.8069105,
+    "seen": 1790650382.5099533,
+    "ast_hash": "7b3a49ff9e7f90cede9fd4cd6aeaf544",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/EnvironmentAccessRepository.java": {
+    "mtime": 1788930560.1444228,
+    "seen": 1790650382.5099533,
+    "ast_hash": "6b2e1e5aea1cc59030caa2c6dc1e7425",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/EnvironmentAccessRequestRepository.java": {
+    "mtime": 1788931041.5995827,
+    "seen": 1790650382.5099533,
+    "ast_hash": "9aa5322c98feace9990bf408fa4a2a15",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/EnvironmentLockRepository.java": {
+    "mtime": 1775543065.817714,
+    "seen": 1790650382.5099533,
+    "ast_hash": "e9782f8238fa37bf6e2a9578fe867e66",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/EnvironmentRepository.java": {
+    "mtime": 1785512037.0684805,
+    "seen": 1790650382.5099533,
+    "ast_hash": "632796dd3614f9e88f89d98fd387e3c0",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/LockHistoryRepository.java": {
+    "mtime": 1771045119.287603,
+    "seen": 1790650382.5099533,
+    "ast_hash": "57cbc7ddfa0c0e303d9b6cd40b96dba4",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/NotificationRepository.java": {
+    "mtime": 1782320065.7201557,
+    "seen": 1790650382.5099533,
+    "ast_hash": "631e68900103de3cf68b509fe0d4bb54",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/OperationDetailRepository.java": {
+    "mtime": 1772431224.2461472,
+    "seen": 1790650382.5099533,
+    "ast_hash": "13c8bc25d6ca0b52a9ae36efc19c8927",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/OperationExecutionRepository.java": {
+    "mtime": 1782297767.3063536,
+    "seen": 1790650382.5099533,
+    "ast_hash": "42afbc1eaa2db5526c811428041a9780",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/ReservationCoverageSnapshotRepository.java": {
+    "mtime": 1785346622.8364792,
+    "seen": 1790650382.5099533,
+    "ast_hash": "378588a61a74755ac415f4dabb5a6fad",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/ScheduledJobLockRepository.java": {
+    "mtime": 1782361038.343551,
+    "seen": 1790650382.5099533,
+    "ast_hash": "affe4d66ca5bac5967ec8fe0767064ae",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/UserRepository.java": {
+    "mtime": 1772518939.0100386,
+    "seen": 1790650382.5099533,
+    "ast_hash": "38c9b7ace0e0ea02aae6b28d52705de8",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/VmGroupRepository.java": {
+    "mtime": 1785302286.6620965,
+    "seen": 1790650382.5099533,
+    "ast_hash": "3907d673fb45d2a2156052524094899c",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/VmIdleSummaryRepository.java": {
+    "mtime": 1782386863.341741,
+    "seen": 1790650382.5099533,
+    "ast_hash": "6478176f58296b3a2139965f6fde9aa7",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/VmInventorySnapshotRepository.java": {
+    "mtime": 1784003250.4935777,
+    "seen": 1790650382.5099533,
+    "ast_hash": "733a4021ca3bf1d1e073d49b1fcc4348",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/VmMetricDailyRepository.java": {
+    "mtime": 1785404951.054572,
+    "seen": 1790650382.5099533,
+    "ast_hash": "a88ccabc225883d1c9ae82a29c720455",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/VmMetricHourlyRepository.java": {
+    "mtime": 1782361084.4701388,
+    "seen": 1790650382.5099533,
+    "ast_hash": "7d6c20b51dd84629157966648e1346b4",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/VmMetricSampleArchiveRepository.java": {
+    "mtime": 1782361107.8611047,
+    "seen": 1790650382.5099533,
+    "ast_hash": "5d7dd87bba4c6c481fca6c3e6cfac80b",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/VmMetricSampleRepository.java": {
+    "mtime": 1784089018.2218575,
+    "seen": 1790650382.5099533,
+    "ast_hash": "7dc7164d33c2ddb1ac0b7389584af668",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/VmRepository.java": {
+    "mtime": 1785334202.1109612,
+    "seen": 1790650382.5099533,
+    "ast_hash": "88a3970bc7d22714974c2a34eccbe7e2",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/VmStateHistoryRepository.java": {
+    "mtime": 1784002670.4911888,
+    "seen": 1790650382.5099533,
+    "ast_hash": "bf01d23b57f39b08cc488ed65d9a3690",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/VmVolumeSnapshotRepository.java": {
+    "mtime": 1784002648.5938618,
+    "seen": 1790650382.5099533,
+    "ast_hash": "fdf4a14dc2f4452557c2ffa032f5e445",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/repository/WeeklyOptimizationSnapshotRepository.java": {
+    "mtime": 1785470780.2481632,
+    "seen": 1790650382.5099533,
+    "ast_hash": "04297ce5e955e88d6c4308b583eaa968",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/scheduler/AccessExpirationScheduler.java": {
+    "mtime": 1782320156.2875552,
+    "seen": 1790650382.5099533,
+    "ast_hash": "9e04321c825e2fe69366c731e7f15f04",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/scheduler/ActualCostIngestionScheduler.java": {
+    "mtime": 1785339382.2954624,
+    "seen": 1790650382.5099533,
+    "ast_hash": "ed8392b1559ab7d3f02c26da8bb316a4",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/scheduler/AutomationRuleScheduler.java": {
+    "mtime": 1784199963.4236176,
+    "seen": 1790650382.5099533,
+    "ast_hash": "921015688844188475a735c63e669dcb",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/scheduler/CostSnapshotScheduler.java": {
+    "mtime": 1784202226.577163,
+    "seen": 1790650382.5099533,
+    "ast_hash": "2006783d2fadb8d602f4a46e282d2ff2",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/scheduler/EksSyncScheduler.java": {
+    "mtime": 1781859083.9220521,
+    "seen": 1790650382.5099533,
+    "ast_hash": "bf26634af9048f42be089ea4f985d114",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/scheduler/ReservationCoverageScheduler.java": {
+    "mtime": 1785346673.6534977,
+    "seen": 1790650382.5099533,
+    "ast_hash": "e2fb7adec176d9957cbb2607ceea285e",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/scheduler/StateSyncScheduler.java": {
+    "mtime": 1771056377.7938414,
+    "seen": 1790650382.5099533,
+    "ast_hash": "0aa5baa72a42e59461e715f7c365a884",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/scheduler/TagReconciliationScheduler.java": {
+    "mtime": 1785334155.9116037,
+    "seen": 1790650382.5099533,
+    "ast_hash": "ac335a08f474114623207f9a51506f46",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/scheduler/VmDiscoveryScheduler.java": {
+    "mtime": 1780841133.8671823,
+    "seen": 1790650382.5099533,
+    "ast_hash": "6b222f81b469043e2eab195111e1813b",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/scheduler/VmInventoryScheduler.java": {
+    "mtime": 1784202226.6168752,
+    "seen": 1790650382.5099533,
+    "ast_hash": "a7fb592a9f3c08f0c3b0ef42bf4ba15a",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/scheduler/VmMetricRollupScheduler.java": {
+    "mtime": 1784202226.6543727,
+    "seen": 1790650382.5099533,
+    "ast_hash": "f481f7c4d17671ccf4126f4d03b0965a",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/scheduler/VmMetricsArchiveScheduler.java": {
+    "mtime": 1784202226.686985,
+    "seen": 1790650382.5099533,
+    "ast_hash": "18b12056181a6082e9564c1de610c9a2",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/scheduler/VmMetricsScheduler.java": {
+    "mtime": 1784202226.7335348,
+    "seen": 1790650382.5099533,
+    "ast_hash": "74c59847291af979f9445b925ac158ca",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/scheduler/WeeklyReportScheduler.java": {
+    "mtime": 1785470711.0766647,
+    "seen": 1790650382.5099533,
+    "ast_hash": "1b180a3de3adf0e0ff5825088d518434",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/security/CustomOAuth2UserService.java": {
+    "mtime": 1771091070.9470534,
+    "seen": 1790650382.5099533,
+    "ast_hash": "09b30dabf64ed7aa4644825ed04fc757",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/security/DefaultSecurityConfig.java": {
+    "mtime": 1784176086.0912197,
+    "seen": 1790650382.5099533,
+    "ast_hash": "568e0baa24523d31220f0e937a0eb6b7",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/security/EntraidSecurityConfig.java": {
+    "mtime": 1784176079.7793114,
+    "seen": 1790650382.5099533,
+    "ast_hash": "23e6ed355e861c8e9439c4d59037027c",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/security/UsernamePasswordAuthenticationToken.java": {
+    "mtime": 1772551123.9927764,
+    "seen": 1790650382.5099533,
+    "ast_hash": "1fb89746b7458fc5a2bc870b3a9c4d73",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/AuditService.java": {
+    "mtime": 1788968228.317679,
+    "seen": 1790650382.5099533,
+    "ast_hash": "61bbe3e3283644065f5bb80c05bb11a5",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/AuthenticationService.java": {
+    "mtime": 1781796611.0036914,
+    "seen": 1790650382.5099533,
+    "ast_hash": "0753dfab3d0a435f7cf9c355c1bd6575",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/AutomationRuleService.java": {
+    "mtime": 1784096726.94511,
+    "seen": 1790650382.5099533,
+    "ast_hash": "68db6674729680787a1c295113247b62",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/AwsCloudInventoryProviderService.java": {
+    "mtime": 1782361240.5513136,
+    "seen": 1790650382.5099533,
+    "ast_hash": "c71b60a37999e1df0908ed19e5826283",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/AwsCloudMetricsProviderService.java": {
+    "mtime": 1784216855.4238493,
+    "seen": 1790650382.5099533,
+    "ast_hash": "bd93fcaf90122c53c588fb76adad7011",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/AwsCloudProviderService.java": {
+    "mtime": 1788878462.3100648,
+    "seen": 1790650382.5099533,
+    "ast_hash": "a8e1d780130e04c9da2295907de539a2",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/CloudInventoryProviderFactory.java": {
+    "mtime": 1782361174.2723114,
+    "seen": 1790650382.5099533,
+    "ast_hash": "f4c302dab6544b97f1ba8939d9764d43",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/CloudInventoryProviderService.java": {
+    "mtime": 1782361142.4583085,
+    "seen": 1790650382.5099533,
+    "ast_hash": "0ef577c71f7cee2161e8b7788a632d49",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/CloudMetricsProviderFactory.java": {
+    "mtime": 1782361184.2583148,
+    "seen": 1790650382.5099533,
+    "ast_hash": "4ec4c5ec2a3d072fac4c1b273c4655e6",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/CloudMetricsProviderService.java": {
+    "mtime": 1784216826.881965,
+    "seen": 1790650382.5099533,
+    "ast_hash": "3e6be3eca3013255ca5a63f73303d2fb",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/CloudProviderFactory.java": {
+    "mtime": 1781841127.128129,
+    "seen": 1790650382.5099533,
+    "ast_hash": "d2dc904ef1e0c0bdeba6bea78f7e6eb2",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/CloudProviderService.java": {
+    "mtime": 1782300470.616932,
+    "seen": 1790650382.5099533,
+    "ast_hash": "73cf90917a549676a9c16d2aaaf71fa7",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/ComputeOptimizerService.java": {
+    "mtime": 1785347184.930174,
+    "seen": 1790650382.5099533,
+    "ast_hash": "366623d59281f1406842dab0ccc1db55",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/CostDataProvider.java": {
+    "mtime": 1784003260.5840797,
+    "seen": 1790650382.5099533,
+    "ast_hash": "d4ab11293fa69ae3ccec6a395c30da0b",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/CostEstimationService.java": {
+    "mtime": 1788965254.2307024,
+    "seen": 1790650382.5099533,
+    "ast_hash": "1ca95aa43970eacd4a7d2f142b2ca54f",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/CostExplorerBillingService.java": {
+    "mtime": 1785345974.2559812,
+    "seen": 1790650382.5099533,
+    "ast_hash": "e5aabd57ec9a6d930efdb6c579f844c2",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/CostExplorerTagActivationService.java": {
+    "mtime": 1785334107.108202,
+    "seen": 1790650382.5099533,
+    "ast_hash": "3df2bf54555892c79f92e82e8b05c69d",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/CostForecastService.java": {
+    "mtime": 1785377472.8554716,
+    "seen": 1790650382.5099533,
+    "ast_hash": "8445dc4e6c7b1b01dccc3740cfcf598c",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/CostReconciliationService.java": {
+    "mtime": 1785339417.388348,
+    "seen": 1790650382.5099533,
+    "ast_hash": "6530b43f4eeb7e2e8a3f0080e75c4c0c",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/CostSnapshotService.java": {
+    "mtime": 1784003685.0086591,
+    "seen": 1790650382.5099533,
+    "ast_hash": "f27cacf02661a19ba70ca4aa9eefbc40",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/DashboardSummaryService.java": {
+    "mtime": 1785478091.58603,
+    "seen": 1790650382.5099533,
+    "ast_hash": "ed1f8287b5b5d61509cc1fad2c555068",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/DependencyValidator.java": {
+    "mtime": 1783926514.6608737,
+    "seen": 1790650382.5099533,
+    "ast_hash": "33f0225cfe0d4cecf655adc6292ddbe5",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/Ec2Service.java": {
+    "mtime": 1771006145.1837513,
+    "seen": 1790650382.5099533,
+    "ast_hash": "8cc535c8c48791e703eed0045442f76f",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/EksCloudProviderService.java": {
+    "mtime": 1788957500.9965637,
+    "seen": 1790650382.5099533,
+    "ast_hash": "1531244544aae492086048bb33494e8c",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/EksSyncService.java": {
+    "mtime": 1788958250.9811263,
+    "seen": 1790650382.5099533,
+    "ast_hash": "ace1b4e3acec27bfdafb06c3fe695198",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/EmailService.java": {
+    "mtime": 1789120631.0228705,
+    "seen": 1790650382.5099533,
+    "ast_hash": "9f4e13bc82138739c3aa4d139e4653a1",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/EmailTemplates.java": {
+    "mtime": 1785470038.5495062,
+    "seen": 1790650382.5099533,
+    "ast_hash": "84726211757e949d325a886ca5e889f5",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/EnvironmentAccessService.java": {
+    "mtime": 1788932478.4928877,
+    "seen": 1790650382.5099533,
+    "ast_hash": "8fe40035c38f809cf7b954582116dc56",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/EnvironmentInsightsService.java": {
+    "mtime": 1788932513.6015973,
+    "seen": 1790650382.5099533,
+    "ast_hash": "96bbba276a24c4640627b79f451fc604",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/EnvironmentService.java": {
+    "mtime": 1789120278.8975706,
+    "seen": 1790650382.5099533,
+    "ast_hash": "4bcf5c3ec93aa848c46255a891392007",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/EstimatedCostProvider.java": {
+    "mtime": 1784039882.7852135,
+    "seen": 1790650382.5099533,
+    "ast_hash": "70750e128205c35cf0d7598bd4d513f5",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/ExcelExportService.java": {
+    "mtime": 1785412852.9216192,
+    "seen": 1790650382.5099533,
+    "ast_hash": "d63d35ea79d1226c267807edff6c5c39",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/GraphDirectoryService.java": {
+    "mtime": 1788970885.2614672,
+    "seen": 1790650382.5099533,
+    "ast_hash": "9b536b1a4b382cbfa4c6a903941aa5ce",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/LockService.java": {
+    "mtime": 1784202227.0053031,
+    "seen": 1790650382.5099533,
+    "ast_hash": "41c178e585f5ee11c7f900ad33cf5d21",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/NotificationService.java": {
+    "mtime": 1789120979.1537147,
+    "seen": 1790650382.5099533,
+    "ast_hash": "7d2d257941516596e907258c67752272",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/PricingReferenceService.java": {
+    "mtime": 1785404932.0972166,
+    "seen": 1790650382.5099533,
+    "ast_hash": "dfd6b3caa7bc5151b3b3cb5f14fd8aae",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/ReservationCoverageService.java": {
+    "mtime": 1785346662.848901,
+    "seen": 1790650382.5099533,
+    "ast_hash": "6c2f278dbfe3cbc836befb40c573eb48",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/ScheduledJobLockService.java": {
+    "mtime": 1782361216.9693055,
+    "seen": 1790650382.5099533,
+    "ast_hash": "d733516cc2b2a95ae5997e2d024ea703",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/SecurityService.java": {
+    "mtime": 1788929659.7395232,
+    "seen": 1790650382.5099533,
+    "ast_hash": "861d4fd62dd3118ef70ed73c90e70b2a",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/StateSyncService.java": {
+    "mtime": 1784039358.5078099,
+    "seen": 1790650382.5099533,
+    "ast_hash": "8b1e9fd6bf343509a972c5e8873cc623",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/TagReconciliationService.java": {
+    "mtime": 1785334138.0057745,
+    "seen": 1790650382.5099533,
+    "ast_hash": "f90eadc2fe9789e03c241660ae739aad",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/TeamResolver.java": {
+    "mtime": 1785333990.8200748,
+    "seen": 1790650382.5099533,
+    "ast_hash": "ecba004a611d69f93fd90bbab975026a",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/UserOnboardingService.java": {
+    "mtime": 1789016725.836287,
+    "seen": 1790650382.5099533,
+    "ast_hash": "d0e2f4224a4acee1b338141859e7f20c",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/UserService.java": {
+    "mtime": 1788968683.4632585,
+    "seen": 1790650382.5099533,
+    "ast_hash": "dcbb256681810de447c9f05287f538ef",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/VmCostCalculator.java": {
+    "mtime": 1784003646.3589787,
+    "seen": 1790650382.5099533,
+    "ast_hash": "fa02ecde4af37285a8f5111957190d93",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/VmDiscoveryService.java": {
+    "mtime": 1785334187.4999168,
+    "seen": 1790650382.5099533,
+    "ast_hash": "31eca4c8cf14b6cb1a0de1029e48695f",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/VmGroupService.java": {
+    "mtime": 1771041809.9450655,
+    "seen": 1790650382.5099533,
+    "ast_hash": "9f523709780222bb02170104d17a7513",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/VmInventoryService.java": {
+    "mtime": 1783952196.2970703,
+    "seen": 1790650382.5099533,
+    "ast_hash": "ae990fdbee9e5b910ccacc2c33495d9a",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/VmMetricRollupService.java": {
+    "mtime": 1784202227.1373277,
+    "seen": 1790650382.5099533,
+    "ast_hash": "f2ea911a090372e5f23c9976c0e5d6de",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/VmMetricsArchiveService.java": {
+    "mtime": 1784216816.814761,
+    "seen": 1790650382.5099533,
+    "ast_hash": "63fa39f99f21ec79b20a28903a633403",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/VmMetricsService.java": {
+    "mtime": 1784216860.6424954,
+    "seen": 1790650382.5099533,
+    "ast_hash": "9dc393413460ca6a8b4c4762b5320a1d",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/VmOperationsService.java": {
+    "mtime": 1788959670.4566343,
+    "seen": 1790650382.5099533,
+    "ast_hash": "1a2fe18eae39194d6172d91757fb5e6a",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/VmResizeService.java": {
+    "mtime": 1785405590.4549541,
+    "seen": 1790650382.5099533,
+    "ast_hash": "e02c13c63947eeebc21432298ee28d70",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/VmService.java": {
+    "mtime": 1783952176.4381857,
+    "seen": 1790650382.5099533,
+    "ast_hash": "7aa21df39426161a76060d8c9e23dbd9",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/WeeklyReportService.java": {
+    "mtime": 1788965281.6067202,
+    "seen": 1790650382.5099533,
+    "ast_hash": "8bd199c4a5debedc3b6d696a1622c6e4",
+    "semantic_hash": ""
+  },
+  "src/main/java/com/tcgdigital/vmcontrol/service/WeeklySnapshotService.java": {
+    "mtime": 1785470797.413429,
+    "seen": 1790650382.5099533,
+    "ast_hash": "0155596b6cda91da053995938f088dd0",
+    "semantic_hash": ""
+  },
+  "src/main/resources/pricing/instance-pricing.json": {
+    "mtime": 1784041536.9433048,
+    "seen": 1790650382.5099533,
+    "ast_hash": "bbcf407aed9bd437b16b2201989e2a3c",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/app.js": {
+    "mtime": 1782385489.1845634,
+    "seen": 1790650382.5099533,
+    "ast_hash": "e1dda7578775d020cd9e4636b05913e0",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/config.js": {
+    "mtime": 1789121112.057243,
+    "seen": 1790650382.5099533,
+    "ast_hash": "7cb70a00c0347a1eb3ead9626cf9e1cd",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/core/api-client.js": {
+    "mtime": 1782292344.1185582,
+    "seen": 1790650382.5099533,
+    "ast_hash": "784a267e247451870c4c347f63fa8273",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/core/auth.js": {
+    "mtime": 1782292314.2736008,
+    "seen": 1790650382.5099533,
+    "ast_hash": "da9cd375078e669e583d0213614e76a2",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/core/keyboard.js": {
+    "mtime": 1771096556.2498763,
+    "seen": 1790650382.5099533,
+    "ast_hash": "7a63837bc2f3c9c2b07ebbbe40407f5d",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/core/realtime.js": {
+    "mtime": 1782389862.0238564,
+    "seen": 1790650382.5099533,
+    "ast_hash": "a4508180d3c2d57ae4d565db05087f02",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/core/router.js": {
+    "mtime": 1784004400.3763692,
+    "seen": 1790650382.5099533,
+    "ast_hash": "e455205598338c9f494f5450d0be1664",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/core/template-loader.js": {
+    "mtime": 1773321966.0212717,
+    "seen": 1790650382.5099533,
+    "ast_hash": "59462f23fc9b4a6bce643905b3f617ed",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/core/utils.js": {
+    "mtime": 1784004627.5779467,
+    "seen": 1790650382.5099533,
+    "ast_hash": "dc522efe72b978d3146bc9ae691eaf2c",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/features/access-management.js": {
+    "mtime": 1789019497.5073137,
+    "seen": 1790650382.5099533,
+    "ast_hash": "a255e1a9a5e7ebad206dfe9c08dc912f",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/features/access-requests.js": {
+    "mtime": 1788932615.5014474,
+    "seen": 1790650382.5099533,
+    "ast_hash": "719e5dcf599b59971fefc04e167a071f",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/features/activity-logs.js": {
+    "mtime": 1784083895.8395934,
+    "seen": 1790650382.5099533,
+    "ast_hash": "d1a90af73a9e0acb305f9ef05c8e608e",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/features/all-logs.js": {
+    "mtime": 1784202227.355391,
+    "seen": 1790650382.5099533,
+    "ast_hash": "e6a58ab92b09695de86166d073987da1",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/features/audit-logs.js": {
+    "mtime": 1784083941.6663907,
+    "seen": 1790650382.5099533,
+    "ast_hash": "16d7311662467334ffd2a96456a09597",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/features/automation-rules.js": {
+    "mtime": 1784185857.2373347,
+    "seen": 1790650382.5099533,
+    "ast_hash": "ea05ef979241cdbbd887704357915595",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/features/cost-management.js": {
+    "mtime": 1785478700.0962534,
+    "seen": 1790650382.5099533,
+    "ast_hash": "9e1f56c02549d094147cbac1311e3ac1",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/features/dashboard.js": {
+    "mtime": 1784217798.398054,
+    "seen": 1790650382.5099533,
+    "ast_hash": "564077ab05926c557b661df2c905722e",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/features/environments.js": {
+    "mtime": 1789120985.3091788,
+    "seen": 1790650382.5099533,
+    "ast_hash": "bed70ac2224ee8062af70bef63e69bd9",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/features/features.js": {
+    "mtime": 1784096967.4563587,
+    "seen": 1790650382.5099533,
+    "ast_hash": "500f70f1ee30124342808d3d658d0bf7",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/features/locks.js": {
+    "mtime": 1785394102.998405,
+    "seen": 1790650382.5099533,
+    "ast_hash": "9289c64b50a7f28a750bf24c5afc7e64",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/features/system-health.js": {
+    "mtime": 1789121106.3680277,
+    "seen": 1790650382.5099533,
+    "ast_hash": "bf7141f358bd7b2362dafb242568968c",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/features/user-management.js": {
+    "mtime": 1788970874.0274484,
+    "seen": 1790650382.5099533,
+    "ast_hash": "55c3ac1a2e43783892f4b85f3aad3ea8",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/features/vm-operations.js": {
+    "mtime": 1789120492.826491,
+    "seen": 1790650382.5099533,
+    "ast_hash": "f2908c6ffb1ddeb75b7b3ff0b4d8afa0",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/features/vm-registry.js": {
+    "mtime": 1789120336.0601065,
+    "seen": 1790650382.5099533,
+    "ast_hash": "5c554cb0fd169bf88f6a2f9e0dbbb051",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/ui/charts.js": {
+    "mtime": 1782385458.615755,
+    "seen": 1790650382.5099533,
+    "ast_hash": "221e77ec64a8e69ece4efbee549a9e51",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/ui/forms.js": {
+    "mtime": 1775488554.989542,
+    "seen": 1790650382.5099533,
+    "ast_hash": "f99000e9bd5c7be37142ff44cf540d84",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/ui/loading.js": {
+    "mtime": 1772339610.2780516,
+    "seen": 1790650382.5099533,
+    "ast_hash": "ecbb772aab2bf6b1e9ec1828eed40785",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/ui/modals.js": {
+    "mtime": 1784174225.934872,
+    "seen": 1790650382.5099533,
+    "ast_hash": "63e143074c3170a421f941145dd54eea",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/ui/notification-bell.js": {
+    "mtime": 1784042910.0547805,
+    "seen": 1790650382.5099533,
+    "ast_hash": "73373fbbe9097c4abff21d0d44e4ac5a",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/ui/notifications.js": {
+    "mtime": 1784084032.7646582,
+    "seen": 1790650382.5099533,
+    "ast_hash": "bca25b61940e10d4792bbdd176ad7f9f",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/ui/pagination.js": {
+    "mtime": 1784051231.654615,
+    "seen": 1790650382.5099533,
+    "ast_hash": "2b4243eed371830f36773929fda2857b",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/ui/sidebar.js": {
+    "mtime": 1784202227.5250413,
+    "seen": 1790650382.5099533,
+    "ast_hash": "3065bde2848df6ce61b38728b78ba945",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/ui/slideout.js": {
+    "mtime": 1782385504.413965,
+    "seen": 1790650382.5099533,
+    "ast_hash": "2a7e7355ac18ef37ab36e01f0ca062f6",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/js/ui/user-menu.js": {
+    "mtime": 1782294692.3330085,
+    "seen": 1790650382.5099533,
+    "ast_hash": "e792136bee726e3f7b4ad42d2d519032",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/vendor/bootstrap/js/bootstrap.bundle.min.js": {
+    "mtime": 1782385389.2850857,
+    "seen": 1790650382.5099533,
+    "ast_hash": "849e6db145f2905ce210f628bddd9de5",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/vendor/echarts/echarts.min.js": {
+    "mtime": 1782385390.097456,
+    "seen": 1790650382.5099533,
+    "ast_hash": "b91b9de4da1677c82825c679112da8b2",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/vendor/html2canvas/html2canvas.min.js": {
+    "mtime": 1784004577.4700425,
+    "seen": 1790650382.5099533,
+    "ast_hash": "d7530aa0b7587e627484c49fdf8f13f2",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/vendor/jquery/jquery-3.6.0.min.js": {
+    "mtime": 1782385389.2093582,
+    "seen": 1790650382.5099533,
+    "ast_hash": "8fb8fee4fcc3cc86ff6c724154c49c42",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/AwsConfigurationTest.java": {
+    "mtime": 1781808335.4685662,
+    "seen": 1790650382.5099533,
+    "ast_hash": "3178fd1faa782db6b6fc6a3d5b6ece11",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/FlywayMigrationTest.java": {
+    "mtime": 1781894227.0221913,
+    "seen": 1790650382.5099533,
+    "ast_hash": "329eae5d03b1ce768b59b82b85489e9f",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/VmcontrolApplicationTests.java": {
+    "mtime": 1770984387.2118409,
+    "seen": 1790650382.5099533,
+    "ast_hash": "f1648eacbe2e5889bc2204b43cfbed83",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/controller/AuditControllerIntegrationTest.java": {
+    "mtime": 1781859395.5130136,
+    "seen": 1790650382.5099533,
+    "ast_hash": "a3687c2e74734192658cd21bd537fe19",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/controller/Ec2ControllerTest.java": {
+    "mtime": 1771006252.5083485,
+    "seen": 1790650382.5099533,
+    "ast_hash": "be3e4a7ab0eb223c1c9a82db6206de31",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/controller/EnvironmentAccessControllerTest.java": {
+    "mtime": 1782284518.889933,
+    "seen": 1790650382.5099533,
+    "ast_hash": "844c7ef015ce89ed0b4b7d589f3bab51",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/controller/EnvironmentHierarchyIntegrationTest.java": {
+    "mtime": 1781808580.5102475,
+    "seen": 1790650382.5099533,
+    "ast_hash": "4aae509a57e020d28757604fff5c9123",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/controller/LockControllerIntegrationTest.java": {
+    "mtime": 1781809012.0929167,
+    "seen": 1790650382.5099533,
+    "ast_hash": "33b343e238801f7aa20c23bae03ea47d",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/controller/MonitoringControllerIntegrationTest.java": {
+    "mtime": 1785509122.1835759,
+    "seen": 1790650382.5099533,
+    "ast_hash": "75d123c93fd69431b4fab6df906da389",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/controller/UserControllerTest.java": {
+    "mtime": 1781808543.9660175,
+    "seen": 1790650382.5099533,
+    "ast_hash": "8f5e6f6a703284a31d197aee485301ad",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/controller/VmOperationsControllerIntegrationTest.java": {
+    "mtime": 1781844457.493179,
+    "seen": 1790650382.5099533,
+    "ast_hash": "7660a87e76c2347b224bc27b43806128",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/dto/VmStateHistoryDTOTest.java": {
+    "mtime": 1785509079.782743,
+    "seen": 1790650382.5099533,
+    "ast_hash": "ff91ae15b789fc971eacbd8ba92a2f78",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/security/OAuth2IntegrationTest.java": {
+    "mtime": 1771091241.0325432,
+    "seen": 1790650382.5099533,
+    "ast_hash": "2e1f95495a3dcc5e155ab2c01e149a4a",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/AuditServiceTest.java": {
+    "mtime": 1785514722.2442563,
+    "seen": 1790650382.5099533,
+    "ast_hash": "8a3e8b03a7ea673217aa159f94450e7c",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/AwsCloudProviderServiceTest.java": {
+    "mtime": 1782303294.190801,
+    "seen": 1790650382.5099533,
+    "ast_hash": "21285f4eaa28fa8651167ecb50ac114d",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/ComputeOptimizerServiceTest.java": {
+    "mtime": 1785347261.452788,
+    "seen": 1790650382.5099533,
+    "ast_hash": "32fa078268cf85424af41937d473584f",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/CostEstimationServiceTest.java": {
+    "mtime": 1785405820.6905565,
+    "seen": 1790650382.5099533,
+    "ast_hash": "5a68f6326ad21016ee3d51f877048488",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/CostExplorerBillingServiceTest.java": {
+    "mtime": 1785339720.6674776,
+    "seen": 1790650382.5099533,
+    "ast_hash": "1d7c813ac1887ff55d48e50e894fdb4d",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/CostForecastServiceTest.java": {
+    "mtime": 1785377689.7888956,
+    "seen": 1790650382.5099533,
+    "ast_hash": "3d81ecea41d46a381b89919bdf61b52f",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/CostReconciliationServiceTest.java": {
+    "mtime": 1785339742.5014327,
+    "seen": 1790650382.5099533,
+    "ast_hash": "40528204d17d067722ef1b28272fd003",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/DependencyValidatorTest.java": {
+    "mtime": 1771043752.437252,
+    "seen": 1790650382.5099533,
+    "ast_hash": "038fcbfe865da946be1f5c8121087816",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/EksCloudProviderServiceTest.java": {
+    "mtime": 1788957562.613086,
+    "seen": 1790650382.5099533,
+    "ast_hash": "2c132394d97ee3722f5641a76b15ddee",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/EksSyncServiceTest.java": {
+    "mtime": 1788958374.0516691,
+    "seen": 1790650382.5099533,
+    "ast_hash": "0cb14145f59a8490cc8de6862ae857c0",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/EmailServiceTest.java": {
+    "mtime": 1789121194.1560872,
+    "seen": 1790650382.5099533,
+    "ast_hash": "0c11df3836a47f8a22e30150a51acde4",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/EnvironmentAccessServiceTest.java": {
+    "mtime": 1788931198.094691,
+    "seen": 1790650382.5099533,
+    "ast_hash": "52c7f35ec6a259d89ec337894825abfa",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/EnvironmentServiceTest.java": {
+    "mtime": 1785512897.4586596,
+    "seen": 1790650382.5099533,
+    "ast_hash": "184211badf67a3b007a9697ab737a7d5",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/EstimatedCostProviderTest.java": {
+    "mtime": 1784039964.0170443,
+    "seen": 1790650382.5099533,
+    "ast_hash": "a6ba8591fe88bc2fa7d78b59e8ded2a6",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/GraphDirectoryServiceTest.java": {
+    "mtime": 1788968497.1695077,
+    "seen": 1790650382.5099533,
+    "ast_hash": "ad2a45964624d9f103caf32dda198be7",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/LockServiceTest.java": {
+    "mtime": 1771049788.5615318,
+    "seen": 1790650382.5099533,
+    "ast_hash": "2f6b3d03dcef659ff9efd11ab55bf0e1",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/NotificationServiceTest.java": {
+    "mtime": 1789121275.8978784,
+    "seen": 1790650382.5099533,
+    "ast_hash": "d05c40377a00328c5c04c0aa5c2f7789",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/SecurityServiceGroupAccessTest.java": {
+    "mtime": 1788929847.3018546,
+    "seen": 1790650382.5099533,
+    "ast_hash": "7e4ddda39691c534e18e20fbaf4a7d11",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/StateSyncServiceTest.java": {
+    "mtime": 1784039426.6692193,
+    "seen": 1790650382.5099533,
+    "ast_hash": "9ce440aef3acfa6f15af0977ad62b157",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/TagReconciliationServiceTest.java": {
+    "mtime": 1785334623.886302,
+    "seen": 1790650382.5099533,
+    "ast_hash": "57e06f23bfebf4ed840258da490a0365",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/TeamResolverTest.java": {
+    "mtime": 1785334341.2959757,
+    "seen": 1790650382.5099533,
+    "ast_hash": "561a0e338dd3edf2acdf72f9d3e78f6e",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/UserOnboardingServiceTest.java": {
+    "mtime": 1789016725.9287786,
+    "seen": 1790650382.5099533,
+    "ast_hash": "276789a22d8064ae50cf330f438e9249",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/UserServiceFindOrCreateTest.java": {
+    "mtime": 1788968720.7352648,
+    "seen": 1790650382.5099533,
+    "ast_hash": "1fa037ab8f14bcee91e061d7c5b9d777",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/UserServiceTest.java": {
+    "mtime": 1771084566.366903,
+    "seen": 1790650382.5099533,
+    "ast_hash": "654d7a03bd7bc2043fb90c8a7d7c1771",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/VmCostCalculatorTest.java": {
+    "mtime": 1784003837.8470068,
+    "seen": 1790650382.5099533,
+    "ast_hash": "bb4e8b8981dfa885886b87cbf44f6b49",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/VmOperationsServiceTest.java": {
+    "mtime": 1788929990.5337415,
+    "seen": 1790650382.5099533,
+    "ast_hash": "b914159b6280a42a4720c1a35ff9cfee",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/WeeklyReportServiceTest.java": {
+    "mtime": 1788965368.4474564,
+    "seen": 1790650382.5099533,
+    "ast_hash": "74e7f3ac706f7c47b1dd3e68ad2fb413",
+    "semantic_hash": ""
+  },
+  "src/test/java/com/tcgdigital/vmcontrol/service/WeeklySnapshotServiceTest.java": {
+    "mtime": 1785471058.906479,
+    "seen": 1790650382.5099533,
+    "ast_hash": "7006274096bcc5aad90c2eb1f7362076",
+    "semantic_hash": ""
+  },
+  "test/fixtures/auth.ts": {
+    "mtime": 1789743786.449133,
+    "seen": 1790650382.5099533,
+    "ast_hash": "6182f42ec07ec67d42e06094a8382148",
+    "semantic_hash": ""
+  },
+  "test/package.json": {
+    "mtime": 1789743750.3659792,
+    "seen": 1790650382.5099533,
+    "ast_hash": "a40f319ff1c50eeb740ec4e85b82d77b",
+    "semantic_hash": ""
+  },
+  "test/playwright.config.ts": {
+    "mtime": 1789743773.0401623,
+    "seen": 1790650382.5099533,
+    "ast_hash": "60d2da2bee4f0646e63ed277b5189e79",
+    "semantic_hash": ""
+  },
+  "test/tests/auth/session.spec.ts": {
+    "mtime": 1789743827.1259012,
+    "seen": 1790650382.5099533,
+    "ast_hash": "efdbe85b996ded9b84fab39e74e12fa7",
+    "semantic_hash": ""
+  },
+  "test/tests/dashboard/dashboard.spec.ts": {
+    "mtime": 1789743860.4618905,
+    "seen": 1790650382.5099533,
+    "ast_hash": "d916741b8a36c49b0798771cc00cb0f3",
+    "semantic_hash": ""
+  },
+  "test/tests/navigation/navigation.admin.spec.ts": {
+    "mtime": 1789743860.8251798,
+    "seen": 1790650382.5099533,
+    "ast_hash": "b2e7adf3b63b09f7a3065c5171153e6c",
+    "semantic_hash": ""
+  },
+  "test/tests/navigation/navigation.spec.ts": {
+    "mtime": 1789743860.6731474,
+    "seen": 1790650382.5099533,
+    "ast_hash": "cb2c35922d8e9394cc378f8210667bd5",
+    "semantic_hash": ""
+  },
+  "test/tests/security/known-findings.spec.ts": {
+    "mtime": 1789743881.9650824,
+    "seen": 1790650382.5099533,
+    "ast_hash": "13690c625eb3e02d2d010deea4b2bc68",
+    "semantic_hash": ""
+  },
+  "test/tests/smoke/health.spec.ts": {
+    "mtime": 1789743812.9708683,
+    "seen": 1790650382.5099533,
+    "ast_hash": "a39911fae41bfd90ecf6170d69c0b742",
+    "semantic_hash": ""
+  },
+  "test/tests/smoke/login.spec.ts": {
+    "mtime": 1789743812.9986124,
+    "seen": 1790650382.5099533,
+    "ast_hash": "3d141d1c05dc636cccf602e99fa291c0",
+    "semantic_hash": ""
+  },
+  "test/tsconfig.json": {
+    "mtime": 1789743750.407487,
+    "seen": 1790650382.5099533,
+    "ast_hash": "7f168d4afbaccf626595c32ef42efb04",
+    "semantic_hash": ""
+  },
+  ".github/agents/backend-engineer.agent.md": {
+    "mtime": 1775539378.5333817,
+    "seen": 1790650382.5099533,
+    "ast_hash": "bc52895db862a69b2377fce663aeab81",
+    "semantic_hash": ""
+  },
+  ".github/agents/cloud-architect.agent.md": {
+    "mtime": 1775538294.8326726,
+    "seen": 1790650382.5099533,
+    "ast_hash": "c7727d3574de761eab046cc11dd79d5b",
+    "semantic_hash": ""
+  },
+  ".github/agents/code-reviewer.agent.md": {
+    "mtime": 1775483687.0928614,
+    "seen": 1790650382.5099533,
+    "ast_hash": "cf42071754f965eba33f2ed1c7940623",
+    "semantic_hash": ""
+  },
+  ".github/agents/database-engineer.agent.md": {
+    "mtime": 1775483687.0928614,
+    "seen": 1790650382.5099533,
+    "ast_hash": "18b6e0ea1ed31153d27ee4846344d4d7",
+    "semantic_hash": ""
+  },
+  ".github/agents/frontend-engineer.agent.md": {
+    "mtime": 1775487476.568591,
+    "seen": 1790650382.5099533,
+    "ast_hash": "ac907e01da4b341596ecaf5e2ccaa1d0",
+    "semantic_hash": ""
+  },
+  ".github/agents/security-reviewer.agent.md": {
+    "mtime": 1775483687.0928614,
+    "seen": 1790650382.5099533,
+    "ast_hash": "dbab84720d6a37cbc78bc5951bbd7c28",
+    "semantic_hash": ""
+  },
+  ".github/agents/ui-ux-designer.agent.md": {
+    "mtime": 1775538152.4989889,
+    "seen": 1790650382.510389,
+    "ast_hash": "aa72b88dfaa03f3b528b1c1f888a1284",
+    "semantic_hash": ""
+  },
+  ".github/copilot-instructions.md": {
+    "mtime": 1790649428.10524,
+    "seen": 1790650382.510389,
+    "ast_hash": "2b23503628bf2ec71d067a85ca8948ab",
+    "semantic_hash": ""
+  },
+  "AGENTS.md": {
+    "mtime": 1790649407.6186118,
+    "seen": 1790650382.510389,
+    "ast_hash": "6527288d5b118ce9a680a5f3b1de8deb",
+    "semantic_hash": ""
+  },
+  "CLAUDE.md": {
+    "mtime": 1790649384.9854956,
+    "seen": 1790650382.510389,
+    "ast_hash": "2e0e7eac5eeb98722b734541fe3bf9b4",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1769658735.6790369,
+    "seen": 1790650382.510389,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": ""
+  },
+  "UX_GOVERNANCE_TASKS.md": {
+    "mtime": 1784173847.833105,
+    "seen": 1790650382.510389,
+    "ast_hash": "7a0d85962da13db12d3b3b3a47e19ec0",
+    "semantic_hash": ""
+  },
+  "UX_REVIEW.md": {
+    "mtime": 1784171906.396139,
+    "seen": 1790650382.510389,
+    "ast_hash": "5c783f25901419748cda77a92b1439bc",
+    "semantic_hash": ""
+  },
+  "UX_TASKS.md": {
+    "mtime": 1784176285.3710227,
+    "seen": 1790650382.510389,
+    "ast_hash": "a1357bb34883564b52941f47f54d8ca0",
+    "semantic_hash": ""
+  },
+  "deployment/docker-compose.yml": {
+    "mtime": 1781798905.4077027,
+    "seen": 1790650382.510389,
+    "ast_hash": "fd32841aa30174feadbf4ca00c520832",
+    "semantic_hash": ""
+  },
+  "docs/access-grants-requirement.md": {
+    "mtime": 1788926529.335034,
+    "seen": 1790650382.510389,
+    "ast_hash": "1287a995152dc1d13a7865235b5e29c4",
+    "semantic_hash": ""
+  },
+  "docs/aws-iam-permissions.md": {
+    "mtime": 1785380538.7460928,
+    "seen": 1790650382.510389,
+    "ast_hash": "4470c630d299e910a0159e8768f9ed7b",
+    "semantic_hash": ""
+  },
+  "docs/graph-user-onboarding.md": {
+    "mtime": 1788970939.2249331,
+    "seen": 1790650382.510389,
+    "ast_hash": "cf8ce374eb2af78ee154291af44b86ff",
+    "semantic_hash": ""
+  },
+  "docs/production-readiness-audit-2026-09-14.md": {
+    "mtime": 1789390587.44411,
+    "seen": 1790650382.510389,
+    "ast_hash": "ad823847c2e1a92847b5e0530a37f734",
+    "semantic_hash": ""
+  },
+  "docs/settings-page-requirement.md": {
+    "mtime": 1785499882.0446944,
+    "seen": 1790650382.510389,
+    "ast_hash": "4139c72e51c0bde6294128a537484221",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/home-original.html": {
+    "mtime": 1770979641.0691898,
+    "seen": 1790650382.510389,
+    "ast_hash": "4e65dbe5ac95551b444cf5f598f18ca1",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/home.html": {
+    "mtime": 1775552246.063116,
+    "seen": 1790650382.510389,
+    "ast_hash": "14f04ba2bc206b61328bad641e7fa1f2",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/index.html": {
+    "mtime": 1789041140.2329361,
+    "seen": 1790650382.510389,
+    "ast_hash": "b14841f8dfb0e866aeef17888d629632",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/login.html": {
+    "mtime": 1784174629.9899523,
+    "seen": 1790650382.510389,
+    "ast_hash": "3e115b88519cff1581931868d7ff131c",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/templates/common.html": {
+    "mtime": 1784174685.364264,
+    "seen": 1790650382.510389,
+    "ast_hash": "fb0687af8a95310ed403a8704c84cb36",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/templates/features/access-management.html": {
+    "mtime": 1775377365.7942846,
+    "seen": 1790650382.510389,
+    "ast_hash": "863dd44c5c43f6bfd4c3076cee5ee13b",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/templates/features/activity-logs.html": {
+    "mtime": 1784174691.9072604,
+    "seen": 1790650382.510389,
+    "ast_hash": "f824f0021ddd154db68ae9c33cebd3f7",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/templates/features/audit-logs.html": {
+    "mtime": 1784174531.7298994,
+    "seen": 1790650382.510389,
+    "ast_hash": "d81e1be325895d5cbfdea66ad50abfd7",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/templates/features/dashboard.html": {
+    "mtime": 1775488476.653641,
+    "seen": 1790650382.510389,
+    "ast_hash": "7d7bb8a868448a707f9a9b35c899dd28",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/templates/features/environment-detail.html": {
+    "mtime": 1785394018.4654522,
+    "seen": 1790650382.510389,
+    "ast_hash": "694df6e4e9c1e7b4f78dbc0d23833a9b",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/templates/features/environments-list.html": {
+    "mtime": 1785393957.3500717,
+    "seen": 1790650382.510389,
+    "ast_hash": "635efcd161668db1282621ed4fc89094",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/templates/features/locks.html": {
+    "mtime": 1773321019.6683435,
+    "seen": 1790650382.510389,
+    "ast_hash": "863e9ad76b095482d2c89cc9d7cfa95d",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/templates/features/pending-requests.html": {
+    "mtime": 1785394035.6252997,
+    "seen": 1790650382.510389,
+    "ast_hash": "4fe10ecffd180926e4ca12d2447e0f78",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/templates/features/request-access.html": {
+    "mtime": 1773321019.7209578,
+    "seen": 1790650382.510389,
+    "ast_hash": "22386ed19ea5971e7270501081c3f027",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/templates/features/user-management.html": {
+    "mtime": 1775371219.6520152,
+    "seen": 1790650382.510389,
+    "ast_hash": "1cd4963b3bd89abfc70eeecd1677484b",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/templates/features/vm-operations.html": {
+    "mtime": 1785394044.979215,
+    "seen": 1790650382.510389,
+    "ast_hash": "34528ab6cf6c5733c038f2377b32556a",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/templates/partials/environment-card.html": {
+    "mtime": 1785393945.1196525,
+    "seen": 1790650382.510389,
+    "ast_hash": "f60c6a19a7cc117ed3c56b40848e936c",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/templates/partials/metric-card.html": {
+    "mtime": 1773321019.5642383,
+    "seen": 1790650382.510389,
+    "ast_hash": "f3639db0270508b9ed0b9259406b3992",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/templates/partials/vm-card.html": {
+    "mtime": 1785393934.9647105,
+    "seen": 1790650382.510389,
+    "ast_hash": "e3a068b491e88415388ee477d2314288",
+    "semantic_hash": ""
+  },
+  "test/README.md": {
+    "mtime": 1789743910.3369167,
+    "seen": 1790650382.510389,
+    "ast_hash": "a4b7a039ac08339bd80af8503666274e",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/logo/ec2-icon.png": {
+    "mtime": 1780823931.9075081,
+    "seen": 1790650382.510389,
+    "ast_hash": "ace1e20d4726457880659babef2d3f50",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/logo/tcg_blue_logo.png": {
+    "mtime": 1769185963.0,
+    "seen": 1790650382.510389,
+    "ast_hash": "83881021d63607a9d04da648a4173176",
+    "semantic_hash": ""
+  },
+  "src/main/resources/static/logo/tcg_white_logo.png": {
+    "mtime": 1769189544.0,
+    "seen": 1790650382.510389,
+    "ast_hash": "36c3baccc288d5c508e62d329c01b919",
+    "semantic_hash": ""
+  }
+}
