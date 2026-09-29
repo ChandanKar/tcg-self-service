@@ -1,6 +1,7 @@
 package com.tcgdigital.vmcontrol.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tcgdigital.vmcontrol.dto.EksClusterInfoDTO;
 import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.*;
@@ -75,23 +76,32 @@ public class EksSyncService {
     }
 
     /**
-     * Returns EKS cluster names that exist in AWS but are not yet registered in the DB.
+     * Returns EKS clusters that exist in AWS but are not yet registered in the DB, scanning
+     * every region in {@code eks.sync.regions} (or the {@code aws.region} default) — the same
+     * region set {@link #autoDiscoverClusters()} uses, so what an admin sees in the "create
+     * environment from EKS" picker matches what auto-discovery would find.
      */
-    public List<String> getUnregisteredEksClusters(String region) {
-        try {
-            return eksService.listClusters(region).stream()
-                    .filter(name -> !environmentRepository.existsByName(name))
-                    .collect(Collectors.toList());
-        } catch (Exception e) {
-            log.error("Failed to list EKS clusters in region {}: {}", region, e.getMessage());
-            return List.of();
+    public List<EksClusterInfoDTO> getUnregisteredEksClusters() {
+        List<EksClusterInfoDTO> result = new ArrayList<>();
+        for (String region : resolveSyncRegions()) {
+            try {
+                eksService.listClusters(region).stream()
+                        .filter(name -> !environmentRepository.existsByName(name))
+                        .forEach(name -> result.add(new EksClusterInfoDTO(name, region)));
+            } catch (Exception e) {
+                log.error("Failed to list EKS clusters in region {}: {}", region, e.getMessage());
+            }
         }
+        return result;
     }
 
     /**
-     * Syncs all EKS environments. Called by EksSyncScheduler.
-     * Auto-discovers clusters from AWS that are not yet registered in the DB,
-     * creates Environment records for them, then syncs all node groups.
+     * Does everything: auto-discovers and registers unregistered clusters, then refreshes
+     * status for every already-registered EKS environment. Used by the manual "sync now" admin
+     * action, which — being an explicit, human-initiated request — always does both regardless
+     * of the {@code eks.sync.auto-register.enabled} / {@code eks.sync.status-refresh.enabled}
+     * flags that gate {@link com.tcgdigital.vmcontrol.scheduler.EksSyncScheduler}'s automatic
+     * cycle.
      * @return total number of node groups synced across all clusters
      */
     public int syncAllEksClusters() {
@@ -101,6 +111,20 @@ public class EksSyncService {
         }
 
         autoDiscoverClusters();
+        return syncRegisteredEksEnvironments();
+    }
+
+    /**
+     * Refreshes node-group status/drift for every already-registered EKS environment, without
+     * touching cluster discovery. Split out from {@link #syncAllEksClusters()} so the scheduler
+     * can run this on its own schedule independent of auto-registration.
+     * @return total number of node groups synced across all environments
+     */
+    public int syncRegisteredEksEnvironments() {
+        if (!eksService.isAvailable()) {
+            log.warn("EKS cloud provider not available — skipping EKS status refresh");
+            return -1;
+        }
 
         List<Environment> eksEnvironments = environmentRepository.findActiveEksEnvironments();
         log.info("EKS sync starting for {} EKS environment(s)", eksEnvironments.size());
@@ -322,7 +346,7 @@ public class EksSyncService {
         // Fetch live status and scaling config from EKS
         String providerVmId = clusterName + "/" + nodeGroupName;
         Nodegroup nodegroup = eksService.describeNodegroup(clusterName, nodeGroupName, region);
-        VmStatus liveStatus = nodegroup != null ? mapNodegroupToVmStatus(nodegroup) : VmStatus.UNKNOWN;
+        VmStatus liveStatus = nodegroup != null ? eksService.mapNodegroupToVmStatus(nodegroup) : VmStatus.UNKNOWN;
 
         // Upsert Vm representing this node group
         final VmGroup savedGroup = group;
@@ -514,20 +538,6 @@ public class EksSyncService {
         private int total() {
             return created + updated + removed + failed;
         }
-    }
-
-    private VmStatus mapNodegroupToVmStatus(Nodegroup ng) {
-        if (ng == null) return VmStatus.NOT_FOUND;
-        String status = ng.statusAsString();
-        int desired = ng.scalingConfig() != null ? ng.scalingConfig().desiredSize() : -1;
-
-        return switch (status) {
-            case "ACTIVE" -> desired > 0 ? VmStatus.RUNNING : VmStatus.STOPPED;
-            case "CREATING", "UPDATING" -> VmStatus.STARTING;
-            case "DELETING", "DEGRADED" -> VmStatus.STOPPING;
-            case "CREATE_FAILED", "DELETE_FAILED" -> VmStatus.ERROR;
-            default -> VmStatus.UNKNOWN;
-        };
     }
 
     private String resolveRegion(Environment environment) {

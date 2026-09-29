@@ -25,7 +25,8 @@ is the bulk of what's actually useful to expose:
   `cost.optimizer.enabled`, `cost.reservations.enabled`
 - **Rightsizing thresholds**: scale-down/up CPU %, consecutive days/minutes
 - **VM idle thresholds**: CPU %, network/disk bytes-per-period, minimum duration
-- **Feature enables**: `eks.sync.enabled`, `vm.discovery.enabled`,
+- **Feature enables**: `eks.sync.auto-register.enabled`, `eks.sync.status-refresh.enabled`,
+  `vm.discovery.enabled`,
   `automation.rules.enabled`, `vm.state.sync.enabled`, `cloudwatch.metric.enable`,
   `vm.metrics.archive.enabled`, `vm.inventory.sync.enabled`
 

@@ -1,6 +1,7 @@
 package com.tcgdigital.vmcontrol.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tcgdigital.vmcontrol.dto.EksClusterInfoDTO;
 import com.tcgdigital.vmcontrol.model.*;
 import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import com.tcgdigital.vmcontrol.repository.VmGroupRepository;
@@ -54,6 +55,10 @@ class EksSyncServiceTest {
         // In production `self` is the Spring proxy (for REQUIRES_NEW boundaries); in this unit
         // test point it at the instance so `self.upsertNodeGroup(...)` is a plain call.
         ReflectionTestUtils.setField(service, "self", service);
+        // EksSyncService delegates status mapping to the real (single source of truth) logic in
+        // EksCloudProviderService rather than keeping its own copy — let the mock compute it for
+        // real instead of returning null. `lenient` since not every test exercises this path.
+        lenient().when(eksService.mapNodegroupToVmStatus(any())).thenCallRealMethod();
     }
 
     // ---- syncEksEnvironment tests ----
@@ -378,6 +383,38 @@ class EksSyncServiceTest {
                 && e.getMetadata().contains("ap-south-1")));
         assertTrue(captor.getAllValues().stream().anyMatch(e -> "dr-cluster".equals(e.getName())
                 && e.getMetadata().contains("us-east-1")));
+    }
+
+    @Test
+    void getUnregisteredEksClusters_scansEveryConfiguredRegionAndTagsEachWithItsRegion() {
+        ReflectionTestUtils.setField(service, "configuredSyncRegions", "ap-south-1,us-east-1");
+        when(eksService.listClusters("ap-south-1")).thenReturn(List.of("prod-cluster", "already-registered"));
+        when(eksService.listClusters("us-east-1")).thenReturn(List.of("dr-cluster"));
+        when(environmentRepository.existsByName("prod-cluster")).thenReturn(false);
+        when(environmentRepository.existsByName("already-registered")).thenReturn(true);
+        when(environmentRepository.existsByName("dr-cluster")).thenReturn(false);
+
+        List<EksClusterInfoDTO> result = service.getUnregisteredEksClusters();
+
+        assertEquals(2, result.size());
+        assertTrue(result.stream().anyMatch(c -> "prod-cluster".equals(c.getClusterName())
+                && "ap-south-1".equals(c.getRegion())));
+        assertTrue(result.stream().anyMatch(c -> "dr-cluster".equals(c.getClusterName())
+                && "us-east-1".equals(c.getRegion())));
+        assertTrue(result.stream().noneMatch(c -> "already-registered".equals(c.getClusterName())));
+    }
+
+    @Test
+    void getUnregisteredEksClusters_oneRegionFailingDoesNotBlockOthers() {
+        ReflectionTestUtils.setField(service, "configuredSyncRegions", "ap-south-1,us-east-1");
+        when(eksService.listClusters("ap-south-1")).thenThrow(new RuntimeException("region unreachable"));
+        when(eksService.listClusters("us-east-1")).thenReturn(List.of("dr-cluster"));
+        when(environmentRepository.existsByName("dr-cluster")).thenReturn(false);
+
+        List<EksClusterInfoDTO> result = service.getUnregisteredEksClusters();
+
+        assertEquals(1, result.size());
+        assertEquals("dr-cluster", result.get(0).getClusterName());
     }
 
     @Test
