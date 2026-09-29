@@ -81,6 +81,8 @@ const Config = (function() {
             create: `${API_BASE_URL}/environments`,
             update: (id) => `${API_BASE_URL}/environments/${id}`,
             delete: (id) => `${API_BASE_URL}/environments/${id}`,
+            reactivate: (id) => `${API_BASE_URL}/environments/${id}/reactivate`,
+            notifyStop: (id) => `${API_BASE_URL}/environments/${id}/notify-stop`,
             discoverEks: `${API_BASE_URL}/environments/discover/eks`
         },
 
@@ -174,7 +176,8 @@ const Config = (function() {
             unread:     `${API_BASE_URL}/notifications/unread`,
             count:      `${API_BASE_URL}/notifications/count`,
             markRead:   (id) => `${API_BASE_URL}/notifications/${id}/read`,
-            markAllRead: `${API_BASE_URL}/notifications/read-all`
+            markAllRead: `${API_BASE_URL}/notifications/read-all`,
+            emailLog:   `${API_BASE_URL}/notifications/email-log`
         },
 
         // EC2 (AWS)

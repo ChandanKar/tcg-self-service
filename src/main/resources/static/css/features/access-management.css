@@ -102,7 +102,9 @@
    ============================================ */
 .access-stats-row {
     display: flex;
-    gap: 1.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
     padding: 0.5rem 0.75rem;
     margin-bottom: 0;
 }
@@ -110,7 +112,7 @@
 .access-stat-item {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.35rem;
     font-size: 0.81rem;
 }
 
@@ -123,17 +125,67 @@
     color: var(--text-primary);
 }
 
-/* ============================================
-   Workspace Panels
-   ============================================ */
-.access-workspace {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 360px;
-    gap: 0.75rem;
-    align-items: stretch;
-    min-height: 540px;
+.access-stat-sep {
+    color: var(--border-color);
+    user-select: none;
 }
 
+/* ============================================
+   Tabs — Grants / Pending Requests / Activity Log
+   ============================================ */
+.access-tabs {
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 0;
+}
+
+.access-tabs .nav-link {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    padding: 0.5rem 0.85rem;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: none;
+}
+
+.access-tabs .nav-link:hover {
+    color: var(--text-primary);
+    border-bottom-color: var(--border-color);
+}
+
+.access-tabs .nav-link.active {
+    color: var(--text-primary);
+    font-weight: 600;
+    border-bottom-color: var(--primary-color);
+}
+
+.access-tab-count {
+    display: inline-block;
+    margin-left: 0.35rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 0.05rem 0.4rem;
+    border-radius: 999px;
+    background: var(--status-stopped-bg, #f3f4f6);
+    color: var(--status-stopped-text, #4b5563);
+}
+
+.access-tabs .nav-link.active .access-tab-count {
+    background: var(--status-starting-bg, #dbeafe);
+    color: var(--status-starting-text, #1e40af);
+}
+
+.access-tab-count.warn {
+    background: var(--status-stopping-bg, #fef3c7);
+    color: var(--status-stopping-text, #92400e);
+}
+
+.access-tab-content {
+    margin-top: 0.75rem;
+}
+
+/* ============================================
+   Panels
+   ============================================ */
 .access-panel {
     min-width: 0;
     background: var(--sidebar-bg);
@@ -180,15 +232,16 @@
 
 .access-table-shell {
     display: flex;
-    flex: 1;
-    min-height: 0;
     flex-direction: column;
+    min-height: 0;
 }
 
+/* Content-height, capped so long lists scroll inside the card. Must NOT rely on
+   `flex: 1` to get its height — the grants panel now sits in a plain tab pane with
+   no fixed height, and a flex-fill child collapses to 0 there. */
 .access-table-wrapper {
-    flex: 1;
     overflow: auto;
-    min-height: 0;
+    max-height: 60vh;
 }
 
 /* Scrollbar — see main.css for the shared ::-webkit-scrollbar rules */
@@ -335,67 +388,58 @@
     min-height: 26px;
 }
 
-/* Row-action icon buttons — see components/buttons.css for .btn-action */
+/* Row-action icon buttons — see components/buttons.css for .btn-action.
+   Column widths come from the table's own <colgroup>, so the Actions column
+   always keeps its share (the old nth-child rules summed to 100% and left it 0). */
 
-.access-table th:nth-child(1),
-.access-table td:nth-child(1) { width: 18%; }
-.access-table th:nth-child(2),
-.access-table td:nth-child(2) { width: 25%; }
-.access-table th:nth-child(3),
-.access-table td:nth-child(3) { width: 12%; }
-.access-table th:nth-child(4),
-.access-table td:nth-child(4) { width: 15%; }
-.access-table th:nth-child(5),
-.access-table td:nth-child(5) { width: 12%; }
-.access-table th:nth-child(6),
-.access-table td:nth-child(6) { width: 10%; }
-.access-table th:nth-child(7),
-.access-table td:nth-child(7) { width: 8%; }
-
-.access-table td:first-child,
-.access-table td:not(:first-child):not(.text-end) {
+.access-grants-table td {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-/* ============================================
-   Review Panel
-   ============================================ */
-.access-panel-review {
-    max-height: 620px;
+.access-grants-table td.access-dates,
+.access-grants-table td:last-child {
+    white-space: normal;
 }
 
-.access-review-tabs {
-    flex-shrink: 0;
-    padding: 0 0.75rem;
-    background: var(--background-light);
-}
-
-.access-review-tabs .nav-link {
-    font-size: 0.78rem;
-    color: var(--text-secondary);
-    padding: 0.45rem 0.55rem;
-}
-
-.access-review-tabs .nav-link.active {
-    color: var(--text-primary);
+/* ---- Status badge (grants table) ---- */
+.access-status-badge {
+    display: inline-block;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: var(--table-header-font, 0.7rem);
     font-weight: 600;
 }
+.access-status-badge.status-active   { background: var(--status-running-bg, #dcfce7); color: var(--status-running-text, #166534); }
+.access-status-badge.status-expiring { background: var(--status-stopping-bg, #fef3c7); color: var(--status-stopping-text, #92400e); }
+.access-status-badge.status-expired  { background: var(--status-error-bg, #fee2e2);   color: var(--status-error-text, #991b1b); }
+.access-status-badge.status-pending  { background: #e0e7ff; color: #3730a3; }
+.access-status-badge.status-revoked  { background: var(--status-stopped-bg, #f3f4f6); color: var(--status-stopped-text, #4b5563); }
 
-.access-review-content {
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
+/* ---- Source cell ---- */
+.access-src {
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+.access-src i {
+    opacity: 0.7;
 }
 
-.access-review-content .tab-pane {
-    height: 100%;
+/* ---- Granted / Expires stacked cell ---- */
+.access-dates {
+    line-height: 1.3;
+}
+.access-dates-expiry {
+    font-size: 0.7rem;
 }
 
+/* ============================================
+   Review lists (Pending Requests / Activity Log tab panes)
+   ============================================ */
 .access-request-list,
 .access-activity-list {
-    height: 100%;
+    max-height: 620px;
     overflow-y: auto;
     padding: 0.65rem;
 }
@@ -559,7 +603,10 @@
 }
 
 .access-autocomplete-item {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
     width: 100%;
     text-align: left;
     padding: 0.5rem 0.75rem;
@@ -578,6 +625,40 @@
 .access-autocomplete-item:hover,
 .access-autocomplete-item:focus {
     background: var(--background-light);
+}
+
+.access-autocomplete-item.is-disabled,
+.access-autocomplete-item:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.access-autocomplete-item.is-disabled:hover,
+.access-autocomplete-item:disabled:hover {
+    background: none;
+}
+
+/* Group header inside the user typeahead ("In this app" / "Microsoft Entra directory") */
+.access-autocomplete-group {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    background: var(--background-light);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.access-autocomplete-badge {
+    flex-shrink: 0;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding: 0.05rem 0.4rem;
+    border-radius: 999px;
+    background: var(--status-stopped-bg, #f3f4f6);
+    color: var(--status-stopped-text, #4b5563);
 }
 
 .access-autocomplete-empty {
@@ -644,30 +725,22 @@
 
     .access-stats-row {
         flex-wrap: wrap;
-        gap: 1rem;
+        gap: 0.5rem 1rem;
     }
 
     .access-stat-item {
         flex: 0 0 auto;
     }
-
-    .access-workspace {
-        grid-template-columns: 1fr;
-    }
-
-    .access-panel-review {
-        max-height: none;
-        height: 420px;
-    }
 }
 
 @media (max-width: 768px) {
-    .access-table th:nth-child(4),
-    .access-table td:nth-child(4),
-    .access-table th:nth-child(5),
-    .access-table td:nth-child(5),
-    .access-table th:nth-child(6),
-    .access-table td:nth-child(6) {
+    /* Drop Scope, Source and Granted-by on narrow screens; keep User / Env / Level / Status / Dates / Actions. */
+    .access-grants-table th:nth-child(3),
+    .access-grants-table td:nth-child(3),
+    .access-grants-table th:nth-child(6),
+    .access-grants-table td:nth-child(6),
+    .access-grants-table th:nth-child(7),
+    .access-grants-table td:nth-child(7) {
         display: none;
     }
 

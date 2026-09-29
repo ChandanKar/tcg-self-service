@@ -188,6 +188,24 @@ class NotificationServiceTest {
     }
 
     @Test
+    void notifyStopEnvironment_emailsRecipientsWithBroadcastContext_noFlagRequired() {
+        // Unlike the other email types, this one is NOT gated behind a notification.email.*
+        // flag — the admin's button click is itself the opt-in — so no ReflectionTestUtils
+        // setField is needed here.
+        int emailed = service.notifyStopEnvironment("env-A", "Env A", "user-admin", "scheduled maintenance");
+
+        ArgumentCaptor<List<String>> addressesCaptor = ArgumentCaptor.forClass(List.class);
+        verify(emailService, atLeastOnce()).sendHtml(addressesCaptor.capture(), anyString(), anyString(),
+                eq(null), eq(null), eq("STOP_ENVIRONMENT_BROADCAST"), eq("env-A"), eq("user-admin"));
+
+        List<String> allEmailedAddresses = addressesCaptor.getAllValues().stream()
+                .flatMap(List::stream).toList();
+        assertTrue(allEmailedAddresses.contains("admin@tcg.com"), "platform admin must be notified");
+        assertTrue(allEmailedAddresses.contains("envadmin@tcg.com"), "administering env admin must be notified");
+        assertTrue(emailed > 0, "should report a positive emailed count");
+    }
+
+    @Test
     void notifyAccessExpiring_emailGoesToUserAndAdministeringEnvAdmins() {
         ReflectionTestUtils.setField(service, "emailAccessExpiringEnabled", true);
         when(notificationRepository.existsByUserIdAndTypeAndEntityTypeAndEntityId(

@@ -8,6 +8,10 @@ const AccessManagement = (function() {
 
     // Constants
     const PAGE_SIZE = 10;
+    const STATUS_LABEL = {
+        ACTIVE: 'Active', EXPIRING: 'Expiring', EXPIRED: 'Expired',
+        PENDING: 'Pending', REVOKED: 'Revoked'
+    };
 
     // State
     let environments = [];
@@ -18,10 +22,19 @@ const AccessManagement = (function() {
     let selectedEnvironmentId = '';
     let currentPage = 1;
     let currentSearch = '';
+    let currentStatusFilter = '';
+    let currentScopeFilter = '';
 
     // Autocomplete instances for the Grant Access modal (initialized in bindEvents)
     let grantEnvironmentAutocomplete = null;
     let grantUserAutocomplete = null;
+
+    // The user chosen in the Grant Access modal, once picked from the typeahead.
+    // { source: 'app', email } for an existing user, or
+    // { source: 'directory', directoryObjectId, email, displayName } for an Entra directory
+    // match that will be onboarded as a normal user on submit. Null until a pick is made;
+    // cleared whenever the user edits the search box.
+    let grantUserPick = null;
 
     // Set by openForEnvironment() before navigating here; consumed once the view renders.
     let pendingOpenEnvId = null;
@@ -253,11 +266,25 @@ const AccessManagement = (function() {
                             <span class="input-group-text"><i class="fas fa-search"></i></span>
                             <input type="text" class="form-control" id="access-search"
                                    placeholder="Search by name or email..." value="${escapeHtml(currentSearch)}">
+                            <button class="btn btn-primary" type="button" id="btn-access-search" title="Search">
+                                <i class="fas fa-arrow-right"></i>
+                            </button>
                         </div>
                     </div>
                     <select class="form-select form-select-sm" id="filter-environment">
                         <option value="">All Environments</option>
                         ${envOptions}
+                    </select>
+                    <select class="form-select form-select-sm" id="filter-status">
+                        <option value="">Any status</option>
+                        <option value="ACTIVE">Active</option>
+                        <option value="EXPIRING">Expiring &le; 7d</option>
+                        <option value="EXPIRED">Expired</option>
+                    </select>
+                    <select class="form-select form-select-sm" id="filter-scope">
+                        <option value="">Any scope</option>
+                        <option value="ENVIRONMENT">Environment</option>
+                        <option value="GROUP">Group</option>
                     </select>
                     <button class="btn btn-primary btn-sm" id="btn-grant-access">
                         <i class="fas fa-plus me-1"></i>Grant Access
@@ -265,95 +292,98 @@ const AccessManagement = (function() {
                 </div>
 
                 <!-- Stats Row -->
-                <div class="access-stats-row">
-                    <div class="access-stat-item">
-                        <span class="stat-label">Total Access:</span>
-                        <span class="stat-value">${stats.totalAccess}</span>
-                    </div>
-                    <div class="access-stat-item">
-                        <span class="stat-label">Admins:</span>
-                        <span class="stat-value text-danger">${stats.admins}</span>
-                    </div>
-                    <div class="access-stat-item">
-                        <span class="stat-label">Users:</span>
-                        <span class="stat-value text-primary">${stats.users}</span>
-                    </div>
-                    <div class="access-stat-item">
-                        <span class="stat-label">Viewers:</span>
-                        <span class="stat-value text-secondary">${stats.viewers}</span>
-                    </div>
-                    <div class="access-stat-item">
-                        <span class="stat-label">Pending:</span>
-                        <span class="stat-value text-warning">${stats.pending}</span>
-                    </div>
-                </div>
+                <div class="access-stats-row">${buildStatsRowHtml(stats)}</div>
 
-                <div class="access-workspace">
-                    <!-- Environment Access Section -->
-                    <section class="access-panel access-panel-main">
-                        <div class="access-panel-header">
-                            <div>
-                                <h5><i class="fas fa-users me-2"></i>Environment Access</h5>
-                                <p>${escapeHtml(envName)}</p>
-                            </div>
-                            <span class="access-panel-count">${filteredAccess.length} grants</span>
-                        </div>
-                        <div class="access-table-shell">
-                            <div class="access-table-wrapper">
-                                <table class="table table-hover access-table mb-0">
-                                    <thead>
-                                        <tr>
-                                            <th>Environment</th>
-                                            <th>Scope</th>
-                                            <th>User</th>
-                                            <th>Access Level</th>
-                                            <th>Granted By</th>
-                                            <th>Granted Date</th>
-                                            <th>Expires</th>
-                                            <th class="text-end">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="access-table-body">
-                                        <!-- Populated by renderAccessTable() -->
-                                    </tbody>
-                                </table>
-                            </div>
-                            <div id="access-pagination" class="pagination-bar-wrap"></div>
-                        </div>
-                    </section>
+                <!-- Tabs -->
+                <ul class="nav nav-tabs access-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="grants-tab" data-bs-toggle="tab"
+                                data-bs-target="#grants-pane" type="button" role="tab">
+                            Grants <span class="access-tab-count" id="grants-tab-count">${allAccess.length}</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="pending-tab" data-bs-toggle="tab"
+                                data-bs-target="#pending-pane" type="button" role="tab">
+                            Pending Requests
+                            <span class="access-tab-count${pendingRequests.length ? ' warn' : ''}" id="pending-tab-count">${pendingRequests.length}</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="activity-tab" data-bs-toggle="tab"
+                                data-bs-target="#activity-pane" type="button" role="tab">
+                            Activity Log
+                        </button>
+                    </li>
+                </ul>
 
-                    <aside class="access-panel access-panel-review">
-                        <div class="access-panel-header">
-                            <div>
-                                <h5><i class="fas fa-clipboard-check me-2"></i>Review</h5>
-                                <p>Requests and recent access events</p>
+                <div class="tab-content access-tab-content">
+                    <!-- Grants -->
+                    <div class="tab-pane fade show active" id="grants-pane" role="tabpanel" aria-labelledby="grants-tab">
+                        <section class="access-panel">
+                            <div class="access-panel-header">
+                                <div>
+                                    <h5><i class="fas fa-users me-2"></i>Environment &amp; Group Access</h5>
+                                    <p id="access-scope-label">${escapeHtml(envName)}</p>
+                                </div>
+                                <span class="access-panel-count">${filteredAccess.length} grants</span>
                             </div>
-                        </div>
-                        <ul class="nav nav-tabs access-review-tabs" role="tablist">
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link active" id="pending-review-tab" data-bs-toggle="tab"
-                                        data-bs-target="#pending-review-pane" type="button" role="tab">
-                                    Pending
-                                    ${pendingRequests.length > 0 ? `<span class="badge text-bg-warning ms-1">${pendingRequests.length}</span>` : ''}
-                                </button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link" id="activity-review-tab" data-bs-toggle="tab"
-                                        data-bs-target="#activity-review-pane" type="button" role="tab">
-                                    Activity
-                                </button>
-                            </li>
-                        </ul>
-                        <div class="tab-content access-review-content">
-                            <div class="tab-pane fade show active" id="pending-review-pane" role="tabpanel" aria-labelledby="pending-review-tab">
-                                <div id="pending-table-body" class="access-request-list"></div>
+                            <div class="access-table-shell">
+                                <div class="access-table-wrapper">
+                                    <table class="table table-hover access-table access-grants-table mb-0">
+                                        <colgroup>
+                                            <col style="width: 19%;"><col style="width: 13%;"><col style="width: 11%;">
+                                            <col style="width: 8%;"><col style="width: 10%;"><col style="width: 9%;">
+                                            <col style="width: 10%;"><col style="width: 12%;"><col style="width: 8%;">
+                                        </colgroup>
+                                        <thead>
+                                            <tr>
+                                                <th>User</th>
+                                                <th>Environment</th>
+                                                <th>Scope</th>
+                                                <th>Level</th>
+                                                <th>Status</th>
+                                                <th>Source</th>
+                                                <th>Granted by</th>
+                                                <th>Granted / Expires</th>
+                                                <th class="text-end">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="access-table-body">
+                                            <!-- Populated by renderAccessTable() -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div id="access-pagination" class="pagination-bar-wrap"></div>
                             </div>
-                            <div class="tab-pane fade" id="activity-review-pane" role="tabpanel" aria-labelledby="activity-review-tab">
-                                <div class="access-activity-scope">${escapeHtml(envName)}</div>
-                                <div id="activity-log-body" class="access-activity-list"></div>
+                        </section>
+                    </div>
+
+                    <!-- Pending Requests -->
+                    <div class="tab-pane fade" id="pending-pane" role="tabpanel" aria-labelledby="pending-tab">
+                        <section class="access-panel">
+                            <div class="access-panel-header">
+                                <div>
+                                    <h5><i class="fas fa-clipboard-check me-2"></i>Pending Requests</h5>
+                                    <p>Access requests awaiting your review</p>
+                                </div>
                             </div>
-                        </div>
-                    </aside>
+                            <div id="pending-table-body" class="access-request-list"></div>
+                        </section>
+                    </div>
+
+                    <!-- Activity -->
+                    <div class="tab-pane fade" id="activity-pane" role="tabpanel" aria-labelledby="activity-tab">
+                        <section class="access-panel">
+                            <div class="access-panel-header">
+                                <div>
+                                    <h5><i class="fas fa-history me-2"></i>Activity Log</h5>
+                                    <p>Recent access events &mdash; <span class="access-activity-scope">${escapeHtml(envName)}</span></p>
+                                </div>
+                            </div>
+                            <div id="activity-log-body" class="access-activity-list"></div>
+                        </section>
+                    </div>
                 </div>
             </div>
 
@@ -381,7 +411,7 @@ const AccessManagement = (function() {
                                            placeholder="Type at least 2 characters to search by name or email...">
                                     <input type="hidden" id="grant-user-id">
                                     <div class="access-autocomplete-menu" id="grant-user-menu"></div>
-                                    <div class="form-text">Searches users who have already signed in to this app.</div>
+                                    <div class="form-text">Searches app users first, then the Microsoft Entra directory (admin only). Picking a directory match onboards that person as a normal user, then grants.</div>
                                 </div>
                                 <div class="mb-3" id="grant-scope-block">
                                     <label class="form-label d-block">Scope</label>
@@ -476,8 +506,65 @@ const AccessManagement = (function() {
             admins: allAccess.filter(a => a.accessLevel === 'ADMIN').length,
             users: allAccess.filter(a => a.accessLevel === 'USER').length,
             viewers: allAccess.filter(a => a.accessLevel === 'VIEWER').length,
+            environmentScope: allAccess.filter(a => a.scopeType !== 'GROUP').length,
+            groupScope: allAccess.filter(a => a.scopeType === 'GROUP').length,
+            expiringSoon: allAccess.filter(a => getEffectiveStatus(a) === 'EXPIRING').length,
             pending: pendingRequests.length
         };
+    }
+
+    /**
+     * Build the inline stats strip. Counts are grants (a user with access to N environments
+     * shows as N grants), not distinct users.
+     */
+    function buildStatsRowHtml(stats) {
+        return `
+            <div class="access-stat-item"><span class="stat-value">${stats.totalAccess}</span><span class="stat-label">grants</span></div>
+            <span class="access-stat-sep">|</span>
+            <div class="access-stat-item"><span class="stat-value text-danger">${stats.admins}</span><span class="stat-label">Admin</span></div>
+            <div class="access-stat-item"><span class="stat-value text-primary">${stats.users}</span><span class="stat-label">User</span></div>
+            <div class="access-stat-item"><span class="stat-value text-secondary">${stats.viewers}</span><span class="stat-label">Viewer</span></div>
+            <span class="access-stat-sep">|</span>
+            <div class="access-stat-item"><span class="stat-value">${stats.environmentScope}</span><span class="stat-label">environment</span></div>
+            <div class="access-stat-item"><span class="stat-value">${stats.groupScope}</span><span class="stat-label">group</span></div>
+            <span class="access-stat-sep">|</span>
+            <div class="access-stat-item">
+                <i class="fas fa-triangle-exclamation text-warning" aria-hidden="true"></i>
+                <span class="stat-value text-warning">${stats.expiringSoon}</span><span class="stat-label">expiring &le; 7d</span>
+            </div>`;
+    }
+
+    /**
+     * Reduce a grant's raw status + expiry to one display state:
+     * ACTIVE | EXPIRING (active, expires within 7 days) | EXPIRED | PENDING | REVOKED.
+     */
+    function getEffectiveStatus(access) {
+        const s = access.status || 'ACTIVE';
+        if (s === 'REVOKED') return 'REVOKED';
+        if (s === 'PENDING') return 'PENDING';
+        if (access.expiresAt) {
+            const ms = new Date(access.expiresAt).getTime() - Date.now();
+            if (s === 'EXPIRED' || ms <= 0) return 'EXPIRED';
+            if (ms <= 7 * 864e5) return 'EXPIRING';
+        } else if (s === 'EXPIRED') {
+            return 'EXPIRED';
+        }
+        return 'ACTIVE';
+    }
+
+    /** "12 Aug 2025" — an absolute date is clearer than "3 months ago" for a governance table. */
+    function formatAbsDate(ts) {
+        const d = new Date(ts);
+        if (isNaN(d.getTime())) return '-';
+        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    /** Short relative hint for an expiry cell: "in 5d" / "today" / "3d ago". */
+    function relativeShort(ts) {
+        const days = Math.round((new Date(ts).getTime() - Date.now()) / 864e5);
+        if (days < 0) return `${-days}d ago`;
+        if (days === 0) return 'today';
+        return `in ${days}d`;
     }
 
     /**
@@ -490,11 +577,12 @@ const AccessManagement = (function() {
         $('.access-panel-count').text(`${filteredAccess.length} grant${filteredAccess.length !== 1 ? 's' : ''}`);
 
         if (pageAccess.length === 0) {
+            const anyFilter = currentSearch || currentStatusFilter || currentScopeFilter;
             $('#access-table-body').html(`
                 <tr>
-                    <td colspan="8" class="text-center text-muted py-4">
+                    <td colspan="9" class="text-center text-muted py-4">
                         <i class="fas fa-users-slash fa-2x mb-2 d-block opacity-50"></i>
-                        ${currentSearch ? 'No users match your search' : 'No users have access for this selection'}
+                        ${anyFilter ? 'No grants match your filters' : 'No grants for this selection'}
                     </td>
                 </tr>
             `);
@@ -511,19 +599,34 @@ const AccessManagement = (function() {
     function buildAccessRow(access) {
         const levelClass = getLevelClass(access.accessLevel);
         const initials = getInitials(access.userDisplayName || access.userEmail);
-        const grantedDate = access.grantedAt ? Utils.formatRelativeTime(access.grantedAt) : '-';
-        const expiresDate = access.expiresAt ? Utils.formatRelativeTime(access.expiresAt) : 'Never';
-        const isExpiringSoon = access.expiresAt && isWithinDays(access.expiresAt, 7);
-
         const isGroup = access.scopeType === 'GROUP';
+
+        const effStatus = getEffectiveStatus(access);
+        const statusBadge = `<span class="access-status-badge status-${effStatus.toLowerCase()}">${STATUS_LABEL[effStatus] || effStatus}</span>`;
+
+        const requested = access.initiation === 'REQUEST';
+        const source = requested
+            ? '<i class="fas fa-inbox me-1" aria-hidden="true"></i>Requested'
+            : '<i class="fas fa-circle-arrow-right me-1" aria-hidden="true"></i>Direct';
+
+        const grantedAbs = access.grantedAt ? formatAbsDate(access.grantedAt) : '-';
+        let expiryLine;
+        if (!access.expiresAt) {
+            expiryLine = '<span class="text-muted">Expires Never</span>';
+        } else if (effStatus === 'EXPIRED') {
+            expiryLine = `<span class="text-danger">Expired ${formatAbsDate(access.expiresAt)}</span>`;
+        } else if (effStatus === 'EXPIRING') {
+            expiryLine = `<span class="text-warning fw-semibold">Expires ${formatAbsDate(access.expiresAt)} &middot; ${relativeShort(access.expiresAt)}</span>`;
+        } else {
+            expiryLine = `<span class="text-muted">Expires ${formatAbsDate(access.expiresAt)}</span>`;
+        }
+
         const scopeChip = isGroup
             ? `<span class="access-scope-chip access-scope-chip--group" title="Group scope"><i class="fas fa-layer-group me-1"></i>${escapeHtml(access.scopeName || access.scopeId)}</span>`
             : `<span class="access-scope-chip">Environment</span>`;
 
         return `
             <tr data-access-id="${access.accessId}">
-                <td>${escapeHtml(access.environmentName || access.environmentId || '-')}</td>
-                <td>${scopeChip}</td>
                 <td>
                     <div class="user-cell">
                         <div class="user-avatar-sm">${initials}</div>
@@ -533,19 +636,23 @@ const AccessManagement = (function() {
                         </div>
                     </div>
                 </td>
+                <td title="${escapeHtml(access.environmentName || access.environmentId || '')}">${escapeHtml(access.environmentName || access.environmentId || '-')}</td>
+                <td>${scopeChip}</td>
                 <td><span class="access-level-badge ${levelClass}">${access.accessLevel}</span></td>
+                <td>${statusBadge}</td>
+                <td class="access-src">${source}</td>
                 <td class="text-muted">${escapeHtml(access.grantedByUserName || 'System')}</td>
-                <td class="text-muted">${grantedDate}</td>
-                <td class="${isExpiringSoon ? 'text-warning' : 'text-muted'}">
-                    ${isExpiringSoon ? '<i class="fas fa-exclamation-triangle me-1"></i>' : ''}${expiresDate}
+                <td class="access-dates">
+                    <div>${grantedAbs}</div>
+                    <div class="access-dates-expiry">${expiryLine}</div>
                 </td>
                 <td class="text-end text-nowrap">
-                    <button class="btn btn-sm btn-outline-secondary btn-action me-1" data-action="edit"
+                    <button class="btn btn-sm btn-action btn-outline-primary me-1" data-action="edit"
                             data-access-id="${access.accessId}"
                             title="Edit grant" aria-label="Edit grant">
                         <i class="fas fa-pen"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-danger btn-action" data-action="revoke"
+                    <button class="btn btn-sm btn-action btn-outline-danger" data-action="revoke"
                             data-access-id="${access.accessId}"
                             data-user-name="${escapeHtml(access.userDisplayName || access.userEmail)}"
                             data-scope-name="${escapeHtml(isGroup ? (access.scopeName || 'this group') : 'the environment')}"
@@ -691,10 +798,18 @@ const AccessManagement = (function() {
         const search = currentSearch.toLowerCase().trim();
 
         filteredAccess = allAccess.filter(access => {
-            if (!search) return true;
-            const name = (access.userDisplayName || '').toLowerCase();
-            const email = (access.userEmail || '').toLowerCase();
-            return name.includes(search) || email.includes(search);
+            if (search) {
+                const name = (access.userDisplayName || '').toLowerCase();
+                const email = (access.userEmail || '').toLowerCase();
+                if (!name.includes(search) && !email.includes(search)) return false;
+            }
+            if (currentScopeFilter) {
+                const isGroup = access.scopeType === 'GROUP';
+                if (currentScopeFilter === 'GROUP' && !isGroup) return false;
+                if (currentScopeFilter === 'ENVIRONMENT' && isGroup) return false;
+            }
+            if (currentStatusFilter && getEffectiveStatus(access) !== currentStatusFilter) return false;
+            return true;
         });
 
         currentPage = 1;
@@ -715,18 +830,44 @@ const AccessManagement = (function() {
             });
         });
 
-        // Search input
+        // Search — filters the loaded grants live (300ms debounce) as you type;
+        // the button and Enter apply it immediately.
         $('#access-search').off('input').on('input', Utils.debounce(function() {
             currentSearch = $(this).val();
             applyFilters();
         }, 300));
+        $('#access-search').off('keypress').on('keypress', function(e) {
+            if (e.which === 13) {
+                e.preventDefault();
+                currentSearch = $(this).val();
+                applyFilters();
+            }
+        });
+        $('#btn-access-search').off('click').on('click', function() {
+            currentSearch = $('#access-search').val();
+            applyFilters();
+        });
+
+        // Status / scope filters
+        $('#filter-status').off('change').on('change', function() {
+            currentStatusFilter = $(this).val();
+            applyFilters();
+        });
+        $('#filter-scope').off('change').on('change', function() {
+            currentScopeFilter = $(this).val();
+            applyFilters();
+        });
 
         // Environment filter
         $('#filter-environment').off('change').on('change', async function() {
             selectedEnvironmentId = $(this).val();
             currentPage = 1;
             currentSearch = '';
+            currentStatusFilter = '';
+            currentScopeFilter = '';
             $('#access-search').val('');
+            $('#filter-status').val('');
+            $('#filter-scope').val('');
 
             try {
                 [allAccess, activityLogs] = await Promise.all([
@@ -743,15 +884,14 @@ const AccessManagement = (function() {
 
             // Update section headers
             const envName = getSelectedEnvironmentName();
-            $('.access-panel-main .access-panel-header p').text(envName);
+            $('#access-scope-label').text(envName);
             $('.access-activity-scope').text(envName);
 
-            // Update stats
-            const stats = calculateStats();
-            updateStatsDisplay(stats);
+            // Update stats + tab counts
+            updateStatsDisplay(calculateStats());
+            updatePendingTabBadge();
 
-            renderAccessTable();
-            renderAccessPagination();
+            applyFilters();
             renderActivityLogsTable();
         });
 
@@ -804,14 +944,12 @@ const AccessManagement = (function() {
             hiddenSelector: '#grant-user-id',
             menuSelector: '#grant-user-menu',
             minChars: 2,
-            fetchSuggestions: (query) => new Promise((resolve, reject) => {
-                ApiClient.get(Config.API.users.search(query))
-                    .done(users => resolve((users || []).map(user => ({
-                        id: user.email,
-                        label: `${user.displayName || user.email} (${user.email})`
-                    }))))
-                    .fail(reject);
-            })
+            fetchSuggestions: searchUsersThenDirectory,
+            onInput: () => { grantUserPick = null; setGrantButtonMode('grant'); },
+            onSelect: (id, label, item) => {
+                grantUserPick = (item && item.data) || null;
+                setGrantButtonMode(grantUserPick && grantUserPick.source === 'directory' ? 'onboard' : 'grant');
+            }
         });
 
         // Revoke access
@@ -848,11 +986,7 @@ const AccessManagement = (function() {
      * Update stats display
      */
     function updateStatsDisplay(stats) {
-        $('.access-stats-row .access-stat-item').eq(0).find('.stat-value').text(stats.totalAccess);
-        $('.access-stats-row .access-stat-item').eq(1).find('.stat-value').text(stats.admins);
-        $('.access-stats-row .access-stat-item').eq(2).find('.stat-value').text(stats.users);
-        $('.access-stats-row .access-stat-item').eq(3).find('.stat-value').text(stats.viewers);
-        $('.access-stats-row .access-stat-item').eq(4).find('.stat-value').text(stats.pending);
+        $('.access-stats-row').html(buildStatsRowHtml(stats));
     }
 
     /**
@@ -904,6 +1038,7 @@ const AccessManagement = (function() {
         $('#grant-user-search, #grant-environment-search').prop('disabled', editing);
 
         if (editing) {
+            grantUserPick = { source: 'app', email: editAccess.userEmail, displayName: editAccess.userDisplayName };
             grantUserAutocomplete && grantUserAutocomplete.setValue(
                 `${editAccess.userDisplayName || editAccess.userEmail} (${editAccess.userEmail})`, editAccess.userEmail);
             grantEnvironmentAutocomplete && grantEnvironmentAutocomplete.setValue(
@@ -917,6 +1052,7 @@ const AccessManagement = (function() {
             $('#grant-duration').val('');
             $('#grant-notes').val(editAccess.notes || '');
         } else {
+            grantUserPick = null;
             grantUserAutocomplete && grantUserAutocomplete.reset();
             const preselected = selectedEnvironmentId && environments.find(env => env.environmentId === selectedEnvironmentId);
             if (grantEnvironmentAutocomplete) {
@@ -967,10 +1103,13 @@ const AccessManagement = (function() {
      * the Environment and User fields in the Grant Access modal. Typing invalidates any
      * previously selected value until a suggestion is clicked again.
      */
-    function initAutocomplete({ inputSelector, hiddenSelector, menuSelector, minChars, fetchSuggestions, onSelect }) {
+    function initAutocomplete({ inputSelector, hiddenSelector, menuSelector, minChars, fetchSuggestions, onSelect, onInput }) {
         const $input = $(inputSelector);
         const $hidden = $(hiddenSelector);
         const $menu = $(menuSelector);
+        // Bumped on every keystroke and on reset/setValue — a resolved fetch whose seq is
+        // stale is dropped so a slow response can't overwrite a newer one.
+        let reqSeq = 0;
 
         function closeMenu() {
             $menu.empty().hide();
@@ -982,23 +1121,40 @@ const AccessManagement = (function() {
                 return;
             }
             $menu.data('items', items);
-            $menu.html(items.map((item, idx) => `
-                <button type="button" class="access-autocomplete-item" data-idx="${idx}">
-                    ${escapeHtml(item.label)}
-                </button>
-            `).join('')).show();
+            let lastGroup = null;
+            const rows = items.map((item, idx) => {
+                let html = '';
+                if (item.group && item.group !== lastGroup) {
+                    lastGroup = item.group;
+                    html += `<div class="access-autocomplete-group">${escapeHtml(item.group)}</div>`;
+                }
+                const badge = item.badge
+                    ? `<span class="access-autocomplete-badge">${escapeHtml(item.badge)}</span>` : '';
+                html += `
+                    <button type="button" class="access-autocomplete-item${item.disabled ? ' is-disabled' : ''}"
+                            data-idx="${idx}"${item.disabled ? ' disabled' : ''}>
+                        <span>${escapeHtml(item.label)}</span>${badge}
+                    </button>`;
+                return html;
+            });
+            $menu.html(rows.join('')).show();
         }
 
         async function handleInput() {
             const query = $input.val().trim();
             $hidden.val('');
+            if (typeof onInput === 'function') onInput();
             if (query.length < minChars) {
                 closeMenu();
                 return;
             }
+            const mySeq = ++reqSeq;
             try {
-                renderSuggestions(await fetchSuggestions(query));
+                const items = await fetchSuggestions(query);
+                if (mySeq !== reqSeq) return;   // a newer keystroke already answered
+                renderSuggestions(items);
             } catch (error) {
+                if (mySeq !== reqSeq) return;
                 console.error('Autocomplete search failed:', error);
                 $menu.html('<div class="access-autocomplete-empty">Search failed</div>').show();
             }
@@ -1007,12 +1163,13 @@ const AccessManagement = (function() {
         $input.off('input.autocomplete').on('input.autocomplete', Utils.debounce(handleInput, 300));
 
         $menu.off('click').on('click', '.access-autocomplete-item', function() {
+            if (this.disabled) return;
             const item = ($menu.data('items') || [])[$(this).data('idx')];
-            if (!item) return;
+            if (!item || item.disabled) return;
             $input.val(item.label);
             $hidden.val(item.id);
             closeMenu();
-            if (typeof onSelect === 'function') onSelect(item.id, item.label);
+            if (typeof onSelect === 'function') onSelect(item.id, item.label, item);
         });
 
         const outsideClickNamespace = 'click.autocomplete-' + inputSelector.replace(/[^a-zA-Z0-9]/g, '');
@@ -1024,16 +1181,92 @@ const AccessManagement = (function() {
 
         return {
             reset() {
+                reqSeq++;
                 $input.val('');
                 $hidden.val('');
                 closeMenu();
             },
             setValue(label, id) {
+                reqSeq++;
                 $input.val(label || '');
                 $hidden.val(id || '');
                 closeMenu();
             }
         };
+    }
+
+    /**
+     * User typeahead for the Grant Access modal: the app database first, and only when it
+     * has no match — and the caller is an admin and the query is 3+ chars — the Microsoft
+     * Entra directory. Directory rows carry a `directoryObjectId`; picking one onboards the
+     * person as a normal user on submit. Directory rows for someone already in the app are
+     * shown disabled.
+     */
+    async function searchUsersThenDirectory(query) {
+        const q = (query || '').trim();
+
+        const localUsers = await new Promise((resolve) => {
+            ApiClient.get(Config.API.users.search(q))
+                .done(users => resolve(users || []))
+                .fail(() => resolve([]));
+        });
+
+        const items = localUsers.map(user => ({
+            id: user.email,
+            label: `${user.displayName || user.email} (${user.email})`,
+            group: 'In this app',
+            data: { source: 'app', email: user.email, displayName: user.displayName }
+        }));
+
+        if (items.length > 0 || q.length < 3 || !Auth.isAdmin()) {
+            return items;
+        }
+
+        let dirResult = null;
+        let dirErrorStatus = null;
+        try {
+            dirResult = await new Promise((resolve, reject) => {
+                ApiClient.get(Config.API.directory.search(q, 10), { suppressGlobalError: true })
+                    .done(resolve)
+                    .fail(reject);
+            });
+        } catch (xhr) {
+            dirErrorStatus = xhr && xhr.status;
+        }
+
+        if (dirErrorStatus === 409) {
+            return [{ label: 'No app users match — directory search is off. Onboard in User Management first.', disabled: true }];
+        }
+        if (dirErrorStatus === 502) {
+            return [{ label: 'No app users match — directory lookup is unavailable right now.', disabled: true }];
+        }
+        if (dirErrorStatus) {
+            return [{ label: 'No app users match — directory search failed.', disabled: true }];
+        }
+
+        return (dirResult || []).map(d => {
+            const email = d.email || d.userPrincipalName || '';
+            return {
+                id: d.directoryObjectId,
+                label: `${d.displayName || email} (${email})`,
+                group: 'Microsoft Entra directory',
+                disabled: !!d.alreadyInApp,
+                badge: d.alreadyInApp ? 'already a user' : null,
+                data: {
+                    source: 'directory',
+                    directoryObjectId: d.directoryObjectId,
+                    email: email,
+                    displayName: d.displayName,
+                    alreadyInApp: !!d.alreadyInApp
+                }
+            };
+        });
+    }
+
+    /** Swap the confirm button label between a plain grant and an onboard-then-grant. */
+    function setGrantButtonMode(mode) {
+        if ($('#grant-access-id').val()) return;   // editing — keep "Save changes"
+        $('#btn-confirm-grant-label').text(mode === 'onboard' ? 'Onboard & grant' : 'Grant Access');
     }
 
     async function refreshAccessData() {
@@ -1043,6 +1276,7 @@ const AccessManagement = (function() {
         ]);
         filteredAccess = [...allAccess];
         updateStatsDisplay(calculateStats());
+        updatePendingTabBadge();
         applyFilters();
         renderActivityLogsTable();
     }
@@ -1054,7 +1288,6 @@ const AccessManagement = (function() {
         const accessId = $('#grant-access-id').val();
         const editing = !!accessId;
         const envId = $('#grant-environment').val();
-        const userEmail = $('#grant-user-id').val();
         const accessLevel = $('#grant-access-level').val();
         const durationRaw = $('#grant-duration').val();
         const durationDays = durationRaw ? parseInt(durationRaw, 10) : null;
@@ -1063,9 +1296,14 @@ const AccessManagement = (function() {
         const groupIds = scopeType === 'GROUP'
             ? $('#grant-group-list .grant-group-cb:checked').map((_, el) => el.value).get()
             : [];
+        const pick = grantUserPick;
 
-        if (!editing && (!envId || !userEmail || !accessLevel)) {
+        if (!editing && (!envId || !accessLevel || !pick)) {
             showToast('Pick a user, an environment and an access level', 'warning');
+            return;
+        }
+        if (!editing && pick.source === 'directory' && pick.alreadyInApp) {
+            showToast('That person is already an app user — search for them again', 'warning');
             return;
         }
         if (!editing && scopeType === 'GROUP' && groupIds.length === 0) {
@@ -1073,27 +1311,39 @@ const AccessManagement = (function() {
             return;
         }
 
+        const viaDirectory = !editing && pick.source === 'directory';
         const $btn = $('#btn-confirm-grant');
         const origLabel = $('#btn-confirm-grant-label').text();
-        $btn.prop('disabled', true).find('#btn-confirm-grant-label').text(editing ? 'Saving…' : 'Granting…');
+        $btn.prop('disabled', true).find('#btn-confirm-grant-label')
+            .text(editing ? 'Saving…' : (viaDirectory ? 'Onboarding…' : 'Granting…'));
 
         try {
             await new Promise((resolve, reject) => {
-                const req = editing
-                    ? ApiClient.patch(Config.API.access.updateGrant(accessId), {
+                let req;
+                if (editing) {
+                    req = ApiClient.patch(Config.API.access.updateGrant(accessId), {
                         accessLevel, durationDays,
                         clearExpiry: durationRaw === '' ? true : null,
                         notes
-                    })
-                    : ApiClient.post(Config.API.access.accessGrants, {
-                        userEmail, environmentId: envId, accessLevel, scopeType,
-                        groupIds, durationDays, notes
                     });
+                } else {
+                    const body = { environmentId: envId, accessLevel, scopeType, groupIds, durationDays, notes };
+                    if (viaDirectory) {
+                        body.directoryObjectId = pick.directoryObjectId;
+                    } else {
+                        body.userEmail = pick.email;
+                    }
+                    req = ApiClient.post(Config.API.access.accessGrants, body);
+                }
                 req.done(resolve).fail(reject);
             });
 
             bootstrap.Modal.getInstance(document.getElementById('grantAccessModal')).hide();
-            showToast(editing ? 'Grant updated' : 'Access granted', 'success');
+            showToast(
+                editing ? 'Grant updated'
+                    : viaDirectory ? `Onboarded ${pick.displayName || pick.email} and granted ${accessLevel}`
+                        : 'Access granted',
+                'success');
             await refreshAccessData();
         } catch (error) {
             console.error('Grant/edit access failed:', error);
@@ -1223,10 +1473,8 @@ const AccessManagement = (function() {
     }
 
     function updatePendingTabBadge() {
-        $('#pending-review-tab').html(`
-            Pending
-            ${pendingRequests.length > 0 ? `<span class="badge text-bg-warning ms-1">${pendingRequests.length}</span>` : ''}
-        `);
+        $('#pending-tab-count').text(pendingRequests.length).toggleClass('warn', pendingRequests.length > 0);
+        $('#grants-tab-count').text(allAccess.length);
     }
 
     function getLevelClass(level) {

@@ -5,7 +5,9 @@ import com.tcgdigital.vmcontrol.model.Environment;
 import com.tcgdigital.vmcontrol.service.EksSyncService;
 import com.tcgdigital.vmcontrol.service.EnvironmentInsightsService;
 import com.tcgdigital.vmcontrol.service.EnvironmentService;
+import com.tcgdigital.vmcontrol.service.NotificationService;
 import com.tcgdigital.vmcontrol.service.SecurityService;
+import com.tcgdigital.vmcontrol.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
@@ -15,7 +17,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -39,18 +40,21 @@ public class EnvironmentController {
     private final SecurityService securityService;
     private final EksSyncService eksSyncService;
     private final EnvironmentInsightsService environmentInsightsService;
-
-    @Value("${aws.region:ap-south-1}")
-    private String defaultRegion;
+    private final NotificationService notificationService;
+    private final UserService userService;
 
     public EnvironmentController(EnvironmentService environmentService,
                                  SecurityService securityService,
                                  EksSyncService eksSyncService,
-                                 EnvironmentInsightsService environmentInsightsService) {
+                                 EnvironmentInsightsService environmentInsightsService,
+                                 NotificationService notificationService,
+                                 UserService userService) {
         this.environmentService = environmentService;
         this.securityService = securityService;
         this.eksSyncService = eksSyncService;
         this.environmentInsightsService = environmentInsightsService;
+        this.notificationService = notificationService;
+        this.userService = userService;
     }
 
     @GetMapping
@@ -118,10 +122,7 @@ public class EnvironmentController {
                 .toList();
         Map<String, EnvironmentService.EnvironmentCounts> counts = environmentService.getBatchCounts(environmentIds);
 
-        Page<EnvironmentDTO> dtos = environments.map(env -> {
-            var c = counts.get(env.getEnvironmentId());
-            return EnvironmentDTO.fromEntityWithCounts(env, c.groupCount(), c.vmCount(), c.runningVmCount());
-        });
+        Page<EnvironmentDTO> dtos = environments.map(env -> toDtoWithCounts(env, counts));
 
         return ResponseEntity.ok(dtos);
     }
@@ -151,20 +152,23 @@ public class EnvironmentController {
     }
 
     /**
-     * Attaches group/VM/running counts to a batch of environments with exactly two count
-     * queries total, regardless of list size — avoids issuing a pair of count queries per
-     * environment (see EnvironmentService.getBatchCounts).
+     * Attaches group/VM/running/region counts to a batch of environments with a small, fixed
+     * number of queries total, regardless of list size — avoids issuing them per environment
+     * (see EnvironmentService.getBatchCounts). Shared by every environment-listing endpoint
+     * (list, paged, available) so they can't drift out of sync with each other.
      */
     private List<EnvironmentDTO> toDtosWithBatchedCounts(List<Environment> environments) {
         List<String> environmentIds = environments.stream().map(Environment::getEnvironmentId).toList();
         var counts = environmentService.getBatchCounts(environmentIds);
 
         return environments.stream()
-                .map(env -> {
-                    var c = counts.get(env.getEnvironmentId());
-                    return EnvironmentDTO.fromEntityWithCounts(env, c.groupCount(), c.vmCount(), c.runningVmCount());
-                })
+                .map(env -> toDtoWithCounts(env, counts))
                 .toList();
+    }
+
+    private EnvironmentDTO toDtoWithCounts(Environment env, Map<String, EnvironmentService.EnvironmentCounts> counts) {
+        var c = counts.get(env.getEnvironmentId());
+        return EnvironmentDTO.fromEntityWithCounts(env, c.groupCount(), c.vmCount(), c.runningVmCount(), c.regions());
     }
 
     @GetMapping("/{environmentId}")
@@ -220,11 +224,7 @@ public class EnvironmentController {
             description = "Returns EKS clusters that exist in AWS but are not yet registered as environments, with their region"
     )
     public ResponseEntity<List<EksClusterInfoDTO>> discoverEksClusters() {
-        List<EksClusterInfoDTO> result = eksSyncService.getUnregisteredEksClusters(defaultRegion)
-                .stream()
-                .map(name -> new EksClusterInfoDTO(name, defaultRegion))
-                .toList();
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(eksSyncService.getUnregisteredEksClusters());
     }
 
     @PostMapping
@@ -286,5 +286,49 @@ public class EnvironmentController {
 
         environmentService.deactivateEnvironment(environmentId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{environmentId}/reactivate")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(
+            summary = "Reactivate an environment",
+            description = "Reverses a soft delete, making a deactivated environment active again"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Environment reactivated successfully",
+                    content = @Content(schema = @Schema(implementation = EnvironmentDTO.class))
+            ),
+            @ApiResponse(responseCode = "404", description = "Environment not found")
+    })
+    public ResponseEntity<EnvironmentDTO> reactivateEnvironment(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId) {
+
+        Environment reactivated = environmentService.reactivateEnvironment(environmentId);
+        return ResponseEntity.ok(EnvironmentDTO.fromEntity(reactivated));
+    }
+
+    @PostMapping("/{environmentId}/notify-stop")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(
+            summary = "Notify environment members that it is being stopped",
+            description = "Emails (and bell-notifies) everyone with active access to this environment. "
+                    + "An explicit admin action, independent of notification.email.* flags — the click is the opt-in."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Notified — body reports how many people were emailed"),
+            @ApiResponse(responseCode = "404", description = "Environment not found")
+    })
+    public ResponseEntity<Map<String, Object>> notifyStop(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId,
+            @RequestBody(required = false) Map<String, String> body) {
+
+        Environment environment = environmentService.getEnvironmentById(environmentId);
+        String reason = body != null ? body.get("reason") : null;
+        String actorUserId = userService.getCurrentUserId();
+        int emailed = notificationService.notifyStopEnvironment(
+                environmentId, environment.getDisplayName(), actorUserId, reason);
+        return ResponseEntity.ok(Map.of("emailedCount", emailed));
     }
 }

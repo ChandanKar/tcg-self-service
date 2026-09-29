@@ -4,17 +4,35 @@ import com.tcgdigital.vmcontrol.model.AccessLevel;
 import com.tcgdigital.vmcontrol.model.AccessScopeType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
 /**
  * Body for {@code POST /api/v1/access-grants} — an admin / env-admin granting access directly
  * to a user, at the environment level or to one or more groups within it.
+ *
+ * <p>The target person is identified by exactly one of:
+ * <ul>
+ *   <li>{@link #userEmail} — an existing {@code app_user} (someone who has signed in or been
+ *       onboarded); the normal path.</li>
+ *   <li>{@link #directoryObjectId} — an Entra ID directory object for a person who is <em>not</em>
+ *       yet an {@code app_user}. The server onboards them as a normal user (no admin rights,
+ *       pending first sign-in) and applies the grant in the same transaction. Requires the
+ *       {@code ADMIN} role and {@code graph.directory.enabled=true}.</li>
+ * </ul>
  */
 public class AccessGrantRequestDTO {
 
-    @NotBlank(message = "User email is required")
+    /** Existing app user's email. Provide this OR {@link #directoryObjectId}, not both. */
     private String userEmail;
+
+    /**
+     * Entra ID directory object id of a person not yet in the app — the server onboards them
+     * as a normal user, then grants. Provide this OR {@link #userEmail}, not both.
+     */
+    @Size(max = 100)
+    private String directoryObjectId;
 
     @NotBlank(message = "Environment id is required")
     private String environmentId;
@@ -43,6 +61,14 @@ public class AccessGrantRequestDTO {
 
     public void setUserEmail(String userEmail) {
         this.userEmail = userEmail;
+    }
+
+    public String getDirectoryObjectId() {
+        return directoryObjectId;
+    }
+
+    public void setDirectoryObjectId(String directoryObjectId) {
+        this.directoryObjectId = directoryObjectId;
     }
 
     public String getEnvironmentId() {

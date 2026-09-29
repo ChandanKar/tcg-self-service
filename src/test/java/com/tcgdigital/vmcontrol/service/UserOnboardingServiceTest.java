@@ -3,6 +3,7 @@ package com.tcgdigital.vmcontrol.service;
 import com.tcgdigital.vmcontrol.dto.AccessGrantRequestDTO;
 import com.tcgdigital.vmcontrol.dto.DirectoryUserDTO;
 import com.tcgdigital.vmcontrol.dto.OnboardUserDTO;
+import com.tcgdigital.vmcontrol.exception.DirectoryLookupException;
 import com.tcgdigital.vmcontrol.exception.UserAlreadyExistsException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.AccessLevel;
@@ -170,5 +171,63 @@ class UserOnboardingServiceTest {
         assertEquals(AccessLevel.USER, sent.getAccessLevel());
         assertEquals(AccessScopeType.ENVIRONMENT, sent.getScopeType());
         assertEquals(30, sent.getDurationDays());
+    }
+
+    // ---- onboardAndGrant: backs POST /api/v1/access-grants with a directoryObjectId ----
+
+    @Test
+    void onboardAndGrant_directoryDisabled_throwsDisabled_andCreatesNothing() {
+        when(graphDirectoryService.isEnabled()).thenReturn(false);
+
+        AccessGrantRequestDTO grant = new AccessGrantRequestDTO();
+        grant.setEnvironmentId("env-A");
+        grant.setAccessLevel(AccessLevel.USER);
+        grant.setScopeType(AccessScopeType.ENVIRONMENT);
+
+        assertThrows(DirectoryLookupException.class,
+                () -> service.onboardAndGrant("oid-g", grant, ACTOR));
+
+        verifyNoInteractions(userService);
+        verifyNoInteractions(environmentAccessService);
+        verify(graphDirectoryService, never()).fetchByObjectId(any());
+    }
+
+    @Test
+    void onboardAndGrant_onboardsAsNormalUser_thenGrantsWithScopeAndNotes() {
+        when(graphDirectoryService.isEnabled()).thenReturn(true);
+        when(graphDirectoryService.fetchByObjectId("oid-g"))
+                .thenReturn(new DirectoryUserDTO("oid-g", "Priya Nair", "priya.nair@corp.com",
+                        "priya.nair@corp.com", false, null));
+        when(userRepository.findByAzureAdObjectId("oid-g")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("priya.nair@corp.com")).thenReturn(Optional.empty());
+        when(userService.createOnboardedUser("priya.nair@corp.com", "Priya Nair", "oid-g", false, false, ACTOR))
+                .thenReturn(user("new-g", "priya.nair@corp.com", true));
+        when(environmentAccessService.grantScoped(eq(ACTOR), any(AccessGrantRequestDTO.class)))
+                .thenReturn(List.of(mock(EnvironmentAccess.class)));
+
+        AccessGrantRequestDTO grant = new AccessGrantRequestDTO();
+        grant.setEnvironmentId("env-A");
+        grant.setAccessLevel(AccessLevel.USER);
+        grant.setScopeType(AccessScopeType.GROUP);
+        grant.setGroupIds(List.of("grp-1", "grp-2"));
+        grant.setDurationDays(30);
+        grant.setNotes("temp cover for release");
+
+        UserOnboardingService.OnboardResult result = service.onboardAndGrant("oid-g", grant, ACTOR);
+
+        assertEquals(1, result.grants().size());
+        // onboarded with no admin / env-admin rights
+        verify(userService).createOnboardedUser("priya.nair@corp.com", "Priya Nair", "oid-g", false, false, ACTOR);
+
+        ArgumentCaptor<AccessGrantRequestDTO> captor = ArgumentCaptor.forClass(AccessGrantRequestDTO.class);
+        verify(environmentAccessService).grantScoped(eq(ACTOR), captor.capture());
+        AccessGrantRequestDTO sent = captor.getValue();
+        assertEquals("priya.nair@corp.com", sent.getUserEmail());
+        assertEquals("env-A", sent.getEnvironmentId());
+        assertEquals(AccessLevel.USER, sent.getAccessLevel());
+        assertEquals(AccessScopeType.GROUP, sent.getScopeType());
+        assertEquals(List.of("grp-1", "grp-2"), sent.getGroupIds());
+        assertEquals(30, sent.getDurationDays());
+        assertEquals("temp cover for release", sent.getNotes());
     }
 }

@@ -33,21 +33,21 @@ const VmOperations = (function() {
      * Start a VM group
      * Backend: operationType=START, groupIds=[groupId]
      */
-    function startGroup(envId, groupId, groupName) {
+    function startGroup(envId, groupId, groupName, noun) {
         return executeOperation(envId, {
             operationType: 'START',
             groupIds: [groupId]
-        }, `Starting group ${groupName || groupId}`);
+        }, `Starting ${(noun || 'group').toLowerCase()} ${groupName || groupId}`);
     }
 
     /**
      * Stop a VM group
      */
-    function stopGroup(envId, groupId, groupName) {
+    function stopGroup(envId, groupId, groupName, noun) {
         return executeOperation(envId, {
             operationType: 'STOP',
             groupIds: [groupId]
-        }, `Stopping group ${groupName || groupId}`);
+        }, `Stopping ${(noun || 'group').toLowerCase()} ${groupName || groupId}`);
     }
 
     /**

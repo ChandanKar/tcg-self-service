@@ -3,6 +3,7 @@ package com.tcgdigital.vmcontrol.service;
 import com.tcgdigital.vmcontrol.dto.AccessGrantRequestDTO;
 import com.tcgdigital.vmcontrol.dto.DirectoryUserDTO;
 import com.tcgdigital.vmcontrol.dto.OnboardUserDTO;
+import com.tcgdigital.vmcontrol.exception.DirectoryLookupException;
 import com.tcgdigital.vmcontrol.exception.UserAlreadyExistsException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.EnvironmentAccess;
@@ -46,6 +47,37 @@ public class UserOnboardingService {
     }
 
     public record OnboardResult(User user, List<EnvironmentAccess> grants) {
+    }
+
+    /**
+     * Onboard a person found in the Entra directory <em>as a normal user</em> (no admin /
+     * env-admin rights) and immediately apply {@code grantReq} to them — all in one
+     * transaction. Backs {@code POST /api/v1/access-grants} when the caller passes a
+     * {@code directoryObjectId} instead of an existing user's email.
+     *
+     * @throws DirectoryLookupException 409 when {@code graph.directory.enabled} is off
+     * @throws UserAlreadyExistsException when that person already has an {@code app_user}
+     */
+    @Transactional
+    public OnboardResult onboardAndGrant(String directoryObjectId, AccessGrantRequestDTO grantReq, String actorUserId) {
+        if (!graphDirectoryService.isEnabled()) {
+            throw DirectoryLookupException.disabled();
+        }
+
+        OnboardUserDTO dto = new OnboardUserDTO();
+        dto.setDirectoryObjectId(directoryObjectId);
+        // admin / envAdmin left at their false defaults — onboard as a normal user.
+
+        OnboardUserDTO.InitialGrant grant = new OnboardUserDTO.InitialGrant();
+        grant.setEnvironmentId(grantReq.getEnvironmentId());
+        grant.setAccessLevel(grantReq.getAccessLevel());
+        grant.setScopeType(grantReq.getScopeType());
+        grant.setGroupIds(grantReq.getGroupIds());
+        grant.setDurationDays(grantReq.getDurationDays());
+        grant.setNotes(grantReq.getNotes());
+        dto.setInitialGrant(grant);
+
+        return onboard(dto, actorUserId);
     }
 
     @Transactional
@@ -107,6 +139,7 @@ public class UserOnboardingService {
         request.setScopeType(g.getScopeType());
         request.setGroupIds(g.getGroupIds());
         request.setDurationDays(g.getDurationDays());
+        request.setNotes(g.getNotes());
         return request;
     }
 

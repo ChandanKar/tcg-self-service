@@ -95,6 +95,7 @@ tasks.register('buildFrontend') {
 		// --- CSS ---
 		def cssLinks = []
 		(html =~ /<link rel="stylesheet" href="([^"]+)"/).each { m, href ->
+			href = href.replaceAll(/\?.*$/, '')   // strip ?v=... cache-bust query string
 			if (!href.startsWith('http') && !href.startsWith('vendor/')) cssLinks << href
 		}
 		def cssOut = new StringBuilder()
@@ -113,6 +114,7 @@ tasks.register('buildFrontend') {
 		// --- JS ---
 		def jsScripts = []
 		(html =~ /<script src="([^"]+)"/).each { m, src ->
+			src = src.replaceAll(/\?.*$/, '')   // strip ?v=... cache-bust query string
 			if (!src.startsWith('http') && !src.startsWith('vendor/')) jsScripts << src
 		}
 		def jsOut = new StringBuilder()

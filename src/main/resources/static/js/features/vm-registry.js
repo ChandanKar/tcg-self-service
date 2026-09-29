@@ -216,9 +216,13 @@ const VmRegistry = (function() {
                     <button class="btn btn-sm btn-warning btn-action" onclick="VmRegistry.editEnvironment('${env.environmentId}')" title="Edit ${tooltip}">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button class="btn btn-sm btn-danger btn-action" onclick="VmRegistry.deleteEnvironment('${env.environmentId}')" title="Delete ${tooltip}">
+                    ${env.isActive
+                        ? `<button class="btn btn-sm btn-danger btn-action" onclick="VmRegistry.deleteEnvironment('${env.environmentId}')" title="Deactivate ${tooltip}">
                         <i class="fas fa-trash"></i>
-                    </button>
+                    </button>`
+                        : `<button class="btn btn-sm btn-success btn-action" onclick="VmRegistry.reactivateEnvironment('${env.environmentId}')" title="Reactivate ${tooltip}">
+                        <i class="fas fa-rotate-left"></i>
+                    </button>`}
                 </td>
             </tr>
         `;
@@ -244,7 +248,7 @@ const VmRegistry = (function() {
             onPageChange: (target) => {
                 const maxPage = Math.ceil(totalItems / pageSize) || 1;
                 if (target < 1 || target > maxPage) return;
-                state.currentPage = target;
+                window.VmRegistryState.currentPage = target;
                 renderEnvironmentsList();
             }
         });
@@ -314,6 +318,22 @@ const VmRegistry = (function() {
                 Loading.hide();
             }
         });
+    }
+
+    async function reactivateEnvironment(environmentId) {
+        const env = window.VmRegistryState.environments.find(e => e.environmentId === environmentId);
+        if (!env) return;
+        try {
+            Loading.show('Reactivating...');
+            await ApiClient.post(Config.API.environments.reactivate(environmentId));
+            Notifications.success('Environment reactivated');
+            await loadEnvironmentsData();
+        } catch (error) {
+            console.error('Failed to reactivate environment:', error);
+            Notifications.error(error.responseJSON?.message || 'Failed to reactivate');
+        } finally {
+            Loading.hide();
+        }
     }
 
     // =========================================================================
@@ -1055,6 +1075,7 @@ const VmRegistry = (function() {
         openCreateEnvironmentModal,
         editEnvironment,
         deleteEnvironment,
+        reactivateEnvironment,
         manageGroups,
         syncEksNow,
         changeGroupVmPage,

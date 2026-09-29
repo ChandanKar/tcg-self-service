@@ -531,6 +531,43 @@ public class NotificationService {
         userRepository.findById(userId).ifPresent(user -> sendEventEmail(List.of(user), subject, bodyText));
     }
 
+    /**
+     * Admin-triggered "we are stopping this environment" broadcast (the "Notify &amp; Stop"
+     * button). Unlike the other email types this isn't gated behind a passive
+     * {@code notification.email.*.enabled} flag — the admin's click is itself the opt-in.
+     * Notifies every active grant holder in-app and by email.
+     *
+     * @return how many people were emailed
+     */
+    public int notifyStopEnvironment(String environmentId, String environmentName, String actorUserId, String reason) {
+        List<User> recipients = resolveEnvironmentRecipients(environmentId);
+        String actorName = resolveUserDisplayName(actorUserId);
+        String detail = isBlank(reason) ? "" : " Reason: " + reason;
+        String actorTitle = "You're stopping: " + environmentName;
+        String actorMessage = "You're stopping environment \"" + environmentName + "\"." + detail;
+        String otherTitle = actorName + " is stopping: " + environmentName;
+        String otherMessage = actorName + " is stopping environment \"" + environmentName + "\"." + detail;
+
+        recipients.forEach(user -> {
+            boolean isActor = user.getUserId().equals(actorUserId);
+            create(user.getUserId(), NotificationType.ENVIRONMENT_STOP_NOTICE,
+                    isActor ? actorTitle : otherTitle, isActor ? actorMessage : otherMessage,
+                    "ENVIRONMENT", environmentId);
+        });
+
+        List<String> addresses = recipients.stream()
+                .filter(user -> user != null && Boolean.TRUE.equals(user.getIsActive()) && !isBlank(user.getEmail()))
+                .map(User::getEmail)
+                .distinct()
+                .toList();
+        if (!addresses.isEmpty()) {
+            String subject = "Environment stop notice: " + environmentName;
+            emailService.sendHtml(addresses, subject, EmailTemplates.eventEmail(subject, otherMessage), null, null,
+                    "STOP_ENVIRONMENT_BROADCAST", environmentId, actorUserId);
+        }
+        return addresses.size();
+    }
+
     private void sendEventEmail(List<User> recipients, String subject, String bodyText) {
         List<String> addresses = recipients.stream()
                 .filter(user -> user != null && Boolean.TRUE.equals(user.getIsActive()) && !isBlank(user.getEmail()))

@@ -4,12 +4,14 @@ import com.tcgdigital.vmcontrol.dto.AccessGrantRequestDTO;
 import com.tcgdigital.vmcontrol.dto.EnvironmentAccessDTO;
 import com.tcgdigital.vmcontrol.dto.UpdateAccessGrantDTO;
 import com.tcgdigital.vmcontrol.exception.UnauthorizedException;
+import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.AccessScopeType;
 import com.tcgdigital.vmcontrol.model.EnvironmentAccess;
 import com.tcgdigital.vmcontrol.model.VmGroup;
 import com.tcgdigital.vmcontrol.repository.VmGroupRepository;
 import com.tcgdigital.vmcontrol.service.EnvironmentAccessService;
 import com.tcgdigital.vmcontrol.service.SecurityService;
+import com.tcgdigital.vmcontrol.service.UserOnboardingService;
 import com.tcgdigital.vmcontrol.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -36,24 +38,36 @@ public class AccessGrantController {
     private final EnvironmentAccessService accessService;
     private final SecurityService securityService;
     private final UserService userService;
+    private final UserOnboardingService userOnboardingService;
     private final VmGroupRepository vmGroupRepository;
 
     public AccessGrantController(EnvironmentAccessService accessService,
                                 SecurityService securityService,
                                 UserService userService,
+                                UserOnboardingService userOnboardingService,
                                 VmGroupRepository vmGroupRepository) {
         this.accessService = accessService;
         this.securityService = securityService;
         this.userService = userService;
+        this.userOnboardingService = userOnboardingService;
         this.vmGroupRepository = vmGroupRepository;
     }
 
     @PostMapping
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Grant access directly",
-            description = "Grants a user access to an environment or to one or more groups within it, "
-                    + "without a request. Requires manage-access rights on every targeted scope.")
+            description = "Grants access to an environment or to one or more groups within it, without a "
+                    + "request. Identify the person by userEmail (an existing app user) or by "
+                    + "directoryObjectId (an Entra directory user not yet in the app — onboarded as a "
+                    + "normal user in the same transaction, ADMIN only). Requires manage-access rights on "
+                    + "every targeted scope.")
     public ResponseEntity<List<EnvironmentAccessDTO>> grant(@Valid @RequestBody AccessGrantRequestDTO dto) {
+        boolean hasEmail = dto.getUserEmail() != null && !dto.getUserEmail().isBlank();
+        boolean hasDirectoryId = dto.getDirectoryObjectId() != null && !dto.getDirectoryObjectId().isBlank();
+        if (hasEmail == hasDirectoryId) {
+            throw new ValidationException("Provide exactly one of userEmail or directoryObjectId");
+        }
+
         if (dto.getScopeType() == AccessScopeType.GROUP) {
             List<String> groupIds = dto.getGroupIds() == null ? List.of() : dto.getGroupIds();
             for (String groupId : groupIds) {
@@ -65,7 +79,18 @@ public class AccessGrantController {
             throw new UnauthorizedException("You cannot manage access on environment " + dto.getEnvironmentId());
         }
 
-        List<EnvironmentAccess> grants = accessService.grantScoped(userService.getCurrentUserId(), dto);
+        String actorUserId = userService.getCurrentUserId();
+        List<EnvironmentAccess> grants;
+        if (hasDirectoryId) {
+            if (!securityService.isAdmin()) {
+                throw new UnauthorizedException("Onboarding a user from the directory requires the ADMIN role");
+            }
+            grants = userOnboardingService
+                    .onboardAndGrant(dto.getDirectoryObjectId().trim(), dto, actorUserId)
+                    .grants();
+        } else {
+            grants = accessService.grantScoped(actorUserId, dto);
+        }
         return ResponseEntity.status(HttpStatus.CREATED).body(toDtos(grants));
     }
 

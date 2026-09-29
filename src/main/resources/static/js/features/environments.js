@@ -339,10 +339,11 @@ const Environments = (function() {
                                 <th>Environment</th>
                                 <th class="col-type text-center">Type</th>
                                 <th class="col-cloud text-center">Cloud</th>
-                                <th>Groups</th>
-                                <th>Total VMs</th>
-                                <th>Running</th>
-                                <th>Lock Status</th>
+                                <th class="col-region">Region</th>
+                                <th class="col-groups text-center">Groups</th>
+                                <th class="col-vms text-center">Total VMs</th>
+                                <th class="col-running">Running</th>
+                                <th class="col-lock">Lock Status</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -373,7 +374,9 @@ const Environments = (function() {
             if (env.lockStatus && env.lockStatus.isLocked) {
                 const lockedBy = env.lockStatus.lockedByUserId === Auth.getUserId() ? 'you' :
                                  (env.lockStatus.lockedByDisplayName || 'another user');
-                lockDisplay = `<span class="text-warning"><i class="fas fa-lock"></i> ${lockedBy}</span>`;
+                // Lock Status is a capped column (see .col-lock) — a long display name
+                // truncates, so the full "Locked by X" is always recoverable on hover.
+                lockDisplay = `<span class="text-warning" data-bs-toggle="tooltip" title="Locked by ${escapeHtml(lockedBy)}"><i class="fas fa-lock"></i> ${escapeHtml(lockedBy)}</span>`;
             } else {
                 lockDisplay = `<span class="text-success"><i class="fas fa-unlock"></i> Unlocked</span>`;
             }
@@ -405,20 +408,30 @@ const Environments = (function() {
             const cloudProv = (envMeta.defaultCloudProvider || 'AWS').toUpperCase();
             const cloudCfg = (Config.CLOUD_ICONS || {})[cloudProv] || { icon: 'fab fa-aws', color: '#FF9900', label: 'AWS' };
 
+            // Derived from the environment's own VMs (works the same for EC2 and EKS) rather
+            // than a declared value, so it always reflects what's actually there.
+            const regions = env.regions || [];
+            const regionCell = regions.length === 0
+                ? '<span class="text-muted">&mdash;</span>'
+                : regions.length === 1
+                    ? escapeHtml(regions[0])
+                    : `<span data-bs-toggle="tooltip" title="${escapeHtml(regions.join(', '))}">${escapeHtml(regions[0])} <span class="text-muted">+${regions.length - 1}</span></span>`;
+
             return `
                 <tr>
                     <td><strong${descTooltip}>${escapeHtml(env.name)}</strong></td>
                     <td class="text-center">${typeCell}</td>
                     <td class="text-center"><i class="${cloudCfg.icon} env-cloud-icon" style="color:${cloudCfg.color}" data-bs-toggle="tooltip" title="${cloudCfg.label || cloudProv}"></i></td>
-                    <td>${env.groupCount || 0}</td>
-                    <td>${totalVms}</td>
-                    <td>
+                    <td class="col-region">${regionCell}</td>
+                    <td class="col-groups text-center">${env.groupCount || 0}</td>
+                    <td class="col-vms text-center">${totalVms}</td>
+                    <td class="col-running">
                         <span class="status-badge ${statusClass}">
                             <i class="fas fa-circle"></i> ${runningVms}/${totalVms}
                         </span>
                     </td>
-                    <td>${lockDisplay}</td>
-                    <td>
+                    <td class="col-lock">${lockDisplay}</td>
+                    <td class="col-actions">
                         <button class="btn btn-sm btn-primary btn-action"
                                 data-env-id="${env.environmentId}" data-env-name="${escapeHtml(env.name)}" data-action="view"
                                 data-bs-toggle="tooltip" title="View">
@@ -607,6 +620,10 @@ const Environments = (function() {
                             ? `<button class="btn btn-sm btn-ghost" id="btn-env-manage-access"
                                        data-bs-toggle="tooltip" title="Manage access for this environment">
                                 <i class="fas fa-user-shield"></i> Access
+                            </button>
+                            <button class="btn btn-sm btn-ghost" id="btn-env-notify"
+                                       data-bs-toggle="tooltip" title="Email everyone with access to this environment">
+                                <i class="fas fa-envelope"></i> Notify
                             </button>` : ''}
                         ${hasTransitionalVms(env) ?
                             `<button class="btn btn-sm btn-secondary" id="btn-env-action" disabled
@@ -891,6 +908,11 @@ const Environments = (function() {
             }
         });
 
+        $('#btn-env-notify').off('click').on('click', function(e) {
+            e.preventDefault();
+            notifyEnvironmentMembers(env.environmentId, env.displayName || env.name);
+        });
+
         $('[data-action="group-action"]').off('click').on('click', function(e) {
             e.preventDefault();
             const groupId = $(this).data('group-id');
@@ -1009,13 +1031,51 @@ const Environments = (function() {
         });
     }
 
+    /**
+     * "Notify" button — emails (and bell-notifies) everyone with active access to this
+     * environment. Independent of Stop All: usable any time, e.g. right before stopping it,
+     * or for any other heads-up. Not gated behind a notification.email.* flag — the admin's
+     * click here is itself the opt-in.
+     */
+    function notifyEnvironmentMembers(envId, envName) {
+        Modals.confirm(
+            'Notify Environment Members',
+            `Email everyone with access to <strong>${Utils.escapeHtml(envName)}</strong> that it's being stopped? This also adds an in-app notification for each of them.`,
+            function() {
+                ApiClient.post(Config.API.environments.notifyStop(envId), {})
+                    .done(function(result) {
+                        const n = result && result.emailedCount;
+                        Notifications.success(n
+                            ? `Emailed ${n} member${n === 1 ? '' : 's'}`
+                            : 'No active members with an email address to notify');
+                    })
+                    .fail(function(xhr) {
+                        Notifications.error(xhr.responseJSON?.message || 'Failed to send notification');
+                    });
+            },
+            { confirmText: 'Notify', confirmClass: 'btn-primary' }
+        );
+    }
+
+    /**
+     * True when a group's VMs are EKS node-group representations (one Vm per node group in
+     * this model) rather than a regular multi-VM group — used to say "node group" instead of
+     * the more alarming-sounding bare "Group" in operation confirmations, since to the user
+     * this action is scoped to exactly the one node group they clicked, not a broader "group".
+     */
+    function isEksGroup(group) {
+        const vms = group ? (group.vms || []) : [];
+        return vms.length > 0 && vms.every(v => v.provider === 'AWS_EKS');
+    }
+
     function startGroup(envId, groupId) {
         const group = findGroup(groupId);
         const groupName = group ? (group.group?.displayName || group.group?.name || group.displayName || group.name) : groupId;
+        const noun = isEksGroup(group) ? 'Node Group' : 'Group';
         showOperationConfirm({
             envId, opType: 'START',
-            scope: { level: 'group', label: `group <strong>${Utils.escapeHtml(groupName)}</strong>`, groupId },
-            onConfirm: () => VmOperations.startGroup(envId, groupId, groupName)
+            scope: { level: 'group', label: `${noun.toLowerCase()} <strong>${Utils.escapeHtml(groupName)}</strong>`, groupId, noun },
+            onConfirm: () => VmOperations.startGroup(envId, groupId, groupName, noun)
                                 .then(() => loadDetail({ environmentId: envId }))
         });
     }
@@ -1023,11 +1083,12 @@ const Environments = (function() {
     function stopGroup(envId, groupId) {
         const group = findGroup(groupId);
         const groupName = group ? (group.group?.displayName || group.group?.name || group.displayName || group.name) : groupId;
+        const noun = isEksGroup(group) ? 'Node Group' : 'Group';
         showOperationConfirm({
             envId, opType: 'STOP',
-            scope: { level: 'group', label: `group <strong>${Utils.escapeHtml(groupName)}</strong>`, groupId },
+            scope: { level: 'group', label: `${noun.toLowerCase()} <strong>${Utils.escapeHtml(groupName)}</strong>`, groupId, noun },
             note: 'Running VMs will be gracefully stopped.',
-            onConfirm: () => VmOperations.stopGroup(envId, groupId, groupName)
+            onConfirm: () => VmOperations.stopGroup(envId, groupId, groupName, noun)
                                 .then(() => loadDetail({ environmentId: envId }))
         });
     }
@@ -1092,7 +1153,7 @@ const Environments = (function() {
         const { envId, opType, scope, note, onConfirm } = opts;
         const isStart     = opType === 'START';
         const verb        = isStart ? 'Start' : 'Stop';
-        const scopeNoun   = scope.level === 'vm' ? 'VM' : scope.level === 'group' ? 'Group' : 'All';
+        const scopeNoun   = scope.level === 'vm' ? 'VM' : scope.level === 'group' ? (scope.noun || 'Group') : 'All';
         const actionLabel = `${verb} ${scopeNoun}`;
         const actionClass = isStart ? 'btn-success' : 'btn-danger';
 
@@ -1106,7 +1167,7 @@ const Environments = (function() {
 
         // Show modal immediately — estimate loads async
         Modals.confirm(
-            `${verb} ${scope.level === 'environment' ? 'Environment' : scope.level === 'group' ? 'Group' : 'VM'}`,
+            `${verb} ${scope.level === 'environment' ? 'Environment' : scope.level === 'group' ? (scope.noun || 'Group') : 'VM'}`,
             bodyFor(`<div id="estimate-placeholder" class="text-muted small mt-2">
                 <i class="fas fa-spinner fa-spin me-1"></i> Loading time estimate…
             </div>`),

@@ -123,6 +123,14 @@ const SystemHealth = (function () {
         );
     }
 
+    function fetchEmailLog() {
+        return new Promise(resolve => {
+            ApiClient.get(`${Config.API.notifications.emailLog}?page=0&size=20`, { suppressGlobalError: true })
+                .done(data => resolve((data && data.content) || []))
+                .fail(() => resolve([]));
+        });
+    }
+
     // ─── public: load ─────────────────────────────────────────────────────────
 
     async function load() {
@@ -142,7 +150,8 @@ const SystemHealth = (function () {
                 driftCount,
                 auditReport,
                 lockReport,
-                vmOpsReport
+                vmOpsReport,
+                emailLog
             ] = await Promise.all([
                 fetchSyncStatus(),
                 fetchStateChanges(),
@@ -150,12 +159,13 @@ const SystemHealth = (function () {
                 fetchDriftCount(startDate, endDate),
                 fetchAuditReport(startDate, endDate),
                 fetchLockReport(startDate, endDate),
-                fetchVmOpsReport(startDate, endDate)
+                fetchVmOpsReport(startDate, endDate),
+                fetchEmailLog()
             ]);
 
             render({
                 syncStatus, stateChanges, driftEvents,
-                driftCount, auditReport, lockReport, vmOpsReport
+                driftCount, auditReport, lockReport, vmOpsReport, emailLog
             });
         } catch (err) {
             console.error('System Health load error:', err);
@@ -208,7 +218,7 @@ const SystemHealth = (function () {
 
     // ─── render ───────────────────────────────────────────────────────────────
 
-    function render({ syncStatus, stateChanges, driftEvents, driftCount, auditReport, lockReport, vmOpsReport }) {
+    function render({ syncStatus, stateChanges, driftEvents, driftCount, auditReport, lockReport, vmOpsReport, emailLog }) {
 
         const auditTotal    = auditReport ? (auditReport.totalActions || 0) : 0;
         // successfulActions/failedActions are not computed by the backend report endpoint;
@@ -366,6 +376,18 @@ const SystemHealth = (function () {
                 </div>
             </div>
 
+            <!-- Email Log: who we've emailed -->
+            <div class="card sh-compliance-card mb-3">
+                <div class="card-header d-flex align-items-center gap-2">
+                    <i class="fas fa-envelope text-info"></i>
+                    <strong>Email Notifications Sent</strong>
+                    <span class="badge bg-secondary ms-auto">${emailLog.length} recent</span>
+                </div>
+                <div class="card-body">
+                    ${buildEmailLogTable(emailLog)}
+                </div>
+            </div>
+
         </div>`;
 
         $('#content-area').html(html);
@@ -442,6 +464,36 @@ const SystemHealth = (function () {
             <div class="sh-compliance-wrapper">
                 <table class="table table-hover mb-0">
                     <thead><tr>${headerCells}</tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>`;
+    }
+
+    /** "Who have we emailed" — every real send attempt (suppressed sends aren't logged at all). */
+    function buildEmailLogTable(logs) {
+        if (!logs || logs.length === 0) {
+            return emptyState('No emails sent yet (or notification.email.enabled is off)');
+        }
+        const rows = logs.map(log => {
+            const resultIcon = log.success
+                ? '<i class="fas fa-check-circle text-success"></i>'
+                : '<i class="fas fa-times-circle text-danger" title="' + (log.errorMessage || 'Send failed').replace(/"/g, '&quot;') + '"></i>';
+            const recipients = log.recipients || '';
+            const recipientsShort = recipients.length > 60 ? recipients.slice(0, 60) + '…' : recipients;
+            return `
+                <tr>
+                    <td class="text-muted" title="${absTime(log.sentAt)}">${relativeTime(log.sentAt)}</td>
+                    <td>${log.notificationType ? `<span class="badge bg-secondary">${actionLabel(log.notificationType)}</span>` : '—'}</td>
+                    <td>${log.environmentId || '—'}</td>
+                    <td title="${recipients.replace(/"/g, '&quot;')}">${recipientsShort} <span class="text-muted">(${log.recipientCount})</span></td>
+                    <td class="text-truncate" style="max-width:280px" title="${(log.subject || '').replace(/"/g, '&quot;')}">${log.subject || '—'}</td>
+                    <td class="text-center">${resultIcon}</td>
+                </tr>`;
+        }).join('');
+        return `
+            <div class="sh-compliance-wrapper">
+                <table class="table table-hover mb-0">
+                    <thead><tr><th>Sent</th><th>Type</th><th>Environment</th><th>Recipients</th><th>Subject</th><th class="text-center">Result</th></tr></thead>
                     <tbody>${rows}</tbody>
                 </table>
             </div>`;

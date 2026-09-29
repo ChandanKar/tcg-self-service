@@ -26,7 +26,7 @@ $cssMatches = [regex]::Matches($html, $cssPattern)
 $cssContent = ""
 $cssCount = 0
 foreach ($m in $cssMatches) {
-    $href = $m.Groups[1].Value
+    $href = $m.Groups[1].Value -replace '\?.*$', ''   # strip ?v=... cache-bust query string
     if ($href -match "^https?://") { continue }
     if ($href -match "^vendor/") { continue }
 
@@ -50,7 +50,7 @@ $jsMatches = [regex]::Matches($html, $jsPattern)
 $jsContent = ""
 $jsCount = 0
 foreach ($m in $jsMatches) {
-    $src = $m.Groups[1].Value
+    $src = $m.Groups[1].Value -replace '\?.*$', ''   # strip ?v=... cache-bust query string
     if ($src -match "^https?://") { continue }
     if ($src -match "^vendor/") { continue }
 

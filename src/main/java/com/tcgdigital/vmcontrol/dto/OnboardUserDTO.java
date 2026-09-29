@@ -110,6 +110,9 @@ public class OnboardUserDTO {
 
         private Integer durationDays;
 
+        /** Optional reason, carried onto the grant and its audit entry. */
+        private String notes;
+
         public String getEnvironmentId() {
             return environmentId;
         }
@@ -148,6 +151,14 @@ public class OnboardUserDTO {
 
         public void setDurationDays(Integer durationDays) {
             this.durationDays = durationDays;
+        }
+
+        public String getNotes() {
+            return notes;
+        }
+
+        public void setNotes(String notes) {
+            this.notes = notes;
         }
     }
 }

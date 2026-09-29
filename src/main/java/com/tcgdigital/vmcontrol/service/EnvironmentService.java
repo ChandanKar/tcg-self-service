@@ -4,6 +4,7 @@ import com.tcgdigital.vmcontrol.dto.CreateEnvironmentDTO;
 import com.tcgdigital.vmcontrol.dto.UpdateEnvironmentDTO;
 import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
+import com.tcgdigital.vmcontrol.model.AuditAction;
 import com.tcgdigital.vmcontrol.model.Environment;
 import com.tcgdigital.vmcontrol.model.EnvironmentAccess;
 import com.tcgdigital.vmcontrol.model.VmStatus;
@@ -231,6 +232,22 @@ public class EnvironmentService {
         environment.setIsActive(false);
         environmentRepository.save(environment);
         log.info("Deactivated environment: {} ({})", environment.getName(), environmentId);
+        auditService.logEnvironmentAction("system", AuditAction.ENVIRONMENT_DEACTIVATED, environmentId,
+                environment.getName(), "environment", environmentId, environment.getName(), null);
+    }
+
+    /**
+     * Reactivate a previously deactivated environment.
+     */
+    @Transactional
+    public Environment reactivateEnvironment(String environmentId) {
+        Environment environment = getEnvironmentById(environmentId);
+        environment.setIsActive(true);
+        Environment saved = environmentRepository.save(environment);
+        log.info("Reactivated environment: {} ({})", saved.getName(), environmentId);
+        auditService.logEnvironmentAction("system", AuditAction.ENVIRONMENT_ACTIVATED, environmentId,
+                saved.getName(), "environment", environmentId, saved.getName(), null);
+        return saved;
     }
 
     /**
@@ -241,27 +258,41 @@ public class EnvironmentService {
     public Map<String, EnvironmentCounts> getBatchCounts(List<String> environmentIds) {
         Map<String, EnvironmentCounts> result = new HashMap<>();
         for (String id : environmentIds) {
-            result.put(id, new EnvironmentCounts(0, 0, 0));
+            result.put(id, new EnvironmentCounts(0, 0, 0, List.of()));
         }
 
         for (VmGroupRepository.EnvironmentGroupCounts gc : groupRepository.countGroupsGroupedByEnvironment(environmentIds)) {
-            result.merge(gc.getEnvironmentId(), new EnvironmentCounts((int) gc.getTotal(), 0, 0), EnvironmentCounts::mergeGroupCount);
+            result.merge(gc.getEnvironmentId(), new EnvironmentCounts((int) gc.getTotal(), 0, 0, List.of()), EnvironmentCounts::mergeGroupCount);
         }
 
         for (VmRepository.EnvironmentVmCounts vc : vmRepository.countVmsGroupedByEnvironment(environmentIds, VmStatus.RUNNING)) {
-            result.merge(vc.getEnvironmentId(), new EnvironmentCounts(0, (int) vc.getTotal(), (int) vc.getRunning()), EnvironmentCounts::mergeVmCounts);
+            result.merge(vc.getEnvironmentId(), new EnvironmentCounts(0, (int) vc.getTotal(), (int) vc.getRunning(), List.of()), EnvironmentCounts::mergeVmCounts);
         }
+
+        // Distinct regions in use, derived from the environment's own VMs — works the same way
+        // for EC2 and EKS, since an EKS node group's Vm carries its cluster's region too.
+        Map<String, List<String>> regionsByEnvironmentId = vmRepository.findDistinctRegionsGroupedByEnvironment(environmentIds).stream()
+                .collect(Collectors.groupingBy(VmRepository.EnvironmentRegion::getEnvironmentId,
+                        Collectors.mapping(VmRepository.EnvironmentRegion::getRegion, Collectors.toList())));
+        regionsByEnvironmentId.forEach((environmentId, regions) -> {
+            List<String> sortedRegions = regions.stream().sorted().toList();
+            result.merge(environmentId, new EnvironmentCounts(0, 0, 0, sortedRegions), EnvironmentCounts::mergeRegions);
+        });
 
         return result;
     }
 
-    public record EnvironmentCounts(int groupCount, int vmCount, int runningVmCount) {
+    public record EnvironmentCounts(int groupCount, int vmCount, int runningVmCount, List<String> regions) {
         private static EnvironmentCounts mergeGroupCount(EnvironmentCounts existing, EnvironmentCounts groupUpdate) {
-            return new EnvironmentCounts(groupUpdate.groupCount(), existing.vmCount(), existing.runningVmCount());
+            return new EnvironmentCounts(groupUpdate.groupCount(), existing.vmCount(), existing.runningVmCount(), existing.regions());
         }
 
         private static EnvironmentCounts mergeVmCounts(EnvironmentCounts existing, EnvironmentCounts vmUpdate) {
-            return new EnvironmentCounts(existing.groupCount(), vmUpdate.vmCount(), vmUpdate.runningVmCount());
+            return new EnvironmentCounts(existing.groupCount(), vmUpdate.vmCount(), vmUpdate.runningVmCount(), existing.regions());
+        }
+
+        private static EnvironmentCounts mergeRegions(EnvironmentCounts existing, EnvironmentCounts regionsUpdate) {
+            return new EnvironmentCounts(existing.groupCount(), existing.vmCount(), existing.runningVmCount(), regionsUpdate.regions());
         }
     }
 }

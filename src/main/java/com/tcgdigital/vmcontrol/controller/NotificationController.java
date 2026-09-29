@@ -1,9 +1,12 @@
 package com.tcgdigital.vmcontrol.controller;
 
+import com.tcgdigital.vmcontrol.dto.EmailLogDTO;
 import com.tcgdigital.vmcontrol.dto.NotificationDTO;
+import com.tcgdigital.vmcontrol.repository.EmailLogRepository;
 import com.tcgdigital.vmcontrol.service.NotificationService;
 import com.tcgdigital.vmcontrol.service.UserService;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -17,10 +20,13 @@ public class NotificationController {
 
     private final NotificationService notificationService;
     private final UserService userService;
+    private final EmailLogRepository emailLogRepository;
 
-    public NotificationController(NotificationService notificationService, UserService userService) {
+    public NotificationController(NotificationService notificationService, UserService userService,
+                                  EmailLogRepository emailLogRepository) {
         this.notificationService = notificationService;
         this.userService = userService;
+        this.emailLogRepository = emailLogRepository;
     }
 
     @GetMapping
@@ -57,5 +63,23 @@ public class NotificationController {
         String userId = userService.getCurrentUserId();
         int updated = notificationService.markAllAsRead(userId);
         return ResponseEntity.ok(Map.of("updated", updated));
+    }
+
+    /**
+     * Admin-facing "who have we emailed" log — every email the app has actually attempted to
+     * send (weekly reports, access-lifecycle emails, stop-environment broadcasts, ...), most
+     * recent first. A suppressed send (notification.email.enabled=false) is never recorded.
+     */
+    @GetMapping("/email-log")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    public ResponseEntity<Page<EmailLogDTO>> getEmailLog(
+            @RequestParam(required = false) String environmentId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size) {
+        Page<EmailLogDTO> result = (environmentId == null || environmentId.isBlank()
+                ? emailLogRepository.findAllByOrderBySentAtDesc(PageRequest.of(page, size))
+                : emailLogRepository.findByEnvironmentIdOrderBySentAtDesc(environmentId, PageRequest.of(page, size)))
+                .map(EmailLogDTO::fromEntity);
+        return ResponseEntity.ok(result);
     }
 }
