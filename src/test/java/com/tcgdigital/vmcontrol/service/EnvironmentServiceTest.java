@@ -6,8 +6,13 @@ import com.tcgdigital.vmcontrol.dto.UpdateEnvironmentDTO;
 import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.AccessLevel;
+import com.tcgdigital.vmcontrol.model.CloudProvider;
 import com.tcgdigital.vmcontrol.model.Environment;
 import com.tcgdigital.vmcontrol.model.User;
+import com.tcgdigital.vmcontrol.model.Vm;
+import com.tcgdigital.vmcontrol.model.VmGroup;
+import com.tcgdigital.vmcontrol.model.VmStatus;
+import com.tcgdigital.vmcontrol.model.VmType;
 import com.tcgdigital.vmcontrol.repository.EnvironmentAccessRepository;
 import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
@@ -22,6 +27,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -293,6 +300,70 @@ class EnvironmentServiceTest {
         // environment exists that they have no grant for.
         assertEquals(1, results.getTotalElements());
         assertEquals("user-accessible-prod", results.getContent().get(0).getEnvironment().getName());
+    }
+
+    @Test
+    void testGetBatchCounts_derivesDistinctSortedRegionsFromVms() {
+        CreateEnvironmentDTO dto = new CreateEnvironmentDTO();
+        dto.setName("region-env");
+        dto.setDisplayName("Region Environment");
+        Environment env = environmentService.createEnvironment(dto);
+
+        VmGroup group = buildGroup(env);
+        // us-east-1 saved before ap-south-1, but regions come back alphabetically sorted;
+        // a repeated region (vm3) must not produce a duplicate entry.
+        vmRepository.save(buildVm(group, "vm1", 1, "us-east-1"));
+        vmRepository.save(buildVm(group, "vm2", 2, "ap-south-1"));
+        vmRepository.save(buildVm(group, "vm3", 3, "ap-south-1"));
+
+        Map<String, EnvironmentService.EnvironmentCounts> counts =
+                environmentService.getBatchCounts(List.of(env.getEnvironmentId()));
+
+        assertEquals(List.of("ap-south-1", "us-east-1"), counts.get(env.getEnvironmentId()).regions());
+    }
+
+    @Test
+    void testGetBatchCounts_excludesInactiveVmsAndEnvironmentsWithNoVms() {
+        CreateEnvironmentDTO dto = new CreateEnvironmentDTO();
+        dto.setName("no-region-env");
+        dto.setDisplayName("No Region Environment");
+        Environment env = environmentService.createEnvironment(dto);
+
+        VmGroup group = buildGroup(env);
+        Vm inactiveVm = buildVm(group, "inactive-vm", 1, "us-east-1");
+        inactiveVm.setIsActive(false);
+        vmRepository.save(inactiveVm);
+
+        Map<String, EnvironmentService.EnvironmentCounts> counts =
+                environmentService.getBatchCounts(List.of(env.getEnvironmentId()));
+
+        assertEquals(List.of(), counts.get(env.getEnvironmentId()).regions());
+    }
+
+    private VmGroup buildGroup(Environment environment) {
+        VmGroup group = new VmGroup();
+        group.setGroupId(UUID.randomUUID().toString());
+        group.setEnvironment(environment);
+        group.setName("group-" + UUID.randomUUID().toString().substring(0, 8));
+        group.setDisplayName("Group");
+        group.setSequencePosition(1);
+        return groupRepository.save(group);
+    }
+
+    private Vm buildVm(VmGroup group, String name, int sequence, String region) {
+        Vm vm = new Vm();
+        vm.setVmId(UUID.randomUUID().toString());
+        vm.setGroup(group);
+        vm.setName(name);
+        vm.setDisplayName(name);
+        vm.setProvider(CloudProvider.AWS);
+        vm.setRegion(region);
+        vm.setProviderVmId("i-" + UUID.randomUUID().toString().substring(0, 8));
+        vm.setVmType(VmType.DEV);
+        vm.setSequencePosition(sequence);
+        vm.setStatus(VmStatus.RUNNING);
+        vm.setIsActive(true);
+        return vm;
     }
 }
 

@@ -3,6 +3,7 @@ package com.tcgdigital.vmcontrol.dto;
 import com.tcgdigital.vmcontrol.model.Environment;
 
 import java.sql.Timestamp;
+import java.util.List;
 
 /**
  * DTO for Environment entity.
@@ -21,6 +22,7 @@ public class EnvironmentDTO {
     private int runningVmCount;
     private String metadata;
     private String serviceType;
+    private List<String> regions = List.of();
 
     public EnvironmentDTO() {
     }
@@ -40,11 +42,12 @@ public class EnvironmentDTO {
     }
 
     public static EnvironmentDTO fromEntityWithCounts(Environment environment, int groupCount, int vmCount,
-                                                       int runningVmCount) {
+                                                       int runningVmCount, List<String> regions) {
         EnvironmentDTO dto = fromEntity(environment);
         dto.setGroupCount(groupCount);
         dto.setVmCount(vmCount);
         dto.setRunningVmCount(runningVmCount);
+        dto.setRegions(regions);
         return dto;
     }
 
@@ -143,6 +146,14 @@ public class EnvironmentDTO {
 
     public void setServiceType(String serviceType) {
         this.serviceType = serviceType;
+    }
+
+    public List<String> getRegions() {
+        return regions;
+    }
+
+    public void setRegions(List<String> regions) {
+        this.regions = regions;
     }
 }
 

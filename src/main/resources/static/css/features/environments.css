@@ -200,6 +200,32 @@
     cursor: default;
 }
 
+/* Region, Groups, Total VMs, Running, Actions: no fixed width — nowrap alone is enough for an
+   auto-layout table to shrink each to its own content, so every pixel reclaimed here comes out
+   of Lock Status's excess, never out of the Environment column (left with no width rule at all,
+   so it keeps whatever space it already gets). */
+.env-list-table-wrapper .table td.col-region,
+.env-list-table-wrapper .table td.col-groups,
+.env-list-table-wrapper .table td.col-vms,
+.env-list-table-wrapper .table td.col-running,
+.env-list-table-wrapper .table td.col-actions {
+    white-space: nowrap;
+}
+
+/* Lock Status is the one exception that still needs an upper bound: unlike a region code or a
+   count, a locked-by display name is open-ended user input, so nothing stops one long name from
+   dragging the whole column wide again on every row. Sized to the common case ("Unlocked"); a
+   long name truncates with the full "Locked by X" recoverable via the tooltip already on it. */
+.env-list-table-wrapper .table th.col-lock {
+    width: 120px;
+}
+.env-list-table-wrapper .table td.col-lock {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .vm-list-table tr:hover {
     background-color: var(--sidebar-hover);
 }

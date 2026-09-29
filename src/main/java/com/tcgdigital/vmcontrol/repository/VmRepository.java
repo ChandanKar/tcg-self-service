@@ -170,6 +170,18 @@ public interface VmRepository extends JpaRepository<Vm, String> {
     List<EnvironmentVmCounts> countVmsGroupedByEnvironment(@Param("environmentIds") List<String> environmentIds,
                                                             @Param("runningStatus") VmStatus runningStatus);
 
+    /**
+     * Distinct regions in use per environment, one row per (environment, region) pair — avoids
+     * querying each environment individually when building an environment listing with regions.
+     * A VM's region is set the same way for EC2 and EKS (an EKS node group's Vm carries the
+     * cluster's region), so this derives a consistent answer for either service type without
+     * needing to special-case EKS's region metadata.
+     */
+    @Query("SELECT DISTINCT v.group.environment.environmentId AS environmentId, v.region AS region " +
+           "FROM Vm v WHERE v.group.environment.environmentId IN :environmentIds AND v.isActive = true " +
+           "AND v.region IS NOT NULL AND v.region <> ''")
+    List<EnvironmentRegion> findDistinctRegionsGroupedByEnvironment(@Param("environmentIds") List<String> environmentIds);
+
     interface GroupVmCounts {
         String getGroupId();
         long getTotal();
@@ -180,5 +192,10 @@ public interface VmRepository extends JpaRepository<Vm, String> {
         String getEnvironmentId();
         long getTotal();
         long getRunning();
+    }
+
+    interface EnvironmentRegion {
+        String getEnvironmentId();
+        String getRegion();
     }
 }
