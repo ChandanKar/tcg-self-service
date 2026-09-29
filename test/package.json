@@ -1,0 +1,21 @@
+{
+  "name": "tcg-self-service-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Playwright end-to-end tests for the TCG VM Self-Service Platform (tcg-self-service-backup).",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:smoke": "playwright test tests/smoke",
+    "report": "playwright show-report",
+    "codegen": "playwright codegen $BASE_URL"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^22.7.0",
+    "dotenv": "^16.4.5",
+    "typescript": "^5.6.3"
+  }
+}
