@@ -1,11 +1,15 @@
 package com.tcgdigital.vmcontrol.controller;
 
 import com.tcgdigital.vmcontrol.dto.EnvironmentAccessDTO;
+import com.tcgdigital.vmcontrol.dto.MyActivityItemDTO;
+import com.tcgdigital.vmcontrol.dto.MyProfileDTO;
 import com.tcgdigital.vmcontrol.dto.OnboardUserDTO;
 import com.tcgdigital.vmcontrol.dto.OnboardUserResponseDTO;
 import com.tcgdigital.vmcontrol.dto.UpdateUserRoleDTO;
 import com.tcgdigital.vmcontrol.dto.UserDTO;
+import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.User;
+import com.tcgdigital.vmcontrol.service.MyAccountService;
 import com.tcgdigital.vmcontrol.service.UserOnboardingService;
 import com.tcgdigital.vmcontrol.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,10 +38,13 @@ public class UserController {
 
     private final UserService userService;
     private final UserOnboardingService userOnboardingService;
+    private final MyAccountService myAccountService;
 
-    public UserController(UserService userService, UserOnboardingService userOnboardingService) {
+    public UserController(UserService userService, UserOnboardingService userOnboardingService,
+                          MyAccountService myAccountService) {
         this.userService = userService;
         this.userOnboardingService = userOnboardingService;
+        this.myAccountService = myAccountService;
     }
 
     @GetMapping
@@ -117,6 +124,29 @@ public class UserController {
             return ResponseEntity.status(401).build();
         }
         return ResponseEntity.ok(UserDTO.fromEntity(currentUser));
+    }
+
+    @GetMapping("/me/profile")
+    @Operation(
+            summary = "Get my profile",
+            description = "The current user's account details for the My Account panel: sign-in method, " +
+                    "previous sign-in, onboarding provenance and administered environments"
+    )
+    public ResponseEntity<MyProfileDTO> getMyProfile() {
+        return ResponseEntity.ok(myAccountService.getProfile(userService.getCurrentUserId()));
+    }
+
+    @GetMapping("/me/activity")
+    @Operation(
+            summary = "Get my activity",
+            description = "The current user's recent VM operations and access history, newest first"
+    )
+    public ResponseEntity<List<MyActivityItemDTO>> getMyActivity(
+            @Parameter(description = "Maximum entries to return (1-100)") @RequestParam(defaultValue = "25") int limit) {
+        if (limit < 1 || limit > 100) {
+            throw new ValidationException("limit must be between 1 and 100");
+        }
+        return ResponseEntity.ok(myAccountService.getActivity(userService.getCurrentUserId(), limit));
     }
 
     @GetMapping("/{userId}")

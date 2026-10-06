@@ -66,5 +66,14 @@ public interface OperationExecutionRepository extends JpaRepository<OperationExe
             @Param("environmentId") String environmentId,
             @Param("operationType") String operationType,
             Pageable pageable);
-}
 
+    /**
+     * Most recent executions a user started, newest first — the "VM operations" events in the
+     * user's own activity feed.
+     */
+    @Query("SELECT oe FROM OperationExecution oe " +
+           "JOIN FETCH oe.environment " +
+           "WHERE oe.initiatedByUserId = :userId " +
+           "ORDER BY oe.startedAt DESC")
+    List<OperationExecution> findRecentByInitiator(@Param("userId") String userId, Pageable pageable);
+}
