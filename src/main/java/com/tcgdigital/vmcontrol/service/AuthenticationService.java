@@ -78,7 +78,7 @@ public class AuthenticationService {
             throw new UnauthorizedException("Invalid credentials or user not found.");
         }
 
-        user.setLastLoginAt(new Timestamp(System.currentTimeMillis()));
+        user.recordLogin();
         User updatedUser = userRepository.save(user);
 
         log.info("User authenticated successfully via username/password: {} ({})", username, user.getUserId());

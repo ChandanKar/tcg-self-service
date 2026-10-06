@@ -62,6 +62,10 @@ public class User {
     @Column(name = "last_login_at")
     private Timestamp lastLoginAt;
 
+    /** The sign-in before {@link #lastLoginAt}; set by {@link #recordLogin}. */
+    @Column(name = "previous_login_at")
+    private Timestamp previousLoginAt;
+
     /** user_id of the admin who onboarded this row from the panel; null for self-registered / legacy. */
     @Column(name = "onboarded_by", length = 36)
     private String onboardedBy;
@@ -229,6 +233,20 @@ public class User {
 
     public void setLastLoginAt(Timestamp lastLoginAt) {
         this.lastLoginAt = lastLoginAt;
+    }
+
+    public Timestamp getPreviousLoginAt() {
+        return previousLoginAt;
+    }
+
+    public void setPreviousLoginAt(Timestamp previousLoginAt) {
+        this.previousLoginAt = previousLoginAt;
+    }
+
+    /** Record a sign-in now, keeping the one before it as {@link #previousLoginAt}. */
+    public void recordLogin() {
+        this.previousLoginAt = this.lastLoginAt;
+        this.lastLoginAt = new Timestamp(System.currentTimeMillis());
     }
 
     public String getOnboardedBy() {

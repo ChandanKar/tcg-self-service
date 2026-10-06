@@ -81,7 +81,7 @@ public interface UserRepository extends JpaRepository<User, String> {
      * Update last login timestamp for a user.
      */
     @Modifying
-    @Query("UPDATE User u SET u.lastLoginAt = :timestamp WHERE u.userId = :userId")
+    @Query("UPDATE User u SET u.previousLoginAt = u.lastLoginAt, u.lastLoginAt = :timestamp WHERE u.userId = :userId")
     void updateLastLoginAt(@Param("userId") String userId, @Param("timestamp") Timestamp timestamp);
 
     /**

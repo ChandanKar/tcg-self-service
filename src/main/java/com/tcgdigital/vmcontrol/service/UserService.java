@@ -83,7 +83,7 @@ public class UserService {
             }
 
             // Update last login
-            user.setLastLoginAt(new Timestamp(System.currentTimeMillis()));
+            user.recordLogin();
 
             log.debug("User logged in: {} ({})", user.getEmail(), user.getUserId());
             return userRepository.save(user);
@@ -104,7 +104,7 @@ public class UserService {
                 user.setAdmin(true);
                 log.info("Auto-promoting legacy user to admin based on initial-admin-email config: {}", email);
             }
-            user.setLastLoginAt(new Timestamp(System.currentTimeMillis()));
+            user.recordLogin();
             return userRepository.save(user);
         }
 
