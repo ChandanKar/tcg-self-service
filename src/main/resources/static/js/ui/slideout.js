@@ -36,10 +36,12 @@ const Slideout = (function() {
      * Supports either an existing panel id, or dynamic content as (title, html).
      * @param {string} panelIdOrTitle - Panel element ID or dynamic panel title
      * @param {string=} html - Optional dynamic panel body
+     * @param {{variant?: string}=} options - Dynamic panels only: `variant` is set as the
+     *        panel's data-variant so a feature can restyle it (e.g. a narrower width)
      */
-    function open(panelIdOrTitle, html) {
+    function open(panelIdOrTitle, html, options) {
         if (typeof html === 'string') {
-            openDynamic(panelIdOrTitle, html);
+            openDynamic(panelIdOrTitle, html, options);
             return;
         }
 
@@ -56,7 +58,7 @@ const Slideout = (function() {
         $('body').css('overflow', 'hidden');
     }
 
-    function openDynamic(title, html) {
+    function openDynamic(title, html, options = {}) {
         const panelId = 'dynamicSlideoutPanel';
         let $panel = $(`#${panelId}`);
 
@@ -77,6 +79,7 @@ const Slideout = (function() {
             VmCharts.disposeWithin($panel[0]);
         }
 
+        $panel.attr('data-variant', options.variant || null);
         $panel.find('.slideout-panel-header h3').html(title);
         $panel.find('.slideout-panel-content').html(html);
         open(panelId);

@@ -41,7 +41,9 @@ const Config = (function() {
             deactivate: (id) => `${API_BASE_URL}/users/${id}/deactivate`,
             reactivate: (id) => `${API_BASE_URL}/users/${id}/reactivate`,
             search: (query) => `${API_BASE_URL}/users/search?q=${encodeURIComponent(query)}`,
-            admins: `${API_BASE_URL}/users/admins`
+            admins: `${API_BASE_URL}/users/admins`,
+            myProfile: `${API_BASE_URL}/users/me/profile`,
+            myActivity: (limit = 25) => `${API_BASE_URL}/users/me/activity?limit=${limit}`
         },
 
         // Entra ID directory lookup (admin onboarding)
@@ -53,6 +55,7 @@ const Config = (function() {
         // Environment Access
         access: {
             myEnvironments: `${API_BASE_URL}/users/me/access`,
+            myAccessHistory: (days = 30) => `${API_BASE_URL}/users/me/access/history?days=${days}`,
             environmentAccess: (envId) => `${API_BASE_URL}/environments/${envId}/access`,
             grantAccess: (envId) => `${API_BASE_URL}/environments/${envId}/access`,
             revokeAccess: (envId, userId) => `${API_BASE_URL}/environments/${envId}/access/${userId}`,

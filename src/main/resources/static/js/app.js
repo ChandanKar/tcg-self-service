@@ -28,6 +28,7 @@ const App = (function() {
 
             // Initialize UI components
             UserMenu.init();
+            MyAccount.init();
             Sidebar.init();
             Slideout.init();
             Notifications.init();

@@ -1000,6 +1000,7 @@ const AccessRequests = (function() {
         loadRequestAccessPage,
         loadPendingRequestsPage,
         showManageAccessModal,
+        showRequestAccessModal,
         updatePendingBadge
     };
 })();
