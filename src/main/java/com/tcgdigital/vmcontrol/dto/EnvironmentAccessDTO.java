@@ -29,6 +29,7 @@ public class EnvironmentAccessDTO {
     private String grantedByUserName;
     private Timestamp grantedAt;
     private Timestamp expiresAt;
+    private Timestamp revokedAt;
     private String notes;
 
     public EnvironmentAccessDTO() {
@@ -54,6 +55,7 @@ public class EnvironmentAccessDTO {
         dto.setInitiation(access.getInitiation());
         dto.setGrantedAt(access.getGrantedAt());
         dto.setExpiresAt(access.getExpiresAt());
+        dto.setRevokedAt(access.getRevokedAt());
         dto.setNotes(access.getNotes());
 
         if (access.getEnvironment() != null) {
@@ -219,5 +221,12 @@ public class EnvironmentAccessDTO {
     public void setNotes(String notes) {
         this.notes = notes;
     }
-}
 
+    public Timestamp getRevokedAt() {
+        return revokedAt;
+    }
+
+    public void setRevokedAt(Timestamp revokedAt) {
+        this.revokedAt = revokedAt;
+    }
+}

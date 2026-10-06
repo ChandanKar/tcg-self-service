@@ -21,10 +21,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Service for Environment Access management operations.
@@ -40,6 +44,13 @@ public class EnvironmentAccessService {
 
     @Value("${access.group-scope.enabled:true}")
     private boolean groupScopeEnabled;
+
+    /**
+     * A user may request an extension of an active grant once it expires within this many
+     * days. Outside the window, a request for a scope they already hold is rejected.
+     */
+    @Value("${access.extension.window-days:7}")
+    private int extensionWindowDays;
 
     private final EnvironmentAccessRepository accessRepository;
     private final EnvironmentAccessRequestRepository requestRepository;
@@ -75,6 +86,10 @@ public class EnvironmentAccessService {
         return groupScopeEnabled;
     }
 
+    public int getExtensionWindowDays() {
+        return extensionWindowDays;
+    }
+
     // ============= Access Request Operations =============
 
     /**
@@ -103,8 +118,17 @@ public class EnvironmentAccessService {
         String scopeLabel = scopeType == AccessScopeType.GROUP ? "group" : "environment";
 
         Timestamp now = new Timestamp(System.currentTimeMillis());
-        if (accessRepository.findActiveByUserAndScope(requesterId, scopeType, scopeId, now).isPresent()) {
-            throw new ValidationException("You already have active access to this " + scopeLabel);
+        Optional<EnvironmentAccess> active = accessRepository.findActiveByUserAndScope(requesterId, scopeType, scopeId, now);
+        if (active.isPresent()) {
+            // An extension: allowed only for a grant about to expire, and it must say for how
+            // long — approval re-applies the grant, and without a duration the expiry would
+            // stay where it is.
+            if (!isExtendable(active.get(), now)) {
+                throw new ValidationException("You already have active access to this " + scopeLabel);
+            }
+            if (dto.getDurationDays() == null) {
+                throw new ValidationException("Choose how many days to extend your access by");
+            }
         }
         if (requestRepository.hasPendingRequestForScope(requesterId, scopeType, scopeId)) {
             throw new ValidationException("You already have a pending access request for this " + scopeLabel);
@@ -608,6 +632,39 @@ public class EnvironmentAccessService {
     public List<EnvironmentAccess> getAccessForUser(String userId) {
         Timestamp now = new Timestamp(System.currentTimeMillis());
         return accessRepository.findActiveAccessByUser(userId, now);
+    }
+
+    /**
+     * Grants of a user that ended (expired or revoked) in the last {@code days} days, newest
+     * first. A scope the user has since been granted again is left out — they hold it now.
+     */
+    public List<EnvironmentAccess> getEndedAccessForUser(String userId, int days) {
+        Timestamp now = new Timestamp(System.currentTimeMillis());
+        Timestamp since = Timestamp.valueOf(LocalDateTime.now().minusDays(days));
+        Set<String> heldScopes = accessRepository.findActiveAccessByUser(userId, now).stream()
+                .map(a -> a.getScopeType() + ":" + a.getScopeId())
+                .collect(Collectors.toSet());
+        return accessRepository.findEndedAccessByUserSince(userId, now, since).stream()
+                .filter(a -> !heldScopes.contains(a.getScopeType() + ":" + a.getScopeId()))
+                .sorted(Comparator.comparing(EnvironmentAccessService::endedAt).reversed())
+                .toList();
+    }
+
+    /** When a grant ended: its revocation if revoked, else its expiry. */
+    public static Timestamp endedAt(EnvironmentAccess access) {
+        return access.getStatus() == AccessStatus.REVOKED && access.getRevokedAt() != null
+                ? access.getRevokedAt()
+                : access.getExpiresAt();
+    }
+
+    /** True when an active grant expires inside the extension window. */
+    public boolean isExtendable(EnvironmentAccess access, Timestamp now) {
+        Timestamp expiresAt = access.getExpiresAt();
+        if (expiresAt == null) {
+            return false;
+        }
+        long windowMillis = TimeUnit.DAYS.toMillis(extensionWindowDays);
+        return expiresAt.getTime() - now.getTime() <= windowMillis;
     }
 
     /**

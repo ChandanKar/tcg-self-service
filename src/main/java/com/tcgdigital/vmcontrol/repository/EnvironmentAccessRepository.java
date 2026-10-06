@@ -221,6 +221,32 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
             @Param("now") Timestamp now);
 
     /**
+     * Grants of a user that ended since {@code since}: revoked, or past their expiry (whether
+     * or not the expiry job has flipped them to EXPIRED yet). Backs "Recently expired or
+     * revoked" in the My Account panel.
+     */
+    @Query("SELECT ea FROM EnvironmentAccess ea " +
+           "JOIN FETCH ea.environment " +
+           "WHERE ea.user.userId = :userId " +
+           "AND ((ea.status = 'REVOKED' AND ea.revokedAt >= :since) " +
+           "  OR (ea.status <> 'REVOKED' AND ea.expiresAt IS NOT NULL " +
+           "      AND ea.expiresAt <= :now AND ea.expiresAt >= :since))")
+    List<EnvironmentAccess> findEndedAccessByUserSince(
+            @Param("userId") String userId,
+            @Param("now") Timestamp now,
+            @Param("since") Timestamp since);
+
+    /**
+     * Most recently granted rows for a user, any status — the "access granted" events in the
+     * user's own activity feed.
+     */
+    @Query("SELECT ea FROM EnvironmentAccess ea " +
+           "JOIN FETCH ea.environment " +
+           "WHERE ea.user.userId = :userId " +
+           "ORDER BY ea.grantedAt DESC")
+    List<EnvironmentAccess> findRecentGrantsByUser(@Param("userId") String userId, Pageable pageable);
+
+    /**
      * Find expired access grants that need to be marked as expired.
      */
     @Query("SELECT ea FROM EnvironmentAccess ea " +

@@ -256,6 +256,65 @@ class EnvironmentAccessServiceTest {
     }
 
     @Test
+    @DisplayName("A grant expiring inside the extension window can be extended by request")
+    void createAccessRequest_extensionInsideWindow_extendsOnApproval() {
+        accessService.grantAccess(testEnvironment.getEnvironmentId(), adminUser.getUserId(),
+                new GrantAccessDTO(requesterUser.getEmail(), AccessLevel.USER, 3, null));
+
+        EnvironmentAccessRequest request = accessService.createAccessRequest(
+                testEnvironment.getEnvironmentId(), requesterUser.getUserId(),
+                new CreateAccessRequestDTO(AccessLevel.USER, "Extension: still testing", 30));
+        EnvironmentAccess extended = accessService.approveRequest(
+                request.getRequestId(), adminUser.getUserId(), null, null);
+
+        long daysLeft = (extended.getExpiresAt().getTime() - System.currentTimeMillis()) / 86_400_000L;
+        assertThat(daysLeft).isBetween(29L, 30L);
+        assertThat(accessService.getAccessForUser(requesterUser.getUserId())).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("An extension request must say how many days to extend by")
+    void createAccessRequest_extensionWithoutDuration_fails() {
+        accessService.grantAccess(testEnvironment.getEnvironmentId(), adminUser.getUserId(),
+                new GrantAccessDTO(requesterUser.getEmail(), AccessLevel.USER, 3, null));
+
+        assertThatThrownBy(() -> accessService.createAccessRequest(
+                testEnvironment.getEnvironmentId(), requesterUser.getUserId(),
+                new CreateAccessRequestDTO(AccessLevel.USER, "Extension: still testing", null)))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("how many days");
+    }
+
+    @Test
+    @DisplayName("A grant expiring outside the extension window cannot be re-requested")
+    void createAccessRequest_extensionOutsideWindow_fails() {
+        accessService.grantAccess(testEnvironment.getEnvironmentId(), adminUser.getUserId(),
+                new GrantAccessDTO(requesterUser.getEmail(), AccessLevel.USER, 30, null));
+
+        assertThatThrownBy(() -> accessService.createAccessRequest(
+                testEnvironment.getEnvironmentId(), requesterUser.getUserId(),
+                new CreateAccessRequestDTO(AccessLevel.USER, "Extension: still testing", 30)))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("already have active access");
+    }
+
+    @Test
+    @DisplayName("Ended access lists revoked grants, but not a scope the user holds again")
+    void getEndedAccessForUser_listsRevoked_skipsReheldScope() {
+        String envId = testEnvironment.getEnvironmentId();
+        GrantAccessDTO grant = new GrantAccessDTO(requesterUser.getEmail(), AccessLevel.VIEWER, null, null);
+        accessService.grantAccess(envId, adminUser.getUserId(), grant);
+        accessService.revokeAccess(envId, requesterUser.getUserId(), adminUser.getUserId());
+
+        List<EnvironmentAccess> ended = accessService.getEndedAccessForUser(requesterUser.getUserId(), 30);
+        assertThat(ended).hasSize(1);
+        assertThat(ended.get(0).getStatus()).isEqualTo(AccessStatus.REVOKED);
+
+        accessService.grantAccess(envId, adminUser.getUserId(), grant);
+        assertThat(accessService.getEndedAccessForUser(requesterUser.getUserId(), 30)).isEmpty();
+    }
+
+    @Test
     @DisplayName("Should approve access request")
     void approveRequest_success() {
         // Create request

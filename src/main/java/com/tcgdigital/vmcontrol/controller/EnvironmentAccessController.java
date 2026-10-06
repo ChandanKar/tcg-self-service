@@ -1,6 +1,7 @@
 package com.tcgdigital.vmcontrol.controller;
 
 import com.tcgdigital.vmcontrol.dto.*;
+import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.AccessScopeType;
 import com.tcgdigital.vmcontrol.model.EnvironmentAccess;
 import com.tcgdigital.vmcontrol.model.EnvironmentAccessRequest;
@@ -170,6 +171,21 @@ public class EnvironmentAccessController {
         String currentUserId = userService.getCurrentUserId();
         List<EnvironmentAccess> accessList = accessService.getAccessForUser(currentUserId);
         return ResponseEntity.ok(toAccessDtos(accessList));
+    }
+
+    @GetMapping("/users/me/access/history")
+    @Operation(
+            summary = "Get my recently ended access",
+            description = "Grants of the current user that expired or were revoked in the last N days " +
+                    "(default 30), newest first. Scopes the user holds again are left out."
+    )
+    public ResponseEntity<List<EnvironmentAccessDTO>> getMyEndedAccess(
+            @Parameter(description = "Look-back window in days (1-365)") @RequestParam(defaultValue = "30") int days) {
+        if (days < 1 || days > 365) {
+            throw new ValidationException("days must be between 1 and 365");
+        }
+        String currentUserId = userService.getCurrentUserId();
+        return ResponseEntity.ok(toAccessDtos(accessService.getEndedAccessForUser(currentUserId, days)));
     }
 
     // ============= Access Request Endpoints =============
