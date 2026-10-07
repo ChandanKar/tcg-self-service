@@ -1,14 +1,12 @@
 /**
  * NotificationBell — navbar dropdown with read/unread in-app notifications.
- * Polls /api/v1/notifications/count every 60 s; opens a dropdown on click.
+ * The unread count is polled by RealTime ('notificationCount', every 60 s, paused while the tab
+ * is hidden); App.init() calls init() once the user is signed in. Opens a dropdown on click.
  */
 const NotificationBell = (function () {
     'use strict';
 
-    const POLL_MS = 60000;
-
     let $wrapper, $btn, $dropdown, $list, $badge, $markAllBtn, $empty;
-    let pollTimer = null;
     let isOpen = false;
 
     function init() {
@@ -28,22 +26,20 @@ const NotificationBell = (function () {
                 closeDropdown();
             }
         });
-
-        refreshCount();
-        pollTimer = setInterval(refreshCount, POLL_MS);
     }
 
+    /** Background refresh of the unread badge: silent on failure (RealTime.pollGet). */
     function refreshCount() {
-        ApiClient.get(Config.API.notifications.count)
-            .then(function (data) {
-                const n = data.count || 0;
+        if (!$badge) return;
+        RealTime.pollGet(Config.API.notifications.count)
+            .done(function (data) {
+                const n = (data && data.count) || 0;
                 if (n > 0) {
                     $badge.text(n > 99 ? '99+' : n).show();
                 } else {
                     $badge.hide();
                 }
-            })
-            .catch(function () { /* silently ignore — background poll */ });
+            });
     }
 
     function toggleDropdown() {
@@ -194,7 +190,3 @@ const NotificationBell = (function () {
 
     return { init, refreshCount };
 })();
-
-$(document).ready(function () {
-    NotificationBell.init();
-});

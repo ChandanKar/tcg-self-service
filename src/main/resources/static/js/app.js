@@ -32,6 +32,8 @@ const App = (function() {
             Sidebar.init();
             Slideout.init();
             Notifications.init();
+            // Signed in from here on: the bell's count is polled by RealTime (no pre-auth calls).
+            NotificationBell.init();
             if (typeof VmCharts !== 'undefined') {
                 VmCharts.init();
             }
@@ -105,30 +107,7 @@ const App = (function() {
         } else {
             $('#user-management-link').hide();
         }
-
-        // Load pending requests count for env admins
-        if (Auth.isEnvAdmin()) {
-            loadPendingRequestsCount();
-        }
-    }
-
-    /**
-     * Load pending access requests count for badge
-     */
-    function loadPendingRequestsCount() {
-        ApiClient.get(Config.API.access.pendingRequests)
-            .done(function(requests) {
-                const count = requests ? requests.length : 0;
-                if (count > 0) {
-                    $('.pending-count').text(count).show();
-                } else {
-                    $('.pending-count').hide();
-                }
-            })
-            .fail(function() {
-                // Silently fail - not critical
-                $('.pending-count').hide();
-            });
+        // The Pending Requests badge is kept current by RealTime (started in RealTime.init).
     }
 
     /**

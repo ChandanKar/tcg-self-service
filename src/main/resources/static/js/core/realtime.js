@@ -18,20 +18,47 @@ const RealTime = (function() {
     // Active timers: key -> { id, callback, interval, lastRun }
     let timers = {};
     let isPageVisible = true;
+    let sessionLost = false;
+
+    const NOTIFICATION_COUNT_INTERVAL = 60000;
 
     /**
-     * Initialize real-time updates
+     * Initialize real-time updates (call after Auth and NotificationBell are initialised).
      */
     function init() {
         // Track page visibility
         document.addEventListener('visibilitychange', handleVisibilityChange);
 
-        // Start pending requests badge update for admins
+        // App-wide polls (not page scoped): they keep running across navigation.
         if (Auth.isEnvAdmin()) {
             startPendingRequestsPolling();
         }
+        if (typeof NotificationBell !== 'undefined') {
+            startPolling('notificationCount', () => NotificationBell.refreshCount(), NOTIFICATION_COUNT_INTERVAL);
+        }
+    }
 
-        console.log('RealTime module initialized');
+    /**
+     * GET for background polls: failures never raise the global error toast, and a 401 stops
+     * all polling with one "session expired" notice instead of redirecting from a poll.
+     * Page polls should use this too.
+     */
+    function pollGet(url) {
+        return ApiClient.get(url, { suppressGlobalError: true })
+            .fail(function(xhr) {
+                if (xhr && xhr.status === 401) {
+                    onSessionLost();
+                }
+            });
+    }
+
+    function onSessionLost() {
+        if (sessionLost) return;
+        sessionLost = true;
+        stopAllPolling();
+        if (typeof Notifications !== 'undefined') {
+            Notifications.warning('Your session has expired. Reload the page to sign in again.', 0);
+        }
     }
 
     /**
@@ -138,23 +165,11 @@ const RealTime = (function() {
     function updatePendingBadge() {
         if (!Auth.isEnvAdmin()) return;
 
-        ApiClient.get(Config.API.access.pendingRequests)
+        pollGet(Config.API.access.pendingRequests)
             .done(function(requests) {
                 const count = requests ? requests.length : 0;
-                const $badge = $('.pending-requests-badge');
-
-                if (count > 0) {
-                    if ($badge.length) {
-                        $badge.text(count).show();
-                    } else {
-                        // Add badge to sidebar item
-                        $('[data-content="pending-requests"] .menu-text').append(
-                            `<span class="pending-requests-badge badge bg-danger ms-2">${count}</span>`
-                        );
-                    }
-                } else {
-                    $badge.hide();
-                }
+                // Sidebar "Pending Requests" badge (index.html .pending-count)
+                $('.pending-count').text(count).toggle(count > 0);
             });
     }
 
@@ -218,6 +233,7 @@ const RealTime = (function() {
         stopPolling,
         stopAllPolling,
         activePolls,
+        pollGet,
         registerDashboardRefresh,
         registerEnvironmentRefresh,
         unregister,
