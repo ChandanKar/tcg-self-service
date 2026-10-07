@@ -612,6 +612,11 @@ public class AuditService {
                 "User onboarded from admin panel (" + via + "): " + email);
     }
 
+    public void logUserPasswordSet(String performedByUserId, String targetUserId, String email) {
+        logAction(auditUserId(performedByUserId), AuditAction.USER_UPDATED, "user", targetUserId, email,
+                "Password set by user: " + resolveUsername(performedByUserId));
+    }
+
     public void logUserRoleChanged(String performedByUserId, String targetUserId, String role, boolean newValue) {
         String action = newValue ? "granted" : "revoked";
         logAction(auditUserId(performedByUserId), AuditAction.USER_UPDATED, "user", targetUserId, role,

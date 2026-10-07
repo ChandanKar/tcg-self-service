@@ -5,10 +5,12 @@ import com.tcgdigital.vmcontrol.dto.MyActivityItemDTO;
 import com.tcgdigital.vmcontrol.dto.MyProfileDTO;
 import com.tcgdigital.vmcontrol.dto.OnboardUserDTO;
 import com.tcgdigital.vmcontrol.dto.OnboardUserResponseDTO;
+import com.tcgdigital.vmcontrol.dto.SetPasswordRequest;
 import com.tcgdigital.vmcontrol.dto.UpdateUserRoleDTO;
 import com.tcgdigital.vmcontrol.dto.UserDTO;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.User;
+import com.tcgdigital.vmcontrol.service.AuthenticationService;
 import com.tcgdigital.vmcontrol.service.MyAccountService;
 import com.tcgdigital.vmcontrol.service.UserOnboardingService;
 import com.tcgdigital.vmcontrol.service.UserService;
@@ -39,12 +41,14 @@ public class UserController {
     private final UserService userService;
     private final UserOnboardingService userOnboardingService;
     private final MyAccountService myAccountService;
+    private final AuthenticationService authenticationService;
 
     public UserController(UserService userService, UserOnboardingService userOnboardingService,
-                          MyAccountService myAccountService) {
+                          MyAccountService myAccountService, AuthenticationService authenticationService) {
         this.userService = userService;
         this.userOnboardingService = userOnboardingService;
         this.myAccountService = myAccountService;
+        this.authenticationService = authenticationService;
     }
 
     @GetMapping
@@ -323,6 +327,26 @@ public class UserController {
         String currentUserId = userService.getCurrentUserId();
         User user = userService.reactivateUser(userId, currentUserId);
         return ResponseEntity.ok(UserDTO.fromEntity(user));
+    }
+
+    @PutMapping("/{userId}/password")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(
+            summary = "Set user password",
+            description = "Set a new password for username/password sign-in. Requires admin role."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Password set"),
+            @ApiResponse(responseCode = "400", description = "Password too short or too long"),
+            @ApiResponse(responseCode = "403", description = "Access denied - requires admin role"),
+            @ApiResponse(responseCode = "404", description = "User not found")
+    })
+    public ResponseEntity<Void> setPassword(
+            @Parameter(description = "User ID") @PathVariable String userId,
+            @Valid @RequestBody SetPasswordRequest request) {
+
+        authenticationService.setUserPassword(userId, request.getPassword(), userService.getCurrentUserId());
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/admins")

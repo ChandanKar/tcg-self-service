@@ -53,6 +53,9 @@ public class AuthController {
             @RequestBody LoginRequest loginRequest,
             HttpServletRequest request,
             jakarta.servlet.http.HttpServletResponse response) {
+        if (!authenticationService.isPasswordLoginEnabled()) {
+            return ResponseEntity.notFound().build();
+        }
         try {
             // Validate request
             if (loginRequest.getUsername() == null || loginRequest.getUsername().isBlank()) {

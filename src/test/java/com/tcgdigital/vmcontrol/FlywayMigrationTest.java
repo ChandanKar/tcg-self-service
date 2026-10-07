@@ -41,6 +41,15 @@ class FlywayMigrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void testJavaPasswordMigrationApplied() {
+        Integer count = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM flyway_schema_history WHERE version = '24' AND type = 'JDBC' AND success = TRUE",
+            Integer.class
+        );
+        assertEquals(1, count, "V24 Java migration (secure legacy passwords) should be applied");
+    }
+
+    @Test
     void testAppUserTableCreated() {
         Integer columnCount = jdbcTemplate.queryForObject(
             "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'app_user' AND TABLE_SCHEMA = DATABASE()",
