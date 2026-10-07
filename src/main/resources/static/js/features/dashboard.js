@@ -11,17 +11,23 @@ const Dashboard = (function() {
     let chartRegistry = new Map();
     let lastRenderSignature = null;
 
+    /** Router loader (see the page contract in core/router.js). */
     async function load() {
-        RealTime.unregister('dashboard');
+        const t = ContentRouter.token();
+        ContentRouter.onLeave(teardown);
+        RealTime.stopPolling('dashboard');
         showLoading();
 
         try {
-            dashboardData = await fetchDashboardData();
+            const data = await fetchDashboardData();
+            if (!ContentRouter.isCurrent(t)) return;
+            dashboardData = data;
             renderDashboard(dashboardData);
             if (autoRefreshEnabled) {
                 startAutoRefresh();
             }
         } catch (error) {
+            if (!ContentRouter.isCurrent(t)) return;
             console.error('Failed to load dashboard:', error);
             showError(error.status === 403
                 ? 'You do not have access to dashboard data.'
@@ -29,38 +35,57 @@ const Dashboard = (function() {
         }
     }
 
+    /** Auto-refresh tick: silent on errors, never renders after the user left, keeps the search. */
     async function silentRefresh() {
         if (isLoading) return;
+        const t = ContentRouter.token();
         try {
-            const freshData = await fetchDashboardData();
+            const freshData = await fetchDashboardData({ silent: true });
+            if (!ContentRouter.isCurrent(t)) return;
             const freshSignature = dashboardSignature(freshData);
+            dashboardData = freshData;
             if (freshSignature === lastRenderSignature) {
-                dashboardData = freshData;
                 return;
             }
-            dashboardData = freshData;
+            const search = $('#dashboard-env-search').val();
             renderDashboard(dashboardData);
+            if (search) {
+                $('#dashboard-env-search').val(search).trigger('input');
+            }
         } catch (error) {
-            console.error('Silent dashboard refresh failed:', error);
+            console.warn('Silent dashboard refresh failed:', error && error.status);
         }
     }
 
-    function fetchDashboardData() {
+    function fetchDashboardData(options = {}) {
         return new Promise((resolve, reject) => {
-            ApiClient.get(Config.API.dashboard.summary)
-                .done(resolve)
-                .fail(reject);
+            const request = options.silent
+                ? RealTime.pollGet(Config.API.dashboard.summary)
+                : ApiClient.get(Config.API.dashboard.summary);
+            request.done(resolve).fail(reject);
         });
     }
 
     function renderDashboard(data) {
         isLoading = false;
         lastRenderSignature = dashboardSignature(data);
+        disposeTooltips();
         disposeCharts();
         $('#content-area').html(buildDashboardHtml(data));
         bindEvents();
         initCharts(data);
         initTooltips();
+        $(window).off('resize.dashboardCharts').on('resize.dashboardCharts', resizeCharts);
+    }
+
+    /** Runs when the user leaves the dashboard (ContentRouter.onLeave). */
+    function teardown() {
+        RealTime.stopPolling('dashboard');
+        disposeTooltips();
+        disposeCharts();
+        $('#content-area').off('.dashboardJump .dashboardAutoRefresh .dashboardSearch');
+        $(window).off('resize.dashboardCharts');
+        isLoading = false;
     }
 
     function showLoading() {
@@ -683,6 +708,14 @@ const Dashboard = (function() {
         chartRegistry.forEach(instance => instance.resize());
     }
 
+    function disposeTooltips() {
+        if (typeof bootstrap === 'undefined' || !bootstrap.Tooltip) return;
+        document.querySelectorAll('#dashboard-view [data-bs-toggle="tooltip"]').forEach(el => {
+            const existing = bootstrap.Tooltip.getInstance(el);
+            if (existing) existing.dispose();
+        });
+    }
+
     function initTooltips() {
         document.querySelectorAll('#dashboard-view [data-bs-toggle="tooltip"]').forEach(el => {
             if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
@@ -693,8 +726,10 @@ const Dashboard = (function() {
         });
     }
 
+    /** Refresh button: reload through the router so teardown runs first. */
     function refresh() {
-        if (!isLoading) load();
+        if (isLoading) return;
+        ContentRouter.navigate('dashboard');
     }
 
     function setAutoRefresh(enabled) {
@@ -702,18 +737,14 @@ const Dashboard = (function() {
         if (autoRefreshEnabled) {
             startAutoRefresh();
         } else {
-            RealTime.unregister('dashboard');
+            RealTime.stopPolling('dashboard');
         }
         updateAutoRefreshButton();
     }
 
     function startAutoRefresh() {
-        RealTime.unregister('dashboard');
-        if (typeof RealTime.startPolling === 'function') {
-            RealTime.startPolling('dashboard', silentRefresh, 30000, { immediate: false });
-        } else {
-            RealTime.registerDashboardRefresh(silentRefresh);
-        }
+        // Page scoped: stops when the user leaves the dashboard.
+        RealTime.startPolling('dashboard', silentRefresh, 30000, { immediate: false, pageScoped: true });
     }
 
     function updateAutoRefreshButton() {
@@ -804,8 +835,6 @@ const Dashboard = (function() {
         const remainingMinutes = minutes % 60;
         return remainingMinutes ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
     }
-
-    $(window).off('resize.dashboardCharts').on('resize.dashboardCharts', resizeCharts);
 
     return {
         load,

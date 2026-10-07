@@ -205,27 +205,6 @@ const RealTime = (function() {
         }
     }
 
-    /**
-     * Register for dashboard auto-refresh
-     */
-    function registerDashboardRefresh(refreshCallback) {
-        startPolling('dashboard', refreshCallback, INTERVALS.dashboard);
-    }
-
-    /**
-     * Register for environment detail auto-refresh
-     */
-    function registerEnvironmentRefresh(envId, refreshCallback) {
-        startPolling('environmentDetail', refreshCallback, INTERVALS.environmentDetail);
-    }
-
-    /**
-     * Unregister from updates (call when leaving a page)
-     */
-    function unregister(key) {
-        stopPolling(key);
-    }
-
     // Public API
     return {
         init,
@@ -234,9 +213,6 @@ const RealTime = (function() {
         stopAllPolling,
         activePolls,
         pollGet,
-        registerDashboardRefresh,
-        registerEnvironmentRefresh,
-        unregister,
         updatePendingBadge,
         showConnectionStatus
     };

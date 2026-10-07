@@ -37,7 +37,17 @@ const CostManagement = (function() {
         return { content: [], totalPages: 0, totalElements: 0, page: 0 };
     }
 
+    // Navigation token of the current visit (see the page contract in core/router.js).
+    let pageToken = null;
+
+    function isActive() {
+        return pageToken !== null && ContentRouter.isCurrent(pageToken);
+    }
+
+    /** Router loader. */
     function load() {
+        pageToken = ContentRouter.token();
+        ContentRouter.onLeave(teardown);
         if (!Auth.isAdmin()) {
             $('#content-area').html('<div class="alert alert-danger m-3">Access denied. Admin only.</div>');
             return;
@@ -45,6 +55,13 @@ const CostManagement = (function() {
         restorePageStateFromHash();
         showLoading();
         fetchAll();
+    }
+
+    /** Runs when the user leaves Cost Management (ContentRouter.onLeave). */
+    function teardown() {
+        disposeCharts();
+        $(window).off('resize.costManagementCharts');
+        $('#content-area').off('click.rightsizingApply');
     }
 
     // ---- hash-based sub-context (per-table page survives refresh/bookmark) ----
@@ -124,6 +141,7 @@ const CostManagement = (function() {
             fetchJson(Config.API.costManagement.rightsizing(state.rightsizing.page, PAGE_SIZE)),
             fetchJson(Config.API.costManagement.vmDetail(state.detail.page, PAGE_SIZE))
         ]).then(([summary, byEnv, byType, teamTrend, trend, reconciliation, reservationCoverage, forecast, idle, rightsizing, detail]) => {
+            if (!isActive()) return;
             state.summary = summary;
             state.spendByEnvironment = byEnv || [];
             state.spendByVmType = byType || [];
@@ -138,6 +156,7 @@ const CostManagement = (function() {
             state.detail = mapPage(detail);
             render();
         }).catch(error => {
+            if (!isActive()) return;
             console.error('Failed to load cost management data:', error);
             showError('Failed to load cost data. Please try again.');
         });
@@ -161,10 +180,12 @@ const CostManagement = (function() {
             return;
         }
         fetchJson(cfg.url(page)).then(pageData => {
+            if (!isActive()) return; // syncHash would otherwise rewrite the URL of the page the user moved to
             state[tableKey] = mapPage(pageData);
             syncHash();
             cfg.render();
         }).catch(error => {
+            if (!isActive()) return;
             console.error(`Failed to load ${tableKey} page:`, error);
             Notifications.error('Failed to load page. Please try again.');
         });
@@ -987,6 +1008,7 @@ const CostManagement = (function() {
                     fetchJson(Config.API.costManagement.spendTrend(TREND_DAYS)),
                     fetchJson(Config.API.costManagement.forecast(30, 14))
                 ]).then(([trend, forecast]) => {
+                    if (!isActive()) return;
                     state.trend = trend || [];
                     state.forecast = forecast || null;
                     chart('cost-chart-trend', buildTrendOption(state.trend));
@@ -1030,7 +1052,7 @@ const CostManagement = (function() {
                     return;
                 }
                 Notifications.success(`Actual cost ingestion complete — ${result.updated} day/environment row(s) updated.`);
-                fetchAll();
+                if (isActive()) fetchAll();
             })
             .fail(() => {
                 Notifications.error('Failed to ingest actual costs.');
@@ -1174,6 +1196,6 @@ const CostManagement = (function() {
 window.CostManagement = CostManagement;
 
 Actions.registerAll({
-    'cost-reload': () => CostManagement.load(),
+    'cost-reload': () => ContentRouter.reload(),
     'cost-change-page': el => CostManagement.changePage(el.dataset.pageKey, Number(el.dataset.page))
 });

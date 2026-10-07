@@ -142,5 +142,5 @@ $(document).ready(function() {
 // Page-level actions shared by several modules (see core/actions.js).
 Actions.registerAll({
     'reload-page': () => location.reload(),
-    'go-dashboard': () => Dashboard.load()
+    'go-dashboard': () => ContentRouter.navigate('dashboard')
 });
