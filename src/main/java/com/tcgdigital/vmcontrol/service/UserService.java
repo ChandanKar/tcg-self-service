@@ -5,7 +5,6 @@ import com.tcgdigital.vmcontrol.exception.UnauthorizedException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.User;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
-import com.tcgdigital.vmcontrol.security.UsernamePasswordAuthenticationToken;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -347,11 +346,6 @@ public class UserService {
 
         Object principal = authentication.getPrincipal();
 
-        // Check for username/password authentication token
-        if (authentication instanceof UsernamePasswordAuthenticationToken) {
-            return ((UsernamePasswordAuthenticationToken) authentication).getUser();
-        }
-
         // Check for OAuth2/OIDC authentication
         if (principal instanceof OidcUser oidcUser) {
             String azureAdObjectId = oidcUser.getAttribute("oid");
@@ -368,7 +362,7 @@ public class UserService {
                     .orElse(null);
         }
 
-        // For dev mode X-User-Id header or manual SecurityContext setup in tests
+        // Password login (user id), dev mode X-User-Id header, or manual SecurityContext setup in tests
         if (principal instanceof String s) {
             return userRepository.findByEmail(s)
                     .or(() -> userRepository.findById(s))

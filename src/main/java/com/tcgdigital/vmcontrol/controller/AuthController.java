@@ -4,12 +4,16 @@ import com.tcgdigital.vmcontrol.dto.LoginRequest;
 import com.tcgdigital.vmcontrol.dto.LoginResponse;
 import com.tcgdigital.vmcontrol.exception.UnauthorizedException;
 import com.tcgdigital.vmcontrol.model.User;
-import com.tcgdigital.vmcontrol.security.UsernamePasswordAuthenticationToken;
 import com.tcgdigital.vmcontrol.service.AuthenticationService;
+import com.tcgdigital.vmcontrol.service.LoginThrottleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
@@ -20,7 +24,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
+import jakarta.servlet.http.HttpServletResponse;
+
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 
 /**
  * REST controller for authentication endpoints.
@@ -31,83 +40,86 @@ import jakarta.servlet.http.HttpSession;
 public class AuthController {
 
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
+    private static final String INVALID_CREDENTIALS = "Invalid credentials or user not found.";
 
     private final AuthenticationService authenticationService;
+    private final LoginThrottleService loginThrottleService;
     private final SecurityContextRepository securityContextRepository = new HttpSessionSecurityContextRepository();
 
-    public AuthController(AuthenticationService authenticationService) {
+    public AuthController(AuthenticationService authenticationService, LoginThrottleService loginThrottleService) {
         this.authenticationService = authenticationService;
+        this.loginThrottleService = loginThrottleService;
     }
 
     /**
      * Login endpoint for username/password authentication.
-     * Creates a Spring Security session on successful authentication.
      *
-     * @param loginRequest contains username and password
-     * @param request HTTP request to save SecurityContext
-     * @param response HTTP response (unused but required for SecurityContextRepository)
-     * @return LoginResponse with success status and user details
+     * <p>Failed attempts are throttled per username and per client IP (429 with Retry-After).
+     * On success the session id is rotated and the session holds only the user id and roles,
+     * never the User entity or its password hash.
      */
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(
             @RequestBody LoginRequest loginRequest,
             HttpServletRequest request,
-            jakarta.servlet.http.HttpServletResponse response) {
+            HttpServletResponse response) {
         if (!authenticationService.isPasswordLoginEnabled()) {
             return ResponseEntity.notFound().build();
         }
+
+        String username = loginRequest.getUsername();
+        String ip = request.getRemoteAddr();
+
+        Optional<Duration> blocked = loginThrottleService.blockedFor(username, ip);
+        if (blocked.isPresent()) {
+            log.warn("Login throttled for username '{}' from {}", username, ip);
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .header(HttpHeaders.RETRY_AFTER, String.valueOf(Math.max(1, blocked.get().toSeconds())))
+                    .body(new LoginResponse(false, "Too many failed attempts. Try again later."));
+        }
+
         try {
-            // Validate request
-            if (loginRequest.getUsername() == null || loginRequest.getUsername().isBlank()) {
-                log.warn("Login attempt with empty username");
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(new LoginResponse(false, "Invalid credentials or user not found."));
+            User user = authenticationService.authenticateUser(username, loginRequest.getPassword());
+            loginThrottleService.recordSuccess(username);
+
+            // Rotate the session id so a pre-login session id cannot be reused (session fixation).
+            if (request.getSession(false) != null) {
+                request.changeSessionId();
+            } else {
+                request.getSession(true);
             }
 
-            if (loginRequest.getPassword() == null || loginRequest.getPassword().isBlank()) {
-                log.warn("Login attempt with empty password");
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(new LoginResponse(false, "Invalid credentials or user not found."));
-            }
-
-            // Authenticate user
-            User user = authenticationService.authenticateUser(loginRequest.getUsername(), loginRequest.getPassword());
-
-            // Create Spring Security authentication token
-            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(user);
-
-            // Create a new SecurityContext and set the authentication
             SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
-            securityContext.setAuthentication(authentication);
+            securityContext.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(
+                    user.getUserId(), null, authoritiesFor(user)));
             SecurityContextHolder.setContext(securityContext);
-
-            // Save the SecurityContext to the session
             securityContextRepository.saveContext(securityContext, request, response);
 
-            // Store user info in session for additional reference (optional)
-            HttpSession session = request.getSession();
-            session.setAttribute("userId", user.getUserId());
-            session.setAttribute("username", user.getUsername());
-            session.setAttribute("userEmail", user.getEmail());
-
             log.info("User {} logged in successfully via username/password", user.getUsername());
-
-            // Return success response with user details
             return ResponseEntity.ok(new LoginResponse(true, "Login successful", user));
 
         } catch (UnauthorizedException e) {
-            // Generic error message - don't reveal whether username or password was wrong
-            log.warn("Authentication failed: {}", e.getMessage());
+            loginThrottleService.recordFailure(username, ip);
+            log.warn("Failed password login for username '{}' from {}", username, ip);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(new LoginResponse(false, "Invalid credentials or user not found."));
+                    .body(new LoginResponse(false, INVALID_CREDENTIALS));
 
         } catch (Exception e) {
             log.error("Unexpected error during login", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new LoginResponse(false, "Login failed. Please try again later."));
+                    .body(new LoginResponse(false, "Login failed. Please try again later."));
         }
     }
+
+    private static List<GrantedAuthority> authoritiesFor(User user) {
+        List<GrantedAuthority> authorities = new ArrayList<>();
+        authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
+        if (user.isAdmin()) {
+            authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        }
+        if (user.isEnvAdmin()) {
+            authorities.add(new SimpleGrantedAuthority("ROLE_ENV_ADMIN"));
+        }
+        return authorities;
+    }
 }
-
-
-
