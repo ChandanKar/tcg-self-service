@@ -38,7 +38,9 @@ const ActivityLogs = (function() {
     /**
      * Load activity logs page
      */
+    /** Router loader (see the page contract in core/router.js). */
     async function loadMyActivityLogs() {
+        const t = ContentRouter.token();
         try {
             showLoading();
 
@@ -56,6 +58,7 @@ const ActivityLogs = (function() {
                 fetchActivityLogs(currentFilters),
                 fetchUserEnvironments()
             ]);
+            if (!ContentRouter.isCurrent(t)) return;
 
             userEnvironments = environments || [];
 
@@ -66,6 +69,7 @@ const ActivityLogs = (function() {
 
             console.log('Activity logs loaded successfully');
         } catch (error) {
+            if (!ContentRouter.isCurrent(t)) return;
             console.error('Failed to load activity logs:', error);
             showError('Failed to load activity logs.');
         }
@@ -373,15 +377,18 @@ const ActivityLogs = (function() {
      * Reload activity logs with current filters
      */
     function loadActivityLogs() {
+        const t = ContentRouter.token();
         showLoading();
         fetchActivityLogs(currentFilters)
             .then(logs => {
+                if (!ContentRouter.isCurrent(t)) return;
                 const html = buildActivityLogsHtml(logs);
                 $('#content-area').html(html);
                 bindActivityLogEvents();
                 renderActivityLogsPagination(logs);
             })
             .catch(error => {
+                if (!ContentRouter.isCurrent(t)) return;
                 console.error('Error loading activity logs:', error);
                 showError('Failed to load activity logs.');
             });

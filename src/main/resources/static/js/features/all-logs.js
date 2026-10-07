@@ -48,7 +48,9 @@ const AllLogs = (function() {
     /**
      * Load all audit logs page (admin only)
      */
+    /** Router loader (see the page contract in core/router.js). */
     async function loadAllAuditLogs() {
+        const t = ContentRouter.token();
         // Check admin permission
         if (!Auth.isEnvAdmin()) {
             showError('Access denied. This page is only available to administrators.');
@@ -73,6 +75,7 @@ const AllLogs = (function() {
                 fetchAllUsers(),
                 fetchAllEnvironments()
             ]);
+            if (!ContentRouter.isCurrent(t)) return;
 
             allUsers = users || [];
             allEnvironments = environments || [];
@@ -87,6 +90,7 @@ const AllLogs = (function() {
 
             console.log('All audit logs loaded successfully');
         } catch (error) {
+            if (!ContentRouter.isCurrent(t)) return;
             console.error('Failed to load audit logs:', error);
             showError('Failed to load audit logs.');
         }
@@ -552,9 +556,11 @@ const AllLogs = (function() {
      * @param {boolean} [pageChangeOnly=false] — skip stats recalculation on page changes
      */
     function loadAllLogs(pageChangeOnly) {
+        const t = ContentRouter.token();
         showLoading();
         fetchAllAuditLogs(currentFilters)
             .then(logs => {
+                if (!ContentRouter.isCurrent(t)) return;
                 if (!pageChangeOnly) calculateStats(logs);
                 const html = buildAllLogsHtml(logs);
                 $('#content-area').html(html);
@@ -562,6 +568,7 @@ const AllLogs = (function() {
                 renderAllLogsPagination(logs);
             })
             .catch(error => {
+                if (!ContentRouter.isCurrent(t)) return;
                 console.error('Error loading audit logs:', error);
                 showError('Failed to load audit logs.');
             });

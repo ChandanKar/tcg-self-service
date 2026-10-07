@@ -16,7 +16,10 @@ const AccessRequests = (function() {
     /**
      * Load Request Access page (user view)
      */
+    /** Router loader (see the page contract in core/router.js). */
     async function loadRequestAccessPage() {
+        const t = ContentRouter.token();
+        ContentRouter.onLeave(() => $('#content-area').off('.reqAccess'));
         showLoading();
 
         try {
@@ -25,6 +28,7 @@ const AccessRequests = (function() {
                 fetchAvailableEnvironments(),
                 fetchMyRequests()
             ]);
+            if (!ContentRouter.isCurrent(t)) return;
 
             // Reset env table state on fresh load
             allEnvs       = environments || [];
@@ -37,6 +41,7 @@ const AccessRequests = (function() {
             $('#content-area').html(html);
             bindRequestAccessEvents();
         } catch (error) {
+            if (!ContentRouter.isCurrent(t)) return;
             console.error('Failed to load request access page:', error);
             showError('Failed to load page. Please try again.');
         }
@@ -45,7 +50,9 @@ const AccessRequests = (function() {
     /**
      * Load Pending Requests page (admin view)
      */
+    /** Router loader (see the page contract in core/router.js). */
     async function loadPendingRequestsPage() {
+        const t = ContentRouter.token();
         if (!Auth.isEnvAdmin()) {
             $('#content-area').html('<div class="alert alert-danger">Access denied</div>');
             return;
@@ -55,10 +62,12 @@ const AccessRequests = (function() {
 
         try {
             const requests = await fetchPendingRequests();
+            if (!ContentRouter.isCurrent(t)) return;
             const html = buildPendingRequestsPageHtml(requests);
             $('#content-area').html(html);
             bindPendingRequestsEvents();
         } catch (error) {
+            if (!ContentRouter.isCurrent(t)) return;
             console.error('Failed to load pending requests:', error);
             showError('Failed to load pending requests.');
         }
@@ -475,21 +484,21 @@ const AccessRequests = (function() {
      */
     function bindRequestAccessEvents() {
         // Search: filter in-memory list, reset to page 0, re-render table
-        $('#content-area').off('input', '#env-search').on('input', '#env-search', Utils.debounce(function(event) {
+        $('#content-area').off('input.reqAccess', '#env-search').on('input.reqAccess', '#env-search', Utils.debounce(function(event) {
             envQuery = $(event.currentTarget).val().trim();
             envPage  = 0;
             renderEnvTable();
         }, 300));
 
         // Request access button — delegated so it survives tbody re-render
-        $('#content-area').off('click', '[data-action="request-access"]').on('click', '[data-action="request-access"]', function() {
+        $('#content-area').off('click.reqAccess', '[data-action="request-access"]').on('click.reqAccess', '[data-action="request-access"]', function() {
             const envId   = $(this).data('env-id');
             const envName = $(this).data('env-name');
             showRequestAccessModal(envId, envName);
         });
 
         // Cancel request — delegated
-        $('#content-area').off('click', '[data-action="cancel"]').on('click', '[data-action="cancel"]', function() {
+        $('#content-area').off('click.reqAccess', '[data-action="cancel"]').on('click.reqAccess', '[data-action="cancel"]', function() {
             const requestId = $(this).data('request-id');
             cancelRequest(requestId);
         });

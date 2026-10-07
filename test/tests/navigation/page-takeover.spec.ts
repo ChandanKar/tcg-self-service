@@ -166,6 +166,74 @@ test.describe('Environments lifecycle', () => {
   });
 });
 
+test.describe('Logs and Access Requests lifecycle', () => {
+  test.beforeEach(async () => {
+    test.skip(!canSignIn('admin'), 'Needs an admin sign-in (TEST_DEV_ADMIN_ID or TEST_ADMIN_USERNAME/PASSWORD)');
+  });
+
+  for (const route of ['activity-logs', 'audit-logs-all']) {
+    test(`slow ${route} requests finishing after leaving do not take over the page`, async ({ page }) => {
+      await signIn(page, 'admin');
+      await ready(page);
+      await goTo(page, 'dashboard');
+      await expect(header(page)).toHaveText('Dashboard');
+
+      await delayRoute(page, '**/api/v1/audit/**', 3_000);
+      await goTo(page, route);
+      await page.waitForTimeout(500);
+      await goTo(page, 'dashboard');
+      await page.waitForTimeout(3_500);
+
+      await expect(page).toHaveURL(/#\/dashboard$/);
+      await expect(header(page)).toHaveText('Dashboard');
+    });
+  }
+
+  test('a slow Request Access load finishing after leaving does not render', async ({ page }) => {
+    await signIn(page, 'admin');
+    await ready(page);
+    await goTo(page, 'dashboard');
+    await expect(header(page)).toHaveText('Dashboard');
+
+    await delayRoute(page, '**/api/v1/access-requests/**', 3_000);
+    await goTo(page, 'request-access');
+    await page.waitForTimeout(500);
+    await goTo(page, 'dashboard');
+    await page.waitForTimeout(3_500);
+
+    await expect(header(page)).toHaveText('Dashboard');
+  });
+
+  test("leaving Request Access removes its handlers, so a later [data-action=cancel] is not Access Requests'", async ({ page }) => {
+    await signIn(page, 'admin');
+    await ready(page);
+    await goTo(page, 'request-access');
+    await expect(header(page)).toContainText('Request Environment Access', { timeout: 10_000 });
+    await goTo(page, 'dashboard');
+    await expect(header(page)).toHaveText('Dashboard');
+
+    const leftover = await page.evaluate(() => {
+      const events = ($ as any)._data(document.getElementById('content-area'), 'events') || {};
+      return Object.values(events).flat().filter((h: any) => h.namespace === 'reqAccess').length;
+    });
+    expect(leftover).toBe(0);
+
+    let cancelCalls = 0;
+    page.on('request', (r) => { if (r.method() === 'DELETE' && r.url().includes('/access-requests/')) cancelCalls++; });
+    await page.evaluate(() => {
+      const b = document.createElement('button');
+      b.setAttribute('data-action', 'cancel');
+      b.setAttribute('data-request-id', 'not-a-real-request');
+      b.id = 'stray-cancel';
+      document.getElementById('content-area')!.appendChild(b);
+    });
+    await page.locator('#stray-cancel').click();
+    await page.waitForTimeout(500);
+    await expect(page.locator('#confirmModal')).toHaveCount(0);
+    expect(cancelCalls).toBe(0);
+  });
+});
+
 test.describe('Cost Management lifecycle', () => {
   test.beforeEach(async () => {
     test.skip(!canSignIn('admin'), 'Needs an admin sign-in (TEST_DEV_ADMIN_ID or TEST_ADMIN_USERNAME/PASSWORD)');
