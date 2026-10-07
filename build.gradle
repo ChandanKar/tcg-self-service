@@ -100,6 +100,15 @@ tasks.named('test') {
 	useJUnitPlatform()
 }
 
+// Fast tests with no database: everything not tagged "db" (AbstractIntegrationTest tags its subclasses).
+tasks.register('unitTest', Test) {
+	group = 'verification'
+	description = 'Runs tests that need no database (excludes the "db" tag)'
+	useJUnitPlatform { excludeTags 'db' }
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+}
+
 // ---------------------------------------------------------------------------
 // Frontend build: reads index.html to derive file order, bundles into dist/
 // Never needs updating when new CSS/JS files are added — just add to index.html
