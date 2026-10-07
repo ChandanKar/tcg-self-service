@@ -1,21 +1,27 @@
 /**
  * VM Self-Service Platform - Keyboard Shortcuts
- * Provides keyboard navigation and shortcuts
+ * Provides keyboard navigation and shortcuts.
+ *
+ * Shortcuts navigate through ContentRouter so every page goes through the normal page
+ * lifecycle. They never fire with Ctrl/Alt/Meta held (browser shortcuts such as Ctrl+R stay the
+ * browser's), while typing in a field, or while a modal or slide-out is open. Escape belongs to
+ * Bootstrap modals and the Slideout module, not to this file.
  */
 
 const Keyboard = (function() {
     'use strict';
 
-    // Shortcut definitions
+    // Sequence (keys typed one after another, no separators) -> shortcut
     const shortcuts = {
-        'g d': { action: () => Dashboard.load(), description: 'Go to Dashboard' },
-        'g e': { action: () => Environments.loadList(), description: 'Go to Environments' },
-        'g r': { action: () => AccessRequests.loadRequestAccessPage(), description: 'Go to Request Access' },
-        'g a': { action: () => AuditLogs.loadMyActivityLogs(), description: 'Go to Activity Logs' },
-        'r': { action: () => refreshCurrentView(), description: 'Refresh current view' },
-        '?': { action: () => showShortcutsHelp(), description: 'Show shortcuts help' },
-        'Escape': { action: () => closeActiveModal(), description: 'Close modal/slideout' }
+        'gd': { keys: ['g', 'd'], action: () => ContentRouter.navigate('dashboard'), description: 'Go to Dashboard' },
+        'ge': { keys: ['g', 'e'], action: () => ContentRouter.navigate('my-environments'), description: 'Go to My Environments' },
+        'gr': { keys: ['g', 'r'], action: () => ContentRouter.navigate('request-access'), description: 'Go to Request Access' },
+        'ga': { keys: ['g', 'a'], action: () => ContentRouter.navigate('activity-logs'), description: 'Go to Activity Logs' },
+        'r':  { keys: ['r'], action: () => ContentRouter.reload(), description: 'Refresh current view' },
+        '?':  { keys: ['?'], action: () => showShortcutsHelp(), description: 'Show shortcuts help' }
     };
+
+    const SEQUENCE_TIMEOUT_MS = 1000;
 
     // Key sequence tracking
     let keySequence = '';
@@ -26,57 +32,55 @@ const Keyboard = (function() {
      */
     function init() {
         document.addEventListener('keydown', handleKeyDown);
-        console.log('Keyboard shortcuts initialized');
     }
 
     /**
      * Handle keydown event
      */
     function handleKeyDown(e) {
-        // Ignore if typing in input/textarea
-        if (isTyping(e.target)) {
+        // Browser and OS shortcuts (Ctrl+R, Cmd+F, Alt+Left...) are never ours. Shift is allowed
+        // so '?' works.
+        if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented || e.isComposing) {
+            return;
+        }
+        if (isTyping(e.target) || isUnderOverlay(e.target)) {
+            resetSequence();
+            return;
+        }
+        if (e.key.length !== 1) {
             return;
         }
 
-        // Handle Escape separately
-        if (e.key === 'Escape') {
-            closeActiveModal();
-            return;
-        }
-
-        // Track key sequence for multi-key shortcuts
         clearTimeout(sequenceTimeout);
+        keySequence += e.key.toLowerCase();
 
-        if (e.key.length === 1) {
-            keySequence += e.key.toLowerCase();
-
-            // Check for matching shortcut
-            const matchingShortcut = shortcuts[keySequence];
-            if (matchingShortcut) {
-                e.preventDefault();
-                matchingShortcut.action();
-                keySequence = '';
-                return;
-            }
-
-            // Check if any shortcut starts with current sequence
-            const hasPartialMatch = Object.keys(shortcuts).some(s => s.startsWith(keySequence));
-
-            if (!hasPartialMatch) {
-                keySequence = '';
-            } else {
-                // Reset after delay if no completion
-                sequenceTimeout = setTimeout(() => {
-                    keySequence = '';
-                }, 1000);
-            }
+        const shortcut = shortcuts[keySequence];
+        if (shortcut) {
+            e.preventDefault();
+            resetSequence();
+            shortcut.action();
+            return;
         }
+
+        // Keep waiting only while the typed keys can still become a shortcut.
+        const hasPartialMatch = Object.keys(shortcuts).some(s => s.startsWith(keySequence));
+        if (hasPartialMatch) {
+            sequenceTimeout = setTimeout(resetSequence, SEQUENCE_TIMEOUT_MS);
+        } else {
+            resetSequence();
+        }
+    }
+
+    function resetSequence() {
+        clearTimeout(sequenceTimeout);
+        keySequence = '';
     }
 
     /**
      * Check if user is typing in an input
      */
     function isTyping(element) {
+        if (!element || !element.tagName) return false;
         const tagName = element.tagName.toLowerCase();
         return tagName === 'input' ||
                tagName === 'textarea' ||
@@ -84,47 +88,24 @@ const Keyboard = (function() {
                element.isContentEditable;
     }
 
-    /**
-     * Refresh current view
-     */
-    function refreshCurrentView() {
-        const $dashboardView = $('#dashboard-view');
-        if ($dashboardView.length) {
-            Dashboard.refresh();
+    /** True while a modal or slide-out is open: shortcuts must not act behind a dialog. */
+    function isUnderOverlay(element) {
+        if (document.querySelector('.modal.show') || document.querySelector('.slideout-panel.show')) {
+            return true;
         }
-        // Add other view refreshes as needed
-    }
-
-    /**
-     * Close active modal or slideout
-     */
-    function closeActiveModal() {
-        // Close any open Bootstrap modal
-        const openModal = document.querySelector('.modal.show');
-        if (openModal) {
-            const modal = bootstrap.Modal.getInstance(openModal);
-            if (modal) {
-                modal.hide();
-                return;
-            }
-        }
-
-        // Close slideout
-        if (typeof Slideout !== 'undefined') {
-            Slideout.close();
-        }
+        return !!(element && element.closest && element.closest('.modal, .slideout-panel'));
     }
 
     /**
      * Show shortcuts help modal
      */
     function showShortcutsHelp() {
-        const shortcutsList = Object.entries(shortcuts)
-            .filter(([key]) => key !== '?')
-            .map(([key, config]) => `
+        const shortcutsList = Object.values(shortcuts)
+            .filter(config => config.keys[0] !== '?')
+            .map(config => `
                 <tr>
-                    <td><kbd>${key.split(' ').map(k => `<span class="key">${k}</span>`).join(' ')}</kbd></td>
-                    <td>${config.description}</td>
+                    <td>${config.keys.map(k => `<kbd>${Utils.escapeHtml(k)}</kbd>`).join(' then ')}</td>
+                    <td>${Utils.escapeHtml(config.description)}</td>
                 </tr>
             `).join('');
 
@@ -144,7 +125,7 @@ const Keyboard = (function() {
                     </tbody>
                 </table>
                 <p class="text-muted mt-3">
-                    <small>Press <kbd>?</kbd> anytime to show this help</small>
+                    <small>Press <kbd>?</kbd> anytime to show this help. Press <kbd>Esc</kbd> to close dialogs and panels.</small>
                 </p>
             `,
             buttons: [
@@ -159,4 +140,3 @@ const Keyboard = (function() {
         showShortcutsHelp
     };
 })();
-
