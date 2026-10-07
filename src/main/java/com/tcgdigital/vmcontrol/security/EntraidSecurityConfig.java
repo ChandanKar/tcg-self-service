@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.security;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -16,20 +17,23 @@ import org.springframework.context.annotation.Bean;
 public class EntraidSecurityConfig {
 
     private final CustomOAuth2UserService customOAuth2UserService;
+    private final boolean cspReportOnly;
 
-    public EntraidSecurityConfig(CustomOAuth2UserService customOAuth2UserService) {
+    public EntraidSecurityConfig(CustomOAuth2UserService customOAuth2UserService,
+                                 @Value("${security.csp.report-only:true}") boolean cspReportOnly) {
         this.customOAuth2UserService = customOAuth2UserService;
+        this.cspReportOnly = cspReportOnly;
     }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .authorizeHttpRequests(authorize -> authorize
-                // allow static resources, login page, health/error endpoints, oauth callback, h2 console, and Swagger UI
+                // allow static resources, login page, health/error endpoints, oauth callback, CSP reports and Swagger UI
                 .requestMatchers("/", "/login", "/login.html", "/css/**", "/js/**", "/vendor/**", "/logo/**", "/images/**", "/static/**",
-                    "/error", "/h2-console/**", "/login/**", "/oauth2/**", "/logout",
+                    "/error", "/login/**", "/oauth2/**", "/logout",
                     "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/swagger-resources/**", "/webjars/**",
-                    "/api/auth/login", "/api/auth/options",
+                    "/api/auth/login", "/api/auth/options", SecurityHeaders.REPORT_PATH,
                     "/actuator/health", "/actuator/health/**").permitAll()
                 // require authentication for all other requests (including /home)
                 .anyRequest().authenticated()
@@ -78,10 +82,10 @@ public class EntraidSecurityConfig {
             )
             // CSRF configuration for API endpoints
             .csrf(csrf -> csrf
-                .ignoringRequestMatchers("/api/**", "/h2-console/**")  // Allow /api/auth/login without CSRF token
+                .ignoringRequestMatchers("/api/**")  // Allow /api/auth/login without CSRF token
             )
-            // allow H2 console to render in a frame
-            .headers(headers -> headers.frameOptions(frame -> frame.disable()));
+            // Content-Security-Policy, X-Frame-Options DENY, Referrer-Policy, nosniff
+            .headers(SecurityHeaders.apply(cspReportOnly));
 
         return http.build();
     }

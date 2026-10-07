@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -46,17 +47,20 @@ public class DefaultSecurityConfig {
         }
     }
 
+    @Value("${security.csp.report-only:true}")
+    private boolean cspReportOnly;
+
     @Bean
     public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
         http
             .addFilterBefore(new DevUserHeaderFilter(), UsernamePasswordAuthenticationFilter.class)
             .authorizeHttpRequests(authorize -> authorize
                 .requestMatchers("/", "/login", "/login.html", "/css/**", "/js/**", "/vendor/**", "/logo/**", "/images/**",
-                    "/static/**", "/error", "/h2-console/**", "/logout").permitAll()
+                    "/static/**", "/error", "/logout").permitAll()
                 .anyRequest().permitAll()
             )
             .csrf(csrf -> csrf.disable())
-            .headers(headers -> headers.frameOptions(frame -> frame.disable()));
+            .headers(SecurityHeaders.apply(cspReportOnly));
 
         return http.build();
     }
