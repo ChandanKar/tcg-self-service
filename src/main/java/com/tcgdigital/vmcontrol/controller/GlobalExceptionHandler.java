@@ -3,7 +3,12 @@ package com.tcgdigital.vmcontrol.controller;
 import com.tcgdigital.vmcontrol.exception.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -11,15 +16,33 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Maps exceptions to HTTP responses that share one body shape: {@code error}, {@code message},
+ * {@code timestamp} (plus extra fields in a few cases). Framework errors such as an unknown path,
+ * a wrong HTTP method, a bad parameter type or a duplicate key get their 4xx status, not a 500.
+ */
 @RestControllerAdvice
-public class GlobalExceptionHandler {
+public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    private static Map<String, Object> body(String error, String message) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", error);
+        body.put("message", message);
+        body.put("timestamp", Instant.now().toString());
+        return body;
+    }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleResourceNotFound(ResourceNotFoundException ex) {
@@ -103,9 +126,11 @@ public class GlobalExceptionHandler {
         ));
     }
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, Object>> handleMethodArgumentNotValid(MethodArgumentNotValidException ex) {
-        java.util.List<Map<String, String>> errors = ex.getBindingResult().getFieldErrors().stream()
+    @Override
+    protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException ex,
+                                                                  HttpHeaders headers, HttpStatusCode status,
+                                                                  WebRequest request) {
+        List<Map<String, String>> errors = ex.getBindingResult().getFieldErrors().stream()
                 .map(error -> Map.of(
                         "field", error.getField(),
                         "message", error.getDefaultMessage() != null ? error.getDefaultMessage() : "Invalid value"
@@ -113,23 +138,78 @@ public class GlobalExceptionHandler {
                 .collect(Collectors.toList());
 
         log.warn("Validation failed: {}", errors);
-        return ResponseEntity.badRequest().body(Map.of(
-                "error", "Validation Error",
-                "message", errors.stream()
-                        .map(error -> error.get("message"))
-                        .collect(Collectors.joining("; ")),
-                "errors", errors,
-                "timestamp", Instant.now().toString()
-        ));
+        Map<String, Object> body = body("Validation Error", errors.stream()
+                .map(error -> error.get("message"))
+                .collect(Collectors.joining("; ")));
+        body.put("errors", errors);
+        return ResponseEntity.badRequest().body(body);
     }
 
-    @ExceptionHandler(MissingServletRequestParameterException.class)
-    public ResponseEntity<Map<String, Object>> handleMissingParams(MissingServletRequestParameterException ex) {
-        return ResponseEntity.badRequest().body(Map.of(
-                "error", "Bad Request",
-                "message", "Required parameter '" + ex.getParameterName() + "' is missing",
-                "timestamp", Instant.now().toString()
-        ));
+    @Override
+    protected ResponseEntity<Object> handleMissingServletRequestParameter(MissingServletRequestParameterException ex,
+                                                                          HttpHeaders headers, HttpStatusCode status,
+                                                                          WebRequest request) {
+        return ResponseEntity.badRequest()
+                .body(body("Bad Request", "Required parameter '" + ex.getParameterName() + "' is missing"));
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleHttpMessageNotReadable(HttpMessageNotReadableException ex,
+                                                                  HttpHeaders headers, HttpStatusCode status,
+                                                                  WebRequest request) {
+        log.warn("Malformed request body: {}", ex.getMessage());
+        return ResponseEntity.badRequest()
+                .body(body("Bad Request", "Invalid request format. Please check your input and try again."));
+    }
+
+    /**
+     * Every other framework exception Spring MVC handles (unknown path 404, wrong method 405,
+     * unsupported media type 415, ...): keep its status, use the shared body, log at WARN.
+     */
+    @Override
+    protected ResponseEntity<Object> handleExceptionInternal(Exception ex, Object body, HttpHeaders headers,
+                                                             HttpStatusCode statusCode, WebRequest request) {
+        if (body instanceof Map<?, ?>) {
+            return super.handleExceptionInternal(ex, body, headers, statusCode, request);
+        }
+        HttpStatus status = HttpStatus.resolve(statusCode.value());
+        String reason = status != null ? status.getReasonPhrase() : "Error";
+        log.warn("{} {}: {}", statusCode.value(), reason, ex.getMessage());
+        return ResponseEntity.status(statusCode).headers(headers).body(body(reason, safeMessage(statusCode)));
+    }
+
+    private static String safeMessage(HttpStatusCode statusCode) {
+        return switch (statusCode.value()) {
+            case 404 -> "The requested resource was not found.";
+            case 405 -> "This HTTP method is not supported for this resource.";
+            case 406 -> "The requested response format is not supported.";
+            case 415 -> "The request content type is not supported.";
+            default -> "The request could not be processed.";
+        };
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, Object>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        log.warn("Bad parameter type for '{}'", ex.getName());
+        return ResponseEntity.badRequest()
+                .body(body("Bad Request", "Invalid value for parameter '" + ex.getName() + "'"));
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleConstraintViolation(ConstraintViolationException ex) {
+        String message = ex.getConstraintViolations().stream()
+                .map(ConstraintViolation::getMessage)
+                .sorted()
+                .collect(Collectors.joining("; "));
+        log.warn("Constraint violation: {}", message);
+        return ResponseEntity.badRequest().body(body("Validation Error", message));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        log.warn("Data integrity violation: {}", ex.getMostSpecificCause().getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(body("Conflict", "The change conflicts with existing data."));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -138,16 +218,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
                 "error", "Forbidden",
                 "message", "You do not have permission to perform this action. Required role: ADMIN or ENV_ADMIN.",
-                "timestamp", Instant.now().toString()
-        ));
-    }
-
-    @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<Map<String, Object>> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
-        log.warn("Malformed request body: {}", ex.getMessage());
-        return ResponseEntity.badRequest().body(Map.of(
-                "error", "Bad Request",
-                "message", "Invalid request format. Please check your input and try again.",
                 "timestamp", Instant.now().toString()
         ));
     }
