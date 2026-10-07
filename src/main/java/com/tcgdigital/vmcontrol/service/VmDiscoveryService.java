@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.service.support.NameSanitizer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tcgdigital.vmcontrol.model.*;
 import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
@@ -330,10 +331,13 @@ public class VmDiscoveryService {
         return m.matches() ? Integer.parseInt(m.group(2)) : 0;
     }
 
+    /** The EC2 Name tag with markup characters removed (NameSanitizer), or null if absent/empty. */
     private String getNameTag(Instance instance) {
         return instance.tags().stream()
                 .filter(t -> "Name".equals(t.key()))
                 .map(Tag::value)
+                .map(NameSanitizer::clean)
+                .filter(java.util.Objects::nonNull)
                 .findFirst()
                 .orElse(null);
     }

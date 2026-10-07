@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.service.support.NameSanitizer;
 import com.tcgdigital.vmcontrol.dto.StateSyncStatusDTO;
 import com.tcgdigital.vmcontrol.model.*;
 import com.tcgdigital.vmcontrol.repository.VmRepository;
@@ -371,7 +372,8 @@ public class StateSyncService {
                 return;
             }
 
-            String cloudVmName = providerService.getVmName(providerVmId, vm.getRegion());
+            // Name tags are free text in AWS; strip markup characters before storing (C3).
+            String cloudVmName = NameSanitizer.clean(providerService.getVmName(providerVmId, vm.getRegion()));
 
             if (cloudVmName != null && !cloudVmName.isBlank()) {
                 String oldName = vm.getName();

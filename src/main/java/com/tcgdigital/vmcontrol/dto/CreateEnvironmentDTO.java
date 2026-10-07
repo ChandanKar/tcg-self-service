@@ -1,5 +1,8 @@
 package com.tcgdigital.vmcontrol.dto;
 
+import jakarta.validation.constraints.Pattern;
+import com.tcgdigital.vmcontrol.service.support.NameSanitizer;
+
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -12,11 +15,13 @@ public class CreateEnvironmentDTO {
     @JsonProperty("name")
     @NotBlank(message = "Name is required")
     @Size(min = 2, max = 255, message = "Name must be between 2 and 255 characters")
+    @Pattern(regexp = NameSanitizer.SAFE_NAME_REGEX, message = NameSanitizer.SAFE_NAME_MESSAGE)
     private String name;
 
     @JsonProperty("displayName")
     @NotBlank(message = "Display name is required")
     @Size(min = 2, max = 255, message = "Display name must be between 2 and 255 characters")
+    @Pattern(regexp = NameSanitizer.SAFE_NAME_REGEX, message = NameSanitizer.SAFE_NAME_MESSAGE)
     private String displayName;
 
     @JsonProperty("description")

@@ -1,5 +1,8 @@
 package com.tcgdigital.vmcontrol.dto;
 
+import jakarta.validation.constraints.Pattern;
+import com.tcgdigital.vmcontrol.service.support.NameSanitizer;
+
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -14,10 +17,12 @@ public class CreateVmGroupDTO {
 
     @NotBlank(message = "Name is required")
     @Size(min = 2, max = 255, message = "Name must be between 2 and 255 characters")
+    @Pattern(regexp = NameSanitizer.SAFE_NAME_REGEX, message = NameSanitizer.SAFE_NAME_MESSAGE)
     private String name;
 
     @NotBlank(message = "Display name is required")
     @Size(min = 2, max = 255, message = "Display name must be between 2 and 255 characters")
+    @Pattern(regexp = NameSanitizer.SAFE_NAME_REGEX, message = NameSanitizer.SAFE_NAME_MESSAGE)
     private String displayName;
 
     private String description;

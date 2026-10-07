@@ -228,6 +228,25 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void testSyncVmState_StripsMarkupFromCloudNameTag() {
+        // Given - VM still named after its instance id, and the EC2 Name tag contains markup
+        testVm.setName(testVm.getProviderVmId());
+        testVm.setDisplayName(testVm.getProviderVmId());
+        testVm = vmRepository.save(testVm);
+        when(awsCloudProviderService.isAvailable()).thenReturn(true);
+        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.RUNNING);
+        when(awsCloudProviderService.getVmName(anyString(), anyString())).thenReturn("<b>web-01</b>");
+
+        // When
+        stateSyncService.syncVmState(testVm);
+
+        // Then
+        Vm updatedVm = vmRepository.findById(testVm.getVmId()).orElseThrow();
+        assertEquals("bweb-01/b", updatedVm.getDisplayName());
+        assertFalse(updatedVm.getName().contains("<"), "stored name has no angle brackets");
+    }
+
+    @Test
     @Disabled("H23: syncAllVmStates reads vm.getGroup().getEnvironment() outside a session -> LazyInitializationException")
     // TODO(E09-T05): re-enable once state sync loads VMs with group and environment
     void testSyncVmState_WithDrift() {
