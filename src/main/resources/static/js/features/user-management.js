@@ -515,6 +515,7 @@ const UserManagement = (function() {
         Modals.show({
             id: 'setPasswordModal',
             title: '<i class="fas fa-key me-2"></i>' + (user.hasPassword ? 'Reset Password' : 'Set Password'),
+            html: true,
             body: `
                 <p class="small text-muted mb-3">
                     Password sign-in for <strong>${Utils.escapeHtml(user.displayName || user.email)}</strong>
@@ -588,6 +589,7 @@ const UserManagement = (function() {
         Modals.show({
             id: 'onboardUserModal',
             title: '<i class="fas fa-user-plus me-2"></i>Onboard User',
+            html: true,
             size: 'lg',
             body: onboardModalBody(),
             buttons: [

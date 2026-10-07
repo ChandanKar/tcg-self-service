@@ -73,8 +73,9 @@ const Modals = (function() {
      * Show a modal dialog
      * @param {object} options - Modal options
      * @param {string} options.id - Modal ID
-     * @param {string} options.title - Modal title
-     * @param {string} options.body - Modal body HTML
+     * @param {string} options.title - Modal title, shown as text unless options.html is true
+     * @param {boolean} options.html - Render the title as HTML (escape any data in it)
+     * @param {string} options.body - Modal body HTML; build it with Utils.html or Utils.escapeHtml
      * @param {string} options.size - Modal size (sm, lg, xl)
      * @param {array} options.buttons - Array of button configs
      * @param {function} options.onShow - Callback when modal is shown
@@ -88,7 +89,8 @@ const Modals = (function() {
             size = '',
             buttons = [{ text: 'Close', class: 'btn-secondary', dismiss: true }],
             onShow = null,
-            onHide = null
+            onHide = null,
+            html = false
         } = options;
 
         // Remove existing modal if any
@@ -99,7 +101,8 @@ const Modals = (function() {
             const dismissAttr = btn.dismiss ? 'data-bs-dismiss="modal"' : '';
             const idAttr = btn.id ? `id="${btn.id}"` : '';
             const disabledAttr = btn.disabled ? 'disabled' : '';
-            return `<button type="button" class="btn ${btn.class || 'btn-secondary'}" ${dismissAttr} ${idAttr} ${disabledAttr}>${btn.text}</button>`;
+            const text = btn.html ? btn.text : Utils.escapeHtml(btn.text);
+            return `<button type="button" class="btn ${btn.class || 'btn-secondary'}" ${dismissAttr} ${idAttr} ${disabledAttr}>${text}</button>`;
         }).join('');
 
         // Build modal HTML
@@ -109,7 +112,7 @@ const Modals = (function() {
                 <div class="modal-dialog ${sizeClass}">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title" id="${id}Label">${title}</h5>
+                            <h5 class="modal-title" id="${id}Label">${html ? title : Utils.escapeHtml(title)}</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
@@ -152,22 +155,25 @@ const Modals = (function() {
 
     /**
      * Show confirmation dialog
-     * @param {string} title - Dialog title
-     * @param {string} message - Confirmation message
+     * @param {string} title - Dialog title (text unless options.html)
+     * @param {string} message - Confirmation message (text unless options.html)
      * @param {function} onConfirm - Callback when confirmed
-     * @param {object} options - Additional options
+     * @param {object} options - Additional options; { html: true } renders title and message
+     *        as HTML, so every data value in them must already be escaped
      */
     function confirm(title, message, onConfirm, options = {}) {
         const {
             confirmText = 'Confirm',
             confirmClass = 'btn-primary',
-            cancelText = 'Cancel'
+            cancelText = 'Cancel',
+            html = false
         } = options;
 
         show({
             id: 'confirmModal',
             title: title,
-            body: `<p>${message}</p>`,
+            html: html,
+            body: `<p>${html ? message : Utils.escapeHtml(message)}</p>`,
             buttons: [
                 { text: cancelText, class: 'btn-secondary', dismiss: true },
                 { text: confirmText, class: confirmClass, id: 'confirmBtn' }
@@ -205,9 +211,9 @@ const Modals = (function() {
             body: `
                 <form id="promptForm">
                     <div class="mb-3">
-                        <label class="form-label">${label}</label>
-                        <input type="${inputType}" class="form-control" id="promptInput"
-                               placeholder="${placeholder}" value="${defaultValue}" ${requiredAttr}>
+                        <label class="form-label" for="promptInput">${Utils.escapeHtml(label)}</label>
+                        <input type="${Utils.escapeHtml(inputType)}" class="form-control" id="promptInput"
+                               placeholder="${Utils.escapeHtml(placeholder)}" value="${Utils.escapeHtml(defaultValue)}" ${requiredAttr}>
                     </div>
                 </form>
             `,
@@ -686,16 +692,21 @@ const DestructiveConfirm = (function() {
     function show(options) {
         const { title, message, impact = [], confirmText, actionText, onConfirm } = options;
 
-        // Update modal content
-        document.getElementById('destructiveConfirmTitle').innerHTML =
-            `<i class="fas fa-exclamation-triangle me-2" aria-hidden="true"></i>${title}`;
+        // Update modal content (title and impact items are text, never HTML)
+        const titleEl = document.getElementById('destructiveConfirmTitle');
+        titleEl.innerHTML = '<i class="fas fa-exclamation-triangle me-2" aria-hidden="true"></i>';
+        titleEl.appendChild(document.createTextNode(title == null ? '' : String(title)));
         document.getElementById('destructive-message').textContent = message;
         document.getElementById('confirm-text-required').textContent = confirmText;
         document.getElementById('destructive-action-text').textContent = actionText;
 
         // Populate impact list
         const impactList = document.getElementById('impact-list');
-        impactList.innerHTML = impact.map(i => `<li>${i}</li>`).join('');
+        impactList.replaceChildren(...impact.map(item => {
+            const li = document.createElement('li');
+            li.textContent = item == null ? '' : String(item);
+            return li;
+        }));
 
         // Show/hide impact section
         document.getElementById('destructive-impact').style.display =

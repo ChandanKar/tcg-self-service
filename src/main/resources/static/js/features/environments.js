@@ -844,7 +844,7 @@ const Environments = (function() {
                         Notifications.error(msg);
                     });
             },
-            { confirmText: 'Delete', confirmClass: 'btn-danger' }
+            { confirmText: 'Delete', confirmClass: 'btn-danger', html: true }
         );
     }
 
@@ -1039,7 +1039,7 @@ const Environments = (function() {
                         Notifications.error(xhr.responseJSON?.message || 'Failed to send notification');
                     });
             },
-            { confirmText: 'Notify', confirmClass: 'btn-primary' }
+            { confirmText: 'Notify', confirmClass: 'btn-primary', html: true }
         );
     }
 
@@ -1119,7 +1119,8 @@ const Environments = (function() {
                 const lockedBy = lockStatus.lockedByDisplayName || lockStatus.lockedByUserId || 'another user';
                 Notifications.warning(
                     `This environment is locked by <strong>${Utils.escapeHtml(lockedBy)}</strong>. ` +
-                    `You cannot perform operations until the lock is released.`
+                    `You cannot perform operations until the lock is released.`,
+                    4000, { html: true }
                 );
                 return;
             }
@@ -1160,7 +1161,7 @@ const Environments = (function() {
             function() {
                 onConfirm().catch(err => console.error(`${actionLabel} failed:`, err));
             },
-            { confirmText: actionLabel, confirmClass: actionClass }
+            { confirmText: actionLabel, confirmClass: actionClass, html: true }
         );
 
         // Build scope param for API

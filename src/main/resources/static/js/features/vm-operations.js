@@ -223,7 +223,9 @@ const VmOperations = (function() {
         const $progressPercent = $('#progress-percent');
 
         if (status === 'error') {
-            $statusText.html(`<i class="fas fa-times-circle text-danger me-2"></i>${message}`);
+            $statusText.empty()
+                .append('<i class="fas fa-times-circle text-danger me-2"></i>')
+                .append(document.createTextNode(message == null ? '' : String(message)));
             $progressBar.removeClass('progress-bar-animated progress-bar-striped')
                         .addClass('bg-danger').css('width', '100%');
             $progressPercent.text('Error');

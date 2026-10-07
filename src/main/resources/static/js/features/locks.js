@@ -85,7 +85,7 @@ const Locks = (function() {
                         Notifications.error(xhr.responseJSON?.message || 'Failed to release lock');
                     });
             },
-            { confirmText: 'Release Lock', confirmClass: 'btn-warning' }
+            { confirmText: 'Release Lock', confirmClass: 'btn-warning', html: true }
         );
     }
 

@@ -974,7 +974,7 @@ const CostManagement = (function() {
                     changePage('rightsizing', state.rightsizing.page);
                 });
             },
-            { confirmText: 'Apply', confirmClass: 'btn-primary' }
+            { confirmText: 'Apply', confirmClass: 'btn-primary', html: true }
         );
     }
 

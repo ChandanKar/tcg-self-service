@@ -1373,7 +1373,7 @@ const AccessManagement = (function() {
                 console.error('Revoke access failed:', error);
                 showToast(error.responseJSON?.message || 'Failed to revoke access', 'danger');
             }
-        }, { confirmText: 'Revoke', confirmClass: 'btn-danger' });
+        }, { confirmText: 'Revoke', confirmClass: 'btn-danger', html: true });
     }
 
     /**
