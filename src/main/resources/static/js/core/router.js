@@ -4,6 +4,15 @@
  *
  * URL scheme:  /#/dashboard,  /#/vm-registry,  /#/my-environments, etc.
  * Refreshing the page restores the last-visited section.
+ *
+ * Page lifecycle contract (every routed page follows it):
+ *   - At the start of a loader capture the navigation token:  const t = ContentRouter.token();
+ *   - After every await / AJAX callback bail out if the user has left:
+ *         if (!ContentRouter.isCurrent(t)) return;
+ *   - Register teardown (timers, document/window listeners, namespaced delegated handlers on
+ *     #content-area) with ContentRouter.onLeave(fn). Leave handlers run once, before the next
+ *     page's loader, including when the same route reloads.
+ *   - Page polls use RealTime.startPolling(key, fn, ms, { pageScoped: true }), which stops on leave.
  */
 
 const ContentRouter = (function() {
@@ -37,6 +46,11 @@ const ContentRouter = (function() {
 
     // Params that cannot be encoded in a plain hash (e.g. environment-detail env name)
     let _pendingParams = {};
+
+    // Incremented on every page load; a loader's captured token goes stale when the user leaves.
+    let _navToken = 0;
+    // Teardown callbacks registered by the current page (see onLeave).
+    let _leaveHandlers = [];
 
     function getLoader(contentType) {
         const loaders = {
@@ -112,6 +126,8 @@ const ContentRouter = (function() {
      * @param {object} params
      */
     function loadContent(contentType, params = {}) {
+        runLeaveHandlers();
+        _navToken++;
         const loader = getLoader(contentType);
         if (loader) {
             showLoading();
@@ -139,6 +155,11 @@ const ContentRouter = (function() {
         const contentType = HASH_TO_CONTENT[hash] || 'dashboard';
         const params = _pendingParams;
         _pendingParams = {};
+
+        // A slide-out (VM details, My Account) belongs to the page it was opened from.
+        if (typeof Slideout !== 'undefined' && Slideout.isOpen && Slideout.isOpen()) {
+            Slideout.close();
+        }
 
         // Sync sidebar active state (covers browser back/forward too)
         if (typeof Sidebar !== 'undefined' && Sidebar.setActiveItem) {
@@ -192,11 +213,46 @@ const ContentRouter = (function() {
                 <div class="text-center">
                     <i class="fas fa-exclamation-triangle text-danger fa-3x mb-3"></i>
                     <h5>Error</h5>
-                    <p class="text-muted">${message}</p>
-                    <button class="btn btn-primary" data-action="reload-page">Refresh Page</button>
+                    <p class="text-muted">${Utils.escapeHtml(message)}</p>
+                    <button class="btn btn-primary" data-action="router-reload">Try Again</button>
                 </div>
             </div>
         `);
+    }
+
+    /** Run and clear the current page's teardown callbacks; a failing one never blocks navigation. */
+    function runLeaveHandlers() {
+        const handlers = _leaveHandlers;
+        _leaveHandlers = [];
+        handlers.forEach(fn => {
+            try {
+                fn();
+            } catch (error) {
+                console.error('Route leave handler failed:', error);
+            }
+        });
+    }
+
+    /** Current navigation token; capture it at the start of a page loader. */
+    function token() {
+        return _navToken;
+    }
+
+    /** False once the user has navigated (or reloaded) since the token was captured. */
+    function isCurrent(t) {
+        return t === _navToken;
+    }
+
+    /** Register a teardown callback for the current page; it runs once when the page is left. */
+    function onLeave(fn) {
+        if (typeof fn === 'function') {
+            _leaveHandlers.push(fn);
+        }
+    }
+
+    /** Reload the current route (tears the page down and loads it again). */
+    function reload() {
+        _resolveCurrentHash();
     }
 
     function showPlaceholder(contentType) {
@@ -221,6 +277,12 @@ const ContentRouter = (function() {
         loadContent,
         showLoading,
         showError,
-        showPlaceholder
+        showPlaceholder,
+        token,
+        isCurrent,
+        onLeave,
+        reload
     };
 })();
+
+Actions.register('router-reload', () => ContentRouter.reload());

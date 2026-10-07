@@ -135,13 +135,8 @@ const App = (function() {
      * Refresh current view
      */
     function refresh() {
-        // Get current active menu item and reload
-        const activeContent = $('.sidebar-menu-link.active').data('content');
-        if (activeContent) {
-            ContentRouter.loadContent(activeContent);
-        } else {
-            Dashboard.load();
-        }
+        // Reload the current route (tears the page down first; keeps route params).
+        ContentRouter.reload();
     }
 
     /**

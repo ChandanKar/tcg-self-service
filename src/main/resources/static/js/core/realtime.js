@@ -15,7 +15,7 @@ const RealTime = (function() {
         pendingRequests: 60000  // 1 minute
     };
 
-    // Active timers
+    // Active timers: key -> { id, callback, interval, lastRun }
     let timers = {};
     let isPageVisible = true;
 
@@ -35,37 +35,69 @@ const RealTime = (function() {
     }
 
     /**
-     * Handle page visibility change
+     * Handle page visibility change. While hidden, interval callbacks are skipped; when the tab
+     * becomes visible again every poll that is overdue runs once straight away.
      */
     function handleVisibilityChange() {
         isPageVisible = !document.hidden;
-
         if (isPageVisible) {
-            // Resume polling when page becomes visible
-            resumeAllPolling();
-        } else {
-            // Pause polling when page is hidden
-            pauseAllPolling();
+            runOverduePolls();
         }
     }
 
+    function runTimer(timer) {
+        timer.lastRun = Date.now();
+        try {
+            timer.callback();
+        } catch (error) {
+            console.error('Polling callback failed:', error);
+        }
+    }
+
+    function runOverduePolls() {
+        const now = Date.now();
+        Object.values(timers).forEach(timer => {
+            if (now - timer.lastRun >= timer.interval) {
+                runTimer(timer);
+            }
+        });
+    }
+
     /**
-     * Start polling for a specific feature
+     * Start polling for a specific feature.
+     * @param {string} key - replaces any poll already running under this key
+     * @param {function} callback
+     * @param {number} interval - ms (defaults to INTERVALS[key] or 30s)
+     * @param {object} options
+     * @param {boolean} options.immediate - run once now (default true)
+     * @param {boolean} options.pageScoped - stop automatically when the user leaves the page
      */
     function startPolling(key, callback, interval, options = {}) {
         stopPolling(key);
 
-        // Run immediately
+        const timer = { id: null, callback, interval: interval || INTERVALS[key] || 30000, lastRun: 0 };
+        timers[key] = timer;
+
         if (isPageVisible && options.immediate !== false) {
-            callback();
+            runTimer(timer);
+        } else {
+            timer.lastRun = Date.now();
         }
 
-        // Set up interval
-        timers[key] = setInterval(() => {
+        timer.id = setInterval(() => {
             if (isPageVisible) {
-                callback();
+                runTimer(timer);
             }
-        }, interval || INTERVALS[key] || 30000);
+        }, timer.interval);
+
+        if (options.pageScoped === true && typeof ContentRouter !== 'undefined' && ContentRouter.onLeave) {
+            // Only stop this exact poll; a newer poll under the same key belongs to another page.
+            ContentRouter.onLeave(() => {
+                if (timers[key] === timer) {
+                    stopPolling(key);
+                }
+            });
+        }
     }
 
     /**
@@ -73,7 +105,7 @@ const RealTime = (function() {
      */
     function stopPolling(key) {
         if (timers[key]) {
-            clearInterval(timers[key]);
+            clearInterval(timers[key].id);
             delete timers[key];
         }
     }
@@ -83,23 +115,14 @@ const RealTime = (function() {
      */
     function stopAllPolling() {
         Object.keys(timers).forEach(key => {
-            clearInterval(timers[key]);
+            clearInterval(timers[key].id);
         });
         timers = {};
     }
 
-    /**
-     * Pause all polling (when page hidden)
-     */
-    function pauseAllPolling() {
-        // Timers continue but callbacks check isPageVisible
-    }
-
-    /**
-     * Resume all polling (when page visible)
-     */
-    function resumeAllPolling() {
-        // Callbacks will run on next interval
+    /** Keys of the polls that are currently running (for diagnostics and tests). */
+    function activePolls() {
+        return Object.keys(timers);
     }
 
     /**
@@ -194,6 +217,7 @@ const RealTime = (function() {
         startPolling,
         stopPolling,
         stopAllPolling,
+        activePolls,
         registerDashboardRefresh,
         registerEnvironmentRefresh,
         unregister,

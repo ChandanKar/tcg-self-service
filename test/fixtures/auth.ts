@@ -42,6 +42,39 @@ export async function loginAs(page: Page, username: string, password: string): P
   await page.waitForURL('**/home', { timeout: 10_000 });
 }
 
+/**
+ * Dev-mode identities: when the app runs with ENTRAID_ENABLED=false, DefaultSecurityConfig
+ * trusts an X-User-Id header, so tests can act as a seeded user without a password account
+ * (e.g. against the test schema, where src/test/resources/db/reset-test-data.sql seeds
+ * 'user-001' and 'admin-001').
+ */
+export const devIds = {
+  user: process.env.TEST_DEV_USER_ID || '',
+  admin: process.env.TEST_DEV_ADMIN_ID || '',
+};
+
+/**
+ * Signs in as a standard user or an admin and opens /home. Uses the dev header when
+ * TEST_DEV_USER_ID / TEST_DEV_ADMIN_ID is set, otherwise the password form. Returns false
+ * when neither is configured so the caller can test.skip().
+ */
+export async function signIn(page: Page, role: 'user' | 'admin' = 'user'): Promise<boolean> {
+  const devId = devIds[role];
+  if (devId) {
+    await page.context().setExtraHTTPHeaders({ 'X-User-Id': devId });
+    await page.goto('/home');
+    return true;
+  }
+  const c = creds[role];
+  if (!c.username || !c.password) return false;
+  await loginAs(page, c.username, c.password);
+  return true;
+}
+
+export function canSignIn(role: 'user' | 'admin' = 'user'): boolean {
+  return !!devIds[role] || (role === 'admin' ? hasAdminCreds() : hasUserCreds());
+}
+
 export async function logout(page: Page): Promise<void> {
   // Best-effort: hits the logout endpoint the app itself uses (see AuthController /
   // the user menu's logout action) and returns to the login page.
