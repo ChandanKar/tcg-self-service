@@ -6,8 +6,6 @@
 const Environments = (function() {
     'use strict';
 
-    // Safe HTML escaping utility
-
     // Cache for current environment data
     let currentEnvironment = null;
     let environmentsList = []; // holds only the currently-displayed server page, not the full set
@@ -20,6 +18,54 @@ const Environments = (function() {
     let operationRefreshTimer = null;
     let operationStatusHandler = null;
     let metricChartCounter = 0;
+
+    // Navigation token of the current list/detail visit (see the page contract in core/router.js).
+    let pageToken = null;
+
+    /**
+     * Start (or continue) a visit: called by loadList/loadDetail. Registers the teardown once per
+     * router visit; internal reloads within the same visit keep the token.
+     */
+    function beginVisit() {
+        const t = ContentRouter.token();
+        if (pageToken !== t) {
+            pageToken = t;
+            ContentRouter.onLeave(teardown);
+        }
+        return t;
+    }
+
+    function isActive() {
+        return pageToken !== null && ContentRouter.isCurrent(pageToken);
+    }
+
+    /** Reload the detail view only if the user is still on this environment's detail page. */
+    function reloadDetailIfCurrent(envId) {
+        if (isActive() && currentEnvironment && currentEnvironment.environmentId === envId) {
+            loadDetail({ environmentId: envId });
+        }
+    }
+
+    function reloadListIfCurrent() {
+        if (isActive() && $('#env-list-pagination').length) {
+            loadList();
+        }
+    }
+
+    /** Runs when the user leaves the Environments list or detail (ContentRouter.onLeave). */
+    function teardown() {
+        pageToken = null;
+        if (operationStatusHandler) {
+            window.removeEventListener('vm-operation-status', operationStatusHandler);
+            operationStatusHandler = null;
+        }
+        clearTimeout(operationRefreshTimer);
+        operationRefreshTimer = null;
+        $('#content-area').off('.envList .envDetail');
+        $(document).off('click.vmMetricWindow');
+        disposeAllBootstrapTooltips();
+        currentEnvironment = null;
+    }
 
     function isTransitionalStatus(status) {
         return ['STARTING', 'STOPPING'].includes((status || '').toUpperCase());
@@ -37,18 +83,21 @@ const Environments = (function() {
      * Load environment list view
      */
     async function loadList() {
+        const t = beginVisit();
         showLoading('Loading environments...');
 
         try {
             envCurrentPage = 0;
             envSearchTerm = null;
             const pageResult = await fetchEnvironmentsPage(envCurrentPage, envSearchTerm);
+            if (!ContentRouter.isCurrent(t)) return;
             environmentsList = pageResult.content;
             envTotalElements = pageResult.totalElements;
             const html = buildListHtml(environmentsList, envTotalElements);
             $('#content-area').html(html);
             bindListEvents();
         } catch (error) {
+            if (!ContentRouter.isCurrent(t)) return;
             console.error('Failed to load environments:', error);
             if (error.status === 403) {
                 showError('You do not have access to any environments. Please request access from an administrator.');
@@ -62,6 +111,7 @@ const Environments = (function() {
      * Load environment detail view
      */
     async function loadDetail(params) {
+        const t = beginVisit();
         disposeAllBootstrapTooltips();
         let envId = params.environmentId;
         const envName = params.environmentName;
@@ -76,6 +126,7 @@ const Environments = (function() {
                         .done(resolve)
                         .fail(reject);
                 });
+                if (!ContentRouter.isCurrent(t)) return;
                 const match = envList.find(e =>
                     e.name === envName ||
                     e.displayName === envName ||
@@ -96,12 +147,14 @@ const Environments = (function() {
 
             // Fetch environment details
             const env = await fetchEnvironmentDetails(envId);
+            if (!ContentRouter.isCurrent(t)) return;
             currentEnvironment = env;
 
             const html = buildDetailHtml(env);
             $('#content-area').html(html);
             bindDetailEvents(env);
         } catch (error) {
+            if (!ContentRouter.isCurrent(t)) return;
             console.error('Failed to load environment:', error);
             if (error.status === 403) {
                 showError('You do not have access to this environment. Please request access from an administrator.');
@@ -785,26 +838,26 @@ const Environments = (function() {
      */
     function bindListEvents() {
         // View environment
-        $('#content-area').off('click', '[data-action="view"]').on('click', '[data-action="view"]', function() {
+        $('#content-area').off('click.envList', '[data-action="view"]').on('click.envList', '[data-action="view"]', function() {
             disposeAllBootstrapTooltips();
             // Through the router so the address bar shows #/environments/<id> (refresh, Back, links).
             ContentRouter.navigate('environment-detail', { environmentId: String($(this).data('env-id')) });
         });
 
         // Edit environment
-        $('#content-area').off('click', '[data-action="edit-env"]').on('click', '[data-action="edit-env"]', function() {
+        $('#content-area').off('click.envList', '[data-action="edit-env"]').on('click.envList', '[data-action="edit-env"]', function() {
             disposeAllBootstrapTooltips();
             const envId = $(this).data('env-id');
             const env = environmentsList.find(e => e.environmentId === envId);
             if (env) {
                 Modals.showEditEnvironment(env, function() {
-                    loadList();
+                    reloadListIfCurrent();
                 });
             }
         });
 
         // Delete environment
-        $('#content-area').off('click', '[data-action="delete-env"]').on('click', '[data-action="delete-env"]', function() {
+        $('#content-area').off('click.envList', '[data-action="delete-env"]').on('click.envList', '[data-action="delete-env"]', function() {
             disposeAllBootstrapTooltips();
             const envId = $(this).data('env-id');
             const envName = $(this).data('env-name');
@@ -813,7 +866,7 @@ const Environments = (function() {
 
 
         // Search — delegated binding + direct bind on rendered element (same pattern as dashboard)
-        $('#content-area').off('input', '#env-list-search').on('input', '#env-list-search', function() {
+        $('#content-area').off('input.envList', '#env-list-search').on('input.envList', '#env-list-search', function() {
             filterAndRenderEnvList($(this).val().toLowerCase().trim());
         });
         $('#env-list-search').off('input.envlist').on('input.envlist', function() {
@@ -836,7 +889,7 @@ const Environments = (function() {
                 ApiClient.delete(Config.API.environments.delete(envId))
                     .done(function() {
                         Notifications.success(`Environment "${envName}" deleted`);
-                        loadList();
+                        reloadListIfCurrent();
                     })
                     .fail(function(xhr) {
                         const msg = xhr.responseJSON?.message || 'Failed to delete environment';
@@ -859,7 +912,7 @@ const Environments = (function() {
         try {
             if (typeof Locks !== 'undefined' && Locks.bindLockEvents) {
                 Locks.bindLockEvents(envId, envName, function() {
-                    loadDetail({ environmentId: envId });
+                    reloadDetailIfCurrent(envId);
                 });
             }
         } catch (e) {
@@ -929,8 +982,8 @@ const Environments = (function() {
         });
 
         // Group accordion — only one group open at a time (true accordion)
-        $('#content-area').off('click', '.group-card-toggle')
-            .on('click', '.group-card-toggle', function() {
+        $('#content-area').off('click.envDetail', '.group-card-toggle')
+            .on('click.envDetail', '.group-card-toggle', function() {
                 const targetId  = $(this).data('collapse-target');
                 const $clicked  = $('#' + targetId);
                 const isNowOpen = !$clicked.hasClass('group-collapsed');
@@ -966,6 +1019,9 @@ const Environments = (function() {
     }
 
     function bindOperationStatusRefresh(envId) {
+        const stillOnDetail = () =>
+            isActive() && currentEnvironment && currentEnvironment.environmentId === envId;
+
         if (operationStatusHandler) {
             window.removeEventListener('vm-operation-status', operationStatusHandler);
         }
@@ -982,8 +1038,10 @@ const Environments = (function() {
 
             operationRefreshTimer = setTimeout(async function() {
                 operationRefreshTimer = null;
+                if (!stillOnDetail()) return;
                 try {
                     const latestEnv = await fetchEnvironmentDetails(envId);
+                    if (!stillOnDetail()) return;
                     currentEnvironment = latestEnv;
                     $('#content-area').html(buildDetailHtml(latestEnv));
                     bindDetailEvents(latestEnv);
@@ -1002,7 +1060,7 @@ const Environments = (function() {
             envId, opType: 'START',
             scope: { level: 'environment', label: `all VMs in <strong>${Utils.escapeHtml(envName)}</strong>` },
             onConfirm: () => VmOperations.startEnvironment(envId, envName)
-                                .then(() => loadDetail({ environmentId: envId }))
+                                .then(() => reloadDetailIfCurrent(envId))
         });
     }
 
@@ -1012,7 +1070,7 @@ const Environments = (function() {
             scope: { level: 'environment', label: `all VMs in <strong>${Utils.escapeHtml(envName)}</strong>` },
             note: 'Running VMs will be gracefully stopped.',
             onConfirm: () => VmOperations.stopEnvironment(envId, envName)
-                                .then(() => loadDetail({ environmentId: envId }))
+                                .then(() => reloadDetailIfCurrent(envId))
         });
     }
 
@@ -1061,7 +1119,7 @@ const Environments = (function() {
             envId, opType: 'START',
             scope: { level: 'group', label: `${noun.toLowerCase()} <strong>${Utils.escapeHtml(groupName)}</strong>`, groupId, noun },
             onConfirm: () => VmOperations.startGroup(envId, groupId, groupName, noun)
-                                .then(() => loadDetail({ environmentId: envId }))
+                                .then(() => reloadDetailIfCurrent(envId))
         });
     }
 
@@ -1074,7 +1132,7 @@ const Environments = (function() {
             scope: { level: 'group', label: `${noun.toLowerCase()} <strong>${Utils.escapeHtml(groupName)}</strong>`, groupId, noun },
             note: 'Running VMs will be gracefully stopped.',
             onConfirm: () => VmOperations.stopGroup(envId, groupId, groupName, noun)
-                                .then(() => loadDetail({ environmentId: envId }))
+                                .then(() => reloadDetailIfCurrent(envId))
         });
     }
 
@@ -1085,7 +1143,7 @@ const Environments = (function() {
             envId, opType: 'START',
             scope: { level: 'vm', label: `VM <strong>${Utils.escapeHtml(vmName)}</strong>`, vmId },
             onConfirm: () => VmOperations.startVm(envId, vmId, vmName)
-                                .then(() => loadDetail({ environmentId: envId }))
+                                .then(() => reloadDetailIfCurrent(envId))
         });
     }
 
@@ -1096,7 +1154,7 @@ const Environments = (function() {
             envId, opType: 'STOP',
             scope: { level: 'vm', label: `VM <strong>${Utils.escapeHtml(vmName)}</strong>`, vmId },
             onConfirm: () => VmOperations.stopVm(envId, vmId, vmName)
-                                .then(() => loadDetail({ environmentId: envId }))
+                                .then(() => reloadDetailIfCurrent(envId))
         });
     }
 

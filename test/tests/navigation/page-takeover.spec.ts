@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { signIn, canSignIn } from '../../fixtures/auth';
+import { signIn, canSignIn, devIds } from '../../fixtures/auth';
 import { delayRoute } from '../../fixtures/mock-api';
 
 /**
@@ -96,6 +96,73 @@ test.describe('Dashboard lifecycle', () => {
 
     await expect(page).toHaveURL(/#\/request-access$/);
     await expect(header(page)).not.toHaveText('Dashboard');
+  });
+});
+
+test.describe('Environments lifecycle', () => {
+  let envId = '';
+  const envName = `Takeover E2E ${Date.now()}`;
+
+  test.beforeAll(async ({ playwright }) => {
+    if (!devIds.admin) return;
+    const admin = await playwright.request.newContext({
+      baseURL: process.env.BASE_URL || 'http://localhost:8080',
+      extraHTTPHeaders: { 'X-User-Id': devIds.admin, 'Content-Type': 'application/json' },
+    });
+    const created = await admin.post('/api/v1/environments', {
+      data: { name: `takeover-e2e-${Date.now()}`, displayName: envName, cloudProvider: 'AWS' },
+    });
+    expect(created.ok()).toBeTruthy();
+    envId = (await created.json()).environmentId;
+    await admin.dispose();
+  });
+
+  test.beforeEach(async ({ page }) => {
+    test.skip(!devIds.admin, 'Needs TEST_DEV_ADMIN_ID (dev mode) to seed an environment');
+    await signIn(page, 'admin');
+    await ready(page);
+  });
+
+  test('an operation-status event after leaving Environment Detail does not repaint it', async ({ page }) => {
+    await goTo(page, `environments/${envId}`);
+    await expect(page.locator('#content-area')).toContainText(envName, { timeout: 10_000 });
+
+    await page.evaluate((id) => window.dispatchEvent(new CustomEvent('vm-operation-status', { detail: { envId: id } })), envId);
+    await goTo(page, 'request-access');
+    await page.waitForTimeout(2_000);
+
+    await expect(page).toHaveURL(/#\/request-access$/);
+    await expect(page.locator('#env-detail-view')).toHaveCount(0);
+    // (Request Access lists requestable environments, so the name itself may appear there.)
+    await expect(header(page)).toContainText('Request Environment Access');
+  });
+
+  test('a slow Environment Detail load finishing after leaving does not render', async ({ page }) => {
+    await delayRoute(page, `**/api/v1/environments/${envId}*`, 2_000);
+    await goTo(page, `environments/${envId}`);
+    await page.waitForTimeout(300);
+    await goTo(page, 'request-access');
+    await page.waitForTimeout(2_800);
+
+    await expect(page.locator('#env-detail-view')).toHaveCount(0);
+    // (Request Access lists requestable environments, so the name itself may appear there.)
+    await expect(header(page)).toContainText('Request Environment Access');
+  });
+
+  test("leaving Environments removes its delegated handlers, so other pages' [data-action=view] are untouched", async ({ page }) => {
+    await goTo(page, 'my-environments');
+    await expect(header(page)).toHaveText('My Environments', { timeout: 10_000 });
+    await goTo(page, `environments/${envId}`);
+    await expect(page.locator('#content-area')).toContainText(envName, { timeout: 10_000 });
+
+    await goTo(page, 'user-management');
+    await page.waitForTimeout(500);
+
+    const leftover = await page.evaluate(() => {
+      const events = ($ as any)._data(document.getElementById('content-area'), 'events') || {};
+      return Object.values(events).flat().filter((h: any) => /^env(List|Detail)$/.test(h.namespace)).length;
+    });
+    expect(leftover).toBe(0);
   });
 });
 

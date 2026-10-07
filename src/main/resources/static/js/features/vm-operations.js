@@ -468,7 +468,7 @@ const VmOperations = (function() {
                 return;
             }
 
-            ApiClient.get(Config.API.operations.get(envId, executionId))
+            ApiClient.get(Config.API.operations.get(envId, executionId), { suppressGlobalError: true }) // failures shown in the progress dialog (pollFailures)
                 .done(function(execution) {
                     // Update last status check time
                     if (operation) {
