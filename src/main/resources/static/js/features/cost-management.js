@@ -202,7 +202,7 @@ const CostManagement = (function() {
                     <i class="fas fa-exclamation-triangle fa-3x text-warning"></i>
                     <h4 class="mt-3">Unable to Load Cost Data</h4>
                     <p>${Utils.escapeHtml(message)}</p>
-                    <button class="btn btn-primary" onclick="CostManagement.load()">
+                    <button class="btn btn-primary" data-action="cost-reload">
                         <i class="fas fa-sync"></i> Try Again
                     </button>
                 </div>
@@ -777,8 +777,8 @@ const CostManagement = (function() {
             totalPages: pageState.totalPages || 0,
             totalItems: pageState.totalElements || 0,
             itemLabel: 'rows',
-            prevOnClick: `CostManagement.changePage('${tableKey}', ${page - 1})`,
-            nextOnClick: `CostManagement.changePage('${tableKey}', ${page + 1})`
+            action: 'cost-change-page',
+            key: tableKey
         });
     }
 
@@ -1173,3 +1173,8 @@ const CostManagement = (function() {
 
 // Make available globally
 window.CostManagement = CostManagement;
+
+Actions.registerAll({
+    'cost-reload': () => CostManagement.load(),
+    'cost-change-page': el => CostManagement.changePage(el.dataset.pageKey, Number(el.dataset.page))
+});

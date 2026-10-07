@@ -531,7 +531,7 @@ const ActivityLogs = (function() {
                     <i class="fas fa-exclamation-triangle text-danger fa-3x mb-3"></i>
                     <h5>Error</h5>
                     <p class="text-muted">${message}</p>
-                    <button class="btn btn-primary" onclick="ActivityLogs.loadMyActivityLogs()">Retry</button>
+                    <button class="btn btn-primary" data-action="activity-retry">Retry</button>
                 </div>
             </div>
         `);
@@ -544,6 +544,4 @@ const ActivityLogs = (function() {
 
 window.ActivityLogs = ActivityLogs;
 
-
-
-
+Actions.register('activity-retry', () => ActivityLogs.loadMyActivityLogs());

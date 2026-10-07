@@ -248,13 +248,13 @@ const SystemHealth = (function () {
                     <p class="text-muted mb-0">Live platform health and state synchronization</p>
                 </div>
                 <div class="d-flex gap-2 flex-shrink-0">
-                    <button class="btn btn-sm btn-primary" id="trigger-sync-btn" onclick="SystemHealth.triggerSync()">
+                    <button class="btn btn-sm btn-primary" id="trigger-sync-btn" data-action="sh-trigger-sync">
                         <i class="fas fa-sync me-1"></i>Trigger Sync
                     </button>
-                    <button class="btn btn-sm btn-tonal btn-warning" id="trigger-eks-sync-btn" onclick="SystemHealth.triggerEksSync()">
+                    <button class="btn btn-sm btn-tonal btn-warning" id="trigger-eks-sync-btn" data-action="sh-trigger-eks-sync">
                         <i class="fab fa-aws me-1"></i>EKS Sync Now
                     </button>
-                    <button class="btn btn-sm btn-ghost" onclick="SystemHealth.load()">
+                    <button class="btn btn-sm btn-ghost" data-action="sh-reload">
                         <i class="fas fa-redo me-1"></i>Refresh
                     </button>
                 </div>
@@ -526,7 +526,7 @@ const SystemHealth = (function () {
                     <i class="fas fa-exclamation-triangle text-danger fa-3x mb-3"></i>
                     <h5>Error</h5>
                     <p class="text-muted">${Utils.escapeHtml(message)}</p>
-                    <button class="btn btn-primary" onclick="SystemHealth.load()">Retry</button>
+                    <button class="btn btn-primary" data-action="sh-reload">Retry</button>
                 </div>
             </div>`);
     }
@@ -535,3 +535,9 @@ const SystemHealth = (function () {
 })();
 
 window.SystemHealth = SystemHealth;
+
+Actions.registerAll({
+    'sh-trigger-sync': () => SystemHealth.triggerSync(),
+    'sh-trigger-eks-sync': () => SystemHealth.triggerEksSync(),
+    'sh-reload': () => SystemHealth.load()
+});

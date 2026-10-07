@@ -270,7 +270,7 @@ const Environments = (function() {
                     <i class="fas fa-exclamation-triangle fa-3x text-warning"></i>
                     <h4 class="mt-3">Error</h4>
                     <p>${Utils.escapeHtml(message)}</p>
-                    <button class="btn btn-primary" onclick="Dashboard.load()">
+                    <button class="btn btn-primary" data-action="go-dashboard">
                         <i class="fas fa-arrow-left"></i> Back to Dashboard
                     </button>
                 </div>
@@ -315,7 +315,7 @@ const Environments = (function() {
                     <div class="input-group" style="width:220px;">
                         <span class="input-group-text py-1"><i class="fas fa-search" style="font-size:0.8rem;"></i></span>
                         <input type="text" class="form-control form-control-sm" id="env-list-search" placeholder="Search..."
-                               oninput="Environments._search(this.value)">
+                               data-action-input="env-search">
                     </div>
                 </div>
                 <div class="env-list-table-wrapper">
@@ -631,7 +631,7 @@ const Environments = (function() {
                                 <i class="fas fa-stop-circle"></i> Stop All
                             </button>`
                         }
-                        <button class="btn btn-sm btn-ghost" onclick="Environments.loadList()">
+                        <button class="btn btn-sm btn-ghost" data-action="env-reload-list">
                             <i class="fas fa-arrow-left"></i> Back
                         </button>
                     </div>
@@ -770,7 +770,7 @@ const Environments = (function() {
                         <span class="badge ${statusClass} flex-shrink-0" style="font-size:0.68rem;padding:0.2em 0.45em;">${runningCount}/${totalCount}</span>
                         <small class="text-muted text-truncate" style="font-size:0.72rem;min-width:0;">Seq: ${group.sequencePosition} | Depends: ${dependsText}</small>
                     </div>
-                    <div class="flex-shrink-0 ms-2" onclick="event.stopPropagation()">
+                    <div class="flex-shrink-0 ms-2">
                         ${groupBtns}
                     </div>
                 </div>
@@ -1228,10 +1228,8 @@ const Environments = (function() {
             const extra = estimate.vmEstimates.length - MAX_VISIBLE;
             const toggleRow = extra > 0 ? `
                 <tr><td colspan="3" class="pt-1">
-                    <a href="#" class="small text-muted" onclick="
-                        $(this).closest('table').find('.vm-est-extra').toggleClass('d-none');
-                        $(this).text($(this).text().startsWith('Show') ? 'Hide' : 'Show ${extra} more…');
-                        return false;">Show ${extra} more…</a>
+                    <a href="#" class="small text-muted" data-action="env-toggle-estimates"
+                       data-extra="${extra}">Show ${extra} more…</a>
                 </td></tr>` : '';
 
             vmBreakdown = `
@@ -2012,3 +2010,13 @@ const Environments = (function() {
         }
     };
 })();
+
+Actions.registerAll({
+    'env-reload-list': () => Environments.loadList(),
+    'env-toggle-estimates': el => {
+        const $link = $(el);
+        $link.closest('table').find('.vm-est-extra').toggleClass('d-none');
+        $link.text($link.text().startsWith('Show') ? 'Hide' : `Show ${el.dataset.extra} more…`);
+    }
+});
+Actions.register('env-search', el => Environments._search(el.value), 'input');

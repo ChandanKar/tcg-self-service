@@ -76,7 +76,7 @@ const App = (function() {
                 <i class="fas fa-exclamation-triangle fa-3x text-danger"></i>
                 <h4 class="mt-3">Error</h4>
                 <p>${message}</p>
-                <button class="btn btn-primary" onclick="location.reload()">
+                <button class="btn btn-primary" data-action="reload-page">
                     <i class="fas fa-sync"></i> Refresh Page
                 </button>
             </div>
@@ -165,3 +165,8 @@ $(document).ready(function() {
     App.init();
 });
 
+// Page-level actions shared by several modules (see core/actions.js).
+Actions.registerAll({
+    'reload-page': () => location.reload(),
+    'go-dashboard': () => Dashboard.load()
+});

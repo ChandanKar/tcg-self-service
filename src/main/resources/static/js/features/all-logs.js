@@ -725,7 +725,7 @@ const AllLogs = (function() {
                     <i class="fas fa-exclamation-triangle text-danger fa-3x mb-3"></i>
                     <h5>Error</h5>
                     <p class="text-muted">${message}</p>
-                    <button class="btn btn-primary" onclick="AllLogs.loadAllAuditLogs()">Retry</button>
+                    <button class="btn btn-primary" data-action="all-logs-retry">Retry</button>
                 </div>
             </div>
         `);
@@ -736,5 +736,4 @@ const AllLogs = (function() {
     };
 })();
 
-
-
+Actions.register('all-logs-retry', () => AllLogs.loadAllAuditLogs());

@@ -392,7 +392,7 @@
                 <div class="modal-body">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h6 class="mb-0">Groups & VMs</h6>
-                        <button class="btn btn-sm btn-success" id="btn-add-group-modal" onclick="VmRegistry.openGroupForm()">
+                        <button class="btn btn-sm btn-success" id="btn-add-group-modal" data-action="vr-open-group-form">
                             <i class="fas fa-plus"></i> Add Group
                         </button>
                     </div>
@@ -458,7 +458,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="btnSubmitGroup" onclick="Features.submitGroup()">
+                    <button type="button" class="btn btn-primary" id="btnSubmitGroup" data-action="vr-submit-group">
                         <i class="fas fa-save"></i> Create Group
                     </button>
                 </div>
@@ -499,12 +499,12 @@
                                         </select>
                                     </div>
                                     <div class="col-md-3">
-                                        <button type="button" class="btn btn-warning w-100" id="btnFetchEc2" onclick="Features.fetchEc2Instances()">
+                                        <button type="button" class="btn btn-warning w-100" id="btnFetchEc2" data-action="vr-fetch-ec2">
                                             <i class="fab fa-aws me-1"></i> Fetch Instances
                                         </button>
                                     </div>
                                     <div class="col-md-4">
-                                        <input type="text" class="form-control" id="ec2SearchFilter" placeholder="Filter by name or ID..." oninput="Features.filterEc2Instances(this.value)" style="display:none;">
+                                        <input type="text" class="form-control" id="ec2SearchFilter" placeholder="Filter by name or ID..." data-action-input="vr-filter-ec2" style="display:none;">
                                     </div>
                                 </div>
                                 <div id="ec2InstancesList">
@@ -588,7 +588,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="btnSubmitVm" onclick="Features.submitVm()">
+                    <button type="button" class="btn btn-primary" id="btnSubmitVm" data-action="vr-submit-vm">
                         <i class="fas fa-save" aria-hidden="true"></i> Register VM
                     </button>
                 </div>
@@ -700,6 +700,7 @@
     <script src="js/core/api-client.js?v=202609101152"></script>
     <script src="js/core/template-loader.js?v=202609101152"></script>
     <script src="js/core/utils.js?v=202609101152"></script>
+    <script src="js/core/actions.js?v=202609101152"></script>
     <script src="js/core/router.js?v=202609101152"></script>
     <script src="js/core/auth.js?v=202609101152"></script>
     <script src="js/core/realtime.js?v=202609101152"></script>

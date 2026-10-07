@@ -83,19 +83,22 @@ const Pagination = (function() {
     /**
      * Pure markup (no DOM injection, no binding) for a compact Prev/Next-only bar — "Page N of
      * M", no page-number list. Used by Cost Management, where up to three of these bars can be
-     * embedded in one screen and each already wires its own onclick handler inline (avoids
-     * needing a post-insertion bind pass for markup that's assembled into a larger HTML string).
+     * embedded in one screen. The buttons carry data-action plus data-page-key / data-page, so
+     * the caller registers one Actions handler instead of binding after insertion.
      *
      * @param {object} opts
      * @param {number} opts.page - 0-indexed current page
      * @param {number} opts.totalPages
      * @param {number} opts.totalItems
      * @param {string} [opts.itemLabel='rows']
-     * @param {string} opts.prevOnClick - raw JS expression for the Prev button's onclick attribute
-     * @param {string} opts.nextOnClick - raw JS expression for the Next button's onclick attribute
+     * @param {string} opts.action - Actions name registered by the caller; receives the button,
+     *                               whose dataset has pageKey and page (the target page)
+     * @param {string} opts.key - identifies which table the bar belongs to (data-page-key)
      */
     function buildSimpleMarkup(opts) {
-        const { page, totalPages, totalItems, itemLabel = 'rows', prevOnClick, nextOnClick } = opts;
+        const { page, totalPages, totalItems, itemLabel = 'rows', action, key } = opts;
+        const attrs = (target) =>
+            `data-action="${Utils.escapeHtml(action)}" data-page-key="${Utils.escapeHtml(key)}" data-page="${target}"`;
 
         if (!totalPages || totalPages <= 1) {
             return `<span class="pagination-info">${totalItems || 0} ${itemLabel}</span>`;
@@ -104,10 +107,10 @@ const Pagination = (function() {
         return `
             <span class="pagination-info">Page ${page + 1} of ${totalPages} (${totalItems} ${itemLabel})</span>
             <div class="pagination-controls">
-                <button class="${BTN_CLASS}" ${page === 0 ? 'disabled' : ''} onclick="${prevOnClick}">
+                <button class="${BTN_CLASS}" ${page === 0 ? 'disabled' : ''} ${attrs(page - 1)}>
                     <i class="fas fa-chevron-left"></i> Prev
                 </button>
-                <button class="${BTN_CLASS} pg-btn-wide" ${page >= totalPages - 1 ? 'disabled' : ''} onclick="${nextOnClick}">
+                <button class="${BTN_CLASS} pg-btn-wide" ${page >= totalPages - 1 ? 'disabled' : ''} ${attrs(page + 1)}>
                     Next <i class="fas fa-chevron-right"></i>
                 </button>
             </div>

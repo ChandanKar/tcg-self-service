@@ -58,7 +58,7 @@ const VmRegistry = (function() {
                             <p class="text-muted">Create and manage environments, groups, and VMs</p>
                         </div>
                         <div>
-                            <button class="btn btn-primary" onclick="VmRegistry.openCreateEnvironmentModal()">
+                            <button class="btn btn-primary" data-action="vr-create-environment">
                                 <i class="fas fa-plus"></i> Create Environment
                             </button>
                         </div>
@@ -69,17 +69,17 @@ const VmRegistry = (function() {
                     <div class="col-md-6">
                         <div class="input-group">
                             <span class="input-group-text"><i class="fas fa-search"></i></span>
-                            <input type="text" class="form-control" id="searchEnvironments" placeholder="Search environments..." oninput="VmRegistry._searchRegistry(this.value)">
+                            <input type="text" class="form-control" id="searchEnvironments" placeholder="Search environments..." data-action-input="vr-search">
                         </div>
                     </div>
                     <div class="col-md-3">
-                        <select class="form-select" id="filterStatus" onchange="VmRegistry.loadEnvironmentsData()">
+                        <select class="form-select" id="filterStatus" data-action-change="vr-reload">
                             <option value="active">Active Only</option>
                             <option value="all">All Environments</option>
                         </select>
                     </div>
                     <div class="col-md-3">
-                        <button class="btn btn-ghost w-100" onclick="VmRegistry.loadEnvironmentsData()">
+                        <button class="btn btn-ghost w-100" data-action="vr-reload">
                             <i class="fas fa-sync-alt"></i> Refresh
                         </button>
                     </div>
@@ -96,7 +96,7 @@ const VmRegistry = (function() {
                                 <i class="fas fa-folder-open fa-4x text-muted mb-3"></i>
                                 <h5>No Environments Yet</h5>
                                 <p class="text-muted">Create your first environment to get started</p>
-                                <button class="btn btn-primary" onclick="VmRegistry.openCreateEnvironmentModal()">
+                                <button class="btn btn-primary" data-action="vr-create-environment">
                                     <i class="fas fa-plus"></i> Create Environment
                                 </button>
                             </div>
@@ -210,17 +210,17 @@ const VmRegistry = (function() {
                 <td class="text-center">${statusBadge}</td>
                 <td>${createdDate}</td>
                 <td class="text-end">
-                    <button class="btn btn-sm btn-primary btn-action" title="${tooltip}" onclick="VmRegistry.manageGroups('${env.environmentId}')">
+                    <button class="btn btn-sm btn-primary btn-action" title="${tooltip}" data-action="vr-manage-groups" data-env-id="${Utils.escapeHtml(env.environmentId)}">
                         <i class="fas fa-layer-group"></i> Groups
                     </button>
-                    <button class="btn btn-sm btn-warning btn-action" onclick="VmRegistry.editEnvironment('${env.environmentId}')" title="Edit ${tooltip}">
+                    <button class="btn btn-sm btn-warning btn-action" data-action="vr-edit-environment" data-env-id="${Utils.escapeHtml(env.environmentId)}" title="Edit ${tooltip}">
                         <i class="fas fa-edit"></i>
                     </button>
                     ${env.isActive
-                        ? `<button class="btn btn-sm btn-danger btn-action" onclick="VmRegistry.deleteEnvironment('${env.environmentId}')" title="Deactivate ${tooltip}">
+                        ? `<button class="btn btn-sm btn-danger btn-action" data-action="vr-delete-environment" data-env-id="${Utils.escapeHtml(env.environmentId)}" title="Deactivate ${tooltip}">
                         <i class="fas fa-trash"></i>
                     </button>`
-                        : `<button class="btn btn-sm btn-success btn-action" onclick="VmRegistry.reactivateEnvironment('${env.environmentId}')" title="Reactivate ${tooltip}">
+                        : `<button class="btn btn-sm btn-success btn-action" data-action="vr-reactivate-environment" data-env-id="${Utils.escapeHtml(env.environmentId)}" title="Reactivate ${tooltip}">
                         <i class="fas fa-rotate-left"></i>
                     </button>`}
                 </td>
@@ -424,7 +424,7 @@ const VmRegistry = (function() {
                 <div id="cem-eks-groups-banner" class="alert alert-info d-flex align-items-center justify-content-between gap-2 py-2 mb-3" style="font-size:0.875rem;">
                     <span><i class="fas fa-info-circle me-1"></i>Node groups are auto-synced from AWS EKS every few minutes. You can edit the sequence order but cannot add or delete groups manually.</span>
                     <button class="btn btn-sm btn-outline-primary flex-shrink-0" id="eks-sync-now-btn"
-                            title="Sync this environment's node groups from AWS right now" onclick="VmRegistry.syncEksNow()">
+                            title="Sync this environment's node groups from AWS right now" data-action="vr-sync-eks">
                         <i class="fas fa-sync me-1"></i>Sync Now
                     </button>
                 </div>
@@ -476,11 +476,11 @@ const VmRegistry = (function() {
                     </td>
                     <td class="text-center">${vm.sequencePosition || '-'}</td>
                     <td class="text-end text-nowrap">
-                        <button class="btn btn-sm btn-outline-warning btn-action" onclick="VmRegistry.editVm('${vm.vmId}')" title="Edit VM">
+                        <button class="btn btn-sm btn-outline-warning btn-action" data-action="vr-edit-vm" data-vm-id="${Utils.escapeHtml(vm.vmId)}" title="Edit VM">
                             <i class="fas fa-edit"></i>
                         </button>
                         ${!isEks ? `
-                        <button class="btn btn-sm btn-outline-danger btn-action" onclick="VmRegistry.deleteVm('${vm.vmId}')" title="Remove VM">
+                        <button class="btn btn-sm btn-outline-danger btn-action" data-action="vr-delete-vm" data-vm-id="${Utils.escapeHtml(vm.vmId)}" title="Remove VM">
                             <i class="fas fa-trash"></i>
                         </button>` : `
                         <span class="text-muted small ms-1" title="EKS node groups are managed by sync">
@@ -501,11 +501,11 @@ const VmRegistry = (function() {
                 <span class="text-muted small">Page ${currentPage + 1} of ${totalPages} (${totalVmCount} VMs)</span>
                 <div>
                     <button class="btn btn-sm btn-ghost" ${currentPage === 0 ? 'disabled' : ''}
-                            onclick="VmRegistry.changeGroupVmPage('${groupId}', ${currentPage - 1})">
+                            data-action="vr-group-vm-page" data-group-id="${Utils.escapeHtml(groupId)}" data-page="${currentPage - 1}">
                         <i class="fas fa-chevron-left"></i> Prev
                     </button>
                     <button class="btn btn-sm btn-ghost ms-1" ${currentPage >= totalPages - 1 ? 'disabled' : ''}
-                            onclick="VmRegistry.changeGroupVmPage('${groupId}', ${currentPage + 1})">
+                            data-action="vr-group-vm-page" data-group-id="${Utils.escapeHtml(groupId)}" data-page="${currentPage + 1}">
                         Next <i class="fas fa-chevron-right"></i>
                     </button>
                 </div>
@@ -537,16 +537,16 @@ const VmRegistry = (function() {
         const collapseId = `collapse-${group.groupId}`;
 
         const actionBtns = isEks
-            ? `<button class="btn btn-sm btn-warning btn-action" onclick="VmRegistry.editGroup('${group.groupId}')" title="Edit sequence / display name">
+            ? `<button class="btn btn-sm btn-warning btn-action" data-action="vr-edit-group" data-group-id="${Utils.escapeHtml(group.groupId)}" title="Edit sequence / display name">
                    <i class="fas fa-edit"></i>
                </button>`
-            : `<button class="btn btn-sm btn-success btn-action me-1" onclick="VmRegistry.openVmForm('${group.groupId}')" title="Register VM">
+            : `<button class="btn btn-sm btn-success btn-action me-1" data-action="vr-open-vm-form" data-group-id="${Utils.escapeHtml(group.groupId)}" title="Register VM">
                    <i class="fas fa-plus"></i> VM
                </button>
-               <button class="btn btn-sm btn-warning btn-action me-1" onclick="VmRegistry.editGroup('${group.groupId}')" title="Edit Group">
+               <button class="btn btn-sm btn-warning btn-action me-1" data-action="vr-edit-group" data-group-id="${Utils.escapeHtml(group.groupId)}" title="Edit Group">
                    <i class="fas fa-edit"></i>
                </button>
-               <button class="btn btn-sm btn-danger btn-action" onclick="VmRegistry.deleteGroup('${group.groupId}')" title="Delete Group"
+               <button class="btn btn-sm btn-danger btn-action" data-action="vr-delete-group" data-group-id="${Utils.escapeHtml(group.groupId)}" title="Delete Group"
                        ${vmCount > 0 ? 'disabled' : ''}>
                    <i class="fas fa-trash"></i>
                </button>`;
@@ -594,7 +594,7 @@ const VmRegistry = (function() {
                         ` : `
                             <p class="text-muted text-center py-3 mb-0">
                                 <i class="fas fa-server me-1"></i> No VMs registered.
-                                <a href="#" onclick="VmRegistry.openVmForm('${group.groupId}'); return false;">Add one</a>
+                                <a href="#" data-action="vr-open-vm-form" data-group-id="${Utils.escapeHtml(group.groupId)}">Add one</a>
                             </p>
                         `}
                     </div>
@@ -893,8 +893,8 @@ const VmRegistry = (function() {
             return `
                 <tr class="${rowClass}"
                     style="${rowBg} ${clickable ? 'cursor:pointer;' : ''}"
-                    ${clickable ? `onclick="VmRegistry.selectEc2Instance('${inst.instanceId}')"` : ''}
-                    data-instance-id="${inst.instanceId}"
+                    ${clickable ? 'data-action="vr-select-ec2"' : ''}
+                    data-instance-id="${Utils.escapeHtml(inst.instanceId)}"
                     data-instance-name="${Utils.escapeHtml(inst._name || '')}">
                     <td>
                         <strong>${name}</strong>
@@ -1108,3 +1108,29 @@ const VmRegistry = (function() {
 })();
 
 window.VmRegistry = VmRegistry;
+
+Actions.registerAll({
+    'vr-create-environment': () => VmRegistry.openCreateEnvironmentModal(),
+    'vr-reload': () => VmRegistry.loadEnvironmentsData(),
+    'vr-manage-groups': el => VmRegistry.manageGroups(el.dataset.envId),
+    'vr-edit-environment': el => VmRegistry.editEnvironment(el.dataset.envId),
+    'vr-delete-environment': el => VmRegistry.deleteEnvironment(el.dataset.envId),
+    'vr-reactivate-environment': el => VmRegistry.reactivateEnvironment(el.dataset.envId),
+    'vr-sync-eks': () => VmRegistry.syncEksNow(),
+    'vr-edit-vm': el => VmRegistry.editVm(el.dataset.vmId),
+    'vr-delete-vm': el => VmRegistry.deleteVm(el.dataset.vmId),
+    'vr-group-vm-page': el => VmRegistry.changeGroupVmPage(el.dataset.groupId, Number(el.dataset.page)),
+    'vr-edit-group': el => VmRegistry.editGroup(el.dataset.groupId),
+    'vr-open-vm-form': el => VmRegistry.openVmForm(el.dataset.groupId),
+    'vr-delete-group': el => VmRegistry.deleteGroup(el.dataset.groupId),
+    'vr-select-ec2': el => VmRegistry.selectEc2Instance(el.dataset.instanceId),
+    'vr-open-group-form': () => VmRegistry.openGroupForm(),
+    'vr-submit-group': () => Features.submitGroup(),
+    'vr-fetch-ec2': () => Features.fetchEc2Instances(),
+    'vr-submit-vm': () => Features.submitVm()
+});
+Actions.registerAll({
+    'vr-search': el => VmRegistry._searchRegistry(el.value),
+    'vr-filter-ec2': el => Features.filterEc2Instances(el.value)
+}, 'input');
+Actions.register('vr-reload', () => VmRegistry.loadEnvironmentsData(), 'change');

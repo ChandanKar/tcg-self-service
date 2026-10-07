@@ -136,7 +136,7 @@ const AccessRequests = (function() {
                 <i class="fas fa-exclamation-triangle fa-3x text-warning"></i>
                 <h4 class="mt-3">Error</h4>
                 <p>${message}</p>
-                <button class="btn btn-primary" onclick="Dashboard.load()">Back to Dashboard</button>
+                <button class="btn btn-primary" data-action="go-dashboard">Back to Dashboard</button>
             </div>
         `);
     }

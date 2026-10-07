@@ -94,7 +94,7 @@ const Dashboard = (function() {
                     <i class="fas fa-exclamation-triangle fa-3x text-warning"></i>
                     <h4 class="mt-3">Unable to Load Dashboard</h4>
                     <p>${Utils.escapeHtml(message)}</p>
-                    <button class="btn btn-primary" onclick="Dashboard.refresh()">
+                    <button class="btn btn-primary" data-action="dashboard-refresh">
                         <i class="fas fa-sync"></i> Try Again
                     </button>
                 </div>
@@ -112,7 +112,7 @@ const Dashboard = (function() {
                         <h1>Dashboard</h1>
                         <p>${subtitle}</p>
                     </div>
-                    <button class="btn btn-ghost btn-sm" onclick="Dashboard.refresh()" title="Refresh">
+                    <button class="btn btn-ghost btn-sm" data-action="dashboard-refresh" title="Refresh">
                         <i class="fas fa-sync"></i> Refresh
                     </button>
                     <button class="btn btn-outline-secondary btn-sm ${autoRefreshEnabled ? 'active' : ''}"
@@ -816,3 +816,5 @@ const Dashboard = (function() {
         }
     };
 })();
+
+Actions.register('dashboard-refresh', () => Dashboard.refresh());

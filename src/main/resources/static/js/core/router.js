@@ -193,7 +193,7 @@ const ContentRouter = (function() {
                     <i class="fas fa-exclamation-triangle text-danger fa-3x mb-3"></i>
                     <h5>Error</h5>
                     <p class="text-muted">${message}</p>
-                    <button class="btn btn-primary" onclick="location.reload()">Refresh Page</button>
+                    <button class="btn btn-primary" data-action="reload-page">Refresh Page</button>
                 </div>
             </div>
         `);
