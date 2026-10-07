@@ -3,6 +3,9 @@
  * Handles navigation and content loading with hash-based routing.
  *
  * URL scheme:  /#/dashboard,  /#/vm-registry,  /#/my-environments, etc.
+ * Parameterised:  /#/environments/<environmentId>  (Environment Detail).
+ * A ?query part is kept as-is (read it with ContentRouter.query()), so per-page state such as
+ * Cost Management's table pages survives refresh and bookmarks.
  * Refreshing the page restores the last-visited section.
  *
  * Page lifecycle contract (every routed page follows it):
@@ -22,7 +25,6 @@ const ContentRouter = (function() {
     const ROUTES = {
         'dashboard':          '#/dashboard',
         'my-environments':    '#/my-environments',
-        'environment-detail': '#/environment-detail',
         'request-access':     '#/request-access',
         'pending-requests':   '#/pending-requests',
         'activity-logs':      '#/activity-logs',
@@ -41,6 +43,20 @@ const ContentRouter = (function() {
     const HASH_TO_CONTENT = Object.fromEntries(
         Object.entries(ROUTES).map(([k, v]) => [v, k])
     );
+
+    // Routes carrying an id in the path. Ids are opaque; never put display names in the URL.
+    const PARAM_ROUTES = [
+        {
+            contentType: 'environment-detail',
+            pattern: /^#\/environments\/([^/?]+)$/,
+            build: p => (p && p.environmentId) ? '#/environments/' + encodeURIComponent(p.environmentId) : null,
+            params: m => ({ environmentId: decodeURIComponent(m[1]) })
+        }
+    ];
+
+    // Old Environment Detail hash: only usable with an in-memory environment name (hidden
+    // Favorites/Recents submenu); without one it redirects to the list.
+    const LEGACY_ENV_DETAIL_HASH = '#/environment-detail';
 
     const INTENDED_ROUTE_KEY = 'vmcontrol.intendedRoute';
 
@@ -77,13 +93,14 @@ const ContentRouter = (function() {
      * Navigate to a content section by updating the hash.
      * The hashchange listener picks this up and calls loadContent.
      * @param {string} contentType
-     * @param {object} params - extra params (e.g. { environmentName } for environment-detail)
+     * @param {object} params - route params (e.g. { environmentId } for environment-detail);
+     *        values that are not part of the URL are handed to the loader once
      */
     function navigate(contentType, params) {
         if (params && Object.keys(params).length > 0) {
             _pendingParams = params;
         }
-        const hash = ROUTES[contentType] || '#/dashboard';
+        const hash = hashFor(contentType, params);
         if (window.location.hash === hash) {
             // Same hash — hashchange won't fire, so load directly
             _resolveCurrentHash();
@@ -93,23 +110,30 @@ const ContentRouter = (function() {
     }
 
     /**
-     * Return the hash string for a given content type (used by sidebar to set href).
+     * Return the hash for a content type and its params (also used by the sidebar for hrefs).
      */
-    function hashFor(contentType) {
+    function hashFor(contentType, params) {
+        const paramRoute = PARAM_ROUTES.find(r => r.contentType === contentType);
+        if (paramRoute) {
+            return paramRoute.build(params) || LEGACY_ENV_DETAIL_HASH;
+        }
         return ROUTES[contentType] || '#/dashboard';
     }
 
     /**
-     * Normalize common hash variants to the canonical #/route format.
-     * Examples: #vm-registry, #/vm-registry/, #/vm-registry?tab=x.
+     * Normalize common hash variants to the canonical #/route form, keeping any ?query.
+     * Examples: #vm-registry, #/vm-registry/, #/cost-management?idle=2.
      */
     function normalizeHash(rawHash) {
         if (!rawHash || rawHash === '#') {
             return '#/dashboard';
         }
 
-        const hashPath = rawHash
-            .split('?')[0]
+        const queryIndex = rawHash.indexOf('?');
+        const pathPart = queryIndex >= 0 ? rawHash.slice(0, queryIndex) : rawHash;
+        const queryPart = queryIndex >= 0 ? rawHash.slice(queryIndex) : '';
+
+        const hashPath = pathPart
             .replace(/^#\/?/, '')
             .replace(/\/+$/, '');
 
@@ -117,7 +141,34 @@ const ContentRouter = (function() {
             return '#/dashboard';
         }
 
-        return `#/${hashPath}`;
+        return `#/${hashPath}${queryPart}`;
+    }
+
+    /**
+     * Resolve a hash path (without ?query) to { contentType, params }; the old Environment
+     * Detail hash resolves with legacy: true. Unknown paths fall back to the dashboard.
+     */
+    function matchRoute(hashPath) {
+        if (HASH_TO_CONTENT[hashPath]) {
+            return { contentType: HASH_TO_CONTENT[hashPath], params: {} };
+        }
+        for (const route of PARAM_ROUTES) {
+            const m = route.pattern.exec(hashPath);
+            if (m) {
+                return { contentType: route.contentType, params: route.params(m) };
+            }
+        }
+        if (hashPath === LEGACY_ENV_DETAIL_HASH) {
+            return { contentType: 'environment-detail', params: {}, legacy: true };
+        }
+        return { contentType: 'dashboard', params: {} };
+    }
+
+    /** The current hash's ?query as an object (e.g. { idle: '2' }). */
+    function query() {
+        const hash = window.location.hash || '';
+        const queryIndex = hash.indexOf('?');
+        return Utils.parseQueryString(queryIndex >= 0 ? hash.slice(queryIndex + 1) : '');
     }
 
     /**
@@ -152,9 +203,24 @@ const ContentRouter = (function() {
             window.location.replace(hash);
             return;
         }
-        const contentType = HASH_TO_CONTENT[hash] || 'dashboard';
-        const params = _pendingParams;
+        const route = matchRoute(hash.split('?')[0]);
+        const pending = _pendingParams;
         _pendingParams = {};
+
+        if (route.legacy) {
+            if (pending.environmentId) {
+                window.location.replace(hashFor('environment-detail', pending));
+                return;
+            }
+            if (!pending.environmentName) {
+                window.location.replace(ROUTES['my-environments']);
+                return;
+            }
+        }
+
+        const contentType = route.contentType;
+        // Route params (from the URL) win over in-memory ones.
+        const params = Object.assign({}, pending, route.params);
 
         // A slide-out (VM details, My Account) belongs to the page it was opened from.
         if (typeof Slideout !== 'undefined' && Slideout.isOpen && Slideout.isOpen()) {
@@ -281,7 +347,8 @@ const ContentRouter = (function() {
         token,
         isCurrent,
         onLeave,
-        reload
+        reload,
+        query
     };
 })();
 

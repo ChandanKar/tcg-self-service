@@ -1082,8 +1082,8 @@ const AccessManagement = (function() {
         pendingOpenEnvId = envId;
         if ($('#access-table-body').length) {
             applyPendingOpen();
-        } else if (typeof Router !== 'undefined' && Router.navigate) {
-            Router.navigate('access-management');
+        } else {
+            ContentRouter.navigate('access-management');
         }
     }
 

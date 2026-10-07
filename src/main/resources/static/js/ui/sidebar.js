@@ -151,8 +151,10 @@ const Sidebar = (function() {
      * Set active menu item programmatically
      */
     function setActiveItem(contentType) {
+        // Environment Detail lives under My Environments in the menu.
+        const key = contentType === 'environment-detail' ? 'my-environments' : contentType;
         $('.sidebar-menu-link').removeClass('active');
-        $(`.sidebar-menu-link[data-content="${contentType}"]`).addClass('active');
+        $(`.sidebar-menu-link[data-content="${key}"]`).addClass('active');
     }
 
     /**

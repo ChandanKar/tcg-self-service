@@ -50,8 +50,7 @@ const CostManagement = (function() {
     // ---- hash-based sub-context (per-table page survives refresh/bookmark) ----
 
     function restorePageStateFromHash() {
-        const query = (window.location.hash.split('?')[1]) || '';
-        const params = Utils.parseQueryString(query);
+        const params = ContentRouter.query();
         state.idle.page = parsePageParam(params.idle);
         state.rightsizing.page = parsePageParam(params.rightsizing);
         state.detail.page = parsePageParam(params.detail);

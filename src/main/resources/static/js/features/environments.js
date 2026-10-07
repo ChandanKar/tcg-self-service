@@ -631,9 +631,9 @@ const Environments = (function() {
                                 <i class="fas fa-stop-circle"></i> Stop All
                             </button>`
                         }
-                        <button class="btn btn-sm btn-ghost" data-action="env-reload-list">
+                        <a class="btn btn-sm btn-ghost" href="#/my-environments">
                             <i class="fas fa-arrow-left"></i> Back
-                        </button>
+                        </a>
                     </div>
                 </div>
 
@@ -787,9 +787,8 @@ const Environments = (function() {
         // View environment
         $('#content-area').off('click', '[data-action="view"]').on('click', '[data-action="view"]', function() {
             disposeAllBootstrapTooltips();
-            const envId = $(this).data('env-id');
-            const envName = $(this).data('env-name');
-            loadDetail({ environmentId: envId, environmentName: envName });
+            // Through the router so the address bar shows #/environments/<id> (refresh, Back, links).
+            ContentRouter.navigate('environment-detail', { environmentId: String($(this).data('env-id')) });
         });
 
         // Edit environment
@@ -2012,7 +2011,6 @@ const Environments = (function() {
 })();
 
 Actions.registerAll({
-    'env-reload-list': () => Environments.loadList(),
     'env-toggle-estimates': el => {
         const $link = $(el);
         $link.closest('table').find('.vm-est-extra').toggleClass('d-none');

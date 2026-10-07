@@ -615,10 +615,7 @@ const MyAccount = (function() {
                 leaveTo('request-access');
                 break;
             case 'open-env':
-                leaveTo('environment-detail', {
-                    environmentId: $btn.data('env-id'),
-                    environmentName: $btn.data('env-name')
-                });
+                leaveTo('environment-detail', { environmentId: String($btn.data('env-id')) });
                 break;
             case 'request-again':
                 leaveTo('request-access');
