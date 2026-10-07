@@ -30,7 +30,16 @@ const VmRegistry = (function() {
     // Entry Point
     // =========================================================================
 
+    // Navigation token of the current visit (see the page contract in core/router.js).
+    let pageToken = null;
+
+    function isActive() {
+        return pageToken !== null && ContentRouter.isCurrent(pageToken);
+    }
+
+    /** Router loader. */
     function load() {
+        pageToken = ContentRouter.token();
         window.VmRegistryState = {
             environments: [],
             filtered: [],
@@ -137,6 +146,7 @@ const VmRegistry = (function() {
 
             const includeInactive = $('#filterStatus').val() === 'all';
             const environments = await ApiClient.get(`/api/v1/environments?includeInactive=${includeInactive}`);
+            if (!isActive()) return;
 
             window.VmRegistryState.environments = environments;
             window.VmRegistryState.filtered = environments;
@@ -144,6 +154,7 @@ const VmRegistry = (function() {
             renderEnvironmentsList();
             updateVmRegistryStats(environments);
         } catch (error) {
+            if (!isActive()) return;
             console.error('Failed to load environments:', error);
             Notifications.error('Failed to load environments');
             $('#environmentsLoading').addClass('d-none');

@@ -234,6 +234,75 @@ test.describe('Logs and Access Requests lifecycle', () => {
   });
 });
 
+test.describe('Late responses never take over (all routes)', () => {
+  const ROUTES = ['my-environments', 'request-access', 'pending-requests', 'activity-logs', 'user-management',
+    'access-management', 'vm-registry', 'automation-rules', 'audit-logs-all', 'cost-management', 'system-health'];
+
+  test.beforeEach(async () => {
+    test.skip(!canSignIn('admin'), 'Needs an admin sign-in (TEST_DEV_ADMIN_ID or TEST_ADMIN_USERNAME/PASSWORD)');
+  });
+
+  for (const route of ROUTES) {
+    test(`${route}: a response arriving after the user left does not render`, async ({ page }) => {
+      await signIn(page, 'admin');
+      await ready(page);
+      await goTo(page, 'dashboard');
+      await expect(header(page)).toHaveText('Dashboard');
+
+      // Slow every API call; the dashboard summary (registered later, so it wins) stays fast.
+      await delayRoute(page, '**/api/v1/**', 3_000);
+      await page.route(`**${SUMMARY}`, (r) => r.continue());
+
+      await goTo(page, route);
+      await page.waitForTimeout(300);
+      await goTo(page, 'dashboard');
+      await expect(header(page)).toHaveText('Dashboard', { timeout: 10_000 });
+      await page.waitForTimeout(3_500);
+
+      await expect(page).toHaveURL(/#\/dashboard$/);
+      await expect(header(page)).toHaveText('Dashboard');
+    });
+  }
+
+  test('System Health: the reload after Trigger Sync does not fire once the user has left', async ({ page }) => {
+    await signIn(page, 'admin');
+    await ready(page);
+    await goTo(page, 'system-health');
+    await expect(page.locator('#trigger-sync-btn')).toBeVisible({ timeout: 15_000 });
+    await page.route('**/api/v1/monitoring/**', (r) =>
+      r.request().method() === 'POST' ? r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }) : r.continue());
+
+    await page.locator('#trigger-sync-btn').click();
+    await goTo(page, 'dashboard');
+    await page.waitForTimeout(3_800);
+
+    await expect(page).toHaveURL(/#\/dashboard$/);
+    await expect(header(page)).toHaveText('Dashboard');
+  });
+
+  test("leaving User Management removes its row handlers, so a later [data-action=deactivate] is not its", async ({ page }) => {
+    await signIn(page, 'admin');
+    await ready(page);
+    await goTo(page, 'user-management');
+    await expect(header(page)).toContainText('User Management', { timeout: 10_000 });
+    await goTo(page, 'dashboard');
+    await expect(header(page)).toHaveText('Dashboard');
+
+    await page.evaluate(() => {
+      const a = document.createElement('a');
+      a.href = '#';
+      a.setAttribute('data-action', 'deactivate');
+      a.setAttribute('data-user-id', 'user-001');
+      a.id = 'stray-deactivate';
+      a.textContent = 'Deactivate';
+      document.getElementById('content-area')!.appendChild(a);
+    });
+    await page.locator('#stray-deactivate').click();
+    await page.waitForTimeout(500);
+    await expect(page.locator('#confirmModal')).toHaveCount(0);
+  });
+});
+
 test.describe('Cost Management lifecycle', () => {
   test.beforeEach(async () => {
     test.skip(!canSignIn('admin'), 'Needs an admin sign-in (TEST_DEV_ADMIN_ID or TEST_ADMIN_USERNAME/PASSWORD)');

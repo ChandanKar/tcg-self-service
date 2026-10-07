@@ -25,7 +25,17 @@ const UserManagement = (function() {
     /**
      * Initialize and load User Management view
      */
+    // Navigation token of the current visit (see the page contract in core/router.js).
+    let pageToken = null;
+
+    function isActive() {
+        return pageToken !== null && ContentRouter.isCurrent(pageToken);
+    }
+
+    /** Router loader. */
     function load() {
+        pageToken = ContentRouter.token();
+        ContentRouter.onLeave(() => $('#content-area').off('.userMgmt'));
         if (!Auth.isAdmin()) {
             $('#content-area').html('<div class="alert alert-danger m-3">Access denied. Admin only.</div>');
             return;
@@ -54,12 +64,14 @@ const UserManagement = (function() {
     function fetchUsers() {
         ApiClient.get(Config.API.users.list)
             .done(function(users) {
+                if (!isActive()) return;
                 allUsers = users || [];
                 filteredUsers = [...allUsers];
                 currentPage = 1;
                 render();
             })
             .fail(function(xhr) {
+                if (!isActive()) return;
                 $('#content-area').html(`
                     <div class="content-view">
                         <div class="content-header">
@@ -411,21 +423,21 @@ const UserManagement = (function() {
      */
     function bindActionEvents() {
         // Toggle Admin
-        $(document).off('click', '[data-action="toggle-admin"]').on('click', '[data-action="toggle-admin"]', function(e) {
+        $('#content-area').off('click.userMgmt', '[data-action="toggle-admin"]').on('click.userMgmt', '[data-action="toggle-admin"]', function(e) {
             e.preventDefault();
             const userId = $(this).data('user-id');
             toggleAdmin(userId);
         });
 
         // Toggle Env Admin
-        $(document).off('click', '[data-action="toggle-env-admin"]').on('click', '[data-action="toggle-env-admin"]', function(e) {
+        $('#content-area').off('click.userMgmt', '[data-action="toggle-env-admin"]').on('click.userMgmt', '[data-action="toggle-env-admin"]', function(e) {
             e.preventDefault();
             const userId = $(this).data('user-id');
             toggleEnvAdmin(userId);
         });
 
         // Deactivate
-        $(document).off('click', '[data-action="deactivate"]').on('click', '[data-action="deactivate"]', function(e) {
+        $('#content-area').off('click.userMgmt', '[data-action="deactivate"]').on('click.userMgmt', '[data-action="deactivate"]', function(e) {
             e.preventDefault();
             const userId = $(this).data('user-id');
             const user = allUsers.find(u => u.userId === userId);
@@ -435,14 +447,14 @@ const UserManagement = (function() {
         });
 
         // Reactivate
-        $(document).off('click', '[data-action="reactivate"]').on('click', '[data-action="reactivate"]', function(e) {
+        $('#content-area').off('click.userMgmt', '[data-action="reactivate"]').on('click.userMgmt', '[data-action="reactivate"]', function(e) {
             e.preventDefault();
             const userId = $(this).data('user-id');
             reactivateUser(userId);
         });
 
         // Set / reset password (password sign-in)
-        $(document).off('click', '[data-action="set-password"]').on('click', '[data-action="set-password"]', function(e) {
+        $('#content-area').off('click.userMgmt', '[data-action="set-password"]').on('click.userMgmt', '[data-action="set-password"]', function(e) {
             e.preventDefault();
             const userId = $(this).data('user-id');
             showSetPasswordModal(allUsers.find(u => u.userId === userId));

@@ -42,7 +42,17 @@ const AccessManagement = (function() {
     /**
      * Initialize and load Access Management view
      */
+    // Navigation token of the current visit (see the page contract in core/router.js).
+    let pageToken = null;
+
+    function isActive() {
+        return pageToken !== null && ContentRouter.isCurrent(pageToken);
+    }
+
+    /** Router loader. */
     function load() {
+        pageToken = ContentRouter.token();
+        ContentRouter.onLeave(teardown);
         if (!Auth.isEnvAdmin()) {
             $('#content-area').html('<div class="alert alert-danger m-3">Access denied. Admin or Env Admin only.</div>');
             return;
@@ -50,6 +60,11 @@ const AccessManagement = (function() {
 
         showLoading();
         fetchInitialData();
+    }
+
+    /** Runs when the user leaves Access Management: drop the autocomplete outside-click handlers. */
+    function teardown() {
+        $(document).off('.accessAutocomplete');
     }
 
     /**
@@ -74,6 +89,7 @@ const AccessManagement = (function() {
                 fetchEnvironments(),
                 fetchPendingRequests()
             ]);
+            if (!isActive()) return;
 
             environments = envList || [];
             pendingRequests = requests || [];
@@ -82,11 +98,13 @@ const AccessManagement = (function() {
                 fetchAccessForSelection(selectedEnvironmentId),
                 fetchActivityLogsForSelection(selectedEnvironmentId)
             ]);
+            if (!isActive()) return;
             filteredAccess = [...allAccess];
 
             currentPage = 1;
             render();
         } catch (error) {
+            if (!isActive()) return;
             console.error('Failed to load access management data:', error);
             if (error.status === 403) {
                 showError('Access denied. You do not have permission to manage access.');
@@ -874,8 +892,10 @@ const AccessManagement = (function() {
                     fetchAccessForSelection(selectedEnvironmentId),
                     fetchActivityLogsForSelection(selectedEnvironmentId)
                 ]);
+                if (!isActive()) return;
                 filteredAccess = [...allAccess];
             } catch (error) {
+                if (!isActive()) return;
                 console.error('Failed to fetch access:', error);
                 allAccess = [];
                 filteredAccess = [];
@@ -1172,7 +1192,8 @@ const AccessManagement = (function() {
             if (typeof onSelect === 'function') onSelect(item.id, item.label, item);
         });
 
-        const outsideClickNamespace = 'click.autocomplete-' + inputSelector.replace(/[^a-zA-Z0-9]/g, '');
+        // Second namespace .accessAutocomplete lets teardown remove every autocomplete's handler.
+        const outsideClickNamespace = 'click.autocomplete-' + inputSelector.replace(/[^a-zA-Z0-9]/g, '') + '.accessAutocomplete';
         $(document).off(outsideClickNamespace).on(outsideClickNamespace, function(e) {
             if (!$(e.target).closest(inputSelector).length && !$(e.target).closest(menuSelector).length) {
                 closeMenu();
@@ -1274,6 +1295,7 @@ const AccessManagement = (function() {
             fetchAccessForSelection(selectedEnvironmentId),
             fetchActivityLogsForSelection(selectedEnvironmentId)
         ]);
+        if (!isActive()) return;
         filteredAccess = [...allAccess];
         updateStatsDisplay(calculateStats());
         updatePendingTabBadge();

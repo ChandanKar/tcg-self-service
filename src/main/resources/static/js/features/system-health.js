@@ -133,7 +133,9 @@ const SystemHealth = (function () {
 
     // ─── public: load ─────────────────────────────────────────────────────────
 
+    /** Router loader (also used by Refresh/Retry, which reload through the router). */
     async function load() {
+        const t = ContentRouter.token();
         showLoading();
 
         const now       = new Date();
@@ -162,18 +164,29 @@ const SystemHealth = (function () {
                 fetchVmOpsReport(startDate, endDate),
                 fetchEmailLog()
             ]);
+            if (!ContentRouter.isCurrent(t)) return;
 
             render({
                 syncStatus, stateChanges, driftEvents,
                 driftCount, auditReport, lockReport, vmOpsReport, emailLog
             });
         } catch (err) {
+            if (!ContentRouter.isCurrent(t)) return;
             console.error('System Health load error:', err);
             showError('Failed to load system health data.');
         }
     }
 
     // ─── trigger sync ─────────────────────────────────────────────────────────
+
+    /** Reload System Health after a delay, unless the user has left by then. */
+    function reloadLaterIfCurrent(ms) {
+        const t = ContentRouter.token();
+        const id = setTimeout(() => {
+            if (ContentRouter.isCurrent(t)) ContentRouter.reload();
+        }, ms);
+        ContentRouter.onLeave(() => clearTimeout(id));
+    }
 
     function triggerSync() {
         const $btn = $('#trigger-sync-btn');
@@ -182,7 +195,7 @@ const SystemHealth = (function () {
         apiPost(Config.API.monitoring.triggerSync)
             .done(() => {
                 Notifications.show('State sync triggered — refreshing in 3s…', 'success');
-                setTimeout(() => load(), 3000);
+                reloadLaterIfCurrent(3000);
             })
             .fail(xhr => {
                 if (xhr && xhr.status === 409) {
@@ -202,7 +215,7 @@ const SystemHealth = (function () {
             .done(data => {
                 const n = data && data.nodeGroupsSynced != null ? data.nodeGroupsSynced : 0;
                 Notifications.show(`EKS sync complete — ${n} node group(s) processed`, 'success');
-                setTimeout(() => load(), 2000);
+                reloadLaterIfCurrent(2000);
             })
             .fail(xhr => {
                 if (xhr && xhr.status === 503) {
@@ -539,5 +552,5 @@ window.SystemHealth = SystemHealth;
 Actions.registerAll({
     'sh-trigger-sync': () => SystemHealth.triggerSync(),
     'sh-trigger-eks-sync': () => SystemHealth.triggerEksSync(),
-    'sh-reload': () => SystemHealth.load()
+    'sh-reload': () => ContentRouter.reload()
 });

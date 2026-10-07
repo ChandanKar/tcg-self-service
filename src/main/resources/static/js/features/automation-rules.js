@@ -20,7 +20,16 @@ const AutomationRules = (function() {
 
     // ============= Load =============
 
+    // Navigation token of the current visit (see the page contract in core/router.js).
+    let pageToken = null;
+
+    function isActive() {
+        return pageToken !== null && ContentRouter.isCurrent(pageToken);
+    }
+
+    /** Router loader. */
     function load() {
+        pageToken = ContentRouter.token();
         if (!Auth.isEnvAdmin()) {
             $('#content-area').html('<div class="alert alert-danger m-3">Access denied. Admin or Env Admin only.</div>');
             return;
@@ -50,10 +59,12 @@ const AutomationRules = (function() {
                 apiGet(Config.API.environments.list),
                 apiGet(Config.API.automationRules.list())
             ]);
+            if (!isActive()) return;
             environments = envList || [];
             rules = ruleList || [];
             render();
         } catch (error) {
+            if (!isActive()) return;
             console.error('Failed to load automation rules:', error);
             if (error.status === 403) {
                 showError('Access denied. You do not have permission to manage automation rules.');
@@ -64,7 +75,9 @@ const AutomationRules = (function() {
     }
 
     async function refreshRules() {
-        rules = await apiGet(Config.API.automationRules.list()) || [];
+        const fresh = await apiGet(Config.API.automationRules.list()) || [];
+        if (!isActive()) return;
+        rules = fresh;
         renderContent();
     }
 

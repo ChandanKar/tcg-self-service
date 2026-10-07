@@ -24,6 +24,11 @@ const MyAccount = (function() {
 
     function init() {
         bindEvents();
+        // Closing the panel ends this view: in-flight requests are owner-guarded on `state`,
+        // so resetting it makes their late responses no-ops.
+        $(document).off('slideout:closed.myAccount').on('slideout:closed.myAccount', function() {
+            state = null;
+        });
     }
 
     /**

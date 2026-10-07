@@ -100,6 +100,9 @@ const Slideout = (function() {
 
         // Restore body scroll
         $('body').css('overflow', '');
+
+        // Lets panel owners (e.g. My Account) drop state so late responses cannot re-render.
+        $(document).trigger('slideout:closed');
     }
 
     /**

@@ -1,6 +1,10 @@
 /**
  * VM Self-Service Platform - Audit Logs Module
  * Handles audit log viewing and filtering
+ *
+ * Not routed: no ContentRouter loader or other module calls AuditLogs (All Logs uses AllLogs,
+ * My Activity uses ActivityLogs). Its #content-area writes are therefore not token-guarded; if
+ * it is ever routed again it must follow the page contract in core/router.js.
  */
 
 const AuditLogs = (function() {
