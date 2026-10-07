@@ -1,18 +1,17 @@
 package com.tcgdigital.vmcontrol.security;
 
+import com.tcgdigital.vmcontrol.support.AbstractIntegrationTest;
 import com.tcgdigital.vmcontrol.model.User;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -27,10 +26,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Integration tests for OAuth2 authentication flow.
  * Tests the CustomOAuth2UserService and user auto-registration.
  */
-@SpringBootTest
-@ActiveProfiles("test")
 @Transactional
-class OAuth2IntegrationTest {
+class OAuth2IntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private CustomOAuth2UserService customOAuth2UserService;

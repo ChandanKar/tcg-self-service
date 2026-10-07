@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.support.AbstractIntegrationTest;
 import com.tcgdigital.vmcontrol.model.AuditAction;
 import com.tcgdigital.vmcontrol.model.AuditLog;
 import com.tcgdigital.vmcontrol.model.Environment;
@@ -10,9 +11,7 @@ import com.tcgdigital.vmcontrol.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Page;
-import org.springframework.test.context.jdbc.Sql;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -21,9 +20,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
-@Sql(scripts = "/db/reset-test-data.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-class AuditServiceTest {
+class AuditServiceTest extends AbstractIntegrationTest {
 
     @Autowired
     private AuditService auditService;
@@ -44,42 +41,42 @@ class AuditServiceTest {
     }
 
     @Test
-    void testLogLockAcquired_detailsUseUsernameNotRawUserId() throws InterruptedException {
+    void testLogLockAcquired_detailsUseUsernameNotRawUserId() {
         User user = User.fromUsernamePassword("audit.test.user", "irrelevant",
                 "audit.test.user@tcgdigital.com", "Audit Test User", "TCG");
-        user = userRepository.save(user);
+        User saved = userRepository.save(user);
+        Environment env = newEnvironment("Audit Test Environment");
 
-        auditService.logLockAcquired(user.getUserId(), "env-audit-1", "Audit Test Environment", "maintenance");
-        Thread.sleep(500);
+        auditService.logLockAcquired(saved.getUserId(), env.getEnvironmentId(), env.getDisplayName(), "maintenance");
 
-        List<AuditLog> logs = auditLogRepository.findTop100ByOrderByCreatedAtDesc();
-        AuditLog logEntry = logs.stream()
-                .filter(l -> l.getAction() == AuditAction.LOCK_ACQUIRED)
-                .findFirst().orElseThrow();
-
-        assertTrue(logEntry.getDetails().contains("audit.test.user"), "details should contain the username");
-        assertFalse(logEntry.getDetails().contains(user.getUserId()), "details should not contain the raw user id");
+        awaitAsync(() -> {
+            AuditLog logEntry = auditLogRepository.findTop100ByOrderByCreatedAtDesc().stream()
+                    .filter(l -> l.getAction() == AuditAction.LOCK_ACQUIRED)
+                    .findFirst().orElseThrow();
+            assertTrue(logEntry.getDetails().contains("audit.test.user"), "details should contain the username");
+            assertFalse(logEntry.getDetails().contains(saved.getUserId()), "details should not contain the raw user id");
+        });
     }
 
     @Test
-    void testLogLockReleased_infersUsernameFromEmailWhenUsernameBlank() throws InterruptedException {
+    void testLogLockReleased_infersUsernameFromEmailWhenUsernameBlank() {
         User user = User.fromAzureAd("audit-azure-oid", "jane.smith@example.com", "Jane Smith");
-        user = userRepository.save(user);
+        User saved = userRepository.save(user);
+        Environment env = newEnvironment("Audit Test Environment 2");
 
-        auditService.logLockReleased(user.getUserId(), "env-audit-2", "Audit Test Environment 2");
-        Thread.sleep(500);
+        auditService.logLockReleased(saved.getUserId(), env.getEnvironmentId(), env.getDisplayName());
 
-        List<AuditLog> logs = auditLogRepository.findTop100ByOrderByCreatedAtDesc();
-        AuditLog logEntry = logs.stream()
-                .filter(l -> l.getAction() == AuditAction.LOCK_RELEASED)
-                .findFirst().orElseThrow();
-
-        assertTrue(logEntry.getDetails().contains("jane.smith"), "details should contain the email-inferred username");
-        assertFalse(logEntry.getDetails().contains(user.getUserId()), "details should not contain the raw user id");
+        awaitAsync(() -> {
+            AuditLog logEntry = auditLogRepository.findTop100ByOrderByCreatedAtDesc().stream()
+                    .filter(l -> l.getAction() == AuditAction.LOCK_RELEASED)
+                    .findFirst().orElseThrow();
+            assertTrue(logEntry.getDetails().contains("jane.smith"), "details should contain the email-inferred username");
+            assertFalse(logEntry.getDetails().contains(saved.getUserId()), "details should not contain the raw user id");
+        });
     }
 
     @Test
-    void testLogAction_CreatesAuditLog() throws InterruptedException {
+    void testLogAction_CreatesAuditLog() {
         // Given
         String targetId = "env-001";
         String targetName = "Test Environment";
@@ -88,23 +85,22 @@ class AuditServiceTest {
         auditService.logAction(null, AuditAction.ENVIRONMENT_CREATED,
                 "environment", targetId, targetName, "Environment created");
 
-        // Wait for async execution
-        Thread.sleep(500);
-
         // Then
-        List<AuditLog> logs = auditLogRepository.findTop100ByOrderByCreatedAtDesc();
-        assertFalse(logs.isEmpty());
+        awaitAsync(() -> {
+            List<AuditLog> logs = auditLogRepository.findTop100ByOrderByCreatedAtDesc();
+            assertFalse(logs.isEmpty());
 
-        AuditLog log = logs.get(0);
-        assertEquals(AuditAction.ENVIRONMENT_CREATED, log.getAction());
-        assertEquals("environment", log.getTargetType());
-        assertEquals(targetId, log.getTargetId());
-        assertEquals(targetName, log.getTargetName());
-        assertTrue(log.getSuccess());
+            AuditLog log = logs.get(0);
+            assertEquals(AuditAction.ENVIRONMENT_CREATED, log.getAction());
+            assertEquals("environment", log.getTargetType());
+            assertEquals(targetId, log.getTargetId());
+            assertEquals(targetName, log.getTargetName());
+            assertTrue(log.getSuccess());
+        });
     }
 
     @Test
-    void testLogFailure_MarksAsUnsuccessful() throws InterruptedException {
+    void testLogFailure_MarksAsUnsuccessful() {
         // Given
         String vmId = "vm-001";
         String errorMessage = "Connection timeout";
@@ -113,15 +109,15 @@ class AuditServiceTest {
         auditService.logFailure(null, AuditAction.VM_START_FAILED,
                 "vm", vmId, "web-server-1", errorMessage);
 
-        Thread.sleep(500);
-
         // Then
-        List<AuditLog> logs = auditLogRepository.findTop100ByOrderByCreatedAtDesc();
-        assertFalse(logs.isEmpty());
+        awaitAsync(() -> {
+            List<AuditLog> logs = auditLogRepository.findTop100ByOrderByCreatedAtDesc();
+            assertFalse(logs.isEmpty());
 
-        AuditLog log = logs.get(0);
-        assertFalse(log.getSuccess());
-        assertEquals(errorMessage, log.getErrorMessage());
+            AuditLog log = logs.get(0);
+            assertFalse(log.getSuccess());
+            assertEquals(errorMessage, log.getErrorMessage());
+        });
     }
 
     @Test

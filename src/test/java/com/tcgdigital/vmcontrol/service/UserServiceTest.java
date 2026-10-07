@@ -1,13 +1,12 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.support.AbstractIntegrationTest;
 import com.tcgdigital.vmcontrol.model.User;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -19,10 +18,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * Integration tests for UserService.
  */
-@SpringBootTest
-@ActiveProfiles("test")
 @Transactional
-class UserServiceTest {
+class UserServiceTest extends AbstractIntegrationTest {
 
     @Autowired
     private UserService userService;

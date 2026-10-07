@@ -1,10 +1,9 @@
 package com.tcgdigital.vmcontrol;
 
+import com.tcgdigital.vmcontrol.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
-class VmcontrolApplicationTests {
+class VmcontrolApplicationTests extends AbstractIntegrationTest {
 
 	@Test
 	void contextLoads() {

@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.controller;
 
+import com.tcgdigital.vmcontrol.support.AbstractIntegrationTest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tcgdigital.vmcontrol.dto.CreateAccessRequestDTO;
 import com.tcgdigital.vmcontrol.dto.GrantAccessDTO;
@@ -15,10 +16,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,11 +34,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Note: These tests run with security disabled, so user context is not available.
  * Tests use the service directly for mutations and verify via GET endpoints.
  */
-@SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles("test")
 @Transactional
-class EnvironmentAccessControllerTest {
+class EnvironmentAccessControllerTest extends AbstractIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;

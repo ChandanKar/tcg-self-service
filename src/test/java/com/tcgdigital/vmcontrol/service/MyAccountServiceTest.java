@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.support.AbstractIntegrationTest;
 import com.tcgdigital.vmcontrol.dto.CreateAccessRequestDTO;
 import com.tcgdigital.vmcontrol.dto.GrantAccessDTO;
 import com.tcgdigital.vmcontrol.dto.MyActivityItemDTO;
@@ -12,8 +13,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
@@ -27,10 +26,8 @@ import static org.assertj.core.api.Assertions.tuple;
 /**
  * Integration tests for MyAccountService (My Account panel data).
  */
-@SpringBootTest
-@ActiveProfiles("test")
 @Transactional
-class MyAccountServiceTest {
+class MyAccountServiceTest extends AbstractIntegrationTest {
 
     @Autowired
     private MyAccountService myAccountService;

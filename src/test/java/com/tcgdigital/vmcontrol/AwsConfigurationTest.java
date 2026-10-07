@@ -1,9 +1,9 @@
 package com.tcgdigital.vmcontrol;
 
+import com.tcgdigital.vmcontrol.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.context.SpringBootTest;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.model.GetCallerIdentityResponse;
@@ -16,8 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Note: These tests require valid AWS credentials to be configured in application.properties.
  * Tests will be skipped if placeholder credentials are detected.
  */
-@SpringBootTest
-class AwsConfigurationTest {
+class AwsConfigurationTest extends AbstractIntegrationTest {
 
     @Autowired
     private AwsCredentialsProvider awsCredentialsProvider;

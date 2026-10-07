@@ -1,9 +1,9 @@
 package com.tcgdigital.vmcontrol;
 
+import com.tcgdigital.vmcontrol.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;
@@ -12,8 +12,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
-class FlywayMigrationTest {
+class FlywayMigrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -214,8 +213,8 @@ class FlywayMigrationTest {
             envId, "test-env-access", "Test Environment Access"
         );
         jdbcTemplate.update(
-            "INSERT INTO environment_access (access_id, environment_id, user_id, access_level, granted_by_user_id, status) VALUES (?, ?, ?, ?, ?, ?)",
-            accessId, envId, userId, "admin", userId, "active"
+            "INSERT INTO environment_access (access_id, environment_id, user_id, access_level, granted_by_user_id, status, scope_type, scope_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            accessId, envId, userId, "admin", userId, "active", "ENVIRONMENT", envId
         );
 
         // Query: Get all environments a user can access
