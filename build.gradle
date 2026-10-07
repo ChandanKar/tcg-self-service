@@ -58,12 +58,41 @@ dependencies {
 	testImplementation 'org.springframework.security:spring-security-test'
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
 	testImplementation 'org.testcontainers:mysql'
+	testImplementation 'org.awaitility:awaitility'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 dependencyManagement {
 	imports {
 		mavenBom "com.azure.spring:spring-cloud-azure-dependencies:${springCloudAzureVersion}"
+	}
+}
+
+// Integration tests use a local MySQL schema when TEST_DB_URL is set (environment or .env),
+// otherwise a Testcontainers MySQL (needs Docker). The tests wipe that schema, so any URL whose
+// schema name does not end in "_test" is refused before a single test runs.
+tasks.withType(Test).configureEach {
+	def testDb = [:]
+	def envFile = rootProject.file('.env')
+	if (envFile.exists()) {
+		envFile.eachLine { line ->
+			def m = line =~ /^\s*(TEST_DB_[A-Z_]+)\s*=\s*(.*)$/
+			if (m.matches()) testDb[m.group(1)] = m.group(2).trim()
+		}
+	}
+	['TEST_DB_URL', 'TEST_DB_USERNAME', 'TEST_DB_PASSWORD'].each { k ->
+		def v = System.getenv(k) ?: testDb[k]
+		if (v) environment k, v
+	}
+	doFirst {
+		def url = environment['TEST_DB_URL'] as String
+		if (url) {
+			def schema = (url =~ /^jdbc:mysql:\/\/[^\/]+\/([^?]+)/)
+			if (!schema.find() || !schema.group(1).endsWith('_test')) {
+				throw new GradleException("TEST_DB_URL must point at a schema ending in _test (tests delete its data)")
+			}
+			logger.lifecycle("Integration tests use local MySQL schema '${schema.group(1)}'")
+		}
 	}
 }
 
