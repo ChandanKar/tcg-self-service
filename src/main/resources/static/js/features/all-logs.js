@@ -277,11 +277,11 @@ const AllLogs = (function() {
                     </select>
                     <select class="form-select form-select-sm" id="user-filter">
                         <option value="">All Users</option>
-                        ${allUsers.map(u => `<option value="${u.id}" ${currentFilters.userId === u.id ? 'selected' : ''}>${Utils.escapeHtml(u.name)}</option>`).join('')}
+                        ${allUsers.map(u => `<option value="${Utils.escapeHtml(u.id)}" ${currentFilters.userId === u.id ? 'selected' : ''}>${Utils.escapeHtml(u.name)}</option>`).join('')}
                     </select>
                     <select class="form-select form-select-sm" id="environment-filter">
                         <option value="">All Environments</option>
-                        ${allEnvironments.map(e => `<option value="${e.id}" ${currentFilters.environmentId === e.id ? 'selected' : ''}>${e.name}</option>`).join('')}
+                        ${allEnvironments.map(e => `<option value="${Utils.escapeHtml(e.id)}" ${currentFilters.environmentId === e.id ? 'selected' : ''}>${Utils.escapeHtml(e.name)}</option>`).join('')}
                     </select>
                     <select class="form-select form-select-sm" id="action-type-filter">
                         <option value="">All Actions</option>

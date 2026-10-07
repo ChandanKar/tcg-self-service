@@ -47,7 +47,7 @@ const SystemHealth = (function () {
             NOT_FOUND:'bg-warning',
             TERMINATED:'bg-dark'
         };
-        return `<span class="badge ${map[state] || 'bg-secondary'}">${state}</span>`;
+        return `<span class="badge ${map[state] || 'bg-secondary'}">${Utils.escapeHtml(state)}</span>`;
     }
 
     function actionLabel(action) {
@@ -317,7 +317,7 @@ const SystemHealth = (function () {
                             <div class="sh-stat-label">Success Rate</div>
                         </div>
                         <div class="col">
-                            <div class="sh-stat-value text-truncate" title="${topEnv}">${topEnv}</div>
+                            <div class="sh-stat-value text-truncate" title="${Utils.escapeHtml(topEnv)}">${Utils.escapeHtml(topEnv)}</div>
                             <div class="sh-stat-label">Most Active Env</div>
                         </div>
                     </div>
@@ -401,11 +401,11 @@ const SystemHealth = (function () {
         }
         const rows = changes.slice(0, 20).map(c => `
             <tr>
-                <td>${c.vmName || c.vmId || '—'}</td>
+                <td>${Utils.escapeHtml(c.vmName || c.vmId || '—')}</td>
                 <td>${stateBadge(c.previousStatus)}</td>
                 <td class="text-center text-muted px-0"><i class="fas fa-arrow-right"></i></td>
                 <td>${stateBadge(c.newStatus)}</td>
-                <td class="text-muted">${c.changedByUsername || 'System'}</td>
+                <td class="text-muted">${Utils.escapeHtml(c.changedByUsername || 'System')}</td>
                 <td class="text-muted" title="${absTime(c.changedAt)}">${relativeTime(c.changedAt)}</td>
             </tr>`).join('');
         return `
@@ -423,7 +423,7 @@ const SystemHealth = (function () {
         }
         const rows = events.slice(0, 20).map(e => `
             <tr>
-                <td>${e.vmName || e.vmId || '—'}</td>
+                <td>${Utils.escapeHtml(e.vmName || e.vmId || '—')}</td>
                 <td>${stateBadge(e.previousStatus)}</td>
                 <td class="text-center text-muted px-0"><i class="fas fa-arrow-right"></i></td>
                 <td>${stateBadge(e.newStatus)}</td>
@@ -451,10 +451,10 @@ const SystemHealth = (function () {
                 : '';
             return `
                 <tr>
-                    <td>${log.userDisplayName || log.userEmail || 'System'}</td>
-                    <td><span class="badge bg-secondary">${log.actionDisplay || actionLabel(log.action)}</span></td>
-                    <td>${log.environmentName || log.environmentId || '—'}</td>
-                    <td>${log.targetName || '—'}</td>
+                    <td>${Utils.escapeHtml(log.userDisplayName || log.userEmail || 'System')}</td>
+                    <td><span class="badge bg-secondary">${Utils.escapeHtml(log.actionDisplay || actionLabel(log.action))}</span></td>
+                    <td>${Utils.escapeHtml(log.environmentName || log.environmentId || '—')}</td>
+                    <td>${Utils.escapeHtml(log.targetName || '—')}</td>
                     ${resultCell}
                     <td class="text-muted" title="${absTime(log.createdAt)}">${relativeTime(log.createdAt)}</td>
                 </tr>`;
@@ -477,16 +477,16 @@ const SystemHealth = (function () {
         const rows = logs.map(log => {
             const resultIcon = log.success
                 ? '<i class="fas fa-check-circle text-success"></i>'
-                : '<i class="fas fa-times-circle text-danger" title="' + (log.errorMessage || 'Send failed').replace(/"/g, '&quot;') + '"></i>';
+                : '<i class="fas fa-times-circle text-danger" title="' + Utils.escapeHtml(log.errorMessage || 'Send failed') + '"></i>';
             const recipients = log.recipients || '';
             const recipientsShort = recipients.length > 60 ? recipients.slice(0, 60) + '…' : recipients;
             return `
                 <tr>
                     <td class="text-muted" title="${absTime(log.sentAt)}">${relativeTime(log.sentAt)}</td>
-                    <td>${log.notificationType ? `<span class="badge bg-secondary">${actionLabel(log.notificationType)}</span>` : '—'}</td>
-                    <td>${log.environmentId || '—'}</td>
-                    <td title="${recipients.replace(/"/g, '&quot;')}">${recipientsShort} <span class="text-muted">(${log.recipientCount})</span></td>
-                    <td class="text-truncate" style="max-width:280px" title="${(log.subject || '').replace(/"/g, '&quot;')}">${log.subject || '—'}</td>
+                    <td>${log.notificationType ? `<span class="badge bg-secondary">${Utils.escapeHtml(actionLabel(log.notificationType))}</span>` : '—'}</td>
+                    <td>${Utils.escapeHtml(log.environmentId || '—')}</td>
+                    <td title="${Utils.escapeHtml(recipients)}">${Utils.escapeHtml(recipientsShort)} <span class="text-muted">(${Utils.escapeHtml(log.recipientCount)})</span></td>
+                    <td class="text-truncate" style="max-width:280px" title="${Utils.escapeHtml(log.subject || '')}">${Utils.escapeHtml(log.subject || '—')}</td>
                     <td class="text-center">${resultIcon}</td>
                 </tr>`;
         }).join('');
@@ -505,7 +505,7 @@ const SystemHealth = (function () {
         const cls = success ? 'text-success' : 'text-muted';
         return `<div class="sh-empty ${cls}">
                     <i class="fas fa-inbox"></i>
-                    ${msg}
+                    ${Utils.escapeHtml(msg)}
                 </div>`;
     }
 
@@ -525,7 +525,7 @@ const SystemHealth = (function () {
                 <div class="text-center">
                     <i class="fas fa-exclamation-triangle text-danger fa-3x mb-3"></i>
                     <h5>Error</h5>
-                    <p class="text-muted">${message}</p>
+                    <p class="text-muted">${Utils.escapeHtml(message)}</p>
                     <button class="btn btn-primary" onclick="SystemHealth.load()">Retry</button>
                 </div>
             </div>`);

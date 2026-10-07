@@ -62,13 +62,13 @@ const UserMenu = (function() {
         const html = `
             <div class="user-profile-wrapper">
                 <div class="user-profile-trigger">
-                    <div class="user-avatar" title="${user.displayName}">
-                        ${initials}
+                    <div class="user-avatar" title="${Utils.escapeHtml(user.displayName)}">
+                        ${Utils.escapeHtml(initials)}
                     </div>
                     <div class="user-info">
                         <div class="user-name">${Utils.escapeHtml(user.displayName)}</div>
                         <div class="user-role">
-                            <span class="role-badge ${roleBadgeClass}">${roleDisplay}</span>
+                            <span class="role-badge ${roleBadgeClass}">${Utils.escapeHtml(roleDisplay)}</span>
                         </div>
                     </div>
                     <i class="fas fa-chevron-down dropdown-arrow"></i>

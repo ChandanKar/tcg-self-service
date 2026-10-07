@@ -153,7 +153,7 @@ const ActivityLogs = (function() {
                     </select>
                     <select class="form-select form-select-sm" id="al-environment-filter">
                         <option value="">All Environments</option>
-                        ${userEnvironments.map(env => `<option value="${env.id}" ${currentFilters.environmentId === env.id ? 'selected' : ''}>${env.name}</option>`).join('')}
+                        ${userEnvironments.map(env => `<option value="${Utils.escapeHtml(env.id)}" ${currentFilters.environmentId === env.id ? 'selected' : ''}>${Utils.escapeHtml(env.name)}</option>`).join('')}
                     </select>
                     <select class="form-select form-select-sm" id="al-action-type-filter">
                         <option value="">All Actions</option>

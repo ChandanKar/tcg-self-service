@@ -67,7 +67,7 @@ const UserManagement = (function() {
                         </div>
                         <div class="alert alert-danger">
                             <i class="fas fa-exclamation-circle me-2"></i>
-                            Failed to load users: ${xhr.responseJSON?.message || 'Unknown error'}
+                            Failed to load users: ${Utils.escapeHtml(xhr.responseJSON?.message || 'Unknown error')}
                         </div>
                     </div>
                 `);

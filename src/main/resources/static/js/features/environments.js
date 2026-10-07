@@ -254,7 +254,7 @@ const Environments = (function() {
             <div class="content-view">
                 <div class="loading-state">
                     <div class="spinner-border text-primary" role="status"></div>
-                    <p>${message || 'Loading...'}</p>
+                    <p>${Utils.escapeHtml(message || 'Loading...')}</p>
                 </div>
             </div>
         `);
@@ -269,7 +269,7 @@ const Environments = (function() {
                 <div class="error-state">
                     <i class="fas fa-exclamation-triangle fa-3x text-warning"></i>
                     <h4 class="mt-3">Error</h4>
-                    <p>${message}</p>
+                    <p>${Utils.escapeHtml(message)}</p>
                     <button class="btn btn-primary" onclick="Dashboard.load()">
                         <i class="fas fa-arrow-left"></i> Back to Dashboard
                     </button>

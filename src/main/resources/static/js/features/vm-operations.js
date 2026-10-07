@@ -662,14 +662,14 @@ const VmOperations = (function() {
                     return `
                         <tr>
                             <td>${Utils.formatRelativeTime(exec.createdAt)}</td>
-                            <td><span class="badge bg-secondary">${exec.operationType}</span></td>
+                            <td><span class="badge bg-secondary">${Utils.escapeHtml(exec.operationType)}</span></td>
                             <td>
                                 <span class="${statusConfig.class}">
-                                    <i class="fas ${statusConfig.icon} me-1"></i>${exec.status}
+                                    <i class="fas ${statusConfig.icon} me-1"></i>${Utils.escapeHtml(exec.status)}
                                 </span>
                             </td>
                             <td>${duration}</td>
-                            <td>${exec.initiatedByDisplayName || exec.initiatedBy || '-'}</td>
+                            <td>${Utils.escapeHtml(exec.initiatedByDisplayName || exec.initiatedBy || '-')}</td>
                         </tr>
                     `;
                 }).join('');

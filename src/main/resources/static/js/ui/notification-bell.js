@@ -104,8 +104,8 @@ const NotificationBell = (function () {
                     <i class="fas ${icon}"></i>
                 </div>
                 <div class="notification-item-body">
-                    <div class="notification-item-title">${escHtml(n.title)}</div>
-                    <div class="notification-item-msg">${escHtml(n.message)}</div>
+                    <div class="notification-item-title">${Utils.escapeHtml(n.title)}</div>
+                    <div class="notification-item-msg">${Utils.escapeHtml(n.message)}</div>
                     <div class="notification-item-time">${ago}</div>
                 </div>
                 ${unread ? '<button class="notification-read-btn" title="Mark as read"><i class="fas fa-check"></i></button>' : ''}
@@ -191,13 +191,6 @@ const NotificationBell = (function () {
         return Math.floor(h / 24) + 'd ago';
     }
 
-    function escHtml(str) {
-        return String(str || '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-    }
 
     return { init, refreshCount };
 })();

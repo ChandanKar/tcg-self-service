@@ -194,7 +194,7 @@ const VmRegistry = (function() {
             ? '<span class="badge bg-success">Active</span>'
             : '<span class="badge bg-secondary">Inactive</span>';
         const createdDate = env.createdAt ? new Date(env.createdAt).toLocaleDateString() : 'N/A';
-        const description = env.description || '<span class="text-muted">No description</span>';
+        const description = env.description ? Utils.escapeHtml(env.description) : '<span class="text-muted">No description</span>';
         const displayName = Utils.escapeHtml(env.displayName);
         const name = Utils.escapeHtml(env.name);
         const tooltip = `Environment: ${displayName}${name && displayName !== name ? ` (${name})` : ''}`;
@@ -210,7 +210,7 @@ const VmRegistry = (function() {
                 <td class="text-center">${statusBadge}</td>
                 <td>${createdDate}</td>
                 <td class="text-end">
-                    <button class="btn btn-sm btn-primary btn-action" title="${tooltip}" onclick="VmRegistry.manageGroups('${env.environmentId}', '${displayName.replace(/'/g, "\\'")}')">
+                    <button class="btn btn-sm btn-primary btn-action" title="${tooltip}" onclick="VmRegistry.manageGroups('${env.environmentId}')">
                         <i class="fas fa-layer-group"></i> Groups
                     </button>
                     <button class="btn btn-sm btn-warning btn-action" onclick="VmRegistry.editEnvironment('${env.environmentId}')" title="Edit ${tooltip}">
@@ -344,6 +344,8 @@ const VmRegistry = (function() {
 
     async function manageGroups(environmentId, environmentName) {
         const envRecord = window.VmRegistryState.environments.find(e => e.environmentId === environmentId);
+        // Names are looked up from state, never passed through inline handler markup.
+        environmentName = environmentName || envRecord?.displayName || envRecord?.name || environmentId;
         window.VmRegistryState.currentEnvironment = {
             environmentId,
             environmentName,
@@ -478,7 +480,7 @@ const VmRegistry = (function() {
                             <i class="fas fa-edit"></i>
                         </button>
                         ${!isEks ? `
-                        <button class="btn btn-sm btn-outline-danger btn-action" onclick="VmRegistry.deleteVm('${vm.vmId}', '${Utils.escapeHtml(vm.name)}')" title="Remove VM">
+                        <button class="btn btn-sm btn-outline-danger btn-action" onclick="VmRegistry.deleteVm('${vm.vmId}')" title="Remove VM">
                             <i class="fas fa-trash"></i>
                         </button>` : `
                         <span class="text-muted small ms-1" title="EKS node groups are managed by sync">
@@ -1042,6 +1044,11 @@ const VmRegistry = (function() {
     }
 
     async function deleteVm(vmId, vmName) {
+        if (!vmName) {
+            const vm = (window.VmRegistryState.currentGroupsWithVms || [])
+                .flatMap(gv => gv.vms || []).find(v => v.vmId === vmId);
+            vmName = vm?.name || vmId;
+        }
         Modals.confirm('Remove VM', `Remove VM "${vmName}"? This only unregisters it from the platform.`, async function() {
             try {
                 Loading.show('Removing VM...');
