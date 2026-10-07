@@ -7,20 +7,6 @@ const Environments = (function() {
     'use strict';
 
     // Safe HTML escaping utility
-    const escapeHtml = (text) => {
-        if (!text) return '';
-        try {
-            // Use Utils if available
-            if (typeof Utils !== 'undefined' && Utils.escapeHtml) {
-                return Utils.escapeHtml(text);
-            }
-        } catch (e) {
-            // Fall back to DOM method
-        }
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    };
 
     // Cache for current environment data
     let currentEnvironment = null;
@@ -376,7 +362,7 @@ const Environments = (function() {
                                  (env.lockStatus.lockedByDisplayName || 'another user');
                 // Lock Status is a capped column (see .col-lock) — a long display name
                 // truncates, so the full "Locked by X" is always recoverable on hover.
-                lockDisplay = `<span class="text-warning" data-bs-toggle="tooltip" title="Locked by ${escapeHtml(lockedBy)}"><i class="fas fa-lock"></i> ${escapeHtml(lockedBy)}</span>`;
+                lockDisplay = `<span class="text-warning" data-bs-toggle="tooltip" title="Locked by ${Utils.escapeHtml(lockedBy)}"><i class="fas fa-lock"></i> ${Utils.escapeHtml(lockedBy)}</span>`;
             } else {
                 lockDisplay = `<span class="text-success"><i class="fas fa-unlock"></i> Unlocked</span>`;
             }
@@ -388,14 +374,14 @@ const Environments = (function() {
                     <i class="fas fa-edit"></i>
                 </button>
                 <button class="btn btn-sm btn-outline-danger btn-action ms-1"
-                        data-env-id="${env.environmentId}" data-env-name="${escapeHtml(env.name)}" data-action="delete-env"
+                        data-env-id="${env.environmentId}" data-env-name="${Utils.escapeHtml(env.name)}" data-action="delete-env"
                         data-bs-toggle="tooltip" title="Delete">
                     <i class="fas fa-trash"></i>
                 </button>
             ` : '';
 
             const descTooltip = env.description
-                ? ` data-bs-toggle="tooltip" data-bs-placement="right" title="${escapeHtml(env.description)}"`
+                ? ` data-bs-toggle="tooltip" data-bs-placement="right" title="${Utils.escapeHtml(env.description)}"`
                 : '';
 
             const serviceType = (env.serviceType || 'EC2').toUpperCase();
@@ -414,12 +400,12 @@ const Environments = (function() {
             const regionCell = regions.length === 0
                 ? '<span class="text-muted">&mdash;</span>'
                 : regions.length === 1
-                    ? escapeHtml(regions[0])
-                    : `<span data-bs-toggle="tooltip" title="${escapeHtml(regions.join(', '))}">${escapeHtml(regions[0])} <span class="text-muted">+${regions.length - 1}</span></span>`;
+                    ? Utils.escapeHtml(regions[0])
+                    : `<span data-bs-toggle="tooltip" title="${Utils.escapeHtml(regions.join(', '))}">${Utils.escapeHtml(regions[0])} <span class="text-muted">+${regions.length - 1}</span></span>`;
 
             return `
                 <tr>
-                    <td><strong${descTooltip}>${escapeHtml(env.name)}</strong></td>
+                    <td><strong${descTooltip}>${Utils.escapeHtml(env.name)}</strong></td>
                     <td class="text-center">${typeCell}</td>
                     <td class="text-center"><i class="${cloudCfg.icon} env-cloud-icon" style="color:${cloudCfg.color}" data-bs-toggle="tooltip" title="${cloudCfg.label || cloudProv}"></i></td>
                     <td class="col-region">${regionCell}</td>
@@ -433,7 +419,7 @@ const Environments = (function() {
                     <td class="col-lock">${lockDisplay}</td>
                     <td class="col-actions">
                         <button class="btn btn-sm btn-primary btn-action"
-                                data-env-id="${env.environmentId}" data-env-name="${escapeHtml(env.name)}" data-action="view"
+                                data-env-id="${env.environmentId}" data-env-name="${Utils.escapeHtml(env.name)}" data-action="view"
                                 data-bs-toggle="tooltip" title="View">
                             <i class="fas fa-eye"></i>
                         </button>
@@ -606,7 +592,7 @@ const Environments = (function() {
                 <div class="d-flex justify-content-between align-items-start mb-2">
                     <div style="border-left:4px solid var(--primary-color);padding-left:0.75rem;">
                         <div style="font-size:1.25rem;font-weight:700;color:#1e293b;margin-bottom:0.05rem;">${Utils.escapeHtml(env.displayName || env.name)}</div>
-                        <div style="font-size:0.78rem;color:#64748b;">${escapeHtml(env.description || '')}</div>
+                        <div style="font-size:0.78rem;color:#64748b;">${Utils.escapeHtml(env.description || '')}</div>
                     </div>
                     <div class="d-flex gap-2 align-items-center">
                         <button class="btn btn-sm btn-ghost" id="btn-env-insights"
@@ -1319,7 +1305,7 @@ const Environments = (function() {
         const idle = Number(insights.idleVms || 0);
         return `
             <div class="vm-slideout-title">
-                <span class="vm-slideout-name">Environment: ${escapeHtml(env.displayName || env.name)}</span>
+                <span class="vm-slideout-name">Environment: ${Utils.escapeHtml(env.displayName || env.name)}</span>
                 <span class="vm-slideout-badges">
                     <span class="vm-title-pill vm-title-status running">
                         <i class="fas fa-layer-group"></i> ${insights.totalVms || 0} VMs
@@ -1454,7 +1440,7 @@ const Environments = (function() {
         const rows = (insights.groups || []).slice(0, 8).map(group => `
             <div class="env-insight-row">
                 <div>
-                    <strong>${escapeHtml(group.name || '-')}</strong>
+                    <strong>${Utils.escapeHtml(group.name || '-')}</strong>
                     <small>Seq ${group.sequencePosition || '-'}</small>
                 </div>
                 <span>${group.runningVms || 0}/${group.totalVms || 0} running</span>
@@ -1472,11 +1458,11 @@ const Environments = (function() {
 
     function buildEnvironmentRecommendationsSection(insights) {
         const rows = (insights.recommendations || []).map(item => `
-            <div class="vm-timeline-item env-check-${escapeHtml(item.tone || 'muted')}">
-                <div class="vm-timeline-dot ${escapeHtml(item.tone || 'muted')}"></div>
+            <div class="vm-timeline-item env-check-${Utils.escapeHtml(item.tone || 'muted')}">
+                <div class="vm-timeline-dot ${Utils.escapeHtml(item.tone || 'muted')}"></div>
                 <div>
-                    <strong>${escapeHtml(item.title || '-')}</strong>
-                    <small>${escapeHtml(item.description || '')}</small>
+                    <strong>${Utils.escapeHtml(item.title || '-')}</strong>
+                    <small>${Utils.escapeHtml(item.description || '')}</small>
                 </div>
                 <span class="env-check-count">${item.count || 0}</span>
             </div>
@@ -1496,10 +1482,10 @@ const Environments = (function() {
         if (entries.length === 0) return buildEmptyState(`No ${label.toLowerCase()} data collected yet.`);
         return `
             <div class="env-chip-panel">
-                <span>${escapeHtml(label)}</span>
+                <span>${Utils.escapeHtml(label)}</span>
                 <div>
                     ${entries.slice(0, 8).map(([key, value]) => `
-                        <span class="env-chip">${escapeHtml(key)} <strong>${value}</strong></span>
+                        <span class="env-chip">${Utils.escapeHtml(key)} <strong>${value}</strong></span>
                     `).join('')}
                 </div>
             </div>
@@ -1510,10 +1496,10 @@ const Environments = (function() {
         return rows.map(row => `
             <div class="env-insight-row">
                 <div>
-                    <strong>${escapeHtml(row.name || '-')}</strong>
-                    <small>${escapeHtml(row.groupName || '-')}</small>
+                    <strong>${Utils.escapeHtml(row.name || '-')}</strong>
+                    <small>${Utils.escapeHtml(row.groupName || '-')}</small>
                 </div>
-                <span>${escapeHtml(row.status || '-')}</span>
+                <span>${Utils.escapeHtml(row.status || '-')}</span>
                 <span>${mode === 'idle' ? formatMinutes(row.idleDurationMinutes || 0) : formatPercent(row.cpuUtilization)}</span>
             </div>
         `).join('');
@@ -1573,7 +1559,7 @@ const Environments = (function() {
     function buildVmInsightsTitle(vm, statusConfig, mock) {
         return `
             <div class="vm-slideout-title">
-                <span class="vm-slideout-name">VM: ${escapeHtml(vm.displayName || vm.name)}</span>
+                <span class="vm-slideout-name">VM: ${Utils.escapeHtml(vm.displayName || vm.name)}</span>
                 <span class="vm-slideout-badges">
                     <span class="vm-title-pill vm-title-status ${statusConfig.class}">
                         <i class="fas ${statusConfig.icon}"></i> ${statusConfig.label}
@@ -1639,8 +1625,8 @@ const Environments = (function() {
             <div class="vm-insight-stat">
                 <i class="fas ${icon}" aria-hidden="true"></i>
                 <div>
-                    <span>${escapeHtml(value)}</span>
-                    <small>${escapeHtml(label)}</small>
+                    <span>${Utils.escapeHtml(value)}</span>
+                    <small>${Utils.escapeHtml(label)}</small>
                 </div>
             </div>
         `;
@@ -1648,7 +1634,7 @@ const Environments = (function() {
 
     function buildOverviewSection(vm, providerLabel, providerConfig, mock, lastSync) {
         const purposeValue = vm.purpose
-            ? `${escapeHtml(vm.purpose)}${vm.remarks ? `<div class="small text-muted">${escapeHtml(vm.remarks)}</div>` : ''}`
+            ? `${Utils.escapeHtml(vm.purpose)}${vm.remarks ? `<div class="small text-muted">${Utils.escapeHtml(vm.remarks)}</div>` : ''}`
             : null;
         return `
             <div class="vm-insight-section">
@@ -1662,8 +1648,8 @@ const Environments = (function() {
                     ${buildField('Last state sync', lastSync)}
                 </div>
                 <div class="vm-provider-line">
-                    <span><i class="${providerConfig.icon}"></i> ${escapeHtml(providerLabel)}</span>
-                    <code>${escapeHtml(vm.providerVmId || 'pending-provider-id')}</code>
+                    <span><i class="${providerConfig.icon}"></i> ${Utils.escapeHtml(providerLabel)}</span>
+                    <code>${Utils.escapeHtml(vm.providerVmId || 'pending-provider-id')}</code>
                 </div>
             </div>
         `;
@@ -1676,7 +1662,7 @@ const Environments = (function() {
                 <div class="vm-window-control" aria-label="Metric window">
                     ${windows.map(window => `
                         <button class="${window === selectedWindow ? 'active' : ''}" type="button"
-                                data-env-id="${escapeHtml(envId)}" data-vm-id="${escapeHtml(vmId)}" data-window="${window}">
+                                data-env-id="${Utils.escapeHtml(envId)}" data-vm-id="${Utils.escapeHtml(vmId)}" data-window="${window}">
                             ${window}
                         </button>
                     `).join('')}
@@ -1689,7 +1675,7 @@ const Environments = (function() {
                     ${buildMetricTile('Disk Read', formatBytes(mock.disk.readBytes), 'Last period', mock.disk.readSeries, 'disk')}
                     ${buildMetricTile('Disk Write', formatBytes(mock.disk.writeBytes), 'Last period', mock.disk.writeSeries, 'disk')}
                     <div class="vm-idle-panel ${mock.idle.isIdle ? 'idle' : 'active'}"
-                         title="${escapeHtml(mock.idle.reason)} Thresholds: CPU < 5%, low network, low disk IO for 30 minutes.">
+                         title="${Utils.escapeHtml(mock.idle.reason)} Thresholds: CPU < 5%, low network, low disk IO for 30 minutes.">
                         <div class="vm-idle-label">Idle Detection</div>
                         <strong>${mock.idle.label}</strong>
                         <p>${mock.idle.reason}</p>
@@ -1704,10 +1690,10 @@ const Environments = (function() {
         const volumes = mock.storage.volumes.length > 0 ? mock.storage.volumes.map(volume => `
             <div class="vm-volume-pill">
                 <div>
-                    <strong>${escapeHtml(volume.device)}</strong>
-                    <code>${escapeHtml(volume.volumeId)}</code>
+                    <strong>${Utils.escapeHtml(volume.device)}</strong>
+                    <code>${Utils.escapeHtml(volume.volumeId)}</code>
                 </div>
-                <span>${escapeHtml(volume.type)} / ${volume.sizeGiB} GiB</span>
+                <span>${Utils.escapeHtml(volume.type)} / ${volume.sizeGiB} GiB</span>
                 <small>${volume.iops} IOPS / ${volume.throughput} MB/s</small>
             </div>
         `).join('') : buildEmptyState('No EBS volume snapshot collected yet.');
@@ -1745,8 +1731,8 @@ const Environments = (function() {
                         <div class="vm-timeline-item">
                             <div class="vm-timeline-dot ${item.tone}"></div>
                             <div>
-                                <strong>${escapeHtml(item.title)}</strong>
-                                <small>${escapeHtml(item.time)}</small>
+                                <strong>${Utils.escapeHtml(item.title)}</strong>
+                                <small>${Utils.escapeHtml(item.time)}</small>
                             </div>
                         </div>
                     `).join('')}
@@ -1759,8 +1745,8 @@ const Environments = (function() {
         const displayValue = value === null || value === undefined || value === '' ? '-' : value;
         return `
             <div class="vm-field">
-                <span>${escapeHtml(label)}</span>
-                <strong>${isHtml ? displayValue : escapeHtml(displayValue)}</strong>
+                <span>${Utils.escapeHtml(label)}</span>
+                <strong>${isHtml ? displayValue : Utils.escapeHtml(displayValue)}</strong>
             </div>
         `;
     }
@@ -1774,14 +1760,14 @@ const Environments = (function() {
         return `
             <div class="vm-metric-tile">
                 <div class="vm-metric-head">
-                    <span>${escapeHtml(label)}</span>
+                    <span>${Utils.escapeHtml(label)}</span>
                     <div class="vm-metric-value-wrap">
                         ${multiSeries ? buildDotLegend(lines) : ''}
-                        <strong>${escapeHtml(value)}</strong>
+                        <strong>${Utils.escapeHtml(value)}</strong>
                     </div>
                 </div>
                 ${chart}
-                <small>${escapeHtml(caption)}</small>
+                <small>${Utils.escapeHtml(caption)}</small>
             </div>
         `;
     }
@@ -1798,7 +1784,7 @@ const Environments = (function() {
         return `
             <div id="${chartId}" class="vm-echart vm-echart-${tone}"
                  data-chart-config-id="${configId}" role="img"
-                 aria-label="${escapeHtml(label)} utilization chart"></div>
+                 aria-label="${Utils.escapeHtml(label)} utilization chart"></div>
             <script type="application/json" id="${configId}">${safeJson(config)}</script>
         `;
     }
@@ -1809,7 +1795,7 @@ const Environments = (function() {
                 ${lines.map((line) => `
                     <span class="vm-chart-dot"
                           style="background:${line.color}"
-                          title="${escapeHtml(line.name || line.vmId || 'VM')}"></span>
+                          title="${Utils.escapeHtml(line.name || line.vmId || 'VM')}"></span>
                 `).join('')}
             </div>
         `;
@@ -1855,7 +1841,7 @@ const Environments = (function() {
         return `
             <div class="vm-empty-state">
                 <i class="fas fa-circle-info" aria-hidden="true"></i>
-                <span>${escapeHtml(message)}</span>
+                <span>${Utils.escapeHtml(message)}</span>
             </div>
         `;
     }
@@ -1863,8 +1849,8 @@ const Environments = (function() {
     function buildStorageMeter(label, value, percent) {
         return `
             <div class="vm-storage-stat">
-                <span>${escapeHtml(label)}</span>
-                <strong>${escapeHtml(value)}</strong>
+                <span>${Utils.escapeHtml(label)}</span>
+                <strong>${Utils.escapeHtml(value)}</strong>
                 <small>${Math.max(0, Math.min(100, Math.round(percent)))}%</small>
             </div>
         `;

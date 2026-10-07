@@ -209,7 +209,7 @@ const AccessManagement = (function() {
                     <h1>Access Management</h1>
                 </div>
                 <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-circle me-2"></i>${escapeHtml(message)}
+                    <i class="fas fa-exclamation-circle me-2"></i>${Utils.escapeHtml(message)}
                 </div>
             </div>
         `);
@@ -236,7 +236,7 @@ const AccessManagement = (function() {
         const stats = calculateStats();
         const envOptions = environments.map(env =>
             `<option value="${env.environmentId}" ${env.environmentId === selectedEnvironmentId ? 'selected' : ''}>
-                ${escapeHtml(env.displayName || env.name)}
+                ${Utils.escapeHtml(env.displayName || env.name)}
             </option>`
         ).join('');
 
@@ -265,7 +265,7 @@ const AccessManagement = (function() {
                         <div class="input-group input-group-sm">
                             <span class="input-group-text"><i class="fas fa-search"></i></span>
                             <input type="text" class="form-control" id="access-search"
-                                   placeholder="Search by name or email..." value="${escapeHtml(currentSearch)}">
+                                   placeholder="Search by name or email..." value="${Utils.escapeHtml(currentSearch)}">
                             <button class="btn btn-primary" type="button" id="btn-access-search" title="Search">
                                 <i class="fas fa-arrow-right"></i>
                             </button>
@@ -324,7 +324,7 @@ const AccessManagement = (function() {
                             <div class="access-panel-header">
                                 <div>
                                     <h5><i class="fas fa-users me-2"></i>Environment &amp; Group Access</h5>
-                                    <p id="access-scope-label">${escapeHtml(envName)}</p>
+                                    <p id="access-scope-label">${Utils.escapeHtml(envName)}</p>
                                 </div>
                                 <span class="access-panel-count">${filteredAccess.length} grants</span>
                             </div>
@@ -378,7 +378,7 @@ const AccessManagement = (function() {
                             <div class="access-panel-header">
                                 <div>
                                     <h5><i class="fas fa-history me-2"></i>Activity Log</h5>
-                                    <p>Recent access events &mdash; <span class="access-activity-scope">${escapeHtml(envName)}</span></p>
+                                    <p>Recent access events &mdash; <span class="access-activity-scope">${Utils.escapeHtml(envName)}</span></p>
                                 </div>
                             </div>
                             <div id="activity-log-body" class="access-activity-list"></div>
@@ -622,7 +622,7 @@ const AccessManagement = (function() {
         }
 
         const scopeChip = isGroup
-            ? `<span class="access-scope-chip access-scope-chip--group" title="Group scope"><i class="fas fa-layer-group me-1"></i>${escapeHtml(access.scopeName || access.scopeId)}</span>`
+            ? `<span class="access-scope-chip access-scope-chip--group" title="Group scope"><i class="fas fa-layer-group me-1"></i>${Utils.escapeHtml(access.scopeName || access.scopeId)}</span>`
             : `<span class="access-scope-chip">Environment</span>`;
 
         return `
@@ -631,17 +631,17 @@ const AccessManagement = (function() {
                     <div class="user-cell">
                         <div class="user-avatar-sm">${initials}</div>
                         <div class="user-info">
-                            <div class="user-name">${escapeHtml(access.userDisplayName || 'Unknown')}</div>
-                            <div class="user-email">${escapeHtml(access.userEmail || '')}</div>
+                            <div class="user-name">${Utils.escapeHtml(access.userDisplayName || 'Unknown')}</div>
+                            <div class="user-email">${Utils.escapeHtml(access.userEmail || '')}</div>
                         </div>
                     </div>
                 </td>
-                <td title="${escapeHtml(access.environmentName || access.environmentId || '')}">${escapeHtml(access.environmentName || access.environmentId || '-')}</td>
+                <td title="${Utils.escapeHtml(access.environmentName || access.environmentId || '')}">${Utils.escapeHtml(access.environmentName || access.environmentId || '-')}</td>
                 <td>${scopeChip}</td>
                 <td><span class="access-level-badge ${levelClass}">${access.accessLevel}</span></td>
                 <td>${statusBadge}</td>
                 <td class="access-src">${source}</td>
-                <td class="text-muted">${escapeHtml(access.grantedByUserName || 'System')}</td>
+                <td class="text-muted">${Utils.escapeHtml(access.grantedByUserName || 'System')}</td>
                 <td class="access-dates">
                     <div>${grantedAbs}</div>
                     <div class="access-dates-expiry">${expiryLine}</div>
@@ -654,8 +654,8 @@ const AccessManagement = (function() {
                     </button>
                     <button class="btn btn-sm btn-action btn-outline-danger" data-action="revoke"
                             data-access-id="${access.accessId}"
-                            data-user-name="${escapeHtml(access.userDisplayName || access.userEmail)}"
-                            data-scope-name="${escapeHtml(isGroup ? (access.scopeName || 'this group') : 'the environment')}"
+                            data-user-name="${Utils.escapeHtml(access.userDisplayName || access.userEmail)}"
+                            data-scope-name="${Utils.escapeHtml(isGroup ? (access.scopeName || 'this group') : 'the environment')}"
                             title="Revoke access" aria-label="Revoke access">
                         <i class="fas fa-user-minus"></i>
                     </button>
@@ -714,16 +714,16 @@ const AccessManagement = (function() {
                     <div class="user-cell">
                         <div class="user-avatar-sm">${initials}</div>
                         <div class="user-info">
-                            <div class="user-name">${escapeHtml(request.requesterDisplayName || 'Unknown')}</div>
-                            <div class="user-email">${escapeHtml(request.requesterEmail || '')}</div>
+                            <div class="user-name">${Utils.escapeHtml(request.requesterDisplayName || 'Unknown')}</div>
+                            <div class="user-email">${Utils.escapeHtml(request.requesterEmail || '')}</div>
                         </div>
                     </div>
                     <div class="access-request-meta">
-                        <span>${escapeHtml(request.environmentName || 'Unknown')}</span>
+                        <span>${Utils.escapeHtml(request.environmentName || 'Unknown')}</span>
                         <span>${requestedDate}</span>
                     </div>
-                    <div class="access-request-justification" title="${escapeHtml(justification)}">
-                        ${escapeHtml(justification)}
+                    <div class="access-request-justification" title="${Utils.escapeHtml(justification)}">
+                        ${Utils.escapeHtml(justification)}
                     </div>
                 </div>
                 <div class="access-request-actions">
@@ -763,9 +763,9 @@ const AccessManagement = (function() {
      */
     function buildActivityRow(log) {
         const when = log.createdAt ? Utils.formatRelativeTime(log.createdAt) : '-';
-        const action = escapeHtml(log.actionDisplay || (log.action || '').replace(/_/g, ' '));
-        const performedBy = escapeHtml(log.userDisplayName || log.userEmail || 'System');
-        const details = escapeHtml(log.details || '-');
+        const action = Utils.escapeHtml(log.actionDisplay || (log.action || '').replace(/_/g, ' '));
+        const performedBy = Utils.escapeHtml(log.userDisplayName || log.userEmail || 'System');
+        const details = Utils.escapeHtml(log.details || '-');
         const badgeClass = getActionBadgeClass(log.action);
         return `
             <div class="access-activity-item">
@@ -1012,11 +1012,11 @@ const AccessManagement = (function() {
                 }
                 const rows = readOnly ? groups.filter(g => checked.has(g.groupId)) : groups;
                 $list.html(rows.map(g => `
-                    <li data-name="${escapeHtml(g.displayName || g.name)}">
+                    <li data-name="${Utils.escapeHtml(g.displayName || g.name)}">
                         <label>
                             <input type="checkbox" class="grant-group-cb" value="${g.groupId}"
                                    ${checked.has(g.groupId) ? 'checked' : ''} ${readOnly ? 'disabled' : ''}>
-                            <span class="grant-group-name">${escapeHtml(g.displayName || g.name)}</span>
+                            <span class="grant-group-name">${Utils.escapeHtml(g.displayName || g.name)}</span>
                         </label>
                         <span class="grant-group-meta">${g.vmCount || 0} VMs · ${g.runningVmCount || 0} running</span>
                     </li>`).join(''));
@@ -1126,14 +1126,14 @@ const AccessManagement = (function() {
                 let html = '';
                 if (item.group && item.group !== lastGroup) {
                     lastGroup = item.group;
-                    html += `<div class="access-autocomplete-group">${escapeHtml(item.group)}</div>`;
+                    html += `<div class="access-autocomplete-group">${Utils.escapeHtml(item.group)}</div>`;
                 }
                 const badge = item.badge
-                    ? `<span class="access-autocomplete-badge">${escapeHtml(item.badge)}</span>` : '';
+                    ? `<span class="access-autocomplete-badge">${Utils.escapeHtml(item.badge)}</span>` : '';
                 html += `
                     <button type="button" class="access-autocomplete-item${item.disabled ? ' is-disabled' : ''}"
                             data-idx="${idx}"${item.disabled ? ' disabled' : ''}>
-                        <span>${escapeHtml(item.label)}</span>${badge}
+                        <span>${Utils.escapeHtml(item.label)}</span>${badge}
                     </button>`;
                 return html;
             });
@@ -1358,7 +1358,7 @@ const AccessManagement = (function() {
      */
     async function handleRevokeAccess(accessId, userName, scopeName) {
         Modals.confirm('Revoke Access',
-            `Revoke access for <strong>${escapeHtml(userName || 'this user')}</strong> on <strong>${escapeHtml(scopeName || 'this scope')}</strong>?`,
+            `Revoke access for <strong>${Utils.escapeHtml(userName || 'this user')}</strong> on <strong>${Utils.escapeHtml(scopeName || 'this scope')}</strong>?`,
             async function() {
             try {
                 await new Promise((resolve, reject) => {
@@ -1493,13 +1493,6 @@ const AccessManagement = (function() {
             return (parts[0][0] + parts[1][0]).toUpperCase();
         }
         return name.substring(0, 2).toUpperCase();
-    }
-
-    function escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
     }
 
     function isWithinDays(dateStr, days) {

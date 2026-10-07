@@ -1,5 +1,10 @@
 /**
  * VM Self-Service Platform - Utility Functions
+ *
+ * Escaping contract: put user or server data into HTML only through Utils.escapeHtml or the
+ * Utils.html tagged template; use jQuery .text()/.attr() for single values; never place data
+ * inside inline event handlers (onclick="..."). Utils.raw marks markup you built yourself
+ * (for example another Utils.html result) so Utils.html embeds it unescaped.
  */
 
 const Utils = (function() {
@@ -125,16 +130,59 @@ const Utils = (function() {
         return str.substring(0, maxLength - 3) + '...';
     }
 
+    const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+
     /**
-     * Escape HTML to prevent XSS
-     * @param {string} text - Text to escape
-     * @returns {string} - Escaped HTML string
+     * Escape a value for HTML text and quoted attribute values (escapes & < > " ').
+     * @param {*} value - Value to escape; null/undefined become '', 0 becomes '0'
+     * @returns {string} - Escaped string
      */
-    function escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+    function escapeHtml(value) {
+        if (value === null || value === undefined) return '';
+        return String(value).replace(/[&<>"']/g, ch => HTML_ESCAPES[ch]);
+    }
+
+    /** Markup that Utils.html embeds as-is. Create it with Utils.raw. */
+    class RawHtml {
+        constructor(markup) {
+            this.__html = markup;
+            Object.freeze(this);
+        }
+
+        toString() {
+            return this.__html;
+        }
+    }
+
+    /**
+     * Mark trusted markup so Utils.html does not escape it.
+     * @param {*} markup - Markup built by the app (never raw user or server data)
+     * @returns {RawHtml}
+     */
+    function raw(markup) {
+        return new RawHtml(markup === null || markup === undefined ? '' : String(markup));
+    }
+
+    function htmlValue(value) {
+        if (value instanceof RawHtml) return value.__html;
+        if (Array.isArray(value)) return value.map(htmlValue).join('');
+        if (value === null || value === undefined || value === false) return '';
+        return escapeHtml(value);
+    }
+
+    /**
+     * Tagged template that escapes every interpolated value:
+     *   Utils.html`<td title="${name}">${name}</td>`
+     * Arrays are escaped per element and joined; null, undefined and false render as ''.
+     * Wrap trusted markup (e.g. another Utils.html result) in Utils.raw(...) to embed it.
+     * @returns {string} - HTML string for jQuery .html()/.append()
+     */
+    function html(strings, ...values) {
+        let out = strings[0];
+        for (let i = 0; i < values.length; i++) {
+            out += htmlValue(values[i]) + strings[i + 1];
+        }
+        return out;
     }
 
     /**
@@ -264,6 +312,8 @@ const Utils = (function() {
         capitalize,
         truncate,
         escapeHtml,
+        html,
+        raw,
         parseQueryString,
         formatRelativeTime,
         renderStatusBadge,

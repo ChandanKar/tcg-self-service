@@ -66,7 +66,7 @@ const UserMenu = (function() {
                         ${initials}
                     </div>
                     <div class="user-info">
-                        <div class="user-name">${escapeHtml(user.displayName)}</div>
+                        <div class="user-name">${Utils.escapeHtml(user.displayName)}</div>
                         <div class="user-role">
                             <span class="role-badge ${roleBadgeClass}">${roleDisplay}</span>
                         </div>
@@ -75,7 +75,7 @@ const UserMenu = (function() {
                 </div>
                 <div class="user-dropdown" style="display: none;">
                     <div class="dropdown-header">
-                        <div class="dropdown-user-email">${escapeHtml(user.email)}</div>
+                        <div class="dropdown-user-email">${Utils.escapeHtml(user.email)}</div>
                     </div>
                     <div class="dropdown-divider"></div>
                     <a href="#" class="dropdown-item" id="my-account-btn">
@@ -148,16 +148,6 @@ const UserMenu = (function() {
         closeDropdown();
         Notifications.info('Logging out...');
         Auth.logout();
-    }
-
-    /**
-     * Escape HTML to prevent XSS
-     */
-    function escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
     }
 
     // Public API

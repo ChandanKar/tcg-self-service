@@ -93,7 +93,7 @@ const Dashboard = (function() {
                 <div class="error-state">
                     <i class="fas fa-exclamation-triangle fa-3x text-warning"></i>
                     <h4 class="mt-3">Unable to Load Dashboard</h4>
-                    <p>${escapeHtml(message)}</p>
+                    <p>${Utils.escapeHtml(message)}</p>
                     <button class="btn btn-primary" onclick="Dashboard.refresh()">
                         <i class="fas fa-sync"></i> Try Again
                     </button>
@@ -155,12 +155,12 @@ const Dashboard = (function() {
     function buildKpi(label, value, icon, title, targetId) {
         return `
             <div class="dashboard-kpi ${targetId ? 'dashboard-kpi-action' : ''}"
-                 ${targetId ? `data-dashboard-jump="${escapeHtml(targetId)}"` : ''}
-                 data-bs-toggle="tooltip" data-bs-placement="bottom" title="${escapeHtml(title || label)}">
+                 ${targetId ? `data-dashboard-jump="${Utils.escapeHtml(targetId)}"` : ''}
+                 data-bs-toggle="tooltip" data-bs-placement="bottom" title="${Utils.escapeHtml(title || label)}">
                 <i class="fas ${icon}"></i>
                 <div>
                     <strong>${value ?? 0}</strong>
-                    <span>${escapeHtml(label)}</span>
+                    <span>${Utils.escapeHtml(label)}</span>
                 </div>
             </div>
         `;
@@ -276,12 +276,12 @@ const Dashboard = (function() {
             const total = env.totalVms || 0;
             const statusClass = total === 0 ? 'secondary' : running === total ? 'success' : running === 0 ? 'secondary' : 'warning';
             return `
-                <tr class="dashboard-env-row" data-name="${escapeHtml((env.name || '').toLowerCase())}">
+                <tr class="dashboard-env-row" data-name="${Utils.escapeHtml((env.name || '').toLowerCase())}">
                     <td>
-                        <strong>${escapeHtml(env.displayName || env.name || '-')}</strong>
-                        <small>${escapeHtml(env.name || '')}</small>
+                        <strong>${Utils.escapeHtml(env.displayName || env.name || '-')}</strong>
+                        <small>${Utils.escapeHtml(env.name || '')}</small>
                     </td>
-                    <td>${escapeHtml(env.serviceType || 'EC2')}</td>
+                    <td>${Utils.escapeHtml(env.serviceType || 'EC2')}</td>
                     <td>${running}/${total}</td>
                     <td>${formatPercent(env.avgCpuUtilization)}</td>
                     <td>${formatGiB(env.allocatedStorageGib)}</td>
@@ -300,10 +300,10 @@ const Dashboard = (function() {
             if (type === 'recommendation') {
                 return `
                     <div class="dashboard-list-row">
-                        <span class="dashboard-dot ${escapeHtml(row.tone || 'info')}"></span>
+                        <span class="dashboard-dot ${Utils.escapeHtml(row.tone || 'info')}"></span>
                         <div>
-                            <strong>${escapeHtml(row.title || '-')}</strong>
-                            <small>${escapeHtml(row.description || '')}</small>
+                            <strong>${Utils.escapeHtml(row.title || '-')}</strong>
+                            <small>${Utils.escapeHtml(row.description || '')}</small>
                         </div>
                         <em>${row.count ?? 0}</em>
                     </div>
@@ -313,8 +313,8 @@ const Dashboard = (function() {
                 <div class="dashboard-list-row">
                     <span class="dashboard-dot warning"></span>
                     <div>
-                        <strong>${escapeHtml(row.name || '-')}</strong>
-                        <small>${escapeHtml(row.environmentName || '')}</small>
+                        <strong>${Utils.escapeHtml(row.name || '-')}</strong>
+                        <small>${Utils.escapeHtml(row.environmentName || '')}</small>
                     </div>
                     <em>${type === 'low-utilization' ? `${formatPercent(row.cpuUtilization)} / ${formatIdle(row.idleDurationMinutes)}` : formatIdle(row.idleDurationMinutes)}</em>
                 </div>
@@ -324,7 +324,7 @@ const Dashboard = (function() {
         return `
             <section class="dashboard-list-panel ${prominent ? 'dashboard-list-panel-prominent dashboard-wide' : ''} ${panelId ? 'dashboard-list-panel-scroll' : ''}" ${panelId ? `id="${panelId}"` : ''}>
                 <div class="dashboard-panel-head">
-                    <h2>${escapeHtml(title)}</h2>
+                    <h2>${Utils.escapeHtml(title)}</h2>
                     <small>${rows.length}</small>
                 </div>
                 <div>${body}</div>
@@ -338,10 +338,10 @@ const Dashboard = (function() {
             <div class="dashboard-scheduler-row">
                 <span class="dashboard-dot ${schedulerTone(row.status)}"></span>
                 <div>
-                    <strong>${escapeHtml(row.name || '-')}</strong>
+                    <strong>${Utils.escapeHtml(row.name || '-')}</strong>
                     <small>${formatAge(row.freshnessSeconds)} ago</small>
                 </div>
-                <em class="${schedulerTone(row.status)}">${escapeHtml(row.status || 'UNKNOWN')}</em>
+                <em class="${schedulerTone(row.status)}">${Utils.escapeHtml(row.status || 'UNKNOWN')}</em>
             </div>
         `).join('') : `<div class="dashboard-empty-small">No scheduler data yet</div>`;
 
@@ -631,9 +631,9 @@ const Dashboard = (function() {
                     const point = params && params[0];
                     const row = point?.data?.raw || {};
                     return `
-                        <strong>${escapeHtml(row.title || point?.name || '-')}</strong><br>
-                        ${escapeHtml(row.description || '')}<br>
-                        Count: ${escapeHtml(row.count ?? point?.value ?? 0)}
+                        <strong>${Utils.escapeHtml(row.title || point?.name || '-')}</strong><br>
+                        ${Utils.escapeHtml(row.description || '')}<br>
+                        Count: ${Utils.escapeHtml(row.count ?? point?.value ?? 0)}
                     `;
                 }
             },
@@ -803,13 +803,6 @@ const Dashboard = (function() {
         const hours = Math.floor(minutes / 60);
         const remainingMinutes = minutes % 60;
         return remainingMinutes ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
-    }
-
-    function escapeHtml(text) {
-        if (typeof Utils !== 'undefined' && Utils.escapeHtml) return Utils.escapeHtml(text);
-        const div = document.createElement('div');
-        div.textContent = text == null ? '' : String(text);
-        return div.innerHTML;
     }
 
     $(window).off('resize.dashboardCharts').on('resize.dashboardCharts', resizeCharts);

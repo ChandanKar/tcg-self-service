@@ -117,7 +117,7 @@ const UserManagement = (function() {
                         <div class="input-group input-group-sm">
                             <span class="input-group-text"><i class="fas fa-search"></i></span>
                             <input type="text" class="form-control" id="user-search"
-                                   placeholder="Search by name or email..." value="${escapeHtml(currentSearch)}">
+                                   placeholder="Search by name or email..." value="${Utils.escapeHtml(currentSearch)}">
                             <button class="btn btn-primary" type="button" id="btn-search-users" title="Search">
                                 <i class="fas fa-arrow-right"></i>
                             </button>
@@ -245,8 +245,8 @@ const UserManagement = (function() {
                     <div class="user-cell">
                         <div class="user-avatar-sm">${initials}</div>
                         <div class="user-info">
-                            <div class="user-name">${escapeHtml(user.displayName || 'Unknown')}</div>
-                            <div class="user-email">${escapeHtml(user.email)}</div>
+                            <div class="user-name">${Utils.escapeHtml(user.displayName || 'Unknown')}</div>
+                            <div class="user-email">${Utils.escapeHtml(user.email)}</div>
                             ${onboardBadges ? `<div class="user-onboard-badges">${onboardBadges}</div>` : ''}
                         </div>
                     </div>
@@ -517,8 +517,8 @@ const UserManagement = (function() {
             title: '<i class="fas fa-key me-2"></i>' + (user.hasPassword ? 'Reset Password' : 'Set Password'),
             body: `
                 <p class="small text-muted mb-3">
-                    Password sign-in for <strong>${escapeHtml(user.displayName || user.email)}</strong>
-                    (username <code>${escapeHtml(user.username)}</code>). Entra ID sign-in is not affected.
+                    Password sign-in for <strong>${Utils.escapeHtml(user.displayName || user.email)}</strong>
+                    (username <code>${Utils.escapeHtml(user.username)}</code>). Entra ID sign-in is not affected.
                     Share the new password with the user over a separate, secure channel.
                 </p>
                 <div id="set-password-error" class="alert alert-danger py-2 px-3 small" hidden></div>
@@ -767,10 +767,10 @@ const UserManagement = (function() {
             return;
         }
         $results.html(list.map((u, idx) => `
-            <button type="button" class="onboard-result" data-oid="${escapeHtml(u.directoryObjectId)}" data-idx="${idx}"
+            <button type="button" class="onboard-result" data-oid="${Utils.escapeHtml(u.directoryObjectId)}" data-idx="${idx}"
                     ${u.alreadyInApp ? 'disabled' : ''}>
-                <span class="onboard-result-name">${escapeHtml(u.displayName || u.email || u.userPrincipalName || '')}</span>
-                <span class="onboard-result-email">${escapeHtml(u.email || u.userPrincipalName || '')}</span>
+                <span class="onboard-result-name">${Utils.escapeHtml(u.displayName || u.email || u.userPrincipalName || '')}</span>
+                <span class="onboard-result-email">${Utils.escapeHtml(u.email || u.userPrincipalName || '')}</span>
                 ${u.alreadyInApp ? '<span class="onboard-result-tag">already a user</span>' : ''}
             </button>
         `).join(''));
@@ -784,8 +784,8 @@ const UserManagement = (function() {
         $('#onboard-dir-search').val('');
         $('#onboard-selected').removeAttr('hidden').html(`
             <div>
-                <div class="onboard-selected-name">${escapeHtml(u.displayName || '')}</div>
-                <div class="onboard-selected-email">${escapeHtml(u.email || u.userPrincipalName || '')}</div>
+                <div class="onboard-selected-name">${Utils.escapeHtml(u.displayName || '')}</div>
+                <div class="onboard-selected-email">${Utils.escapeHtml(u.email || u.userPrincipalName || '')}</div>
             </div>
             <a href="#" class="onboard-clear">change</a>
         `);
@@ -815,7 +815,7 @@ const UserManagement = (function() {
                 onboardEnvs = envs || [];
                 const opts = ['<option value="">Select an environment…</option>']
                     .concat(onboardEnvs.map(e =>
-                        `<option value="${escapeHtml(e.environmentId)}">${escapeHtml(e.displayName || e.name)}</option>`));
+                        `<option value="${Utils.escapeHtml(e.environmentId)}">${Utils.escapeHtml(e.displayName || e.name)}</option>`));
                 $('#onboard-grant-env').html(opts.join(''));
             })
             .fail(function() {
@@ -838,10 +838,10 @@ const UserManagement = (function() {
                     return;
                 }
                 $list.html(groups.map(g => `
-                    <li data-name="${escapeHtml(g.displayName || g.name)}">
+                    <li data-name="${Utils.escapeHtml(g.displayName || g.name)}">
                         <label class="d-flex align-items-center gap-2 mb-1">
-                            <input type="checkbox" class="onboard-group-cb" value="${escapeHtml(g.groupId)}">
-                            <span>${escapeHtml(g.displayName || g.name)}</span>
+                            <input type="checkbox" class="onboard-group-cb" value="${Utils.escapeHtml(g.groupId)}">
+                            <span>${Utils.escapeHtml(g.displayName || g.name)}</span>
                             <span class="text-muted small ms-auto">${g.vmCount || 0} VMs</span>
                         </label>
                     </li>`).join(''));
@@ -921,16 +921,6 @@ const UserManagement = (function() {
             return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
         }
         return name.substring(0, 2).toUpperCase();
-    }
-
-    /**
-     * Escape HTML
-     */
-    function escapeHtml(str) {
-        if (!str) return '';
-        const div = document.createElement('div');
-        div.textContent = str;
-        return div.innerHTML;
     }
 
     /**

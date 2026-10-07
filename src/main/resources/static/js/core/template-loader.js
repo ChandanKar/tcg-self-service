@@ -102,9 +102,8 @@ const TemplateLoader = (function() {
      * @returns {string} - Escaped string
      */
     function escapeHtml(str) {
-        const div = document.createElement('div');
-        div.textContent = str;
-        return div.innerHTML;
+        // utils.js loads after this file, so resolve Utils at call time.
+        return Utils.escapeHtml(str);
     }
 
     /**

@@ -8,6 +8,7 @@ Spring Boot 3.5 API with a vanilla-JS single-page frontend for self-service cont
 | --- | --- | --- |
 | `./gradlew unitTest` | Tests that need no database | Nothing |
 | `./gradlew test` | Every test, including integration tests | A MySQL 8 database (see below) |
+| `node --test "src/test/js/**/*.test.mjs"` | Front-end helper tests (`src/test/js`) | Node.js 20+ |
 
 Integration tests (subclasses of `AbstractIntegrationTest`) need MySQL 8. Pick one:
 

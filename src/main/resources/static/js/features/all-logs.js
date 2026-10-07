@@ -277,7 +277,7 @@ const AllLogs = (function() {
                     </select>
                     <select class="form-select form-select-sm" id="user-filter">
                         <option value="">All Users</option>
-                        ${allUsers.map(u => `<option value="${u.id}" ${currentFilters.userId === u.id ? 'selected' : ''}>${escapeHtml(u.name)}</option>`).join('')}
+                        ${allUsers.map(u => `<option value="${u.id}" ${currentFilters.userId === u.id ? 'selected' : ''}>${Utils.escapeHtml(u.name)}</option>`).join('')}
                     </select>
                     <select class="form-select form-select-sm" id="environment-filter">
                         <option value="">All Environments</option>
@@ -403,12 +403,12 @@ const AllLogs = (function() {
         const resultIcon = log.success !== false ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>';
         const details = log.details ? log.details.substring(0, 40) + (log.details.length > 40 ? '...' : '') : (log.errorMessage ? log.errorMessage.substring(0, 40) + (log.errorMessage.length > 40 ? '...' : '') : '-');
         const userName = getUserDisplay(log);
-        const environment = escapeHtml(getEnvironmentDisplay(log));
-        const safeUserName = escapeHtml(userName);
-        const safeActionDisplay = escapeHtml(actionDisplay);
-        const safeTargetName = escapeHtml(log.targetName || '-');
-        const safeDetails = escapeHtml(details);
-        const safeDetailsTitle = escapeHtml(log.details || log.errorMessage || '');
+        const environment = Utils.escapeHtml(getEnvironmentDisplay(log));
+        const safeUserName = Utils.escapeHtml(userName);
+        const safeActionDisplay = Utils.escapeHtml(actionDisplay);
+        const safeTargetName = Utils.escapeHtml(log.targetName || '-');
+        const safeDetails = Utils.escapeHtml(details);
+        const safeDetailsTitle = Utils.escapeHtml(log.details || log.errorMessage || '');
 
         return `
             <tr>
@@ -697,13 +697,6 @@ const AllLogs = (function() {
 
     function getUserDisplay(log) {
         return log.userDisplayName || log.userEmail || 'System';
-    }
-
-    function escapeHtml(text) {
-        if (text === null || text === undefined) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
     }
 
     /**
