@@ -140,6 +140,33 @@ class AuthControllerTest extends SecuredWebTestBase {
                 .andExpect(jsonPath("$.email").value(user.getEmail()));
     }
 
+    @Test
+    void optionsAreAnonymousAndOfferPasswordLoginByDefault() throws Exception {
+        mockMvc.perform(get("/api/auth/options"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.passwordLoginEnabled").value(true));
+    }
+
+    @Test
+    void optionsReportPasswordLoginDisabled() {
+        AuthenticationService service = mock(AuthenticationService.class);
+        when(service.isPasswordLoginEnabled()).thenReturn(false);
+
+        assertThat(new AuthController(service, mock(LoginThrottleService.class)).options())
+                .containsEntry("passwordLoginEnabled", false);
+    }
+
+    @Test
+    void userListShowsPasswordStatusButNeverTheHash() throws Exception {
+        User user = withPassword("listed.user", passwordEncoder.encode(GOOD_PASSWORD));
+
+        mockMvc.perform(get("/api/v1/users/" + user.getUserId()).with(asAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("listed.user"))
+                .andExpect(jsonPath("$.hasPassword").value(true))
+                .andExpect(jsonPath("$.password").doesNotExist());
+    }
+
     /** Each request gets its own client IP so the shared per-IP counter never leaks between tests. */
     private static MockHttpServletRequestBuilder login(String username, String password) {
         String ip = "10.99." + (UUID.randomUUID().hashCode() & 0xff) + "." + (UUID.randomUUID().hashCode() & 0xff);

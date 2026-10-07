@@ -273,6 +273,13 @@ const UserManagement = (function() {
                                     ${user.envAdmin ? 'Remove Env Admin' : 'Make Env Admin'}
                                 </a>
                             </li>
+                            ${user.username ? `
+                            <li>
+                                <a class="dropdown-item" href="#" data-action="set-password" data-user-id="${user.userId}">
+                                    <i class="fas fa-key me-2"></i>
+                                    ${user.hasPassword ? 'Reset Password' : 'Set Password'}
+                                </a>
+                            </li>` : ''}
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item ${user.active ? 'text-danger' : 'text-success'}" href="#"
@@ -433,6 +440,13 @@ const UserManagement = (function() {
             const userId = $(this).data('user-id');
             reactivateUser(userId);
         });
+
+        // Set / reset password (password sign-in)
+        $(document).off('click', '[data-action="set-password"]').on('click', '[data-action="set-password"]', function(e) {
+            e.preventDefault();
+            const userId = $(this).data('user-id');
+            showSetPasswordModal(allUsers.find(u => u.userId === userId));
+        });
     }
 
     /**
@@ -488,6 +502,79 @@ const UserManagement = (function() {
             })
             .fail(function(xhr) {
                 Notifications.error(xhr.responseJSON?.message || 'Failed to reactivate user');
+            });
+    }
+
+    // ===================== Set Password =====================
+
+    const PASSWORD_MIN = 12;
+    const PASSWORD_MAX = 72;
+
+    function showSetPasswordModal(user) {
+        if (!user) return;
+        Modals.show({
+            id: 'setPasswordModal',
+            title: '<i class="fas fa-key me-2"></i>' + (user.hasPassword ? 'Reset Password' : 'Set Password'),
+            body: `
+                <p class="small text-muted mb-3">
+                    Password sign-in for <strong>${escapeHtml(user.displayName || user.email)}</strong>
+                    (username <code>${escapeHtml(user.username)}</code>). Entra ID sign-in is not affected.
+                    Share the new password with the user over a separate, secure channel.
+                </p>
+                <div id="set-password-error" class="alert alert-danger py-2 px-3 small" hidden></div>
+                <div class="mb-2">
+                    <label class="form-label" for="set-password-new">New password</label>
+                    <input type="password" class="form-control" id="set-password-new" autocomplete="new-password"
+                           minlength="${PASSWORD_MIN}" maxlength="${PASSWORD_MAX}">
+                    <div class="form-text">${PASSWORD_MIN}–${PASSWORD_MAX} characters.</div>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label" for="set-password-confirm">Confirm password</label>
+                    <input type="password" class="form-control" id="set-password-confirm" autocomplete="new-password"
+                           maxlength="${PASSWORD_MAX}">
+                </div>`,
+            buttons: [
+                { text: 'Cancel', class: 'btn-secondary', dismiss: true },
+                { text: 'Save Password', class: 'btn-primary', id: 'set-password-submit' }
+            ],
+            onShow: function() {
+                $('#set-password-new').trigger('focus');
+                $('#set-password-submit').off('click').on('click', function() {
+                    submitSetPassword(user);
+                });
+            }
+        });
+    }
+
+    function submitSetPassword(user) {
+        const password = $('#set-password-new').val() || '';
+        const confirm = $('#set-password-confirm').val() || '';
+        const $error = $('#set-password-error');
+
+        let problem = null;
+        if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX) {
+            problem = `Password must be between ${PASSWORD_MIN} and ${PASSWORD_MAX} characters.`;
+        } else if (password !== confirm) {
+            problem = 'The passwords do not match.';
+        }
+        if (problem) {
+            $error.text(problem).prop('hidden', false);
+            return;
+        }
+        $error.prop('hidden', true);
+
+        const $submit = $('#set-password-submit').prop('disabled', true);
+        ApiClient.put(Config.API.users.setPassword(user.userId), { password: password })
+            .done(function() {
+                Modals.hide('setPasswordModal');
+                Notifications.success('Password saved');
+                fetchUsers();
+            })
+            .fail(function(xhr) {
+                $error.text(xhr.responseJSON?.message || 'Failed to save password').prop('hidden', false);
+            })
+            .always(function() {
+                $submit.prop('disabled', false);
             });
     }
 

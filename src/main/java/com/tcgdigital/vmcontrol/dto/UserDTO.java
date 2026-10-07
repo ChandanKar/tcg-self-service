@@ -21,6 +21,10 @@ public class UserDTO {
     private boolean pendingFirstLogin;
     /** Onboarded by manual entry — not checked against the Entra directory. */
     private boolean unverified;
+    /** Username for password sign-in; null for Entra-only accounts. */
+    private String username;
+    /** Whether a password is set (the hash itself is never exposed). */
+    private boolean hasPassword;
 
     public UserDTO() {
     }
@@ -41,6 +45,8 @@ public class UserDTO {
         boolean onboarded = user.getOnboardedBy() != null;
         dto.setPendingFirstLogin(onboarded && user.getLastLoginAt() == null);
         dto.setUnverified(onboarded && user.getAzureAdObjectId() == null);
+        dto.setUsername(user.getUsername());
+        dto.setHasPassword(user.getPassword() != null && !user.getPassword().isBlank());
         return dto;
     }
 
@@ -124,5 +130,20 @@ public class UserDTO {
     public void setUnverified(boolean unverified) {
         this.unverified = unverified;
     }
-}
 
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public boolean isHasPassword() {
+        return hasPassword;
+    }
+
+    public void setHasPassword(boolean hasPassword) {
+        this.hasPassword = hasPassword;
+    }
+}

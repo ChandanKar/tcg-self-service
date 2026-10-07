@@ -18,6 +18,7 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -29,6 +30,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -49,6 +51,14 @@ public class AuthController {
     public AuthController(AuthenticationService authenticationService, LoginThrottleService loginThrottleService) {
         this.authenticationService = authenticationService;
         this.loginThrottleService = loginThrottleService;
+    }
+
+    /**
+     * Sign-in options for the login page; anonymous. Entra ID sign-in is always offered.
+     */
+    @GetMapping("/options")
+    public Map<String, Boolean> options() {
+        return Map.of("passwordLoginEnabled", authenticationService.isPasswordLoginEnabled());
     }
 
     /**

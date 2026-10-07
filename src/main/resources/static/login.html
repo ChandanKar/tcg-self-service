@@ -28,7 +28,7 @@
             <p class="login-subtitle">Sign in to manage your virtual machines</p>
 
             <!-- Error Message Display -->
-            <div id="errorAlert" class="alert alert-danger" role="alert" style="display: none;">
+            <div id="errorAlert" class="alert alert-danger d-none" role="alert">
                 <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
                 <span id="errorMessage"></span>
             </div>
@@ -55,7 +55,7 @@
             </form>
 
             <!-- Divider -->
-            <div class="login-divider">
+            <div class="login-divider" id="loginDivider">
                 <span>OR</span>
             </div>
 
@@ -67,7 +67,7 @@
             </div>
 
             <!-- Logout Success Message -->
-            <div id="logoutMessage" class="alert alert-success" style="display: none;">
+            <div id="logoutMessage" class="alert alert-success d-none" role="status">
                 <i class="fas fa-check-circle"></i> You have been successfully logged out.
             </div>
 
@@ -83,124 +83,7 @@
     <!-- Bootstrap JS -->
     <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
 
-    <!-- Show logout message if present in URL -->
-    <script>
-        /**
-         * Handle login form submission via AJAX.
-         * Sends username/password to /api/auth/login endpoint.
-         */
-        document.addEventListener('DOMContentLoaded', function() {
-            // Handle logout message display
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.has('logout')) {
-                const logoutMsg = document.getElementById('logoutMessage');
-                if (logoutMsg) {
-                    logoutMsg.style.display = 'block';
-                    setTimeout(() => {
-                        logoutMsg.style.display = 'none';
-                    }, 5000);
-                }
-            }
-
-            // Handle login form submission
-            const loginForm = document.getElementById('loginForm');
-            const submitBtn = document.getElementById('submitBtn');
-            const errorAlert = document.getElementById('errorAlert');
-            const errorMessage = document.getElementById('errorMessage');
-
-            if (loginForm) {
-                loginForm.addEventListener('submit', async function(e) {
-                    e.preventDefault();
-
-                    // Get form values
-                    const username = document.getElementById('username').value.trim();
-                    const password = document.getElementById('password').value;
-
-                    // Basic validation
-                    if (!username || !password) {
-                        showError('Username and password are required');
-                        return;
-                    }
-
-                    // Show loading state
-                    setButtonLoading(true);
-                    hideError();
-
-                    try {
-                        // Send login request to backend
-                        const response = await fetch('/api/auth/login', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            credentials: 'include',  // Include cookies for session
-                            body: JSON.stringify({
-                                username: username,
-                                password: password
-                            })
-                        });
-
-                        if (response.ok) {
-                            // Successful login - redirect to home
-                            const data = await response.json();
-                            console.log('Login successful', data);
-                            window.location.href = '/home';
-                        } else {
-                            // Failed login
-                            const data = await response.json();
-                            showError(data.message || 'Invalid credentials or user not found.');
-                        }
-                    } catch (error) {
-                        console.error('Login error:', error);
-                        showError('Login failed. Please try again.');
-                    } finally {
-                        // Reset loading state
-                        setButtonLoading(false);
-                    }
-                });
-            }
-
-            /**
-             * Display error message in alert box
-             */
-            function showError(message) {
-                if (errorAlert && errorMessage) {
-                    errorMessage.textContent = message;
-                    errorAlert.style.display = 'block';
-                    // Auto-hide after 5 seconds
-                    setTimeout(() => {
-                        hideError();
-                    }, 5000);
-                }
-            }
-
-            /**
-             * Hide error message
-             */
-            function hideError() {
-                if (errorAlert) {
-                    errorAlert.style.display = 'none';
-                }
-            }
-
-            /**
-             * Update button loading state
-             */
-            function setButtonLoading(isLoading) {
-                if (submitBtn) {
-                    if (isLoading) {
-                        submitBtn.disabled = true;
-                        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
-                    } else {
-                        submitBtn.disabled = false;
-                        submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
-                    }
-                }
-            }
-        });
-    </script>
+    <!-- Login page behaviour (no inline script so a strict CSP can apply) -->
+    <script src="js/login.js"></script>
 </body>
 </html>
-
-
-

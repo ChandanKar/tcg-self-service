@@ -29,7 +29,7 @@ public class EntraidSecurityConfig {
                 .requestMatchers("/", "/login", "/login.html", "/css/**", "/js/**", "/vendor/**", "/logo/**", "/images/**", "/static/**",
                     "/error", "/h2-console/**", "/login/**", "/oauth2/**", "/logout",
                     "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/swagger-resources/**", "/webjars/**",
-                    "/api/auth/login",
+                    "/api/auth/login", "/api/auth/options",
                     "/actuator/health", "/actuator/health/**").permitAll()
                 // require authentication for all other requests (including /home)
                 .anyRequest().authenticated()
