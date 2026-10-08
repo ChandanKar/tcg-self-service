@@ -14,7 +14,8 @@ const UserManagement = (function() {
     let currentPage = 1;
     let currentSearch = '';
     let currentRoleFilter = '';
-    let currentStatusFilter = '';
+    // Inactive users are loaded too (so they can be reactivated, M21); show active ones first.
+    let currentStatusFilter = 'active';
 
     // Onboard-modal state
     let onboardSelected = null;   // picked directory user, or null
@@ -62,11 +63,12 @@ const UserManagement = (function() {
      * Fetch users from API
      */
     function fetchUsers() {
-        ApiClient.get(Config.API.users.list)
+        ApiClient.get(Config.API.users.listAll)
             .done(function(users) {
                 if (!isActive()) return;
                 allUsers = users || [];
-                filteredUsers = [...allUsers];
+                // Keep the search and filters the admin has set (e.g. after Reactivate).
+                filteredUsers = filterUsers();
                 currentPage = 1;
                 render();
             })
@@ -329,9 +331,19 @@ const UserManagement = (function() {
      * Apply filters and search
      */
     function applyFilters() {
+        filteredUsers = filterUsers();
+
+        // Reset to page 1 when filters change
+        currentPage = 1;
+        renderTable();
+        renderPagination();
+    }
+
+    /** allUsers narrowed by the current search, role and status filters. */
+    function filterUsers() {
         const search = currentSearch.toLowerCase().trim();
 
-        filteredUsers = allUsers.filter(user => {
+        return allUsers.filter(user => {
             // Search filter
             if (search) {
                 const name = (user.displayName || '').toLowerCase();
@@ -356,11 +368,6 @@ const UserManagement = (function() {
 
             return true;
         });
-
-        // Reset to page 1 when filters change
-        currentPage = 1;
-        renderTable();
-        renderPagination();
     }
 
     /**

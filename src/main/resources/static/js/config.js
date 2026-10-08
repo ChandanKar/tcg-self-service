@@ -33,6 +33,7 @@ const Config = (function() {
         // User Management
         users: {
             list: `${API_BASE_URL}/users`,
+            listAll: `${API_BASE_URL}/users?includeInactive=true`,
             create: `${API_BASE_URL}/users`,
             get: (id) => `${API_BASE_URL}/users/${id}`,
             updateRole: (id) => `${API_BASE_URL}/users/${id}/role`,
