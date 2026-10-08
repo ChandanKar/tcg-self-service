@@ -35,6 +35,8 @@ import java.util.stream.Collectors;
 @Tag(name = "Access Grants", description = "Admin-initiated environment / group access grants")
 public class AccessGrantController {
 
+    static final String SELF_CHANGE = "You cannot change your own access; ask another administrator";
+
     private final EnvironmentAccessService accessService;
     private final SecurityService securityService;
     private final UserService userService;
@@ -79,6 +81,11 @@ public class AccessGrantController {
             throw new UnauthorizedException("You cannot manage access on environment " + dto.getEnvironmentId());
         }
 
+        if (hasEmail) {
+            userService.getUserByEmail(dto.getUserEmail().trim())
+                    .ifPresent(target -> securityService.assertNotSelf(target.getUserId(), SELF_CHANGE));
+        }
+
         String actorUserId = userService.getCurrentUserId();
         List<EnvironmentAccess> grants;
         if (hasDirectoryId) {
@@ -99,7 +106,10 @@ public class AccessGrantController {
     @Operation(summary = "Change a grant's level or expiry")
     public ResponseEntity<EnvironmentAccessDTO> update(@PathVariable String accessId,
                                                        @Valid @RequestBody UpdateAccessGrantDTO dto) {
-        assertCanManage(accessService.getGrantById(accessId));
+        EnvironmentAccess grant = accessService.getGrantById(accessId);
+        assertCanManage(grant);
+        // Extending, clearing the expiry of or raising one's own grant needs another administrator.
+        securityService.assertNotSelf(grant.getUser().getUserId(), SELF_CHANGE);
         EnvironmentAccess updated = accessService.updateGrant(userService.getCurrentUserId(), accessId, dto);
         return ResponseEntity.ok(toDtos(List.of(updated)).get(0));
     }

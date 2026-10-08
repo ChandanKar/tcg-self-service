@@ -119,6 +119,17 @@ public class SecurityService {
     }
 
     /**
+     * 403 when anyone but a global ADMIN changes their own access (grant, extend, approve): an
+     * environment admin must not be able to widen or extend their own rights. Global ADMINs keep
+     * this as a break-glass path.
+     */
+    public void assertNotSelf(String targetUserId, String message) {
+        if (!isAdmin() && isCurrentUser(targetUserId)) {
+            throw new UnauthorizedException(message);
+        }
+    }
+
+    /**
      * 404 unless a child resource (group, VM, lock...) really belongs to the environment named in
      * the request path, so ids from other environments are neither used nor confirmed.
      */

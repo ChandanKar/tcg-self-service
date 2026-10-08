@@ -129,6 +129,10 @@ public class EnvironmentAccessController {
             @Valid @RequestBody GrantAccessDTO dto) {
         securityService.assertCanAdminister(environmentId);
 
+        if (dto.getUserEmail() != null) {
+            userService.getUserByEmail(dto.getUserEmail().trim()).ifPresent(target ->
+                    securityService.assertNotSelf(target.getUserId(), AccessGrantController.SELF_CHANGE));
+        }
         String grantedByUserId = userService.getCurrentUserId();
         EnvironmentAccess access = accessService.grantAccess(environmentId, grantedByUserId, dto);
 
@@ -324,6 +328,10 @@ public class EnvironmentAccessController {
             @RequestBody(required = false) ReviewAccessRequestDTO dto) {
         securityService.assertCanAdminister(accessService.getAccessRequest(requestId).getEnvironment().getEnvironmentId());
 
+        EnvironmentAccessRequest pending = accessService.getAccessRequest(requestId);
+        if (pending.getRequester() != null) {
+            securityService.assertNotSelf(pending.getRequester().getUserId(), "You cannot approve your own request");
+        }
         String reviewerUserId = userService.getCurrentUserId();
         String notes = dto != null ? dto.getNotes() : null;
         Integer durationDays = dto != null ? dto.getDurationDays() : null;
