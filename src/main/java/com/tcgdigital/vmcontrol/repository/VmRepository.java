@@ -367,4 +367,29 @@ public interface VmRepository extends JpaRepository<Vm, String> {
            "WHERE v.vmId = :vmId")
     int refreshSyncMetadata(@Param("vmId") String vmId, @Param("metadata") String metadata,
                             @Param("syncedAt") Timestamp syncedAt);
+
+    /**
+     * Registry review lists (M34): DRIFT (active, drift flagged), PENDING (active, discovered and
+     * not yet reviewed) or INACTIVE VMs of one environment, most recently changed first.
+     */
+    @Query(value = "SELECT v FROM Vm v JOIN FETCH v.group g WHERE g.environment.environmentId = :envId AND (" +
+                   "(:state = 'DRIFT' AND v.isActive = true AND v.stateDriftDetected = true) OR " +
+                   "(:state = 'PENDING' AND v.isActive = true AND v.discoveryPending = true) OR " +
+                   "(:state = 'INACTIVE' AND v.isActive = false)) ORDER BY v.updatedAt DESC",
+           countQuery = "SELECT COUNT(v) FROM Vm v WHERE v.group.environment.environmentId = :envId AND (" +
+                   "(:state = 'DRIFT' AND v.isActive = true AND v.stateDriftDetected = true) OR " +
+                   "(:state = 'PENDING' AND v.isActive = true AND v.discoveryPending = true) OR " +
+                   "(:state = 'INACTIVE' AND v.isActive = false))")
+    Page<Vm> findReviewPage(@Param("envId") String envId, @Param("state") String state, Pageable pageable);
+
+    @Query("SELECT COUNT(v) FROM Vm v WHERE v.group.environment.environmentId = :envId " +
+           "AND v.isActive = true AND v.stateDriftDetected = true")
+    long countDriftInEnvironment(@Param("envId") String envId);
+
+    @Query("SELECT COUNT(v) FROM Vm v WHERE v.group.environment.environmentId = :envId " +
+           "AND v.isActive = true AND v.discoveryPending = true")
+    long countPendingInEnvironment(@Param("envId") String envId);
+
+    @Query("SELECT COUNT(v) FROM Vm v WHERE v.group.environment.environmentId = :envId AND v.isActive = false")
+    long countInactiveInEnvironment(@Param("envId") String envId);
 }

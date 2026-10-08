@@ -1,9 +1,11 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.dto.MoveVmDTO;
 import com.tcgdigital.vmcontrol.dto.RegisterVmDTO;
 import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.AuditAction;
+import com.tcgdigital.vmcontrol.model.CloudProvider;
 import com.tcgdigital.vmcontrol.model.Vm;
 import com.tcgdigital.vmcontrol.model.VmGroup;
 import com.tcgdigital.vmcontrol.model.VmStatus;
@@ -13,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -65,7 +68,11 @@ public class VmService {
      * Get a page of VMs in a group, for scalable VM listing UIs.
      */
     public Page<Vm> getVmsByGroupIdPaged(String groupId, int page, int size) {
-        return vmRepository.findByGroupGroupIdAndIsActiveTrueOrderBySequencePositionAsc(groupId, PageRequest.of(page, size));
+        return getVmsByGroupIdPaged(groupId, PageRequest.of(page, size));
+    }
+
+    public Page<Vm> getVmsByGroupIdPaged(String groupId, Pageable pageable) {
+        return vmRepository.findByGroupGroupIdAndIsActiveTrueOrderBySequencePositionAsc(groupId, pageable);
     }
 
     /**
@@ -94,8 +101,9 @@ public class VmService {
         VmGroup group = groupRepository.findById(dto.getGroupId())
                 .orElseThrow(() -> new ResourceNotFoundException("VmGroup", dto.getGroupId()));
 
-        // Validate name uniqueness within group
-        if (vmRepository.existsByGroupGroupIdAndName(dto.getGroupId(), dto.getName())) {
+        // Validate name uniqueness within group, on the name as stored (the unique index is on it)
+        String name = normalizeName(dto.getName());
+        if (vmRepository.existsByGroupGroupIdAndName(dto.getGroupId(), name)) {
             throw new ValidationException("VM with name '" + dto.getName() + "' already exists in this group");
         }
 
@@ -118,7 +126,7 @@ public class VmService {
         Vm vm = new Vm();
         vm.setVmId(UUID.randomUUID().toString());
         vm.setGroup(group);
-        vm.setName(dto.getName().toLowerCase().replaceAll("\\s+", "-"));
+        vm.setName(name);
         vm.setDisplayName(dto.getDisplayName());
         vm.setDescription(dto.getDescription());
         vm.setPurpose(dto.getPurpose());
@@ -158,9 +166,10 @@ public class VmService {
         Vm vm = getVmById(vmId);
         String groupId = vm.getGroup().getGroupId();
 
-        // Validate name uniqueness (if changed)
-        if (!vm.getName().equals(dto.getName()) &&
-                vmRepository.existsByGroupGroupIdAndName(groupId, dto.getName())) {
+        // Validate name uniqueness (if changed), on the name as stored
+        String name = normalizeName(dto.getName());
+        if (!vm.getName().equals(name) &&
+                vmRepository.existsByGroupGroupIdAndName(groupId, name)) {
             throw new ValidationException("VM with name '" + dto.getName() + "' already exists in this group");
         }
 
@@ -175,7 +184,7 @@ public class VmService {
             dependencyValidator.validateVmDependencies(groupId, vmId, dto.getDependsOnVmIds());
         }
 
-        vm.setName(dto.getName().toLowerCase().replaceAll("\\s+", "-"));
+        vm.setName(name);
         vm.setDisplayName(dto.getDisplayName());
         vm.setDescription(dto.getDescription());
         vm.setPurpose(dto.getPurpose());
@@ -269,6 +278,74 @@ public class VmService {
                 "vm", vmId, vm.getName(), "Reactivated; cloud status " + cloudStatus);
         log.info("VM {} reactivated by {} with status {}", vm.getName(), userId, cloudStatus);
         return vmRepository.findByIdFetchGroupAndEnvironment(vmId).orElseThrow();
+    }
+
+    /**
+     * The name as stored: trimmed, lower case, spaces as hyphens. Uniqueness is checked on this,
+     * because the unique index is on it ('Web 1' and 'web-1' collide; was a 500).
+     */
+    static String normalizeName(String raw) {
+        return raw == null ? null : raw.trim().toLowerCase().replaceAll("\\s+", "-");
+    }
+
+    /** Registry review lists (M34); state is DRIFT, PENDING or INACTIVE. */
+    public Page<Vm> getReviewPage(String environmentId, String state, Pageable pageable) {
+        return vmRepository.findReviewPage(environmentId, state, pageable);
+    }
+
+    public Map<String, Long> getReviewCounts(String environmentId) {
+        Map<String, Long> counts = new java.util.LinkedHashMap<>();
+        counts.put("drift", vmRepository.countDriftInEnvironment(environmentId));
+        counts.put("pending", vmRepository.countPendingInEnvironment(environmentId));
+        counts.put("inactive", vmRepository.countInactiveInEnvironment(environmentId));
+        return counts;
+    }
+
+    /**
+     * Move a VM to another group of the same environment (M34), e.g. out of Auto-Discovered after
+     * review. The VM takes the requested position if free, else the next free one; its own
+     * dependencies are cleared (they named VMs of the old group) and it is no longer pending.
+     */
+    @Transactional
+    public Vm moveVm(String vmId, MoveVmDTO dto, String userId) {
+        Vm vm = getVmById(vmId);
+        VmGroup source = vm.getGroup();
+        VmGroup target = groupRepository.findById(dto.getTargetGroupId())
+                .orElseThrow(() -> new ValidationException("Target group not found"));
+        String environmentId = source.getEnvironment().getEnvironmentId();
+        if (!environmentId.equals(target.getEnvironment().getEnvironmentId())) {
+            throw new ValidationException("The target group belongs to another environment");
+        }
+        if (vm.getProvider() == CloudProvider.AWS_EKS) {
+            throw new ValidationException("EKS node groups cannot be moved; they are managed by EKS sync");
+        }
+        if (source.getGroupId().equals(target.getGroupId())) {
+            throw new ValidationException("VM '" + vm.getName() + "' is already in group '" + target.getName() + "'");
+        }
+        for (Vm other : vmRepository.findByGroupId(source.getGroupId())) {
+            if (!other.getVmId().equals(vmId) && other.getDependencies() != null && other.getDependencies().contains(vmId)) {
+                throw new ValidationException("Cannot move VM: VM '" + other.getName() + "' depends on it");
+            }
+        }
+        if (vmRepository.existsByGroupGroupIdAndName(target.getGroupId(), vm.getName())) {
+            throw new ValidationException("A VM named '" + vm.getName() + "' already exists in group '" + target.getName() + "'");
+        }
+        Integer requested = dto.getSequencePosition();
+        int position = requested != null && requested > 0
+                && !vmRepository.existsByGroupGroupIdAndSequencePosition(target.getGroupId(), requested)
+                ? requested
+                : (java.util.Optional.ofNullable(vmRepository.findMaxSequencePositionByGroupId(target.getGroupId())).orElse(0) + 1);
+
+        vm.setGroup(target);
+        vm.setSequencePosition(position);
+        vm.setDependencies(new java.util.ArrayList<>());
+        vm.setDiscoveryPending(false);
+        Vm saved = vmRepository.save(vm);
+        auditService.logEnvironmentAction(userId, AuditAction.VM_UPDATED, environmentId,
+                source.getEnvironment().getName(), "vm", vmId, vm.getName(),
+                "Moved from group '" + source.getName() + "' to '" + target.getName() + "' at position " + position);
+        log.info("VM {} moved from group {} to {} by {}", vm.getName(), source.getName(), target.getName(), userId);
+        return saved;
     }
 
     /**

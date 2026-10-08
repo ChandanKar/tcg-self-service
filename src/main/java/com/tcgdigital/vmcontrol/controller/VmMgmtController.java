@@ -1,5 +1,9 @@
 package com.tcgdigital.vmcontrol.controller;
 
+import org.springframework.data.domain.PageRequest;
+import com.tcgdigital.vmcontrol.exception.ValidationException;
+import com.tcgdigital.vmcontrol.controller.support.Paging;
+import com.tcgdigital.vmcontrol.dto.MoveVmDTO;
 import com.tcgdigital.vmcontrol.dto.RegisterVmDTO;
 import com.tcgdigital.vmcontrol.dto.VmInventoryDTO;
 import com.tcgdigital.vmcontrol.dto.VmMetricsDTO;
@@ -167,18 +171,69 @@ public class VmMgmtController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "25") int size) {
         securityService.assertSameEnvironment(envOfGroup(groupId), environmentId);
+        PageRequest pageable = Paging.of(page, size, Paging.DEFAULT_MAX_SIZE); // 400 on page < 0, size clamped
 
 
         if (!securityService.canViewEnvironment(environmentId) || !securityService.hasGroupAccess(groupId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        Page<Vm> vmPage = vmService.getVmsByGroupIdPaged(groupId, page, size);
+        Page<Vm> vmPage = vmService.getVmsByGroupIdPaged(groupId, pageable);
         Map<String, String> privateIpsByVmId = inventoryService.getPrivateIpsByVmIds(
                 vmPage.getContent().stream().map(Vm::getVmId).toList());
 
         Page<VmDTO> result = vmPage.map(vm -> withPrivateIp(VmDTO.fromEntity(vm), privateIpsByVmId));
         return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/review")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(
+            summary = "Registry review list",
+            description = "VMs of the environment that need attention: state=DRIFT (drift flagged), PENDING "
+                    + "(discovered, not yet reviewed) or INACTIVE, most recently changed first."
+    )
+    public ResponseEntity<Page<VmDTO>> reviewList(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId,
+            @RequestParam String state,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size) {
+        securityService.assertCanView(environmentId);
+        String normalized = state == null ? "" : state.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!REVIEW_STATES.contains(normalized)) {
+            throw new ValidationException("state must be one of DRIFT, PENDING, INACTIVE");
+        }
+        Page<Vm> vms = vmService.getReviewPage(environmentId, normalized, Paging.of(page, size, Paging.DEFAULT_MAX_SIZE));
+        return ResponseEntity.ok(vms.map(VmDTO::fromEntity));
+    }
+
+    private static final java.util.Set<String> REVIEW_STATES = java.util.Set.of("DRIFT", "PENDING", "INACTIVE");
+
+    @GetMapping("/review/counts")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(summary = "Registry review counts", description = "Counts of drifted, pending-review and inactive VMs.")
+    public ResponseEntity<Map<String, Long>> reviewCounts(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId) {
+        securityService.assertCanView(environmentId);
+        return ResponseEntity.ok(vmService.getReviewCounts(environmentId));
+    }
+
+    @PutMapping("/{vmId}/move")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(
+            summary = "Move a VM to another group",
+            description = "Moves a VM (e.g. out of Auto-Discovered) to another group of the same environment; "
+                    + "clears its dependencies and the pending-review flag."
+    )
+    public ResponseEntity<VmDTO> moveVm(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId,
+            @Parameter(description = "VM ID") @PathVariable String vmId,
+            @Valid @RequestBody MoveVmDTO dto) {
+        securityService.assertSameEnvironment(envOfVm(vmId), environmentId);
+        securityService.assertCanAdminister(environmentId);
+
+        Vm vm = vmService.moveVm(vmId, dto, userService.getCurrentUserId());
+        return ResponseEntity.ok(VmDTO.fromEntity(vm));
     }
 
     @GetMapping("/{vmId}")
