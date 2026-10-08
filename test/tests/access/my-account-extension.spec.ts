@@ -13,6 +13,7 @@ declare const MyAccount: any;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 let envId = '';
+let envName = '';
 let accessId = '';
 let expiresAt = 0;
 
@@ -27,8 +28,9 @@ test.describe('My Account: request an extension', () => {
   test.beforeAll(async ({ playwright }) => {
     if (!devIds.admin || !devIds.user) return;
     const admin = await api(playwright, devIds.admin);
+    envName = `Extend E2E ${Date.now()}`;
     const created = await admin.post('/api/v1/environments', {
-      data: { name: `extend-e2e-${Date.now()}`, displayName: `Extend E2E ${Date.now()}`, cloudProvider: 'AWS' },
+      data: { name: `extend-e2e-${Date.now()}`, displayName: envName, cloudProvider: 'AWS' },
     });
     expect(created.ok()).toBeTruthy();
     envId = (await created.json()).environmentId;
@@ -71,7 +73,9 @@ test.describe('My Account: request an extension', () => {
 
     await page.locator('#ma-extend-reason').fill('Release testing runs one more week.');
     await page.locator('.ma-extend button[type="submit"]').click();
-    await expect(page.locator('.ma-pill', { hasText: 'Extension requested' })).toBeVisible({ timeout: 10_000 });
+    // Other specs may leave the same user with pending extensions: check this grant's card only.
+    const card = page.locator('.ma-card', { hasText: envName });
+    await expect(card.locator('.ma-pill', { hasText: 'Extension requested' })).toBeVisible({ timeout: 10_000 });
 
     const admin = await api(playwright, devIds.admin);
     const requests = await (await admin.get(`/api/v1/environments/${envId}/access-requests`)).json();

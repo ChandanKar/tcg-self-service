@@ -16,6 +16,9 @@ public class ReviewAccessRequestDTO {
     @Max(value = AccessDurations.HARD_MAX_DAYS, message = AccessDurations.MAX_MESSAGE)
     private Integer durationDays;
 
+    /** Approve with no expiry, whatever duration the requester asked for. */
+    private Boolean clearExpiry;
+
     public ReviewAccessRequestDTO() {
     }
 
@@ -39,5 +42,12 @@ public class ReviewAccessRequestDTO {
     public void setDurationDays(Integer durationDays) {
         this.durationDays = durationDays;
     }
-}
 
+    public Boolean getClearExpiry() {
+        return clearExpiry;
+    }
+
+    public void setClearExpiry(Boolean clearExpiry) {
+        this.clearExpiry = clearExpiry;
+    }
+}

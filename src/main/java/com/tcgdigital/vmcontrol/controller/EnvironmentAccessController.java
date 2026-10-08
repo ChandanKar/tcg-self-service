@@ -64,7 +64,12 @@ public class EnvironmentAccessController {
                 .toList();
     }
 
-    /** Map access requests to DTOs, resolving GROUP scope ids to group display names in one query. */
+    /**
+     * Map access requests to DTOs, resolving GROUP scope ids to group display names in one query.
+     * PENDING requests also carry the requester's current grant on the same scope, so reviewers
+     * see whether they are approving new access or an extension (one query per pending row; the
+     * pending lists are short).
+     */
     private List<EnvironmentAccessRequestDTO> toRequestDtos(List<EnvironmentAccessRequest> requests) {
         List<String> groupIds = requests.stream()
                 .filter(r -> r.getScopeType() == AccessScopeType.GROUP)
@@ -75,8 +80,18 @@ public class EnvironmentAccessController {
                 : vmGroupRepository.findAllById(groupIds).stream()
                         .collect(java.util.stream.Collectors.toMap(VmGroup::getGroupId, VmGroup::getDisplayName));
         return requests.stream()
-                .map(r -> EnvironmentAccessRequestDTO.fromEntity(r,
-                        r.getScopeType() == AccessScopeType.GROUP ? groupNames.get(r.getScopeId()) : null))
+                .map(r -> {
+                    EnvironmentAccessRequestDTO dto = EnvironmentAccessRequestDTO.fromEntity(r,
+                            r.getScopeType() == AccessScopeType.GROUP ? groupNames.get(r.getScopeId()) : null);
+                    if (r.isPending() && r.getRequester() != null) {
+                        accessService.getActiveGrant(r.getRequester().getUserId(), r.getScopeType(), r.getScopeId())
+                                .ifPresent(current -> {
+                                    dto.setCurrentAccessLevel(current.getAccessLevel());
+                                    dto.setCurrentExpiresAt(current.getExpiresAt());
+                                });
+                    }
+                    return dto;
+                })
                 .toList();
     }
 
@@ -335,7 +350,9 @@ public class EnvironmentAccessController {
         String reviewerUserId = userService.getCurrentUserId();
         String notes = dto != null ? dto.getNotes() : null;
         Integer durationDays = dto != null ? dto.getDurationDays() : null;
-        EnvironmentAccess access = accessService.approveRequest(requestId, reviewerUserId, notes, durationDays);
+        boolean clearExpiry = dto != null && Boolean.TRUE.equals(dto.getClearExpiry());
+        EnvironmentAccess access = accessService.approveRequest(requestId, reviewerUserId, notes, durationDays,
+                clearExpiry);
 
         return ResponseEntity.ok(EnvironmentAccessDTO.fromEntity(access));
     }

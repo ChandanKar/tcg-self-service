@@ -237,3 +237,36 @@
     height: 100%;
     border-bottom: none;
 }
+
+/* E04-T07: what a reviewer is approving — scope, duration, current access (M20) */
+.ra-scope-chip {
+    display: inline-block;
+    padding: 0.05rem 0.45rem;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    color: var(--text-primary);
+}
+
+.ra-extension-pill {
+    background: #fff4e5;
+    color: #8a4b00;
+    font-weight: 600;
+}
+
+.access-request-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.75rem;
+    margin-top: 0.35rem;
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+}
+
+.ra-approve-summary dt {
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.ra-approve-summary dd {
+    margin-bottom: 0.25rem;
+}

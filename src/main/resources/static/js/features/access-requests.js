@@ -13,6 +13,12 @@ const AccessRequests = (function() {
     let envPage       = 0;         // 0-indexed current page
     const ENV_PAGE_SIZE = 7;
 
+    // Pending Requests page: the loaded requests, so Approve can show the full request.
+    let pendingList = [];
+
+    // Approve dialog: override choices (the server caps grants at access.grant.max-duration-days).
+    const APPROVE_DAY_OPTIONS = [7, 30, 90, 180, 365];
+
     /**
      * Load Request Access page (user view)
      */
@@ -63,6 +69,7 @@ const AccessRequests = (function() {
         try {
             const requests = await fetchPendingRequests();
             if (!ContentRouter.isCurrent(t)) return;
+            pendingList = requests || [];
             const html = buildPendingRequestsPageHtml(requests);
             $('#content-area').html(html);
             bindPendingRequestsEvents();
@@ -420,9 +427,12 @@ const AccessRequests = (function() {
                 </td>
                 <td>
                     <span class="badge bg-${Config.ACCESS_LEVELS[req.requestedAccessLevel]?.color || 'secondary'}">
-                        ${req.requestedAccessLevel}
+                        ${Utils.escapeHtml(req.requestedAccessLevel)}
                     </span>
                 </td>
+                <td class="ra-wrap" data-col="scope">${Utils.escapeHtml(describeRequest(req).scope)}</td>
+                <td data-col="duration">${Utils.escapeHtml(describeRequest(req).duration)}</td>
+                <td class="ra-wrap" data-col="current">${currentAccessHtml(req)}</td>
                 <td>${Utils.formatRelativeTime(req.createdAt)}</td>
                 <td title="${Utils.escapeHtml(req.businessJustification || '')}">
                     <span class="reason-text">${Utils.escapeHtml(req.businessJustification || '-')}</span>
@@ -456,6 +466,9 @@ const AccessRequests = (function() {
                                     <th>Requester</th>
                                     <th>Environment</th>
                                     <th>Access Level</th>
+                                    <th>Scope</th>
+                                    <th>Duration</th>
+                                    <th>Current access</th>
                                     <th>Requested</th>
                                     <th>Reason</th>
                                     <th class="text-end">Actions</th>
@@ -518,8 +531,10 @@ const AccessRequests = (function() {
     function bindPendingRequestsEvents() {
         // Approve request
         $('[data-action="approve"]').off('click').on('click', function() {
-            const requestId = $(this).data('request-id');
-            showApproveModal(requestId);
+            const request = pendingList.find(r => r.requestId === $(this).data('request-id'));
+            if (request) {
+                showApproveModal(request, () => { loadPendingRequestsPage(); updatePendingBadge(); });
+            }
         });
 
         // Deny request
@@ -673,30 +688,73 @@ const AccessRequests = (function() {
         );
     }
 
+    function formatDay(ts) {
+        return new Date(ts).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
     /**
-     * Show approve modal
+     * Plain-text facts a reviewer needs about a request (M20): what it covers, for how long, and
+     * what the requester holds today. Shared with Access Management's pending list.
      */
-    function showApproveModal(requestId) {
+    function describeRequest(req) {
+        const level = req.currentAccessLevel;
+        return {
+            scope: req.scopeType === 'GROUP' ? `Group ${req.scopeName || req.scopeId}` : 'Whole environment',
+            duration: req.durationDays ? `${req.durationDays} days requested` : 'No end date requested',
+            current: !level ? 'None'
+                : req.currentExpiresAt ? `${level} until ${formatDay(req.currentExpiresAt)}` : `${level}, no expiry`,
+            extension: !!req.extension
+        };
+    }
+
+    /** Current access plus an "Extension" pill when the request extends it. */
+    function currentAccessHtml(req) {
+        const d = describeRequest(req);
+        const pill = d.extension ? ' <span class="badge ra-extension-pill">Extension</span>' : '';
+        return `${Utils.escapeHtml(d.current)}${pill}`;
+    }
+
+    /**
+     * Approve dialog: shows what is being approved and lets the reviewer keep the requested
+     * duration, pick another, or grant with no expiry; nothing is approved until Approve.
+     *
+     * @param {object} request - a pending request (EnvironmentAccessRequestDTO)
+     * @param {function=} onDone - called after the request was approved or found already reviewed
+     */
+    function showApproveModal(request, onDone) {
+        const d = describeRequest(request);
+        const requested = request.durationDays ? `As requested (${request.durationDays} days)` : 'As requested (no end date)';
+        const dayOptions = APPROVE_DAY_OPTIONS.map(n => `<option value="${n}">${n} days</option>`).join('');
+        const countsFrom = request.extension && request.currentExpiresAt
+            ? `Days are added to the current expiry (${formatDay(request.currentExpiresAt)}).`
+            : 'Days count from the moment you approve.';
+        const row = (label, value) => `<dt class="col-5">${label}</dt><dd class="col-7">${value}</dd>`;
+
         Modals.show({
             id: 'approveRequestModal',
             title: 'Approve Access Request',
             body: `
+                <dl class="row small mb-3 ra-approve-summary">
+                    ${row('Requester', Utils.escapeHtml(request.requesterDisplayName || request.requesterEmail || 'Unknown'))}
+                    ${row('Environment', Utils.escapeHtml(request.environmentName || 'Unknown'))}
+                    ${row('Scope', Utils.escapeHtml(d.scope))}
+                    ${row('Access level', Utils.escapeHtml(request.requestedAccessLevel || ''))}
+                    ${row('Duration', Utils.escapeHtml(d.duration))}
+                    ${row('Current access', currentAccessHtml(request))}
+                </dl>
                 <form id="approveRequestForm">
                     <div class="mb-3">
-                        <label class="form-label">Access Expiration</label>
-                        <select class="form-select" id="expirationDays">
-                            <option value="">Never expires</option>
-                            <option value="7">1 week</option>
-                            <option value="30">30 days</option>
-                            <option value="90">90 days</option>
-                            <option value="180">6 months</option>
-                            <option value="365">1 year</option>
+                        <label class="form-label" for="approveDuration">Grant for</label>
+                        <select class="form-select" id="approveDuration" aria-describedby="approveDurationHelp">
+                            <option value="requested" selected>${Utils.escapeHtml(requested)}</option>
+                            ${dayOptions}
+                            <option value="none">No expiry</option>
                         </select>
-                        <div class="form-text">Optionally set when access should expire</div>
+                        <div class="form-text" id="approveDurationHelp">${Utils.escapeHtml(countsFrom)}</div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Comments (optional)</label>
-                        <textarea class="form-control" id="approveComments" rows="2"
+                        <label class="form-label" for="approveComments">Notes (optional)</label>
+                        <textarea class="form-control" id="approveComments" rows="2" maxlength="500"
                                   placeholder="Any notes for the requester..."></textarea>
                     </div>
                 </form>
@@ -706,24 +764,31 @@ const AccessRequests = (function() {
                 { text: 'Approve', class: 'btn-success', id: 'confirmApprove' }
             ],
             onShow: function() {
+                $('#approveDuration').trigger('focus');
                 $('#confirmApprove').off('click').on('click', function() {
-                    const days = $('#expirationDays').val();
-                    const notes = $('#approveComments').val().trim();
-                    const durationDays = days ? parseInt(days) : null;
+                    const choice = $('#approveDuration').val();
+                    const body = {
+                        notes: $('#approveComments').val().trim() || null,
+                        durationDays: /^\d+$/.test(choice) ? parseInt(choice, 10) : null,
+                        clearExpiry: choice === 'none' ? true : null
+                    };
 
                     $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Approving...');
 
-                    ApiClient.post(Config.API.access.approveRequest(requestId), {
-                        notes,
-                        durationDays
-                    })
+                    ApiClient.post(Config.API.access.approveRequest(request.requestId), body, { suppressGlobalError: true })
                     .done(function() {
                         Modals.hide('approveRequestModal');
                         Notifications.success('Request approved');
-                        loadPendingRequestsPage();
-                        updatePendingBadge();
+                        if (onDone) onDone();
                     })
                     .fail(function(xhr) {
+                        if (xhr.status === 409) {
+                            // E04-T04: another reviewer (or the requester) got there first.
+                            Modals.hide('approveRequestModal');
+                            Notifications.warning('Someone else already reviewed this request');
+                            if (onDone) onDone();
+                            return;
+                        }
                         $('#confirmApprove').prop('disabled', false).html('Approve');
                         Notifications.error(xhr.responseJSON?.message || 'Failed to approve request');
                     });
@@ -1010,6 +1075,9 @@ const AccessRequests = (function() {
         loadPendingRequestsPage,
         showManageAccessModal,
         showRequestAccessModal,
+        showApproveModal,
+        describeRequest,
+        currentAccessHtml,
         updatePendingBadge
     };
 })();

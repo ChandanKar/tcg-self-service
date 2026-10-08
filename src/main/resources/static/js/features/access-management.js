@@ -727,6 +727,7 @@ const AccessManagement = (function() {
         const initials = getInitials(request.requesterDisplayName || request.requesterEmail);
         const requestedDate = request.createdAt ? Utils.formatRelativeTime(request.createdAt) : '-';
         const justification = request.businessJustification || '-';
+        const facts = AccessRequests.describeRequest(request);
 
         return `
             <div class="access-request-card" data-request-id="${request.requestId}">
@@ -741,6 +742,11 @@ const AccessManagement = (function() {
                     <div class="access-request-meta">
                         <span>${Utils.escapeHtml(request.environmentName || 'Unknown')}</span>
                         <span>${requestedDate}</span>
+                    </div>
+                    <div class="access-request-facts">
+                        <span class="ra-scope-chip" data-col="scope">${Utils.escapeHtml(facts.scope)}</span>
+                        <span data-col="duration">${Utils.escapeHtml(facts.duration)}</span>
+                        <span data-col="current">Current: ${AccessRequests.currentAccessHtml(request)}</span>
                     </div>
                     <div class="access-request-justification" title="${Utils.escapeHtml(justification)}">
                         ${Utils.escapeHtml(justification)}
@@ -986,9 +992,10 @@ const AccessManagement = (function() {
         });
 
         // Approve request
+        // Approve request - confirm in a dialog with the full request (M20)
         $('#pending-table-body').off('click', '[data-action="approve"]').on('click', '[data-action="approve"]', function() {
-            const requestId = $(this).data('request-id');
-            handleApproveRequest(requestId);
+            const request = pendingRequests.find(r => r.requestId === $(this).data('request-id'));
+            if (request) AccessRequests.showApproveModal(request, refreshAfterReview);
         });
 
         // Deny request - show modal
@@ -1423,27 +1430,17 @@ const AccessManagement = (function() {
     }
 
     /**
-     * Handle approve request
+     * Reload pending requests, grants and activity after a request was approved (or turned
+     * out to be already reviewed).
      */
-    async function handleApproveRequest(requestId) {
-        const $btn = $(`[data-action="approve"][data-request-id="${requestId}"]`);
-        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
-
+    async function refreshAfterReview() {
         try {
-            await new Promise((resolve, reject) => {
-                ApiClient.post(Config.API.access.approveRequest(requestId), {})
-                    .done(resolve)
-                    .fail(reject);
-            });
-
-            showToast('Request approved successfully', 'success');
-
-            // Refresh pending requests and activity logs
             [pendingRequests, allAccess, activityLogs] = await Promise.all([
                 fetchPendingRequests(),
                 fetchAccessForSelection(selectedEnvironmentId),
                 fetchActivityLogsForSelection(selectedEnvironmentId)
             ]);
+            if (!isActive()) return;
             filteredAccess = [...allAccess];
 
             // Update stats
@@ -1457,10 +1454,9 @@ const AccessManagement = (function() {
             renderActivityLogsTable();
             applyFilters();
         } catch (error) {
-            console.error('Approve request failed:', error);
-            const message = error.responseJSON?.message || 'Failed to approve request';
-            showToast(message, 'danger');
-            $btn.prop('disabled', false).html('<i class="fas fa-check"></i> Approve');
+            if (!isActive()) return;
+            console.error('Refreshing access data failed:', error);
+            showToast('The list could not be refreshed. Reload the page.', 'warning');
         }
     }
 

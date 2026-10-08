@@ -22,6 +22,9 @@ public class EnvironmentAccessRequestDTO {
     private String businessJustification;
     private Integer durationDays;
     private boolean extension;
+    /** For a PENDING request: the requester's active grant on the same scope, if any. */
+    private AccessLevel currentAccessLevel;
+    private Timestamp currentExpiresAt;
     private AccessScopeType scopeType;
     private String scopeId;
     private String scopeName;
@@ -235,5 +238,21 @@ public class EnvironmentAccessRequestDTO {
 
     public void setExtension(boolean extension) {
         this.extension = extension;
+    }
+
+    public AccessLevel getCurrentAccessLevel() {
+        return currentAccessLevel;
+    }
+
+    public void setCurrentAccessLevel(AccessLevel currentAccessLevel) {
+        this.currentAccessLevel = currentAccessLevel;
+    }
+
+    public Timestamp getCurrentExpiresAt() {
+        return currentExpiresAt;
+    }
+
+    public void setCurrentExpiresAt(Timestamp currentExpiresAt) {
+        this.currentExpiresAt = currentExpiresAt;
     }
 }

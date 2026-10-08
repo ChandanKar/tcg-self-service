@@ -229,13 +229,25 @@ public class EnvironmentAccessService {
     @Transactional
     public EnvironmentAccess approveRequest(String requestId, String reviewerUserId, String notes,
                                              Integer reviewerDurationDays) {
+        return approveRequest(requestId, reviewerUserId, notes, reviewerDurationDays, false);
+    }
+
+    /**
+     * Approve, optionally overriding the duration: {@code reviewerDurationDays} replaces the
+     * requested days; {@code clearExpiry} grants with no expiry at all.
+     */
+    @Transactional
+    public EnvironmentAccess approveRequest(String requestId, String reviewerUserId, String notes,
+                                             Integer reviewerDurationDays, boolean clearExpiry) {
         EnvironmentAccessRequest request = decidePending(requestId, AccessRequestStatus.APPROVED,
                 reviewerUserId, notes);
         User reviewer = getUser(reviewerUserId);
 
-        // Reviewer-specified duration overrides what the requester asked for
-        Integer effectiveDays = reviewerDurationDays != null ? reviewerDurationDays : request.getDurationDays();
-        GrantOutcome outcome = applyGrant(GrantSpec.fromApprovedRequest(request, reviewer, effectiveDays, notes));
+        // Reviewer-specified duration (or "no expiry") overrides what the requester asked for
+        Integer effectiveDays = clearExpiry ? null
+                : reviewerDurationDays != null ? reviewerDurationDays : request.getDurationDays();
+        GrantOutcome outcome = applyGrant(GrantSpec.fromApprovedRequest(request, reviewer, effectiveDays,
+                clearExpiry, notes));
 
         log.info("Access request {} approved by {} for user {} on environment {}",
                 requestId, reviewerUserId, request.getRequester().getUserId(),
@@ -640,10 +652,10 @@ public class EnvironmentAccessService {
         }
 
         static GrantSpec fromApprovedRequest(EnvironmentAccessRequest request, User reviewer,
-                                             Integer durationDays, String notes) {
+                                             Integer durationDays, boolean clearExpiry, String notes) {
             return new GrantSpec(request.getEnvironment(), request.getRequester(), reviewer,
                     request.getRequestedAccessLevel(), request.getScopeType(), request.getScopeId(),
-                    AccessInitiation.REQUEST, request.getRequestId(), durationDays, false, notes,
+                    AccessInitiation.REQUEST, request.getRequestId(), durationDays, clearExpiry, notes,
                     request.isExtension());
         }
 

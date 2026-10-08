@@ -997,4 +997,15 @@ class EnvironmentAccessServiceTest extends AbstractIntegrationTest {
 
         assertAbout(edited.getExpiresAt(), java.time.Instant.now().plus(30, java.time.temporal.ChronoUnit.DAYS));
     }
+
+    @Test
+    @DisplayName("M20: approving with clearExpiry grants with no expiry even when 30 days were requested")
+    void approveRequest_clearExpiry_grantsWithoutExpiry() {
+        EnvironmentAccessRequest request = requestDays(30);
+
+        EnvironmentAccess granted = accessService.approveRequest(request.getRequestId(), adminUser.getUserId(),
+                null, null, true);
+
+        assertThat(granted.getExpiresAt()).isNull();
+    }
 }
