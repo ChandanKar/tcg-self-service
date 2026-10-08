@@ -237,11 +237,16 @@ public class NotificationService {
         }
     }
 
+    /**
+     * Warn once per expiry: a warning created at or after {@code dedupSince} (the start of the
+     * current warning window) suppresses another, while one from before an extension does not.
+     */
     public void notifyAccessExpiring(String userId, String scopeLabel, String environmentId,
-                                     String accessId, Timestamp expiresAt) {
+                                     String accessId, Timestamp expiresAt, Timestamp dedupSince) {
         String title = "Access expiring: " + scopeLabel;
         String message = "Your access to \"" + scopeLabel + "\" expires on " + formatDate(expiresAt) + ".";
-        boolean created = createIfAbsent(userId, NotificationType.ACCESS_EXPIRING, title, message, "ACCESS", accessId);
+        boolean created = createIfAbsentSince(userId, NotificationType.ACCESS_EXPIRING, title, message,
+                "ACCESS", accessId, dedupSince);
 
         if (created && emailAccessExpiringEnabled) {
             List<User> recipients = new ArrayList<>();
@@ -515,6 +520,19 @@ public class NotificationService {
      *         for this user/type/entity) — callers use this to avoid re-sending email every time
      *         a scheduled job re-evaluates an already-notified access grant.
      */
+    private boolean createIfAbsentSince(String userId, NotificationType type, String title, String message,
+                                        String entityType, String entityId, Timestamp since) {
+        if (since == null) {
+            return createIfAbsent(userId, type, title, message, entityType, entityId);
+        }
+        if (notificationRepository.existsByUserIdAndTypeAndEntityTypeAndEntityIdAndCreatedAtGreaterThanEqual(
+                userId, type, entityType, entityId, since)) {
+            return false;
+        }
+        create(userId, type, title, message, entityType, entityId);
+        return true;
+    }
+
     private boolean createIfAbsent(String userId, NotificationType type, String title, String message,
                                 String entityType, String entityId) {
         if (notificationRepository.existsByUserIdAndTypeAndEntityTypeAndEntityId(

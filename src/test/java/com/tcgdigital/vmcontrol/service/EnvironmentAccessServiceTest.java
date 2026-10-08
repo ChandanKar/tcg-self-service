@@ -55,6 +55,9 @@ class EnvironmentAccessServiceTest extends AbstractIntegrationTest {
     @Autowired
     private VmGroupRepository groupRepository;
 
+    @Autowired
+    private jakarta.persistence.EntityManager entityManager;
+
     private Environment testEnvironment;
     private User requesterUser;
     private User adminUser;
@@ -266,8 +269,9 @@ class EnvironmentAccessServiceTest extends AbstractIntegrationTest {
         EnvironmentAccess extended = accessService.approveRequest(
                 request.getRequestId(), adminUser.getUserId(), null, null);
 
+        // M19: the 30 days are added to the current expiry (3 days away), not to the approval time.
         long daysLeft = (extended.getExpiresAt().getTime() - System.currentTimeMillis()) / 86_400_000L;
-        assertThat(daysLeft).isBetween(29L, 30L);
+        assertThat(daysLeft).isBetween(32L, 33L);
         assertThat(accessService.getAccessForUser(requesterUser.getUserId())).hasSize(1);
     }
 
@@ -848,5 +852,104 @@ class EnvironmentAccessServiceTest extends AbstractIntegrationTest {
                 new GrantAccessDTO(requesterUser.getEmail(), AccessLevel.USER, 366, null)))
                 .isInstanceOf(ValidationException.class)
                 .hasMessage("Access can be granted for at most 365 days");
+    }
+
+    // ============= Extensions (E04-T05, M19) =============
+
+    /** requesterUser holds USER on testEnvironment, expiring at now + {@code expiresIn}. */
+    private EnvironmentAccess grantExpiringIn(java.time.Duration expiresIn) {
+        String accessId = accessService.grantAccess(testEnvironment.getEnvironmentId(), adminUser.getUserId(),
+                new GrantAccessDTO(requesterUser.getEmail(), AccessLevel.USER, 30, null)).getAccessId();
+        // Reload from MySQL: the instance created in this transaction lacks the DB-generated grantedAt.
+        entityManager.flush();
+        entityManager.clear();
+        EnvironmentAccess grant = accessRepository.findById(accessId).orElseThrow();
+        grant.setExpiresAt(Timestamp.from(java.time.Instant.now().plus(expiresIn)));
+        return accessRepository.saveAndFlush(grant);
+    }
+
+    private EnvironmentAccessRequest requestDays(Integer days) {
+        CreateAccessRequestDTO dto = new CreateAccessRequestDTO();
+        dto.setAccessLevel(AccessLevel.USER);
+        dto.setBusinessJustification("Still working on the release");
+        dto.setDurationDays(days);
+        return accessService.createAccessRequest(testEnvironment.getEnvironmentId(), requesterUser.getUserId(), dto);
+    }
+
+    private static void assertAbout(Timestamp actual, java.time.Instant expected) {
+        assertThat(java.time.Duration.between(actual.toInstant(), expected).abs())
+                .isLessThan(java.time.Duration.ofMinutes(1));
+    }
+
+    @Test
+    @DisplayName("M19: a request while holding an expiring grant is flagged as an extension; a first request is not")
+    void createAccessRequest_flagsExtensions() {
+        assertThat(requestDays(null).isExtension()).isFalse();
+        requestRepository.deleteAll();
+
+        grantExpiringIn(java.time.Duration.ofDays(3));
+        EnvironmentAccessRequest extension = requestDays(7);
+
+        assertThat(extension.isExtension()).isTrue();
+        assertThat(requestRepository.findById(extension.getRequestId()).orElseThrow().isExtension()).isTrue();
+    }
+
+    @Test
+    @DisplayName("M19: approving an extension adds the days to the current expiry, not to the approval time")
+    void approveExtension_addsToTheCurrentExpiry() {
+        EnvironmentAccess grant = grantExpiringIn(java.time.Duration.ofDays(6));
+        java.time.Instant currentExpiry = grant.getExpiresAt().toInstant();
+        EnvironmentAccessRequest extension = requestDays(7);
+
+        EnvironmentAccess extended = accessService.approveRequest(extension.getRequestId(), adminUser.getUserId(), null, null);
+
+        assertThat(extended.getAccessId()).isEqualTo(grant.getAccessId());
+        assertAbout(extended.getExpiresAt(), currentExpiry.plus(7, java.time.temporal.ChronoUnit.DAYS));
+    }
+
+    @Test
+    @DisplayName("M19: an extension approved after the grant lapsed counts from the approval time")
+    void approveExtension_afterLapse_countsFromNow() {
+        EnvironmentAccess grant = grantExpiringIn(java.time.Duration.ofDays(2));
+        EnvironmentAccessRequest extension = requestDays(7);
+        grant.setExpiresAt(Timestamp.from(java.time.Instant.now().minus(1, java.time.temporal.ChronoUnit.HOURS)));
+        accessRepository.saveAndFlush(grant); // lapsed, not yet flipped to EXPIRED by the job
+
+        EnvironmentAccess extended = accessService.approveRequest(extension.getRequestId(), adminUser.getUserId(), null, null);
+
+        assertAbout(extended.getExpiresAt(), java.time.Instant.now().plus(7, java.time.temporal.ChronoUnit.DAYS));
+    }
+
+    @Test
+    @DisplayName("M19: a reviewer's duration override on an extension is also added to the current expiry")
+    void approveExtension_reviewerOverride_addsToTheCurrentExpiry() {
+        EnvironmentAccess grant = grantExpiringIn(java.time.Duration.ofDays(4));
+        java.time.Instant currentExpiry = grant.getExpiresAt().toInstant();
+        EnvironmentAccessRequest extension = requestDays(30);
+
+        EnvironmentAccess extended = accessService.approveRequest(extension.getRequestId(), adminUser.getUserId(), null, 14);
+
+        assertAbout(extended.getExpiresAt(), currentExpiry.plus(14, java.time.temporal.ChronoUnit.DAYS));
+    }
+
+    @Test
+    @DisplayName("M19: a first (non-extension) request approved for 30 days expires 30 days after approval")
+    void approveNewRequest_countsFromNow() {
+        EnvironmentAccessRequest request = requestDays(30);
+
+        EnvironmentAccess granted = accessService.approveRequest(request.getRequestId(), adminUser.getUserId(), null, null);
+
+        assertAbout(granted.getExpiresAt(), java.time.Instant.now().plus(30, java.time.temporal.ChronoUnit.DAYS));
+    }
+
+    @Test
+    @DisplayName("M19: a direct admin grant with a duration still counts from today")
+    void directGrantOnExistingGrant_countsFromNow() {
+        grantExpiringIn(java.time.Duration.ofDays(5));
+
+        EnvironmentAccess regranted = accessService.grantAccess(testEnvironment.getEnvironmentId(), adminUser.getUserId(),
+                new GrantAccessDTO(requesterUser.getEmail(), AccessLevel.USER, 10, null));
+
+        assertAbout(regranted.getExpiresAt(), java.time.Instant.now().plus(10, java.time.temporal.ChronoUnit.DAYS));
     }
 }

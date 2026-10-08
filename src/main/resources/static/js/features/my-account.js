@@ -403,6 +403,15 @@ const MyAccount = (function() {
         `;
     }
 
+    /**
+     * An approved extension adds the days to the current expiry, or to the approval time if the
+     * grant has already lapsed (server: EnvironmentAccessService.applyExpiry).
+     */
+    function newExpiryText(g, days) {
+        const base = Math.max(Date.now(), g.expiresAt ? new Date(g.expiresAt).getTime() : 0);
+        return `New expiry if approved now: ${formatDate(base + days * DAY_MS)}`;
+    }
+
     function extendFormHtml(g) {
         const draft = state.extendDraft;
         const options = extensionDayOptions().map(d =>
@@ -413,6 +422,7 @@ const MyAccount = (function() {
                     <label for="ma-extend-days">Extend by</label>
                     <select id="ma-extend-days" class="form-select form-select-sm">${options}</select>
                 </div>
+                <p class="ma-muted ma-extend-new-expiry" id="ma-extend-new-expiry">${Utils.escapeHtml(newExpiryText(g, draft.days))}</p>
                 <label for="ma-extend-reason" class="form-label">Reason</label>
                 <textarea id="ma-extend-reason" class="form-control form-control-sm" rows="2"
                           minlength="10" maxlength="1000" required>${Utils.escapeHtml(draft.reason)}</textarea>
@@ -601,6 +611,8 @@ const MyAccount = (function() {
             if (!state || !state.extendDraft) return;
             state.extendDraft.days = parseInt($('#ma-extend-days').val(), 10);
             state.extendDraft.reason = $('#ma-extend-reason').val();
+            const grant = findGrant(state.extendingId);
+            if (grant) $('#ma-extend-new-expiry').text(newExpiryText(grant, state.extendDraft.days));
         });
     }
 

@@ -21,6 +21,7 @@ public class EnvironmentAccessRequestDTO {
     private AccessLevel requestedAccessLevel;
     private String businessJustification;
     private Integer durationDays;
+    private boolean extension;
     private AccessScopeType scopeType;
     private String scopeId;
     private String scopeName;
@@ -47,6 +48,7 @@ public class EnvironmentAccessRequestDTO {
         dto.setRequestedAccessLevel(request.getRequestedAccessLevel());
         dto.setBusinessJustification(request.getBusinessJustification());
         dto.setDurationDays(request.getDurationDays());
+        dto.setExtension(request.isExtension());
         dto.setScopeType(request.getScopeType());
         dto.setScopeId(request.getScopeId());
         dto.setStatus(request.getStatus());
@@ -225,5 +227,13 @@ public class EnvironmentAccessRequestDTO {
     public void setCreatedAt(Timestamp createdAt) {
         this.createdAt = createdAt;
     }
-}
 
+    /** True when this request extends an existing grant rather than asking for new access. */
+    public boolean isExtension() {
+        return extension;
+    }
+
+    public void setExtension(boolean extension) {
+        this.extension = extension;
+    }
+}

@@ -61,6 +61,10 @@ public class EnvironmentAccessRequest {
     @Column(name = "auto_expire_at")
     private Timestamp autoExpireAt;
 
+    /** True when the requester already held an about-to-expire grant for this scope (V26). */
+    @Column(name = "is_extension", nullable = false)
+    private boolean extension;
+
     /**
      * What the requester is asking for access to. {@code environment} is always the enclosing
      * environment; for a {@code GROUP}-scoped request {@code scopeId} is the {@code vm_group}
@@ -253,6 +257,14 @@ public class EnvironmentAccessRequest {
 
     public void setAutoExpireAt(Timestamp autoExpireAt) {
         this.autoExpireAt = autoExpireAt;
+    }
+
+    public boolean isExtension() {
+        return extension;
+    }
+
+    public void setExtension(boolean extension) {
+        this.extension = extension;
     }
 
     @Override

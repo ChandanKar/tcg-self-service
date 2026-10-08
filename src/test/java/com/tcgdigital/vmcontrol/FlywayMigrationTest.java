@@ -460,4 +460,15 @@ class FlywayMigrationTest extends AbstractIntegrationTest {
         );
         assertEquals(0, count, "idx_environment_access_env_user must not exist after V25");
     }
+
+    @Test
+    void testAccessRequestExtensionFlagAdded() {
+        // V26 (M19): is_extension marks requests that extend an existing grant.
+        Map<String, Object> column = jdbcTemplate.queryForMap(
+            "SELECT IS_NULLABLE, COLUMN_DEFAULT FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() " +
+            "AND TABLE_NAME = 'environment_access_request' AND COLUMN_NAME = 'is_extension'"
+        );
+        assertEquals("NO", column.get("IS_NULLABLE"));
+        assertEquals("0", String.valueOf(column.get("COLUMN_DEFAULT")));
+    }
 }

@@ -137,6 +137,7 @@ public class EnvironmentAccessService {
 
         Timestamp now = new Timestamp(System.currentTimeMillis());
         Optional<EnvironmentAccess> active = accessRepository.findActiveByUserAndScope(requesterId, scopeType, scopeId, now);
+        boolean extension = active.isPresent();
         if (active.isPresent()) {
             // An extension: allowed only for a grant about to expire, and it must say for how
             // long — approval re-applies the grant, and without a duration the expiry would
@@ -164,6 +165,7 @@ public class EnvironmentAccessService {
         );
         request.setScopeType(scopeType);
         request.setScopeId(scopeId);
+        request.setExtension(extension);
 
         EnvironmentAccessRequest saved = requestRepository.save(request);
         log.info("Access request created: {} for environment {} by user {}",
@@ -565,7 +567,14 @@ public class EnvironmentAccessService {
             throw new ValidationException("Access can be granted for at most " + grantMaxDurationDays + " days");
         }
         if (spec.durationDays != null) {
-            access.setExpiresAt(Timestamp.valueOf(LocalDateTime.now().plusDays(spec.durationDays)));
+            // An approved extension adds the days to the current expiry, so a late approval does
+            // not shorten it (M19); anything else counts from now.
+            LocalDateTime base = LocalDateTime.now();
+            if (spec.extendFromCurrent && access.getExpiresAt() != null
+                    && access.getExpiresAt().toLocalDateTime().isAfter(base)) {
+                base = access.getExpiresAt().toLocalDateTime();
+            }
+            access.setExpiresAt(Timestamp.valueOf(base.plusDays(spec.durationDays)));
         } else if (spec.clearExpiry) {
             access.setExpiresAt(null);
         }
@@ -596,10 +605,14 @@ public class EnvironmentAccessService {
         final Integer durationDays;
         final boolean clearExpiry;
         final String notes;
+        /** Add durationDays to the grant's current (future) expiry instead of to now. */
+        final boolean extendFromCurrent;
 
         private GrantSpec(Environment environment, User targetUser, User actor, AccessLevel level,
                           AccessScopeType scopeType, String scopeId, AccessInitiation initiation,
-                          String sourceRequestId, Integer durationDays, boolean clearExpiry, String notes) {
+                          String sourceRequestId, Integer durationDays, boolean clearExpiry, String notes,
+                          boolean extendFromCurrent) {
+            this.extendFromCurrent = extendFromCurrent;
             this.environment = environment;
             this.targetUser = targetUser;
             this.actor = actor;
@@ -616,20 +629,22 @@ public class EnvironmentAccessService {
         static GrantSpec directEnv(Environment environment, User targetUser, User actor, AccessLevel level,
                                    Integer durationDays, boolean clearExpiry, String notes) {
             return new GrantSpec(environment, targetUser, actor, level, AccessScopeType.ENVIRONMENT,
-                    environment.getEnvironmentId(), AccessInitiation.DIRECT, null, durationDays, clearExpiry, notes);
+                    environment.getEnvironmentId(), AccessInitiation.DIRECT, null, durationDays, clearExpiry, notes,
+                    false);
         }
 
         static GrantSpec directGroup(Environment environment, VmGroup group, User targetUser, User actor,
                                      AccessLevel level, Integer durationDays, boolean clearExpiry, String notes) {
             return new GrantSpec(environment, targetUser, actor, level, AccessScopeType.GROUP,
-                    group.getGroupId(), AccessInitiation.DIRECT, null, durationDays, clearExpiry, notes);
+                    group.getGroupId(), AccessInitiation.DIRECT, null, durationDays, clearExpiry, notes, false);
         }
 
         static GrantSpec fromApprovedRequest(EnvironmentAccessRequest request, User reviewer,
                                              Integer durationDays, String notes) {
             return new GrantSpec(request.getEnvironment(), request.getRequester(), reviewer,
                     request.getRequestedAccessLevel(), request.getScopeType(), request.getScopeId(),
-                    AccessInitiation.REQUEST, request.getRequestId(), durationDays, false, notes);
+                    AccessInitiation.REQUEST, request.getRequestId(), durationDays, false, notes,
+                    request.isExtension());
         }
 
         /** Re-apply an existing grant with a possibly-changed level / expiry, keeping its scope and origin. */
@@ -637,7 +652,7 @@ public class EnvironmentAccessService {
                                      Integer durationDays, boolean clearExpiry, String notes) {
             return new GrantSpec(existing.getEnvironment(), existing.getUser(), actor, level,
                     existing.getScopeType(), existing.getScopeId(), existing.getInitiation(),
-                    existing.getSourceRequestId(), durationDays, clearExpiry, notes);
+                    existing.getSourceRequestId(), durationDays, clearExpiry, notes, false);
         }
     }
 
@@ -824,8 +839,11 @@ public class EnvironmentAccessService {
             String environmentId = access.getEnvironment().getEnvironmentId();
             String accessId = access.getAccessId();
             Timestamp expiresAt = access.getExpiresAt();
+            // One warning per expiry: an extension moves expiresAt, so the next window warns again (M19).
+            Timestamp windowStart = Timestamp.valueOf(expiresAt.toLocalDateTime().minusDays(expiryWarningDays));
             sideEffectAfterCommit("notify access expiring", accessId, () ->
-                    notificationService.notifyAccessExpiring(userId, label, environmentId, accessId, expiresAt));
+                    notificationService.notifyAccessExpiring(userId, label, environmentId, accessId, expiresAt,
+                            windowStart));
         }
 
         return expiringAccess.size();

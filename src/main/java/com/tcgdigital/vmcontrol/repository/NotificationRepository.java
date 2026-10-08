@@ -10,6 +10,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.sql.Timestamp;
+
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification, String> {
 
@@ -21,6 +23,9 @@ public interface NotificationRepository extends JpaRepository<Notification, Stri
 
     boolean existsByUserIdAndTypeAndEntityTypeAndEntityId(
             String userId, NotificationType type, String entityType, String entityId);
+
+    boolean existsByUserIdAndTypeAndEntityTypeAndEntityIdAndCreatedAtGreaterThanEqual(
+            String userId, NotificationType type, String entityType, String entityId, Timestamp since);
 
     @Modifying
     @Query("UPDATE Notification n SET n.isRead = true WHERE n.userId = :userId AND n.isRead = false")

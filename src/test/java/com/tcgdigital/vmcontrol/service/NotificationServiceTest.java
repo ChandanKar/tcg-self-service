@@ -208,11 +208,12 @@ class NotificationServiceTest {
     @Test
     void notifyAccessExpiring_emailGoesToUserAndAdministeringEnvAdmins() {
         ReflectionTestUtils.setField(service, "emailAccessExpiringEnabled", true);
-        when(notificationRepository.existsByUserIdAndTypeAndEntityTypeAndEntityId(
-                eq("user-regular"), any(), eq("ACCESS"), eq("access-1"))).thenReturn(false);
+        Timestamp windowStart = new Timestamp(System.currentTimeMillis());
+        when(notificationRepository.existsByUserIdAndTypeAndEntityTypeAndEntityIdAndCreatedAtGreaterThanEqual(
+                eq("user-regular"), any(), eq("ACCESS"), eq("access-1"), eq(windowStart))).thenReturn(false);
         when(userRepository.findById("user-regular")).thenReturn(Optional.of(regularUser));
 
-        service.notifyAccessExpiring("user-regular", "Env A", "env-A", "access-1", null);
+        service.notifyAccessExpiring("user-regular", "Env A", "env-A", "access-1", null, windowStart);
 
         ArgumentCaptor<List<String>> addressesCaptor = ArgumentCaptor.forClass(List.class);
         verify(emailService).sendHtml(addressesCaptor.capture(), anyString(), anyString(), eq(null), eq(null));
@@ -223,10 +224,11 @@ class NotificationServiceTest {
     @Test
     void notifyAccessExpiring_doesNotResendEmailWhenBellNotificationAlreadyExists() {
         ReflectionTestUtils.setField(service, "emailAccessExpiringEnabled", true);
-        when(notificationRepository.existsByUserIdAndTypeAndEntityTypeAndEntityId(
-                eq("user-regular"), any(), eq("ACCESS"), eq("access-1"))).thenReturn(true);
+        Timestamp windowStart = new Timestamp(System.currentTimeMillis());
+        when(notificationRepository.existsByUserIdAndTypeAndEntityTypeAndEntityIdAndCreatedAtGreaterThanEqual(
+                eq("user-regular"), any(), eq("ACCESS"), eq("access-1"), eq(windowStart))).thenReturn(true);
 
-        service.notifyAccessExpiring("user-regular", "Env A", "env-A", "access-1", null);
+        service.notifyAccessExpiring("user-regular", "Env A", "env-A", "access-1", null, windowStart);
 
         verify(notificationRepository, never()).save(any());
         verifyNoInteractions(emailService);
