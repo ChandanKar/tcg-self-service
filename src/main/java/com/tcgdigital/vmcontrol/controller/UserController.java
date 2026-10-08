@@ -154,7 +154,7 @@ public class UserController {
     }
 
     @GetMapping("/{userId}")
-    @PreAuthorize("hasRole('ADMIN') or #userId == authentication.principal.getAttribute('oid')")
+    @PreAuthorize("hasRole('ADMIN') or @securityService.isCurrentUser(#userId)")
     @Operation(
             summary = "Get user by ID",
             description = "Retrieves detailed information about a specific user"

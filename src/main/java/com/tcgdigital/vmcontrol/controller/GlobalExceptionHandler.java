@@ -217,7 +217,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         log.warn("Access denied: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
                 "error", "Forbidden",
-                "message", "You do not have permission to perform this action. Required role: ADMIN or ENV_ADMIN.",
+                "message", "You do not have permission to perform this action.",
                 "timestamp", Instant.now().toString()
         ));
     }
