@@ -9,6 +9,10 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
+import com.tcgdigital.vmcontrol.repository.UserRepository;
+
+import java.time.Duration;
 import org.springframework.context.annotation.Bean;
 
 @Configuration
@@ -18,11 +22,17 @@ public class EntraidSecurityConfig {
 
     private final CustomOAuth2UserService customOAuth2UserService;
     private final boolean cspReportOnly;
+    private final UserRepository userRepository;
+    private final Duration sessionAbsoluteTimeout;
 
     public EntraidSecurityConfig(CustomOAuth2UserService customOAuth2UserService,
-                                 @Value("${security.csp.report-only:true}") boolean cspReportOnly) {
+                                 @Value("${security.csp.report-only:true}") boolean cspReportOnly,
+                                 UserRepository userRepository,
+                                 @Value("${security.session.absolute-timeout:PT12H}") Duration sessionAbsoluteTimeout) {
         this.customOAuth2UserService = customOAuth2UserService;
         this.cspReportOnly = cspReportOnly;
+        this.userRepository = userRepository;
+        this.sessionAbsoluteTimeout = sessionAbsoluteTimeout;
     }
 
     @Bean
@@ -75,11 +85,15 @@ public class EntraidSecurityConfig {
                 })
             )
             // Session management - create session for authentication
+            // maximumSessions(1) was removed: it never matched OIDC principals (no stable equals).
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                .maximumSessions(1)  // Allow only 1 session per user
-                .maxSessionsPreventsLogin(false)  // New login invalidates old session
+                .sessionFixation(fixation -> fixation.changeSessionId())
             )
+            // Reload the user on every request: deactivation, role changes and the absolute
+            // session lifetime apply on the next request (H10).
+            .addFilterBefore(new CurrentUserRefreshFilter(userRepository, sessionAbsoluteTimeout),
+                AuthorizationFilter.class)
             // CSRF configuration for API endpoints
             .csrf(csrf -> csrf
                 .ignoringRequestMatchers("/api/**")  // Allow /api/auth/login without CSRF token

@@ -111,8 +111,13 @@
 
     /** Spring Security redirects a failed Entra sign-in (e.g. account_conflict) to /login?error. */
     function showSignInError() {
-        if (!new URLSearchParams(window.location.search).has('error')) return;
-        showError('Sign-in with Entra ID failed. If this keeps happening, contact an administrator.');
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('expired')) {
+            // CurrentUserRefreshFilter: session lifetime reached or account deactivated.
+            showError('Your session has ended. Please sign in again.');
+        } else if (params.has('error')) {
+            showError('Sign-in with Entra ID failed. If this keeps happening, contact an administrator.');
+        }
     }
 
     document.addEventListener('DOMContentLoaded', function () {

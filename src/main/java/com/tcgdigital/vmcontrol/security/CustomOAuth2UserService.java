@@ -140,20 +140,9 @@ public class CustomOAuth2UserService extends OidcUserService {
     private Set<GrantedAuthority> buildAuthorities(User user, OidcUser oidcUser) {
         Set<GrantedAuthority> authorities = new HashSet<>();
 
-        // Add default authorities from OIDC token
+        // Keep the token's own authorities (OIDC_USER, SCOPE_*), then the application roles.
         authorities.addAll(oidcUser.getAuthorities());
-
-        // Add our application roles
-        authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
-
-        if (user.isEnvAdmin()) {
-            authorities.add(new SimpleGrantedAuthority("ROLE_ENV_ADMIN"));
-        }
-
-        if (user.isAdmin()) {
-            authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
-        }
-
+        authorities.addAll(RoleAuthorities.forUser(user));
         return authorities;
     }
 

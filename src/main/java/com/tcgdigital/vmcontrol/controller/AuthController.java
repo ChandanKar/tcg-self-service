@@ -5,6 +5,8 @@ import com.tcgdigital.vmcontrol.dto.LoginResponse;
 import com.tcgdigital.vmcontrol.exception.UnauthorizedException;
 import com.tcgdigital.vmcontrol.model.User;
 import com.tcgdigital.vmcontrol.service.AuthenticationService;
+import com.tcgdigital.vmcontrol.security.CurrentUserRefreshFilter;
+import com.tcgdigital.vmcontrol.security.RoleAuthorities;
 import com.tcgdigital.vmcontrol.service.LoginThrottleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -104,6 +106,7 @@ public class AuthController {
                     user.getUserId(), null, authoritiesFor(user)));
             SecurityContextHolder.setContext(securityContext);
             securityContextRepository.saveContext(securityContext, request, response);
+            request.getSession().setAttribute(CurrentUserRefreshFilter.ISSUED_AT, System.currentTimeMillis());
 
             log.info("User {} logged in successfully via username/password", user.getUsername());
             return ResponseEntity.ok(new LoginResponse(true, "Login successful", user));
@@ -122,14 +125,6 @@ public class AuthController {
     }
 
     private static List<GrantedAuthority> authoritiesFor(User user) {
-        List<GrantedAuthority> authorities = new ArrayList<>();
-        authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
-        if (user.isAdmin()) {
-            authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
-        }
-        if (user.isEnvAdmin()) {
-            authorities.add(new SimpleGrantedAuthority("ROLE_ENV_ADMIN"));
-        }
-        return authorities;
+        return new ArrayList<>(RoleAuthorities.forUser(user));
     }
 }

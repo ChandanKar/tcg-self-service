@@ -362,9 +362,15 @@ public class UserService {
 
     /**
      * Get the currently authenticated user.
-     * Returns null if not authenticated or user not found.
+     * Returns null if not authenticated, not found, or deactivated (a deactivated user is treated
+     * as signed out everywhere; getCurrentUserId then throws UnauthorizedException).
      */
     public User getCurrentUser() {
+        User user = resolveCurrentUser();
+        return user != null && user.isActive() ? user : null;
+    }
+
+    private User resolveCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
         if (authentication == null || !authentication.isAuthenticated()) {
