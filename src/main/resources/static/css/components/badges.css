@@ -64,6 +64,17 @@
     font-weight: 600;
 }
 
+/* Registry review markers (E09-T10): state drift (warning) and discovered, not yet reviewed (info) */
+.status-badge.drift {
+    background: var(--status-stopping-bg, #fef3c7);
+    color: var(--status-stopping-text, #92400e);
+}
+
+.status-badge.review {
+    background: var(--status-starting-bg, #dbeafe);
+    color: var(--status-starting-text, #1e40af);
+}
+
 /* UNKNOWN - gray */
 .status-badge.unknown {
     background: var(--status-unknown-bg, #f3f4f6);

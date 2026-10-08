@@ -114,7 +114,14 @@ const Config = (function() {
                 `${API_BASE_URL}/environments/${envId}/vms/${vmId}/metrics?window=${encodeURIComponent(window)}&period=${encodeURIComponent(period)}`,
             utilizationSummary: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}/utilization-summary`,
             groupPage: (envId, groupId, page = 0, size = 25) =>
-                `${API_BASE_URL}/environments/${envId}/vms/${groupId}/page?page=${page}&size=${size}`
+                `${API_BASE_URL}/environments/${envId}/vms/${groupId}/page?page=${page}&size=${size}`,
+            // Registry review (E09-T08/T06/T09): state is DRIFT, PENDING or INACTIVE
+            review: (envId, state, page = 0, size = 25) =>
+                `${API_BASE_URL}/environments/${envId}/vms/review?state=${encodeURIComponent(state)}&page=${page}&size=${size}`,
+            reviewCounts: (envId) => `${API_BASE_URL}/environments/${envId}/vms/review/counts`,
+            move: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}/move`,
+            reactivate: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}/reactivate`,
+            acknowledge: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}/acknowledge`
         },
 
         // VM Operations

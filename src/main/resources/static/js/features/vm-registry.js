@@ -363,6 +363,9 @@ const VmRegistry = (function() {
             serviceType: envRecord?.serviceType || 'EC2'
         };
         window.VmRegistryState.groupVmPages = {};
+        window.VmRegistryState.reviewState = null;
+        window.VmRegistryState.reviewPage = 0;
+        $('#vrReviewArea').empty();
         try {
             Loading.show('Loading groups and VMs...');
             const groupsWithVms = await ApiClient.get(`/api/v1/environments/${environmentId}/vms`);
@@ -445,6 +448,8 @@ const VmRegistry = (function() {
             $('#cem-eks-groups-banner').remove();
         }
 
+        loadReviewCounts();
+
         const container = $('#groupsContentArea');
         container.empty();
         if (!groupsWithVms || groupsWithVms.length === 0) {
@@ -459,7 +464,232 @@ const VmRegistry = (function() {
         groupsWithVms.forEach(gv => container.append(buildGroupCard(gv)));
     }
 
-    function buildVmRows(vms, group) {
+    // =========================================================================
+    // Needs attention: drift / pending review / removed or inactive (E09-T10, M34)
+    // =========================================================================
+
+    const REVIEW_STATES = [
+        { state: 'DRIFT', key: 'drift', label: 'Drift', icon: 'fa-exclamation-triangle' },
+        { state: 'PENDING', key: 'pending', label: 'Pending review', icon: 'fa-inbox' },
+        { state: 'INACTIVE', key: 'inactive', label: 'Removed or inactive', icon: 'fa-ban' }
+    ];
+
+    async function loadReviewCounts() {
+        const env = window.VmRegistryState.currentEnvironment;
+        if (!env) return;
+        const $area = $('#vrReviewArea');
+        try {
+            const counts = await ApiClient.get(Config.API.vms.reviewCounts(env.environmentId), { suppressGlobalError: true });
+            if (window.VmRegistryState.currentEnvironment !== env) return; // another environment opened meanwhile
+            window.VmRegistryState.reviewCounts = counts;
+            const any = REVIEW_STATES.some(s => (counts[s.key] || 0) > 0);
+            if (!any) {
+                window.VmRegistryState.reviewState = null;
+                $area.empty();
+                return;
+            }
+            const selected = window.VmRegistryState.reviewState;
+            const chips = REVIEW_STATES.filter(s => (counts[s.key] || 0) > 0).map(s => Utils.html`
+                <button type="button" class="btn btn-sm ${selected === s.state ? 'btn-primary' : 'btn-outline-secondary'} me-2 mb-1"
+                        data-action="vr-review-state" data-state="${s.state}" aria-pressed="${String(selected === s.state)}">
+                    <i class="fas ${s.icon} me-1"></i>${s.label} (${counts[s.key]})
+                </button>`).join('');
+            $area.html(Utils.html`
+                <div class="card mb-3" id="vrReviewCard">
+                    <div class="card-body py-2">
+                        <div class="d-flex flex-wrap align-items-center">
+                            <strong class="me-3 mb-1 small text-uppercase text-muted">Needs attention</strong>
+                            ${Utils.raw(chips)}
+                        </div>
+                        <div id="vrReviewList"></div>
+                    </div>
+                </div>`);
+            if (selected && (counts[REVIEW_STATES.find(s => s.state === selected).key] || 0) > 0) {
+                await loadReviewList(selected, window.VmRegistryState.reviewPage || 0);
+            } else {
+                window.VmRegistryState.reviewState = null;
+            }
+        } catch (error) {
+            console.error('Failed to load review counts:', error);
+            $area.html('<div class="text-muted small mb-3"><i class="fas fa-exclamation-circle me-1"></i>Could not load VMs that need attention.</div>');
+        }
+    }
+
+    async function selectReviewState(state) {
+        const current = window.VmRegistryState.reviewState;
+        window.VmRegistryState.reviewState = current === state ? null : state; // a second click closes the list
+        window.VmRegistryState.reviewPage = 0;
+        await loadReviewCounts();
+    }
+
+    async function loadReviewList(state, page) {
+        const env = window.VmRegistryState.currentEnvironment;
+        const $list = $('#vrReviewList');
+        $list.html('<div class="text-muted small py-2"><i class="fas fa-spinner fa-spin me-1"></i>Loading...</div>');
+        try {
+            const result = normalizePage(await ApiClient.get(Config.API.vms.review(env.environmentId, state, page, VM_PAGE_SIZE),
+                { suppressGlobalError: true }));
+            if (window.VmRegistryState.currentEnvironment !== env || window.VmRegistryState.reviewState !== state) return;
+            window.VmRegistryState.reviewPage = page;
+            const vms = result.content || [];
+            const totalPages = result.totalPages || 1;
+            if (vms.length === 0) {
+                $list.html('<div class="text-muted small py-2">Nothing here any more.</div>');
+                return;
+            }
+            $list.html(Utils.html`
+                <div class="table-responsive mt-2">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>VM Name</th><th>Purpose</th><th>Provider</th><th>Region</th><th>Instance ID</th>
+                                <th>Private IP</th><th>Status</th><th class="text-center">Seq</th><th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>${Utils.raw(buildVmRows(vms, null, { showGroup: true }))}</tbody>
+                    </table>
+                </div>
+                ${totalPages > 1 ? Utils.raw(Utils.html`
+                <div class="d-flex justify-content-between align-items-center pt-2">
+                    <span class="text-muted small">Page ${page + 1} of ${totalPages}</span>
+                    <div>
+                        <button class="btn btn-sm btn-ghost" ${page === 0 ? 'disabled' : ''} data-action="vr-review-page" data-page="${page - 1}">
+                            <i class="fas fa-chevron-left"></i> Prev
+                        </button>
+                        <button class="btn btn-sm btn-ghost ms-1" ${page >= totalPages - 1 ? 'disabled' : ''} data-action="vr-review-page" data-page="${page + 1}">
+                            Next <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>`) : ''}`);
+        } catch (error) {
+            console.error('Failed to load review list:', error);
+            $list.html('<div class="text-muted small py-2"><i class="fas fa-exclamation-circle me-1"></i>Could not load this list.</div>');
+        }
+    }
+
+    function changeReviewPage(page) {
+        const state = window.VmRegistryState.reviewState;
+        if (state) loadReviewList(state, page);
+    }
+
+    async function fetchVm(vmId) {
+        const envId = window.VmRegistryState.currentEnvironment.environmentId;
+        return ApiClient.get(Config.API.vms.get(envId, vmId));
+    }
+
+    async function acknowledgeVm(vmId) {
+        try {
+            Loading.show('Marking as reviewed...');
+            await ApiClient.put(Config.API.vms.acknowledge(window.VmRegistryState.currentEnvironment.environmentId, vmId), {});
+            Notifications.success('VM marked as reviewed');
+            await refreshGroupsModal();
+        } catch (error) {
+            console.error('Failed to acknowledge VM:', error);
+            if (!error?.responseJSON?.message) Notifications.error('Failed to mark the VM as reviewed');
+        } finally {
+            Loading.hide();
+        }
+    }
+
+    async function openMoveVm(vmId) {
+        let vm;
+        try {
+            vm = await fetchVm(vmId);
+        } catch (error) {
+            console.error('Failed to load VM:', error);
+            return;
+        }
+        const targets = (window.VmRegistryState.currentGroups || []).filter(g => g.groupId !== vm.groupId);
+        if (targets.length === 0) {
+            Notifications.error('There is no other group to move this VM to. Add a group first.');
+            return;
+        }
+        $('#moveVmId').val(vm.vmId);
+        $('#moveVmModalLabel').text(`Move VM "${vm.displayName || vm.name}"`);
+        const $select = $('#moveVmTargetGroup').empty();
+        targets.forEach(g => $select.append(new Option(g.displayName || g.name, g.groupId)));
+        $('#btnSubmitMoveVm').prop('disabled', false);
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('moveVmModal')).show();
+    }
+
+    async function submitMoveVm() {
+        const vmId = $('#moveVmId').val();
+        const targetGroupId = $('#moveVmTargetGroup').val();
+        if (!vmId || !targetGroupId) return;
+        const $btn = $('#btnSubmitMoveVm').prop('disabled', true);
+        try {
+            await ApiClient.put(Config.API.vms.move(window.VmRegistryState.currentEnvironment.environmentId, vmId),
+                { targetGroupId });
+            bootstrap.Modal.getInstance(document.getElementById('moveVmModal'))?.hide();
+            Notifications.success('VM moved');
+            await refreshGroupsModal();
+            await loadEnvironmentsData();
+        } catch (error) {
+            console.error('Failed to move VM:', error);
+            if (!error?.responseJSON?.message) Notifications.error('Failed to move VM');
+        } finally {
+            $btn.prop('disabled', false);
+        }
+    }
+
+    async function reactivateVm(vmId) {
+        try {
+            Loading.show('Reactivating VM...');
+            await ApiClient.post(Config.API.vms.reactivate(window.VmRegistryState.currentEnvironment.environmentId, vmId), {});
+            Notifications.success('VM reactivated');
+            await refreshGroupsModal();
+            await loadEnvironmentsData();
+        } catch (error) {
+            // e.g. "Instance not found in ap-south-1 - fix the region first" (shown by ApiClient)
+            console.error('Failed to reactivate VM:', error);
+            if (!error?.responseJSON?.message) Notifications.error('Failed to reactivate VM');
+        } finally {
+            Loading.hide();
+        }
+    }
+
+    /** Action buttons for one VM row: inactive VMs can only be reactivated (E09-T10). */
+    function buildVmActions(vm, isEks) {
+        if (vm.isActive === false) {
+            return Utils.html`
+                <button class="btn btn-sm btn-outline-success btn-action" data-action="vr-reactivate-vm" data-vm-id="${vm.vmId}" title="Reactivate VM">
+                    <i class="fas fa-undo"></i> Reactivate
+                </button>`;
+        }
+        return Utils.html`
+            ${vm.discoveryPending ? Utils.raw(Utils.html`
+            <button class="btn btn-sm btn-outline-success btn-action" data-action="vr-ack-vm" data-vm-id="${vm.vmId}" title="Mark as reviewed">
+                <i class="fas fa-check"></i>
+            </button>`) : ''}
+            ${vm.provider !== 'AWS_EKS' ? Utils.raw(Utils.html`
+            <button class="btn btn-sm btn-outline-primary btn-action" data-action="vr-move-vm" data-vm-id="${vm.vmId}" title="Move to another group">
+                <i class="fas fa-arrow-right"></i>
+            </button>`) : ''}
+            <button class="btn btn-sm btn-outline-warning btn-action" data-action="vr-edit-vm" data-vm-id="${vm.vmId}" title="Edit VM">
+                <i class="fas fa-edit"></i>
+            </button>
+            ${!isEks ? Utils.raw(Utils.html`
+            <button class="btn btn-sm btn-outline-danger btn-action" data-action="vr-delete-vm" data-vm-id="${vm.vmId}" title="Remove VM">
+                <i class="fas fa-trash"></i>
+            </button>`) : Utils.raw(`
+            <span class="text-muted small ms-1" title="EKS node groups are managed by sync">
+                <i class="fas fa-sync-alt"></i>
+            </span>`)}`;
+    }
+
+    /** Drift / pending-review / removed markers shown after the status badge. */
+    function buildVmMarkers(vm) {
+        return Utils.html`
+            ${vm.stateDriftDetected && vm.isActive !== false ? Utils.raw(
+                '<span class="status-badge drift ms-1" title="Cloud state differs from the recorded state"><i class="fas fa-exclamation-triangle"></i> Drift</span>') : ''}
+            ${vm.discoveryPending && vm.isActive !== false ? Utils.raw(
+                '<span class="status-badge review ms-1" title="Discovered automatically; not yet reviewed"><i class="fas fa-inbox"></i> Pending review</span>') : ''}
+            ${vm.isActive === false ? Utils.raw(vm.deletedAt
+                ? '<span class="status-badge unknown ms-1" title="Removed from the platform; discovery ignores it"><i class="fas fa-trash"></i> Removed</span>'
+                : '<span class="status-badge unknown ms-1" title="Deactivated by state sync"><i class="fas fa-ban"></i> Inactive</span>') : ''}`;
+    }
+
+    function buildVmRows(vms, group, opts = {}) {
         const isEks = (window.VmRegistryState.currentEnvironment?.serviceType || 'EC2') === 'EKS';
         const providerLabels = { AWS: 'AWS', AZURE: 'Azure', GCP: 'GCP', OCI: 'OCI', AWS_EKS: 'EKS' };
         const providerIcons = { AWS: 'fab fa-aws', AZURE: 'fab fa-microsoft', GCP: 'fab fa-google', OCI: 'fas fa-cloud', AWS_EKS: 'fas fa-dharmachakra' };
@@ -474,6 +704,7 @@ const VmRegistry = (function() {
                     <td>
                         <strong>${Utils.escapeHtml(vm.name)}</strong>
                         ${vm.displayName && vm.displayName !== vm.name ? `<div class="small text-muted">${Utils.escapeHtml(vm.displayName)}</div>` : ''}
+                        ${opts.showGroup && vm.groupName ? Utils.html`<div class="small text-muted">in ${vm.groupName}</div>` : ''}
                     </td>
                     <td>${purposeCell}</td>
                     <td><i class="${providerIcons[vm.provider] || 'fas fa-cloud'}"></i> ${providerLabels[vm.provider] || vm.provider}</td>
@@ -484,19 +715,11 @@ const VmRegistry = (function() {
                         <span class="status-badge ${statusConfig.class}">
                             <i class="fas ${statusConfig.icon}"></i> ${statusConfig.label}
                         </span>
+                        ${buildVmMarkers(vm)}
                     </td>
                     <td class="text-center">${vm.sequencePosition || '-'}</td>
                     <td class="text-end text-nowrap">
-                        <button class="btn btn-sm btn-outline-warning btn-action" data-action="vr-edit-vm" data-vm-id="${Utils.escapeHtml(vm.vmId)}" title="Edit VM">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        ${!isEks ? `
-                        <button class="btn btn-sm btn-outline-danger btn-action" data-action="vr-delete-vm" data-vm-id="${Utils.escapeHtml(vm.vmId)}" title="Remove VM">
-                            <i class="fas fa-trash"></i>
-                        </button>` : `
-                        <span class="text-muted small ms-1" title="EKS node groups are managed by sync">
-                            <i class="fas fa-sync-alt"></i>
-                        </span>`}
+                        ${buildVmActions(vm, isEks)}
                     </td>
                 </tr>
             `;
@@ -732,7 +955,11 @@ const VmRegistry = (function() {
         $('#vmId').val('');
         $('#vmGroupId').val(groupId);
         $('#vmGroupLabel').text(group.displayName);
-        $('#vmSequencePosition').val(1);
+        // Next free position among the loaded VMs of the group (was always 1, which collided).
+        const loaded = (window.VmRegistryState.currentGroupsWithVms || [])
+            .filter(gv => gv.group.groupId === groupId).flatMap(gv => gv.vms || []);
+        const maxSeq = loaded.reduce((max, v) => Math.max(max, v.sequencePosition || 0), 0);
+        $('#vmSequencePosition').val(Math.max(maxSeq, group.vmCount || 0) + 1);
         $('#registerVmModalLabel').text(`Register VM in "${group.displayName}"`);
         $('#btnSubmitVm').html('<i class="fas fa-save"></i> Register VM');
         $('#ec2ImportCard').show();
@@ -766,15 +993,20 @@ const VmRegistry = (function() {
      * region, instance ID) — the next sync would otherwise re-diverge them anyway —
      * but Purpose/Remarks and other business metadata stay editable.
      */
-    function editVm(vmId) {
-        const groupWithVms = (window.VmRegistryState.currentGroupsWithVms || [])
-            .find(gv => (gv.vms || []).some(v => v.vmId === vmId));
-        const vm = groupWithVms && groupWithVms.vms.find(v => v.vmId === vmId);
-        if (!vm) {
-            Notifications.error('VM not found');
+    async function editVm(vmId) {
+        // Fetched by id, so Edit works for a VM on any page (only page 1 was cached).
+        let vm;
+        try {
+            vm = await fetchVm(vmId);
+        } catch (error) {
+            console.error('Failed to load VM:', error);
             return;
         }
-        const group = groupWithVms.group;
+        const group = (window.VmRegistryState.currentGroups || []).find(g => g.groupId === vm.groupId);
+        if (!group) {
+            Notifications.error('VM group not found');
+            return;
+        }
         const isEks = (window.VmRegistryState.currentEnvironment?.serviceType || 'EC2') === 'EKS';
 
         $('#registerVmForm')[0].reset();
@@ -1058,9 +1290,17 @@ const VmRegistry = (function() {
         if (!vmName) {
             const vm = (window.VmRegistryState.currentGroupsWithVms || [])
                 .flatMap(gv => gv.vms || []).find(v => v.vmId === vmId);
-            vmName = vm?.name || vmId;
+            vmName = vm?.displayName || vm?.name;
         }
-        Modals.confirm('Remove VM', `Remove VM "${vmName}"? This only unregisters it from the platform.`, async function() {
+        if (!vmName) {
+            try {
+                const vm = await fetchVm(vmId); // a VM on a later page or in a review list
+                vmName = vm.displayName || vm.name;
+            } catch (error) {
+                vmName = vmId;
+            }
+        }
+        Modals.confirm('Remove VM', `Remove "${vmName}" from the platform? Its history is kept and discovery will ignore this instance. It can be reactivated from Removed or inactive.`, async function() {
             try {
                 Loading.show('Removing VM...');
                 const envId = window.VmRegistryState.currentEnvironment.environmentId;
@@ -1112,6 +1352,12 @@ const VmRegistry = (function() {
         submitVm,
         deleteVm,
         refreshGroupsModal,
+        selectReviewState,
+        changeReviewPage,
+        acknowledgeVm,
+        openMoveVm,
+        submitMoveVm,
+        reactivateVm,
         _searchRegistry: function(val) {
             filterEnvironments((val || '').trim());
         }
@@ -1130,6 +1376,12 @@ Actions.registerAll({
     'vr-sync-eks': () => VmRegistry.syncEksNow(),
     'vr-edit-vm': el => VmRegistry.editVm(el.dataset.vmId),
     'vr-delete-vm': el => VmRegistry.deleteVm(el.dataset.vmId),
+    'vr-ack-vm': el => VmRegistry.acknowledgeVm(el.dataset.vmId),
+    'vr-move-vm': el => VmRegistry.openMoveVm(el.dataset.vmId),
+    'vr-submit-move-vm': () => VmRegistry.submitMoveVm(),
+    'vr-reactivate-vm': el => VmRegistry.reactivateVm(el.dataset.vmId),
+    'vr-review-state': el => VmRegistry.selectReviewState(el.dataset.state),
+    'vr-review-page': el => VmRegistry.changeReviewPage(Number(el.dataset.page)),
     'vr-group-vm-page': el => VmRegistry.changeGroupVmPage(el.dataset.groupId, Number(el.dataset.page)),
     'vr-edit-group': el => VmRegistry.editGroup(el.dataset.groupId),
     'vr-open-vm-form': el => VmRegistry.openVmForm(el.dataset.groupId),
