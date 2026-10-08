@@ -66,4 +66,9 @@ public interface AutomationRuleRepository extends JpaRepository<AutomationRule, 
     /** Rules targeting one group or VM (group delete disables them, M2). */
     List<AutomationRule> findByScopeTypeAndScopeId(com.tcgdigital.vmcontrol.model.AutomationScopeType scopeType,
                                                    String scopeId);
+
+    /** Enabled schedule rules of many environments in one query (next stop/start in lists, E18). */
+    @Query("SELECT r FROM AutomationRule r JOIN FETCH r.environment e WHERE e.environmentId IN :ids " +
+           "AND r.enabled = true AND r.triggerType = com.tcgdigital.vmcontrol.model.AutomationTriggerType.SCHEDULE")
+    List<AutomationRule> findEnabledSchedulesForEnvironments(@Param("ids") List<String> environmentIds);
 }

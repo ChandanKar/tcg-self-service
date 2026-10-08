@@ -51,13 +51,23 @@ public class EnvironmentCostService {
     private final AutomationRuleService automationRuleService;
     private final IdleStopSummaryService idleStopSummaryService;
 
+    static final int SPARKLINE_DAYS = 14;
+    static final int ADMIN_LIST_LIMIT = 50;
+    static final String GROUPS_HINT = "Cost is shown per environment; you have access to some groups only";
+
     private Clock clock = Clock.systemDefaultZone();
+    private final com.tcgdigital.vmcontrol.repository.EnvironmentRepository environmentRepository;
+    private final com.tcgdigital.vmcontrol.repository.EnvironmentAccessRepository accessRepository;
 
     public EnvironmentCostService(CostDailySnapshotRepository snapshotRepository, VmRepository vmRepository,
                                   VmGroupRepository groupRepository, CostDataProvider costDataProvider,
                                   SecurityService securityService, UserService userService,
                                   AutomationRuleService automationRuleService,
-                                  IdleStopSummaryService idleStopSummaryService) {
+                                  IdleStopSummaryService idleStopSummaryService,
+                                  com.tcgdigital.vmcontrol.repository.EnvironmentRepository environmentRepository,
+                                  com.tcgdigital.vmcontrol.repository.EnvironmentAccessRepository accessRepository) {
+        this.environmentRepository = environmentRepository;
+        this.accessRepository = accessRepository;
         this.snapshotRepository = snapshotRepository;
         this.vmRepository = vmRepository;
         this.groupRepository = groupRepository;
@@ -186,6 +196,107 @@ public class EnvironmentCostService {
                 actualDays == 0 ? null : money(actual), actualDays, previous == null ? null : money(previous), changePercent,
                 forecast == null ? null : money(forecast), forecast == null ? null : "run rate of the last " + runRateDays.size() + " day(s)",
                 daily, topVms, money(savings), "idle auto-stop", schedule, null);
+    }
+
+    /**
+     * The cost list for My Account (E18-T02): every environment the user can see, from snapshots
+     * only, in a fixed number of queries. Global admins and env admins see all active
+     * environments (at most 50, highest month to date first); others see those they hold a grant
+     * on. A group-only grant shows no environment-level cost.
+     */
+    @Transactional(readOnly = true)
+    public com.tcgdigital.vmcontrol.dto.MyEnvironmentCostDTO.Response getMyEnvironmentsCost(User user) {
+        Instant now = clock.instant();
+        LocalDate today = LocalDate.now(clock);
+        LocalDate monthStart = today.withDayOfMonth(1);
+        LocalDate previousMonthStart = monthStart.minusMonths(1);
+        LocalDate sparkStart = today.minusDays(SPARKLINE_DAYS - 1);
+
+        boolean globalAdmin = user != null && (user.isAdmin() || user.isEnvAdmin());
+        Map<String, com.tcgdigital.vmcontrol.model.Environment> envs = new java.util.LinkedHashMap<>();
+        Map<String, com.tcgdigital.vmcontrol.model.AccessLevel> levels = new java.util.HashMap<>();
+        if (globalAdmin) {
+            environmentRepository.findByIsActiveTrue().forEach(e -> {
+                envs.put(e.getEnvironmentId(), e);
+                levels.put(e.getEnvironmentId(), com.tcgdigital.vmcontrol.model.AccessLevel.ADMIN);
+            });
+        } else if (user != null) {
+            for (com.tcgdigital.vmcontrol.model.EnvironmentAccess grant
+                    : accessRepository.findActiveAccessByUser(user.getUserId(), Timestamp.from(now))) {
+                com.tcgdigital.vmcontrol.model.Environment env = grant.getEnvironment();
+                if (!Boolean.TRUE.equals(env.getIsActive())) {
+                    continue;
+                }
+                envs.putIfAbsent(env.getEnvironmentId(), env);
+                if (grant.getScopeType() == com.tcgdigital.vmcontrol.model.AccessScopeType.ENVIRONMENT) {
+                    levels.merge(env.getEnvironmentId(), grant.getAccessLevel(),
+                            (a, b) -> a.ordinal() >= b.ordinal() ? a : b);
+                }
+            }
+        }
+        List<String> ids = List.copyOf(envs.keySet());
+        if (ids.isEmpty()) {
+            return new com.tcgdigital.vmcontrol.dto.MyEnvironmentCostDTO.Response(List.of(), false, 0, ADMIN_LIST_LIMIT);
+        }
+
+        LocalDate from = previousMonthStart.isBefore(sparkStart) ? previousMonthStart : sparkStart;
+        Map<String, Map<LocalDate, BigDecimal>> daily = new java.util.HashMap<>();
+        for (CostDailySnapshotRepository.EnvironmentDailyCost row
+                : snapshotRepository.findDailyByEnvironmentIdsBetween(ids, Date.valueOf(from), Date.valueOf(today))) {
+            daily.computeIfAbsent(row.getEnvironmentId(), k -> new java.util.HashMap<>())
+                    .merge(row.getSnapshotDate().toLocalDate(), nz(row.getEstimatedCost()), BigDecimal::add);
+        }
+        Map<String, VmRepository.EnvironmentVmCounts> counts = vmRepository
+                .countVmsGroupedByEnvironment(ids, com.tcgdigital.vmcontrol.model.VmStatus.RUNNING).stream()
+                .collect(java.util.stream.Collectors.toMap(VmRepository.EnvironmentVmCounts::getEnvironmentId, c -> c));
+        Map<String, AutomationRuleService.NextFirings> firings = automationRuleService.nextScheduledFiringsByEnvironment(ids, now);
+
+        List<com.tcgdigital.vmcontrol.dto.MyEnvironmentCostDTO> rows = new java.util.ArrayList<>();
+        for (com.tcgdigital.vmcontrol.model.Environment env : envs.values()) {
+            String id = env.getEnvironmentId();
+            com.tcgdigital.vmcontrol.model.AccessLevel level = levels.get(id);
+            boolean groupsOnly = level == null;
+            Map<LocalDate, BigDecimal> days = daily.getOrDefault(id, Map.of());
+            BigDecimal mtd = null;
+            BigDecimal change = null;
+            List<BigDecimal> sparkline = List.of();
+            if (!groupsOnly) {
+                mtd = sumBetween(days, monthStart, today);
+                BigDecimal previous = sumBetween(days, previousMonthStart,
+                        previousMonthStart.withDayOfMonth(Math.min(today.getDayOfMonth(), previousMonthStart.lengthOfMonth())));
+                change = previous.signum() == 0 ? null
+                        : mtd.subtract(previous).multiply(BigDecimal.valueOf(100)).divide(previous, 1, RoundingMode.HALF_UP);
+                List<BigDecimal> points = new java.util.ArrayList<>();
+                for (int i = 0; i < SPARKLINE_DAYS; i++) {
+                    points.add(money(days.getOrDefault(sparkStart.plusDays(i), BigDecimal.ZERO)));
+                }
+                sparkline = points;
+                mtd = money(mtd);
+            }
+            VmRepository.EnvironmentVmCounts c = counts.get(id);
+            AutomationRuleService.NextFirings next = firings.get(id);
+            rows.add(new com.tcgdigital.vmcontrol.dto.MyEnvironmentCostDTO(id, env.getName(), env.getDisplayName(),
+                    groupsOnly ? "GROUPS" : "FULL", groupsOnly ? null : level.name(),
+                    level == com.tcgdigital.vmcontrol.model.AccessLevel.ADMIN, mtd, change, sparkline,
+                    c == null ? 0 : (int) c.getRunning(), c == null ? 0 : (int) c.getTotal(),
+                    next == null ? 0 : next.ruleCount(), next == null ? null : next.nextStop(),
+                    next == null ? null : next.nextStart(), null, groupsOnly ? GROUPS_HINT : null));
+        }
+        Comparator<com.tcgdigital.vmcontrol.dto.MyEnvironmentCostDTO> byMtd = Comparator.comparing(
+                r -> r.monthToDateEstimated() == null ? BigDecimal.valueOf(-1) : r.monthToDateEstimated(),
+                Comparator.reverseOrder());
+        rows.sort(Comparator.comparing((com.tcgdigital.vmcontrol.dto.MyEnvironmentCostDTO r) -> !r.owner()).thenComparing(byMtd));
+        int total = rows.size();
+        boolean capped = globalAdmin && total > ADMIN_LIST_LIMIT;
+        return new com.tcgdigital.vmcontrol.dto.MyEnvironmentCostDTO.Response(
+                capped ? rows.subList(0, ADMIN_LIST_LIMIT) : rows, capped, total, ADMIN_LIST_LIMIT);
+    }
+
+    private static BigDecimal sumBetween(Map<LocalDate, BigDecimal> days, LocalDate from, LocalDate to) {
+        return days.entrySet().stream()
+                .filter(e -> !e.getKey().isBefore(from) && !e.getKey().isAfter(to))
+                .map(Map.Entry::getValue)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private static BigDecimal nz(BigDecimal value) {

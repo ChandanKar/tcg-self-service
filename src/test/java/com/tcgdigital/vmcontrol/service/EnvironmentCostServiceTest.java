@@ -58,6 +58,8 @@ class EnvironmentCostServiceTest {
     @Mock private UserService userService;
     @Mock private AutomationRuleService automationRuleService;
     @Mock private IdleStopSummaryService idleStopSummaryService;
+    @Mock private com.tcgdigital.vmcontrol.repository.EnvironmentRepository environmentRepository;
+    @Mock private com.tcgdigital.vmcontrol.repository.EnvironmentAccessRepository accessRepository;
 
     private EnvironmentCostService service;
     private final User user = new User();
@@ -69,7 +71,7 @@ class EnvironmentCostServiceTest {
     @BeforeEach
     void setUp() {
         service = new EnvironmentCostService(snapshots, vmRepository, groupRepository, costDataProvider, securityService,
-                userService, automationRuleService, idleStopSummaryService);
+                userService, automationRuleService, idleStopSummaryService, environmentRepository, accessRepository);
         service.setClock(Clock.fixed(NOW, ZoneOffset.UTC));
         Environment env = new Environment();
         env.setEnvironmentId("env-1");
@@ -205,5 +207,103 @@ class EnvironmentCostServiceTest {
         assertThat(cost.previousMonthSameDays()).isNull();
         // Sept 30 is within the last 7 days: 30 days left at 10/day.
         assertThat(cost.forecastMonthEnd()).isEqualByComparingTo("304.00");
+    }
+
+    // ---- E18-T02: the My Account cost list ----
+
+    private static Environment environment(String id) {
+        Environment e = new Environment();
+        e.setEnvironmentId(id);
+        e.setName(id);
+        e.setDisplayName(id.toUpperCase());
+        e.setIsActive(true);
+        return e;
+    }
+
+    private static com.tcgdigital.vmcontrol.model.EnvironmentAccess grantOf(Environment env, User user,
+            com.tcgdigital.vmcontrol.model.AccessLevel level, com.tcgdigital.vmcontrol.model.AccessScopeType scope) {
+        com.tcgdigital.vmcontrol.model.EnvironmentAccess g =
+                com.tcgdigital.vmcontrol.model.EnvironmentAccess.create(env, user, level, user);
+        g.setScopeType(scope);
+        return g;
+    }
+
+    private static CostDailySnapshotRepository.EnvironmentDailyCost row(String envId, LocalDate day, String cost) {
+        return new CostDailySnapshotRepository.EnvironmentDailyCost() {
+            public String getEnvironmentId() { return envId; }
+            public Date getSnapshotDate() { return Date.valueOf(day); }
+            public BigDecimal getEstimatedCost() { return new BigDecimal(cost); }
+        };
+    }
+
+    @Test
+    void theListMarksOwnersMasksGroupOnlyGrantsAndUsesOneSnapshotQuery() {
+        user.setUserId("u-1");
+        Environment a = environment("env-a");
+        Environment b = environment("env-b");
+        Environment c = environment("env-c");
+        when(accessRepository.findActiveAccessByUser(eq("u-1"), any())).thenReturn(List.of(
+                grantOf(a, user, com.tcgdigital.vmcontrol.model.AccessLevel.ADMIN, com.tcgdigital.vmcontrol.model.AccessScopeType.ENVIRONMENT),
+                grantOf(b, user, com.tcgdigital.vmcontrol.model.AccessLevel.VIEWER, com.tcgdigital.vmcontrol.model.AccessScopeType.ENVIRONMENT),
+                grantOf(c, user, com.tcgdigital.vmcontrol.model.AccessLevel.USER, com.tcgdigital.vmcontrol.model.AccessScopeType.GROUP)));
+        List<CostDailySnapshotRepository.EnvironmentDailyCost> rows = new ArrayList<>();
+        for (int d = 1; d <= 6; d++) {
+            rows.add(row("env-a", LocalDate.of(2026, 10, d), "10"));
+            rows.add(row("env-b", LocalDate.of(2026, 10, d), "30"));
+            rows.add(row("env-c", LocalDate.of(2026, 10, d), "99"));
+            rows.add(row("env-a", LocalDate.of(2026, 9, d), "5"));
+        }
+        when(snapshots.findDailyByEnvironmentIdsBetween(anyList(), any(), any())).thenReturn(rows);
+        when(vmRepository.countVmsGroupedByEnvironment(anyList(), any())).thenReturn(List.of());
+        when(automationRuleService.nextScheduledFiringsByEnvironment(anyList(), any())).thenReturn(Map.of());
+
+        var response = service.getMyEnvironmentsCost(user);
+
+        assertThat(response.environments()).extracting(com.tcgdigital.vmcontrol.dto.MyEnvironmentCostDTO::environmentId)
+                .containsExactly("env-a", "env-b", "env-c"); // owner first, then by month to date
+        var ownerRow = response.environments().get(0);
+        assertThat(ownerRow.owner()).isTrue();
+        assertThat(ownerRow.monthToDateEstimated()).isEqualByComparingTo("60.00");
+        assertThat(ownerRow.changePercent()).isEqualByComparingTo("100.0");          // 60 vs 30 (Sept 1-7)
+        assertThat(ownerRow.sparkline()).hasSize(14);
+        var viewerRow = response.environments().get(1);
+        assertThat(viewerRow.owner()).isFalse();
+        assertThat(viewerRow.myLevel()).isEqualTo("VIEWER");
+        var groupRow = response.environments().get(2);
+        assertThat(groupRow.scope()).isEqualTo("GROUPS");
+        assertThat(groupRow.monthToDateEstimated()).isNull();
+        assertThat(groupRow.sparkline()).isEmpty();
+        assertThat(groupRow.hint()).contains("some groups only");
+        org.mockito.Mockito.verify(snapshots, org.mockito.Mockito.times(1)).findDailyByEnvironmentIdsBetween(anyList(), any(), any());
+        org.mockito.Mockito.verify(vmRepository, org.mockito.Mockito.times(1)).countVmsGroupedByEnvironment(anyList(), any());
+    }
+
+    @Test
+    void globalAdminsSeeAllActiveEnvironmentsCappedAtFifty() {
+        user.setAdmin(true);
+        List<Environment> all = new ArrayList<>();
+        for (int i = 0; i < 55; i++) {
+            all.add(environment("env-" + i));
+        }
+        when(environmentRepository.findByIsActiveTrue()).thenReturn(all);
+        when(snapshots.findDailyByEnvironmentIdsBetween(anyList(), any(), any())).thenReturn(List.of());
+        when(vmRepository.countVmsGroupedByEnvironment(anyList(), any())).thenReturn(List.of());
+        when(automationRuleService.nextScheduledFiringsByEnvironment(anyList(), any())).thenReturn(Map.of());
+
+        var response = service.getMyEnvironmentsCost(user);
+
+        assertThat(response.capped()).isTrue();
+        assertThat(response.totalEnvironments()).isEqualTo(55);
+        assertThat(response.environments()).hasSize(50).allSatisfy(r -> assertThat(r.owner()).isTrue());
+        org.mockito.Mockito.verify(accessRepository, org.mockito.Mockito.never()).findActiveAccessByUser(any(), any());
+    }
+
+    @Test
+    void noEnvironmentsMeansAnEmptyListWithoutQueries() {
+        user.setUserId("u-2");
+        when(accessRepository.findActiveAccessByUser(eq("u-2"), any())).thenReturn(List.of());
+
+        assertThat(service.getMyEnvironmentsCost(user).environments()).isEmpty();
+        org.mockito.Mockito.verify(snapshots, org.mockito.Mockito.never()).findDailyByEnvironmentIdsBetween(anyList(), any(), any());
     }
 }

@@ -39,12 +39,15 @@ import java.util.List;
 public class UserController {
 
     private final UserService userService;
+    private final com.tcgdigital.vmcontrol.service.EnvironmentCostService environmentCostService;
     private final UserOnboardingService userOnboardingService;
     private final MyAccountService myAccountService;
     private final AuthenticationService authenticationService;
 
     public UserController(UserService userService, UserOnboardingService userOnboardingService,
-                          MyAccountService myAccountService, AuthenticationService authenticationService) {
+                          MyAccountService myAccountService, AuthenticationService authenticationService,
+                          com.tcgdigital.vmcontrol.service.EnvironmentCostService environmentCostService) {
+        this.environmentCostService = environmentCostService;
         this.userService = userService;
         this.userOnboardingService = userOnboardingService;
         this.myAccountService = myAccountService;
@@ -138,6 +141,17 @@ public class UserController {
     )
     public ResponseEntity<MyProfileDTO> getMyProfile() {
         return ResponseEntity.ok(myAccountService.getProfile(userService.getCurrentUserId()));
+    }
+
+    @GetMapping("/me/cost")
+    @Operation(
+            summary = "Get my environments' cost",
+            description = "Month-to-date cost, change, 14-day trend, VM counts and next scheduled stop/start of every "
+                    + "environment the current user can see (from daily snapshots). Group-only grants show no "
+                    + "environment-level cost. Admins see at most 50, highest first."
+    )
+    public ResponseEntity<com.tcgdigital.vmcontrol.dto.MyEnvironmentCostDTO.Response> getMyCost() {
+        return ResponseEntity.ok(environmentCostService.getMyEnvironmentsCost(userService.getCurrentUser()));
     }
 
     @GetMapping("/me/activity")

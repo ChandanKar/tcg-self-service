@@ -612,6 +612,21 @@ public class AutomationRuleService {
         List<AutomationRule> schedules = automationRuleRepository.findByEnvironmentFetchEnvironment(environmentId).stream()
                 .filter(r -> Boolean.TRUE.equals(r.getEnabled()) && r.getTriggerType() == AutomationTriggerType.SCHEDULE)
                 .toList();
+        return firingsOf(schedules, from);
+    }
+
+    /** {@link #nextScheduledFirings} for many environments with one query; absent when none. */
+    @Transactional(readOnly = true)
+    public java.util.Map<String, NextFirings> nextScheduledFiringsByEnvironment(List<String> environmentIds, Instant from) {
+        if (environmentIds.isEmpty()) {
+            return java.util.Map.of();
+        }
+        return automationRuleRepository.findEnabledSchedulesForEnvironments(environmentIds).stream()
+                .collect(Collectors.groupingBy(r -> r.getEnvironment().getEnvironmentId())).entrySet().stream()
+                .collect(Collectors.toMap(java.util.Map.Entry::getKey, e -> firingsOf(e.getValue(), from)));
+    }
+
+    private NextFirings firingsOf(List<AutomationRule> schedules, Instant from) {
         Instant nextStop = null;
         Instant nextStart = null;
         for (AutomationRule rule : schedules) {

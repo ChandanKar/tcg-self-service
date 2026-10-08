@@ -66,4 +66,18 @@ public interface CostDailySnapshotRepository extends JpaRepository<CostDailySnap
     /** One environment's daily snapshots in a date range, oldest first (owner cost view, E18). */
     List<CostDailySnapshot> findByEnvironmentEnvironmentIdAndSnapshotDateBetweenOrderBySnapshotDateAsc(
             String environmentId, java.sql.Date from, java.sql.Date to);
+
+    /** Daily estimates of many environments in one query (My Account cost list, E18-T02). */
+    @Query("SELECT c.environment.environmentId AS environmentId, c.snapshotDate AS snapshotDate, " +
+           "c.estimatedCost AS estimatedCost FROM CostDailySnapshot c " +
+           "WHERE c.environment.environmentId IN :ids AND c.snapshotDate BETWEEN :from AND :to")
+    List<EnvironmentDailyCost> findDailyByEnvironmentIdsBetween(@Param("ids") List<String> environmentIds,
+                                                                @Param("from") java.sql.Date from,
+                                                                @Param("to") java.sql.Date to);
+
+    interface EnvironmentDailyCost {
+        String getEnvironmentId();
+        java.sql.Date getSnapshotDate();
+        java.math.BigDecimal getEstimatedCost();
+    }
 }

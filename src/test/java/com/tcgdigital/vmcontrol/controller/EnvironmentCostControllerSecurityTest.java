@@ -110,4 +110,16 @@ class EnvironmentCostControllerSecurityTest extends SecuredWebTestBase {
         assertThat(next.nextStart()).isEqualTo(Instant.parse("2026-10-12T02:30:00Z"));
         assertThat(automationRuleService.nextScheduledFirings(envB.getEnvironmentId(), Instant.now()).nextStop()).isNull();
     }
+
+    // ---- E18-T02: GET /api/v1/users/me/cost ----
+
+    @Test
+    void myCostListsOnlyMyEnvironments() throws Exception {
+        mockMvc.perform(get("/api/v1/users/me/cost").with(asUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.environments[?(@.environmentId == '" + envA.getEnvironmentId() + "')].myLevel")
+                        .value(org.hamcrest.Matchers.hasItem("USER")))
+                .andExpect(jsonPath("$.environments[?(@.environmentId == '" + envB.getEnvironmentId() + "')]").isEmpty());
+        mockMvc.perform(get("/api/v1/users/me/cost")).andExpect(status().isUnauthorized());
+    }
 }
