@@ -13,6 +13,7 @@ import com.tcgdigital.vmcontrol.repository.VmGroupRepository;
 import com.tcgdigital.vmcontrol.repository.VmRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -21,15 +22,19 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.time.Clock;
+import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -58,6 +63,16 @@ public class AutomationRuleService {
     private final UserService userService;
     /** Starts a rule's operation in its own transaction, so its failure cannot poison the caller's. */
     private final TransactionTemplate operationTransaction;
+    /** Evaluates one schedule rule per transaction. */
+    private final TransactionTemplate ruleTransaction;
+    private final ScheduleCalculator scheduleCalculator;
+
+    /** How late a scheduler tick may still fire a schedule time (catch-up window). */
+    @Value("${automation.rules.catch-up-minutes:15}")
+    private long catchUpMinutes = 15;
+
+    /** Replaceable in tests. */
+    private Clock clock = Clock.systemDefaultZone();
 
     /** How a rule's attempt to start an operation ended (C5). */
     enum FireOutcome { STARTED, NOTHING_TO_DO, LOCKED, BUSY, SKIPPED, FAILED }
@@ -70,7 +85,11 @@ public class AutomationRuleService {
                                   AuditService auditService,
                                   NotificationService notificationService,
                                   UserService userService,
-                                  PlatformTransactionManager transactionManager) {
+                                  PlatformTransactionManager transactionManager,
+                                  ScheduleCalculator scheduleCalculator) {
+        this.scheduleCalculator = scheduleCalculator;
+        this.ruleTransaction = new TransactionTemplate(transactionManager);
+        this.ruleTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         this.operationTransaction = new TransactionTemplate(transactionManager);
         this.operationTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         this.automationRuleRepository = automationRuleRepository;
@@ -169,9 +188,8 @@ public class AutomationRuleService {
      * as the current lock holder rather than skipping immediately.
      */
     public void handleLockAcquired(String environmentId, String userId) {
-        List<AutomationRule> rules = automationRuleRepository
-                .findByEnabledTrueAndTriggerTypeAndAccessGrantModeAndEnvironment_EnvironmentId(
-                        AutomationTriggerType.ACCESS_GRANT, AccessGrantMode.LOCK_ACQUIRE, environmentId);
+        List<AutomationRule> rules = automationRuleRepository.findEnabledAccessGrantRulesFetchEnvironment(
+                AutomationTriggerType.ACCESS_GRANT, AccessGrantMode.LOCK_ACQUIRE, environmentId);
         for (AutomationRule rule : rules) {
             fireOperation(rule, OperationType.START, userId, "lock acquired");
         }
@@ -183,9 +201,8 @@ public class AutomationRuleService {
      * session yet, so there's no other real, authorized actor available.
      */
     public void handleAccessGranted(String environmentId) {
-        List<AutomationRule> rules = automationRuleRepository
-                .findByEnabledTrueAndTriggerTypeAndAccessGrantModeAndEnvironment_EnvironmentId(
-                        AutomationTriggerType.ACCESS_GRANT, AccessGrantMode.ACCESS_APPROVED, environmentId);
+        List<AutomationRule> rules = automationRuleRepository.findEnabledAccessGrantRulesFetchEnvironment(
+                AutomationTriggerType.ACCESS_GRANT, AccessGrantMode.ACCESS_APPROVED, environmentId);
         for (AutomationRule rule : rules) {
             fireOperation(rule, OperationType.START, rule.getCreatedByUserId(), "access approved");
         }
@@ -194,17 +211,17 @@ public class AutomationRuleService {
     // ============= Scheduler-driven evaluation =============
 
     /**
-     * Evaluated on every scheduler tick. One rule's failure must not sink the batch, so each
-     * rule is evaluated independently with its own try/catch.
+     * Evaluated on every scheduler tick. Each rule runs in its own transaction with its
+     * environment fetched (C6: outside a web request the lazy environment was unreadable), and
+     * one rule's failure does not sink the batch.
      */
     public void evaluateSchedules() {
-        List<AutomationRule> rules = automationRuleRepository
-                .findByEnabledTrueAndTriggerType(AutomationTriggerType.SCHEDULE);
-        for (AutomationRule rule : rules) {
+        for (String ruleId : automationRuleRepository.findEnabledIdsByTriggerType(AutomationTriggerType.SCHEDULE)) {
             try {
-                evaluateAndFireOneSchedule(rule);
+                ruleTransaction.executeWithoutResult(status -> automationRuleRepository
+                        .findByIdFetchEnvironment(ruleId).ifPresent(this::evaluateAndFireOneSchedule));
             } catch (Exception e) {
-                log.error("Error evaluating automation rule {}: {}", rule.getRuleId(), e.getMessage(), e);
+                log.error("Error evaluating automation rule {}: {}", ruleId, e.getMessage(), e);
             }
         }
     }
@@ -212,38 +229,59 @@ public class AutomationRuleService {
     private void evaluateAndFireOneSchedule(AutomationRule rule) {
         ZonedDateTime now;
         try {
-            now = ZonedDateTime.now(ZoneId.of(rule.getTimezone()));
+            now = ZonedDateTime.now(clock.withZone(ZoneId.of(rule.getTimezone())));
         } catch (Exception e) {
             log.warn("Automation rule {} has an invalid timezone '{}' — skipping evaluation",
                     rule.getRuleId(), rule.getTimezone());
             return;
         }
+        Set<DayOfWeek> days = scheduleCalculator.parseDays(rule.getDaysOfWeek());
+        Duration catchUp = Duration.ofMinutes(catchUpMinutes);
 
-        List<String> days = rule.getDaysOfWeek() == null
-                ? List.of() : Arrays.asList(rule.getDaysOfWeek().split(","));
-        String todayAbbrev = now.getDayOfWeek().name().substring(0, 3);
-        if (!days.contains(todayAbbrev)) {
+        evaluateTime(rule, OperationType.STOP, rule.getStopTime(), toLocalDate(rule.getLastStopFiredOn()),
+                now, days, catchUp, day -> rule.setLastStopFiredOn(Date.valueOf(day)));
+        evaluateTime(rule, OperationType.START, rule.getStartTime(), toLocalDate(rule.getLastStartFiredOn()),
+                now, days, catchUp, day -> rule.setLastStartFiredOn(Date.valueOf(day)));
+    }
+
+    /**
+     * Fire one of a rule's times when due (catching up a late tick), marking the day fired only
+     * when the rule started something or had nothing to do; a locked, busy or failed attempt is
+     * retried on the next tick until the window closes, then recorded as missed (H26).
+     */
+    private void evaluateTime(AutomationRule rule, OperationType type, String hhmm, LocalDate lastFiredOn,
+                              ZonedDateTime now, Set<DayOfWeek> days, Duration catchUp,
+                              java.util.function.Consumer<LocalDate> markFired) {
+        if (hhmm == null || hhmm.isBlank()) {
             return;
         }
-
+        LocalTime time = LocalTime.parse(hhmm, HHMM);
         LocalDate today = now.toLocalDate();
-        String nowHHmm = now.format(HHMM);
-
-        boolean stopDue = nowHHmm.equals(rule.getStopTime())
-                && !today.equals(toLocalDate(rule.getLastStopFiredOn()));
-        boolean startDue = nowHHmm.equals(rule.getStartTime())
-                && !today.equals(toLocalDate(rule.getLastStartFiredOn()));
-
-        if (stopDue) {
-            fireOperation(rule, OperationType.STOP, rule.getCreatedByUserId(), "schedule");
-            rule.setLastStopFiredOn(Date.valueOf(today));
+        if (scheduleCalculator.isDue(now, time, days, lastFiredOn, catchUp)) {
+            FireOutcome outcome = fireOperation(rule, type, rule.getCreatedByUserId(), "schedule");
+            if (outcome == FireOutcome.STARTED || outcome == FireOutcome.NOTHING_TO_DO) {
+                markFired.accept(today);
+                automationRuleRepository.save(rule);
+            }
+        } else if (scheduleCalculator.isMissed(now, time, days, lastFiredOn, catchUp)
+                && existedBefore(rule, scheduleCalculator.dueInstant(today, time, now))) {
+            boolean triedToday = rule.getLastRunAt() != null
+                    && rule.getLastRunAt().toInstant().isAfter(scheduleCalculator.dueInstant(today, time, now).toInstant());
+            String reason = triedToday ? rule.getLastRunDetail() : "the scheduler did not run at " + hhmm;
+            AutomationRunStatus status = triedToday && rule.getLastRunStatus() == AutomationRunStatus.FAILED
+                    ? AutomationRunStatus.FAILED : AutomationRunStatus.SKIPPED;
+            recordRun(rule, status, "Missed window: " + reason);
+            markFired.accept(today);
             automationRuleRepository.save(rule);
         }
-        if (startDue) {
-            fireOperation(rule, OperationType.START, rule.getCreatedByUserId(), "schedule");
-            rule.setLastStartFiredOn(Date.valueOf(today));
-            automationRuleRepository.save(rule);
-        }
+    }
+
+    /**
+     * A rule created after a time passed should not report that time as missed. (Not updatedAt:
+     * recording a run changes it too.)
+     */
+    private static boolean existedBefore(AutomationRule rule, ZonedDateTime due) {
+        return rule.getCreatedAt() == null || rule.getCreatedAt().toInstant().isBefore(due.toInstant());
     }
 
     private LocalDate toLocalDate(Date date) {
@@ -296,6 +334,15 @@ public class AutomationRuleService {
             log.error("Automation rule {} failed to fire: {}", rule.getRuleId(), e.getMessage(), e);
             outcome = FireOutcome.FAILED;
             detail = e.getMessage();
+        }
+
+        // A repeat of the same skip (e.g. every tick while the environment stays locked) is not
+        // recorded, audited or notified again.
+        if (outcome != FireOutcome.STARTED && rule.getLastRunDetail() != null
+                && rule.getLastRunDetail().equals(detail)
+                && rule.getLastRunStatus() == (outcome == FireOutcome.FAILED ? AutomationRunStatus.FAILED
+                        : AutomationRunStatus.SKIPPED)) {
+            return outcome;
         }
 
         switch (outcome) {

@@ -4,9 +4,12 @@ import com.tcgdigital.vmcontrol.model.AccessGrantMode;
 import com.tcgdigital.vmcontrol.model.AutomationRule;
 import com.tcgdigital.vmcontrol.model.AutomationTriggerType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.repository.query.Param;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Repository for AutomationRule entity operations.
@@ -35,4 +38,20 @@ public interface AutomationRuleRepository extends JpaRepository<AutomationRule, 
      */
     List<AutomationRule> findByEnabledTrueAndTriggerTypeAndAccessGrantModeAndEnvironment_EnvironmentId(
             AutomationTriggerType triggerType, AccessGrantMode accessGrantMode, String environmentId);
+
+    /** One rule with its environment, for evaluation outside a web request (C6). */
+    @Query("SELECT r FROM AutomationRule r JOIN FETCH r.environment WHERE r.ruleId = :id")
+    Optional<AutomationRule> findByIdFetchEnvironment(@Param("id") String id);
+
+    /** Ids of enabled rules of one trigger type; each is then evaluated in its own transaction. */
+    @Query("SELECT r.ruleId FROM AutomationRule r WHERE r.enabled = true AND r.triggerType = :type")
+    List<String> findEnabledIdsByTriggerType(@Param("type") AutomationTriggerType type);
+
+    /** Enabled ACCESS_GRANT rules of an environment and mode, environment fetched (hooks). */
+    @Query("SELECT r FROM AutomationRule r JOIN FETCH r.environment " +
+           "WHERE r.enabled = true AND r.triggerType = :type AND r.accessGrantMode = :mode " +
+           "AND r.environment.environmentId = :environmentId")
+    List<AutomationRule> findEnabledAccessGrantRulesFetchEnvironment(@Param("type") AutomationTriggerType type,
+                                                                     @Param("mode") AccessGrantMode mode,
+                                                                     @Param("environmentId") String environmentId);
 }

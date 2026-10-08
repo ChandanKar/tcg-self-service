@@ -14,6 +14,11 @@ import org.springframework.stereotype.Component;
  * Default: every 60 seconds — matched to "HH:mm" granularity, so sub-minute tick offset
  * doesn't matter as long as each minute is observed at least once.
  */
+/**
+ * Ticks every automation.rules.interval (1 min) under the cluster job lock. A schedule time fires
+ * on the first tick at or after it, up to automation.rules.catch-up-minutes late; a locked or
+ * busy environment is retried on later ticks within that window (see AutomationRuleService).
+ */
 @Component
 @ConditionalOnProperty(name = "automation.rules.enabled", havingValue = "true", matchIfMissing = true)
 public class AutomationRuleScheduler {
