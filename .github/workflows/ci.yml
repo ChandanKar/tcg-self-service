@@ -16,6 +16,14 @@ jobs:
           java-version: '17'
           cache: gradle
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Front-end helper tests (node:test, no npm dependencies).
+      - name: JavaScript unit tests
+        run: node --test "src/test/js/**/*.test.mjs"
+
       # Docker is available on GitHub-hosted runners, so integration tests use Testcontainers MySQL.
       - name: Build and test
         run: ./gradlew build --no-daemon
