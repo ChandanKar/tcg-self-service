@@ -710,3 +710,26 @@
         border-bottom: none;
     }
 }
+
+/* Cost tab (E18-T04) */
+.ma-cost-figures {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.ma-cost-mtd {
+    font-size: 1.15rem;
+    font-weight: 700;
+}
+.ma-cost-change {
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.ma-cost-change.up { color: var(--status-error-text, #991b1b); }
+.ma-cost-change.down { color: var(--status-running-text, #166534); }
+.ma-spark {
+    color: var(--primary-color, #2563eb);
+    margin-left: auto;
+}
+

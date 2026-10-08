@@ -1,9 +1,10 @@
 /**
  * VM Self-Service Platform - My Account panel
- * Slide-out opened from the user menu, with three tabs:
+ * Slide-out opened from the user menu, with four tabs:
  *   Overview - who you are, how you sign in, at-a-glance counts, recent activity
  *   Access   - your grants (scope, level, expiry), pending requests, recently ended access
  *   Activity - your own VM operations and access history
+ *   Cost     - month-to-date cost of your environments (E18-T04), loaded on first open
  */
 
 const MyAccount = (function() {
@@ -14,7 +15,7 @@ const MyAccount = (function() {
         USER: { label: 'Start & stop', badge: 'level-user', help: 'Everything above, plus start and stop VMs' },
         ADMIN: { label: 'Manage access', badge: 'level-admin', help: 'Everything above, plus grant access and approve requests' }
     };
-    const TABS = [['overview', 'Overview'], ['access', 'Access'], ['activity', 'Activity']];
+    const TABS = [['overview', 'Overview'], ['access', 'Access'], ['activity', 'Activity'], ['cost', 'Cost']];
     const EXTENSION_DAYS = [7, 14, 30, 60, 90];
     const DEFAULT_EXTENSION_DAYS = 30;
     const DAY_MS = 24 * 60 * 60 * 1000;
@@ -43,6 +44,8 @@ const MyAccount = (function() {
             requests: null,
             history: null,
             activity: null,
+            cost: null,
+            costRequested: false,
             errors: {},
             filter: 'all',
             showEnded: false,
@@ -59,6 +62,77 @@ const MyAccount = (function() {
         `, { variant: 'my-account' });
         render();
         loadAll();
+        if (state.tab === 'cost') loadCost();
+    }
+
+    /** The Cost tab is loaded the first time it is shown. */
+    function loadCost() {
+        if (!state || state.costRequested) return;
+        state.costRequested = true;
+        load('cost', Config.API.users.myCost);
+    }
+
+    // ============= Cost (E18-T04) =============
+
+    function money(amount) {
+        return Utils.formatCurrency(Number(amount || 0));
+    }
+
+    /** A 14-point inline sparkline (no chart library in the slide-out). */
+    function sparklineSvg(points, name) {
+        const values = (points || []).map(Number);
+        if (values.length < 2) return '';
+        const w = 84;
+        const h = 22;
+        const max = Math.max(...values, 0.01);
+        const step = w / (values.length - 1);
+        const coords = values.map((v, i) => `${(i * step).toFixed(1)},${(h - 2 - (v / max) * (h - 4)).toFixed(1)}`).join(' ');
+        const first = values[0];
+        const last = values[values.length - 1];
+        const trend = last > first ? 'rising' : last < first ? 'falling' : 'flat';
+        return `<svg class="ma-spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img"
+                    aria-label="${Utils.escapeHtml(`${name}: daily cost over 14 days, ${trend}, last day ${money(last)}`)}">
+                    <polyline fill="none" stroke="currentColor" stroke-width="1.5" points="${coords}"/></svg>`;
+    }
+
+    function costRowHtml(env) {
+        const name = env.displayName || env.name;
+        const change = env.changePercent === null || env.changePercent === undefined ? ''
+            : Utils.html`<span class="ma-cost-change ${Number(env.changePercent) > 0 ? 'up' : 'down'}"
+                title="Against the same days last month">${Number(env.changePercent) > 0 ? '▲' : '▼'} ${Math.abs(Number(env.changePercent))}%</span>`;
+        const schedule = env.nextStop
+            ? Utils.html`Next stop ${new Date(env.nextStop).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })}`
+            : (env.scheduleRuleCount > 0 ? 'Scheduled' : 'No schedule');
+        return Utils.html`
+            <article class="ma-card ma-cost-row" data-env-id="${env.environmentId}">
+                <div class="ma-card-top">
+                    <button type="button" class="ma-env-link" data-ma-action="open-env" data-env-id="${env.environmentId}"
+                            data-env-name="${name}">${name} <i class="fas fa-arrow-right" aria-hidden="true"></i></button>
+                    ${env.owner ? Utils.raw('<span class="badge bg-primary">Owner</span>') : ''}
+                </div>
+                ${env.scope === 'GROUPS'
+                    ? Utils.raw(Utils.html`<div class="ma-card-meta text-muted">${env.hint || ''}</div>`)
+                    : Utils.raw(Utils.html`<div class="ma-cost-figures">
+                        <span class="ma-cost-mtd">${money(env.monthToDateEstimated)}</span> ${Utils.raw(change)}
+                        ${Utils.raw(sparklineSvg(env.sparkline, name))}
+                      </div>`)}
+                <div class="ma-card-meta">${env.runningVmCount}/${env.totalVmCount} VMs running · ${schedule}</div>
+            </article>`;
+    }
+
+    function costHtml() {
+        if (state.errors.cost) return errorHtml("your environments' cost");
+        if (!state.cost) return loadingHtml();
+        const list = state.cost.environments || [];
+        if (list.length === 0) {
+            return `<div class="ma-empty">You don't have access to any environments yet.
+                        <button type="button" class="btn btn-primary btn-sm mt-2" data-ma-action="request-access">Request access</button></div>`;
+        }
+        const capped = state.cost.capped
+            ? Utils.html`<div class="ma-card-meta text-muted mb-2">Showing the ${state.cost.limit} highest of ${state.cost.totalEnvironments} environments.</div>`
+            : '';
+        return `<div class="ma-cost-intro text-muted small mb-2">Month to date, estimated from daily snapshots.</div>
+                ${capped}${list.map(costRowHtml).join('')}`;
     }
 
     // ============= Data =============
@@ -101,7 +175,8 @@ const MyAccount = (function() {
             grants: Config.API.access.myEnvironments,
             requests: Config.API.access.myRequests,
             history: Config.API.access.myAccessHistory(30),
-            activity: Config.API.users.myActivity(25)
+            activity: Config.API.users.myActivity(25),
+            cost: Config.API.users.myCost
         };
         Object.keys(state.errors).forEach(key => {
             delete state.errors[key];
@@ -214,6 +289,7 @@ const MyAccount = (function() {
     function bodyHtml() {
         if (state.tab === 'access') return accessHtml();
         if (state.tab === 'activity') return activityHtml();
+        if (state.tab === 'cost') return costHtml();
         return overviewHtml();
     }
 
@@ -627,6 +703,7 @@ const MyAccount = (function() {
     function switchTab(tab, focusTab) {
         if (!state || state.tab === tab) return;
         state.tab = tab;
+        if (tab === 'cost') loadCost();
         render({ resetScroll: true });
         if (focusTab) $(`#ma-tab-${tab}`).trigger('focus');
     }
