@@ -9,6 +9,7 @@ import com.tcgdigital.vmcontrol.model.*;
 import com.tcgdigital.vmcontrol.repository.EnvironmentLockRepository;
 import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import com.tcgdigital.vmcontrol.repository.LockHistoryRepository;
+import com.tcgdigital.vmcontrol.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
@@ -36,13 +37,16 @@ public class LockService {
     private final AuditService auditService;
     private final NotificationService notificationService;
     private final AutomationRuleService automationRuleService;
+    private final UserRepository userRepository;
 
     public LockService(EnvironmentLockRepository lockRepository,
                        LockHistoryRepository historyRepository,
                        EnvironmentRepository environmentRepository,
                        AuditService auditService,
                        NotificationService notificationService,
-                       @Lazy AutomationRuleService automationRuleService) {
+                       @Lazy AutomationRuleService automationRuleService,
+                       UserRepository userRepository) {
+        this.userRepository = userRepository;
         this.lockRepository = lockRepository;
         this.historyRepository = historyRepository;
         this.environmentRepository = environmentRepository;
@@ -235,8 +239,12 @@ public class LockService {
 
         // Lock exists - verify user holds it
         if (!lock.get().getLockedByUserId().equals(userId)) {
+            // Name the holder, not their user id (LOW-OPS-403-TOAST); callers still get the id.
+            String holder = userRepository.findById(lock.get().getLockedByUserId())
+                    .map(u -> u.getDisplayName() != null && !u.getDisplayName().isBlank() ? u.getDisplayName() : u.getEmail())
+                    .orElse("another user");
             throw new LockAlreadyHeldException(
-                    "Environment is locked by another user: " + lock.get().getLockedByUserId(),
+                    "Environment is locked by another user: " + holder,
                     environmentId,
                     lock.get().getLockedByUserId()
             );

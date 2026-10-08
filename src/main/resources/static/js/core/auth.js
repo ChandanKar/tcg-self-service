@@ -74,6 +74,7 @@ const Auth = (function() {
      * The server then ends the Entra session too and returns to /login?logout=true.
      */
     function logout() {
+        if (typeof VmOperations !== 'undefined' && VmOperations.stopAllPolling) VmOperations.stopAllPolling();
         const form = document.createElement('form');
         form.method = 'POST';
         form.action = Config.AUTH.logoutUrl || '/logout';

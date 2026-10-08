@@ -269,4 +269,16 @@ class LockServiceTest extends AbstractIntegrationTest {
         // Then
         assertEquals(2, userLocks.size());
     }
+
+    @Test
+    void verifyLockPermission_namesTheHolderNotTheirUserId() {
+        // E05-T08 (LOW-OPS-403-TOAST): the toast says who holds the lock; callers keep the id.
+        lockService.acquireLock(testEnvironment.getEnvironmentId(), "user-001", "Test", null);
+
+        LockAlreadyHeldException e = assertThrows(LockAlreadyHeldException.class, () ->
+                lockService.verifyLockPermission(testEnvironment.getEnvironmentId(), "user-002"));
+
+        assertEquals("Environment is locked by another user: Test User 1", e.getMessage());
+        assertEquals("user-001", e.getLockedByUserId());
+    }
 }

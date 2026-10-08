@@ -6,9 +6,14 @@
 const VmOperations = (function() {
     'use strict';
 
-    // Active operation tracking
+    // Active operation tracking: one poll timer per execution, so starting a second operation
+    // never stops tracking the first (LOW-OPS-POLL-TIMER). Not page-scoped: an operation keeps
+    // being tracked after the user navigates away.
     let activeOperations = new Map();
-    let pollInterval = null;
+    const pollTimers = new Map();      // executionId -> interval id
+    let modalExecutionId = null;       // the execution the progress modal shows
+    let modalToken = 0;                // which progress modal is current (a closed one fades out later)
+    const RUNNING_STATUSES = ['PENDING', 'IN_PROGRESS'];
 
     /**
      * Start an environment (all VMs)
@@ -83,8 +88,8 @@ const VmOperations = (function() {
             // Show progress modal
             showProgressModal(title);
 
-            // Submit operation
-            ApiClient.post(Config.API.operations.create(envId), operationData)
+            // Submit operation (errors are shown in the progress modal, with the server's reason)
+            ApiClient.post(Config.API.operations.create(envId), operationData, { suppressGlobalError: true })
                 .done(function(execution) {
                     // Store operation info with explicit state tracking
                     activeOperations.set(execution.executionId, {
@@ -97,7 +102,10 @@ const VmOperations = (function() {
                         pollFailures: 0
                     });
 
-                    // Start polling for status
+                    // The modal follows this execution; start polling for its status
+                    modalExecutionId = execution.executionId;
+                    $('#btn-cancel-operation').prop('hidden', false).prop('disabled', false)
+                        .data('env-id', envId).data('execution-id', execution.executionId);
                     startPolling(envId, execution.executionId, resolve, reject);
                 })
                 .fail(function(xhr) {
@@ -108,7 +116,7 @@ const VmOperations = (function() {
                     } else if (xhr.status === 400) {
                         userMessage = xhr.responseJSON?.message || 'Invalid operation request. Please check your selection and try again.';
                     } else if (xhr.status === 403) {
-                        userMessage = 'You do not have permission to perform this operation. You may need to acquire a lock first.';
+                        userMessage = xhr.responseJSON?.message || 'You do not have permission to perform this operation. You may need to acquire a lock first.';
                     } else if (xhr.status === 404) {
                         userMessage = 'Environment or VMs not found. The data may have changed — please refresh and try again.';
                     } else if (xhr.status >= 500) {
@@ -119,14 +127,9 @@ const VmOperations = (function() {
                         userMessage = 'Failed to start operation. Please try again.';
                     }
                     console.error('Operation failed:', xhr.status, xhr.responseJSON || xhr.statusText);
-                    // Always show error state and stop spinner
-                    stopPolling();  // Stop any pending polls
+                    // Nothing was created, so no poll to stop: just show the reason.
+                    modalExecutionId = null;
                     updateProgressModal('error', userMessage);
-                    // Update operation state to error
-                    const operation = Array.from(activeOperations.values())[0];
-                    if (operation) {
-                        operation.state = 'error';
-                    }
                     reject(new Error(userMessage));
                 });
         });
@@ -136,6 +139,8 @@ const VmOperations = (function() {
      * Show progress modal
      */
     function showProgressModal(title) {
+        const token = ++modalToken;
+        modalExecutionId = null;
         Modals.show({
             id: 'operationProgressModal',
             title: title,
@@ -193,23 +198,30 @@ const VmOperations = (function() {
                 </div>
             `,
             buttons: [
+                { text: 'Cancel operation', class: 'btn-outline-danger', id: 'btn-cancel-operation' },
                 { text: 'Close', class: 'btn-secondary', id: 'btn-close-progress' }
             ],
             onShow: function() {
                 // Start elapsed time counter
                 startElapsedTimer();
+                // Shown once the operation exists (see executeOperation), hidden when it ends.
+                $('#btn-cancel-operation').prop('hidden', true).off('click').on('click', function() {
+                    const $btn = $(this);
+                    confirmCancel($btn.data('env-id'), $btn.data('execution-id'), $btn);
+                });
 
-                // Handle close — the operation keeps running server-side and polling
-                // continues in the background even after the modal is dismissed, so it's
-                // safe to let the user close this at any point, not just at completion.
+                // Handle close — the operation keeps running server-side and keeps being polled
+                // after the modal is dismissed, so it's safe to close it at any point.
                 $('#btn-close-progress').off('click').on('click', function() {
                     Modals.hide('operationProgressModal');
-                    stopPollingIfNoRunningOperation();
                 });
             },
             onHide: function() {
-                stopPollingIfNoRunningOperation();
-                stopElapsedTimer();
+                // A closed modal's 'hidden' fires after its fade: only unbind if it is still current.
+                if (token === modalToken) {
+                    modalExecutionId = null;
+                    stopElapsedTimer();
+                }
             }
         });
     }
@@ -314,14 +326,15 @@ const VmOperations = (function() {
                 $progressBar.removeClass('progress-bar-animated progress-bar-striped').addClass('bg-success');
                 stopElapsedTimer();
             } else if (execution.status === 'PARTIAL_SUCCESS') {
-                const partialMsg = failed > 0
-                    ? 'Completed with some failures'
-                    : `Completed — ${skipped} step${skipped === 1 ? '' : 's'} skipped`;
+                const partialMsg = `Completed with failures (${failed} failed, ${skipped} skipped)`;
                 $statusText.html(`<i class="fas fa-exclamation-triangle text-warning me-2"></i>${partialMsg}`);
                 $progressBar.removeClass('progress-bar-animated progress-bar-striped').addClass('bg-warning');
                 stopElapsedTimer();
             } else if (execution.status === 'FAILED') {
-                $statusText.html(`<i class="fas fa-times-circle text-danger me-2"></i>Operation failed`);
+                // The server says why: "All N steps failed", "No step succeeded (...)", "Interrupted: ..."
+                $statusText.empty()
+                    .append('<i class="fas fa-times-circle text-danger me-2"></i>')
+                    .append(document.createTextNode('Failed — ' + (execution.errorMessage || 'no step succeeded')));
                 $progressBar.removeClass('progress-bar-animated progress-bar-striped').addClass('bg-danger').css('width', '100%');
                 $progressPercent.text('Failed');
                 stopElapsedTimer();
@@ -341,6 +354,7 @@ const VmOperations = (function() {
 
             // Update VM status list
             updateVmStatusList(steps);
+            $('#btn-cancel-operation').prop('hidden', !RUNNING_STATUSES.includes(execution.status));
         }
     }
 
@@ -452,16 +466,21 @@ const VmOperations = (function() {
      * Start polling for operation status
      */
     function startPolling(envId, executionId, resolve, reject) {
-        stopPolling(); // Clear any existing poll
+        stopPollingExecution(executionId); // only this execution's timer
 
         const operation = activeOperations.get(executionId);
+        const stopThis = () => stopPollingExecution(executionId);
+        // Only the execution the modal was opened for may write to it.
+        const showInModal = (status, message, execution) => {
+            if (modalExecutionId === executionId) updateProgressModal(status, message, execution);
+        };
 
         const poll = function() {
             // Check for timeout (30 minutes)
             if (operation && (Date.now() - operation.startTime) > OPERATION_TIMEOUT) {
-                stopPolling();
+                stopThis();
                 operation.state = 'timeout';
-                updateProgressModal('timeout');
+                showInModal('timeout');
                 const timeoutMsg = 'Operation exceeded 30-minute timeout. Please contact support if the operation is still running.';
                 Notifications.error(timeoutMsg);
                 reject(new Error(timeoutMsg));
@@ -476,18 +495,18 @@ const VmOperations = (function() {
                         operation.pollFailures = 0;
                     }
 
-                    updateProgressModal('progress', null, execution);
+                    showInModal('progress', null, execution);
                     publishOperationStatus(envId, execution);
 
                     if (execution.status === 'COMPLETED') {
-                        stopPolling();
+                        stopThis();
                         if (operation) {
                             operation.state = 'completed';
                         }
                         Notifications.success('Operation completed successfully! All VMs have been processed.');
                         resolve(execution);
                     } else if (execution.status === 'PARTIAL_SUCCESS') {
-                        stopPolling();
+                        stopThis();
                         if (operation) {
                             operation.state = 'completed';
                         }
@@ -498,7 +517,7 @@ const VmOperations = (function() {
                             : 'Operation completed. Some steps were skipped because a dependency did not start.');
                         resolve(execution);
                     } else if (execution.status === 'FAILED') {
-                        stopPolling();
+                        stopThis();
                         if (operation) {
                             operation.state = 'completed';
                         }
@@ -506,7 +525,7 @@ const VmOperations = (function() {
                         Notifications.error(failMsg);
                         reject(new Error(failMsg));
                     } else if (execution.status === 'CANCELLED') {
-                        stopPolling();
+                        stopThis();
                         if (operation) {
                             operation.state = 'completed';
                         }
@@ -523,16 +542,18 @@ const VmOperations = (function() {
                     console.warn('Failed to poll operation status:', xhr.status, xhr.statusText, `attempt ${failures}/${MAX_POLL_FAILURES}`);
 
                     if (failures < MAX_POLL_FAILURES) {
-                        $('#progress-status-text').html('<i class="fas fa-spinner fa-spin me-2"></i>Reconnecting to operation status...');
+                        if (modalExecutionId === executionId) {
+                            $('#progress-status-text').html('<i class="fas fa-spinner fa-spin me-2"></i>Reconnecting to operation status...');
+                        }
                         return;
                     }
 
-                    stopPolling();
+                    stopThis();
                     if (operation) {
                         operation.state = 'error';
                     }
                     console.error('Failed to poll operation status:', xhr.status, xhr.statusText);
-                    updateProgressModal('error', 'Lost connection to the server while tracking the operation. The operation may still be running — please refresh to check.');
+                    showInModal('error', 'Lost connection to the server while tracking the operation. The operation may still be running — please refresh to check.');
                     reject(new Error('Failed to get operation status'));
                 });
         };
@@ -541,27 +562,50 @@ const VmOperations = (function() {
         poll();
 
         // Continue polling
-        pollInterval = setInterval(poll, Config.UI.operationPollInterval || 2000);
+        pollTimers.set(executionId, setInterval(poll, Config.UI.operationPollInterval || 2000));
+    }
+
+    /** Stop polling one execution. */
+    function stopPollingExecution(executionId) {
+        const timer = pollTimers.get(executionId);
+        if (timer) {
+            clearInterval(timer);
+            pollTimers.delete(executionId);
+        }
+    }
+
+    /** Stop every poll (logout). */
+    function stopAllPolling() {
+        pollTimers.forEach(timer => clearInterval(timer));
+        pollTimers.clear();
+    }
+
+    /** Executions this page is still tracking (for tests and diagnostics). */
+    function trackedExecutionIds() {
+        return Array.from(pollTimers.keys());
     }
 
     /**
-     * Stop polling
+     * Cancel an operation after confirmation (H12). Allowed for the initiator, the lock holder
+     * and environment admins; the server's 403 reason is shown as is.
      */
-    function stopPolling() {
-        if (pollInterval) {
-            clearInterval(pollInterval);
-            pollInterval = null;
-        }
-    }
-
-    function hasRunningOperation() {
-        return Array.from(activeOperations.values()).some(operation => operation.state === 'running');
-    }
-
-    function stopPollingIfNoRunningOperation() {
-        if (!hasRunningOperation()) {
-            stopPolling();
-        }
+    function confirmCancel(envId, executionId, $button) {
+        Modals.confirm('Cancel operation',
+            'Cancel this operation? VMs already started or stopped stay that way.',
+            function() {
+                if ($button) $button.prop('disabled', true);
+                ApiClient.post(Config.API.operations.cancel(envId, executionId), {}, { suppressGlobalError: true })
+                    .done(function(execution) {
+                        Notifications.info('Operation cancelled');
+                        if (modalExecutionId === executionId) updateProgressModal('cancelled');
+                        if ($('.operation-history').length) loadHistoryContent(envId);
+                    })
+                    .fail(function(xhr) {
+                        if ($button) $button.prop('disabled', false);
+                        Notifications.error(xhr.responseJSON?.message || 'Could not cancel the operation');
+                    });
+            },
+            { confirmText: 'Cancel operation', cancelText: 'Keep running', confirmClass: 'btn-danger' });
     }
 
     function publishOperationStatus(envId, execution) {
@@ -655,21 +699,28 @@ const VmOperations = (function() {
                 }
 
                 const rows = executions.map(exec => {
-                    const statusConfig = Config.STATUS.operation[exec.status] || { class: 'text-secondary', icon: 'fa-question' };
+                    const statusConfig = Config.STATUS.operation[exec.status] || { class: 'text-secondary', icon: 'fa-question', label: exec.status };
                     const duration = exec.completedAt && exec.startedAt ?
                         Utils.formatDuration(new Date(exec.completedAt) - new Date(exec.startedAt)) : '-';
+                    const skipped = Number(exec.skippedTargets) || 0;
+                    const running = RUNNING_STATUSES.includes(exec.status);
+                    const action = running
+                        ? `<button type="button" class="btn btn-sm btn-outline-danger" data-op-cancel
+                                   data-env-id="${Utils.escapeHtml(envId)}" data-execution-id="${Utils.escapeHtml(exec.executionId)}">Cancel</button>`
+                        : '';
 
                     return `
-                        <tr>
-                            <td>${Utils.formatRelativeTime(exec.createdAt)}</td>
+                        <tr data-execution-id="${Utils.escapeHtml(exec.executionId)}">
+                            <td>${Utils.formatRelativeTime(exec.startedAt)}</td>
                             <td><span class="badge bg-secondary">${Utils.escapeHtml(exec.operationType)}</span></td>
                             <td>
-                                <span class="${statusConfig.class}">
-                                    <i class="fas ${statusConfig.icon} me-1"></i>${Utils.escapeHtml(exec.status)}
-                                </span>
+                                <span class="${statusConfig.class}" data-col="status">
+                                    <i class="fas ${statusConfig.icon} me-1"></i>${Utils.escapeHtml(statusConfig.label || exec.status)}
+                                </span>${skipped > 0 ? ` <span class="text-muted small">· skipped ${skipped}</span>` : ''}
                             </td>
                             <td>${duration}</td>
                             <td>${Utils.escapeHtml(exec.initiatedByDisplayName || exec.initiatedBy || '-')}</td>
+                            <td class="text-end">${action}</td>
                         </tr>
                     `;
                 }).join('');
@@ -683,6 +734,7 @@ const VmOperations = (function() {
                                 <th>Status</th>
                                 <th>Duration</th>
                                 <th>Initiated By</th>
+                                <th class="text-end"><span class="visually-hidden">Actions</span></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -690,6 +742,10 @@ const VmOperations = (function() {
                         </tbody>
                     </table>
                 `);
+                $('.operation-history').off('click', '[data-op-cancel]').on('click', '[data-op-cancel]', function() {
+                    const $btn = $(this);
+                    confirmCancel($btn.data('env-id'), $btn.data('execution-id'), $btn);
+                });
             })
             .catch(function() {
                 $('.operation-history').html(`
@@ -707,7 +763,9 @@ const VmOperations = (function() {
         startVm,
         stopVm,
         showHistoryModal,
-        getHistory
+        getHistory,
+        stopAllPolling,
+        trackedExecutionIds
     };
 })();
 

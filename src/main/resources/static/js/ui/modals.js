@@ -177,13 +177,14 @@ const Modals = (function() {
             buttons: [
                 { text: cancelText, class: 'btn-secondary', dismiss: true },
                 { text: confirmText, class: confirmClass, id: 'confirmBtn' }
-            ],
-            onShow: function() {
-                $('#confirmBtn').off('click').on('click', function() {
-                    bootstrap.Modal.getInstance(document.getElementById('confirmModal')).hide();
-                    if (onConfirm) onConfirm();
-                });
-            }
+            ]
+        });
+        // Bound as soon as the dialog exists, not on 'shown' (after the fade-in), so an early
+        // click or Enter is never lost.
+        $('#confirmBtn').off('click').on('click', function() {
+            const instance = bootstrap.Modal.getInstance(document.getElementById('confirmModal'));
+            if (instance) instance.hide();
+            if (onConfirm) onConfirm();
         });
     }
 

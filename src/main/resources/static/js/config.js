@@ -259,7 +259,7 @@ const Config = (function() {
             PENDING: { label: 'Pending', class: 'text-secondary', icon: 'fa-clock' },
             IN_PROGRESS: { label: 'In Progress', class: 'text-primary', icon: 'fa-spinner fa-spin' },
             COMPLETED: { label: 'Completed', class: 'text-success', icon: 'fa-check-circle' },
-            PARTIAL_SUCCESS: { label: 'Partial Success', class: 'text-warning', icon: 'fa-exclamation-triangle' },
+            PARTIAL_SUCCESS: { label: 'Completed with failures', class: 'text-warning', icon: 'fa-exclamation-triangle' },
             FAILED: { label: 'Failed', class: 'text-danger', icon: 'fa-times-circle' },
             CANCELLED: { label: 'Cancelled', class: 'text-secondary', icon: 'fa-ban' }
         },
