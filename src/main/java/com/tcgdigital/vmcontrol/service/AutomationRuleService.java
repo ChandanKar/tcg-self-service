@@ -15,6 +15,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import java.sql.Date;
 import java.sql.Timestamp;
@@ -26,6 +29,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -52,6 +56,11 @@ public class AutomationRuleService {
     private final AuditService auditService;
     private final NotificationService notificationService;
     private final UserService userService;
+    /** Starts a rule's operation in its own transaction, so its failure cannot poison the caller's. */
+    private final TransactionTemplate operationTransaction;
+
+    /** How a rule's attempt to start an operation ended (C5). */
+    enum FireOutcome { STARTED, NOTHING_TO_DO, LOCKED, BUSY, SKIPPED, FAILED }
 
     public AutomationRuleService(AutomationRuleRepository automationRuleRepository,
                                   EnvironmentRepository environmentRepository,
@@ -60,7 +69,10 @@ public class AutomationRuleService {
                                   VmOperationsService vmOperationsService,
                                   AuditService auditService,
                                   NotificationService notificationService,
-                                  UserService userService) {
+                                  UserService userService,
+                                  PlatformTransactionManager transactionManager) {
+        this.operationTransaction = new TransactionTemplate(transactionManager);
+        this.operationTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         this.automationRuleRepository = automationRuleRepository;
         this.environmentRepository = environmentRepository;
         this.vmGroupRepository = vmGroupRepository;
@@ -240,8 +252,8 @@ public class AutomationRuleService {
 
     // ============= Shared firing logic =============
 
-    private void fireOperation(AutomationRule rule, OperationType operationType,
-                               String actingUserId, String triggerLabel) {
+    FireOutcome fireOperation(AutomationRule rule, OperationType operationType,
+                              String actingUserId, String triggerLabel) {
         Environment environment = rule.getEnvironment();
         String environmentId = environment.getEnvironmentId();
         String environmentName = environment.getName();
@@ -257,30 +269,57 @@ public class AutomationRuleService {
             dto.setVmIds(List.of(rule.getScopeId()));
         }
 
+        // The operation runs in its own transaction; the run record and audit below are written
+        // outside it, so they persist even when the operation transaction rolls back.
+        FireOutcome outcome;
+        String detail;
+        String lockedByDisplayName = null;
         try {
-            vmOperationsService.startOperation(environmentId, actingUserId, dto);
-            recordRun(rule, AutomationRunStatus.SUCCESS,
-                    "Triggered " + operationType + " (" + triggerLabel + ")");
-            auditService.logAutomationRuleTriggered(actingUserId, rule.getRuleId(), rule.getName(),
-                    environmentId, environmentName, "Triggered " + operationType + " (" + triggerLabel + ")");
+            Optional<?> started = operationTransaction.execute(status ->
+                    vmOperationsService.startOperationIfNeeded(environmentId, actingUserId, dto));
+            if (started != null && started.isPresent()) {
+                outcome = FireOutcome.STARTED;
+                detail = "Triggered " + operationType + " (" + triggerLabel + ")";
+            } else {
+                outcome = FireOutcome.NOTHING_TO_DO;
+                detail = "Nothing to do: all targets already in the requested state";
+            }
         } catch (LockAlreadyHeldException e) {
-            String lockedByDisplayName = resolveDisplayName(e.getLockedByUserId());
-            String detail = "Environment locked by " + lockedByDisplayName;
-            recordRun(rule, AutomationRunStatus.SKIPPED, detail);
-            auditService.logAutomationRuleSkipped(actingUserId, rule.getRuleId(), rule.getName(),
-                    environmentId, environmentName, detail);
-            notificationService.notifyAutomationRuleSkipped(rule.getCreatedByUserId(), environmentName,
-                    rule.getName(), lockedByDisplayName);
+            lockedByDisplayName = resolveDisplayName(e.getLockedByUserId());
+            outcome = FireOutcome.LOCKED;
+            detail = "Environment locked by " + lockedByDisplayName;
         } catch (ValidationException e) {
-            recordRun(rule, AutomationRunStatus.SKIPPED, e.getMessage());
-            auditService.logAutomationRuleSkipped(actingUserId, rule.getRuleId(), rule.getName(),
-                    environmentId, environmentName, e.getMessage());
+            outcome = e.getMessage() != null && e.getMessage().contains("already in progress")
+                    ? FireOutcome.BUSY : FireOutcome.SKIPPED;
+            detail = e.getMessage();
         } catch (Exception e) {
             log.error("Automation rule {} failed to fire: {}", rule.getRuleId(), e.getMessage(), e);
-            recordRun(rule, AutomationRunStatus.FAILED, e.getMessage());
-            auditService.logAutomationRuleFailed(actingUserId, rule.getRuleId(), rule.getName(),
-                    environmentId, environmentName, e.getMessage());
+            outcome = FireOutcome.FAILED;
+            detail = e.getMessage();
         }
+
+        switch (outcome) {
+            case STARTED -> {
+                recordRun(rule, AutomationRunStatus.SUCCESS, detail);
+                auditService.logAutomationRuleTriggered(actingUserId, rule.getRuleId(), rule.getName(),
+                        environmentId, environmentName, detail);
+            }
+            case FAILED -> {
+                recordRun(rule, AutomationRunStatus.FAILED, detail);
+                auditService.logAutomationRuleFailed(actingUserId, rule.getRuleId(), rule.getName(),
+                        environmentId, environmentName, detail);
+            }
+            default -> {
+                recordRun(rule, AutomationRunStatus.SKIPPED, detail);
+                auditService.logAutomationRuleSkipped(actingUserId, rule.getRuleId(), rule.getName(),
+                        environmentId, environmentName, detail);
+                if (outcome == FireOutcome.LOCKED) {
+                    notificationService.notifyAutomationRuleSkipped(rule.getCreatedByUserId(), environmentName,
+                            rule.getName(), lockedByDisplayName);
+                }
+            }
+        }
+        return outcome;
     }
 
     private void recordRun(AutomationRule rule, AutomationRunStatus status, String detail) {

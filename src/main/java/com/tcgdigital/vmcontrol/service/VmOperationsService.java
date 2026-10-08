@@ -112,6 +112,17 @@ public class VmOperationsService {
      */
     @Transactional
     public OperationExecution startOperation(String environmentId, String userId, StartOperationDTO dto) {
+        return startOperationIfNeeded(environmentId, userId, dto)
+                .orElseThrow(() -> new ValidationException("No VMs to operate on"));
+    }
+
+    /**
+     * Like {@link #startOperation}, but "nothing to do" (no VM needs the operation) is an empty
+     * result rather than an exception, so automation can treat it as a normal outcome (C5).
+     */
+    @Transactional
+    public Optional<OperationExecution> startOperationIfNeeded(String environmentId, String userId,
+                                                               StartOperationDTO dto) {
         // Verify environment exists
         Environment environment = environmentRepository.findById(environmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Environment", environmentId));
@@ -132,7 +143,7 @@ public class VmOperationsService {
         List<Vm> targetVms = resolveTargetVms(environment, dto);
 
         if (targetVms.isEmpty()) {
-            throw new ValidationException("No VMs to operate on");
+            return Optional.empty();
         }
 
         // Group-scoped access: a user without environment-wide USER can only operate the groups
@@ -216,7 +227,7 @@ public class VmOperationsService {
             }
         });
 
-        return execution;
+        return Optional.of(execution);
     }
 
     /**

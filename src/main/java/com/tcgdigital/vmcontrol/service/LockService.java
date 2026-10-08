@@ -10,6 +10,7 @@ import com.tcgdigital.vmcontrol.repository.EnvironmentLockRepository;
 import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import com.tcgdigital.vmcontrol.repository.LockHistoryRepository;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
+import com.tcgdigital.vmcontrol.service.support.AfterCommit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
@@ -38,6 +39,7 @@ public class LockService {
     private final NotificationService notificationService;
     private final AutomationRuleService automationRuleService;
     private final UserRepository userRepository;
+    private final AfterCommit afterCommit;
 
     public LockService(EnvironmentLockRepository lockRepository,
                        LockHistoryRepository historyRepository,
@@ -45,8 +47,10 @@ public class LockService {
                        AuditService auditService,
                        NotificationService notificationService,
                        @Lazy AutomationRuleService automationRuleService,
-                       UserRepository userRepository) {
+                       UserRepository userRepository,
+                       AfterCommit afterCommit) {
         this.userRepository = userRepository;
+        this.afterCommit = afterCommit;
         this.lockRepository = lockRepository;
         this.historyRepository = historyRepository;
         this.environmentRepository = environmentRepository;
@@ -113,8 +117,10 @@ public class LockService {
                         userId,
                         reason));
 
-        runNotificationSideEffect("trigger lock-acquire automation rules", environmentId, () ->
-                automationRuleService.handleLockAcquired(environmentId, userId));
+        // After commit (C5): a failing rule must never roll back the lock it was triggered by,
+        // and the operation it starts must see the committed lock.
+        afterCommit.run(() -> runNotificationSideEffect("trigger lock-acquire automation rules", environmentId, () ->
+                automationRuleService.handleLockAcquired(environmentId, userId)));
 
         log.info("Lock acquired on environment {} by user {}", environmentId, userId);
 
