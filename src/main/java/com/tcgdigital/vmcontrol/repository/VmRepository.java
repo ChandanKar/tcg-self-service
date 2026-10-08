@@ -131,6 +131,18 @@ public interface VmRepository extends JpaRepository<Vm, String> {
     List<Vm> findByIsActiveTrue();
 
     /**
+     * Active VMs of active environments for state sync, with group and environment loaded:
+     * sync reads the environment on worker threads with no session (H23).
+     */
+    @Query("SELECT v FROM Vm v JOIN FETCH v.group g JOIN FETCH g.environment e " +
+           "WHERE v.isActive = true AND e.isActive = true ORDER BY e.environmentId, g.sequencePosition, v.sequencePosition")
+    List<Vm> findActiveForSync();
+
+    /** One VM with group and environment loaded (single-VM sync). */
+    @Query("SELECT v FROM Vm v JOIN FETCH v.group g JOIN FETCH g.environment e WHERE v.vmId = :vmId")
+    Optional<Vm> findByIdFetchGroupAndEnvironment(@Param("vmId") String vmId);
+
+    /**
      * Get all registered provider VM IDs for a given cloud provider (globally across all environments).
      * Used for cross-environment duplicate detection in the EC2 picker.
      */
@@ -277,4 +289,24 @@ public interface VmRepository extends JpaRepository<Vm, String> {
     @Query("UPDATE Vm v SET v.stateDriftDetected = true, v.lastStateSyncAt = :syncedAt, v.updatedAt = :syncedAt, " +
            "v.version = v.version + 1 WHERE v.vmId = :vmId AND v.isActive = true")
     int markDriftIfActive(@Param("vmId") String vmId, @Param("syncedAt") Timestamp syncedAt);
+
+    /**
+     * No drift: clear the flag and record the sync time, only while the status is still the one
+     * sync compared. updated_at is left alone: it dates the last status change, which the
+     * transitional-state guard relies on (M5).
+     */
+    @Modifying(flushAutomatically = true)
+    @Transactional
+    @Query("UPDATE Vm v SET v.stateDriftDetected = false, v.lastStateSyncAt = :syncedAt, v.version = v.version + 1 " +
+           "WHERE v.vmId = :vmId AND v.status = :expectedStatus")
+    int markSyncedIfStatus(@Param("vmId") String vmId, @Param("expectedStatus") VmStatus expectedStatus,
+                           @Param("syncedAt") Timestamp syncedAt);
+
+    /** Rename from the cloud Name tag only if nobody renamed the VM since sync read it (M5). */
+    @Modifying(flushAutomatically = true)
+    @Transactional
+    @Query("UPDATE Vm v SET v.name = :newName, v.displayName = :newDisplayName, v.version = v.version + 1 " +
+           "WHERE v.vmId = :vmId AND v.name = :oldName")
+    int updateNamesIfUnchanged(@Param("vmId") String vmId, @Param("oldName") String oldName,
+                               @Param("newName") String newName, @Param("newDisplayName") String newDisplayName);
 }

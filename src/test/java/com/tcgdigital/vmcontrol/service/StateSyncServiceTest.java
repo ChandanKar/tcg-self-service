@@ -6,7 +6,6 @@ import com.tcgdigital.vmcontrol.model.*;
 import com.tcgdigital.vmcontrol.repository.*;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -247,8 +246,6 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @Disabled("H23: syncAllVmStates reads vm.getGroup().getEnvironment() outside a session -> LazyInitializationException")
-    // TODO(E09-T05): re-enable once state sync loads VMs with group and environment
     void testSyncVmState_WithDrift() {
         // Given - cloud status differs from local status
         when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.STOPPED);
@@ -333,8 +330,6 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @Disabled("H23: syncAllVmStates reads vm.getGroup().getEnvironment() outside a session -> LazyInitializationException")
-    // TODO(E09-T05): re-enable once state sync loads VMs with group and environment
     void testSyncVmState_ReconcilesStaleTransitionalVm_WhenStuckStarting() {
         // A VM whose status was orphaned mid-operation (e.g. a crashed operation that never
         // wrote back a terminal status) must eventually be corrected, not skipped forever.
@@ -352,8 +347,6 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @Disabled("H23: syncAllVmStates reads vm.getGroup().getEnvironment() outside a session -> LazyInitializationException")
-    // TODO(E09-T05): re-enable once state sync loads VMs with group and environment
     void testSyncVmState_ReconcilesStaleTransitionalVm_WhenStuckStopping() {
         ReflectionTestUtils.setField(stateSyncService, "staleTransitionalMinutes", 0L);
         testVm.setStatus(VmStatus.STOPPING);
