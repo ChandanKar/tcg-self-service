@@ -617,6 +617,12 @@ public class AuditService {
                 "Password set by user: " + resolveUsername(performedByUserId));
     }
 
+    /** An Entra sign-in tried to adopt a user row already linked to another Entra account. */
+    public void logLoginConflict(String email, String existingUserId) {
+        logFailure(null, AuditAction.USER_LOGIN_CONFLICT, "user", existingUserId, email,
+                "Entra sign-in with a different directory account for an email already linked to this user");
+    }
+
     public void logUserRoleChanged(String performedByUserId, String targetUserId, String role, boolean newValue) {
         String action = newValue ? "granted" : "revoked";
         logAction(auditUserId(performedByUserId), AuditAction.USER_UPDATED, "user", targetUserId, role,

@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.exception.AccountConflictException;
 import com.tcgdigital.vmcontrol.model.User;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -7,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.sql.Timestamp;
 import java.util.Optional;
@@ -32,7 +34,7 @@ class UserServiceFindOrCreateTest {
     @BeforeEach
     void setUp() {
         service = new UserService(userRepository, auditService);
-        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+        lenient().when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 
     private static User existing(String userId, String oid, String email, String displayName) {
@@ -109,5 +111,62 @@ class UserServiceFindOrCreateTest {
         assertNotNull(result.getUserId());
         verify(userRepository).save(any(User.class));
         verify(auditService).logUserCreated(anyString(), eq("new@corp.com"));
+    }
+
+    // ---- E03-T08: no takeover by email; initial admin only bootstraps --------------------
+
+    @Test
+    void emailFallback_refusesRowLinkedToAnotherDirectoryAccount() {
+        User linked = existing("u6", "oid-X", "shared@corp.com", "Original Owner");
+        when(userRepository.findByAzureAdObjectId("oid-Y")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("shared@corp.com")).thenReturn(Optional.of(linked));
+
+        AccountConflictException e = assertThrows(AccountConflictException.class,
+                () -> service.findOrCreateUser("oid-Y", "shared@corp.com", "Someone Else"));
+
+        assertEquals("u6", e.getExistingUserId());
+        assertEquals("oid-X", linked.getAzureAdObjectId(), "the existing link is untouched");
+        assertEquals("Original Owner", linked.getDisplayName());
+        verify(userRepository, never()).save(any(User.class));
+        verify(auditService).logLoginConflict("shared@corp.com", "u6");
+    }
+
+    @Test
+    void initialAdmin_isPromotedOnlyWhileNoActiveAdminExists() {
+        ReflectionTestUtils.setField(service, "initialAdminEmail", "boss@corp.com");
+        when(userRepository.findByAzureAdObjectId("oid-boss")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("boss@corp.com")).thenReturn(Optional.empty());
+        when(userRepository.countByAdminTrueAndIsActiveTrue()).thenReturn(0L);
+
+        User created = service.findOrCreateUser("oid-boss", "boss@corp.com", "Boss");
+
+        assertTrue(created.isAdmin());
+        verify(auditService).logUserRoleChanged(eq("system"), anyString(), eq("admin"), eq(true));
+    }
+
+    @Test
+    void initialAdmin_isNotPromotedWhenAnotherAdminExists() {
+        ReflectionTestUtils.setField(service, "initialAdminEmail", "boss@corp.com");
+        when(userRepository.findByAzureAdObjectId("oid-boss")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("boss@corp.com")).thenReturn(Optional.empty());
+        when(userRepository.countByAdminTrueAndIsActiveTrue()).thenReturn(1L);
+
+        User created = service.findOrCreateUser("oid-boss", "boss@corp.com", "Boss");
+
+        assertFalse(created.isAdmin());
+        verify(auditService, never()).logUserRoleChanged(anyString(), anyString(), anyString(), anyBoolean());
+    }
+
+    @Test
+    void initialAdmin_whoWasDemoted_staysDemotedOnNextLogin() {
+        ReflectionTestUtils.setField(service, "initialAdminEmail", "boss@corp.com");
+        User demoted = existing("u7", "oid-boss", "boss@corp.com", "Boss");
+        demoted.setAdmin(false);
+        when(userRepository.findByAzureAdObjectId("oid-boss")).thenReturn(Optional.of(demoted));
+        when(userRepository.countByAdminTrueAndIsActiveTrue()).thenReturn(2L);
+
+        User result = service.findOrCreateUser("oid-boss", "boss@corp.com", "Boss");
+
+        assertFalse(result.isAdmin());
     }
 }

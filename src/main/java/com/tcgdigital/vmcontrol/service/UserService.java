@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.exception.AccountConflictException;
 import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
 import com.tcgdigital.vmcontrol.exception.UnauthorizedException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
@@ -74,57 +75,83 @@ public class UserService {
                 log.info("Onboarded user {} ({}) signed in for the first time", user.getEmail(), user.getUserId());
             }
 
-            // Check if this user should be promoted to admin based on initial-admin-email
-            if (initialAdminEmail != null && !initialAdminEmail.isEmpty()
-                && email.equalsIgnoreCase(initialAdminEmail) && !user.isAdmin()) {
-                user.setAdmin(true);
-                log.info("Auto-promoting existing user to admin based on initial-admin-email config: {}", email);
-            }
+            boolean promoted = maybePromoteInitialAdmin(user, email);
 
             // Update last login
             user.recordLogin();
 
             log.debug("User logged in: {} ({})", user.getEmail(), user.getUserId());
-            return userRepository.save(user);
+            User saved = userRepository.save(user);
+            if (promoted) {
+                auditService.logUserRoleChanged("system", saved.getUserId(), "admin", true);
+            }
+            return saved;
         }
 
         // Fallback: look up by email to handle legacy-migrated users whose azure_ad_object_id is null
         Optional<User> userByEmail = userRepository.findByEmail(email);
         if (userByEmail.isPresent()) {
             User user = userByEmail.get();
-            // Link the Azure AD object ID now that the user has logged in via Entra ID
+            String linkedOid = user.getAzureAdObjectId();
+            if (linkedOid != null && !linkedOid.equals(azureAdObjectId)) {
+                // Another directory account owns this row: adopting it would hand over its access.
+                // An admin must clear the old oid (or deactivate the row) for a genuine re-use.
+                log.warn("Refusing Entra sign-in for {}: email already linked to another directory account (user {})",
+                        email, user.getUserId());
+                auditService.logLoginConflict(email, user.getUserId());
+                throw new AccountConflictException(user.getUserId());
+            }
+            // Legacy-migrated or manually onboarded row (no oid yet): link it now.
             user.setAzureAdObjectId(azureAdObjectId);
             log.info("Linked Azure AD object ID to existing user: {} ({})", user.getEmail(), user.getUserId());
             if (!user.getDisplayName().equals(displayName)) {
                 user.setDisplayName(displayName);
             }
-            if (initialAdminEmail != null && !initialAdminEmail.isEmpty()
-                && email.equalsIgnoreCase(initialAdminEmail) && !user.isAdmin()) {
-                user.setAdmin(true);
-                log.info("Auto-promoting legacy user to admin based on initial-admin-email config: {}", email);
-            }
+            boolean promoted = maybePromoteInitialAdmin(user, email);
             user.recordLogin();
-            return userRepository.save(user);
+            User saved = userRepository.save(user);
+            if (promoted) {
+                auditService.logUserRoleChanged("system", saved.getUserId(), "admin", true);
+            }
+            return saved;
         }
 
         // Create new user
         User newUser = User.fromAzureAd(azureAdObjectId, email, displayName);
         newUser.setLastLoginAt(new Timestamp(System.currentTimeMillis()));
 
-        // Check if this is the initial admin
-        if (initialAdminEmail != null && !initialAdminEmail.isEmpty()
-            && email.equalsIgnoreCase(initialAdminEmail)) {
-            newUser.setAdmin(true);
-            log.info("Auto-promoting user to admin based on initial-admin-email config: {}", email);
-        }
+        boolean promoted = maybePromoteInitialAdmin(newUser, email);
 
         User saved = userRepository.save(newUser);
         log.info("Created new user: {} ({})", saved.getEmail(), saved.getUserId());
 
         // Audit logging
         auditService.logUserCreated(saved.getUserId(), saved.getEmail());
+        if (promoted) {
+            auditService.logUserRoleChanged("system", saved.getUserId(), "admin", true);
+        }
 
         return saved;
+    }
+
+    /**
+     * Bootstrap only: the configured initial-admin email becomes admin while the app has no
+     * active admin at all. Once any admin exists the flag is left alone, so demoting that
+     * person sticks and the setting cannot re-grant admin on every login.
+     *
+     * @return true when the user was promoted
+     */
+    private boolean maybePromoteInitialAdmin(User user, String email) {
+        if (initialAdminEmail == null || initialAdminEmail.isBlank() || email == null
+                || !email.equalsIgnoreCase(initialAdminEmail) || user.isAdmin()) {
+            return false;
+        }
+        if (userRepository.countByAdminTrueAndIsActiveTrue() > 0) {
+            return false;
+        }
+        user.setAdmin(true);
+        log.info("Promoting {} to admin: initial-admin-email and no active admin exists", email);
+        return true;
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.security;
 
+import com.tcgdigital.vmcontrol.exception.AccountConflictException;
 import com.tcgdigital.vmcontrol.model.User;
 import com.tcgdigital.vmcontrol.service.UserService;
 import org.slf4j.Logger;
@@ -9,6 +10,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.stereotype.Service;
@@ -54,7 +56,13 @@ public class CustomOAuth2UserService extends OidcUserService {
         log.debug("Processing OAuth2 login for: {} ({})", email, azureAdObjectId);
 
         // Find or create user in our database
-        User user = userService.findOrCreateUser(azureAdObjectId, email, displayName);
+        User user;
+        try {
+            user = userService.findOrCreateUser(azureAdObjectId, email, displayName);
+        } catch (AccountConflictException e) {
+            throw new OAuth2AuthenticationException(new OAuth2Error("account_conflict"),
+                    "This email belongs to a different directory account. Contact an administrator.");
+        }
 
         // Check if user is active
         if (!user.isActive()) {
