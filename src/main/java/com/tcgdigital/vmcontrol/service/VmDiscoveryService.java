@@ -50,6 +50,10 @@ public class VmDiscoveryService {
     @Value("${aws.region:ap-south-1}")
     private String defaultRegion;
 
+    /** New name-pattern environments start inactive until an admin reactivates them (default). */
+    @Value("${vm.discovery.name-pattern.auto-activate-environments:false}")
+    private boolean autoActivateEnvironments;
+
     public VmDiscoveryService(EnvironmentRepository environmentRepository,
                               VmGroupRepository vmGroupRepository,
                               VmRepository vmRepository,
@@ -98,6 +102,11 @@ public class VmDiscoveryService {
     // -------------------------------------------------------------------------
 
     private int discoverByNamePattern() {
+        // An empty prefix scanned (and grouped into environments) every instance in the account.
+        if (namePrefix == null || namePrefix.isBlank()) {
+            log.warn("name-pattern discovery requires vm.discovery.name-pattern.prefix; skipping");
+            return 0;
+        }
         log.info("VM discovery (name-pattern) starting — prefix='{}', region={}",
                 namePrefix.isBlank() ? "(all)" : namePrefix, defaultRegion);
 
@@ -154,17 +163,24 @@ public class VmDiscoveryService {
             e.setEnvironmentId(UUID.randomUUID().toString());
             e.setName(envName);
             e.setDisplayName(envName);
-            e.setDescription("Auto-discovered via naming pattern");
+            e.setDescription("Auto-discovered via naming pattern - pending admin review");
             e.setServiceType("EC2");
-            e.setIsActive(true);
+            e.setIsActive(autoActivateEnvironments);
             e.setMetadata("{\"region\":\"" + region + "\"}");
             environmentRepository.save(e);
-            log.info("Auto-created EC2 environment '{}' from naming pattern", envName);
-            auditService.logAction(null, AuditAction.SCHEDULED_JOB_EXECUTED, "environment",
+            log.info("Auto-created EC2 environment '{}' from naming pattern (active={})", envName, autoActivateEnvironments);
+            auditService.logAction(null, AuditAction.ENVIRONMENT_CREATED, "environment",
                     e.getEnvironmentId(), envName,
-                    "Environment auto-created by name-pattern discovery in region " + region);
+                    "Environment auto-created by name-pattern discovery in region " + region
+                            + (autoActivateEnvironments ? "" : "; inactive until an admin reactivates it"));
             return e;
         });
+        // Nothing is registered into an inactive environment, including one just created for review.
+        if (!Boolean.TRUE.equals(env.getIsActive())) {
+            log.info("name-pattern discovery: environment '{}' is inactive; {} instance(s) not registered",
+                    envName, instances.size());
+            return 0;
+        }
 
         VmGroup group = findOrCreateDiscoveryGroup(env);
 
@@ -242,9 +258,14 @@ public class VmDiscoveryService {
         log.info("VM discovery (tag) starting for {} active EC2 environment(s)", environments.size());
         int total = 0;
         int failedEnvironments = 0;
+        int fallbackEnvironments = 0;
         for (Environment env : environments) {
             try {
-                total += discoverEnvironmentVms(env);
+                Regions regions = resolveRegions(env);
+                if (regions.fallback()) {
+                    fallbackEnvironments++;
+                }
+                total += discoverEnvironmentVms(env, regions.regions());
             } catch (DiscoveryFailedException e) {
                 failedEnvironments++;
                 log.warn("Discovery skipped for environment {} — {}", env.getName(), e.getMessage());
@@ -253,34 +274,49 @@ public class VmDiscoveryService {
                 log.error("Discovery failed for environment {}: {}", env.getName(), e.getMessage(), e);
             }
         }
-        log.info("VM discovery (tag) complete — {} new VM(s) registered, {} environment(s) failed",
-                total, failedEnvironments);
+        log.info("VM discovery (tag) complete — {} new VM(s) registered, {} environment(s) failed, " +
+                 "{} environment(s) without a metadata region used a fallback region", total, failedEnvironments,
+                fallbackEnvironments);
         return total;
     }
 
-    private int discoverEnvironmentVms(Environment env) {
-        String region = resolveRegion(env);
-        if (region == null) {
-            log.warn("Skipping discovery for environment {} — no region in metadata. " +
-                     "Set environment.metadata to {{\"region\":\"ap-south-1\"}} to enable.", env.getName());
-            return 0;
+    private int discoverEnvironmentVms(Environment env, List<String> regions) {
+        // instance -> the region it was found in; a failed region is unknown, not empty (H24).
+        Map<Instance, String> liveInstances = new LinkedHashMap<>();
+        int failedRegions = 0;
+        DiscoveryFailedException lastFailure = null;
+        for (String region : regions) {
+            try {
+                List<Instance> found = awsService.discoverTaggedInstances(region, envTagKey, env.getName());
+                log.info("Environment {}: {} tagged instance(s) in region {}", env.getName(), found.size(), region);
+                found.forEach(i -> liveInstances.put(i, region));
+            } catch (DiscoveryFailedException e) {
+                failedRegions++;
+                lastFailure = e;
+            }
         }
-        // Throws DiscoveryFailedException before anything is registered, flagged or re-tagged (H24).
-        List<Instance> liveInstances = awsService.discoverTaggedInstances(region, envTagKey, env.getName());
-        log.info("Environment {}: {} tagged instance(s) in region {}", env.getName(), liveInstances.size(), region);
+        if (failedRegions == regions.size()) {
+            throw lastFailure; // nothing is registered, flagged or re-tagged
+        }
 
-        Set<String> liveInstanceIds = liveInstances.stream().map(Instance::instanceId).collect(Collectors.toSet());
-        VmGroup discoveryGroup = findOrCreateDiscoveryGroup(env);
+        Set<String> liveInstanceIds = liveInstances.keySet().stream().map(Instance::instanceId).collect(Collectors.toSet());
+        // Created on the first registration only: legacy environments without discovered VMs
+        // should not each gain an empty Auto-Discovered group.
+        VmGroup discoveryGroup = findDiscoveryGroup(env).orElse(null);
 
         int registered = 0;
         int failed = 0;
-        for (Instance instance : liveInstances) {
+        for (Map.Entry<Instance, String> entry : liveInstances.entrySet()) {
+            Instance instance = entry.getKey();
             if (vmRepository.existsByProviderAndProviderVmId(CloudProvider.AWS, instance.instanceId())) {
                 continue;
             }
             // One bad instance must not stop the rest of the environment (H8).
             try {
-                registerInstanceByTag(instance, env, discoveryGroup, region);
+                if (discoveryGroup == null) {
+                    discoveryGroup = findOrCreateDiscoveryGroup(env);
+                }
+                registerInstanceByTag(instance, env, discoveryGroup, entry.getValue());
                 registered++;
             } catch (Exception e) {
                 failed++;
@@ -291,7 +327,15 @@ public class VmDiscoveryService {
         if (failed > 0) {
             log.warn("Environment {}: {} instance(s) could not be registered", env.getName(), failed);
         }
-        flagMissingVms(discoveryGroup, liveInstanceIds);
+        if (failedRegions > 0) {
+            // A VM in the failed region would look missing: flag nothing and re-tag nothing this run.
+            log.warn("Environment {}: {} of {} region(s) failed; missing-VM flagging skipped",
+                    env.getName(), failedRegions, regions.size());
+            return registered;
+        }
+        if (discoveryGroup != null) {
+            flagMissingVms(discoveryGroup, liveInstanceIds);
+        }
         reconcileTagsSafely(env);
         return registered;
     }
@@ -351,6 +395,10 @@ public class VmDiscoveryService {
         }
     }
 
+    private Optional<VmGroup> findDiscoveryGroup(Environment env) {
+        return vmGroupRepository.findByEnvironmentEnvironmentIdAndName(env.getEnvironmentId(), DISCOVERY_GROUP_NAME);
+    }
+
     private VmGroup findOrCreateDiscoveryGroup(Environment env) {
         return vmGroupRepository
                 .findByEnvironmentEnvironmentIdAndName(env.getEnvironmentId(), DISCOVERY_GROUP_NAME)
@@ -387,6 +435,26 @@ public class VmDiscoveryService {
                 .filter(java.util.Objects::nonNull)
                 .findFirst()
                 .orElse(null);
+    }
+
+    /** Regions to scan, and whether they came from a fallback rather than the metadata. */
+    record Regions(List<String> regions, boolean fallback) {}
+
+    /**
+     * Metadata region if set; else the distinct regions of the environment's active VMs; else
+     * the default region. Legacy environments have no metadata region and were never scanned.
+     */
+    Regions resolveRegions(Environment env) {
+        String metadataRegion = resolveRegion(env);
+        if (metadataRegion != null) {
+            return new Regions(List.of(metadataRegion), false);
+        }
+        List<String> vmRegions = vmRepository.findDistinctRegionsGroupedByEnvironment(List.of(env.getEnvironmentId()))
+                .stream().map(VmRepository.EnvironmentRegion::getRegion).distinct().sorted().toList();
+        if (!vmRegions.isEmpty()) {
+            return new Regions(vmRegions, true);
+        }
+        return new Regions(List.of(defaultRegion), true);
     }
 
     private String resolveRegion(Environment env) {

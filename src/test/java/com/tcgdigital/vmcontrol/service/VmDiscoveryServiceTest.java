@@ -2,6 +2,7 @@ package com.tcgdigital.vmcontrol.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tcgdigital.vmcontrol.exception.DiscoveryFailedException;
+import com.tcgdigital.vmcontrol.model.AuditAction;
 import com.tcgdigital.vmcontrol.model.CloudProvider;
 import com.tcgdigital.vmcontrol.model.Environment;
 import com.tcgdigital.vmcontrol.model.Vm;
@@ -29,6 +30,7 @@ import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -200,6 +202,119 @@ class VmDiscoveryServiceTest {
 
         verify(vmRepository, never()).markDriftIfActive(any(), any());
         verify(environmentRepository, never()).findByName(any());
+    }
+
+    // ------------------------------------------------------------------ strategy guards (E09-T03)
+
+    private static VmRepository.EnvironmentRegion region(String envId, String region) {
+        return new VmRepository.EnvironmentRegion() {
+            @Override public String getEnvironmentId() { return envId; }
+            @Override public String getRegion() { return region; }
+        };
+    }
+
+    @Test
+    void namePatternWithAnEmptyPrefixMakesNoAwsCall() {
+        ReflectionTestUtils.setField(service, "discoveryStrategy", "name-pattern");
+        ReflectionTestUtils.setField(service, "namePrefix", " ");
+
+        assertThat(service.discoverAndRegisterVms()).isZero();
+
+        verify(awsService, never()).discoverInstancesByNamePrefix(any(), any());
+    }
+
+    @Test
+    void namePatternRegistersNothingIntoAnInactiveEnvironment() {
+        ReflectionTestUtils.setField(service, "discoveryStrategy", "name-pattern");
+        env.setIsActive(false);
+        when(awsService.discoverInstancesByNamePrefix("ap-south-1", "app")).thenReturn(List.of(instance("i-00000000000app01", "app-1")));
+
+        assertThat(service.discoverAndRegisterVms()).isZero();
+
+        verify(vmRepository, never()).save(any(Vm.class));
+        verify(vmGroupRepository, never()).save(any());
+    }
+
+    @Test
+    void aNewNamePatternEnvironmentIsCreatedInactiveForReview() {
+        ReflectionTestUtils.setField(service, "discoveryStrategy", "name-pattern");
+        when(environmentRepository.findByName("fresh")).thenReturn(Optional.empty());
+        when(awsService.discoverInstancesByNamePrefix("ap-south-1", "app")).thenReturn(List.of(instance("i-0000000000fresh1", "fresh-1")));
+
+        assertThat(service.discoverAndRegisterVms()).isZero();
+
+        ArgumentCaptor<Environment> created = ArgumentCaptor.forClass(Environment.class);
+        verify(environmentRepository).save(created.capture());
+        assertThat(created.getValue().getIsActive()).isFalse();
+        assertThat(created.getValue().getDescription()).contains("pending admin review");
+        verify(auditService).logAction(eq(null), eq(AuditAction.ENVIRONMENT_CREATED), eq("environment"),
+                eq(created.getValue().getEnvironmentId()), eq("fresh"), contains("inactive until an admin reactivates it"));
+        verify(vmRepository, never()).save(any(Vm.class));
+    }
+
+    @Test
+    void withAutoActivateANewNamePatternEnvironmentRegistersAtOnce() {
+        ReflectionTestUtils.setField(service, "discoveryStrategy", "name-pattern");
+        ReflectionTestUtils.setField(service, "autoActivateEnvironments", true);
+        when(environmentRepository.findByName("fresh")).thenReturn(Optional.empty());
+        when(vmGroupRepository.findByEnvironmentEnvironmentIdAndName(any(), eq("discovered"))).thenReturn(Optional.of(group));
+        when(awsService.discoverInstancesByNamePrefix("ap-south-1", "app")).thenReturn(List.of(instance("i-0000000000fresh1", "fresh-1")));
+
+        assertThat(service.discoverAndRegisterVms()).isEqualTo(1);
+    }
+
+    @Test
+    void theMetadataRegionWinsOverVmRegions() {
+        when(vmRepository.findDistinctRegionsGroupedByEnvironment(List.of("env-1"))).thenReturn(List.of(region("env-1", "eu-west-1")));
+
+        assertThat(service.resolveRegions(env)).isEqualTo(new VmDiscoveryService.Regions(List.of("ap-south-1"), false));
+    }
+
+    @Test
+    void aLegacyEnvironmentIsScannedInItsVmRegions() {
+        env.setMetadata(null);
+        when(vmRepository.findDistinctRegionsGroupedByEnvironment(List.of("env-1"))).thenReturn(List.of(region("env-1", "ap-south-1")));
+        when(awsService.discoverTaggedInstances("ap-south-1", "tcg:environment", "app")).thenReturn(List.of());
+
+        service.discoverAndRegisterVms();
+
+        verify(awsService).discoverTaggedInstances("ap-south-1", "tcg:environment", "app");
+    }
+
+    @Test
+    void aLegacyEnvironmentWithoutVmsIsScannedInTheDefaultRegionWithoutCreatingAGroup() {
+        ReflectionTestUtils.setField(service, "defaultRegion", "us-east-1");
+        env.setMetadata(null);
+        when(vmRepository.findDistinctRegionsGroupedByEnvironment(List.of("env-1"))).thenReturn(List.of());
+        when(vmGroupRepository.findByEnvironmentEnvironmentIdAndName("env-1", "discovered")).thenReturn(Optional.empty());
+        when(awsService.discoverTaggedInstances("us-east-1", "tcg:environment", "app")).thenReturn(List.of());
+
+        service.discoverAndRegisterVms();
+
+        verify(awsService).discoverTaggedInstances("us-east-1", "tcg:environment", "app");
+        verify(vmGroupRepository, never()).save(any());
+    }
+
+    @Test
+    void whenOneOfTwoRegionsFailsNewVmsRegisterButNothingIsFlagged() {
+        env.setMetadata(null);
+        when(vmRepository.findDistinctRegionsGroupedByEnvironment(List.of("env-1")))
+                .thenReturn(List.of(region("env-1", "ap-south-1"), region("env-1", "eu-west-1")));
+        when(vmRepository.findMaxSequencePositionByGroupId("group-1")).thenReturn(0);
+        Vm elsewhere = new Vm();
+        elsewhere.setVmId("vm-eu");
+        elsewhere.setProviderVmId("i-00000000000euvm1");
+        elsewhere.setIsActive(true);
+        when(vmRepository.findByGroupGroupIdOrderBySequencePositionAsc("group-1")).thenReturn(List.of(elsewhere));
+        when(awsService.discoverTaggedInstances("ap-south-1", "tcg:environment", "app"))
+                .thenReturn(List.of(instance("i-0000000000mumbai", "web")));
+        when(awsService.discoverTaggedInstances("eu-west-1", "tcg:environment", "app")).thenThrow(throttled());
+
+        assertThat(service.discoverAndRegisterVms()).isEqualTo(1);
+
+        assertThat(saved(1).get(0).getRegion()).isEqualTo("ap-south-1");
+        verify(vmRepository, never()).markDriftIfActive(any(), any());
+        verify(tagReconciliationService, never()).reconcileEnvironment(any());
     }
 
     @Test
