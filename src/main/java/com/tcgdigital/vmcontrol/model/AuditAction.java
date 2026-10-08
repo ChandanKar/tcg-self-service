@@ -66,6 +66,8 @@ public enum AuditAction {
     STATE_DRIFT_DETECTED,
     VM_NAME_SYNCED,
     VM_DISCOVERED_UNTRACKED,
+    VM_DEACTIVATED,
+    VM_REACTIVATED,
     EKS_NODEGROUP_SYNC_FAILED,
 
     // Automation rule operations

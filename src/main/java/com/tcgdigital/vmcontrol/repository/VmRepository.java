@@ -309,4 +309,45 @@ public interface VmRepository extends JpaRepository<Vm, String> {
            "WHERE v.vmId = :vmId AND v.name = :oldName")
     int updateNamesIfUnchanged(@Param("vmId") String vmId, @Param("oldName") String oldName,
                                @Param("newName") String newName, @Param("newDisplayName") String newDisplayName);
+
+    /**
+     * One more NOT_FOUND from state sync: count it and flag drift, while the VM is still active
+     * and still in the status sync compared (M7).
+     */
+    @Modifying(flushAutomatically = true)
+    @Transactional
+    @Query("UPDATE Vm v SET v.notFoundCount = v.notFoundCount + 1, v.stateDriftDetected = true, " +
+           "v.lastStateSyncAt = :syncedAt, v.version = v.version + 1 " +
+           "WHERE v.vmId = :vmId AND v.isActive = true AND v.status = :expectedStatus")
+    int incrementNotFound(@Param("vmId") String vmId, @Param("expectedStatus") VmStatus expectedStatus,
+                          @Param("syncedAt") Timestamp syncedAt);
+
+    @Query("SELECT v.notFoundCount FROM Vm v WHERE v.vmId = :vmId")
+    Integer findNotFoundCount(@Param("vmId") String vmId);
+
+    /** The instance was found again: the NOT_FOUND streak is over. */
+    @Modifying(flushAutomatically = true)
+    @Transactional
+    @Query("UPDATE Vm v SET v.notFoundCount = 0, v.version = v.version + 1 WHERE v.vmId = :vmId AND v.notFoundCount > 0")
+    int resetNotFound(@Param("vmId") String vmId);
+
+    /**
+     * Reactivate an inactive VM with the status the cloud reports now; drift and the NOT_FOUND
+     * streak are cleared. Only if it is still inactive (a second click changes nothing).
+     */
+    // clearAutomatically: in a web request the open session would otherwise return the stale row.
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Transactional
+    @Query("UPDATE Vm v SET v.isActive = true, v.status = :status, v.notFoundCount = 0, v.stateDriftDetected = false, " +
+           "v.discoveryPending = :pending, v.lastStateSyncAt = :at, v.updatedAt = :at, v.version = v.version + 1 " +
+           "WHERE v.vmId = :vmId AND v.isActive = false")
+    int reactivateIfInactive(@Param("vmId") String vmId, @Param("status") VmStatus status,
+                             @Param("pending") boolean pending, @Param("at") Timestamp at);
+
+    /** A provider instance with its group and environment loaded (discovery runs without a session). */
+    @Query("SELECT v FROM Vm v JOIN FETCH v.group g JOIN FETCH g.environment " +
+           "WHERE v.provider = :provider AND v.providerVmId = :providerVmId")
+    Optional<Vm> findByProviderVmIdFetchGroupAndEnvironment(
+            @Param("provider") com.tcgdigital.vmcontrol.model.CloudProvider provider,
+            @Param("providerVmId") String providerVmId);
 }

@@ -38,6 +38,9 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
     @Autowired
     private EnvironmentRepository environmentRepository;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     private Environment testEnvironment;
     private VmGroup testGroup;
     private Vm testVm;
@@ -201,6 +204,11 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
 
     @Test
     void testGetSyncStatus_InitialState() {
+        // The service is a shared singleton: another test class may already have run a sync.
+        Object target = org.springframework.test.util.AopTestUtils.getTargetObject(stateSyncService);
+        ((java.util.concurrent.atomic.AtomicReference<String>) ReflectionTestUtils.getField(target, "lastSyncStatus")).set("never");
+        ((java.util.concurrent.atomic.AtomicReference<?>) ReflectionTestUtils.getField(target, "lastSyncTime")).set(null);
+
         // When
         StateSyncStatusDTO status = stateSyncService.getSyncStatus();
 
@@ -372,5 +380,71 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
         assertFalse(hasDrift);
         verify(awsCloudProviderService, never()).getVmStatus(anyString(), anyString());
     }
-}
 
+    // ---- E09-T06 (M7): several consecutive NOT_FOUND results before a VM is deactivated ----
+
+    private int auditRows(String action) {
+        Integer n = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM audit_log WHERE action_type = ? AND target_id = ?",
+                Integer.class, action, testVm.getVmId());
+        return n == null ? 0 : n;
+    }
+
+    @Test
+    void notFoundBelowTheThresholdFlagsDriftButKeepsTheVm() {
+        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.NOT_FOUND);
+
+        assertFalse(stateSyncService.syncVmState(testVm));
+        assertFalse(stateSyncService.syncVmState(testVm));
+
+        Vm after = vmRepository.findById(testVm.getVmId()).orElseThrow();
+        assertTrue(after.getIsActive());
+        assertEquals(VmStatus.RUNNING, after.getStatus());
+        assertTrue(after.getStateDriftDetected());
+        assertEquals(2, after.getNotFoundCount());
+        assertTrue(stateSyncService.getVmStateHistory(testVm.getVmId()).isEmpty());
+    }
+
+    @Test
+    void theThirdConsecutiveNotFoundDeactivates() {
+        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.NOT_FOUND);
+
+        stateSyncService.syncVmState(testVm);
+        stateSyncService.syncVmState(testVm);
+        assertTrue(stateSyncService.syncVmState(testVm));
+
+        Vm after = vmRepository.findById(testVm.getVmId()).orElseThrow();
+        assertFalse(after.getIsActive());
+        assertEquals(VmStatus.NOT_FOUND, after.getStatus());
+        awaitAsync(() -> { // audit rows are written on the async executor
+            assertEquals(1, auditRows("VM_DEACTIVATED"));
+            assertEquals(1, auditRows("STATE_DRIFT_DETECTED"));
+        });
+    }
+
+    @Test
+    void terminatedDeactivatesAtOnce() {
+        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.TERMINATED);
+
+        assertTrue(stateSyncService.syncVmState(testVm));
+
+        Vm after = vmRepository.findById(testVm.getVmId()).orElseThrow();
+        assertFalse(after.getIsActive());
+        assertEquals(VmStatus.TERMINATED, after.getStatus());
+        awaitAsync(() -> assertEquals(1, auditRows("VM_DEACTIVATED")));
+    }
+
+    @Test
+    void findingTheInstanceAgainEndsTheStreak() {
+        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.NOT_FOUND);
+        stateSyncService.syncVmState(testVm);
+        stateSyncService.syncVmState(testVm);
+        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.RUNNING);
+
+        stateSyncService.syncVmState(testVm);
+
+        Vm after = vmRepository.findById(testVm.getVmId()).orElseThrow();
+        assertEquals(0, after.getNotFoundCount());
+        assertFalse(after.getStateDriftDetected());
+        assertTrue(after.getIsActive());
+    }
+}

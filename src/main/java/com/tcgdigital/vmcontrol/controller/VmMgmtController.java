@@ -369,6 +369,28 @@ public class VmMgmtController {
         return ResponseEntity.ok(VmDTO.fromEntity(vm));
     }
 
+    @PostMapping("/{vmId}/reactivate")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(
+            summary = "Reactivate a deactivated VM",
+            description = "Brings back a VM that state sync deactivated (instance not found), once the "
+                    + "instance exists again in its region; the VM gets the status the cloud reports."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "VM reactivated"),
+            @ApiResponse(responseCode = "400", description = "VM is active, or the instance still cannot be found"),
+            @ApiResponse(responseCode = "404", description = "VM not found")
+    })
+    public ResponseEntity<VmDTO> reactivateVm(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId,
+            @Parameter(description = "VM ID") @PathVariable String vmId) {
+        securityService.assertSameEnvironment(envOfVm(vmId), environmentId);
+        securityService.assertCanAdminister(environmentId);
+
+        Vm vm = vmService.reactivateVm(vmId, userService.getCurrentUserId());
+        return ResponseEntity.ok(VmDTO.fromEntity(vm));
+    }
+
     /**
      * DTO for VM list grouped by groups.
      */

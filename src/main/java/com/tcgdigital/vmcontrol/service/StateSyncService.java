@@ -59,6 +59,13 @@ public class StateSyncService {
     @Value("${vm.state.sync.stale-transitional-minutes:20}")
     private long staleTransitionalMinutes;
 
+    /**
+     * Consecutive NOT_FOUND results before a VM is deactivated (M7): one miss (a wrong region
+     * edit, an eventual-consistency gap) must not retire a VM.
+     */
+    @Value("${vm.state.sync.not-found-threshold:3}")
+    private int notFoundThreshold = 3;
+
     // Sync status tracking
     private final AtomicBoolean syncInProgress = new AtomicBoolean(false);
     private final AtomicReference<Timestamp> lastSyncTime = new AtomicReference<>();
@@ -259,12 +266,12 @@ public class StateSyncService {
      */
     record SyncTarget(String vmId, String name, String displayName, CloudProvider provider, String region,
                       String providerVmId, VmStatus status, Boolean active, Timestamp updatedAt,
-                      String envId, String envName) {
+                      int notFoundCount, String envId, String envName) {
         static SyncTarget of(Vm vm) {
             Environment env = vm.getGroup().getEnvironment();
             return new SyncTarget(vm.getVmId(), vm.getName(), vm.getDisplayName(), vm.getProvider(), vm.getRegion(),
                     vm.getProviderVmId(), vm.getStatus(), vm.getIsActive(), vm.getUpdatedAt(),
-                    env.getEnvironmentId(), env.getName());
+                    vm.getNotFoundCount() == null ? 0 : vm.getNotFoundCount(), env.getEnvironmentId(), env.getName());
         }
     }
 
@@ -300,6 +307,20 @@ public class StateSyncService {
             return false;
         }
 
+        if (cloudStatus == VmStatus.NOT_FOUND && notFoundThreshold > 1) {
+            // M7: count consecutive misses; flag drift but keep the VM until the threshold.
+            if (vmRepository.incrementNotFound(vm.vmId(), currentStatus, Timestamp.from(Instant.now())) == 0) {
+                log.info("VM {} changed while syncing; not counting NOT_FOUND", vm.name());
+                return false;
+            }
+            Integer misses = vmRepository.findNotFoundCount(vm.vmId());
+            if (misses == null || misses < notFoundThreshold) {
+                log.warn("VM {} ({}) not found in cloud ({}/{}) — drift flagged, still active",
+                        vm.name(), vm.vmId(), misses, notFoundThreshold);
+                return false;
+            }
+        }
+
         if (cloudStatus == VmStatus.NOT_FOUND || cloudStatus == VmStatus.TERMINATED) {
             log.warn("VM {} ({}) is {} in cloud — marking as inactive",
                     vm.name(), vm.vmId(), cloudStatus);
@@ -314,7 +335,16 @@ public class StateSyncService {
             }
             recordDrift(vm, currentStatus, cloudStatus, details,
                     String.format("VM %s in cloud - marked inactive. Previous status: %s", cloudStatus, currentStatus));
+            auditService.logEnvironmentAction(null, AuditAction.VM_DEACTIVATED, vm.envId(), vm.envName(),
+                    "vm", vm.vmId(), vm.name(), cloudStatus == VmStatus.NOT_FOUND
+                            ? "Deactivated after " + notFoundThreshold + " consecutive NOT_FOUND results; reactivate it once the instance exists"
+                            : "Deactivated: instance terminated in the cloud");
             return true;
+        }
+
+        // Found: any NOT_FOUND streak is over.
+        if (vm.notFoundCount() > 0) {
+            vmRepository.resetNotFound(vm.vmId());
         }
 
         // Sync name from cloud if the stored name is still the raw instance ID

@@ -33,15 +33,18 @@ public class VmService {
     private final VmGroupRepository groupRepository;
     private final DependencyValidator dependencyValidator;
     private final AuditService auditService;
+    private final CloudProviderFactory cloudProviderFactory;
 
     public VmService(VmRepository vmRepository,
                      VmGroupRepository groupRepository,
                      DependencyValidator dependencyValidator,
-                     AuditService auditService) {
+                     AuditService auditService,
+                     CloudProviderFactory cloudProviderFactory) {
         this.vmRepository = vmRepository;
         this.groupRepository = groupRepository;
         this.dependencyValidator = dependencyValidator;
         this.auditService = auditService;
+        this.cloudProviderFactory = cloudProviderFactory;
     }
 
     /**
@@ -230,6 +233,42 @@ public class VmService {
                 vm.getName());
         log.info("VM {} acknowledged by user {} — no longer pending review", vm.getName(), userId);
         return vm;
+    }
+
+    /**
+     * Bring back a VM that state sync deactivated (M7), e.g. after its region was corrected.
+     * The cloud is asked first (outside any transaction); the VM comes back with the status
+     * the cloud reports, or the call fails if the instance still cannot be found.
+     */
+    public Vm reactivateVm(String vmId, String userId) {
+        Vm vm = vmRepository.findByIdFetchGroupAndEnvironment(vmId)
+                .orElseThrow(() -> new ResourceNotFoundException("VM", vmId));
+        if (Boolean.TRUE.equals(vm.getIsActive())) {
+            throw new ValidationException("VM '" + vm.getName() + "' is already active");
+        }
+        VmStatus cloudStatus;
+        try {
+            CloudProviderService provider = cloudProviderFactory.getService(vm.getProvider());
+            cloudStatus = provider == null || !provider.isAvailable() ? null
+                    : provider.getVmStatus(vm.getProviderVmId(), vm.getRegion());
+        } catch (Exception e) {
+            log.warn("Could not read cloud status of VM {} for reactivation: {}", vmId, e.getMessage());
+            cloudStatus = null;
+        }
+        if (cloudStatus == VmStatus.NOT_FOUND || cloudStatus == VmStatus.TERMINATED) {
+            throw new ValidationException("Instance not found in " + vm.getRegion() + " - fix the region first");
+        }
+        if (cloudStatus == null || cloudStatus == VmStatus.UNKNOWN) {
+            throw new ValidationException("Could not read the instance's status from the cloud; try again later");
+        }
+        if (vmRepository.reactivateIfInactive(vmId, cloudStatus, false, java.sql.Timestamp.from(java.time.Instant.now())) == 0) {
+            throw new ValidationException("VM '" + vm.getName() + "' is already active");
+        }
+        auditService.logEnvironmentAction(userId, AuditAction.VM_REACTIVATED,
+                vm.getGroup().getEnvironment().getEnvironmentId(), vm.getGroup().getEnvironment().getName(),
+                "vm", vmId, vm.getName(), "Reactivated; cloud status " + cloudStatus);
+        log.info("VM {} reactivated by {} with status {}", vm.getName(), userId, cloudStatus);
+        return vmRepository.findByIdFetchGroupAndEnvironment(vmId).orElseThrow();
     }
 
     /**

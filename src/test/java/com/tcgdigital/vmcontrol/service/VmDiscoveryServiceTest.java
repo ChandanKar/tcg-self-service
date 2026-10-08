@@ -7,6 +7,7 @@ import com.tcgdigital.vmcontrol.model.CloudProvider;
 import com.tcgdigital.vmcontrol.model.Environment;
 import com.tcgdigital.vmcontrol.model.Vm;
 import com.tcgdigital.vmcontrol.model.VmGroup;
+import com.tcgdigital.vmcontrol.model.VmStatus;
 import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import com.tcgdigital.vmcontrol.repository.VmGroupRepository;
 import com.tcgdigital.vmcontrol.repository.VmRepository;
@@ -28,6 +29,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
@@ -315,6 +317,53 @@ class VmDiscoveryServiceTest {
         assertThat(saved(1).get(0).getRegion()).isEqualTo("ap-south-1");
         verify(vmRepository, never()).markDriftIfActive(any(), any());
         verify(tagReconciliationService, never()).reconcileNewInEnvironment(any());
+    }
+
+    // ------------------------------------------------------------------ found again (E09-T06, M7)
+
+    private Vm existing(String vmId, String instanceId, boolean active, VmStatus status, VmGroup inGroup) {
+        Vm vm = new Vm();
+        vm.setVmId(vmId);
+        vm.setName(vmId);
+        vm.setProviderVmId(instanceId);
+        vm.setIsActive(active);
+        vm.setStatus(status);
+        vm.setGroup(inGroup);
+        when(vmRepository.findByProviderVmIdFetchGroupAndEnvironment(CloudProvider.AWS, instanceId)).thenReturn(Optional.of(vm));
+        return vm;
+    }
+
+    @Test
+    void aVmDeactivatedAsNotFoundIsReactivatedWhenDiscoveryFindsItAgain() {
+        existing("vm-back", "i-00000000000back1", false, VmStatus.NOT_FOUND, group);
+        when(vmRepository.reactivateIfInactive(eq("vm-back"), eq(VmStatus.UNKNOWN), eq(true), any())).thenReturn(1);
+        when(awsService.discoverTaggedInstances("ap-south-1", "tcg:environment", "app"))
+                .thenReturn(List.of(instance("i-00000000000back1", "back")));
+
+        assertThat(service.discoverAndRegisterVms()).isZero(); // reactivated, not registered anew
+
+        verify(vmRepository).reactivateIfInactive(eq("vm-back"), eq(VmStatus.UNKNOWN), eq(true), any());
+        verify(auditService).logEnvironmentAction(eq(null), eq(AuditAction.VM_REACTIVATED), eq("env-1"), eq("app"),
+                eq("vm"), eq("vm-back"), eq("vm-back"), contains("found again by discovery"));
+        verify(vmRepository, never()).save(any(Vm.class));
+    }
+
+    @Test
+    void anActiveRowOrAnotherEnvironmentsRowIsLeftAlone() {
+        VmGroup otherGroup = new VmGroup();
+        otherGroup.setGroupId("group-x");
+        Environment otherEnv = new Environment();
+        otherEnv.setEnvironmentId("env-x");
+        otherGroup.setEnvironment(otherEnv);
+        existing("vm-live", "i-00000000000live1", true, VmStatus.RUNNING, group);
+        existing("vm-moved", "i-0000000000moved1", false, VmStatus.NOT_FOUND, otherGroup);
+        when(awsService.discoverTaggedInstances("ap-south-1", "tcg:environment", "app"))
+                .thenReturn(List.of(instance("i-00000000000live1", "live"), instance("i-0000000000moved1", "moved")));
+
+        assertThat(service.discoverAndRegisterVms()).isZero();
+
+        verify(vmRepository, never()).reactivateIfInactive(any(), any(), anyBoolean(), any());
+        verify(vmRepository, never()).save(any(Vm.class));
     }
 
     @Test

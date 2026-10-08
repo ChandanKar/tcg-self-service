@@ -187,7 +187,7 @@ public class VmDiscoveryService {
         int registered = 0;
         int failed = 0;
         for (Instance instance : instances) {
-            if (vmRepository.existsByProviderAndProviderVmId(CloudProvider.AWS, instance.instanceId())) {
+            if (alreadyRegistered(instance, env)) {
                 continue;
             }
             // One bad instance must not stop the rest of the environment (H8).
@@ -308,7 +308,7 @@ public class VmDiscoveryService {
         int failed = 0;
         for (Map.Entry<Instance, String> entry : liveInstances.entrySet()) {
             Instance instance = entry.getKey();
-            if (vmRepository.existsByProviderAndProviderVmId(CloudProvider.AWS, instance.instanceId())) {
+            if (alreadyRegistered(instance, env)) {
                 continue;
             }
             // One bad instance must not stop the rest of the environment (H8).
@@ -373,6 +373,27 @@ public class VmDiscoveryService {
     // -------------------------------------------------------------------------
     // Shared helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * True if the instance already has a VM row (the unique index covers inactive rows too). A
+     * row that state sync deactivated as NOT_FOUND in this environment is reactivated, pending
+     * review, because the instance is live again (M7).
+     */
+    private boolean alreadyRegistered(Instance instance, Environment env) {
+        Optional<Vm> existing = vmRepository.findByProviderVmIdFetchGroupAndEnvironment(CloudProvider.AWS, instance.instanceId());
+        if (existing.isEmpty()) {
+            return false;
+        }
+        Vm vm = existing.get();
+        if (!Boolean.TRUE.equals(vm.getIsActive()) && vm.getStatus() == VmStatus.NOT_FOUND
+                && env.getEnvironmentId().equals(vm.getGroup().getEnvironment().getEnvironmentId())
+                && vmRepository.reactivateIfInactive(vm.getVmId(), VmStatus.UNKNOWN, true, Timestamp.from(Instant.now())) > 0) {
+            auditService.logEnvironmentAction(null, AuditAction.VM_REACTIVATED, env.getEnvironmentId(), env.getName(),
+                    "vm", vm.getVmId(), vm.getName(), "Instance found again by discovery - pending admin review");
+            log.info("VM '{}' (instance={}) found again by discovery — reactivated", vm.getName(), instance.instanceId());
+        }
+        return true;
+    }
 
     /**
      * Next free position in a group: one above the highest over all rows. Counting active VMs

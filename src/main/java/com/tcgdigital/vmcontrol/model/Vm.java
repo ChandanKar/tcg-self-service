@@ -79,6 +79,10 @@ public class Vm {
     @Column(name = "discovery_pending", nullable = false)
     private Boolean discoveryPending = false;
 
+    /** Consecutive NOT_FOUND results from state sync (V32); deactivation needs several (M7). */
+    @Column(name = "not_found_count", nullable = false)
+    private Integer notFoundCount = 0;
+
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
@@ -292,6 +296,14 @@ public class Vm {
 
     public void setDiscoveryPending(Boolean discoveryPending) {
         this.discoveryPending = discoveryPending;
+    }
+
+    public Integer getNotFoundCount() {
+        return notFoundCount;
+    }
+
+    public void setNotFoundCount(Integer notFoundCount) {
+        this.notFoundCount = notFoundCount;
     }
 
     public Timestamp getCreatedAt() {

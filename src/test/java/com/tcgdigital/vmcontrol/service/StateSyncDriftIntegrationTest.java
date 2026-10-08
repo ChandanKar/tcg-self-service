@@ -73,10 +73,13 @@ class StateSyncDriftIntegrationTest extends AbstractIntegrationTest {
         stateSyncService.syncAllVmStates();
 
         assertThat(vmRepository.findById(vm.getVmId()).orElseThrow().getStatus()).isEqualTo(VmStatus.STOPPED);
-        assertThat(count("SELECT COUNT(*) FROM audit_log WHERE action_type = 'STATE_DRIFT_DETECTED' " +
-                "AND target_id = ? AND environment_id = ?", vm.getVmId(), env.getEnvironmentId())).isEqualTo(1);
-        assertThat(count("SELECT COUNT(*) FROM notification WHERE entity_id = ? AND type = 'STATE_DRIFT_DETECTED'",
-                vm.getVmId())).isPositive();
+        // Audit and notification are written on the async executors.
+        awaitAsync(() -> {
+            assertThat(count("SELECT COUNT(*) FROM audit_log WHERE action_type = 'STATE_DRIFT_DETECTED' " +
+                    "AND target_id = ? AND environment_id = ?", vm.getVmId(), env.getEnvironmentId())).isEqualTo(1);
+            assertThat(count("SELECT COUNT(*) FROM notification WHERE entity_id = ? AND type = 'STATE_DRIFT_DETECTED'",
+                    vm.getVmId())).isPositive();
+        });
         assertThat(count("SELECT COUNT(*) FROM vm_state_history WHERE vm_id = ? AND change_source = 'state_sync'",
                 vm.getVmId())).isEqualTo(1);
     }
