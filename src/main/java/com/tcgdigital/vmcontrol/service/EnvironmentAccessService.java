@@ -4,6 +4,7 @@ import com.tcgdigital.vmcontrol.dto.AccessGrantRequestDTO;
 import com.tcgdigital.vmcontrol.dto.CreateAccessRequestDTO;
 import com.tcgdigital.vmcontrol.dto.GrantAccessDTO;
 import com.tcgdigital.vmcontrol.dto.UpdateAccessGrantDTO;
+import com.tcgdigital.vmcontrol.exception.ConflictException;
 import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.*;
@@ -12,6 +13,7 @@ import com.tcgdigital.vmcontrol.repository.EnvironmentAccessRequestRepository;
 import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
 import com.tcgdigital.vmcontrol.repository.VmGroupRepository;
+import com.tcgdigital.vmcontrol.service.support.AfterCommit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -68,6 +70,7 @@ public class EnvironmentAccessService {
     private final UserService userService;
     private final AutomationRuleService automationRuleService;
     private final AccessExpiryProcessor accessExpiryProcessor;
+    private final AfterCommit afterCommit;
 
     public EnvironmentAccessService(EnvironmentAccessRepository accessRepository,
                                      EnvironmentAccessRequestRepository requestRepository,
@@ -78,7 +81,8 @@ public class EnvironmentAccessService {
                                      NotificationService notificationService,
                                      UserService userService,
                                      AutomationRuleService automationRuleService,
-                                     AccessExpiryProcessor accessExpiryProcessor) {
+                                     AccessExpiryProcessor accessExpiryProcessor,
+                                     AfterCommit afterCommit) {
         this.accessRepository = accessRepository;
         this.requestRepository = requestRepository;
         this.environmentRepository = environmentRepository;
@@ -89,6 +93,7 @@ public class EnvironmentAccessService {
         this.userService = userService;
         this.automationRuleService = automationRuleService;
         this.accessExpiryProcessor = accessExpiryProcessor;
+        this.afterCommit = afterCommit;
     }
 
     public boolean isGroupScopeEnabled() {
@@ -167,13 +172,12 @@ public class EnvironmentAccessService {
         auditService.logAccessRequested(requesterId, environmentId, environment.getName(),
                 dto.getAccessLevel().getValue());
 
-        runNotificationSideEffect("notify access request reviewers", saved.getRequestId(), () ->
+        String environmentName = environment.getName();
+        String requestId = saved.getRequestId();
+        String level = dto.getAccessLevel().getValue();
+        sideEffectAfterCommit("notify access request reviewers", requestId, () ->
                 notificationService.notifyAccessRequestedForReviewers(
-                        environmentId,
-                        environment.getName(),
-                        requesterId,
-                        saved.getRequestId(),
-                        dto.getAccessLevel().getValue()));
+                        environmentId, environmentName, requesterId, requestId, level));
 
         return saved;
     }
@@ -223,16 +227,9 @@ public class EnvironmentAccessService {
     @Transactional
     public EnvironmentAccess approveRequest(String requestId, String reviewerUserId, String notes,
                                              Integer reviewerDurationDays) {
-        EnvironmentAccessRequest request = getAccessRequest(requestId);
+        EnvironmentAccessRequest request = decidePending(requestId, AccessRequestStatus.APPROVED,
+                reviewerUserId, notes);
         User reviewer = getUser(reviewerUserId);
-
-        if (!request.isPending()) {
-            throw new ValidationException("Request is not pending: current status is " + request.getStatus());
-        }
-
-        // Mark request as approved
-        request.approve(reviewer, notes);
-        requestRepository.save(request);
 
         // Reviewer-specified duration overrides what the requester asked for
         Integer effectiveDays = reviewerDurationDays != null ? reviewerDurationDays : request.getDurationDays();
@@ -242,10 +239,11 @@ public class EnvironmentAccessService {
                 requestId, reviewerUserId, request.getRequester().getUserId(),
                 request.getEnvironment().getEnvironmentId());
 
-        notificationService.notifyAccessRequestApproved(
-                request.getRequester().getUserId(),
-                request.getEnvironment().getName(),
-                request.getEnvironment().getEnvironmentId());
+        String requesterId = request.getRequester().getUserId();
+        String environmentName = request.getEnvironment().getName();
+        String environmentId = request.getEnvironment().getEnvironmentId();
+        sideEffectAfterCommit("notify access request approved", requestId, () ->
+                notificationService.notifyAccessRequestApproved(requesterId, environmentName, environmentId));
 
         if (outcome.created() || outcome.levelChanged()) {
             fireAccessGrantedAutomation(request.getEnvironment().getEnvironmentId());
@@ -258,15 +256,8 @@ public class EnvironmentAccessService {
      */
     @Transactional
     public EnvironmentAccessRequest denyRequest(String requestId, String reviewerUserId, String reason) {
-        EnvironmentAccessRequest request = getAccessRequest(requestId);
-        User reviewer = getUser(reviewerUserId);
-
-        if (!request.isPending()) {
-            throw new ValidationException("Request is not pending: current status is " + request.getStatus());
-        }
-
-        request.deny(reviewer, reason);
-        EnvironmentAccessRequest saved = requestRepository.save(request);
+        EnvironmentAccessRequest request = decidePending(requestId, AccessRequestStatus.DENIED,
+                reviewerUserId, reason);
 
         log.info("Access request {} denied by {} for user {} on environment {}",
                 requestId, reviewerUserId, request.getRequester().getUserId(),
@@ -275,12 +266,33 @@ public class EnvironmentAccessService {
         auditService.logAccessDenied(reviewerUserId, request.getRequester().getUserId(),
                 request.getEnvironment().getEnvironmentId(), request.getEnvironment().getName(), reason);
 
-        notificationService.notifyAccessRequestDenied(
-                request.getRequester().getUserId(),
-                request.getEnvironment().getName(),
-                request.getEnvironment().getEnvironmentId());
+        String requesterId = request.getRequester().getUserId();
+        String environmentName = request.getEnvironment().getName();
+        String environmentId = request.getEnvironment().getEnvironmentId();
+        sideEffectAfterCommit("notify access request denied", requestId, () ->
+                notificationService.notifyAccessRequestDenied(requesterId, environmentName, environmentId));
 
-        return saved;
+        return request;
+    }
+
+    /**
+     * Move a PENDING request to {@code decision} with one conditional update, so two reviewers
+     * (or a reviewer and the requester cancelling) cannot both win (409 for the loser).
+     *
+     * @return the request as stored after the decision
+     */
+    private EnvironmentAccessRequest decidePending(String requestId, AccessRequestStatus decision,
+                                                   String reviewerUserId, String notes) {
+        EnvironmentAccessRequest request = getAccessRequest(requestId);
+        User reviewer = getUser(reviewerUserId);
+        if (!request.isPending()) {
+            throw new ConflictException("This request was already reviewed (" + request.getStatus() + ")");
+        }
+        Timestamp now = new Timestamp(System.currentTimeMillis());
+        if (requestRepository.reviewIfPending(requestId, decision, reviewer, notes, now) == 0) {
+            throw new ConflictException("This request was already reviewed");
+        }
+        return getAccessRequest(requestId);
     }
 
     /**
@@ -299,8 +311,10 @@ public class EnvironmentAccessService {
             throw new ValidationException("Only pending requests can be cancelled");
         }
 
-        request.cancel();
-        EnvironmentAccessRequest saved = requestRepository.save(request);
+        if (requestRepository.cancelIfPending(requestId, new Timestamp(System.currentTimeMillis())) == 0) {
+            throw new ConflictException("This request was reviewed before it could be cancelled");
+        }
+        EnvironmentAccessRequest saved = getAccessRequest(requestId);
 
         log.info("Access request {} cancelled by requester {}", requestId, requesterId);
 
@@ -429,8 +443,10 @@ public class EnvironmentAccessService {
 
         auditService.logAccessRevoked(actorUserId, targetUserId,
                 environment.getEnvironmentId(), environment.getName());
-        notificationService.notifyAccessRevoked(targetUserId, environment.getName(),
-                environment.getEnvironmentId());
+        String environmentName = environment.getName();
+        String environmentId = environment.getEnvironmentId();
+        sideEffectAfterCommit("notify access revoked", accessId, () ->
+                notificationService.notifyAccessRevoked(targetUserId, environmentName, environmentId));
     }
 
     /**
@@ -465,15 +481,19 @@ public class EnvironmentAccessService {
     private void notifyGrantOutcome(GrantOutcome outcome, String targetUserId,
                                     String environmentName, String environmentId) {
         if (outcome.created()) {
-            notificationService.notifyAccessGranted(targetUserId, environmentName, environmentId);
+            sideEffectAfterCommit("notify access granted", targetUserId, () ->
+                    notificationService.notifyAccessGranted(targetUserId, environmentName, environmentId));
         } else if (outcome.levelChanged()) {
-            notificationService.notifyAccessLevelChanged(targetUserId, environmentName, environmentId,
-                    outcome.previousLevel(), outcome.access().getAccessLevel());
+            AccessLevel previousLevel = outcome.previousLevel();
+            AccessLevel newLevel = outcome.access().getAccessLevel();
+            sideEffectAfterCommit("notify access level changed", targetUserId, () ->
+                    notificationService.notifyAccessLevelChanged(targetUserId, environmentName, environmentId,
+                            previousLevel, newLevel));
         }
     }
 
     private void fireAccessGrantedAutomation(String environmentId) {
-        runNotificationSideEffect("trigger access-granted automation rules", environmentId, () ->
+        sideEffectAfterCommit("trigger access-granted automation rules", environmentId, () ->
                 automationRuleService.handleAccessGranted(environmentId));
     }
 
@@ -639,7 +659,9 @@ public class EnvironmentAccessService {
 
         auditService.logAccessRevoked(revokedByUserId, userId, environmentId, environment.getName());
 
-        notificationService.notifyAccessRevoked(userId, environment.getName(), environmentId);
+        String environmentName = environment.getName();
+        sideEffectAfterCommit("notify access revoked", access.getAccessId(), () ->
+                notificationService.notifyAccessRevoked(userId, environmentName, environmentId));
     }
 
     // ============= Access Query Operations =============
@@ -797,13 +819,13 @@ public class EnvironmentAccessService {
                 warningWindowEnd);
 
         for (EnvironmentAccess access : expiringAccess) {
-            runNotificationSideEffect("notify access expiring", access.getAccessId(), () ->
-                    notificationService.notifyAccessExpiring(
-                            access.getUser().getUserId(),
-                            scopeLabel(access),
-                            access.getEnvironment().getEnvironmentId(),
-                            access.getAccessId(),
-                            access.getExpiresAt()));
+            String userId = access.getUser().getUserId();
+            String label = scopeLabel(access);
+            String environmentId = access.getEnvironment().getEnvironmentId();
+            String accessId = access.getAccessId();
+            Timestamp expiresAt = access.getExpiresAt();
+            sideEffectAfterCommit("notify access expiring", accessId, () ->
+                    notificationService.notifyAccessExpiring(userId, label, environmentId, accessId, expiresAt));
         }
 
         return expiringAccess.size();
@@ -819,6 +841,15 @@ public class EnvironmentAccessService {
     private User getUser(String userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+    }
+
+    /**
+     * Run a side effect (notification, automation) only once the transaction has committed, in a
+     * transaction of its own: a failure there can neither roll back nor mark rollback-only the
+     * grant, revoke or review that triggered it.
+     */
+    private void sideEffectAfterCommit(String action, String entityId, Runnable runnable) {
+        afterCommit.run(() -> runNotificationSideEffect(action, entityId, runnable));
     }
 
     private void runNotificationSideEffect(String action, String entityId, Runnable runnable) {

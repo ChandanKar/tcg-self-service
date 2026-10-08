@@ -74,6 +74,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ));
     }
 
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<Map<String, Object>> handleConflict(ConflictException ex) {
+        log.warn("Conflict: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body("Conflict", ex.getMessage()));
+    }
+
     @ExceptionHandler(LockAlreadyHeldException.class)
     public ResponseEntity<Map<String, Object>> handleLockAlreadyHeld(LockAlreadyHeldException ex) {
         log.warn("Lock already held: {}", ex.getMessage());

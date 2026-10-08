@@ -169,4 +169,14 @@ class AccessDurationValidationTest extends SecuredWebTestBase {
                 .contentType(MediaType.APPLICATION_JSON).content(body)), 400)
                 .andExpect(jsonPath("$.errors[0].field").value("initialGrant.durationDays"));
     }
+
+    @Test
+    void approvingADeniedRequestReturns409() throws Exception {
+        EnvironmentAccessRequest request = pendingRequest();
+        accessService.denyRequest(request.getRequestId(), admin.getUserId(), "Not needed");
+
+        expectError(mockMvc.perform(post("/api/v1/access-requests/" + request.getRequestId() + "/approve")
+                .with(asAdmin()).contentType(MediaType.APPLICATION_JSON).content("{}")), 409)
+                .andExpect(jsonPath("$.message").value("This request was already reviewed (DENIED)"));
+    }
 }

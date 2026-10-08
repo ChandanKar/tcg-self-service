@@ -5,11 +5,14 @@ import com.tcgdigital.vmcontrol.model.AccessScopeType;
 import com.tcgdigital.vmcontrol.model.AccessStatus;
 import com.tcgdigital.vmcontrol.model.Environment;
 import com.tcgdigital.vmcontrol.model.EnvironmentAccess;
+import com.tcgdigital.vmcontrol.model.NotificationType;
 import com.tcgdigital.vmcontrol.model.User;
 import com.tcgdigital.vmcontrol.model.VmGroup;
+import com.tcgdigital.vmcontrol.repository.NotificationRepository;
 import com.tcgdigital.vmcontrol.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -28,6 +31,9 @@ class AccessExpiryIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private AccessExpiryProcessor processor;
+
+    @Autowired
+    private NotificationRepository notificationRepository;
 
     private EnvironmentAccess grantExpiring(User user, AccessScopeType scope, String scopeId, Instant expiresAt) {
         EnvironmentAccess access = grant(user, scope, scopeId, AccessLevel.USER);
@@ -54,6 +60,9 @@ class AccessExpiryIntegrationTest extends AbstractIntegrationTest {
         assertThat(expired).isEqualTo(2);
         assertThat(statusOf(envGrant)).isEqualTo(AccessStatus.EXPIRED);
         assertThat(statusOf(groupGrant)).isEqualTo(AccessStatus.EXPIRED);
+        // The expired notification is written after commit (AfterCommit runs it in a new transaction).
+        assertThat(notificationRepository.findByUserIdOrderByCreatedAtDesc(user.getUserId(), PageRequest.of(0, 10))
+                .stream().filter(n -> n.getType() == NotificationType.ACCESS_EXPIRED)).hasSize(2);
     }
 
     @Test

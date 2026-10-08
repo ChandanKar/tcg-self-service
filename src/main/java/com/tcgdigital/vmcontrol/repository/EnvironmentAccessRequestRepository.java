@@ -3,11 +3,14 @@ package com.tcgdigital.vmcontrol.repository;
 import com.tcgdigital.vmcontrol.model.AccessRequestStatus;
 import com.tcgdigital.vmcontrol.model.AccessScopeType;
 import com.tcgdigital.vmcontrol.model.EnvironmentAccessRequest;
+import com.tcgdigital.vmcontrol.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.sql.Timestamp;
 import java.util.List;
 
 /**
@@ -99,5 +102,28 @@ public interface EnvironmentAccessRequestRepository extends JpaRepository<Enviro
      * Count pending requests for a specific environment.
      */
     long countByEnvironment_EnvironmentIdAndStatus(String environmentId, AccessRequestStatus status);
-}
 
+    /**
+     * Decide a request only if it is still PENDING; returns 0 when another reviewer (or the
+     * requester cancelling) got there first. The status check and the write are one statement,
+     * so two concurrent reviews cannot both succeed.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE EnvironmentAccessRequest r SET r.status = :newStatus, r.reviewedBy = :reviewer, " +
+           "r.reviewedAt = :now, r.reviewDecisionNotes = :notes, r.updatedAt = :now " +
+           "WHERE r.requestId = :requestId " +
+           "AND r.status = com.tcgdigital.vmcontrol.model.AccessRequestStatus.PENDING")
+    int reviewIfPending(@Param("requestId") String requestId,
+                        @Param("newStatus") AccessRequestStatus newStatus,
+                        @Param("reviewer") User reviewer,
+                        @Param("notes") String notes,
+                        @Param("now") Timestamp now);
+
+    /** Cancel a request only if it is still PENDING; returns 0 when it was decided meanwhile. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE EnvironmentAccessRequest r SET " +
+           "r.status = com.tcgdigital.vmcontrol.model.AccessRequestStatus.CANCELLED, r.updatedAt = :now " +
+           "WHERE r.requestId = :requestId " +
+           "AND r.status = com.tcgdigital.vmcontrol.model.AccessRequestStatus.PENDING")
+    int cancelIfPending(@Param("requestId") String requestId, @Param("now") Timestamp now);
+}

@@ -17,13 +17,16 @@ class AfterCommitTest extends AbstractIntegrationTest {
     @Autowired
     private PlatformTransactionManager transactionManager;
 
+    @Autowired
+    private AfterCommit afterCommit;
+
     @Test
     void runsOnceAfterCommit() {
         AtomicInteger runs = new AtomicInteger();
         AtomicBoolean ranInsideTransaction = new AtomicBoolean(true);
 
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-            AfterCommit.run(runs::incrementAndGet);
+            afterCommit.run(runs::incrementAndGet);
             ranInsideTransaction.set(runs.get() > 0);
         });
 
@@ -36,7 +39,7 @@ class AfterCommitTest extends AbstractIntegrationTest {
         AtomicInteger runs = new AtomicInteger();
 
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-            AfterCommit.run(runs::incrementAndGet);
+            afterCommit.run(runs::incrementAndGet);
             status.setRollbackOnly();
         });
 
@@ -47,7 +50,7 @@ class AfterCommitTest extends AbstractIntegrationTest {
     void runsImmediatelyWithoutTransaction() {
         AtomicInteger runs = new AtomicInteger();
 
-        AfterCommit.run(runs::incrementAndGet);
+        afterCommit.run(runs::incrementAndGet);
 
         assertThat(runs).hasValue(1);
     }
@@ -55,9 +58,19 @@ class AfterCommitTest extends AbstractIntegrationTest {
     @Test
     void failingTaskDoesNotFailTheCommit() {
         assertThatCode(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status ->
-                AfterCommit.run(() -> {
+                afterCommit.run(() -> {
                     throw new IllegalStateException("side effect failed");
                 })))
                 .doesNotThrowAnyException();
+    }
+
+    @Test
+    void databaseWritesInTheTaskAreCommitted() {
+        String[] userId = new String[1];
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(status ->
+                afterCommit.run(() -> userId[0] = newUser("after-commit@example.com", false, false).getUserId()));
+
+        assertThat(userRepository.findById(userId[0])).isPresent();
     }
 }

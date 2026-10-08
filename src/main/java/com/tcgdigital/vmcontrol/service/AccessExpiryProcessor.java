@@ -25,13 +25,16 @@ public class AccessExpiryProcessor {
     private final EnvironmentAccessRepository accessRepository;
     private final VmGroupRepository vmGroupRepository;
     private final NotificationService notificationService;
+    private final AfterCommit afterCommit;
 
     public AccessExpiryProcessor(EnvironmentAccessRepository accessRepository,
                                  VmGroupRepository vmGroupRepository,
-                                 NotificationService notificationService) {
+                                 NotificationService notificationService,
+                                 AfterCommit afterCommit) {
         this.accessRepository = accessRepository;
         this.vmGroupRepository = vmGroupRepository;
         this.notificationService = notificationService;
+        this.afterCommit = afterCommit;
     }
 
     /**
@@ -55,7 +58,7 @@ public class AccessExpiryProcessor {
         String scopeLabel = EnvironmentAccessService.scopeLabel(access, vmGroupRepository);
         log.info("Access {} expired for user {} on environment {}", accessId, userId, environmentId);
 
-        AfterCommit.run(() -> notificationService.notifyAccessExpired(userId, scopeLabel, environmentId, accessId));
+        afterCommit.run(() -> notificationService.notifyAccessExpired(userId, scopeLabel, environmentId, accessId));
         return true;
     }
 }
