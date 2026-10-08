@@ -89,6 +89,24 @@ class VmDiscoveryIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void tagReconciliationAfterDiscoveryLoadsOnlyUntaggedVmsOfTheEnvironment() {
+        Environment env = discoveryEnvironment("Tags");
+        VmGroup group = discoveryGroup(env);
+        Vm tagged = newVm(group, "tagged", VmStatus.RUNNING);
+        Vm fresh = newVm(group, "fresh", VmStatus.RUNNING);
+        Vm retired = newVm(group, "retired", VmStatus.STOPPED);
+        tagged.setTagsSyncedAt(java.sql.Timestamp.valueOf("2026-01-01 00:00:00"));
+        retired.setIsActive(false);
+        vmRepository.saveAllAndFlush(List.of(tagged, retired));
+        newVm(newGroup(discoveryEnvironment("Other"), "app"), "elsewhere", VmStatus.RUNNING);
+
+        assertThat(vmRepository.findActiveByEnvironmentIdFetchGroupAndEnvironment(env.getEnvironmentId(), true))
+                .extracting(Vm::getVmId).containsExactly(fresh.getVmId());
+        assertThat(vmRepository.findActiveByEnvironmentIdFetchGroupAndEnvironment(env.getEnvironmentId(), false))
+                .extracting(Vm::getVmId).containsExactlyInAnyOrder(tagged.getVmId(), fresh.getVmId());
+    }
+
+    @Test
     void aFailedAwsCallFlagsNothing() {
         Environment env = discoveryEnvironment("Throttled");
         Vm present = newVm(discoveryGroup(env), "present", VmStatus.RUNNING);

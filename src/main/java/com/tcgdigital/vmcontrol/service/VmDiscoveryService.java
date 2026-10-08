@@ -77,7 +77,7 @@ public class VmDiscoveryService {
      */
     private void reconcileTagsSafely(Environment env) {
         try {
-            tagReconciliationService.reconcileEnvironment(env);
+            tagReconciliationService.reconcileNewInEnvironment(env);
         } catch (Exception e) {
             log.warn("Tag reconciliation failed for environment {} (discovery unaffected): {}", env.getName(), e.getMessage());
         }

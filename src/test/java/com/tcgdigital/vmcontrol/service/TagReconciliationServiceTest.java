@@ -17,6 +17,7 @@ import software.amazon.awssdk.services.eks.model.Nodegroup;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -65,6 +66,7 @@ class TagReconciliationServiceTest {
         Vm vm1 = buildEc2Vm("vm-1", env, "i-aaa", "ap-south-1");
         Vm vm2 = buildEc2Vm("vm-2", env, "i-bbb", "ap-south-1");
         when(vmRepository.findByIsActiveTrueFetchGroupAndEnvironment()).thenReturn(List.of(vm1, vm2));
+        when(awsCloudProviderService.tagInstances(eq("ap-south-1"), any(), any())).thenReturn(Set.of("i-aaa", "i-bbb"));
 
         TagReconciliationService.Result result = service.reconcileAll();
 
@@ -93,6 +95,7 @@ class TagReconciliationServiceTest {
 
         doThrow(new RuntimeException("AWS throttled"))
                 .when(awsCloudProviderService).tagInstances(eq("ap-south-1"), eq(List.of("i-aaa")), any());
+        when(awsCloudProviderService.tagInstances(eq("ap-south-1"), eq(List.of("i-bbb")), any())).thenReturn(Set.of("i-bbb"));
 
         TagReconciliationService.Result result = service.reconcileAll();
 
@@ -142,13 +145,47 @@ class TagReconciliationServiceTest {
         Environment envB = buildEnvironment("env-b", "env-b-name", null);
         Vm vmA = buildEc2Vm("vm-a", envA, "i-aaa", "ap-south-1");
         Vm vmB = buildEc2Vm("vm-b", envB, "i-bbb", "ap-south-1");
-        when(vmRepository.findByIsActiveTrueFetchGroupAndEnvironment()).thenReturn(List.of(vmA, vmB));
+        when(vmRepository.findActiveByEnvironmentIdFetchGroupAndEnvironment("env-a", false)).thenReturn(List.of(vmA));
 
         TagReconciliationService.Result result = service.reconcileEnvironment(envA);
 
         assertEquals(1, result.total());
         verify(awsCloudProviderService).tagInstances(eq("ap-south-1"), eq(List.of("i-aaa")), any());
         verify(awsCloudProviderService, never()).tagInstances(eq("ap-south-1"), eq(List.of("i-bbb")), any());
+        verify(vmRepository, never()).findByIsActiveTrueFetchGroupAndEnvironment(); // no fleet-wide load
+    }
+
+    // ---- E09-T04: after discovery only untagged VMs; one bad id does not fail the batch ----
+
+    @Test
+    void reconcileNewInEnvironment_tagsOnlyUntaggedVms() {
+        Environment env = buildEnvironment("env-a", "env-a-name", null);
+        Vm fresh = buildEc2Vm("vm-new", env, "i-new", "ap-south-1");
+        when(vmRepository.findActiveByEnvironmentIdFetchGroupAndEnvironment("env-a", true)).thenReturn(List.of(fresh));
+        when(awsCloudProviderService.tagInstances(eq("ap-south-1"), any(), any())).thenReturn(Set.of("i-new"));
+
+        TagReconciliationService.Result result = service.reconcileNewInEnvironment(env);
+
+        assertEquals(1, result.tagged());
+        verify(awsCloudProviderService).tagInstances(eq("ap-south-1"), eq(List.of("i-new")), any());
+        verify(vmRepository, never()).findActiveByEnvironmentIdFetchGroupAndEnvironment("env-a", false);
+    }
+
+    @Test
+    void reconcile_marksOnlyTheIdsAwsAccepted() {
+        Environment env = buildEnvironment("env-a", "env-a-name", null);
+        Vm good = buildEc2Vm("vm-good", env, "i-good", "ap-south-1");
+        Vm gone = buildEc2Vm("vm-gone", env, "i-gone", "ap-south-1");
+        when(vmRepository.findActiveByEnvironmentIdFetchGroupAndEnvironment("env-a", true)).thenReturn(List.of(good, gone));
+        when(awsCloudProviderService.tagInstances(eq("ap-south-1"), any(), any())).thenReturn(Set.of("i-good"));
+
+        TagReconciliationService.Result result = service.reconcileNewInEnvironment(env);
+
+        assertEquals(1, result.tagged());
+        assertEquals(1, result.failed());
+        verify(vmRepository).markTagsSynced(eq(List.of("vm-good")), any());
+        verify(vmRepository, never()).save(any());
+        verify(vmRepository, never()).saveAll(any());
     }
 
     // ---- helpers ----

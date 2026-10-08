@@ -133,7 +133,7 @@ class VmDiscoveryServiceTest {
         assertThat(saved(2).get(1).getProviderVmId()).isEqualTo("i-0000000000000good");
         // Missing-VM flagging and tag reconciliation still run after a failed instance.
         verify(vmRepository).findByGroupGroupIdOrderBySequencePositionAsc("group-1");
-        verify(tagReconciliationService).reconcileEnvironment(env);
+        verify(tagReconciliationService).reconcileNewInEnvironment(env);
     }
 
     // ------------------------------------------------------------------ AWS failures (E09-T02, H24)
@@ -150,7 +150,7 @@ class VmDiscoveryServiceTest {
 
         verify(vmRepository, never()).save(any(Vm.class));
         verify(vmRepository, never()).markDriftIfActive(any(), any());
-        verify(tagReconciliationService, never()).reconcileEnvironment(any());
+        verify(tagReconciliationService, never()).reconcileNewInEnvironment(any());
     }
 
     @Test
@@ -314,7 +314,7 @@ class VmDiscoveryServiceTest {
 
         assertThat(saved(1).get(0).getRegion()).isEqualTo("ap-south-1");
         verify(vmRepository, never()).markDriftIfActive(any(), any());
-        verify(tagReconciliationService, never()).reconcileEnvironment(any());
+        verify(tagReconciliationService, never()).reconcileNewInEnvironment(any());
     }
 
     @Test
@@ -351,6 +351,6 @@ class VmDiscoveryServiceTest {
                 .then(returnsFirstArg());
 
         assertThat(service.discoverAndRegisterVms()).isEqualTo(1);
-        verify(tagReconciliationService).reconcileEnvironment(env);
+        verify(tagReconciliationService).reconcileNewInEnvironment(env);
     }
 }

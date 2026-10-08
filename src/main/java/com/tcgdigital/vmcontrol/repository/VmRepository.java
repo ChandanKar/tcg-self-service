@@ -152,6 +152,15 @@ public interface VmRepository extends JpaRepository<Vm, String> {
     List<Vm> findByIsActiveTrueFetchGroupAndEnvironment();
 
     /**
+     * One environment's active VMs with group and environment loaded; with onlyUntagged, only
+     * those never tagged (tag reconciliation after discovery, not the whole fleet).
+     */
+    @Query("SELECT v FROM Vm v JOIN FETCH v.group g JOIN FETCH g.environment e " +
+           "WHERE e.environmentId = :envId AND v.isActive = true AND (:onlyUntagged = false OR v.tagsSyncedAt IS NULL)")
+    List<Vm> findActiveByEnvironmentIdFetchGroupAndEnvironment(@Param("envId") String envId,
+                                                               @Param("onlyUntagged") boolean onlyUntagged);
+
+    /**
      * Counts for the cost-allocation tagging status banner: how many active VMs have never been
      * successfully tagged yet (tagsSyncedAt IS NULL) vs. how many have.
      */

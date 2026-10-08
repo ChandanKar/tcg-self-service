@@ -72,18 +72,24 @@ public class TagReconciliationService {
         return reconcile(vmRepository.findByIsActiveTrueFetchGroupAndEnvironment());
     }
 
-    /**
-     * Sweeps only the VMs belonging to one environment — called right after VM discovery so
-     * newly-registered VMs get tagged immediately instead of waiting for the nightly sweep.
-     */
+    /** Sweeps every active VM of one environment (a full re-tag of that environment). */
     public Result reconcileEnvironment(Environment environment) {
         if (!taggingEnabled) {
             return new Result(0, 0, 0);
         }
-        List<Vm> vms = vmRepository.findByIsActiveTrueFetchGroupAndEnvironment().stream()
-                .filter(vm -> vm.getGroup().getEnvironment().getEnvironmentId().equals(environment.getEnvironmentId()))
-                .toList();
-        return reconcile(vms);
+        return reconcile(vmRepository.findActiveByEnvironmentIdFetchGroupAndEnvironment(environment.getEnvironmentId(), false));
+    }
+
+    /**
+     * Tags only the environment's VMs that were never tagged — called right after VM discovery
+     * so new VMs are tagged at once without re-tagging the whole environment every run. The
+     * nightly {@link #reconcileAll()} remains the drift-repair sweep.
+     */
+    public Result reconcileNewInEnvironment(Environment environment) {
+        if (!taggingEnabled) {
+            return new Result(0, 0, 0);
+        }
+        return reconcile(vmRepository.findActiveByEnvironmentIdFetchGroupAndEnvironment(environment.getEnvironmentId(), true));
     }
 
     private Result reconcile(List<Vm> vms) {
@@ -106,9 +112,12 @@ public class TagReconciliationService {
             Map<String, String> tags = buildTags(env);
             List<String> instanceIds = group.stream().map(Vm::getProviderVmId).toList();
             try {
-                awsCloudProviderService.tagInstances(first.getRegion(), instanceIds, tags);
-                markTagged(group);
-                tagged += group.size();
+                // Only the ids AWS accepted are marked; one bad id no longer fails the batch.
+                java.util.Set<String> taggedIds = awsCloudProviderService.tagInstances(first.getRegion(), instanceIds, tags);
+                List<Vm> done = group.stream().filter(vm -> taggedIds.contains(vm.getProviderVmId())).toList();
+                markTagged(done);
+                tagged += done.size();
+                failed += group.size() - done.size();
             } catch (Exception e) {
                 log.error("Failed to tag {} EC2 instance(s) in region {} for environment {}: {}",
                         group.size(), first.getRegion(), env.getName(), e.getMessage());

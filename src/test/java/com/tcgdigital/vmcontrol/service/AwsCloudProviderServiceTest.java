@@ -69,6 +69,34 @@ class AwsCloudProviderServiceTest {
                 () -> service.discoverInstancesByNamePrefix(REGION, "app"));
     }
 
+    // --- tagging (E09-T04): one bad id does not fail its whole CreateTags chunk ---
+
+    @Test
+    void tagInstancesFallsBackToOneByOneWhenAChunkFails() {
+        when(mockEc2Client.createTags(any(CreateTagsRequest.class))).thenAnswer(inv -> {
+            CreateTagsRequest req = inv.getArgument(0);
+            if (req.resources().contains("i-gone")) {
+                throw Ec2Exception.builder().message("The instance ID 'i-gone' does not exist").build();
+            }
+            return CreateTagsResponse.builder().build();
+        });
+
+        java.util.Set<String> tagged = service.tagInstances(REGION, List.of("i-one", "i-gone", "i-two"),
+                Map.of("tcg:managed-by", "vmcontrol"));
+
+        assertEquals(java.util.Set.of("i-one", "i-two"), tagged);
+        verify(mockEc2Client, times(4)).createTags(any(CreateTagsRequest.class)); // 1 chunk + 3 single
+    }
+
+    @Test
+    void tagInstancesReturnsEveryIdWhenTheChunkSucceeds() {
+        when(mockEc2Client.createTags(any(CreateTagsRequest.class))).thenReturn(CreateTagsResponse.builder().build());
+
+        assertEquals(java.util.Set.of("i-one", "i-two"),
+                service.tagInstances(REGION, List.of("i-one", "i-two"), Map.of("tcg:managed-by", "vmcontrol")));
+        verify(mockEc2Client, times(1)).createTags(any(CreateTagsRequest.class));
+    }
+
     // --- helpers ---
 
     private StartInstancesResponse startResponse(InstanceStateName previous, InstanceStateName current) {

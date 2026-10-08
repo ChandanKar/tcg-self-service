@@ -728,9 +728,10 @@ public class AwsCloudProviderService implements CloudProviderService {
      * cost-allocation tagging (tcg:managed-by/environment/team), never called during normal
      * start/stop/discovery. Batches at 20 resources per CreateTags call, the actual EC2 API limit.
      */
-    public void tagInstances(String region, List<String> instanceIds, Map<String, String> tags) {
+    public java.util.Set<String> tagInstances(String region, List<String> instanceIds, Map<String, String> tags) {
+        java.util.Set<String> taggedIds = new java.util.LinkedHashSet<>();
         if (instanceIds.isEmpty() || tags.isEmpty()) {
-            return;
+            return taggedIds;
         }
         Ec2Client ec2 = getEc2Client(region);
         List<Tag> ec2Tags = tags.entrySet().stream()
@@ -740,12 +741,25 @@ public class AwsCloudProviderService implements CloudProviderService {
         int chunkSize = 20;
         for (int i = 0; i < instanceIds.size(); i += chunkSize) {
             List<String> chunk = instanceIds.subList(i, Math.min(i + chunkSize, instanceIds.size()));
-            ec2.createTags(CreateTagsRequest.builder()
-                    .resources(chunk)
-                    .tags(ec2Tags)
-                    .build());
+            try {
+                ec2.createTags(CreateTagsRequest.builder().resources(chunk).tags(ec2Tags).build());
+                taggedIds.addAll(chunk);
+            } catch (Ec2Exception chunkFailure) {
+                // One bad id (e.g. a terminated instance) fails the whole call: retry one by one.
+                log.warn("CreateTags failed for a chunk of {} in {} ({}); retrying one by one",
+                        chunk.size(), region, chunkFailure.getMessage());
+                for (String id : chunk) {
+                    try {
+                        ec2.createTags(CreateTagsRequest.builder().resources(id).tags(ec2Tags).build());
+                        taggedIds.add(id);
+                    } catch (Ec2Exception e) {
+                        log.warn("Could not tag EC2 instance {} in {}: {}", id, region, e.getMessage());
+                    }
+                }
+            }
         }
-        log.info("Tagged {} EC2 instance(s) in region {} with {}", instanceIds.size(), region, tags);
+        log.info("Tagged {} of {} EC2 instance(s) in region {} with {}", taggedIds.size(), instanceIds.size(), region, tags);
+        return taggedIds;
     }
 
     /**
