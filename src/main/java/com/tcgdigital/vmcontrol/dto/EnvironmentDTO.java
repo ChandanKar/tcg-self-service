@@ -23,6 +23,7 @@ public class EnvironmentDTO {
     private String metadata;
     private String serviceType;
     private String eksClusterName;
+    private boolean production;
     // Lock summary for list rows (E10-T05): locked is false and the rest null when unlocked.
     private boolean locked;
     private String lockedByUserId;
@@ -45,6 +46,7 @@ public class EnvironmentDTO {
         dto.setMetadata(environment.getMetadata());
         dto.setServiceType(environment.getServiceType());
         dto.setEksClusterName(environment.getEksClusterName());
+        dto.setProduction(Boolean.TRUE.equals(environment.getIsProduction()));
         return dto;
     }
 
@@ -202,5 +204,14 @@ public class EnvironmentDTO {
 
     public void setLockedAt(Timestamp lockedAt) {
         this.lockedAt = lockedAt;
+    }
+
+    /** Excluded from idle auto-stop (E16). */
+    public boolean isProduction() {
+        return production;
+    }
+
+    public void setProduction(boolean production) {
+        this.production = production;
     }
 }

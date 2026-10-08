@@ -46,6 +46,10 @@ public class Environment {
     @Column(name = "service_type", length = 20, nullable = false)
     private String serviceType = "EC2";
 
+    /** Production environments are excluded from idle auto-stop (V35, E16). */
+    @Column(name = "is_production", nullable = false)
+    private Boolean isProduction = false;
+
     /** EKS only: the exact, case-sensitive cluster name used for AWS calls (V34). */
     @Column(name = "eks_cluster_name", length = 255)
     private String eksClusterName;
@@ -153,5 +157,13 @@ public class Environment {
     @Transient
     public String getEffectiveClusterName() {
         return eksClusterName != null && !eksClusterName.isBlank() ? eksClusterName : name;
+    }
+
+    public Boolean getIsProduction() {
+        return isProduction;
+    }
+
+    public void setIsProduction(Boolean isProduction) {
+        this.isProduction = isProduction;
     }
 }
