@@ -25,6 +25,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,7 +75,7 @@ public class EnvironmentInsightsService {
     public EnvironmentInsightsDTO getInsights(String environmentId, java.util.Collection<String> visibleGroupIds) {
         Environment environment = environmentService.getEnvironmentById(environmentId);
         List<VmGroup> groups = groupRepository.findByEnvironmentEnvironmentIdOrderBySequencePositionAsc(environmentId);
-        List<Vm> vms = vmRepository.findByEnvironmentId(environmentId);
+        List<Vm> vms = vmRepository.findByEnvironmentIdFetchGroupAndEnvironment(environmentId);
 
         if (visibleGroupIds != null) {
             java.util.Set<String> visible = new java.util.HashSet<>(visibleGroupIds);
@@ -109,6 +110,28 @@ public class EnvironmentInsightsService {
         Instant seriesEnd = Instant.now();
         List<VmSeriesSamples> vmSeriesSamples = new ArrayList<>();
 
+        // Everything per VM is loaded up front in a few IN queries (M36): this was five queries
+        // per VM, about 1,000 for a 200-VM environment.
+        List<String> vmIds = vms.stream().map(Vm::getVmId).toList();
+        Map<String, VmInventorySnapshot> inventoryByVm = new HashMap<>();
+        Map<String, List<VmVolumeSnapshot>> volumesByVm = new HashMap<>();
+        Map<String, VmIdleSummary> idleByVm = new HashMap<>();
+        Map<String, VmMetricSample> latestByVm = new HashMap<>();
+        Map<String, List<VmMetricSample>> seriesByVm = new HashMap<>();
+        for (List<String> chunk : chunks(vmIds)) {
+            inventoryRepository.findByVmVmIdIn(chunk).forEach(i -> inventoryByVm.put(i.getVm().getVmId(), i));
+            volumeRepository.findByVmVmIdIn(chunk).forEach(v ->
+                    volumesByVm.computeIfAbsent(v.getVm().getVmId(), k -> new ArrayList<>()).add(v));
+            idleSummaryRepository.findByVmVmIdIn(chunk).forEach(i -> idleByVm.put(i.getVm().getVmId(), i));
+            sampleRepository.findLatestByVmIds(chunk).forEach(s ->
+                    latestByVm.merge(s.getVm().getVmId(), s, (a, b) -> a.getSampleTime().compareTo(b.getSampleTime()) >= 0 ? a : b));
+            sampleRepository.findByVmVmIdInAndSampleTimeBetweenOrderBySampleTimeAsc(
+                            chunk, Timestamp.from(seriesStart), Timestamp.from(seriesEnd))
+                    .forEach(s -> seriesByVm.computeIfAbsent(s.getVm().getVmId(), k -> new ArrayList<>()).add(s));
+        }
+        volumesByVm.values().forEach(list -> list.sort(Comparator.comparing(VmVolumeSnapshot::getDeviceName,
+                Comparator.nullsLast(Comparator.naturalOrder()))));
+
         for (Vm vm : vms) {
             VmStatus status = vm.getStatus();
             statusCounts.merge(status == null ? "UNKNOWN" : status.name(), 1, Integer::sum);
@@ -123,7 +146,7 @@ public class EnvironmentInsightsService {
                 driftedVms++;
             }
 
-            Optional<VmInventorySnapshot> inventory = inventoryRepository.findByVmVmId(vm.getVmId());
+            Optional<VmInventorySnapshot> inventory = Optional.ofNullable(inventoryByVm.get(vm.getVmId()));
             if (inventory.isPresent()) {
                 VmInventorySnapshot snapshot = inventory.get();
                 latestInventoryRefreshTime = maxTimestamp(latestInventoryRefreshTime, snapshot.getLastRefreshedAt());
@@ -131,7 +154,7 @@ public class EnvironmentInsightsService {
                 missingInventoryVms++;
             }
 
-            List<VmVolumeSnapshot> volumes = volumeRepository.findByVmVmIdOrderByDeviceNameAsc(vm.getVmId());
+            List<VmVolumeSnapshot> volumes = volumesByVm.getOrDefault(vm.getVmId(), List.of());
             int vmStorageGib = 0;
             for (VmVolumeSnapshot volume : volumes) {
                 volumeCount++;
@@ -140,10 +163,9 @@ public class EnvironmentInsightsService {
             }
             totalAllocatedStorageGib += vmStorageGib;
 
-            Optional<VmMetricSample> latestSample = sampleRepository.findTopByVmVmIdOrderBySampleTimeDesc(vm.getVmId());
-            Optional<VmIdleSummary> idleSummary = idleSummaryRepository.findByVmVmId(vm.getVmId());
-            List<VmMetricSample> recentSamples = sampleRepository.findByVmVmIdAndSampleTimeBetweenOrderBySampleTimeAsc(
-                    vm.getVmId(), Timestamp.from(seriesStart), Timestamp.from(seriesEnd));
+            Optional<VmMetricSample> latestSample = Optional.ofNullable(latestByVm.get(vm.getVmId()));
+            Optional<VmIdleSummary> idleSummary = Optional.ofNullable(idleByVm.get(vm.getVmId()));
+            List<VmMetricSample> recentSamples = seriesByVm.getOrDefault(vm.getVmId(), List.of());
             if (!recentSamples.isEmpty()) {
                 vmSeriesSamples.add(new VmSeriesSamples(
                         vm.getVmId(),
@@ -175,6 +197,7 @@ public class EnvironmentInsightsService {
             vmRows.add(new EnvironmentInsightsDTO.VmInsightRowDTO(
                     vm.getVmId(),
                     vm.getDisplayName() != null ? vm.getDisplayName() : vm.getName(),
+                    vm.getGroup().getGroupId(),
                     vm.getGroup().getDisplayName() != null ? vm.getGroup().getDisplayName() : vm.getGroup().getName(),
                     status == null ? "UNKNOWN" : status.name(),
                     latestSample.map(VmMetricSample::getCpuUtilization).orElse(null),
@@ -184,12 +207,12 @@ public class EnvironmentInsightsService {
             ));
         }
 
+        // Keyed by group id: two groups may share a display name (they were merged).
         Map<String, List<EnvironmentInsightsDTO.VmInsightRowDTO>> rowsByGroupId = vmRows.stream()
-                .collect(Collectors.groupingBy(EnvironmentInsightsDTO.VmInsightRowDTO::groupName));
+                .collect(Collectors.groupingBy(EnvironmentInsightsDTO.VmInsightRowDTO::groupId));
 
         List<EnvironmentInsightsDTO.GroupInsightDTO> groupInsights = groups.stream()
-                .map(group -> buildGroupInsight(group, rowsByGroupId.getOrDefault(
-                        group.getDisplayName() != null ? group.getDisplayName() : group.getName(), List.of())))
+                .map(group -> buildGroupInsight(group, rowsByGroupId.getOrDefault(group.getGroupId(), List.of())))
                 .toList();
 
         BigDecimal avgCpu = cpuSampleCount == 0
@@ -247,6 +270,16 @@ public class EnvironmentInsightsService {
                 idleRows,
                 buildRecommendations(idleVms, missingInventoryVms, missingMetricVms, driftedVms, totalAllocatedStorageGib)
         );
+    }
+
+    private static final int IN_CHUNK = 500;
+
+    private static List<List<String>> chunks(List<String> ids) {
+        List<List<String>> chunks = new ArrayList<>();
+        for (int i = 0; i < ids.size(); i += IN_CHUNK) {
+            chunks.add(ids.subList(i, Math.min(i + IN_CHUNK, ids.size())));
+        }
+        return chunks; // empty for no VMs: no IN () query is issued
     }
 
     private EnvironmentInsightsDTO.GroupInsightDTO buildGroupInsight(

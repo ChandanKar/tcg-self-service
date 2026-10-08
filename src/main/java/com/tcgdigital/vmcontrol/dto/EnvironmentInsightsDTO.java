@@ -57,6 +57,7 @@ public record EnvironmentInsightsDTO(
     public record VmInsightRowDTO(
             String vmId,
             String name,
+            String groupId,
             String groupName,
             String status,
             BigDecimal cpuUtilization,

@@ -19,6 +19,11 @@ public interface VmMetricSampleRepository extends JpaRepository<VmMetricSample, 
     List<VmMetricSample> findByVmVmIdOrderBySampleTimeDesc(String vmId, Pageable pageable);
     Optional<VmMetricSample> findTopByVmVmIdOrderBySampleTimeDesc(String vmId);
 
+    /** The latest sample of each VM, in one query (environment insights, M36). Ties may return two. */
+    @Query("SELECT s FROM VmMetricSample s WHERE s.vm.vmId IN :vmIds AND s.sampleTime = " +
+           "(SELECT MAX(s2.sampleTime) FROM VmMetricSample s2 WHERE s2.vm.vmId = s.vm.vmId)")
+    List<VmMetricSample> findLatestByVmIds(@Param("vmIds") List<String> vmIds);
+
     @Query("SELECT s FROM VmMetricSample s WHERE s.sampleTime < :cutoff ORDER BY s.sampleTime ASC")
     List<VmMetricSample> findArchiveBatch(@Param("cutoff") Timestamp cutoff, Pageable pageable);
 
