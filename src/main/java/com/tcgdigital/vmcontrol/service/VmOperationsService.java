@@ -39,6 +39,11 @@ public class VmOperationsService {
 
     private static final Logger log = LoggerFactory.getLogger(VmOperationsService.class);
 
+    /** Stored status values of a run that can still be cancelled or fail. */
+    private static final List<String> ACTIVE_STATUSES = List.of(
+            OperationExecution.statusValue(ExecutionStatus.PENDING),
+            OperationExecution.statusValue(ExecutionStatus.IN_PROGRESS));
+
     private final OperationExecutionRepository executionRepository;
     private final OperationDetailRepository detailRepository;
     private final EnvironmentRepository environmentRepository;
@@ -415,9 +420,14 @@ public class VmOperationsService {
             throw new ValidationException("Cannot cancel execution in status: " + execution.getStatus());
         }
 
-        execution.setStatus(ExecutionStatus.CANCELLED);
-        execution.setCompletedAt(Timestamp.from(Instant.now()));
-        execution.setErrorMessage("Cancelled by user: " + userId);
+        // Conditional: loses cleanly if the run finished (or another cancel landed) meanwhile.
+        String environmentName = execution.getEnvironment().getName();
+        String operationType = execution.getOperationType().name();
+        if (executionRepository.transitionStatus(executionId, ACTIVE_STATUSES,
+                OperationExecution.statusValue(ExecutionStatus.CANCELLED),
+                Timestamp.from(Instant.now()), "Cancelled by user: " + userId) == 0) {
+            throw new ValidationException("Operation already finished");
+        }
 
         // Cancel pending details
         List<OperationDetail> pendingDetails = detailRepository
@@ -430,10 +440,9 @@ public class VmOperationsService {
 
         log.info("Cancelled execution {} by user {}", executionId, userId);
         auditService.logEnvironmentAction(userId, AuditAction.OPERATION_CANCELLED, environmentId,
-                execution.getEnvironment().getName(), "operation", executionId,
-                execution.getOperationType().name(), "Cancelled");
+                environmentName, "operation", executionId, operationType, "Cancelled");
 
-        return executionRepository.save(execution);
+        return getExecutionForEnvironment(environmentId, executionId);
     }
 
     /**
@@ -460,11 +469,14 @@ public class VmOperationsService {
      * triggers an all-or-nothing abort — dependency state is what decides skip vs. attempt now.
      */
     private void executeOperation(String executionId, boolean continueOnFailure) {
+        // PENDING -> IN_PROGRESS only if nobody cancelled it before the worker picked it up.
+        if (executionRepository.transitionStatus(executionId,
+                List.of(OperationExecution.statusValue(ExecutionStatus.PENDING)),
+                OperationExecution.statusValue(ExecutionStatus.IN_PROGRESS), null, null) == 0) {
+            log.info("Execution {} was cancelled before it started; nothing to do", executionId);
+            return;
+        }
         OperationExecution execution = getExecution(executionId);
-
-        // Mark as in progress
-        execution.setStatus(ExecutionStatus.IN_PROGRESS);
-        executionRepository.save(execution);
         // Captured up front so the per-VM steps (which run on worker threads, off any session)
         // never have to navigate detail.getExecution() for a non-id property.
         final OperationType operationType = execution.getOperationType();
@@ -475,7 +487,7 @@ public class VmOperationsService {
                 .findByExecutionExecutionIdAndStatusOrderBySequencePositionAsc(executionId, "pending");
 
         if (details.isEmpty()) {
-            markExecutionCompleted(executionId);
+            finishExecution(executionId);
             return;
         }
 
@@ -488,7 +500,6 @@ public class VmOperationsService {
 
         Map<String, String> finalStatusByDetailId = new HashMap<>();
         List<OperationDetail> remaining = new ArrayList<>(details);
-        boolean hasFailures = false;
 
         while (!remaining.isEmpty()) {
             if (getExecution(executionId).getStatus() == ExecutionStatus.CANCELLED) {
@@ -521,7 +532,6 @@ public class VmOperationsService {
                 if (blockingDependencyName != null) {
                     skipDetail(detail, blockingDependencyName, executionId);
                     finalStatusByDetailId.put(detail.getDetailId(), "skipped");
-                    hasFailures = true;
                 } else {
                     runnable.add(detail);
                 }
@@ -547,8 +557,8 @@ public class VmOperationsService {
                     // Task threw before persisting a terminal status — count it as failed.
                     String status = terminal ? reloaded.getStatus() : "failed";
                     finalStatusByDetailId.put(detail.getDetailId(), status);
-                    if (!terminal || reloaded.isFailed()) {
-                        hasFailures = true;
+                    if (!terminal) {
+                        executionRepository.incrementCounters(executionId, 0, 1, 0);
                     }
                 }
             }
@@ -561,12 +571,7 @@ public class VmOperationsService {
             }
         }
 
-        // Mark execution complete
-        if (hasFailures) {
-            markExecutionPartialSuccess(executionId);
-        } else {
-            markExecutionCompleted(executionId);
-        }
+        finishExecution(executionId);
     }
 
     /**
@@ -591,7 +596,7 @@ public class VmOperationsService {
         detail.setErrorMessage("Skipped: dependency '" + blockingDependencyName + "' failed to start");
         detail.setCompletedAt(Timestamp.from(Instant.now()));
         detailRepository.save(detail);
-        updateExecutionCounters(executionId, false);
+        executionRepository.incrementCounters(executionId, 0, 0, 1);
         log.warn("Skipping {} because dependency '{}' did not complete successfully",
                 detail.getTargetName(), blockingDependencyName);
     }
@@ -938,106 +943,100 @@ public class VmOperationsService {
         return new ArrayList<>(targetVms);
     }
 
-    private synchronized void updateExecutionCounters(String executionId, boolean success) {
-        executionRepository.findById(executionId).ifPresent(execution -> {
-            if (success) {
-                execution.incrementCompleted();
-            } else {
-                execution.incrementFailed();
-            }
-            executionRepository.save(execution);
-        });
+    private void updateExecutionCounters(String executionId, boolean success) {
+        executionRepository.incrementCounters(executionId, success ? 1 : 0, success ? 0 : 1, 0);
     }
 
-    private void markExecutionCompleted(String executionId) {
-        executionRepository.findByIdWithEnvironment(executionId).ifPresent(execution -> {
-            if (execution.getStatus() == ExecutionStatus.CANCELLED) {
-                log.info("Execution {} was already cancelled — skipping COMPLETED transition", executionId);
-                return;
-            }
-            execution.setStatus(ExecutionStatus.COMPLETED);
-            execution.setCompletedAt(Timestamp.from(Instant.now()));
-            executionRepository.save(execution);
-            log.info("Execution {} completed successfully", executionId);
+    /**
+     * Final status from the counters (M8): COMPLETED when every step succeeded, FAILED when none
+     * did (all failed or skipped), otherwise PARTIAL_SUCCESS. Only moves an IN_PROGRESS run, so a
+     * cancel that landed meanwhile stays CANCELLED and sends no completion notice.
+     */
+    private void finishExecution(String executionId) {
+        OperationExecution execution = executionRepository.findByIdWithEnvironment(executionId).orElse(null);
+        if (execution == null) {
+            return;
+        }
+        int total = execution.getTotalTargets();
+        int completed = execution.getCompletedTargets();
+        int failed = execution.getFailedTargets();
+        int skipped = execution.getSkippedTargets() != null ? execution.getSkippedTargets() : 0;
 
-            runTerminalSideEffect("audit completed operation", executionId, () ->
-                    auditService.logOperationCompleted(
-                            execution.getInitiatedByUserId(),
-                            execution.getEnvironment().getEnvironmentId(),
-                            execution.getEnvironment().getName(),
-                            executionId,
-                            execution.getOperationType().name(),
-                            execution.getTotalTargets(),
-                            execution.getFailedTargets()
-                    ));
-            runTerminalSideEffect("notify completed operation", executionId, () ->
-                    notificationService.notifyOperationCompletedForEnvironment(
-                            execution.getEnvironment().getEnvironmentId(),
-                            execution.getEnvironment().getName(),
-                            execution.getInitiatedByUserId(),
-                            execution.getOperationType().name(),
-                            execution.getTotalTargets(),
-                            execution.getFailedTargets()));
-        });
+        ExecutionStatus outcome;
+        String message = null;
+        if (failed == 0 && skipped == 0) {
+            outcome = ExecutionStatus.COMPLETED;
+        } else if (completed == 0) {
+            outcome = ExecutionStatus.FAILED;
+            message = skipped == 0 ? "All " + total + " steps failed"
+                    : "No step succeeded (" + failed + " failed, " + skipped + " skipped)";
+        } else {
+            outcome = ExecutionStatus.PARTIAL_SUCCESS;
+        }
+
+        if (executionRepository.transitionStatus(executionId,
+                List.of(OperationExecution.statusValue(ExecutionStatus.IN_PROGRESS)),
+                OperationExecution.statusValue(outcome), Timestamp.from(Instant.now()), message) == 0) {
+            log.info("Execution {} is no longer in progress (cancelled?) — not marking it {}", executionId, outcome);
+            return;
+        }
+        log.info("Execution {} finished: {} ({} ok, {} failed, {} skipped)",
+                executionId, outcome, completed, failed, skipped);
+
+        if (outcome == ExecutionStatus.FAILED) {
+            reportFailure(execution, message);
+            return;
+        }
+        runTerminalSideEffect("audit finished operation", executionId, () ->
+                auditService.logOperationCompleted(
+                        execution.getInitiatedByUserId(),
+                        execution.getEnvironment().getEnvironmentId(),
+                        execution.getEnvironment().getName(),
+                        executionId,
+                        execution.getOperationType().name(),
+                        total,
+                        failed + skipped));
+        runTerminalSideEffect("notify finished operation", executionId, () ->
+                notificationService.notifyOperationCompletedForEnvironment(
+                        execution.getEnvironment().getEnvironmentId(),
+                        execution.getEnvironment().getName(),
+                        execution.getInitiatedByUserId(),
+                        execution.getOperationType().name(),
+                        total,
+                        failed + skipped));
     }
 
-    private void markExecutionPartialSuccess(String executionId) {
-        executionRepository.findByIdWithEnvironment(executionId).ifPresent(execution -> {
-            if (execution.getStatus() == ExecutionStatus.CANCELLED) {
-                log.info("Execution {} was already cancelled — skipping PARTIAL_SUCCESS transition", executionId);
-                return;
-            }
-            execution.setStatus(ExecutionStatus.PARTIAL_SUCCESS);
-            execution.setCompletedAt(Timestamp.from(Instant.now()));
-            executionRepository.save(execution);
-            log.info("Execution {} completed with partial success", executionId);
-
-            runTerminalSideEffect("audit partial-success operation", executionId, () ->
-                    auditService.logOperationCompleted(
-                            execution.getInitiatedByUserId(),
-                            execution.getEnvironment().getEnvironmentId(),
-                            execution.getEnvironment().getName(),
-                            executionId,
-                            execution.getOperationType().name(),
-                            execution.getTotalTargets(),
-                            execution.getFailedTargets()
-                    ));
-            runTerminalSideEffect("notify partial-success operation", executionId, () ->
-                    notificationService.notifyOperationCompletedForEnvironment(
-                            execution.getEnvironment().getEnvironmentId(),
-                            execution.getEnvironment().getName(),
-                            execution.getInitiatedByUserId(),
-                            execution.getOperationType().name(),
-                            execution.getTotalTargets(),
-                            execution.getFailedTargets()));
-        });
-    }
-
+    /** The run itself broke (not a step): FAILED unless it already reached another final state. */
     private void markExecutionFailed(String executionId, String errorMessage) {
-        executionRepository.findByIdWithEnvironment(executionId).ifPresent(execution -> {
-            execution.setStatus(ExecutionStatus.FAILED);
-            execution.setCompletedAt(Timestamp.from(Instant.now()));
-            execution.setErrorMessage(errorMessage);
-            executionRepository.save(execution);
-            log.error("Execution {} failed: {}", executionId, errorMessage);
+        if (executionRepository.transitionStatus(executionId, ACTIVE_STATUSES,
+                OperationExecution.statusValue(ExecutionStatus.FAILED),
+                Timestamp.from(Instant.now()), errorMessage) == 0) {
+            log.warn("Execution {} errored after it was finished or cancelled: {}", executionId, errorMessage);
+            return;
+        }
+        log.error("Execution {} failed: {}", executionId, errorMessage);
+        executionRepository.findByIdWithEnvironment(executionId)
+                .ifPresent(execution -> reportFailure(execution, errorMessage));
+    }
 
-            runTerminalSideEffect("audit failed operation", executionId, () ->
-                    auditService.logOperationFailed(
-                            execution.getInitiatedByUserId(),
-                            execution.getEnvironment().getEnvironmentId(),
-                            execution.getEnvironment().getName(),
-                            executionId,
-                            execution.getOperationType().name(),
-                            errorMessage
-                    ));
-            runTerminalSideEffect("notify failed operation", executionId, () ->
-                    notificationService.notifyOperationFailedForEnvironment(
-                            execution.getEnvironment().getEnvironmentId(),
-                            execution.getEnvironment().getName(),
-                            execution.getInitiatedByUserId(),
-                            execution.getOperationType().name(),
-                            errorMessage));
-        });
+    private void reportFailure(OperationExecution execution, String errorMessage) {
+        String executionId = execution.getExecutionId();
+        runTerminalSideEffect("audit failed operation", executionId, () ->
+                auditService.logOperationFailed(
+                        execution.getInitiatedByUserId(),
+                        execution.getEnvironment().getEnvironmentId(),
+                        execution.getEnvironment().getName(),
+                        executionId,
+                        execution.getOperationType().name(),
+                        errorMessage
+                ));
+        runTerminalSideEffect("notify failed operation", executionId, () ->
+                notificationService.notifyOperationFailedForEnvironment(
+                        execution.getEnvironment().getEnvironmentId(),
+                        execution.getEnvironment().getName(),
+                        execution.getInitiatedByUserId(),
+                        execution.getOperationType().name(),
+                        errorMessage));
     }
 
     private void runTerminalSideEffect(String action, String executionId, Runnable runnable) {

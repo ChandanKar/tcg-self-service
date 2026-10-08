@@ -482,4 +482,18 @@ class FlywayMigrationTest extends AbstractIntegrationTest {
         assertEquals(2, columns.size());
         columns.forEach(c -> assertEquals("YES", c.get("IS_NULLABLE"), c.get("COLUMN_NAME") + " must be nullable"));
     }
+
+    @Test
+    void testOperationExecutionVersionAndSkippedAdded() {
+        // V28 (M8): optimistic-lock version and a separate skipped counter.
+        List<Map<String, Object>> columns = jdbcTemplate.queryForList(
+            "SELECT COLUMN_NAME, IS_NULLABLE, COLUMN_DEFAULT FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() " +
+            "AND TABLE_NAME = 'operation_execution' AND COLUMN_NAME IN ('version', 'skipped_targets')"
+        );
+        assertEquals(2, columns.size());
+        columns.forEach(c -> {
+            assertEquals("NO", c.get("IS_NULLABLE"), c.get("COLUMN_NAME") + " must be NOT NULL");
+            assertEquals("0", String.valueOf(c.get("COLUMN_DEFAULT")), c.get("COLUMN_NAME") + " defaults to 0");
+        });
+    }
 }

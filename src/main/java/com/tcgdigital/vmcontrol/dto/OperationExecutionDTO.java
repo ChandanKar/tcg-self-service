@@ -26,6 +26,7 @@ public class OperationExecutionDTO {
     private Integer totalTargets;
     private Integer completedTargets;
     private Integer failedTargets;
+    private Integer skippedTargets;
     private List<OperationDetailDTO> details;
     private double progressPercentage;
 
@@ -46,10 +47,12 @@ public class OperationExecutionDTO {
         dto.setTotalTargets(execution.getTotalTargets());
         dto.setCompletedTargets(execution.getCompletedTargets());
         dto.setFailedTargets(execution.getFailedTargets());
+        dto.setSkippedTargets(execution.getSkippedTargets());
 
-        // Calculate progress
+        // Calculate progress (every step that reached an outcome)
         if (execution.getTotalTargets() > 0) {
-            double progress = ((double) (execution.getCompletedTargets() + execution.getFailedTargets())
+            int skipped = execution.getSkippedTargets() != null ? execution.getSkippedTargets() : 0;
+            double progress = ((double) (execution.getCompletedTargets() + execution.getFailedTargets() + skipped)
                     / execution.getTotalTargets()) * 100;
             dto.setProgressPercentage(Math.round(progress * 100.0) / 100.0);
         } else {
@@ -223,5 +226,13 @@ public class OperationExecutionDTO {
     public void setProgressPercentage(double progressPercentage) {
         this.progressPercentage = progressPercentage;
     }
-}
 
+    /** Steps not attempted because a dependency failed or was skipped. */
+    public Integer getSkippedTargets() {
+        return skippedTargets;
+    }
+
+    public void setSkippedTargets(Integer skippedTargets) {
+        this.skippedTargets = skippedTargets;
+    }
+}

@@ -49,6 +49,18 @@ public class OperationExecution {
     @Column(name = "failed_targets", nullable = false)
     private Integer failedTargets = 0;
 
+    /** Steps not attempted because a dependency failed or was skipped (V28). */
+    @Column(name = "skipped_targets", nullable = false)
+    private Integer skippedTargets = 0;
+
+    /**
+     * Optimistic lock (V28). Null until first persisted, so Spring Data treats a new execution
+     * as new; status/counter UPDATEs in OperationExecutionRepository bump it explicitly.
+     */
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     @Column(name = "execution_plan", columnDefinition = "TEXT")
     private String executionPlan;
 
@@ -181,11 +193,20 @@ public class OperationExecution {
         this.details = details;
     }
 
-    public void incrementCompleted() {
-        this.completedTargets++;
+    public Integer getSkippedTargets() {
+        return skippedTargets;
     }
 
-    public void incrementFailed() {
-        this.failedTargets++;
+    public void setSkippedTargets(Integer skippedTargets) {
+        this.skippedTargets = skippedTargets;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    /** The status string as stored, e.g. {@code in_progress} (used by the conditional updates). */
+    public static String statusValue(ExecutionStatus status) {
+        return status.name().toLowerCase();
     }
 }
