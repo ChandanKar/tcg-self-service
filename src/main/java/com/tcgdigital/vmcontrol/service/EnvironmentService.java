@@ -171,18 +171,30 @@ public class EnvironmentService {
      */
     @Transactional
     public Environment createEnvironment(CreateEnvironmentDTO dto) {
-        // Validate name uniqueness
-        if (environmentRepository.existsByName(dto.getName())) {
+        // Validate name uniqueness on the name as stored (M3)
+        String name = com.tcgdigital.vmcontrol.service.support.NameNormalizer.slug(dto.getName());
+        if (environmentRepository.existsByName(name)) {
             throw new ValidationException("Environment with name '" + dto.getName() + "' already exists");
+        }
+        String serviceType = dto.getServiceType() != null ? dto.getServiceType() : "EC2";
+        String clusterName = null;
+        if ("EKS".equalsIgnoreCase(serviceType)) {
+            // AWS cluster names are case-sensitive: keep the exact one for every EKS call.
+            clusterName = (dto.getEksClusterName() != null && !dto.getEksClusterName().isBlank()
+                    ? dto.getEksClusterName() : dto.getName()).trim();
+            if (environmentRepository.existsByEksClusterName(clusterName)) {
+                throw new ValidationException("EKS cluster '" + clusterName + "' is already registered");
+            }
         }
 
         Environment environment = new Environment();
         environment.setEnvironmentId(UUID.randomUUID().toString());
-        environment.setName(dto.getName().toLowerCase().replaceAll("\\s+", "-"));
+        environment.setName(name);
+        environment.setEksClusterName(clusterName);
         environment.setDisplayName(dto.getDisplayName());
         environment.setDescription(dto.getDescription());
         environment.setMetadata(dto.getMetadata());
-        environment.setServiceType(dto.getServiceType() != null ? dto.getServiceType() : "EC2");
+        environment.setServiceType(serviceType);
         environment.setIsActive(true);
 
         Environment saved = environmentRepository.save(environment);

@@ -372,6 +372,53 @@ class EksSyncServiceTest {
     }
 
     @Test
+    void syncEksEnvironment_usesTheExactClusterNameForAws() {
+        // E10-T02 (M3): the environment name is the lower-cased slug; AWS needs the exact name.
+        Environment env = buildEnvironment();
+        env.setName("mycluster");
+        env.setEksClusterName("MyCluster");
+        when(eksService.listNodegroups("MyCluster", REGION)).thenReturn(List.of(NODEGROUP));
+        when(eksService.describeNodegroup("MyCluster", NODEGROUP, REGION)).thenReturn(buildNodegroup(1, 2));
+        when(groupRepository.findByEnvironmentEnvironmentIdAndName(ENV_ID, NODEGROUP)).thenReturn(Optional.empty());
+        when(groupRepository.findByEnvironmentEnvironmentIdOrderBySequencePositionAsc(ENV_ID)).thenReturn(List.of());
+        when(groupRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(vmRepository.findByGroupGroupIdAndName(anyString(), eq(NODEGROUP))).thenReturn(Optional.empty());
+        ArgumentCaptor<Vm> saved = ArgumentCaptor.forClass(Vm.class);
+        when(vmRepository.save(saved.capture())).thenAnswer(i -> i.getArgument(0));
+
+        assertEquals(1, service.syncEksEnvironment(env));
+
+        verify(eksService).listNodegroups("MyCluster", REGION);
+        assertEquals("MyCluster/" + NODEGROUP, saved.getValue().getProviderVmId());
+    }
+
+    @Test
+    void autoDiscoverClusters_storesTheSlugAsNameAndTheExactClusterName() {
+        when(eksService.listClusters(REGION)).thenReturn(List.of("MyCluster"));
+        when(environmentRepository.existsByEksClusterName("MyCluster")).thenReturn(false);
+        when(environmentRepository.existsByName("mycluster")).thenReturn(false);
+        when(environmentRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        service.autoDiscoverClusters();
+
+        ArgumentCaptor<Environment> captor = ArgumentCaptor.forClass(Environment.class);
+        verify(environmentRepository).save(captor.capture());
+        assertEquals("mycluster", captor.getValue().getName());
+        assertEquals("MyCluster", captor.getValue().getEksClusterName());
+        assertEquals("MyCluster", captor.getValue().getDisplayName());
+    }
+
+    @Test
+    void autoDiscoverClusters_skipsAClusterRegisteredUnderItsExactName() {
+        when(eksService.listClusters(REGION)).thenReturn(List.of("MyCluster"));
+        when(environmentRepository.existsByEksClusterName("MyCluster")).thenReturn(true);
+
+        service.autoDiscoverClusters();
+
+        verify(environmentRepository, never()).save(any());
+    }
+
+    @Test
     void syncEksEnvironment_deactivatesNodeGroupRemovedFromCluster() {
         Environment env = buildEnvironment();
         // AWS only has NODEGROUP; staleGroup no longer exists there

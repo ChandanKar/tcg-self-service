@@ -20,6 +20,7 @@ import com.tcgdigital.vmcontrol.repository.EnvironmentAccessRequestRepository;
 import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import com.tcgdigital.vmcontrol.repository.VmGroupRepository;
 import com.tcgdigital.vmcontrol.repository.VmRepository;
+import com.tcgdigital.vmcontrol.service.support.NameNormalizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -97,8 +98,9 @@ public class VmGroupService {
         Environment environment = environmentRepository.findById(environmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Environment", environmentId));
 
-        // Validate name uniqueness within environment
-        if (groupRepository.existsByEnvironmentEnvironmentIdAndName(environmentId, dto.getName())) {
+        // Validate name uniqueness within environment, on the name as stored (M3)
+        String name = NameNormalizer.slug(dto.getName());
+        if (groupRepository.existsByEnvironmentEnvironmentIdAndName(environmentId, name)) {
             throw new ValidationException("Group with name '" + dto.getName() + "' already exists in this environment");
         }
 
@@ -116,7 +118,7 @@ public class VmGroupService {
         VmGroup group = new VmGroup();
         group.setGroupId(UUID.randomUUID().toString());
         group.setEnvironment(environment);
-        group.setName(dto.getName().toLowerCase().replaceAll("\\s+", "-"));
+        group.setName(name);
         group.setDisplayName(dto.getDisplayName());
         group.setDescription(dto.getDescription());
         group.setSequencePosition(dto.getSequencePosition());

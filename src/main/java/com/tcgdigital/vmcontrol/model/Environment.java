@@ -46,6 +46,10 @@ public class Environment {
     @Column(name = "service_type", length = 20, nullable = false)
     private String serviceType = "EC2";
 
+    /** EKS only: the exact, case-sensitive cluster name used for AWS calls (V34). */
+    @Column(name = "eks_cluster_name", length = 255)
+    private String eksClusterName;
+
     @OneToMany(mappedBy = "environment", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<VmGroup> groups = new ArrayList<>();
 
@@ -136,5 +140,18 @@ public class Environment {
     public void setGroups(List<VmGroup> groups) {
         this.groups = groups;
     }
-}
 
+    public String getEksClusterName() {
+        return eksClusterName;
+    }
+
+    public void setEksClusterName(String eksClusterName) {
+        this.eksClusterName = eksClusterName;
+    }
+
+    /** The cluster name for EKS calls: the stored exact name, else (legacy rows) the name. */
+    @Transient
+    public String getEffectiveClusterName() {
+        return eksClusterName != null && !eksClusterName.isBlank() ? eksClusterName : name;
+    }
+}

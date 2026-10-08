@@ -8,6 +8,7 @@ import com.tcgdigital.vmcontrol.model.*;
 import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import com.tcgdigital.vmcontrol.repository.VmGroupRepository;
 import com.tcgdigital.vmcontrol.repository.VmRepository;
+import com.tcgdigital.vmcontrol.service.support.NameNormalizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -89,7 +90,7 @@ public class EksSyncService {
         for (String region : resolveSyncRegions()) {
             try {
                 eksService.listClusters(region).stream()
-                        .filter(name -> !environmentRepository.existsByName(name))
+                        .filter(name -> !isRegistered(name))
                         .forEach(name -> result.add(new EksClusterInfoDTO(name, region)));
             } catch (Exception e) {
                 log.error("Failed to list EKS clusters in region {}: {}", region, e.getMessage());
@@ -174,13 +175,14 @@ public class EksSyncService {
         log.info("EKS auto-discovery found {} cluster(s) in region {}: {}", clusterNames.size(), region, clusterNames);
 
         for (String clusterName : clusterNames) {
-            if (environmentRepository.existsByName(clusterName)) {
+            if (isRegistered(clusterName)) {
                 continue;
             }
             try {
                 Environment env = new Environment();
                 env.setEnvironmentId(UUID.randomUUID().toString());
-                env.setName(clusterName);
+                env.setName(NameNormalizer.slug(clusterName));
+                env.setEksClusterName(clusterName); // exact: AWS names are case-sensitive (M3)
                 env.setDisplayName(clusterName);
                 env.setDescription("Auto-discovered EKS cluster");
                 env.setServiceType("EKS");
@@ -225,7 +227,7 @@ public class EksSyncService {
      * @return number of node groups synced
      */
     public int syncEksEnvironment(Environment environment) {
-        String clusterName = environment.getName();
+        String clusterName = environment.getEffectiveClusterName(); // exact case for AWS calls (M3)
         String region = resolveRegion(environment);
 
         log.info("Syncing EKS cluster '{}' in region '{}'", clusterName, region);
@@ -557,6 +559,12 @@ public class EksSyncService {
         private int total() {
             return created + updated + removed + failed;
         }
+    }
+
+    /** A cluster is registered if an environment has its exact name, or (legacy rows) its slug. */
+    private boolean isRegistered(String clusterName) {
+        return environmentRepository.existsByEksClusterName(clusterName)
+                || environmentRepository.existsByName(NameNormalizer.slug(clusterName));
     }
 
     private String resolveRegion(Environment environment) {

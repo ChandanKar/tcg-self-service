@@ -305,7 +305,7 @@ public class VmService {
      * because the unique index is on it ('Web 1' and 'web-1' collide; was a 500).
      */
     static String normalizeName(String raw) {
-        return raw == null ? null : raw.trim().toLowerCase().replaceAll("\\s+", "-");
+        return com.tcgdigital.vmcontrol.service.support.NameNormalizer.slug(raw);
     }
 
     /** Registry review lists (M34); state is DRIFT, PENDING or INACTIVE. */

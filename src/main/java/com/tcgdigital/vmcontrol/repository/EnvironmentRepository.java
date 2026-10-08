@@ -75,5 +75,6 @@ public interface EnvironmentRepository extends JpaRepository<Environment, String
            "     OR LOWER(e.description) LIKE LOWER(CONCAT('%', :search, '%'))) " +
            "ORDER BY e.name")
     Page<Environment> searchAll(@Param("search") String search, Pageable pageable);
-}
 
+    boolean existsByEksClusterName(String eksClusterName);
+}

@@ -22,6 +22,7 @@ public class EnvironmentDTO {
     private int runningVmCount;
     private String metadata;
     private String serviceType;
+    private String eksClusterName;
     private List<String> regions = List.of();
 
     public EnvironmentDTO() {
@@ -38,6 +39,7 @@ public class EnvironmentDTO {
         dto.setUpdatedAt(environment.getUpdatedAt());
         dto.setMetadata(environment.getMetadata());
         dto.setServiceType(environment.getServiceType());
+        dto.setEksClusterName(environment.getEksClusterName());
         return dto;
     }
 
@@ -155,5 +157,13 @@ public class EnvironmentDTO {
     public void setRegions(List<String> regions) {
         this.regions = regions;
     }
-}
 
+    /** EKS only: the exact cluster name AWS knows (read-only). */
+    public String getEksClusterName() {
+        return eksClusterName;
+    }
+
+    public void setEksClusterName(String eksClusterName) {
+        this.eksClusterName = eksClusterName;
+    }
+}

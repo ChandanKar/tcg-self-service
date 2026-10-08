@@ -501,6 +501,10 @@ const Modals = (function() {
                         serviceType: serviceType,
                         metadata: JSON.stringify(metaObj)
                     };
+                    if (isEks) {
+                        // The exact cluster name (AWS names are case-sensitive; name is stored lower-cased).
+                        data.eksClusterName = envName;
+                    }
 
                     this.disabled = true;
                     this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';

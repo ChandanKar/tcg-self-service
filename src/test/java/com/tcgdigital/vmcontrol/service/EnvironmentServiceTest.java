@@ -104,6 +104,50 @@ class EnvironmentServiceTest extends AbstractIntegrationTest {
         });
     }
 
+    // ---- E10-T02 (M3): duplicates checked on the stored name; EKS keeps the exact cluster name ----
+
+    private static CreateEnvironmentDTO env(String name, String serviceType) {
+        CreateEnvironmentDTO dto = new CreateEnvironmentDTO();
+        dto.setName(name);
+        dto.setDisplayName(name);
+        dto.setServiceType(serviceType);
+        return dto;
+    }
+
+    @Test
+    void aNameThatNormalisesToAnExistingOneIs400Not500() {
+        String suffix = UUID.randomUUID().toString().substring(0, 6);
+        environmentService.createEnvironment(env("my-env-" + suffix, "EC2"));
+
+        ValidationException e = assertThrows(ValidationException.class,
+                () -> environmentService.createEnvironment(env(" My Env-" + suffix.toUpperCase() + " ", "EC2")));
+        assertTrue(e.getMessage().contains("already exists"));
+    }
+
+    @Test
+    void anEksEnvironmentKeepsTheExactClusterName() {
+        String cluster = "MyCluster" + UUID.randomUUID().toString().substring(0, 6);
+
+        Environment created = environmentService.createEnvironment(env(cluster, "EKS"));
+
+        assertEquals(cluster.toLowerCase(), created.getName());
+        assertEquals(cluster, created.getEksClusterName());
+        assertEquals(cluster, created.getEffectiveClusterName());
+        ValidationException e = assertThrows(ValidationException.class, () -> {
+            CreateEnvironmentDTO again = env("other-" + UUID.randomUUID().toString().substring(0, 6), "EKS");
+            again.setEksClusterName(cluster);
+            environmentService.createEnvironment(again);
+        });
+        assertTrue(e.getMessage().contains("already registered"));
+    }
+
+    @Test
+    void anEc2EnvironmentHasNoClusterName() {
+        Environment created = environmentService.createEnvironment(env("ec2-" + UUID.randomUUID().toString().substring(0, 6), "EC2"));
+
+        assertNull(created.getEksClusterName());
+    }
+
     @Test
     void testGetEnvironmentById_Found() {
         // Given

@@ -33,6 +33,11 @@ public class CreateEnvironmentDTO {
     @JsonProperty("serviceType")
     private String serviceType = "EC2";
 
+    /** EKS only: the exact cluster name (case kept); defaults to the name as typed. */
+    @JsonProperty("eksClusterName")
+    @jakarta.validation.constraints.Size(max = 255, message = "Cluster name must be at most 255 characters")
+    private String eksClusterName;
+
     public CreateEnvironmentDTO() {
     }
 
@@ -75,5 +80,13 @@ public class CreateEnvironmentDTO {
 
     public void setServiceType(String serviceType) {
         this.serviceType = serviceType;
+    }
+
+    public String getEksClusterName() {
+        return eksClusterName;
+    }
+
+    public void setEksClusterName(String eksClusterName) {
+        this.eksClusterName = eksClusterName;
     }
 }
