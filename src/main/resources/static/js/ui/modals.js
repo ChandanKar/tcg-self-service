@@ -590,7 +590,8 @@ const Modals = (function() {
                 $modal.find('#saveEnvBtn').off('click').on('click', function() {
                     const data = {
                         displayName: ($modal.find('#editEnvDisplayName').val() || '').trim() || env.displayName,
-                        description: ($modal.find('#editEnvDescription').val() || '').trim() || null,
+                        // '' clears the description; the metadata below is a patch (other keys are kept)
+                        description: ($modal.find('#editEnvDescription').val() || '').trim(),
                         serviceType: ($modal.find('#editEnvServiceType').val() || 'EC2'),
                         metadata: JSON.stringify({
                             ownerTeam: ($modal.find('#editEnvOwnerTeam').val() || '').trim() || null,

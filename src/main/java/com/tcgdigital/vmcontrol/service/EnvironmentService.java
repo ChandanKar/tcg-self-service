@@ -217,15 +217,21 @@ public class EnvironmentService {
             environment.setDisplayName(dto.getDisplayName());
         }
         if (dto.getDescription() != null) {
-            environment.setDescription(dto.getDescription());
+            // An emptied field clears the description (null means "not sent").
+            environment.setDescription(dto.getDescription().isBlank() ? null : dto.getDescription().trim());
         }
         if (dto.getIsActive() != null) {
             environment.setIsActive(dto.getIsActive());
         }
         if (dto.getMetadata() != null) {
-            environment.setMetadata(dto.getMetadata());
+            // A patch over the stored metadata: keys the form does not know (an EKS region) stay (M4).
+            environment.setMetadata(com.tcgdigital.vmcontrol.service.support.JsonMetadataMerger.merge(
+                    environment.getMetadata(), dto.getMetadata()));
         }
-        if (dto.getServiceType() != null) {
+        if (dto.getServiceType() != null && !dto.getServiceType().equalsIgnoreCase(environment.getServiceType())) {
+            if (!groupRepository.findByEnvironmentEnvironmentIdOrderBySequencePositionAsc(environmentId).isEmpty()) {
+                throw new ValidationException("The service type cannot be changed while the environment has groups");
+            }
             environment.setServiceType(dto.getServiceType());
         }
 

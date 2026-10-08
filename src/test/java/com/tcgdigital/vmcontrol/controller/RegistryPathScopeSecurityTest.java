@@ -95,7 +95,7 @@ class RegistryPathScopeSecurityTest extends SecuredWebTestBase {
     void matchingEnvironmentStillWorks() throws Exception {
         mockMvc.perform(get(envA("/groups/" + groupA.getGroupId())).with(asAdmin())).andExpect(status().isOk());
         mockMvc.perform(put(envA("/groups/" + groupA.getGroupId())).with(asAdmin())
-                        .contentType(MediaType.APPLICATION_JSON).content(groupBody("web-a-renamed")))
+                        .contentType(MediaType.APPLICATION_JSON).content(groupBody(groupA.getName()))) // names are immutable (E10-T03)
                 .andExpect(status().isOk());
     }
 

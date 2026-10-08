@@ -850,9 +850,11 @@ const VmRegistry = (function() {
             $('#groupDescription').val(group.description || '');
             $('#groupSequencePosition').val(group.sequencePosition);
             $('#groupMetadata').val(group.metadata || '');
+            $('#groupName').prop('readonly', true); // the name is the group's identity
             $('#createGroupModalLabel').text('Edit Group');
             $('#btnSubmitGroup').html('<i class="fas fa-save"></i> Update');
         } else {
+            $('#groupName').prop('readonly', false);
             const maxSeq = window.VmRegistryState.currentGroups.length > 0
                 ? Math.max(...window.VmRegistryState.currentGroups.map(g => g.sequencePosition)) : 0;
             $('#groupSequencePosition').val(maxSeq + 1);
@@ -885,13 +887,18 @@ const VmRegistry = (function() {
         }
         const groupId = $('#groupId').val();
         const isEdit = !!groupId;
+        const loaded = isEdit ? window.VmRegistryState.currentGroups.find(g => g.groupId === groupId) : null;
+        const metadata = $('#groupMetadata').val().trim();
         const data = {
             name: $('#groupName').val().trim(),
             displayName: $('#groupDisplayName').val().trim(),
-            description: $('#groupDescription').val().trim() || null,
+            // On edit '' clears the description; metadata is sent only when it was changed (it is merged)
+            description: isEdit ? $('#groupDescription').val().trim() : ($('#groupDescription').val().trim() || null),
             sequencePosition: parseInt($('#groupSequencePosition').val()),
             dependsOnGroupIds: $('#groupDependsOn').val() || [],
-            metadata: $('#groupMetadata').val().trim() || null
+            metadata: isEdit
+                ? (metadata !== (loaded?.metadata || '').trim() ? (metadata || '{}') : null)
+                : (metadata || null)
         };
         try {
             Loading.show(isEdit ? 'Updating...' : 'Creating...');

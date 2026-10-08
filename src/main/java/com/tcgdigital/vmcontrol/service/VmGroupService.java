@@ -139,10 +139,9 @@ public class VmGroupService {
         VmGroup group = getGroupById(groupId);
         String environmentId = group.getEnvironment().getEnvironmentId();
 
-        // Validate name uniqueness (if changed)
-        if (!group.getName().equals(dto.getName()) &&
-                groupRepository.existsByEnvironmentEnvironmentIdAndName(environmentId, dto.getName())) {
-            throw new ValidationException("Group with name '" + dto.getName() + "' already exists in this environment");
+        // The name is the group's identity (EKS sync matches node groups by it): it cannot change (M4).
+        if (dto.getName() != null && !group.getName().equals(NameNormalizer.slug(dto.getName()))) {
+            throw new ValidationException("Group name cannot be changed; edit the display name");
         }
 
         // Validate sequence position uniqueness (if changed)
@@ -156,12 +155,17 @@ public class VmGroupService {
             dependencyValidator.validateGroupDependencies(environmentId, groupId, dto.getDependsOnGroupIds());
         }
 
-        group.setName(dto.getName().toLowerCase().replaceAll("\\s+", "-"));
         group.setDisplayName(dto.getDisplayName());
-        group.setDescription(dto.getDescription());
+        if (dto.getDescription() != null) {
+            group.setDescription(dto.getDescription().isBlank() ? null : dto.getDescription().trim());
+        }
         group.setSequencePosition(dto.getSequencePosition());
         group.setDependencies(dto.getDependsOnGroupIds());
-        group.setMetadata(dto.getMetadata());
+        if (dto.getMetadata() != null) {
+            // A patch: EKS identity keys (clusterName, nodeGroupName, region) are kept (M4).
+            group.setMetadata(com.tcgdigital.vmcontrol.service.support.JsonMetadataMerger.merge(
+                    group.getMetadata(), dto.getMetadata()));
+        }
 
         VmGroup saved = groupRepository.save(group);
         log.info("Updated group: {} ({})", saved.getName(), saved.getGroupId());

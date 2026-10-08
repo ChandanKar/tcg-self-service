@@ -132,4 +132,37 @@ class VmGroupServiceTest extends AbstractIntegrationTest {
         assertThat(after.getEnabled()).isFalse();
         assertThat(after.getDisabledReason()).isEqualTo("Target group no longer exists");
     }
+
+    // ---- E10-T03 (M4): the group name is its identity; metadata edits are a patch ----
+
+    private static com.tcgdigital.vmcontrol.dto.CreateVmGroupDTO edit(VmGroup group, String name) {
+        com.tcgdigital.vmcontrol.dto.CreateVmGroupDTO dto = new com.tcgdigital.vmcontrol.dto.CreateVmGroupDTO();
+        dto.setName(name);
+        dto.setDisplayName("Renamed display");
+        dto.setSequencePosition(group.getSequencePosition());
+        dto.setDependsOnGroupIds(group.getDependencies());
+        return dto;
+    }
+
+    @Test
+    void aGroupCannotBeRenamed() {
+        assertThatThrownBy(() -> groupService.updateGroup(db.getGroupId(), edit(db, "database")))
+                .isInstanceOf(ValidationException.class).hasMessageContaining("cannot be changed");
+    }
+
+    @Test
+    void editingTheDisplayNameKeepsTheNameAndTheMetadata() {
+        db.setMetadata("{\"clusterName\":\"MyCluster\",\"nodeGroupName\":\"db\",\"region\":\"eu-west-1\"}");
+        db.setDescription("old");
+        vmGroupRepository.saveAndFlush(db);
+        com.tcgdigital.vmcontrol.dto.CreateVmGroupDTO dto = edit(db, db.getName().toUpperCase());
+        dto.setDescription("");
+
+        VmGroup after = groupService.updateGroup(db.getGroupId(), dto);
+
+        assertThat(after.getName()).isEqualTo(db.getName());
+        assertThat(after.getDisplayName()).isEqualTo("Renamed display");
+        assertThat(after.getMetadata()).contains("\"region\":\"eu-west-1\"", "\"clusterName\":\"MyCluster\"");
+        assertThat(after.getDescription()).isNull();
+    }
 }

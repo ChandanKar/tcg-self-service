@@ -148,6 +148,50 @@ class EnvironmentServiceTest extends AbstractIntegrationTest {
         assertNull(created.getEksClusterName());
     }
 
+    // ---- E10-T03 (M4): metadata edits are a patch; an emptied description clears ----
+
+    @Test
+    void editingKeepsMetadataKeysTheFormDoesNotKnow() {
+        CreateEnvironmentDTO create = env("Cluster" + UUID.randomUUID().toString().substring(0, 6), "EKS");
+        create.setMetadata("{\"region\":\"eu-west-1\",\"ownerTeam\":\"old\"}");
+        Environment created = environmentService.createEnvironment(create);
+        UpdateEnvironmentDTO update = new UpdateEnvironmentDTO();
+        update.setDescription("new description");
+        update.setMetadata("{\"ownerTeam\":\"payments\",\"defaultCloudProvider\":\"AWS\"}");
+
+        Environment after = environmentService.updateEnvironment(created.getEnvironmentId(), update);
+
+        assertTrue(after.getMetadata().contains("\"region\":\"eu-west-1\""));
+        assertTrue(after.getMetadata().contains("\"ownerTeam\":\"payments\""));
+    }
+
+    @Test
+    void anEmptiedDescriptionIsCleared() {
+        CreateEnvironmentDTO create = env("desc-" + UUID.randomUUID().toString().substring(0, 6), "EC2");
+        create.setDescription("will be cleared");
+        Environment created = environmentService.createEnvironment(create);
+        UpdateEnvironmentDTO update = new UpdateEnvironmentDTO();
+        update.setDescription("   ");
+
+        assertNull(environmentService.updateEnvironment(created.getEnvironmentId(), update).getDescription());
+        UpdateEnvironmentDTO untouched = new UpdateEnvironmentDTO();
+        untouched.setDisplayName("Renamed");
+        assertNull(environmentService.updateEnvironment(created.getEnvironmentId(), untouched).getDescription());
+    }
+
+    @Test
+    void theServiceTypeCannotChangeOnceTheEnvironmentHasGroups() {
+        Environment created = environmentService.createEnvironment(env("svc-" + UUID.randomUUID().toString().substring(0, 6), "EC2"));
+        newGroup(created, "web");
+        UpdateEnvironmentDTO update = new UpdateEnvironmentDTO();
+        update.setServiceType("EKS");
+
+        assertThrows(ValidationException.class, () -> environmentService.updateEnvironment(created.getEnvironmentId(), update));
+        UpdateEnvironmentDTO same = new UpdateEnvironmentDTO();
+        same.setServiceType("EC2");
+        assertDoesNotThrow(() -> environmentService.updateEnvironment(created.getEnvironmentId(), same));
+    }
+
     @Test
     void testGetEnvironmentById_Found() {
         // Given
