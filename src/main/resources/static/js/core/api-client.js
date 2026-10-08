@@ -73,6 +73,12 @@ const ApiClient = (function() {
      * @param {object} data - Request body (for POST/PUT)
      * @returns {Promise} - jQuery deferred promise
      */
+    /** The XSRF-TOKEN cookie Spring Security issues (null when absent, e.g. dev mode). */
+    function readCsrfToken() {
+        const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
+        return match ? decodeURIComponent(match[1]) : null;
+    }
+
     function request(method, url, data = null, options = {}) {
         const { suppressGlobalError = false } = options;
 
@@ -91,6 +97,14 @@ const ApiClient = (function() {
 
         if (data && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
             ajaxOptions.data = JSON.stringify(data);
+        }
+
+        // CSRF: the server sets the XSRF-TOKEN cookie; mutating requests echo it in a header.
+        if (method !== 'GET' && method !== 'HEAD') {
+            const csrfToken = readCsrfToken();
+            if (csrfToken) {
+                ajaxOptions.headers = { 'X-XSRF-TOKEN': csrfToken };
+            }
         }
 
         return $.ajax(ajaxOptions)

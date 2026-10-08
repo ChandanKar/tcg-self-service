@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -25,7 +26,8 @@ import java.util.Collections;
  * when EntraidSecurityConfig is used.
  */
 @Configuration
-@ConditionalOnProperty(name = "entraid.enabled", havingValue = "false", matchIfMissing = true)
+@Profile({"dev", "test"})
+@ConditionalOnProperty(name = "entraid.enabled", havingValue = "false")
 public class DefaultSecurityConfig {
 
     /**

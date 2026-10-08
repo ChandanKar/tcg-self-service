@@ -86,9 +86,12 @@
         setButtonLoading(true);
         hideError();
         try {
+            const headers = { 'Content-Type': 'application/json' };
+            const csrf = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
+            if (csrf) headers['X-XSRF-TOKEN'] = decodeURIComponent(csrf[1]);
             const response = await fetch('/api/auth/login', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: headers,
                 credentials: 'same-origin',
                 body: JSON.stringify({ username: username, password: password })
             });

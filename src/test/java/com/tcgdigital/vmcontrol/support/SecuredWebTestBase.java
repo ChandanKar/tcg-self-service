@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -75,8 +76,17 @@ public abstract class SecuredWebTestBase extends AbstractIntegrationTest {
         return as(viewer);
     }
 
-    /** Sign in as {@code user}, with the same authorities CustomOAuth2UserService grants at login. */
+    /**
+     * Sign in as {@code user} (same authorities CustomOAuth2UserService grants at login) and send a
+     * valid CSRF token, as the browser app does for mutating requests (E03-T10).
+     */
     protected RequestPostProcessor as(User user) {
+        RequestPostProcessor signedIn = asWithoutCsrf(user);
+        return request -> csrf().postProcessRequest(signedIn.postProcessRequest(request));
+    }
+
+    /** Signed in as {@code user} but without a CSRF token (for CSRF tests). */
+    protected RequestPostProcessor asWithoutCsrf(User user) {
         List<GrantedAuthority> authorities = new ArrayList<>();
         authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
         if (user.isEnvAdmin()) {

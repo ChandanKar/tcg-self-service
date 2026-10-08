@@ -23,6 +23,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -171,6 +172,7 @@ class AuthControllerTest extends SecuredWebTestBase {
     private static MockHttpServletRequestBuilder login(String username, String password) {
         String ip = "10.99." + (UUID.randomUUID().hashCode() & 0xff) + "." + (UUID.randomUUID().hashCode() & 0xff);
         return post("/api/auth/login")
+                .with(csrf()) // login.js sends the XSRF-TOKEN cookie back as X-XSRF-TOKEN
                 .with(request -> {
                     request.setRemoteAddr(ip);
                     return request;

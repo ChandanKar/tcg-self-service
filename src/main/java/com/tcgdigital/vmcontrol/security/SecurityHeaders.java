@@ -57,6 +57,8 @@ public final class SecurityHeaders {
                 .frameOptions(HeadersConfigurer.FrameOptionsConfig::deny)
                 .referrerPolicy(referrer -> referrer
                         .policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
-                .contentTypeOptions(Customizer.withDefaults());
+                .contentTypeOptions(Customizer.withDefaults())
+                // Sent on HTTPS requests only (behind nginx: server.forward-headers-strategy=native).
+                .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31_536_000));
     }
 }

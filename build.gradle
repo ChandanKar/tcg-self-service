@@ -224,3 +224,10 @@ tasks.register('deploy', Copy) {
 	into layout.projectDirectory.dir('deployment/app')
 	rename { 'vmcontrol.jar' }
 }
+
+// Local runs use the dev profile unless SPRING_PROFILES_ACTIVE says otherwise: ENTRAID_ENABLED=false
+// is only accepted with dev/test (security/SecurityModeGuard). Production runs the jar with its own
+// profile and is not affected.
+tasks.named('bootRun') {
+	systemProperty 'spring.profiles.active', System.getenv('SPRING_PROFILES_ACTIVE') ?: 'dev'
+}

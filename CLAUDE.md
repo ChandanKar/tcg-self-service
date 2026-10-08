@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./gradlew build              # compile + test + create JAR
 ./gradlew clean build        # clean first
 
-# Run (dev profile active by default, port 8080)
+# Run (bootRun defaults to the dev profile, port 8080)
 ./gradlew bootRun
 
 # Production profile
@@ -64,7 +64,7 @@ Two mutually exclusive security configs, toggled by `entraid.enabled`:
 | `entraid.enabled` | Config class | How it works |
 |---|---|---|
 | `true` (prod) | `EntraidSecurityConfig` | Microsoft Entra ID OAuth2 PKCE flow; `CustomOAuth2UserService` upserts user on first login |
-| `false` (dev) | `DefaultSecurityConfig` | Permits all — dev username/password validated by `AuthenticationService` |
+| `false` (dev) | `DefaultSecurityConfig` | Permits all — dev username/password validated by `AuthenticationService`. Only loads with the `dev`/`test` profile; `SecurityModeGuard` fails startup otherwise |
 
 **Roles**: `ADMIN` > `ENV_ADMIN` > `USER` > `VIEWER`. Method-level security via `@PreAuthorize`. `SecurityService` provides environment-scoped access checks used throughout the service layer.
 

@@ -10,6 +10,9 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
+import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
 
 import java.time.Duration;
@@ -95,9 +98,15 @@ public class EntraidSecurityConfig {
             .addFilterBefore(new CurrentUserRefreshFilter(userRepository, sessionAbsoluteTimeout),
                 AuthorizationFilter.class)
             // CSRF configuration for API endpoints
+            // CSRF on for the API too (session-cookie auth): double-submit cookie XSRF-TOKEN, sent back
+            // as the X-XSRF-TOKEN header by core/api-client.js and login.js. Browser CSP reports
+            // cannot carry the header.
             .csrf(csrf -> csrf
-                .ignoringRequestMatchers("/api/**")  // Allow /api/auth/login without CSRF token
+                .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
+                .ignoringRequestMatchers(SecurityHeaders.REPORT_PATH)
             )
+            .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
             // Content-Security-Policy, X-Frame-Options DENY, Referrer-Policy, nosniff
             .headers(SecurityHeaders.apply(cspReportOnly));
 
