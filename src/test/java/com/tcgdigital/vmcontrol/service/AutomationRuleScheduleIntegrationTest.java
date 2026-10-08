@@ -63,7 +63,7 @@ class AutomationRuleScheduleIntegrationTest extends AbstractIntegrationTest {
     void setUp() {
         env = newEnvironment("Schedule");
         newVm(newGroup(env, "app"), "app-1", VmStatus.RUNNING);
-        owner = newUser("schedule-owner@example.com", false, false);
+        owner = newUser("schedule-owner@example.com", false, true);
         grant(owner, AccessScopeType.ENVIRONMENT, env.getEnvironmentId(), AccessLevel.USER);
         when(awsCloudProviderService.stopVm(anyString(), anyString(), anyBoolean(), any())).thenReturn(
                 CompletableFuture.completedFuture(CloudProviderService.VmOperationResult.success("r", VmStatus.STOPPED)));

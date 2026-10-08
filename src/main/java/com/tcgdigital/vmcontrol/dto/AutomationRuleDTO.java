@@ -2,6 +2,7 @@ package com.tcgdigital.vmcontrol.dto;
 
 import com.tcgdigital.vmcontrol.model.AccessGrantMode;
 import com.tcgdigital.vmcontrol.model.AutomationRule;
+import com.tcgdigital.vmcontrol.model.AutomationRunReason;
 import com.tcgdigital.vmcontrol.model.AutomationRunStatus;
 import com.tcgdigital.vmcontrol.model.AutomationScopeType;
 import com.tcgdigital.vmcontrol.model.AutomationTriggerType;
@@ -39,6 +40,8 @@ public class AutomationRuleDTO {
     private Timestamp lastRunAt;
     private AutomationRunStatus lastRunStatus;
     private String lastRunDetail;
+    private AutomationRunReason lastRunReason;
+    private String disabledReason;
 
     public static AutomationRuleDTO fromEntity(AutomationRule rule, String environmentName,
                                                String scopeName, String createdByDisplayName) {
@@ -67,6 +70,8 @@ public class AutomationRuleDTO {
         dto.lastRunAt = rule.getLastRunAt();
         dto.lastRunStatus = rule.getLastRunStatus();
         dto.lastRunDetail = rule.getLastRunDetail();
+        dto.lastRunReason = rule.getLastRunReason();
+        dto.disabledReason = rule.getDisabledReason();
         return dto;
     }
 
@@ -160,5 +165,14 @@ public class AutomationRuleDTO {
 
     public String getLastRunDetail() {
         return lastRunDetail;
+    }
+
+    public AutomationRunReason getLastRunReason() {
+        return lastRunReason;
+    }
+
+    /** Why the system switched the rule off; null if it was not. */
+    public String getDisabledReason() {
+        return disabledReason;
     }
 }

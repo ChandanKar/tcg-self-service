@@ -219,6 +219,15 @@ public class NotificationService {
                "ENVIRONMENT", null);
     }
 
+    /** Tell every active admin that the system switched an automation rule off, and why (M16). */
+    public void notifyAutomationRuleDisabled(String environmentName, String ruleName, String reason) {
+        String title = "Automation rule disabled: " + ruleName;
+        String message = "The automation rule \"" + ruleName + "\" on environment \"" + environmentName
+                + "\" was disabled: " + reason + ".";
+        userRepository.findByAdminTrueAndIsActiveTrue().forEach(admin ->
+                create(admin.getUserId(), NotificationType.AUTOMATION_RULE_SKIPPED, title, message, "ENVIRONMENT", null));
+    }
+
     public void notifyAccessRequestedForReviewers(String environmentId, String environmentName,
                                                   String requesterUserId, String requestId,
                                                   String requestedAccessLevel) {

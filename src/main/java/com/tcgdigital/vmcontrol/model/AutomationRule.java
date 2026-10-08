@@ -83,6 +83,15 @@ public class AutomationRule {
     @Column(name = "last_run_detail", length = 500)
     private String lastRunDetail;
 
+    /** Why the last run ended as it did (V31). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "last_run_reason", length = 30)
+    private AutomationRunReason lastRunReason;
+
+    /** Set when the system disabled the rule (V31); cleared on re-enable. */
+    @Column(name = "disabled_reason", length = 255)
+    private String disabledReason;
+
     @Column(name = "last_stop_fired_on")
     private Date lastStopFiredOn;
 
@@ -276,5 +285,21 @@ public class AutomationRule {
 
     public void setLastStartFiredOn(Date lastStartFiredOn) {
         this.lastStartFiredOn = lastStartFiredOn;
+    }
+
+    public AutomationRunReason getLastRunReason() {
+        return lastRunReason;
+    }
+
+    public void setLastRunReason(AutomationRunReason lastRunReason) {
+        this.lastRunReason = lastRunReason;
+    }
+
+    public String getDisabledReason() {
+        return disabledReason;
+    }
+
+    public void setDisabledReason(String disabledReason) {
+        this.disabledReason = disabledReason;
     }
 }

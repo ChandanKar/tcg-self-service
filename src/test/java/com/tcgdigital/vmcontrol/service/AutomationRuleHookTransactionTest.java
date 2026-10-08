@@ -7,6 +7,7 @@ import com.tcgdigital.vmcontrol.model.AccessRequestStatus;
 import com.tcgdigital.vmcontrol.model.AccessScopeType;
 import com.tcgdigital.vmcontrol.model.AccessStatus;
 import com.tcgdigital.vmcontrol.model.AutomationRule;
+import com.tcgdigital.vmcontrol.model.AutomationRunReason;
 import com.tcgdigital.vmcontrol.model.AutomationRunStatus;
 import com.tcgdigital.vmcontrol.model.AutomationScopeType;
 import com.tcgdigital.vmcontrol.model.AutomationTriggerType;
@@ -112,7 +113,7 @@ class AutomationRuleHookTransactionTest extends AbstractIntegrationTest {
 
     @Test
     void anApprovalIsKeptWhenItsRuleFailsToStart() {
-        // A VM-scoped rule whose VM no longer exists: starting fails with an error.
+        // A VM-scoped rule whose VM no longer exists: the rule cannot act and is switched off.
         AutomationRule rule = rule(AccessGrantMode.ACCESS_APPROVED, AutomationScopeType.VM, "vm-that-was-deleted");
         User requester = newUser("hook-requester@example.com", false, false);
         CreateAccessRequestDTO dto = new CreateAccessRequestDTO();
@@ -129,8 +130,10 @@ class AutomationRuleHookTransactionTest extends AbstractIntegrationTest {
                 .filteredOn(ea -> ea.getUser().getUserId().equals(requester.getUserId()))
                 .singleElement()
                 .satisfies(ea -> assertThat(ea.getStatus()).isEqualTo(AccessStatus.ACTIVE));
-        // The rule's failure is recorded too (it is written outside the failed operation's transaction).
-        assertThat(reload(rule).getLastRunStatus()).isEqualTo(AutomationRunStatus.FAILED);
+        // The rule's outcome is recorded too (it is written outside the approval's transaction).
+        AutomationRule after = reload(rule);
+        assertThat(after.getLastRunReason()).isEqualTo(AutomationRunReason.SCOPE_MISSING);
+        assertThat(after.getEnabled()).isFalse();
     }
 
     @Test

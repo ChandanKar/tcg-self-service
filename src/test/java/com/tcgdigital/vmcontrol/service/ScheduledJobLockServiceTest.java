@@ -47,7 +47,8 @@ class ScheduledJobLockServiceTest extends AbstractIntegrationTest {
         other.setLockName("test_job_held");
         other.setLockedBy("other-host-4242");
         other.setAcquiredAt(Timestamp.from(Instant.now()));
-        Timestamp until = Timestamp.from(Instant.now().plus(Duration.ofMinutes(20)));
+        // Whole seconds: the column rounds fractions, which made this comparison flaky.
+        Timestamp until = Timestamp.from(Instant.now().plus(Duration.ofMinutes(20)).truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
         other.setLockedUntil(until);
         locks.saveAndFlush(other);
         AtomicInteger runs = new AtomicInteger();

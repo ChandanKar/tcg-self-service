@@ -54,4 +54,12 @@ public interface AutomationRuleRepository extends JpaRepository<AutomationRule, 
     List<AutomationRule> findEnabledAccessGrantRulesFetchEnvironment(@Param("type") AutomationTriggerType type,
                                                                      @Param("mode") AccessGrantMode mode,
                                                                      @Param("environmentId") String environmentId);
+
+    /** All rules with their environments in one query (no lazy load per rule in the list). */
+    @Query("SELECT r FROM AutomationRule r JOIN FETCH r.environment ORDER BY r.createdAt DESC")
+    List<AutomationRule> findAllFetchEnvironment();
+
+    @Query("SELECT r FROM AutomationRule r JOIN FETCH r.environment " +
+           "WHERE r.environment.environmentId = :environmentId ORDER BY r.createdAt DESC")
+    List<AutomationRule> findByEnvironmentFetchEnvironment(@Param("environmentId") String environmentId);
 }

@@ -10,6 +10,7 @@ import com.tcgdigital.vmcontrol.model.*;
 import com.tcgdigital.vmcontrol.repository.AutomationRuleRepository;
 import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import com.tcgdigital.vmcontrol.repository.VmGroupRepository;
+import com.tcgdigital.vmcontrol.repository.UserRepository;
 import com.tcgdigital.vmcontrol.repository.VmRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,6 +53,7 @@ public class AutomationRuleService {
 
     private static final Logger log = LoggerFactory.getLogger(AutomationRuleService.class);
     private static final DateTimeFormatter HHMM = DateTimeFormatter.ofPattern("HH:mm");
+    private static final List<String> WEEK = List.of("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN");
 
     private final AutomationRuleRepository automationRuleRepository;
     private final EnvironmentRepository environmentRepository;
@@ -61,6 +63,7 @@ public class AutomationRuleService {
     private final AuditService auditService;
     private final NotificationService notificationService;
     private final UserService userService;
+    private final UserRepository userRepository;
     /** Starts a rule's operation in its own transaction, so its failure cannot poison the caller's. */
     private final TransactionTemplate operationTransaction;
     /** Evaluates one schedule rule per transaction. */
@@ -86,7 +89,9 @@ public class AutomationRuleService {
                                   NotificationService notificationService,
                                   UserService userService,
                                   PlatformTransactionManager transactionManager,
-                                  ScheduleCalculator scheduleCalculator) {
+                                  ScheduleCalculator scheduleCalculator,
+                                  UserRepository userRepository) {
+        this.userRepository = userRepository;
         this.scheduleCalculator = scheduleCalculator;
         this.ruleTransaction = new TransactionTemplate(transactionManager);
         this.ruleTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -106,9 +111,11 @@ public class AutomationRuleService {
 
     @Transactional(readOnly = true)
     public List<AutomationRuleDTO> listRules(String environmentId) {
+        // Environments are fetched with the rules: loading them lazily per rule raced with
+        // environment deletion and failed the whole list (PL-07).
         List<AutomationRule> rules = (environmentId == null || environmentId.isBlank())
-                ? automationRuleRepository.findAllByOrderByCreatedAtDesc()
-                : automationRuleRepository.findByEnvironment_EnvironmentIdOrderByCreatedAtDesc(environmentId);
+                ? automationRuleRepository.findAllFetchEnvironment()
+                : automationRuleRepository.findByEnvironmentFetchEnvironment(environmentId);
         return rules.stream().map(this::toDto).toList();
     }
 
@@ -166,6 +173,14 @@ public class AutomationRuleService {
     @Transactional
     public AutomationRuleDTO setEnabled(String ruleId, boolean enabled, String actorUserId) {
         AutomationRule rule = getRuleEntity(ruleId);
+        if (enabled) {
+            // Re-enabling is refused while the reason it cannot run still holds (M16).
+            Optional<Preflight> blocked = preflightProblem(rule);
+            if (blocked.isPresent()) {
+                throw new ValidationException("This rule cannot be enabled: " + blocked.get().message());
+            }
+            rule.setDisabledReason(null);
+        }
         rule.setEnabled(enabled);
         rule = automationRuleRepository.save(rule);
         auditService.logAutomationRuleUpdated(actorUserId, rule.getRuleId(), rule.getName(),
@@ -270,7 +285,7 @@ public class AutomationRuleService {
             String reason = triedToday ? rule.getLastRunDetail() : "the scheduler did not run at " + hhmm;
             AutomationRunStatus status = triedToday && rule.getLastRunStatus() == AutomationRunStatus.FAILED
                     ? AutomationRunStatus.FAILED : AutomationRunStatus.SKIPPED;
-            recordRun(rule, status, "Missed window: " + reason);
+            recordRun(rule, status, AutomationRunReason.MISSED_WINDOW, "Missed window: " + reason);
             markFired.accept(today);
             automationRuleRepository.save(rule);
         }
@@ -292,6 +307,11 @@ public class AutomationRuleService {
 
     FireOutcome fireOperation(AutomationRule rule, OperationType operationType,
                               String actingUserId, String triggerLabel) {
+        Optional<Preflight> problem = preflightProblem(rule);
+        if (problem.isPresent()) {
+            disable(rule, problem.get());
+            return FireOutcome.SKIPPED;
+        }
         Environment environment = rule.getEnvironment();
         String environmentId = environment.getEnvironmentId();
         String environmentName = environment.getName();
@@ -347,17 +367,22 @@ public class AutomationRuleService {
 
         switch (outcome) {
             case STARTED -> {
-                recordRun(rule, AutomationRunStatus.SUCCESS, detail);
+                recordRun(rule, AutomationRunStatus.SUCCESS, AutomationRunReason.OK, detail);
                 auditService.logAutomationRuleTriggered(actingUserId, rule.getRuleId(), rule.getName(),
                         environmentId, environmentName, detail);
             }
             case FAILED -> {
-                recordRun(rule, AutomationRunStatus.FAILED, detail);
+                recordRun(rule, AutomationRunStatus.FAILED, AutomationRunReason.ERROR, detail);
                 auditService.logAutomationRuleFailed(actingUserId, rule.getRuleId(), rule.getName(),
                         environmentId, environmentName, detail);
             }
             default -> {
-                recordRun(rule, AutomationRunStatus.SKIPPED, detail);
+                recordRun(rule, AutomationRunStatus.SKIPPED, switch (outcome) {
+                    case NOTHING_TO_DO -> AutomationRunReason.NOTHING_TO_DO;
+                    case LOCKED -> AutomationRunReason.LOCKED;
+                    case BUSY -> AutomationRunReason.OPERATION_IN_PROGRESS;
+                    default -> AutomationRunReason.ERROR;
+                }, detail);
                 auditService.logAutomationRuleSkipped(actingUserId, rule.getRuleId(), rule.getName(),
                         environmentId, environmentName, detail);
                 if (outcome == FireOutcome.LOCKED) {
@@ -369,11 +394,67 @@ public class AutomationRuleService {
         return outcome;
     }
 
-    private void recordRun(AutomationRule rule, AutomationRunStatus status, String detail) {
+    /** Detail is cut to the 500-character column (LOW-AUTO-LASTRUNDETAIL). */
+    private void recordRun(AutomationRule rule, AutomationRunStatus status, AutomationRunReason reason, String detail) {
         rule.setLastRunAt(Timestamp.from(Instant.now()));
         rule.setLastRunStatus(status);
-        rule.setLastRunDetail(detail);
+        rule.setLastRunReason(reason);
+        rule.setLastRunDetail(detail != null && detail.length() > MAX_RUN_DETAIL
+                ? detail.substring(0, MAX_RUN_DETAIL - 3) + "..." : detail);
         automationRuleRepository.save(rule);
+    }
+
+    private static final int MAX_RUN_DETAIL = 500;
+
+    /** Why a rule cannot act at all (as opposed to a skip that may succeed next time). */
+    record Preflight(AutomationRunReason reason, String message) {}
+
+    /**
+     * M16: a rule must not keep acting for a deactivated environment, an offboarded or demoted
+     * creator (it acts as them), or a group/VM that no longer exists.
+     */
+    Optional<Preflight> preflightProblem(AutomationRule rule) {
+        if (!Boolean.TRUE.equals(rule.getEnvironment().getIsActive())) {
+            return Optional.of(new Preflight(AutomationRunReason.ENVIRONMENT_INACTIVE, "Environment deactivated"));
+        }
+        User creator = userRepository.findById(rule.getCreatedByUserId()).orElse(null);
+        if (creator == null || !Boolean.TRUE.equals(creator.getIsActive())
+                || !(creator.isAdmin() || creator.isEnvAdmin())) {
+            return Optional.of(new Preflight(AutomationRunReason.CREATOR_INACTIVE,
+                    "Rule creator is no longer active or no longer an admin"));
+        }
+        if (rule.getScopeType() == AutomationScopeType.GROUP) {
+            boolean exists = rule.getScopeId() != null && vmGroupRepository.existsById(rule.getScopeId());
+            if (!exists) {
+                return Optional.of(new Preflight(AutomationRunReason.SCOPE_MISSING, "Target group no longer exists"));
+            }
+        } else if (rule.getScopeType() == AutomationScopeType.VM) {
+            boolean exists = rule.getScopeId() != null && vmRepository.findById(rule.getScopeId())
+                    .filter(v -> Boolean.TRUE.equals(v.getIsActive())).isPresent();
+            if (!exists) {
+                return Optional.of(new Preflight(AutomationRunReason.SCOPE_MISSING, "Target VM no longer exists"));
+            }
+        }
+        return Optional.empty();
+    }
+
+    /** Switch a rule off with its reason, record and audit it (and tell admins about a creator problem). */
+    private void disable(AutomationRule rule, Preflight problem) {
+        rule.setEnabled(false);
+        rule.setDisabledReason(problem.message());
+        recordRun(rule, AutomationRunStatus.SKIPPED, problem.reason(), "Disabled: " + problem.message());
+        Environment environment = rule.getEnvironment();
+        log.warn("Automation rule {} disabled: {}", rule.getRuleId(), problem.message());
+        auditService.logEnvironmentAction(null, AuditAction.AUTOMATION_RULE_UPDATED, environment.getEnvironmentId(),
+                environment.getName(), "automation_rule", rule.getRuleId(), rule.getName(),
+                "Disabled: " + problem.message());
+        if (problem.reason() == AutomationRunReason.CREATOR_INACTIVE) {
+            try {
+                notificationService.notifyAutomationRuleDisabled(environment.getName(), rule.getName(), problem.message());
+            } catch (Exception e) {
+                log.warn("Could not notify admins about disabled rule {}: {}", rule.getRuleId(), e.getMessage());
+            }
+        }
     }
 
     private String resolveDisplayName(String userId) {
@@ -417,6 +498,11 @@ public class AutomationRuleService {
             if (dto.getDaysOfWeek() == null || dto.getDaysOfWeek().isEmpty()) {
                 throw new ValidationException("At least one day of week is required for a schedule rule");
             }
+            for (String day : dto.getDaysOfWeek()) {
+                if (day == null || !WEEK.contains(day.trim().toUpperCase(java.util.Locale.ROOT))) {
+                    throw new ValidationException("Unknown day: " + day);
+                }
+            }
             boolean hasStop = isValidTime(dto.getStopTime());
             boolean hasStart = isValidTime(dto.getStartTime());
             if (!hasStop && !hasStart) {
@@ -427,6 +513,9 @@ public class AutomationRuleService {
             }
             if (dto.getStartTime() != null && !dto.getStartTime().isBlank() && !hasStart) {
                 throw new ValidationException("Start time must be in HH:mm format");
+            }
+            if (hasStop && hasStart && dto.getStopTime().equals(dto.getStartTime())) {
+                throw new ValidationException("Start and stop times must differ");
             }
             if (dto.getTimezone() == null || dto.getTimezone().isBlank()) {
                 throw new ValidationException("Timezone is required for a schedule rule");
@@ -465,9 +554,11 @@ public class AutomationRuleService {
         rule.setTriggerType(dto.getTriggerType());
 
         if (dto.getTriggerType() == AutomationTriggerType.SCHEDULE) {
-            rule.setDaysOfWeek(dto.getDaysOfWeek().stream()
-                    .map(String::toUpperCase)
-                    .collect(Collectors.joining(",")));
+            // Deduplicated, in week order.
+            java.util.Set<String> chosen = dto.getDaysOfWeek().stream()
+                    .map(d -> d.trim().toUpperCase(java.util.Locale.ROOT))
+                    .collect(Collectors.toSet());
+            rule.setDaysOfWeek(WEEK.stream().filter(chosen::contains).collect(Collectors.joining(",")));
             rule.setStopTime(blankToNull(dto.getStopTime()));
             rule.setStartTime(blankToNull(dto.getStartTime()));
             rule.setTimezone(dto.getTimezone());
