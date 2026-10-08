@@ -1,6 +1,12 @@
 package com.tcgdigital.vmcontrol.controller;
 
 import com.tcgdigital.vmcontrol.dto.IdleStopRuleDTO;
+import com.tcgdigital.vmcontrol.dto.IdleStopStatusDTO;
+import com.tcgdigital.vmcontrol.repository.IdleStopEventRepository;
+import com.tcgdigital.vmcontrol.repository.UserRepository;
+import com.tcgdigital.vmcontrol.service.idle.IdleStopSnoozeService;
+import com.tcgdigital.vmcontrol.service.idle.IdleStopSummaryService;
+import org.springframework.beans.factory.annotation.Value;
 import com.tcgdigital.vmcontrol.dto.IdleStopRuleRequestDTO;
 import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
 import com.tcgdigital.vmcontrol.model.AuditAction;
@@ -35,14 +41,27 @@ public class IdleStopController {
     private final UserService userService;
     private final EnvironmentRepository environmentRepository;
     private final AuditService auditService;
+    private final IdleStopSnoozeService snoozeService;
+    private final IdleStopSummaryService summaryService;
+    private final IdleStopEventRepository eventRepository;
+    private final UserRepository userRepository;
+
+    @Value("${automation.idle-stop.enabled:false}")
+    private boolean featureEnabled;
 
     public IdleStopController(IdleStopRuleService ruleService, SecurityService securityService, UserService userService,
-                              EnvironmentRepository environmentRepository, AuditService auditService) {
+                              EnvironmentRepository environmentRepository, AuditService auditService,
+                              IdleStopSnoozeService snoozeService, IdleStopSummaryService summaryService,
+                              IdleStopEventRepository eventRepository, UserRepository userRepository) {
         this.ruleService = ruleService;
         this.securityService = securityService;
         this.userService = userService;
         this.environmentRepository = environmentRepository;
         this.auditService = auditService;
+        this.snoozeService = snoozeService;
+        this.summaryService = summaryService;
+        this.eventRepository = eventRepository;
+        this.userRepository = userRepository;
     }
 
     @GetMapping("/idle-stop/rules")
@@ -84,6 +103,51 @@ public class IdleStopController {
                 environmentId);
         securityService.assertCanAdminister(environmentId);
         ruleService.deleteRule(environmentId, ruleId, userService.getCurrentUserId());
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/idle-stop/status")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Idle auto-stop status",
+            description = "Rules, snooze, the latest decision and the last days' would-have-saved / saved amounts.")
+    public ResponseEntity<IdleStopStatusDTO> status(@PathVariable String environmentId,
+                                                    @RequestParam(defaultValue = "14") int days) {
+        securityService.assertCanView(environmentId);
+        Environment environment = environmentRepository.findById(environmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Environment", environmentId));
+        var snooze = snoozeService.getActive(environmentId).orElse(null);
+        String snoozedByName = snooze == null || snooze.getSnoozedByUserId() == null ? null
+                : userRepository.findById(snooze.getSnoozedByUserId()).map(u -> u.getDisplayName()).orElse(null);
+        var latest = eventRepository.findTop20ByEnvironmentIdOrderByEvaluatedAtDesc(environmentId).stream().findFirst()
+                .map(e -> new IdleStopStatusDTO.LatestEvent(e.getOutcome(), e.getReason(), e.getEvaluatedAt(), e.getIdleSince()))
+                .orElse(null);
+        var summary = summaryService.summarize(environmentId, days);
+        return ResponseEntity.ok(new IdleStopStatusDTO(featureEnabled, Boolean.TRUE.equals(environment.getIsProduction()),
+                ruleService.listRules(environmentId),
+                snooze == null ? null : snooze.getSnoozedUntil(), snooze == null ? null : snooze.getSnoozedByUserId(),
+                snoozedByName, latest, Math.max(1, Math.min(days, 31)), summary.wouldStopEpisodes(), summary.wouldHaveSaved(),
+                summary.stoppedCount(), summary.savedEstimate(), summary.stoppedSavings()));
+    }
+
+    @PostMapping("/idle-stop/snooze")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Snooze idle auto-stop", description = "For 1, 4 or 8 hours; extends an active snooze.")
+    public ResponseEntity<Map<String, Object>> snooze(@PathVariable String environmentId,
+                                                      @RequestBody Map<String, Object> body) {
+        securityService.assertCanOperate(environmentId);
+        Integer hours = body.get("hours") instanceof Number n ? n.intValue() : null;
+        String reason = body.get("reason") instanceof String r ? r : null;
+        var snooze = snoozeService.snooze(environmentId, hours, reason, userService.getCurrentUserId());
+        return ResponseEntity.ok(Map.of("environmentId", environmentId, "snoozedUntil", snooze.getSnoozedUntil()));
+    }
+
+    @DeleteMapping("/idle-stop/snooze")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "End the snooze", description = "Allowed for the person who snoozed or an environment admin.")
+    public ResponseEntity<Void> endSnooze(@PathVariable String environmentId) {
+        securityService.assertCanOperate(environmentId);
+        snoozeService.cancel(environmentId, userService.getCurrentUserId(),
+                securityService.canAdministerEnvironment(environmentId));
         return ResponseEntity.noContent().build();
     }
 

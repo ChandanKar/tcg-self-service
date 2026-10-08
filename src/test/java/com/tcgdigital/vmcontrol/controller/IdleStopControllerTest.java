@@ -174,4 +174,59 @@ class IdleStopControllerTest extends SecuredWebTestBase {
         expectError(mockMvc.perform(post(rulesUrl(envA)).with(asEnvAdmin()).contentType(MediaType.APPLICATION_JSON)
                 .content("{}")), 400);
     }
+
+    // ---- E16-T04: snooze and status ----
+
+    private String snoozeUrl(Environment env) {
+        return "/api/v1/environments/" + env.getEnvironmentId() + "/idle-stop/snooze";
+    }
+
+    @Test
+    void aUserSnoozesForFourHoursAndItIsAudited() throws Exception {
+        mockMvc.perform(post(snoozeUrl(envA)).with(asUser()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"hours\":4,\"reason\":\"demo this afternoon\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snoozedUntil").isNotEmpty());
+
+        mockMvc.perform(get("/api/v1/environments/" + envA.getEnvironmentId() + "/idle-stop/status").with(asViewer()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snoozedByUserId").value(operator.getUserId()))
+                .andExpect(jsonPath("$.featureEnabled").value(false))
+                .andExpect(jsonPath("$.days").value(14))
+                .andExpect(jsonPath("$.wouldHaveSaved").value(0));
+        awaitAsync(() -> assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM audit_log WHERE action_type = 'IDLE_STOP_SNOOZED' AND environment_id = ?",
+                Integer.class, envA.getEnvironmentId())).isEqualTo(1));
+    }
+
+    @Test
+    void onlyOneFourOrEightHoursAndNotForViewers() throws Exception {
+        expectError(mockMvc.perform(post(snoozeUrl(envA)).with(asUser()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"hours\":3}")), 400);
+        mockMvc.perform(post(snoozeUrl(envA)).with(asViewer()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"hours\":4}")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void aShorterSnoozeDoesNotShortenAnActiveOne() throws Exception {
+        String longer = JsonPath.read(mockMvc.perform(post(snoozeUrl(envA)).with(asUser())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"hours\":8}"))
+                .andReturn().getResponse().getContentAsString(), "$.snoozedUntil").toString();
+
+        String after = JsonPath.read(mockMvc.perform(post(snoozeUrl(envA)).with(asUser())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"hours\":1}"))
+                .andReturn().getResponse().getContentAsString(), "$.snoozedUntil").toString();
+
+        assertThat(after).isEqualTo(longer);
+    }
+
+    @Test
+    void theSnoozerOrAnAdminEndsTheSnooze() throws Exception {
+        mockMvc.perform(post(snoozeUrl(envA)).with(asEnvAdmin()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"hours\":4}")).andExpect(status().isOk());
+
+        mockMvc.perform(delete(snoozeUrl(envA)).with(asUser())).andExpect(status().isForbidden());
+        mockMvc.perform(delete(snoozeUrl(envA)).with(asAdmin())).andExpect(status().isNoContent());
+        expectError(mockMvc.perform(delete(snoozeUrl(envA)).with(asAdmin())), 404);
+    }
 }

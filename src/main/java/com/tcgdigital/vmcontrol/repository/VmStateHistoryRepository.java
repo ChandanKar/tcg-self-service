@@ -79,5 +79,9 @@ public interface VmStateHistoryRepository extends JpaRepository<VmStateHistory, 
      * window) wasn't found in the batched lookback query above.
      */
     Optional<VmStateHistory> findTopByVmVmIdAndChangedAtLessThanOrderByChangedAtDesc(String vmId, Timestamp before);
-}
 
+    /** State changes of the given VMs after a moment, oldest first (idle-stop savings, E16-T04). */
+    @Query("SELECT h FROM VmStateHistory h WHERE h.vm.vmId IN :vmIds AND h.changedAt > :after ORDER BY h.changedAt ASC")
+    List<VmStateHistory> findByVmIdsChangedAfter(@org.springframework.data.repository.query.Param("vmIds") List<String> vmIds,
+                                                 @org.springframework.data.repository.query.Param("after") Timestamp after);
+}
