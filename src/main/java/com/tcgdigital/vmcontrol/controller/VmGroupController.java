@@ -37,6 +37,11 @@ public class VmGroupController {
         this.securityService = securityService;
     }
 
+    /** The environment a group belongs to (404 when the group does not exist). */
+    private String envOfGroup(String groupId) {
+        return groupService.getGroupById(groupId).getEnvironment().getEnvironmentId();
+    }
+
     @GetMapping
     @PreAuthorize("isAuthenticated()")
     @Operation(
@@ -90,6 +95,8 @@ public class VmGroupController {
     public ResponseEntity<VmGroupDTO> getGroup(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Parameter(description = "Group ID") @PathVariable String groupId) {
+        securityService.assertSameEnvironment(envOfGroup(groupId), environmentId);
+
 
         if (!securityService.hasGroupAccess(groupId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
@@ -158,6 +165,8 @@ public class VmGroupController {
     public ResponseEntity<VmGroupDTO> createGroup(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Valid @RequestBody CreateVmGroupDTO dto) {
+        securityService.assertCanAdminister(environmentId);
+
 
         VmGroup created = groupService.createGroup(environmentId, dto);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -182,6 +191,9 @@ public class VmGroupController {
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Parameter(description = "Group ID") @PathVariable String groupId,
             @Valid @RequestBody CreateVmGroupDTO dto) {
+        securityService.assertSameEnvironment(envOfGroup(groupId), environmentId);
+        securityService.assertCanAdminister(environmentId);
+
 
         VmGroup updated = groupService.updateGroup(groupId, dto);
         return ResponseEntity.ok(VmGroupDTO.fromEntity(updated));
@@ -201,6 +213,9 @@ public class VmGroupController {
     public ResponseEntity<Void> deleteGroup(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Parameter(description = "Group ID") @PathVariable String groupId) {
+        securityService.assertSameEnvironment(envOfGroup(groupId), environmentId);
+        securityService.assertCanAdminister(environmentId);
+
 
         groupService.deleteGroup(groupId);
         return ResponseEntity.noContent().build();

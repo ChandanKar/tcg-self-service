@@ -135,6 +135,16 @@ public class VmMgmtController {
         return dto;
     }
 
+    /** The environment a group belongs to (404 when the group does not exist). */
+    private String envOfGroup(String groupId) {
+        return groupService.getGroupById(groupId).getEnvironment().getEnvironmentId();
+    }
+
+    /** The environment a VM belongs to (404 when the VM does not exist). */
+    private String envOfVm(String vmId) {
+        return vmService.getVmById(vmId).getGroup().getEnvironment().getEnvironmentId();
+    }
+
     /** Whether the current user can see the VM's group (env-level access, or a grant on that group). */
     private boolean canSeeVm(String vmId) {
         try {
@@ -156,6 +166,8 @@ public class VmMgmtController {
             @Parameter(description = "Group ID") @PathVariable String groupId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "25") int size) {
+        securityService.assertSameEnvironment(envOfGroup(groupId), environmentId);
+
 
         if (!securityService.canViewEnvironment(environmentId) || !securityService.hasGroupAccess(groupId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
@@ -187,6 +199,8 @@ public class VmMgmtController {
     public ResponseEntity<VmDTO> getVm(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Parameter(description = "VM ID") @PathVariable String vmId) {
+        securityService.assertSameEnvironment(envOfVm(vmId), environmentId);
+
 
         // Check access
         if (!securityService.canViewEnvironment(environmentId) || !canSeeVm(vmId)) {
@@ -203,6 +217,8 @@ public class VmMgmtController {
     public ResponseEntity<VmInventoryDTO> getVmInventory(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Parameter(description = "VM ID") @PathVariable String vmId) {
+        securityService.assertSameEnvironment(envOfVm(vmId), environmentId);
+
         if (!securityService.canViewEnvironment(environmentId) || !canSeeVm(vmId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
@@ -214,6 +230,9 @@ public class VmMgmtController {
     public ResponseEntity<VmInventoryDTO> refreshVmInventory(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Parameter(description = "VM ID") @PathVariable String vmId) {
+        securityService.assertSameEnvironment(envOfVm(vmId), environmentId);
+        securityService.assertCanAdminister(environmentId);
+
         if (!securityService.canViewEnvironment(environmentId) || !canSeeVm(vmId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
@@ -227,6 +246,8 @@ public class VmMgmtController {
             @Parameter(description = "VM ID") @PathVariable String vmId,
             @RequestParam(defaultValue = "1h") String window,
             @RequestParam(defaultValue = "300") int period) {
+        securityService.assertSameEnvironment(envOfVm(vmId), environmentId);
+
         if (!securityService.canViewEnvironment(environmentId) || !canSeeVm(vmId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
@@ -238,6 +259,8 @@ public class VmMgmtController {
     public ResponseEntity<VmUtilizationSummaryDTO> getVmUtilizationSummary(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Parameter(description = "VM ID") @PathVariable String vmId) {
+        securityService.assertSameEnvironment(envOfVm(vmId), environmentId);
+
         if (!securityService.canViewEnvironment(environmentId) || !canSeeVm(vmId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
@@ -261,6 +284,9 @@ public class VmMgmtController {
     public ResponseEntity<VmDTO> registerVm(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Valid @RequestBody RegisterVmDTO dto) {
+        securityService.assertSameEnvironment(envOfGroup(dto.getGroupId()), environmentId);
+        securityService.assertCanAdminister(environmentId);
+
 
         Vm created = vmService.registerVm(dto);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -285,6 +311,13 @@ public class VmMgmtController {
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Parameter(description = "VM ID") @PathVariable String vmId,
             @Valid @RequestBody RegisterVmDTO dto) {
+        securityService.assertSameEnvironment(envOfVm(vmId), environmentId);
+        if (dto.getGroupId() != null) {
+            // Moving a VM is only allowed within the same environment.
+            securityService.assertSameEnvironment(envOfGroup(dto.getGroupId()), environmentId);
+        }
+        securityService.assertCanAdminister(environmentId);
+
 
         Vm updated = vmService.updateVm(vmId, dto);
         Map<String, String> privateIpsByVmId = inventoryService.getPrivateIpsByVmIds(List.of(vmId));
@@ -305,6 +338,9 @@ public class VmMgmtController {
     public ResponseEntity<Void> deleteVm(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Parameter(description = "VM ID") @PathVariable String vmId) {
+        securityService.assertSameEnvironment(envOfVm(vmId), environmentId);
+        securityService.assertCanAdminister(environmentId);
+
 
         vmService.deleteVm(vmId);
         return ResponseEntity.noContent().build();
@@ -324,6 +360,9 @@ public class VmMgmtController {
     public ResponseEntity<VmDTO> acknowledgeVm(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Parameter(description = "VM ID") @PathVariable String vmId) {
+        securityService.assertSameEnvironment(envOfVm(vmId), environmentId);
+        securityService.assertCanAdminister(environmentId);
+
 
         String userId = userService.getCurrentUserId();
         Vm vm = vmService.acknowledgeVm(vmId, userId);
