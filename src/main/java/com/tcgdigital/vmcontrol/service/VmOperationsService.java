@@ -212,11 +212,22 @@ public class VmOperationsService {
     }
 
     /**
-     * Get execution with details.
+     * An execution that belongs to the path environment; 404 for an unknown id or one from
+     * another environment, so ids from elsewhere are neither used nor confirmed (H11).
+     */
+    public OperationExecution getExecutionForEnvironment(String environmentId, String executionId) {
+        OperationExecution execution = executionRepository.findByIdWithEnvironment(executionId)
+                .orElseThrow(() -> new ResourceNotFoundException("OperationExecution", executionId));
+        securityService.assertSameEnvironment(execution.getEnvironment().getEnvironmentId(), environmentId);
+        return execution;
+    }
+
+    /**
+     * Get execution with details, scoped to the path environment.
      */
     @Transactional(readOnly = true)
-    public OperationExecution getExecutionWithDetails(String executionId) {
-        OperationExecution execution = getExecution(executionId);
+    public OperationExecution getExecutionWithDetails(String environmentId, String executionId) {
+        OperationExecution execution = getExecutionForEnvironment(environmentId, executionId);
         // Force load details
         execution.getDetails().size();
         return execution;
@@ -249,20 +260,20 @@ public class VmOperationsService {
         List<String> scopedVmIds = null; // null = all VMs in environment
 
         if (vmId != null && !vmId.isBlank()) {
-            // VM scope
+            // VM scope — the VM must belong to this environment (404 otherwise, H1)
+            Vm vm = vmInEnvironment(environmentId, vmId);
             scopedVmIds = List.of(vmId);
-            Vm vm = vmRepository.findById(vmId).orElse(null);
             estimate.setScopeLevel("VM");
             estimate.setScopeId(vmId);
-            estimate.setScopeName(vm != null ? vm.getName() : vmId);
+            estimate.setScopeName(vm.getName());
         } else if (groupId != null && !groupId.isBlank()) {
-            // Group scope — resolve VMs in this group
+            // Group scope — the group must belong to this environment (404 otherwise, H1)
+            VmGroup group = groupInEnvironment(environmentId, groupId);
             List<Vm> groupVms = vmRepository.findByGroupGroupIdOrderBySequencePositionAsc(groupId);
             scopedVmIds = groupVms.stream().map(Vm::getVmId).toList();
-            VmGroup group = groupRepository.findById(groupId).orElse(null);
             estimate.setScopeLevel("GROUP");
             estimate.setScopeId(groupId);
-            estimate.setScopeName(group != null ? (group.getDisplayName() != null ? group.getDisplayName() : group.getName()) : groupId);
+            estimate.setScopeName(group.getDisplayName() != null ? group.getDisplayName() : group.getName());
             if (scopedVmIds.isEmpty()) {
                 estimate.setSampleCount(0);
                 estimate.setVmEstimates(new ArrayList<>());
@@ -382,11 +393,22 @@ public class VmOperationsService {
     }
 
     /**
-     * Cancel a pending or in-progress execution.
+     * Cancel a pending or in-progress execution of the path environment. Only the user who
+     * started it, the environment's lock holder, or someone who administers the environment
+     * may cancel (H11).
      */
     @Transactional
-    public OperationExecution cancelExecution(String executionId, String userId) {
-        OperationExecution execution = getExecution(executionId);
+    public OperationExecution cancelExecution(String environmentId, String executionId, String userId) {
+        OperationExecution execution = getExecutionForEnvironment(environmentId, executionId);
+
+        boolean initiator = userId != null && userId.equals(execution.getInitiatedByUserId());
+        boolean lockHolder = userId != null && lockService.getCurrentLock(environmentId)
+                .map(lock -> userId.equals(lock.getLockedByUserId()))
+                .orElse(false);
+        if (!initiator && !lockHolder && !securityService.canAdministerEnvironment(environmentId)) {
+            throw new UnauthorizedException(
+                    "Only the person who started this operation, the lock holder or an admin can cancel it");
+        }
 
         if (execution.getStatus() != ExecutionStatus.PENDING &&
             execution.getStatus() != ExecutionStatus.IN_PROGRESS) {
@@ -407,6 +429,9 @@ public class VmOperationsService {
         detailRepository.saveAll(pendingDetails);
 
         log.info("Cancelled execution {} by user {}", executionId, userId);
+        auditService.logEnvironmentAction(userId, AuditAction.OPERATION_CANCELLED, environmentId,
+                execution.getEnvironment().getName(), "operation", executionId,
+                execution.getOperationType().name(), "Cancelled");
 
         return executionRepository.save(execution);
     }
@@ -855,27 +880,44 @@ public class VmOperationsService {
         throw new UnauthorizedException("You cannot operate on VM group(s): " + label);
     }
 
+    /** A VM of the given environment, or 404 (also for a VM of another environment). */
+    private Vm vmInEnvironment(String environmentId, String vmId) {
+        return vmRepository.findById(vmId)
+                .filter(vm -> vm.getGroup() != null
+                        && environmentId.equals(vm.getGroup().getEnvironment().getEnvironmentId()))
+                .orElseThrow(() -> new ResourceNotFoundException("VM", vmId));
+    }
+
+    /** A group of the given environment, or 404 (also for a group of another environment). */
+    private VmGroup groupInEnvironment(String environmentId, String groupId) {
+        return groupRepository.findById(groupId)
+                .filter(group -> environmentId.equals(group.getEnvironment().getEnvironmentId()))
+                .orElseThrow(() -> new ResourceNotFoundException("VmGroup", groupId));
+    }
+
     private List<Vm> resolveTargetVms(Environment environment, StartOperationDTO dto) {
         List<Vm> targetVms;
 
         if (dto.getVmIds() != null && !dto.getVmIds().isEmpty()) {
             // Specific VMs requested - filter out inactive VMs
+            // Every id must be a VM of the path environment: an unknown or foreign id is a 404
+            // (not silently used), so a lock on A can never touch B's VMs (H1).
             List<Vm> resolvedVms = new ArrayList<>();
             for (String vmId : dto.getVmIds()) {
-                vmRepository.findById(vmId).ifPresent(vm -> {
-                    if (Boolean.TRUE.equals(vm.getIsActive())) {
-                        resolvedVms.add(vm);
-                    } else {
-                        log.warn("Skipping inactive VM {} ({}) - status: {}",
-                                vm.getName(), vmId, vm.getStatus());
-                    }
-                });
+                Vm vm = vmInEnvironment(environment.getEnvironmentId(), vmId);
+                if (Boolean.TRUE.equals(vm.getIsActive())) {
+                    resolvedVms.add(vm);
+                } else {
+                    log.warn("Skipping inactive VM {} ({}) - status: {}",
+                            vm.getName(), vmId, vm.getStatus());
+                }
             }
             targetVms = resolvedVms;
         } else if (dto.getGroupIds() != null && !dto.getGroupIds().isEmpty()) {
             // Specific groups requested - repository already filters inactive VMs
             targetVms = new ArrayList<>();
             for (String groupId : dto.getGroupIds()) {
+                groupInEnvironment(environment.getEnvironmentId(), groupId);
                 targetVms.addAll(vmRepository.findByGroupGroupIdOrderBySequencePositionAsc(groupId));
             }
         } else {

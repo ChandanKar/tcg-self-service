@@ -289,7 +289,7 @@ class VmOperationsServiceTest extends AbstractIntegrationTest {
         // When/Then - Only try to cancel if it's still cancellable
         if (refreshedExecution.getStatus() == ExecutionStatus.PENDING ||
             refreshedExecution.getStatus() == ExecutionStatus.IN_PROGRESS) {
-            OperationExecution cancelled = operationsService.cancelExecution(execution.getExecutionId(), userId);
+            OperationExecution cancelled = operationsService.cancelExecution(testEnvironment.getEnvironmentId(), execution.getExecutionId(), userId);
             assertEquals(ExecutionStatus.CANCELLED, cancelled.getStatus());
             assertNotNull(cancelled.getCompletedAt());
         } else {

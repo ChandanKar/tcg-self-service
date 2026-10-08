@@ -66,10 +66,7 @@ public class VmOperationsController {
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Valid @RequestBody StartOperationDTO dto) {
 
-        // Check USER level access for operations
-        if (!securityService.canOperateInEnvironment(environmentId)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
+        securityService.assertCanOperate(environmentId);
 
         String effectiveUserId = userService.getCurrentUserId();
 
@@ -99,10 +96,7 @@ public class VmOperationsController {
     public ResponseEntity<List<OperationExecutionDTO>> listOperations(
             @Parameter(description = "Environment ID") @PathVariable String environmentId) {
 
-        // Check any level of access
-        if (!securityService.canViewEnvironment(environmentId)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
+        securityService.assertCanView(environmentId);
 
         List<OperationExecution> executions = operationsService.getRecentExecutions(environmentId);
 
@@ -135,12 +129,9 @@ public class VmOperationsController {
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Parameter(description = "Execution ID") @PathVariable String executionId) {
 
-        // Check any level of access
-        if (!securityService.canViewEnvironment(environmentId)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
+        securityService.assertCanView(environmentId);
 
-        OperationExecution execution = operationsService.getExecutionWithDetails(executionId);
+        OperationExecution execution = operationsService.getExecutionWithDetails(environmentId, executionId);
         String displayName = resolveDisplayName(execution.getInitiatedByUserId());
 
         return ResponseEntity.ok(OperationExecutionDTO.fromEntityWithDetails(execution, displayName));
@@ -160,10 +151,7 @@ public class VmOperationsController {
             @Parameter(description = "Optional: scope to a specific group") @RequestParam(required = false) String groupId,
             @Parameter(description = "Optional: scope to a specific VM")    @RequestParam(required = false) String vmId) {
 
-        // Check any level of access
-        if (!securityService.canViewEnvironment(environmentId)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
+        securityService.assertCanView(environmentId);
 
         OperationEstimateDTO estimate = operationsService.getOperationEstimate(environmentId, operationType, groupId, vmId);
         return ResponseEntity.ok(estimate);
@@ -189,14 +177,11 @@ public class VmOperationsController {
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Parameter(description = "Execution ID") @PathVariable String executionId) {
 
-        // Check USER level access for operations
-        if (!securityService.canOperateInEnvironment(environmentId)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
+        securityService.assertCanOperate(environmentId);
 
         String effectiveUserId = userService.getCurrentUserId();
 
-        OperationExecution execution = operationsService.cancelExecution(executionId, effectiveUserId);
+        OperationExecution execution = operationsService.cancelExecution(environmentId, executionId, effectiveUserId);
 
         return ResponseEntity.ok(OperationExecutionDTO.fromEntity(execution));
     }
