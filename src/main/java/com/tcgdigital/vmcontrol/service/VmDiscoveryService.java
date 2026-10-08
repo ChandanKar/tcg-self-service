@@ -385,7 +385,9 @@ public class VmDiscoveryService {
             return false;
         }
         Vm vm = existing.get();
-        if (!Boolean.TRUE.equals(vm.getIsActive()) && vm.getStatus() == VmStatus.NOT_FOUND
+        // A VM an admin deleted is never brought back by discovery (M35).
+        if (!Boolean.TRUE.equals(vm.getDiscoveryIgnored())
+                && !Boolean.TRUE.equals(vm.getIsActive()) && vm.getStatus() == VmStatus.NOT_FOUND
                 && env.getEnvironmentId().equals(vm.getGroup().getEnvironment().getEnvironmentId())
                 && vmRepository.reactivateIfInactive(vm.getVmId(), VmStatus.UNKNOWN, true, Timestamp.from(Instant.now())) > 0) {
             auditService.logEnvironmentAction(null, AuditAction.VM_REACTIVATED, env.getEnvironmentId(), env.getName(),

@@ -83,6 +83,16 @@ public class Vm {
     @Column(name = "not_found_count", nullable = false)
     private Integer notFoundCount = 0;
 
+    /** Set when an admin deleted the VM (V33): discovery never re-registers or reactivates it. */
+    @Column(name = "discovery_ignored", nullable = false)
+    private Boolean discoveryIgnored = false;
+
+    @Column(name = "deleted_at")
+    private Timestamp deletedAt;
+
+    @Column(name = "deleted_by", length = 36)
+    private String deletedBy;
+
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
@@ -304,6 +314,30 @@ public class Vm {
 
     public void setNotFoundCount(Integer notFoundCount) {
         this.notFoundCount = notFoundCount;
+    }
+
+    public Boolean getDiscoveryIgnored() {
+        return discoveryIgnored;
+    }
+
+    public void setDiscoveryIgnored(Boolean discoveryIgnored) {
+        this.discoveryIgnored = discoveryIgnored;
+    }
+
+    public Timestamp getDeletedAt() {
+        return deletedAt;
+    }
+
+    public void setDeletedAt(Timestamp deletedAt) {
+        this.deletedAt = deletedAt;
+    }
+
+    public String getDeletedBy() {
+        return deletedBy;
+    }
+
+    public void setDeletedBy(String deletedBy) {
+        this.deletedBy = deletedBy;
     }
 
     public Timestamp getCreatedAt() {

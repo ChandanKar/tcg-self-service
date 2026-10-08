@@ -32,6 +32,9 @@ public class VmDTO {
     private Timestamp lastStateSyncAt;
     private Boolean stateDriftDetected;
     private Boolean discoveryPending;
+    private Boolean isActive;
+    private Boolean discoveryIgnored;
+    private Timestamp deletedAt;
     private Timestamp createdAt;
     private Timestamp updatedAt;
 
@@ -58,6 +61,9 @@ public class VmDTO {
         dto.setLastStateSyncAt(vm.getLastStateSyncAt());
         dto.setStateDriftDetected(vm.getStateDriftDetected());
         dto.setDiscoveryPending(vm.getDiscoveryPending());
+        dto.setIsActive(vm.getIsActive());
+        dto.setDiscoveryIgnored(vm.getDiscoveryIgnored());
+        dto.setDeletedAt(vm.getDeletedAt());
         dto.setCreatedAt(vm.getCreatedAt());
         dto.setUpdatedAt(vm.getUpdatedAt());
         return dto;
@@ -214,6 +220,31 @@ public class VmDTO {
 
     public void setDiscoveryPending(Boolean discoveryPending) {
         this.discoveryPending = discoveryPending;
+    }
+
+    public Boolean getIsActive() {
+        return isActive;
+    }
+
+    public void setIsActive(Boolean isActive) {
+        this.isActive = isActive;
+    }
+
+    /** True once an admin deleted the VM; discovery ignores its instance. */
+    public Boolean getDiscoveryIgnored() {
+        return discoveryIgnored;
+    }
+
+    public void setDiscoveryIgnored(Boolean discoveryIgnored) {
+        this.discoveryIgnored = discoveryIgnored;
+    }
+
+    public Timestamp getDeletedAt() {
+        return deletedAt;
+    }
+
+    public void setDeletedAt(Timestamp deletedAt) {
+        this.deletedAt = deletedAt;
     }
 
     public Timestamp getCreatedAt() {

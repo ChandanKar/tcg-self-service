@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -112,8 +113,13 @@ public class VmService {
             throw new ValidationException("Sequence position " + dto.getSequencePosition() + " already exists in this group");
         }
 
-        // Validate provider VM ID uniqueness
-        if (vmRepository.existsByProviderAndProviderVmId(dto.getProvider(), dto.getProviderVmId())) {
+        // Validate provider VM ID uniqueness (the unique index covers deleted and inactive rows)
+        Optional<Vm> sameInstance = vmRepository.findByProviderAndProviderVmId(dto.getProvider(), dto.getProviderVmId());
+        if (sameInstance.isPresent()) {
+            if (!Boolean.TRUE.equals(sameInstance.get().getIsActive())) {
+                throw new ValidationException("Instance " + dto.getProviderVmId()
+                        + " was removed from the platform - reactivate it from the registry instead");
+            }
             throw new ValidationException("VM with provider ID '" + dto.getProviderVmId() + "' is already registered");
         }
 
@@ -204,11 +210,16 @@ public class VmService {
     }
 
     /**
-     * Delete a VM (unregister from platform).
+     * Remove a VM from the platform (M35): a soft delete. The row, its state history and metrics
+     * stay; discovery ignores the instance; the delete is audited with its actor. Reactivating
+     * the VM undoes it.
      */
     @Transactional
-    public void deleteVm(String vmId) {
+    public void deleteVm(String vmId, String userId) {
         Vm vm = getVmById(vmId);
+        if (!Boolean.TRUE.equals(vm.getIsActive()) && Boolean.TRUE.equals(vm.getDiscoveryIgnored())) {
+            throw new ValidationException("VM '" + vm.getName() + "' is already removed");
+        }
 
         // Check if any VMs depend on this VM
         List<Vm> allVmsInGroup = vmRepository.findByGroupId(vm.getGroup().getGroupId());
@@ -218,8 +229,17 @@ public class VmService {
             }
         }
 
-        vmRepository.delete(vm);
-        log.info("Deleted VM: {} ({})", vm.getName(), vmId);
+        vm.setIsActive(false);
+        vm.setDiscoveryIgnored(true);
+        vm.setDiscoveryPending(false);
+        vm.setDeletedAt(new java.sql.Timestamp(System.currentTimeMillis()));
+        vm.setDeletedBy(userId);
+        vmRepository.save(vm);
+        auditService.logEnvironmentAction(userId, AuditAction.VM_DELETED,
+                vm.getGroup().getEnvironment().getEnvironmentId(), vm.getGroup().getEnvironment().getName(),
+                "vm", vmId, vm.getDisplayName() != null ? vm.getDisplayName() : vm.getName(),
+                "VM removed from platform (soft delete; discovery will ignore instance " + vm.getProviderVmId() + ")");
+        log.info("Removed VM: {} ({}) by {}", vm.getName(), vmId, userId);
     }
 
     /**

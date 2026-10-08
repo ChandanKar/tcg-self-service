@@ -344,7 +344,8 @@ public interface VmRepository extends JpaRepository<Vm, String> {
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Transactional
     @Query("UPDATE Vm v SET v.isActive = true, v.status = :status, v.notFoundCount = 0, v.stateDriftDetected = false, " +
-           "v.discoveryPending = :pending, v.lastStateSyncAt = :at, v.updatedAt = :at, v.version = v.version + 1 " +
+           "v.discoveryPending = :pending, v.discoveryIgnored = false, v.deletedAt = null, v.deletedBy = null, " +
+           "v.lastStateSyncAt = :at, v.updatedAt = :at, v.version = v.version + 1 " +
            "WHERE v.vmId = :vmId AND v.isActive = false")
     int reactivateIfInactive(@Param("vmId") String vmId, @Param("status") VmStatus status,
                              @Param("pending") boolean pending, @Param("at") Timestamp at);

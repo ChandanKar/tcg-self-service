@@ -383,7 +383,8 @@ public class VmMgmtController {
     @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Delete a VM",
-            description = "Unregisters a VM from the platform (does not affect the actual cloud VM)"
+            description = "Removes a VM from the platform; history is kept and discovery ignores the instance "
+                    + "(does not affect the actual cloud VM). Reactivate it to bring it back."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "204", description = "VM deleted successfully"),
@@ -397,7 +398,7 @@ public class VmMgmtController {
         securityService.assertCanAdminister(environmentId);
 
 
-        vmService.deleteVm(vmId);
+        vmService.deleteVm(vmId, userService.getCurrentUserId());
         return ResponseEntity.noContent().build();
     }
 

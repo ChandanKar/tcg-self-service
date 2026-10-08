@@ -185,4 +185,57 @@ class VmServiceTest {
                 .isInstanceOf(ValidationException.class).hasMessageContaining("already exists in group 'web'");
         verify(vmRepository, never()).existsByGroupGroupIdAndSequencePosition(anyString(), anyInt());
     }
+
+    // ---- soft delete (E09-T09, M35) ----
+
+    @Test
+    void deleteIsASoftDeleteThatIsAudited() {
+        vm.setIsActive(true);
+        vm.setDisplayName("Found 1");
+        vm.setProviderVmId("i-0abc");
+
+        service.deleteVm("vm-1", "admin-1");
+
+        assertThat(vm.getIsActive()).isFalse();
+        assertThat(vm.getDiscoveryIgnored()).isTrue();
+        assertThat(vm.getDiscoveryPending()).isFalse();
+        assertThat(vm.getDeletedBy()).isEqualTo("admin-1");
+        assertThat(vm.getDeletedAt()).isNotNull();
+        verify(vmRepository).save(vm);
+        verify(vmRepository, never()).delete(any(Vm.class));
+        verify(auditService).logEnvironmentAction(eq("admin-1"), eq(AuditAction.VM_DELETED), eq("env-1"), eq("prod"),
+                eq("vm"), eq("vm-1"), eq("Found 1"), contains("discovery will ignore instance i-0abc"));
+    }
+
+    @Test
+    void deleteStillRefusesAVmOthersDependOn() {
+        vm.setIsActive(true);
+        Vm dependent = new Vm();
+        dependent.setVmId("vm-2");
+        dependent.setName("app");
+        dependent.setDependencies(List.of("vm-1"));
+        when(vmRepository.findByGroupId("g-disc")).thenReturn(List.of(vm, dependent));
+
+        assertThatThrownBy(() -> service.deleteVm("vm-1", "admin-1"))
+                .isInstanceOf(ValidationException.class).hasMessageContaining("depends on it");
+        verify(vmRepository, never()).save(any());
+    }
+
+    @Test
+    void registeringARemovedInstancePointsToReactivate() {
+        Vm removed = new Vm();
+        removed.setIsActive(false);
+        removed.setDiscoveryIgnored(true);
+        RegisterVmDTO dto = new RegisterVmDTO();
+        dto.setGroupId("g-web");
+        dto.setName("again");
+        dto.setSequencePosition(9);
+        dto.setProvider(CloudProvider.AWS);
+        dto.setProviderVmId("i-0gone");
+        when(vmRepository.findByProviderAndProviderVmId(CloudProvider.AWS, "i-0gone")).thenReturn(Optional.of(removed));
+
+        assertThatThrownBy(() -> service.registerVm(dto))
+                .isInstanceOf(ValidationException.class)
+                .hasMessage("Instance i-0gone was removed from the platform - reactivate it from the registry instead");
+    }
 }

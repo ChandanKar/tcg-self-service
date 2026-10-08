@@ -349,6 +349,19 @@ class VmDiscoveryServiceTest {
     }
 
     @Test
+    void aVmAnAdminDeletedIsNeverReactivatedByDiscovery() {
+        Vm deleted = existing("vm-deleted", "i-0000000000delet1", false, VmStatus.NOT_FOUND, group);
+        deleted.setDiscoveryIgnored(true);
+        when(awsService.discoverTaggedInstances("ap-south-1", "tcg:environment", "app"))
+                .thenReturn(List.of(instance("i-0000000000delet1", "deleted")));
+
+        assertThat(service.discoverAndRegisterVms()).isZero();
+
+        verify(vmRepository, never()).reactivateIfInactive(any(), any(), anyBoolean(), any());
+        verify(vmRepository, never()).save(any(Vm.class));
+    }
+
+    @Test
     void anActiveRowOrAnotherEnvironmentsRowIsLeftAlone() {
         VmGroup otherGroup = new VmGroup();
         otherGroup.setGroupId("group-x");
