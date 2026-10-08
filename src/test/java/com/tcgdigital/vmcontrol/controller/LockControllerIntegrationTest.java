@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tcgdigital.vmcontrol.dto.AcquireLockDTO;
 import com.tcgdigital.vmcontrol.dto.BreakLockDTO;
 import com.tcgdigital.vmcontrol.dto.CreateEnvironmentDTO;
+import com.tcgdigital.vmcontrol.model.AccessLevel;
+import com.tcgdigital.vmcontrol.model.AccessScopeType;
 import com.tcgdigital.vmcontrol.service.EnvironmentService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -41,11 +43,17 @@ class LockControllerIntegrationTest extends AbstractIntegrationTest {
         dto.setName("lock-test-env-" + UUID.randomUUID().toString().substring(0, 8));
         dto.setDisplayName("Lock Test Environment");
         environmentId = environmentService.createEnvironment(dto).getEnvironmentId();
+
+        // Lock endpoints check environment rights (E03-T02): the seeded users operate here.
+        for (String userId : new String[] {"user-001", "user-002"}) {
+            grant(userRepository.findById(userId).orElseThrow(),
+                    AccessScopeType.ENVIRONMENT, environmentId, AccessLevel.USER);
+        }
     }
 
     @Test
     void testGetLockStatus_NoLock() throws Exception {
-        mockMvc.perform(get("/api/v1/environments/" + environmentId + "/lock"))
+        mockMvc.perform(get("/api/v1/environments/" + environmentId + "/lock").header("X-User-Id", "user-001"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.isLocked").value(false))
                 .andExpect(jsonPath("$.lockId").doesNotExist());
@@ -102,7 +110,7 @@ class LockControllerIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk());
 
         // Verify lock is released
-        mockMvc.perform(get("/api/v1/environments/" + environmentId + "/lock"))
+        mockMvc.perform(get("/api/v1/environments/" + environmentId + "/lock").header("X-User-Id", "user-001"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.isLocked").value(false));
     }
@@ -143,7 +151,7 @@ class LockControllerIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk());
 
         // Verify lock is broken
-        mockMvc.perform(get("/api/v1/environments/" + environmentId + "/lock"))
+        mockMvc.perform(get("/api/v1/environments/" + environmentId + "/lock").header("X-User-Id", "user-001"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.isLocked").value(false));
     }
@@ -181,7 +189,7 @@ class LockControllerIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk());
 
         // Get history
-        mockMvc.perform(get("/api/v1/environments/" + environmentId + "/lock/history"))
+        mockMvc.perform(get("/api/v1/environments/" + environmentId + "/lock/history").header("X-User-Id", "user-001"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(2)))
                 .andExpect(jsonPath("$[0].action").value("RELEASED"))
@@ -191,7 +199,7 @@ class LockControllerIntegrationTest extends AbstractIntegrationTest {
     @Test
     void testLockWorkflow_FullCycle() throws Exception {
         // 1. Check no lock exists
-        mockMvc.perform(get("/api/v1/environments/" + environmentId + "/lock"))
+        mockMvc.perform(get("/api/v1/environments/" + environmentId + "/lock").header("X-User-Id", "user-001"))
                 .andExpect(jsonPath("$.isLocked").value(false));
 
         // 2. User 1 acquires lock

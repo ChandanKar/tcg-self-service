@@ -3,6 +3,7 @@ package com.tcgdigital.vmcontrol.service;
 import com.tcgdigital.vmcontrol.exception.LockAlreadyHeldException;
 import com.tcgdigital.vmcontrol.exception.NoActiveLockException;
 import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
+import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.exception.UnauthorizedException;
 import com.tcgdigital.vmcontrol.model.*;
 import com.tcgdigital.vmcontrol.repository.EnvironmentLockRepository;
@@ -59,6 +60,9 @@ public class LockService {
         // Verify environment exists
         Environment environment = environmentRepository.findById(environmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Environment", environmentId));
+        if (!Boolean.TRUE.equals(environment.getIsActive())) {
+            throw new ValidationException("Environment is inactive and cannot be locked");
+        }
 
         // Check if environment is already locked
         Optional<EnvironmentLock> existingLock = lockRepository.findByEnvironmentEnvironmentIdAndIsActiveTrue(environmentId);

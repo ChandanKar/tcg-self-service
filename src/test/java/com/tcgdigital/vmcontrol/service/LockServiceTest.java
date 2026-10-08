@@ -4,6 +4,7 @@ import com.tcgdigital.vmcontrol.support.AbstractIntegrationTest;
 import com.tcgdigital.vmcontrol.exception.LockAlreadyHeldException;
 import com.tcgdigital.vmcontrol.exception.NoActiveLockException;
 import com.tcgdigital.vmcontrol.exception.UnauthorizedException;
+import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.Environment;
 import com.tcgdigital.vmcontrol.model.EnvironmentLock;
 import com.tcgdigital.vmcontrol.model.LockAction;
@@ -46,6 +47,16 @@ class LockServiceTest extends AbstractIntegrationTest {
         testEnvironment.setDisplayName("Test Environment");
         testEnvironment.setIsActive(true);
         testEnvironment = environmentRepository.saveAndFlush(testEnvironment);
+    }
+
+    @Test
+    void testAcquireLock_InactiveEnvironment_IsRejected() {
+        testEnvironment.setIsActive(false);
+        environmentRepository.saveAndFlush(testEnvironment);
+
+        assertThrows(ValidationException.class, () ->
+                lockService.acquireLock(testEnvironment.getEnvironmentId(), "user-001", "maintenance", null));
+        assertTrue(lockService.getCurrentLock(testEnvironment.getEnvironmentId()).isEmpty());
     }
 
     @Test

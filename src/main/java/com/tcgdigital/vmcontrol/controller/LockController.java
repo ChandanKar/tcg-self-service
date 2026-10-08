@@ -5,6 +5,7 @@ import com.tcgdigital.vmcontrol.model.EnvironmentLock;
 import com.tcgdigital.vmcontrol.model.LockHistory;
 import com.tcgdigital.vmcontrol.model.User;
 import com.tcgdigital.vmcontrol.service.LockService;
+import com.tcgdigital.vmcontrol.service.SecurityService;
 import com.tcgdigital.vmcontrol.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -24,6 +25,8 @@ import java.util.Optional;
 
 /**
  * REST controller for environment lock management.
+ * Reading a lock needs view rights on the environment, acquiring needs operate rights, breaking
+ * needs an admin role plus administer rights; release stays limited to the holder (LockService).
  */
 @RestController
 @RequestMapping("/api/v1/environments/{environmentId}/lock")
@@ -32,10 +35,12 @@ public class LockController {
 
     private final LockService lockService;
     private final UserService userService;
+    private final SecurityService securityService;
 
-    public LockController(LockService lockService, UserService userService) {
+    public LockController(LockService lockService, UserService userService, SecurityService securityService) {
         this.lockService = lockService;
         this.userService = userService;
+        this.securityService = securityService;
     }
 
     @GetMapping
@@ -54,6 +59,7 @@ public class LockController {
     public ResponseEntity<LockStatusDTO> getLockStatus(
             @Parameter(description = "Environment ID") @PathVariable String environmentId) {
 
+        securityService.assertCanView(environmentId);
         Optional<EnvironmentLock> lock = lockService.getCurrentLock(environmentId);
 
         if (lock.isPresent()) {
@@ -76,12 +82,15 @@ public class LockController {
                     description = "Lock acquired successfully",
                     content = @Content(schema = @Schema(implementation = LockStatusDTO.class))
             ),
+            @ApiResponse(responseCode = "400", description = "Environment is inactive"),
+            @ApiResponse(responseCode = "403", description = "No operate rights on this environment"),
             @ApiResponse(responseCode = "409", description = "Lock already held by another user")
     })
     public ResponseEntity<LockStatusDTO> acquireLock(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Valid @RequestBody(required = false) AcquireLockDTO dto) {
 
+        securityService.assertCanOperate(environmentId);
         String effectiveUserId = userService.getCurrentUserId();
         String reason = dto != null ? dto.getReason() : null;
         Integer duration = dto != null ? dto.getExpectedDurationMinutes() : null;
@@ -119,12 +128,14 @@ public class LockController {
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Lock broken successfully"),
-            @ApiResponse(responseCode = "400", description = "No active lock to break")
+            @ApiResponse(responseCode = "400", description = "No active lock to break"),
+            @ApiResponse(responseCode = "403", description = "Does not administer this environment")
     })
     public ResponseEntity<Void> breakLock(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Valid @RequestBody BreakLockDTO dto) {
 
+        securityService.assertCanAdminister(environmentId);
         String effectiveUserId = userService.getCurrentUserId();
 
         lockService.breakLock(environmentId, effectiveUserId, dto.getReason());
@@ -150,6 +161,7 @@ public class LockController {
     public ResponseEntity<List<LockHistoryDTO>> getLockHistory(
             @Parameter(description = "Environment ID") @PathVariable String environmentId) {
 
+        securityService.assertCanView(environmentId);
         List<LockHistory> history = lockService.getLockHistory(environmentId);
         List<LockHistoryDTO> dtos = history.stream()
                 .map(h -> {
