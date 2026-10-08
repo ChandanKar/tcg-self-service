@@ -759,6 +759,16 @@ public class AwsCloudProviderService implements CloudProviderService {
         log.info("Changed EC2 instance {} in region {} to instance type {}", providerVmId, region, newInstanceType);
     }
 
+    /** The instance's current type as AWS reports it, or null if it cannot be read. */
+    public String getInstanceType(String region, String providerVmId) {
+        DescribeInstancesResponse response = getEc2Client(region).describeInstances(
+                DescribeInstancesRequest.builder().instanceIds(providerVmId).build());
+        if (!response.reservations().isEmpty() && !response.reservations().get(0).instances().isEmpty()) {
+            return response.reservations().get(0).instances().get(0).instanceTypeAsString();
+        }
+        return null;
+    }
+
     @Override
     public java.util.List<String> discoverInstanceIds(java.util.List<String> regions) {
         java.util.List<String> discovered = new java.util.ArrayList<>();
