@@ -192,6 +192,8 @@ class IdleStopControllerTest extends SecuredWebTestBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.snoozedByUserId").value(operator.getUserId()))
                 .andExpect(jsonPath("$.featureEnabled").value(false))
+                .andExpect(jsonPath("$.canOperate").value(false))      // a viewer
+                .andExpect(jsonPath("$.canAdminister").value(false))
                 .andExpect(jsonPath("$.days").value(14))
                 .andExpect(jsonPath("$.wouldHaveSaved").value(0));
         awaitAsync(() -> assertThat(jdbcTemplate.queryForObject(
@@ -225,6 +227,11 @@ class IdleStopControllerTest extends SecuredWebTestBase {
         mockMvc.perform(post(snoozeUrl(envA)).with(asEnvAdmin()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"hours\":4}")).andExpect(status().isOk());
 
+        mockMvc.perform(get("/api/v1/environments/" + envA.getEnvironmentId() + "/idle-stop/status").with(asUser()))
+                .andExpect(jsonPath("$.canOperate").value(true))
+                .andExpect(jsonPath("$.canAdminister").value(false));
+        mockMvc.perform(get("/api/v1/environments/" + envA.getEnvironmentId() + "/idle-stop/status").with(asEnvAdmin()))
+                .andExpect(jsonPath("$.canAdminister").value(true));
         mockMvc.perform(delete(snoozeUrl(envA)).with(asUser())).andExpect(status().isForbidden());
         mockMvc.perform(delete(snoozeUrl(envA)).with(asAdmin())).andExpect(status().isNoContent());
         expectError(mockMvc.perform(delete(snoozeUrl(envA)).with(asAdmin())), 404);

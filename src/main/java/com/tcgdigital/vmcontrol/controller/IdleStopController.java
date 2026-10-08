@@ -123,6 +123,8 @@ public class IdleStopController {
                 .orElse(null);
         var summary = summaryService.summarize(environmentId, days);
         return ResponseEntity.ok(new IdleStopStatusDTO(featureEnabled, Boolean.TRUE.equals(environment.getIsProduction()),
+                securityService.canOperateInEnvironment(environmentId),
+                securityService.isEnvAdmin() && securityService.canAdministerEnvironment(environmentId),
                 ruleService.listRules(environmentId),
                 snooze == null ? null : snooze.getSnoozedUntil(), snooze == null ? null : snooze.getSnoozedByUserId(),
                 snoozedByName, latest, Math.max(1, Math.min(days, 31)), summary.wouldStopEpisodes(), summary.wouldHaveSaved(),

@@ -124,6 +124,14 @@ const Config = (function() {
             acknowledge: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}/acknowledge`
         },
 
+        // Idle auto-stop (E16)
+        idleStop: {
+            status: (envId) => `${API_BASE_URL}/environments/${envId}/idle-stop/status`,
+            rules: (envId) => `${API_BASE_URL}/environments/${envId}/idle-stop/rules`,
+            rule: (envId, ruleId) => `${API_BASE_URL}/environments/${envId}/idle-stop/rules/${ruleId}`,
+            snooze: (envId) => `${API_BASE_URL}/environments/${envId}/idle-stop/snooze`
+        },
+
         // VM Operations
         operations: {
             create: (envId) => `${API_BASE_URL}/environments/${envId}/operations`,

@@ -10,9 +10,11 @@ import java.util.List;
  * Idle auto-stop state of an environment for its page (E16-T04): rules, snooze, the latest
  * decision and what the last {@code days} days would have saved / saved.
  */
-public record IdleStopStatusDTO(
+public record IdleStopStatusDTO( // canOperate: may snooze; canAdminister: may change rules
         boolean featureEnabled,
         boolean production,
+        boolean canOperate,
+        boolean canAdminister,
         List<IdleStopRuleDTO> rules,
         Timestamp snoozedUntil,
         String snoozedByUserId,

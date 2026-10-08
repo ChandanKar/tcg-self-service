@@ -699,6 +699,8 @@ const Environments = (function() {
                 ${lockSection}
                 ${metricsRow}
 
+                <div id="env-idle-panel"></div>
+
                 <div class="mb-1">
                     <span class="text-muted text-uppercase" style="font-size:0.68rem;letter-spacing:0.05em;">Groups &amp; VMs</span>
                 </div>
@@ -923,6 +925,11 @@ const Environments = (function() {
         const envId = env.environmentId;
         const envName = env.displayName || env.name;
         console.log('bindDetailEvents called for environment:', envId, envName);
+
+        // Idle auto-stop panel (E16): renders nothing while the feature is off.
+        if (typeof IdleStop !== 'undefined') {
+            IdleStop.renderPanel(env);
+        }
 
         // Lock events - delegate to Locks module if available
         try {
