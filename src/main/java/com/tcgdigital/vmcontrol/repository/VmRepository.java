@@ -111,6 +111,13 @@ public interface VmRepository extends JpaRepository<Vm, String> {
     long countByGroupGroupId(String groupId);
 
     /**
+     * Highest sequence position in a group over ALL rows, active and inactive: the unique index
+     * idx_vm_group_sequence covers inactive rows too, so new positions must start above it (H8).
+     */
+    @Query("SELECT MAX(v.sequencePosition) FROM Vm v WHERE v.group.groupId = :groupId")
+    Integer findMaxSequencePositionByGroupId(@Param("groupId") String groupId);
+
+    /**
      * Count active running VMs in a group.
      */
     @Query("SELECT COUNT(v) FROM Vm v WHERE v.group.groupId = :groupId AND v.status = :status AND v.isActive = true")

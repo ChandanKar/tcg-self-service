@@ -161,12 +161,23 @@ public class VmDiscoveryService {
         VmGroup group = findOrCreateDiscoveryGroup(env);
 
         int registered = 0;
+        int failed = 0;
         for (Instance instance : instances) {
             if (vmRepository.existsByProviderAndProviderVmId(CloudProvider.AWS, instance.instanceId())) {
                 continue;
             }
-            registerInstanceByName(instance, env, group, region);
-            registered++;
+            // One bad instance must not stop the rest of the environment (H8).
+            try {
+                registerInstanceByName(instance, env, group, region);
+                registered++;
+            } catch (Exception e) {
+                failed++;
+                log.error("Could not register instance {} in environment {}: {}",
+                        instance.instanceId(), env.getName(), e.getMessage(), e);
+            }
+        }
+        if (failed > 0) {
+            log.warn("Environment {}: {} instance(s) could not be registered", env.getName(), failed);
         }
 
         // Flag VMs in this group that are no longer present in AWS
@@ -186,9 +197,10 @@ public class VmDiscoveryService {
             slug = slug + "-" + instance.instanceId().substring(Math.max(0, instance.instanceId().length() - 4));
         }
 
+        // Keep the Name tag's number when it is free (the check covers inactive rows too).
         int seqPos = extractSeqNumber(nameTag);
         if (seqPos <= 0 || vmRepository.existsByGroupGroupIdAndSequencePosition(group.getGroupId(), seqPos)) {
-            seqPos = (int) vmRepository.countByGroupGroupId(group.getGroupId()) + 1;
+            seqPos = nextSequencePosition(group.getGroupId());
         }
 
         Vm vm = new Vm();
@@ -246,12 +258,23 @@ public class VmDiscoveryService {
         VmGroup discoveryGroup = findOrCreateDiscoveryGroup(env);
 
         int registered = 0;
+        int failed = 0;
         for (Instance instance : liveInstances) {
             if (vmRepository.existsByProviderAndProviderVmId(CloudProvider.AWS, instance.instanceId())) {
                 continue;
             }
-            registerInstanceByTag(instance, env, discoveryGroup, region);
-            registered++;
+            // One bad instance must not stop the rest of the environment (H8).
+            try {
+                registerInstanceByTag(instance, env, discoveryGroup, region);
+                registered++;
+            } catch (Exception e) {
+                failed++;
+                log.error("Could not register instance {} in environment {}: {}",
+                        instance.instanceId(), env.getName(), e.getMessage(), e);
+            }
+        }
+        if (failed > 0) {
+            log.warn("Environment {}: {} instance(s) could not be registered", env.getName(), failed);
         }
         flagMissingVms(discoveryGroup, liveInstanceIds);
         reconcileTagsSafely(env);
@@ -267,7 +290,7 @@ public class VmDiscoveryService {
             slug = slug + "-" + instance.instanceId().substring(Math.max(0, instance.instanceId().length() - 4));
         }
 
-        int seqPos = (int) vmRepository.countByGroupGroupId(group.getGroupId()) + 1;
+        int seqPos = nextSequencePosition(group.getGroupId());
         Vm vm = new Vm();
         vm.setVmId(UUID.randomUUID().toString());
         vm.setGroup(group);
@@ -291,6 +314,15 @@ public class VmDiscoveryService {
     // -------------------------------------------------------------------------
     // Shared helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * Next free position in a group: one above the highest over all rows. Counting active VMs
+     * collided with an inactive VM's position forever once one VM was deactivated (H8).
+     */
+    private int nextSequencePosition(String groupId) {
+        Integer max = vmRepository.findMaxSequencePositionByGroupId(groupId);
+        return (max == null ? 0 : max) + 1;
+    }
 
     private void flagMissingVms(VmGroup group, Set<String> liveInstanceIds) {
         List<Vm> groupVms = vmRepository.findByGroupGroupIdOrderBySequencePositionAsc(group.getGroupId());
