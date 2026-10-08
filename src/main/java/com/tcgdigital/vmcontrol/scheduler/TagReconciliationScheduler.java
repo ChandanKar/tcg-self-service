@@ -36,15 +36,17 @@ public class TagReconciliationScheduler {
 
     @Scheduled(cron = "${cost.tagging.cron:0 30 2 * * *}")
     public void scheduledTagReconciliation() {
-        try {
-            if (!enabled || !lockService.tryAcquire(LOCK_NAME)) return;
-            TagReconciliationService.Result result = tagReconciliationService.reconcileAll();
-            log.info("Scheduled tag reconciliation complete — {} tagged, {} failed, {} total",
-                    result.tagged(), result.failed(), result.total());
-        } catch (Exception e) {
-            log.error("Error during scheduled tag reconciliation: {}", e.getMessage(), e);
-        } finally {
-            lockService.release(LOCK_NAME);
+        if (!enabled) {
+            return;
         }
+        lockService.runLocked(LOCK_NAME, () -> {
+            try {
+                TagReconciliationService.Result result = tagReconciliationService.reconcileAll();
+                log.info("Scheduled tag reconciliation complete — {} tagged, {} failed, {} total",
+                        result.tagged(), result.failed(), result.total());
+            } catch (Exception e) {
+                log.error("Error during scheduled tag reconciliation: {}", e.getMessage(), e);
+            }
+        });
     }
 }

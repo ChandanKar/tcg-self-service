@@ -30,13 +30,15 @@ public class VmMetricsScheduler {
     @Scheduled(fixedRateString = "#{${cloudwatch.metric.schedule.interval:5} * 60000}",
             initialDelayString = "#{${cloudwatch.metric.schedule.initial-delay:2} * 60000}")
     public void scheduledMetricsSync() {
-        try {
-            if (!enabled || !lockService.tryAcquire(LOCK_NAME)) return;
-            metricsService.syncRunningVmMetrics();
-        } catch (Exception e) {
-            log.error("Error during scheduled VM metrics sync: {}", e.getMessage(), e);
-        } finally {
-            lockService.release(LOCK_NAME);
+        if (!enabled) {
+            return;
         }
+        lockService.runLocked(LOCK_NAME, () -> {
+            try {
+                metricsService.syncRunningVmMetrics();
+            } catch (Exception e) {
+                log.error("Error during scheduled VM metrics sync: {}", e.getMessage(), e);
+            }
+        });
     }
 }

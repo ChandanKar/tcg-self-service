@@ -1,10 +1,13 @@
 package com.tcgdigital.vmcontrol.scheduler;
 
 import com.tcgdigital.vmcontrol.service.EnvironmentAccessService;
+import com.tcgdigital.vmcontrol.service.ScheduledJobLockService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+
+import java.time.Duration;
 
 /**
  * Scheduler for processing expired environment access grants.
@@ -16,9 +19,11 @@ public class AccessExpirationScheduler {
     private static final Logger log = LoggerFactory.getLogger(AccessExpirationScheduler.class);
 
     private final EnvironmentAccessService accessService;
+    private final ScheduledJobLockService lockService;
 
-    public AccessExpirationScheduler(EnvironmentAccessService accessService) {
+    public AccessExpirationScheduler(EnvironmentAccessService accessService, ScheduledJobLockService lockService) {
         this.accessService = accessService;
+        this.lockService = lockService;
     }
 
     /**
@@ -27,6 +32,10 @@ public class AccessExpirationScheduler {
      */
     @Scheduled(cron = "0 0 1 * * *")
     public void processExpiredAccess() {
+        lockService.runLocked("access_expiration", Duration.ofMinutes(30), this::runExpiration);
+    }
+
+    private void runExpiration() {
         log.info("Starting access expiration check...");
 
         try {

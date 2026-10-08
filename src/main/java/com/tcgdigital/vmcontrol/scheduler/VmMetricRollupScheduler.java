@@ -30,13 +30,15 @@ public class VmMetricRollupScheduler {
     @Scheduled(fixedRateString = "#{${cloudwatch.metric.rollup.schedule.interval:60} * 60000}",
             initialDelayString = "#{${cloudwatch.metric.rollup.schedule.initial-delay:3} * 60000}")
     public void scheduledRollup() {
-        try {
-            if (!enabled || !lockService.tryAcquire(LOCK_NAME)) return;
-            rollupService.rollupDailyMetrics();
-        } catch (Exception e) {
-            log.error("Error during scheduled VM metric daily rollup: {}", e.getMessage(), e);
-        } finally {
-            lockService.release(LOCK_NAME);
+        if (!enabled) {
+            return;
         }
+        lockService.runLocked(LOCK_NAME, () -> {
+            try {
+                rollupService.rollupDailyMetrics();
+            } catch (Exception e) {
+                log.error("Error during scheduled VM metric daily rollup: {}", e.getMessage(), e);
+            }
+        });
     }
 }

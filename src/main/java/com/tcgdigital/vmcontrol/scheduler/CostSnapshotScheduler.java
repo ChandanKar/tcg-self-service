@@ -29,13 +29,15 @@ public class CostSnapshotScheduler {
 
     @Scheduled(cron = "${cost.snapshot.cron:0 0 3 * * *}")
     public void scheduledCostSnapshot() {
-        try {
-            if (!enabled || !lockService.tryAcquire(LOCK_NAME)) return;
-            costSnapshotService.captureDailySnapshot();
-        } catch (Exception e) {
-            log.error("Error during scheduled cost snapshot capture: {}", e.getMessage(), e);
-        } finally {
-            lockService.release(LOCK_NAME);
+        if (!enabled) {
+            return;
         }
+        lockService.runLocked(LOCK_NAME, () -> {
+            try {
+                costSnapshotService.captureDailySnapshot();
+            } catch (Exception e) {
+                log.error("Error during scheduled cost snapshot capture: {}", e.getMessage(), e);
+            }
+        });
     }
 }

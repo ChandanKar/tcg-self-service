@@ -39,17 +39,19 @@ public class ActualCostIngestionScheduler {
 
     @Scheduled(cron = "${cost.actuals.cron:0 0 5 * * *}")
     public void scheduledActualCostIngestion() {
-        try {
-            if (!enabled || !lockService.tryAcquire(LOCK_NAME)) return;
-            CostExplorerBillingService.IngestResult result =
-                    costExplorerBillingService.ingestDailyActualCosts(LocalDate.now().minusDays(1));
-            log.info("Scheduled actual cost ingestion complete — {} updated, {} skipped (no environment), " +
-                            "{} skipped (no snapshot row)",
-                    result.updated(), result.skippedNoEnvironment(), result.skippedNoSnapshotRow());
-        } catch (Exception e) {
-            log.error("Error during scheduled actual cost ingestion: {}", e.getMessage(), e);
-        } finally {
-            lockService.release(LOCK_NAME);
+        if (!enabled) {
+            return;
         }
+        lockService.runLocked(LOCK_NAME, () -> {
+            try {
+                CostExplorerBillingService.IngestResult result =
+                        costExplorerBillingService.ingestDailyActualCosts(LocalDate.now().minusDays(1));
+                log.info("Scheduled actual cost ingestion complete — {} updated, {} skipped (no environment), " +
+                                "{} skipped (no snapshot row)",
+                        result.updated(), result.skippedNoEnvironment(), result.skippedNoSnapshotRow());
+            } catch (Exception e) {
+                log.error("Error during scheduled actual cost ingestion: {}", e.getMessage(), e);
+            }
+        });
     }
 }

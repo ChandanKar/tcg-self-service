@@ -35,13 +35,15 @@ public class ReservationCoverageScheduler {
 
     @Scheduled(cron = "${cost.reservations.cron:0 15 5 * * *}")
     public void scheduledReservationCoverageSnapshot() {
-        try {
-            if (!enabled || !lockService.tryAcquire(LOCK_NAME)) return;
-            reservationCoverageService.captureDailySnapshot();
-        } catch (Exception e) {
-            log.error("Error during scheduled reservation coverage capture: {}", e.getMessage(), e);
-        } finally {
-            lockService.release(LOCK_NAME);
+        if (!enabled) {
+            return;
         }
+        lockService.runLocked(LOCK_NAME, () -> {
+            try {
+                reservationCoverageService.captureDailySnapshot();
+            } catch (Exception e) {
+                log.error("Error during scheduled reservation coverage capture: {}", e.getMessage(), e);
+            }
+        });
     }
 }

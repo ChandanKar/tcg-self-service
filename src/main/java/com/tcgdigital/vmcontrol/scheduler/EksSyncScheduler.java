@@ -1,11 +1,14 @@
 package com.tcgdigital.vmcontrol.scheduler;
 
 import com.tcgdigital.vmcontrol.service.EksSyncService;
+import com.tcgdigital.vmcontrol.service.ScheduledJobLockService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+
+import java.time.Duration;
 
 /**
  * Scheduler for periodic EKS cluster and node group synchronisation. Two independently-gated
@@ -29,6 +32,7 @@ public class EksSyncScheduler {
     private static final Logger log = LoggerFactory.getLogger(EksSyncScheduler.class);
 
     private final EksSyncService eksSyncService;
+    private final ScheduledJobLockService lockService;
 
     @Value("${eks.sync.auto-register.enabled:false}")
     private boolean autoRegisterEnabled;
@@ -36,8 +40,9 @@ public class EksSyncScheduler {
     @Value("${eks.sync.status-refresh.enabled:true}")
     private boolean statusRefreshEnabled;
 
-    public EksSyncScheduler(EksSyncService eksSyncService) {
+    public EksSyncScheduler(EksSyncService eksSyncService, ScheduledJobLockService lockService) {
         this.eksSyncService = eksSyncService;
+        this.lockService = lockService;
     }
 
     @Scheduled(fixedRateString = "${eks.sync.interval:300000}",
@@ -46,6 +51,10 @@ public class EksSyncScheduler {
         if (!autoRegisterEnabled && !statusRefreshEnabled) {
             return;
         }
+        lockService.runLocked("eks_sync", Duration.ofMinutes(30), this::runEksSync);
+    }
+
+    private void runEksSync() {
         log.info("Scheduled EKS sync triggered (auto-register={}, status-refresh={})",
                 autoRegisterEnabled, statusRefreshEnabled);
         try {

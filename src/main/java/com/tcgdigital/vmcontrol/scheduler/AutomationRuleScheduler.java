@@ -36,15 +36,15 @@ public class AutomationRuleScheduler {
     @Scheduled(fixedRateString = "${automation.rules.interval:60000}",
                initialDelayString = "${automation.rules.initial-delay:60000}")
     public void scheduledEvaluate() {
-        try {
-            if (!enabled || !scheduledJobLockService.tryAcquire(LOCK_NAME)) {
-                return;
-            }
-            automationRuleService.evaluateSchedules();
-        } catch (Exception e) {
-            log.error("Error during scheduled automation rule evaluation: {}", e.getMessage(), e);
-        } finally {
-            scheduledJobLockService.release(LOCK_NAME);
+        if (!enabled) {
+            return;
         }
+        scheduledJobLockService.runLocked(LOCK_NAME, () -> {
+            try {
+                automationRuleService.evaluateSchedules();
+            } catch (Exception e) {
+                log.error("Error during scheduled automation rule evaluation: {}", e.getMessage(), e);
+            }
+        });
     }
 }

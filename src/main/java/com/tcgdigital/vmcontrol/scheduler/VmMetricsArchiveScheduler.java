@@ -29,13 +29,15 @@ public class VmMetricsArchiveScheduler {
 
     @Scheduled(cron = "${vm.metrics.archive.cron:0 30 2 * * *}")
     public void scheduledMetricsArchive() {
-        try {
-            if (!enabled || !lockService.tryAcquire(LOCK_NAME)) return;
-            archiveService.archiveOldRawSamples();
-        } catch (Exception e) {
-            log.error("Error during scheduled VM metrics archive: {}", e.getMessage(), e);
-        } finally {
-            lockService.release(LOCK_NAME);
+        if (!enabled) {
+            return;
         }
+        lockService.runLocked(LOCK_NAME, () -> {
+            try {
+                archiveService.archiveOldRawSamples();
+            } catch (Exception e) {
+                log.error("Error during scheduled VM metrics archive: {}", e.getMessage(), e);
+            }
+        });
     }
 }

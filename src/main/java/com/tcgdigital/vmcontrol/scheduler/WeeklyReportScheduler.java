@@ -35,16 +35,14 @@ public class WeeklyReportScheduler {
 
     @Scheduled(cron = "${notification.weekly-reports.cron:0 0 9 * * MON}", zone = "Asia/Kolkata")
     public void scheduledWeeklyReports() {
-        if (!enabled || !lockService.tryAcquire(LOCK_NAME)) {
+        if (!enabled) {
             return;
         }
-        try {
+        lockService.runLocked(LOCK_NAME, () -> {
             runReport("weekly cost report", weeklyReportService::sendWeeklyCostReport);
             runReport("weekly idle waste report", weeklyReportService::sendWeeklyIdleWasteReport);
             runReport("weekly rightsizing report", weeklyReportService::sendWeeklyRightsizingReport);
-        } finally {
-            lockService.release(LOCK_NAME);
-        }
+        });
     }
 
     private void runReport(String reportName, Runnable report) {
