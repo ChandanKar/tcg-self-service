@@ -62,4 +62,8 @@ public interface CostDailySnapshotRepository extends JpaRepository<CostDailySnap
         BigDecimal getTotalEstimatedCost();
         BigDecimal getTotalActualCost();
     }
+
+    /** One environment's daily snapshots in a date range, oldest first (owner cost view, E18). */
+    List<CostDailySnapshot> findByEnvironmentEnvironmentIdAndSnapshotDateBetweenOrderBySnapshotDateAsc(
+            String environmentId, java.sql.Date from, java.sql.Date to);
 }

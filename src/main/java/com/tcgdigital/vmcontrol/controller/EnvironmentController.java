@@ -46,6 +46,7 @@ public class EnvironmentController {
     private final EnvironmentInsightsService environmentInsightsService;
     private final NotificationService notificationService;
     private final UserService userService;
+    private final com.tcgdigital.vmcontrol.service.EnvironmentCostService environmentCostService;
     private final EnvironmentAccessService environmentAccessService;
 
     public EnvironmentController(EnvironmentService environmentService,
@@ -54,8 +55,10 @@ public class EnvironmentController {
                                  EnvironmentInsightsService environmentInsightsService,
                                  NotificationService notificationService,
                                  UserService userService,
-                                 EnvironmentAccessService environmentAccessService) {
+                                 EnvironmentAccessService environmentAccessService,
+                                 com.tcgdigital.vmcontrol.service.EnvironmentCostService environmentCostService) {
         this.environmentAccessService = environmentAccessService;
+        this.environmentCostService = environmentCostService;
         this.environmentService = environmentService;
         this.securityService = securityService;
         this.eksSyncService = eksSyncService;
@@ -188,6 +191,19 @@ public class EnvironmentController {
             dto.setLockedAt(lock.lockedAt());
         }
         return dto;
+    }
+
+    @GetMapping("/{environmentId}/cost")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "Environment cost for its users",
+            description = "Month to date, trend, run-rate forecast, top VMs, savings and the next scheduled stop/start. "
+                    + "Anyone who can view the environment; a group-only grant sees its groups only (scope GROUPS)."
+    )
+    public ResponseEntity<com.tcgdigital.vmcontrol.dto.EnvironmentCostDTO> getEnvironmentCost(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId) {
+        securityService.assertCanView(environmentId); // 404 without access: no cost data leaks
+        return ResponseEntity.ok(environmentCostService.getCost(environmentId));
     }
 
     @GetMapping("/{environmentId}")

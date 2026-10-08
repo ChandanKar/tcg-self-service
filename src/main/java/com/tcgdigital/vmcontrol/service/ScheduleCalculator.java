@@ -65,4 +65,28 @@ public class ScheduleCalculator {
         }
         return days;
     }
+
+    /**
+     * The first instant after {@code from} at which {@code time} falls on one of {@code days} in
+     * {@code zone} (looks up to 8 days ahead); empty when no day is selected. Same DST handling as
+     * {@link #dueInstant}.
+     */
+    public java.util.Optional<java.time.Instant> nextFiring(Set<DayOfWeek> days, LocalTime time,
+                                                           java.time.ZoneId zone, java.time.Instant from) {
+        if (days.isEmpty() || time == null) {
+            return java.util.Optional.empty();
+        }
+        ZonedDateTime start = from.atZone(zone);
+        for (int offset = 0; offset <= 8; offset++) {
+            LocalDate day = start.toLocalDate().plusDays(offset);
+            if (!days.contains(day.getDayOfWeek())) {
+                continue;
+            }
+            ZonedDateTime at = dueInstant(day, time, start);
+            if (at.toInstant().isAfter(from)) {
+                return java.util.Optional.of(at.toInstant());
+            }
+        }
+        return java.util.Optional.empty();
+    }
 }

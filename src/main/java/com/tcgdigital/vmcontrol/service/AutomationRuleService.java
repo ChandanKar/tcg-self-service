@@ -599,4 +599,49 @@ public class AutomationRuleService {
         }
         return rule.getEnvironment().getName();
     }
+
+    /** Next stop and start of an environment's enabled schedule rules (E18-T01); null when none. */
+    public record NextFirings(int ruleCount, Instant nextStop, Instant nextStart) {}
+
+    /**
+     * The earliest next stop and start over the environment's enabled SCHEDULE rules, computed
+     * with the evaluator's own day and time parsing (ScheduleCalculator).
+     */
+    @Transactional(readOnly = true)
+    public NextFirings nextScheduledFirings(String environmentId, Instant from) {
+        List<AutomationRule> schedules = automationRuleRepository.findByEnvironmentFetchEnvironment(environmentId).stream()
+                .filter(r -> Boolean.TRUE.equals(r.getEnabled()) && r.getTriggerType() == AutomationTriggerType.SCHEDULE)
+                .toList();
+        Instant nextStop = null;
+        Instant nextStart = null;
+        for (AutomationRule rule : schedules) {
+            java.time.ZoneId zone;
+            try {
+                zone = java.time.ZoneId.of(rule.getTimezone() == null ? "UTC" : rule.getTimezone());
+            } catch (Exception e) {
+                continue;
+            }
+            Set<DayOfWeek> days = scheduleCalculator.parseDays(rule.getDaysOfWeek());
+            nextStop = earlier(nextStop, nextAt(days, rule.getStopTime(), zone, from));
+            nextStart = earlier(nextStart, nextAt(days, rule.getStartTime(), zone, from));
+        }
+        return new NextFirings(schedules.size(), nextStop, nextStart);
+    }
+
+    private Instant nextAt(Set<DayOfWeek> days, String hhmm, java.time.ZoneId zone, Instant from) {
+        if (hhmm == null || hhmm.isBlank()) {
+            return null;
+        }
+        try {
+            return scheduleCalculator.nextFiring(days, java.time.LocalTime.parse(hhmm, HHMM), zone, from).orElse(null);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static Instant earlier(Instant a, Instant b) {
+        if (a == null) return b;
+        if (b == null) return a;
+        return a.isBefore(b) ? a : b;
+    }
 }

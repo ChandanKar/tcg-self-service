@@ -63,9 +63,14 @@ public class IdleStopSummaryService {
 
     public Summary summarize(String environmentId, int days) {
         int window = Math.max(1, Math.min(days, MAX_DAYS));
+        return summarizeSince(environmentId, clock.instant().minus(Duration.ofDays(window)));
+    }
+
+    /** The same summary for events since {@code from} (e.g. the start of the month, E18). */
+    public Summary summarizeSince(String environmentId, Instant since) {
         Instant now = clock.instant();
         List<IdleStopEvent> events = eventRepository.findByEnvironmentIdAndEvaluatedAtBetweenOrderByEvaluatedAtDesc(
-                environmentId, Timestamp.from(now.minus(Duration.ofDays(window))), Timestamp.from(now));
+                environmentId, Timestamp.from(since), Timestamp.from(now));
         Map<String, IdleStopRule> rules = ruleRepository.findByEnvironment(environmentId).stream()
                 .collect(Collectors.toMap(IdleStopRule::getRuleId, Function.identity()));
 
