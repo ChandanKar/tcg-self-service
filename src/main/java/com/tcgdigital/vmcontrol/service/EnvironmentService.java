@@ -41,13 +41,19 @@ public class EnvironmentService {
     private final VmRepository vmRepository;
     private final AuditService auditService;
     private final UserService userService;
+    private final com.tcgdigital.vmcontrol.repository.EnvironmentLockRepository lockRepository;
+    private final com.tcgdigital.vmcontrol.repository.UserRepository userRepository;
 
     public EnvironmentService(EnvironmentRepository environmentRepository,
                               EnvironmentAccessRepository accessRepository,
                               VmGroupRepository groupRepository,
                               VmRepository vmRepository,
                               AuditService auditService,
-                              UserService userService) {
+                              UserService userService,
+                              com.tcgdigital.vmcontrol.repository.EnvironmentLockRepository lockRepository,
+                              com.tcgdigital.vmcontrol.repository.UserRepository userRepository) {
+        this.lockRepository = lockRepository;
+        this.userRepository = userRepository;
         this.environmentRepository = environmentRepository;
         this.accessRepository = accessRepository;
         this.groupRepository = groupRepository;
@@ -297,6 +303,27 @@ public class EnvironmentService {
             result.merge(environmentId, new EnvironmentCounts(0, 0, 0, sortedRegions), EnvironmentCounts::mergeRegions);
         });
 
+        return result;
+    }
+
+    /** Who holds an environment's lock, for list rows (no per-row lock request, M36). */
+    public record LockSummary(String lockedByUserId, String lockedByDisplayName, java.sql.Timestamp lockedAt) {}
+
+    /** Active locks of the given environments with holder names: two queries for the whole list. */
+    public Map<String, LockSummary> getLockSummaries(List<String> environmentIds) {
+        if (environmentIds.isEmpty()) {
+            return Map.of();
+        }
+        List<com.tcgdigital.vmcontrol.model.EnvironmentLock> locks = lockRepository.findActiveByEnvironmentIdIn(environmentIds);
+        Map<String, String> names = new HashMap<>();
+        userRepository.findAllById(locks.stream().map(com.tcgdigital.vmcontrol.model.EnvironmentLock::getLockedByUserId)
+                        .distinct().toList())
+                .forEach(u -> names.put(u.getUserId(), u.getDisplayName()));
+        Map<String, LockSummary> result = new HashMap<>();
+        for (com.tcgdigital.vmcontrol.model.EnvironmentLock lock : locks) {
+            result.put(lock.getEnvironment().getEnvironmentId(), new LockSummary(lock.getLockedByUserId(),
+                    names.get(lock.getLockedByUserId()), lock.getLockedAt()));
+        }
         return result;
     }
 

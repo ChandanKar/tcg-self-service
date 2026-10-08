@@ -53,5 +53,8 @@ public interface EnvironmentLockRepository extends JpaRepository<EnvironmentLock
      * Check if environment has an active lock.
      */
     boolean existsByEnvironmentEnvironmentIdAndIsActiveTrue(String environmentId);
-}
 
+    /** Active locks of many environments in one query (environment lists, M36). */
+    @Query("SELECT l FROM EnvironmentLock l WHERE l.environment.environmentId IN :ids AND l.isActive = true")
+    List<EnvironmentLock> findActiveByEnvironmentIdIn(@org.springframework.data.repository.query.Param("ids") List<String> ids);
+}

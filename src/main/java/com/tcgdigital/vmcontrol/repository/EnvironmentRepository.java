@@ -62,6 +62,7 @@ public interface EnvironmentRepository extends JpaRepository<Environment, String
      */
     @Query("SELECT e FROM Environment e WHERE e.isActive = true " +
            "AND (:search IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "     OR LOWER(e.displayName) LIKE LOWER(CONCAT('%', :search, '%')) " +
            "     OR LOWER(e.description) LIKE LOWER(CONCAT('%', :search, '%'))) " +
            "ORDER BY e.name")
     Page<Environment> searchActive(@Param("search") String search, Pageable pageable);
@@ -72,6 +73,7 @@ public interface EnvironmentRepository extends JpaRepository<Environment, String
      */
     @Query("SELECT e FROM Environment e " +
            "WHERE (:search IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "     OR LOWER(e.displayName) LIKE LOWER(CONCAT('%', :search, '%')) " +
            "     OR LOWER(e.description) LIKE LOWER(CONCAT('%', :search, '%'))) " +
            "ORDER BY e.name")
     Page<Environment> searchAll(@Param("search") String search, Pageable pageable);

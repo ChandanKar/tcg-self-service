@@ -117,7 +117,8 @@ public class EnvironmentController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = com.tcgdigital.vmcontrol.controller.support.Paging.of(page, size,
+                com.tcgdigital.vmcontrol.controller.support.Paging.DEFAULT_MAX_SIZE); // 400 on page < 0, size clamped
         Page<Environment> environments = securityService.isEnvAdmin()
                 ? (includeInactive
                         ? environmentService.getAllEnvironments(search, pageable)
@@ -128,8 +129,9 @@ public class EnvironmentController {
                 .map(Environment::getEnvironmentId)
                 .toList();
         Map<String, EnvironmentService.EnvironmentCounts> counts = environmentService.getBatchCounts(environmentIds);
+        Map<String, EnvironmentService.LockSummary> locks = environmentService.getLockSummaries(environmentIds);
 
-        Page<EnvironmentDTO> dtos = environments.map(env -> toDtoWithCounts(env, counts));
+        Page<EnvironmentDTO> dtos = environments.map(env -> toDtoWithCounts(env, counts, locks));
 
         return ResponseEntity.ok(dtos);
     }
@@ -167,15 +169,25 @@ public class EnvironmentController {
     private List<EnvironmentDTO> toDtosWithBatchedCounts(List<Environment> environments) {
         List<String> environmentIds = environments.stream().map(Environment::getEnvironmentId).toList();
         var counts = environmentService.getBatchCounts(environmentIds);
+        var locks = environmentService.getLockSummaries(environmentIds);
 
         return environments.stream()
-                .map(env -> toDtoWithCounts(env, counts))
+                .map(env -> toDtoWithCounts(env, counts, locks))
                 .toList();
     }
 
-    private EnvironmentDTO toDtoWithCounts(Environment env, Map<String, EnvironmentService.EnvironmentCounts> counts) {
+    private EnvironmentDTO toDtoWithCounts(Environment env, Map<String, EnvironmentService.EnvironmentCounts> counts,
+                                           Map<String, EnvironmentService.LockSummary> locks) {
         var c = counts.get(env.getEnvironmentId());
-        return EnvironmentDTO.fromEntityWithCounts(env, c.groupCount(), c.vmCount(), c.runningVmCount(), c.regions());
+        EnvironmentDTO dto = EnvironmentDTO.fromEntityWithCounts(env, c.groupCount(), c.vmCount(), c.runningVmCount(), c.regions());
+        EnvironmentService.LockSummary lock = locks.get(env.getEnvironmentId());
+        if (lock != null) {
+            dto.setLocked(true);
+            dto.setLockedByUserId(lock.lockedByUserId());
+            dto.setLockedByDisplayName(lock.lockedByDisplayName());
+            dto.setLockedAt(lock.lockedAt());
+        }
+        return dto;
     }
 
     @GetMapping("/{environmentId}")

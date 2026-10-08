@@ -23,6 +23,11 @@ public class EnvironmentDTO {
     private String metadata;
     private String serviceType;
     private String eksClusterName;
+    // Lock summary for list rows (E10-T05): locked is false and the rest null when unlocked.
+    private boolean locked;
+    private String lockedByUserId;
+    private String lockedByDisplayName;
+    private Timestamp lockedAt;
     private List<String> regions = List.of();
 
     public EnvironmentDTO() {
@@ -165,5 +170,37 @@ public class EnvironmentDTO {
 
     public void setEksClusterName(String eksClusterName) {
         this.eksClusterName = eksClusterName;
+    }
+
+    public boolean isLocked() {
+        return locked;
+    }
+
+    public void setLocked(boolean locked) {
+        this.locked = locked;
+    }
+
+    public String getLockedByUserId() {
+        return lockedByUserId;
+    }
+
+    public void setLockedByUserId(String lockedByUserId) {
+        this.lockedByUserId = lockedByUserId;
+    }
+
+    public String getLockedByDisplayName() {
+        return lockedByDisplayName;
+    }
+
+    public void setLockedByDisplayName(String lockedByDisplayName) {
+        this.lockedByDisplayName = lockedByDisplayName;
+    }
+
+    public Timestamp getLockedAt() {
+        return lockedAt;
+    }
+
+    public void setLockedAt(Timestamp lockedAt) {
+        this.lockedAt = lockedAt;
     }
 }

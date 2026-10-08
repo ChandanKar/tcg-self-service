@@ -185,13 +185,16 @@ const Environments = (function() {
      * only the lock status still needs a per-row fetch. Shared by fetchEnvironments() (unpaged,
      * used only for the name-lookup path) and fetchEnvironmentsPage() (server-paginated).
      */
-    async function enrichWithLockStatus(env) {
-        try {
-            const lock = await fetchLockStatus(env.environmentId);
-            return { ...env, totalVms: env.vmCount || 0, runningVms: env.runningVmCount || 0, lockStatus: lock };
-        } catch (e) {
-            return { ...env, totalVms: env.vmCount || 0, runningVms: env.runningVmCount || 0, lockStatus: { isLocked: false } };
-        }
+    /** The list payload carries the lock holder (E10-T05): no per-row lock request. */
+    function enrichWithLockStatus(env) {
+        return {
+            ...env,
+            totalVms: env.vmCount || 0,
+            runningVms: env.runningVmCount || 0,
+            lockStatus: env.locked
+                ? { isLocked: true, lockedByUserId: env.lockedByUserId, lockedByDisplayName: env.lockedByDisplayName, lockedAt: env.lockedAt }
+                : { isLocked: false }
+        };
     }
 
     /**
@@ -427,7 +430,7 @@ const Environments = (function() {
                     <i class="fas fa-edit"></i>
                 </button>
                 <button class="btn btn-sm btn-outline-danger btn-action ms-1"
-                        data-env-id="${env.environmentId}" data-env-name="${Utils.escapeHtml(env.name)}" data-action="delete-env"
+                        data-env-id="${env.environmentId}" data-env-name="${Utils.escapeHtml(env.displayName || env.name)}" data-action="delete-env"
                         data-bs-toggle="tooltip" title="Delete">
                     <i class="fas fa-trash"></i>
                 </button>
@@ -458,7 +461,10 @@ const Environments = (function() {
 
             return `
                 <tr>
-                    <td><strong${descTooltip}>${Utils.escapeHtml(env.name)}</strong></td>
+                    <td>
+                        <strong${descTooltip}>${Utils.escapeHtml(env.displayName || env.name)}</strong>
+                        ${env.displayName && env.displayName !== env.name ? `<div class="small text-muted">${Utils.escapeHtml(env.name)}</div>` : ''}
+                    </td>
                     <td class="text-center">${typeCell}</td>
                     <td class="text-center"><i class="${cloudCfg.icon} env-cloud-icon" style="color:${cloudCfg.color}" data-bs-toggle="tooltip" title="${cloudCfg.label || cloudProv}"></i></td>
                     <td class="col-region">${regionCell}</td>
@@ -472,7 +478,7 @@ const Environments = (function() {
                     <td class="col-lock">${lockDisplay}</td>
                     <td class="col-actions">
                         <button class="btn btn-sm btn-primary btn-action"
-                                data-env-id="${env.environmentId}" data-env-name="${Utils.escapeHtml(env.name)}" data-action="view"
+                                data-env-id="${env.environmentId}" data-env-name="${Utils.escapeHtml(env.displayName || env.name)}" data-action="view"
                                 data-bs-toggle="tooltip" title="View">
                             <i class="fas fa-eye"></i>
                         </button>

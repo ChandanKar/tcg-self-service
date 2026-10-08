@@ -5,6 +5,8 @@ import com.tcgdigital.vmcontrol.dto.VmGroupDTO;
 import com.tcgdigital.vmcontrol.model.VmGroup;
 import com.tcgdigital.vmcontrol.service.SecurityService;
 import com.tcgdigital.vmcontrol.service.UserService;
+import com.tcgdigital.vmcontrol.service.VmService;
+import com.tcgdigital.vmcontrol.repository.VmRepository;
 import com.tcgdigital.vmcontrol.service.VmGroupService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -33,11 +35,19 @@ public class VmGroupController {
     private final VmGroupService groupService;
     private final SecurityService securityService;
     private final UserService userService;
+    private final VmService vmService;
 
-    public VmGroupController(VmGroupService groupService, SecurityService securityService, UserService userService) {
+    public VmGroupController(VmGroupService groupService, SecurityService securityService, UserService userService,
+                             VmService vmService) {
         this.groupService = groupService;
         this.securityService = securityService;
         this.userService = userService;
+        this.vmService = vmService;
+    }
+
+    private static VmGroupDTO withCounts(VmGroup group, java.util.Map<String, VmRepository.GroupVmCounts> counts) {
+        VmRepository.GroupVmCounts c = counts.get(group.getGroupId());
+        return VmGroupDTO.fromEntityWithCounts(group, c == null ? 0 : (int) c.getTotal(), c == null ? 0 : (int) c.getRunning());
     }
 
     /** The environment a group belongs to (404 when the group does not exist). */
@@ -69,13 +79,10 @@ public class VmGroupController {
         }
 
         java.util.Set<String> visible = new java.util.HashSet<>(securityService.getVisibleGroupIds(environmentId));
+        var counts = vmService.getVmCountsByGroupForEnvironment(environmentId); // one grouped query (M36)
         List<VmGroupDTO> dtos = groupService.getGroupsByEnvironmentId(environmentId).stream()
                 .filter(group -> visible.contains(group.getGroupId()))
-                .map(group -> VmGroupDTO.fromEntityWithCounts(
-                        group,
-                        groupService.getVmCount(group.getGroupId()),
-                        groupService.getRunningVmCount(group.getGroupId())
-                ))
+                .map(group -> withCounts(group, counts))
                 .toList();
 
         return ResponseEntity.ok(dtos);
@@ -140,12 +147,9 @@ public class VmGroupController {
                 .filter(group -> visible.contains(group.getGroupId()))
                 .toList();
 
+        var counts = vmService.getVmCountsByGroupForEnvironment(environmentId); // one grouped query (M36)
         List<VmGroupDTO> dtos = groups.stream()
-                .map(group -> VmGroupDTO.fromEntityWithCounts(
-                        group,
-                        groupService.getVmCount(group.getGroupId()),
-                        groupService.getRunningVmCount(group.getGroupId())
-                ))
+                .map(group -> withCounts(group, counts))
                 .toList();
 
         return ResponseEntity.ok(dtos);

@@ -129,6 +129,7 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
            "AND (ea.expiresAt IS NULL OR ea.expiresAt > :now) " +
            "AND e.isActive = true " +
            "AND (:search IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "     OR LOWER(e.displayName) LIKE LOWER(CONCAT('%', :search, '%')) " +
            "     OR LOWER(e.description) LIKE LOWER(CONCAT('%', :search, '%'))) " +
            "ORDER BY e.name",
            countQuery =
@@ -138,6 +139,7 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
            "AND (ea.expiresAt IS NULL OR ea.expiresAt > :now) " +
            "AND e.isActive = true " +
            "AND (:search IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "     OR LOWER(e.displayName) LIKE LOWER(CONCAT('%', :search, '%')) " +
            "     OR LOWER(e.description) LIKE LOWER(CONCAT('%', :search, '%')))")
     Page<Environment> findDistinctActiveEnvironmentsForUser(
             @Param("userId") String userId,
