@@ -1,5 +1,7 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
+import com.tcgdigital.vmcontrol.exception.UnauthorizedException;
 import com.tcgdigital.vmcontrol.model.AccessLevel;
 import com.tcgdigital.vmcontrol.model.AccessScopeType;
 import com.tcgdigital.vmcontrol.model.EnvironmentAccess;
@@ -8,28 +10,40 @@ import com.tcgdigital.vmcontrol.model.VmGroup;
 import com.tcgdigital.vmcontrol.repository.VmGroupRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 /**
  * Service for security and authorization checks.
- * Provides helper methods to check user permissions on resources.
+ *
+ * <p>Contract for controllers and services: call {@link #assertCanView}, {@link #assertCanOperate}
+ * or {@link #assertCanAdminister} for the environment in the request path (403 when denied), and
+ * {@link #assertSameEnvironment} when a path also names a child resource (404 when it belongs to
+ * another environment, so ids elsewhere are not confirmed). Levels are compared by rank, never
+ * by name.
  */
 @Service
 public class SecurityService {
 
     private static final Logger log = LoggerFactory.getLogger(SecurityService.class);
 
+    /** ENV_ADMIN scope: "global" (every environment) or "assigned" (needs an ENVIRONMENT ADMIN grant). */
+    static final String ENV_ADMIN_SCOPE_GLOBAL = "global";
+
     private final UserService userService;
     private final EnvironmentAccessService accessService;
     private final VmGroupRepository vmGroupRepository;
+    private final String envAdminScope;
 
     public SecurityService(UserService userService, EnvironmentAccessService accessService,
-                           VmGroupRepository vmGroupRepository) {
+                           VmGroupRepository vmGroupRepository,
+                           @Value("${security.env-admin.scope:global}") String envAdminScope) {
         this.userService = userService;
         this.accessService = accessService;
         this.vmGroupRepository = vmGroupRepository;
+        this.envAdminScope = envAdminScope;
     }
 
     /**
@@ -49,126 +63,69 @@ public class SecurityService {
     }
 
     /**
-     * Check if the current user has any access to an environment.
-     */
-    public boolean hasEnvironmentAccess(String environmentId) {
-        User currentUser = userService.getCurrentUser();
-        if (currentUser == null) {
-            return false;
-        }
-
-        // Admins have access to all environments
-        if (currentUser.isAdmin() || currentUser.isEnvAdmin()) {
-            return true;
-        }
-
-        return accessService.hasAccess(environmentId, currentUser.getUserId());
-    }
-
-    /**
-     * Check if the current user has at least the required access level on an environment.
-     */
-    public boolean hasEnvironmentAccessLevel(String environmentId, AccessLevel requiredLevel) {
-        User currentUser = userService.getCurrentUser();
-        if (currentUser == null) {
-            return false;
-        }
-
-        // Admins have full access to all environments
-        if (currentUser.isAdmin()) {
-            return true;
-        }
-
-        // Env admins have admin-level access to all environments
-        if (currentUser.isEnvAdmin() && requiredLevel != AccessLevel.ADMIN) {
-            return true;
-        }
-
-        return accessService.hasAccessLevel(environmentId, currentUser.getUserId(), requiredLevel);
-    }
-
-    /**
-     * Check if the current user can manage access for an environment.
-     * Requires ADMIN access level on the environment or global admin role.
+     * Check if the current user can manage access for an environment: same rule as
+     * {@link #canAdministerEnvironment(String)}.
      */
     public boolean canManageEnvironmentAccess(String environmentId) {
-        User currentUser = userService.getCurrentUser();
-        if (currentUser == null) {
+        return canAdministerEnvironment(environmentId);
+    }
+
+    /**
+     * Whether the current user administers an environment (grants, settings): a global ADMIN; an
+     * ENV_ADMIN everywhere when security.env-admin.scope=global, otherwise only where they hold an
+     * active ENVIRONMENT ADMIN grant; any other user with an active ENVIRONMENT ADMIN grant.
+     */
+    public boolean canAdministerEnvironment(String environmentId) {
+        User user = userService.getCurrentUser();
+        if (user == null || environmentId == null) {
             return false;
         }
-
-        // Global admins can manage any environment
-        if (currentUser.isAdmin()) {
-            return true;
-        }
-
-        // Env admins can manage any environment
-        if (currentUser.isEnvAdmin()) {
-            return true;
-        }
-
-        // Check if user has ADMIN level access on this specific environment
-        return accessService.hasAccessLevel(environmentId, currentUser.getUserId(), AccessLevel.ADMIN);
-    }
-
-    /**
-     * Check if the current user can review access requests.
-     */
-    public boolean canReviewAccessRequests() {
-        User currentUser = userService.getCurrentUser();
-        return currentUser != null && (currentUser.isAdmin() || currentUser.isEnvAdmin());
-    }
-
-    /**
-     * Check if a specific user can perform operations on an environment.
-     * Requires at least USER level access.
-     */
-    public boolean canPerformOperations(String environmentId, String userId) {
-        User user = userService.getUserById(userId);
-
-        // Admins can perform operations on any environment
         if (user.isAdmin()) {
             return true;
         }
+        if (user.isEnvAdmin() && ENV_ADMIN_SCOPE_GLOBAL.equalsIgnoreCase(envAdminScope)) {
+            return true;
+        }
+        return atLeast(environmentGrantLevel(user, environmentId), AccessLevel.ADMIN);
+    }
 
-        return accessService.hasAccessLevel(environmentId, userId, AccessLevel.USER);
+    /** True when {@code userId} is the signed-in user (for SpEL: @securityService.isCurrentUser(#userId)). */
+    public boolean isCurrentUser(String userId) {
+        User user = userService.getCurrentUser();
+        return user != null && userId != null && userId.equals(user.getUserId());
+    }
+
+    // ============= Assertions (throw instead of returning false) =============
+
+    /** 403 unless the current user can see some part of the environment. */
+    public void assertCanView(String environmentId) {
+        if (!canViewEnvironment(environmentId)) {
+            throw new UnauthorizedException("You do not have access to this environment");
+        }
+    }
+
+    /** 403 unless the current user can start, stop or lock something in the environment. */
+    public void assertCanOperate(String environmentId) {
+        if (!canOperateInEnvironment(environmentId)) {
+            throw new UnauthorizedException("You cannot start, stop or lock in this environment");
+        }
+    }
+
+    /** 403 unless the current user administers the environment. */
+    public void assertCanAdminister(String environmentId) {
+        if (!canAdministerEnvironment(environmentId)) {
+            throw new UnauthorizedException("You do not administer this environment");
+        }
     }
 
     /**
-     * Check if the current user can perform operations on an environment.
+     * 404 unless a child resource (group, VM, lock...) really belongs to the environment named in
+     * the request path, so ids from other environments are neither used nor confirmed.
      */
-    public boolean canPerformOperations(String environmentId) {
-        User currentUser = userService.getCurrentUser();
-        if (currentUser == null) {
-            return false;
+    public void assertSameEnvironment(String actualEnvironmentId, String pathEnvironmentId) {
+        if (actualEnvironmentId == null || !actualEnvironmentId.equals(pathEnvironmentId)) {
+            throw new ResourceNotFoundException("Resource not found in environment " + pathEnvironmentId);
         }
-
-        return canPerformOperations(environmentId, currentUser.getUserId());
-    }
-
-    /**
-     * Get the current user's access level on an environment.
-     * Returns null if user has no access.
-     */
-    public AccessLevel getAccessLevel(String environmentId) {
-        User currentUser = userService.getCurrentUser();
-        if (currentUser == null) {
-            return null;
-        }
-
-        // Admins have implicit ADMIN access
-        if (currentUser.isAdmin()) {
-            return AccessLevel.ADMIN;
-        }
-
-        // Env admins have implicit USER access to all environments
-        if (currentUser.isEnvAdmin()) {
-            return AccessLevel.USER;
-        }
-
-        return accessService.getAccess(environmentId, currentUser.getUserId())
-                .map(access -> access.getAccessLevel())
-                .orElse(null);
     }
 
     // ============= Group-scoped access (env or group grant) =============
@@ -314,6 +271,12 @@ public class SecurityService {
         return vmGroupRepository.findById(groupId)
                 .map(g -> canManageEnvironmentAccess(g.getEnvironment().getEnvironmentId()))
                 .orElse(false);
+    }
+
+    private AccessLevel environmentGrantLevel(User user, String environmentId) {
+        return accessService.getActiveGrant(user.getUserId(), AccessScopeType.ENVIRONMENT, environmentId)
+                .map(EnvironmentAccess::getAccessLevel)
+                .orElse(null);
     }
 
     /**

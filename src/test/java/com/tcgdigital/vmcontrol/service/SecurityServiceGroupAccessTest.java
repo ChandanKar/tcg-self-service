@@ -42,7 +42,7 @@ class SecurityServiceGroupAccessTest {
 
     @BeforeEach
     void setUp() {
-        security = new SecurityService(userService, accessService, vmGroupRepository);
+        security = new SecurityService(userService, accessService, vmGroupRepository, "global");
     }
 
     // ---- helpers ----
@@ -211,7 +211,8 @@ class SecurityServiceGroupAccessTest {
     void canManageGroupAccess_plainUser_isDenied() {
         when(userService.getCurrentUser()).thenReturn(plainUser());
         when(vmGroupRepository.findById(G1)).thenReturn(Optional.of(group(G1)));
-        when(accessService.hasAccessLevel(ENV, UID, AccessLevel.ADMIN)).thenReturn(false);
+        // Admin rights now come from the ENVIRONMENT grant's rank (no name comparison).
+        when(accessService.getActiveGrant(UID, AccessScopeType.ENVIRONMENT, ENV)).thenReturn(Optional.empty());
 
         assertThat(security.canManageGroupAccess(G1)).isFalse();
     }
