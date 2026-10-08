@@ -52,6 +52,12 @@ public class EnvironmentAccessService {
     @Value("${access.extension.window-days:7}")
     private int extensionWindowDays;
 
+    @Value("${access.request.max-duration-days:180}")
+    private int requestMaxDurationDays = 180;
+
+    @Value("${access.grant.max-duration-days:365}")
+    private int grantMaxDurationDays = 365;
+
     private final EnvironmentAccessRepository accessRepository;
     private final EnvironmentAccessRequestRepository requestRepository;
     private final EnvironmentRepository environmentRepository;
@@ -93,6 +99,10 @@ public class EnvironmentAccessService {
         return extensionWindowDays;
     }
 
+    public int getRequestMaxDurationDays() {
+        return requestMaxDurationDays;
+    }
+
     // ============= Access Request Operations =============
 
     /**
@@ -132,6 +142,9 @@ public class EnvironmentAccessService {
             if (dto.getDurationDays() == null) {
                 throw new ValidationException("Choose how many days to extend your access by");
             }
+        }
+        if (dto.getDurationDays() != null && dto.getDurationDays() > requestMaxDurationDays) {
+            throw new ValidationException("You can request at most " + requestMaxDurationDays + " days");
         }
         if (requestRepository.hasPendingRequestForScope(requesterId, scopeType, scopeId)) {
             throw new ValidationException("You already have a pending access request for this " + scopeLabel);
@@ -527,6 +540,10 @@ public class EnvironmentAccessService {
     }
 
     private void applyExpiry(EnvironmentAccess access, GrantSpec spec) {
+        // Every grant path (direct, scoped, update, approval, onboarding) ends here.
+        if (spec.durationDays != null && spec.durationDays > grantMaxDurationDays) {
+            throw new ValidationException("Access can be granted for at most " + grantMaxDurationDays + " days");
+        }
         if (spec.durationDays != null) {
             access.setExpiresAt(Timestamp.valueOf(LocalDateTime.now().plusDays(spec.durationDays)));
         } else if (spec.clearExpiry) {

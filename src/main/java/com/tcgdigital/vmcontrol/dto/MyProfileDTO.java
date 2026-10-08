@@ -14,6 +14,7 @@ import java.util.List;
  *                                 self-registered or legacy users
  * @param administeredEnvironments environments where the user holds ADMIN-level access
  * @param extensionWindowDays      a grant expiring within this many days can be extended
+ * @param requestMaxDurationDays   the longest duration a request or extension may ask for
  */
 public record MyProfileDTO(
         String userId,
@@ -29,7 +30,8 @@ public record MyProfileDTO(
         Timestamp onboardedAt,
         String onboardedByName,
         List<EnvironmentRef> administeredEnvironments,
-        int extensionWindowDays
+        int extensionWindowDays,
+        int requestMaxDurationDays
 ) {
     public record EnvironmentRef(String environmentId, String name) {}
 }

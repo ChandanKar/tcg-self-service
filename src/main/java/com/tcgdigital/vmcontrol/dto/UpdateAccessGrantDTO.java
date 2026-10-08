@@ -1,5 +1,7 @@
 package com.tcgdigital.vmcontrol.dto;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import com.tcgdigital.vmcontrol.model.AccessLevel;
 
 /**
@@ -11,6 +13,8 @@ public class UpdateAccessGrantDTO {
     private AccessLevel accessLevel;
 
     /** New validity window in days. Ignored when {@link #clearExpiry} is true. */
+    @Min(value = 1, message = AccessDurations.MIN_MESSAGE)
+    @Max(value = AccessDurations.HARD_MAX_DAYS, message = AccessDurations.MAX_MESSAGE)
     private Integer durationDays;
 
     /** True drops the grant's expiry, making it permanent. */

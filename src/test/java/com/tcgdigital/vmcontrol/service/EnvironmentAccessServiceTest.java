@@ -829,4 +829,24 @@ class EnvironmentAccessServiceTest extends AbstractIntegrationTest {
                 .extracting(ea -> ea.getEnvironment().getEnvironmentId())
                 .isEqualTo(expected ? List.of(envId) : List.of());
     }
+
+    @Test
+    @DisplayName("M18: the configured maxima are inclusive (request 180 days, grant 365 days)")
+    void durationMaxima_areInclusive() {
+        CreateAccessRequestDTO request = new CreateAccessRequestDTO();
+        request.setAccessLevel(AccessLevel.USER);
+        request.setBusinessJustification("Need access for the release");
+        request.setDurationDays(180);
+        assertThat(accessService.createAccessRequest(testEnvironment.getEnvironmentId(),
+                requesterUser.getUserId(), request).getDurationDays()).isEqualTo(180);
+
+        EnvironmentAccess granted = accessService.grantAccess(testEnvironment.getEnvironmentId(), adminUser.getUserId(),
+                new GrantAccessDTO(requesterUser.getEmail(), AccessLevel.USER, 365, null));
+        assertThat(granted.getExpiresAt()).isNotNull();
+
+        assertThatThrownBy(() -> accessService.grantAccess(testEnvironment.getEnvironmentId(), adminUser.getUserId(),
+                new GrantAccessDTO(requesterUser.getEmail(), AccessLevel.USER, 366, null)))
+                .isInstanceOf(ValidationException.class)
+                .hasMessage("Access can be granted for at most 365 days");
+    }
 }

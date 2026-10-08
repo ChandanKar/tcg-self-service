@@ -325,7 +325,7 @@ public class EnvironmentAccessController {
     })
     public ResponseEntity<EnvironmentAccessDTO> approveRequest(
             @Parameter(description = "Request ID") @PathVariable String requestId,
-            @RequestBody(required = false) ReviewAccessRequestDTO dto) {
+            @Valid @RequestBody(required = false) ReviewAccessRequestDTO dto) {
         securityService.assertCanAdminister(accessService.getAccessRequest(requestId).getEnvironment().getEnvironmentId());
 
         EnvironmentAccessRequest pending = accessService.getAccessRequest(requestId);
@@ -358,7 +358,7 @@ public class EnvironmentAccessController {
     })
     public ResponseEntity<EnvironmentAccessRequestDTO> denyRequest(
             @Parameter(description = "Request ID") @PathVariable String requestId,
-            @RequestBody(required = false) ReviewAccessRequestDTO dto) {
+            @Valid @RequestBody(required = false) ReviewAccessRequestDTO dto) {
         securityService.assertCanAdminister(accessService.getAccessRequest(requestId).getEnvironment().getEnvironmentId());
 
         String reviewerUserId = userService.getCurrentUserId();

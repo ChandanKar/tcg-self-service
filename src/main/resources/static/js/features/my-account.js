@@ -116,6 +116,21 @@ const MyAccount = (function() {
         return state.profile ? state.profile.extensionWindowDays : 7;
     }
 
+    /** The server's access.request.max-duration-days (an extension is a request). */
+    function maxRequestDays() {
+        return state.profile && state.profile.requestMaxDurationDays ? state.profile.requestMaxDurationDays : 180;
+    }
+
+    function extensionDayOptions() {
+        const allowed = EXTENSION_DAYS.filter(d => d <= maxRequestDays());
+        return allowed.length ? allowed : [maxRequestDays()];
+    }
+
+    function defaultExtensionDays() {
+        const options = extensionDayOptions();
+        return options.includes(DEFAULT_EXTENSION_DAYS) ? DEFAULT_EXTENSION_DAYS : options[options.length - 1];
+    }
+
     function daysUntil(ts) {
         return Math.ceil((new Date(ts).getTime() - Date.now()) / DAY_MS);
     }
@@ -390,7 +405,7 @@ const MyAccount = (function() {
 
     function extendFormHtml(g) {
         const draft = state.extendDraft;
-        const options = EXTENSION_DAYS.map(d =>
+        const options = extensionDayOptions().map(d =>
             `<option value="${d}"${d === draft.days ? ' selected' : ''}>${d} days</option>`).join('');
         return `
             <form class="ma-extend" data-access-id="${Utils.escapeHtml(g.accessId)}" novalidate>
@@ -670,7 +685,7 @@ const MyAccount = (function() {
         if (!grant) return;
         state.extendingId = accessId;
         state.extendDraft = {
-            days: DEFAULT_EXTENSION_DAYS,
+            days: defaultExtensionDays(),
             reason: `Extension: my access expires on ${formatDate(grant.expiresAt)}. `,
             error: null
         };

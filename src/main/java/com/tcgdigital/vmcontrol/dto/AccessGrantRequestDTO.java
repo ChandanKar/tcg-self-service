@@ -1,5 +1,7 @@
 package com.tcgdigital.vmcontrol.dto;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import com.tcgdigital.vmcontrol.model.AccessLevel;
 import com.tcgdigital.vmcontrol.model.AccessScopeType;
 import jakarta.validation.constraints.NotBlank;
@@ -47,6 +49,8 @@ public class AccessGrantRequestDTO {
     private List<String> groupIds;
 
     /** Optional: days the grant stays valid. Null = permanent. */
+    @Min(value = 1, message = AccessDurations.MIN_MESSAGE)
+    @Max(value = AccessDurations.HARD_MAX_DAYS, message = AccessDurations.MAX_MESSAGE)
     private Integer durationDays;
 
     /** Optional: when re-granting over a time-boxed grant, true drops its expiry. */

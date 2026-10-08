@@ -1,5 +1,7 @@
 package com.tcgdigital.vmcontrol.dto;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -10,6 +12,8 @@ public class ReviewAccessRequestDTO {
     @Size(max = 500, message = "Notes cannot exceed 500 characters")
     private String notes;
 
+    @Min(value = 1, message = AccessDurations.MIN_MESSAGE)
+    @Max(value = AccessDurations.HARD_MAX_DAYS, message = AccessDurations.MAX_MESSAGE)
     private Integer durationDays;
 
     public ReviewAccessRequestDTO() {

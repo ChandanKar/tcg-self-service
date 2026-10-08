@@ -1,5 +1,7 @@
 package com.tcgdigital.vmcontrol.dto;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import com.tcgdigital.vmcontrol.model.AccessLevel;
 import com.tcgdigital.vmcontrol.model.AccessScopeType;
 import jakarta.validation.Valid;
@@ -108,6 +110,8 @@ public class OnboardUserDTO {
         /** Required + non-empty when {@link #scopeType} is {@code GROUP}; enforced by the grant service. */
         private List<String> groupIds;
 
+        @Min(value = 1, message = AccessDurations.MIN_MESSAGE)
+        @Max(value = AccessDurations.HARD_MAX_DAYS, message = AccessDurations.MAX_MESSAGE)
         private Integer durationDays;
 
         /** Optional reason, carried onto the grant and its audit entry. */

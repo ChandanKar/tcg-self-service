@@ -97,7 +97,8 @@ public class MyAccountService {
                 user.getOnboardedAt(),
                 onboardedByName,
                 administered,
-                accessService.getExtensionWindowDays());
+                accessService.getExtensionWindowDays(),
+                accessService.getRequestMaxDurationDays());
     }
 
     /**

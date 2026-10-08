@@ -1,5 +1,7 @@
 package com.tcgdigital.vmcontrol.dto;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import com.tcgdigital.vmcontrol.model.AccessLevel;
 import com.tcgdigital.vmcontrol.model.AccessScopeType;
 import jakarta.validation.constraints.NotBlank;
@@ -22,6 +24,8 @@ public class CreateAccessRequestDTO {
      * Optional: Number of days the access should be valid.
      * If null, access is permanent until revoked.
      */
+    @Min(value = 1, message = AccessDurations.MIN_MESSAGE)
+    @Max(value = AccessDurations.HARD_MAX_DAYS, message = AccessDurations.MAX_MESSAGE)
     private Integer durationDays;
 
     /** ENVIRONMENT (default when null) or GROUP. */
