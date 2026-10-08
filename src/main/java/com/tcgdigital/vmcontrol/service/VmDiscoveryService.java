@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.exception.DiscoveryFailedException;
 import com.tcgdigital.vmcontrol.service.support.NameSanitizer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tcgdigital.vmcontrol.model.*;
@@ -100,7 +101,14 @@ public class VmDiscoveryService {
         log.info("VM discovery (name-pattern) starting — prefix='{}', region={}",
                 namePrefix.isBlank() ? "(all)" : namePrefix, defaultRegion);
 
-        List<Instance> allInstances = awsService.discoverInstancesByNamePrefix(defaultRegion, namePrefix);
+        List<Instance> allInstances;
+        try {
+            allInstances = awsService.discoverInstancesByNamePrefix(defaultRegion, namePrefix);
+        } catch (DiscoveryFailedException e) {
+            // Unknown is not "nothing is live": register and flag nothing this run (H24).
+            log.warn("VM discovery (name-pattern) skipped — {}", e.getMessage());
+            return 0;
+        }
         if (allInstances.isEmpty()) {
             log.info("No instances found matching prefix '{}' in region {}", namePrefix, defaultRegion);
             return 0;
@@ -233,14 +241,20 @@ public class VmDiscoveryService {
         List<Environment> environments = environmentRepository.findActiveEc2Environments();
         log.info("VM discovery (tag) starting for {} active EC2 environment(s)", environments.size());
         int total = 0;
+        int failedEnvironments = 0;
         for (Environment env : environments) {
             try {
                 total += discoverEnvironmentVms(env);
+            } catch (DiscoveryFailedException e) {
+                failedEnvironments++;
+                log.warn("Discovery skipped for environment {} — {}", env.getName(), e.getMessage());
             } catch (Exception e) {
+                failedEnvironments++;
                 log.error("Discovery failed for environment {}: {}", env.getName(), e.getMessage(), e);
             }
         }
-        log.info("VM discovery (tag) complete — {} new VM(s) registered", total);
+        log.info("VM discovery (tag) complete — {} new VM(s) registered, {} environment(s) failed",
+                total, failedEnvironments);
         return total;
     }
 
@@ -251,6 +265,7 @@ public class VmDiscoveryService {
                      "Set environment.metadata to {{\"region\":\"ap-south-1\"}} to enable.", env.getName());
             return 0;
         }
+        // Throws DiscoveryFailedException before anything is registered, flagged or re-tagged (H24).
         List<Instance> liveInstances = awsService.discoverTaggedInstances(region, envTagKey, env.getName());
         log.info("Environment {}: {} tagged instance(s) in region {}", env.getName(), liveInstances.size(), region);
 
@@ -328,15 +343,10 @@ public class VmDiscoveryService {
         List<Vm> groupVms = vmRepository.findByGroupGroupIdOrderBySequencePositionAsc(group.getGroupId());
         for (Vm vm : groupVms) {
             if (Boolean.TRUE.equals(vm.getIsActive()) && !liveInstanceIds.contains(vm.getProviderVmId())) {
-                vm.setStateDriftDetected(true);
-                vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
-                try {
-                    vmRepository.save(vm);
-                } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
-                    log.info("VM '{}' changed during discovery; flagging it on the next run", vm.getName());
-                    continue;
+                // Narrow update: only the drift flag, never a stale copy of the whole row (M5).
+                if (vmRepository.markDriftIfActive(vm.getVmId(), Timestamp.from(Instant.now())) > 0) {
+                    log.warn("VM '{}' (instance={}) no longer found in AWS — drift flagged", vm.getName(), vm.getProviderVmId());
                 }
-                log.warn("VM '{}' (instance={}) no longer found in AWS — drift flagged", vm.getName(), vm.getProviderVmId());
             }
         }
     }

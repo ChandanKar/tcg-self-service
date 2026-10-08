@@ -258,4 +258,14 @@ public interface VmRepository extends JpaRepository<Vm, String> {
     @Transactional
     @Query("UPDATE Vm v SET v.tagsSyncedAt = :at, v.version = v.version + 1 WHERE v.vmId IN :vmIds")
     int markTagsSynced(@Param("vmIds") Collection<String> vmIds, @Param("at") Timestamp at);
+
+    /**
+     * Flag drift on one VM without writing the rest of the row, so discovery never overwrites
+     * a concurrent change with stale values (M5). Inactive VMs are left alone.
+     */
+    @Modifying(flushAutomatically = true)
+    @Transactional
+    @Query("UPDATE Vm v SET v.stateDriftDetected = true, v.lastStateSyncAt = :syncedAt, v.updatedAt = :syncedAt, " +
+           "v.version = v.version + 1 WHERE v.vmId = :vmId AND v.isActive = true")
+    int markDriftIfActive(@Param("vmId") String vmId, @Param("syncedAt") Timestamp syncedAt);
 }

@@ -1,6 +1,7 @@
 package com.tcgdigital.vmcontrol.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tcgdigital.vmcontrol.exception.DiscoveryFailedException;
 import com.tcgdigital.vmcontrol.model.CloudProvider;
 import com.tcgdigital.vmcontrol.model.Environment;
 import com.tcgdigital.vmcontrol.model.Vm;
@@ -29,6 +30,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -130,6 +132,74 @@ class VmDiscoveryServiceTest {
         // Missing-VM flagging and tag reconciliation still run after a failed instance.
         verify(vmRepository).findByGroupGroupIdOrderBySequencePositionAsc("group-1");
         verify(tagReconciliationService).reconcileEnvironment(env);
+    }
+
+    // ------------------------------------------------------------------ AWS failures (E09-T02, H24)
+
+    private static DiscoveryFailedException throttled() {
+        return new DiscoveryFailedException("EC2 discovery failed in ap-south-1", new RuntimeException("Throttling"));
+    }
+
+    @Test
+    void aFailedAwsCallRegistersFlagsAndRetagsNothing() {
+        when(awsService.discoverTaggedInstances("ap-south-1", "tcg:environment", "app")).thenThrow(throttled());
+
+        assertThat(service.discoverAndRegisterVms()).isZero();
+
+        verify(vmRepository, never()).save(any(Vm.class));
+        verify(vmRepository, never()).markDriftIfActive(any(), any());
+        verify(tagReconciliationService, never()).reconcileEnvironment(any());
+    }
+
+    @Test
+    void oneEnvironmentFailingDoesNotStopTheNext() {
+        Environment other = new Environment();
+        other.setEnvironmentId("env-2");
+        other.setName("other");
+        other.setIsActive(true);
+        other.setMetadata("{\"region\":\"ap-south-1\"}");
+        VmGroup otherGroup = new VmGroup();
+        otherGroup.setGroupId("group-2");
+        otherGroup.setEnvironment(other);
+        when(environmentRepository.findActiveEc2Environments()).thenReturn(List.of(env, other));
+        when(vmGroupRepository.findByEnvironmentEnvironmentIdAndName("env-2", "discovered")).thenReturn(Optional.of(otherGroup));
+        when(awsService.discoverTaggedInstances("ap-south-1", "tcg:environment", "app")).thenThrow(throttled());
+        when(awsService.discoverTaggedInstances("ap-south-1", "tcg:environment", "other"))
+                .thenReturn(List.of(instance("i-00000000000other", "web")));
+
+        assertThat(service.discoverAndRegisterVms()).isEqualTo(1);
+        assertThat(saved(1).get(0).getGroup().getGroupId()).isEqualTo("group-2");
+    }
+
+    @Test
+    void anActiveVmMissingFromASuccessfulCallIsFlaggedByTheNarrowUpdate() {
+        Vm active = new Vm();
+        active.setVmId("vm-active");
+        active.setProviderVmId("i-0000000000000gone");
+        active.setIsActive(true);
+        Vm inactive = new Vm();
+        inactive.setVmId("vm-inactive");
+        inactive.setProviderVmId("i-000000000000gone2");
+        inactive.setIsActive(false);
+        when(vmRepository.findByGroupGroupIdOrderBySequencePositionAsc("group-1")).thenReturn(List.of(active, inactive));
+        when(awsService.discoverTaggedInstances("ap-south-1", "tcg:environment", "app")).thenReturn(List.of());
+
+        service.discoverAndRegisterVms();
+
+        verify(vmRepository).markDriftIfActive(eq("vm-active"), any());
+        verify(vmRepository, never()).markDriftIfActive(eq("vm-inactive"), any());
+        verify(vmRepository, never()).save(any(Vm.class));
+    }
+
+    @Test
+    void aFailedNamePatternCallDoesNothing() {
+        ReflectionTestUtils.setField(service, "discoveryStrategy", "name-pattern");
+        when(awsService.discoverInstancesByNamePrefix("ap-south-1", "app")).thenThrow(throttled());
+
+        assertThat(service.discoverAndRegisterVms()).isZero();
+
+        verify(vmRepository, never()).markDriftIfActive(any(), any());
+        verify(environmentRepository, never()).findByName(any());
     }
 
     @Test

@@ -49,6 +49,26 @@ class AwsCloudProviderServiceTest {
         clientCache.put(REGION, mockEc2Client);
     }
 
+    // --- discovery (E09-T02, H24): a failed call is reported, never an empty list ---
+
+    @Test
+    void discoverTaggedInstancesReportsAFailedCall() {
+        when(mockEc2Client.describeInstancesPaginator(any(DescribeInstancesRequest.class)))
+                .thenThrow(software.amazon.awssdk.core.exception.SdkClientException.create("Rate exceeded"));
+
+        assertThrows(com.tcgdigital.vmcontrol.exception.DiscoveryFailedException.class,
+                () -> service.discoverTaggedInstances(REGION, "tcg:environment", "app"));
+    }
+
+    @Test
+    void discoverInstancesByNamePrefixReportsAFailedCall() {
+        when(mockEc2Client.describeInstancesPaginator(any(DescribeInstancesRequest.class)))
+                .thenThrow(software.amazon.awssdk.core.exception.SdkClientException.create("Rate exceeded"));
+
+        assertThrows(com.tcgdigital.vmcontrol.exception.DiscoveryFailedException.class,
+                () -> service.discoverInstancesByNamePrefix(REGION, "app"));
+    }
+
     // --- helpers ---
 
     private StartInstancesResponse startResponse(InstanceStateName previous, InstanceStateName current) {

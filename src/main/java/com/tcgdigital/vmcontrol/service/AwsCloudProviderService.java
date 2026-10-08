@@ -647,6 +647,8 @@ public class AwsCloudProviderService implements CloudProviderService {
     /**
      * Discovers all non-terminated EC2 instances in a region whose Name tag starts with namePrefix.
      * Pass null/blank namePrefix to return all non-terminated instances.
+     *
+     * @throws com.tcgdigital.vmcontrol.exception.DiscoveryFailedException if the EC2 call fails
      */
     public java.util.List<Instance> discoverInstancesByNamePrefix(String region, String namePrefix) {
         try {
@@ -675,13 +677,16 @@ public class AwsCloudProviderService implements CloudProviderService {
             return result;
         } catch (Exception e) {
             log.error("Failed to discover instances by name prefix '{}' in region {}: {}", namePrefix, region, e.getMessage());
-            return java.util.List.of();
+            // An empty list would read as "every instance is gone" (H24).
+            throw new com.tcgdigital.vmcontrol.exception.DiscoveryFailedException("EC2 discovery failed in " + region, e);
         }
     }
 
     /**
      * Discovers all non-terminated EC2 instances in a region that carry the given tag key/value.
      * Uses the SDK paginator so results beyond the 1000-item page limit are not missed.
+     *
+     * @throws com.tcgdigital.vmcontrol.exception.DiscoveryFailedException if the EC2 call fails
      */
     public java.util.List<Instance> discoverTaggedInstances(String region, String tagKey, String tagValue) {
         try {
@@ -713,7 +718,8 @@ public class AwsCloudProviderService implements CloudProviderService {
 
         } catch (Exception e) {
             log.error("Failed to discover tagged instances in region {} (tag {}={}): {}", region, tagKey, tagValue, e.getMessage());
-            return java.util.List.of();
+            // An empty list would read as "every instance is gone" (H24).
+            throw new com.tcgdigital.vmcontrol.exception.DiscoveryFailedException("EC2 discovery failed in " + region, e);
         }
     }
 
