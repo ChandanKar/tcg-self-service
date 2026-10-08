@@ -1,6 +1,7 @@
 package com.tcgdigital.vmcontrol.controller;
 
 import com.tcgdigital.vmcontrol.dto.*;
+import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.AccessScopeType;
 import com.tcgdigital.vmcontrol.model.EnvironmentAccess;
@@ -8,6 +9,7 @@ import com.tcgdigital.vmcontrol.model.EnvironmentAccessRequest;
 import com.tcgdigital.vmcontrol.model.VmGroup;
 import com.tcgdigital.vmcontrol.repository.VmGroupRepository;
 import com.tcgdigital.vmcontrol.service.EnvironmentAccessService;
+import com.tcgdigital.vmcontrol.service.SecurityService;
 import com.tcgdigital.vmcontrol.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -36,9 +38,11 @@ public class EnvironmentAccessController {
     private final EnvironmentAccessService accessService;
     private final UserService userService;
     private final VmGroupRepository vmGroupRepository;
+    private final SecurityService securityService;
 
     public EnvironmentAccessController(EnvironmentAccessService accessService, UserService userService,
-                                      VmGroupRepository vmGroupRepository) {
+                                      VmGroupRepository vmGroupRepository, SecurityService securityService) {
+        this.securityService = securityService;
         this.accessService = accessService;
         this.userService = userService;
         this.vmGroupRepository = vmGroupRepository;
@@ -279,6 +283,15 @@ public class EnvironmentAccessController {
             @Parameter(description = "Request ID") @PathVariable String requestId) {
 
         EnvironmentAccessRequest request = accessService.getAccessRequest(requestId);
+        // Requester or a reviewer of the request's environment; anyone else gets 404 so ids are
+        // not confirmed.
+        boolean requester = request.getRequester() != null
+                && securityService.isCurrentUser(request.getRequester().getUserId());
+        boolean reviewer = request.getEnvironment() != null
+                && securityService.canManageEnvironmentAccess(request.getEnvironment().getEnvironmentId());
+        if (!requester && !reviewer) {
+            throw new ResourceNotFoundException("AccessRequest", requestId);
+        }
         return ResponseEntity.ok(EnvironmentAccessRequestDTO.fromEntity(request));
     }
 

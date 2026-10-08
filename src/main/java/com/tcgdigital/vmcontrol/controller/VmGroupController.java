@@ -124,7 +124,11 @@ public class VmGroupController {
     public ResponseEntity<List<VmGroupDTO>> getGroupsInStartOrder(
             @Parameter(description = "Environment ID") @PathVariable String environmentId) {
 
-        List<VmGroup> groups = groupService.getGroupsInStartOrder(environmentId);
+        securityService.assertCanView(environmentId);
+        java.util.Set<String> visible = new java.util.HashSet<>(securityService.getVisibleGroupIds(environmentId));
+        List<VmGroup> groups = groupService.getGroupsInStartOrder(environmentId).stream()
+                .filter(group -> visible.contains(group.getGroupId()))
+                .toList();
 
         List<VmGroupDTO> dtos = groups.stream()
                 .map(group -> VmGroupDTO.fromEntityWithCounts(

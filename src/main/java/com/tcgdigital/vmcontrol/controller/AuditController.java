@@ -5,6 +5,7 @@ import com.tcgdigital.vmcontrol.dto.AuditReportDTO;
 import com.tcgdigital.vmcontrol.model.AuditAction;
 import com.tcgdigital.vmcontrol.model.AuditLog;
 import com.tcgdigital.vmcontrol.service.AuditService;
+import com.tcgdigital.vmcontrol.service.SecurityService;
 import com.tcgdigital.vmcontrol.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -35,8 +36,10 @@ public class AuditController {
 
     private final AuditService auditService;
     private final UserService userService;
+    private final SecurityService securityService;
 
-    public AuditController(AuditService auditService, UserService userService) {
+    public AuditController(AuditService auditService, UserService userService, SecurityService securityService) {
+        this.securityService = securityService;
         this.auditService = auditService;
         this.userService = userService;
     }
@@ -129,7 +132,7 @@ public class AuditController {
     }
 
     @GetMapping("/logs/environment/{environmentId}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Get audit logs for an environment",
             description = "Retrieves audit logs for a specific environment"
@@ -139,6 +142,7 @@ public class AuditController {
             @Parameter(description = "Page number") @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Page size") @RequestParam(defaultValue = "50") int size) {
 
+        securityService.assertCanAdminister(environmentId);
         Page<AuditLog> logs = auditService.getLogsForEnvironment(environmentId, page, size);
         Page<AuditLogDTO> dtos = logs.map(AuditLogDTO::fromEntity);
         return ResponseEntity.ok(dtos);

@@ -120,7 +120,7 @@ class MonitoringControllerIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void testGetVmStateHistory() throws Exception {
-        mockMvc.perform(get("/api/v1/monitoring/vms/" + testVm.getVmId() + "/history"))
+        mockMvc.perform(get("/api/v1/monitoring/vms/" + testVm.getVmId() + "/history").header("X-User-Id", "admin-001"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content", hasSize(greaterThanOrEqualTo(1))))
                 .andExpect(jsonPath("$.content[0].vmId").value(testVm.getVmId()))
@@ -213,7 +213,7 @@ class MonitoringControllerIntegrationTest extends AbstractIntegrationTest {
             stateSyncService.recordStateChange(testVm, VmStatus.STOPPED, VmStatus.RUNNING, "user_action", null, null, "Change " + i);
         }
 
-        mockMvc.perform(get("/api/v1/monitoring/vms/" + testVm.getVmId() + "/history")
+        mockMvc.perform(get("/api/v1/monitoring/vms/" + testVm.getVmId() + "/history").header("X-User-Id", "admin-001")
                         .param("page", "0")
                         .param("size", "3"))
                 .andExpect(status().isOk())

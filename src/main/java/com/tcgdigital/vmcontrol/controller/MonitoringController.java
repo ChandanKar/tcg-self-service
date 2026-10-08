@@ -4,7 +4,12 @@ import com.tcgdigital.vmcontrol.dto.StateSyncStatusDTO;
 import com.tcgdigital.vmcontrol.dto.VmStateHistoryDTO;
 import com.tcgdigital.vmcontrol.model.User;
 import com.tcgdigital.vmcontrol.model.VmStateHistory;
+import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
+import com.tcgdigital.vmcontrol.exception.UnauthorizedException;
+import com.tcgdigital.vmcontrol.model.Vm;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
+import com.tcgdigital.vmcontrol.repository.VmRepository;
+import com.tcgdigital.vmcontrol.service.SecurityService;
 import com.tcgdigital.vmcontrol.service.EksSyncService;
 import com.tcgdigital.vmcontrol.service.StateSyncService;
 import com.tcgdigital.vmcontrol.service.VmInventoryService;
@@ -44,13 +49,19 @@ public class MonitoringController {
     private final VmMetricsService metricsService;
     private final VmMetricsArchiveService archiveService;
     private final UserRepository userRepository;
+    private final VmRepository vmRepository;
+    private final SecurityService securityService;
 
     public MonitoringController(StateSyncService stateSyncService,
                                 EksSyncService eksSyncService,
                                 VmInventoryService inventoryService,
                                 VmMetricsService metricsService,
                                 VmMetricsArchiveService archiveService,
-                                UserRepository userRepository) {
+                                UserRepository userRepository,
+                                VmRepository vmRepository,
+                                SecurityService securityService) {
+        this.vmRepository = vmRepository;
+        this.securityService = securityService;
         this.stateSyncService = stateSyncService;
         this.eksSyncService = eksSyncService;
         this.inventoryService = inventoryService;
@@ -214,13 +225,17 @@ public class MonitoringController {
             @Parameter(description = "Page number") @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Page size") @RequestParam(defaultValue = "20") int size) {
 
+        Vm vm = vmRepository.findById(vmId).orElseThrow(() -> new ResourceNotFoundException("VM", vmId));
+        if (vm.getGroup() == null || !securityService.hasGroupAccess(vm.getGroup().getGroupId())) {
+            throw new UnauthorizedException("You do not have access to this VM");
+        }
         Page<VmStateHistory> history = stateSyncService.getVmStateHistory(vmId, page, size);
         Page<VmStateHistoryDTO> dtos = history.map(VmStateHistoryDTO::fromEntity);
         return ResponseEntity.ok(dtos);
     }
 
     @GetMapping("/state-changes")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Get recent state changes",
             description = "Returns recent VM state changes across all VMs"
@@ -235,7 +250,7 @@ public class MonitoringController {
     }
 
     @GetMapping("/drift-events")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Get drift events",
             description = "Returns VM state drift events (unexpected state changes detected during sync)"
@@ -272,7 +287,7 @@ public class MonitoringController {
     }
 
     @GetMapping("/drift-events/count")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Count drift events",
             description = "Returns the count of drift events in a date range"

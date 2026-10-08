@@ -104,7 +104,7 @@ class AuditControllerIntegrationTest extends AbstractIntegrationTest {
     void testGetLogsForEnvironment() throws Exception {
         // Since we can't set environmentId (FK constraint), skip this test for now
         // The endpoint itself works, but test data setup is limited
-        mockMvc.perform(get("/api/v1/audit/logs/environment/env-001"))
+        mockMvc.perform(get("/api/v1/audit/logs/environment/env-001").header("X-User-Id", "admin-001"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isArray());
     }
