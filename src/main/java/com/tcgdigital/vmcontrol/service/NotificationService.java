@@ -353,6 +353,15 @@ public class NotificationService {
         }
     }
 
+    /** Idle auto-stop stopped an environment (E16): its members can start it again from its page. */
+    public void notifyIdleStopForEnvironment(String environmentId, String environmentName, long idleMinutes, int vmCount) {
+        String title = "Idle auto-stop: " + environmentName;
+        String message = "Stopped " + vmCount + " VM(s) after " + idleMinutes + " minutes idle. "
+                + "Start it again from the environment page when you need it.";
+        broadcastToEnvironment(environmentId, null, NotificationType.IDLE_AUTO_STOPPED,
+                title, message, title, message, "ENVIRONMENT", environmentId);
+    }
+
     public void notifyStateDriftDetected(String environmentId, String environmentName,
                                          String vmName, String previousStatus, String currentStatus,
                                          String vmId) {
