@@ -14,6 +14,20 @@ const AutomationRules = (function() {
     let scopeOptionsCache = {}; // environmentId -> { groups: [...], vms: [...] }
     let modalInstance = null;
     let editingRuleId = null;
+    let saving = false; // one Save in flight at a time (a double click created two rules)
+
+    /** Labels for lastRunReason (V31). */
+    const RUN_REASON_LABELS = {
+        OK: 'Started',
+        NOTHING_TO_DO: 'Nothing to do',
+        LOCKED: 'Environment locked',
+        OPERATION_IN_PROGRESS: 'Operation in progress',
+        ENVIRONMENT_INACTIVE: 'Environment deactivated',
+        CREATOR_INACTIVE: 'Creator inactive',
+        SCOPE_MISSING: 'Target missing',
+        ERROR: 'Error',
+        MISSED_WINDOW: 'Missed window'
+    };
     const filters = { search: '', environmentId: '', triggerType: '', status: '' };
     let currentPage = 1;
     const PAGE_SIZE = 10;
@@ -95,7 +109,7 @@ const AutomationRules = (function() {
                 <div class="content-header d-flex justify-content-between align-items-end flex-wrap gap-2">
                     <div>
                         <h1>Automation Rules</h1>
-                        <p>Recurring schedules and access-triggered actions that start or stop environments automatically. A rule never breaks an active lock — if the environment is locked or mid-operation, it is skipped and the owner is notified.</p>
+                        <p>Recurring schedules and access-triggered actions that start or stop environments automatically. If the environment is locked by another user or an operation is running, the rule retries until its catch-up window ends, then is skipped. The rule's creator is notified. Rules never break an active lock.</p>
                     </div>
                     <button class="btn btn-primary" id="ar-new-rule-btn">
                         <i class="fas fa-plus"></i> New Rule
@@ -224,7 +238,8 @@ const AutomationRules = (function() {
 
     function renderStatCards() {
         const active = rules.filter(r => r.enabled).length;
-        const skippedLocked = rules.filter(r => r.lastRunStatus === 'SKIPPED').length;
+        const skippedLocked = rules.filter(r => r.lastRunReason === 'LOCKED').length;
+        const autoDisabled = rules.filter(r => !r.enabled && r.disabledReason).length;
         const environmentsCovered = new Set(rules.map(r => r.environmentId)).size;
 
         return `
@@ -244,6 +259,10 @@ const AutomationRules = (function() {
                 <div class="metric-card">
                     <div class="metric-value">${rules.length - active}</div>
                     <div class="metric-label-hint">DISABLED RULES</div>
+                </div>
+                <div class="metric-card" id="ar-stat-auto-disabled">
+                    <div class="metric-value">${autoDisabled}</div>
+                    <div class="metric-label-hint">DISABLED AUTOMATICALLY</div>
                 </div>
             </div>
         `;
@@ -291,7 +310,10 @@ const AutomationRules = (function() {
                 </td>
                 <td>
                     ${rule.lastRunAt ? Utils.formatDate(rule.lastRunAt) : '<span class="text-muted">Never run</span>'}
-                    ${rule.lastRunStatus ? `<div class="mt-1">${runStatusBadge(rule.lastRunStatus)}</div>` : ''}
+                    ${rule.lastRunStatus ? `<div class="mt-1">${runStatusBadge(rule.lastRunStatus)} ${runReasonText(rule)}</div>` : ''}
+                    ${!rule.enabled && rule.disabledReason
+                        ? `<div class="mt-1 text-danger ar-disabled-reason" style="font-size:.75rem"><i class="fas fa-ban"></i> Disabled: ${Utils.escapeHtml(rule.disabledReason)}</div>`
+                        : ''}
                 </td>
                 <td class="text-end text-nowrap">
                     <button class="btn btn-action ar-edit-btn" data-rule-id="${rule.ruleId}" title="Edit"><i class="fas fa-pencil-alt"></i></button>
@@ -356,6 +378,11 @@ const AutomationRules = (function() {
         return '';
     }
 
+    function runReasonText(rule) {
+        const label = RUN_REASON_LABELS[rule.lastRunReason];
+        return label ? `<span class="text-muted ar-run-reason" style="font-size:.75rem">${Utils.escapeHtml(label)}</span>` : '';
+    }
+
     function scopeLabel(rule) {
         if (rule.scopeType === 'ENVIRONMENT') {
             return `${rule.environmentName} (environment)`;
@@ -410,33 +437,41 @@ const AutomationRules = (function() {
                 await apiPatch(Config.API.automationRules.setEnabled(ruleId), { enabled });
                 await refreshRules();
             } catch (error) {
-                Notifications.showError('Failed to update rule status.');
+                // e.g. "This rule cannot be enabled: Environment deactivated"
+                Notifications.showError(serverMessage(error, 'Failed to update rule status.'));
                 $(this).prop('checked', !enabled);
             }
         });
     }
 
+    // Writes show their own message (the server's reason), so no second, global toast.
+    const QUIET = { suppressGlobalError: true };
+
+    function serverMessage(error, fallback) {
+        return (error && error.responseJSON && error.responseJSON.message) || fallback;
+    }
+
     function apiDelete(url) {
         return new Promise((resolve, reject) => {
-            ApiClient.delete(url).done(resolve).fail(reject);
+            ApiClient.delete(url, QUIET).done(resolve).fail(reject);
         });
     }
 
     function apiPatch(url, data) {
         return new Promise((resolve, reject) => {
-            ApiClient.patch(url, data).done(resolve).fail(reject);
+            ApiClient.patch(url, data, QUIET).done(resolve).fail(reject);
         });
     }
 
     function apiPost(url, data) {
         return new Promise((resolve, reject) => {
-            ApiClient.post(url, data).done(resolve).fail(reject);
+            ApiClient.post(url, data, QUIET).done(resolve).fail(reject);
         });
     }
 
     function apiPut(url, data) {
         return new Promise((resolve, reject) => {
-            ApiClient.put(url, data).done(resolve).fail(reject);
+            ApiClient.put(url, data, QUIET).done(resolve).fail(reject);
         });
     }
 
@@ -471,8 +506,10 @@ const AutomationRules = (function() {
             <span class="ar-day-pill ${selectedDays.includes(day) ? 'on' : ''}" data-day="${day}">${day.charAt(0) + day.slice(1).toLowerCase()}</span>
         `).join('');
 
+        // A new rule defaults to the browser's zone (it used to default to the first in the list).
+        const timezone = rule ? rule.timezone : browserTimezone();
         const tzOptions = Config.IANA_TIMEZONES.map(tz =>
-            `<option value="${tz}" ${rule && rule.timezone === tz ? 'selected' : ''}>${tz}</option>`
+            `<option value="${tz}" ${timezone === tz ? 'selected' : ''}>${tz}</option>`
         ).join('');
 
         return `
@@ -581,7 +618,7 @@ const AutomationRules = (function() {
                                 <div class="alert alert-light border d-flex gap-2 mb-0">
                                     <i class="fas fa-circle-info text-primary mt-1"></i>
                                     <div style="font-size:.8rem">
-                                        <strong>Conflict handling.</strong> If the environment is locked by another user or already has an operation in progress, this rule is skipped — the lock holder is notified and the rule retries at its next trigger. Rules never break an active lock.
+                                        <strong>Conflict handling.</strong> If the environment is locked by another user or an operation is running, the rule retries until its catch-up window ends, then is skipped. The rule's creator is notified. Rules never break an active lock.
                                     </div>
                                 </div>
                             </form>
@@ -594,6 +631,15 @@ const AutomationRules = (function() {
                 </div>
             </div>
         `;
+    }
+
+    function browserTimezone() {
+        try {
+            const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            return Config.IANA_TIMEZONES.includes(zone) ? zone : null;
+        } catch (e) {
+            return null;
+        }
     }
 
     function bindModalEvents(rule) {
@@ -656,6 +702,7 @@ const AutomationRules = (function() {
     }
 
     async function submitForm(rule) {
+        if (saving) return;
         const triggerType = $('#ar-trigger-type').val();
         const scopeType = $('#ar-scope-type').val();
         const name = $('#ar-name').val().trim();
@@ -685,6 +732,8 @@ const AutomationRules = (function() {
             dto.accessGrantMode = $('input[name="ar-access-grant-mode"]:checked').val();
         }
 
+        saving = true;
+        const $save = $('#ar-save-btn').prop('disabled', true);
         try {
             if (rule) {
                 await apiPut(Config.API.automationRules.update(rule.ruleId), dto);
@@ -696,8 +745,10 @@ const AutomationRules = (function() {
             modalInstance.hide();
             await refreshRules();
         } catch (error) {
-            const message = (error.responseJSON && error.responseJSON.message) || 'Failed to save automation rule.';
-            Notifications.showError(message);
+            Notifications.showError(serverMessage(error, 'Failed to save automation rule.'));
+        } finally {
+            saving = false;
+            $save.prop('disabled', false);
         }
     }
 

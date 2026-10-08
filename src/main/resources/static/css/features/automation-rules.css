@@ -137,7 +137,7 @@
    narrows the actual available width at a given browser width. ── */
 .ar-stat-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0.75rem;
     margin-bottom: 0.75rem;
     flex-shrink: 0;
