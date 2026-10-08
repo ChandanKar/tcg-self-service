@@ -33,9 +33,11 @@ public class StartOperationDTO {
     private boolean skipAlreadyInTargetState = true;
 
     /**
-     * Whether to continue on failure of individual VMs.
+     * Keep running independent steps after a step fails (default). When false, the first wave
+     * with a failure ends the run and every remaining step is skipped. Dependents of a failed
+     * step are skipped either way.
      */
-    private boolean continueOnFailure = false;
+    private boolean continueOnFailure = true;
 
     public StartOperationDTO() {
     }

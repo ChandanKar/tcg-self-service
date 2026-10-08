@@ -134,8 +134,7 @@ public class VmOperationsService {
             dependencyValidator.validateLiveDependencies(targetVms);
         }
 
-        List<Vm> orderedVms = dependencyValidator.orderForExecution(targetVms);
-        Map<String, List<String>> scopedDependencyVmIds = dependencyValidator.buildScopedDependencyMap(orderedVms);
+        List<PlannedStep> plan = planSteps(targetVms, dto.getOperationType());
 
         // Create execution record
         OperationExecution execution = new OperationExecution();
@@ -144,30 +143,28 @@ public class VmOperationsService {
         execution.setOperationType(dto.getOperationType());
         execution.setStatus(ExecutionStatus.PENDING);
         execution.setInitiatedByUserId(userId);
-        execution.setTotalTargets(orderedVms.size());
+        execution.setTotalTargets(plan.size());
 
         execution = executionRepository.save(execution);
 
-        // Create detail records for each VM, recording which earlier details (by detailId)
-        // must complete successfully before this one may be attempted.
-        String actionName = dto.getOperationType() == OperationType.START ? "start" : "stop";
+        // One detail per planned step, recording which earlier details (by detailId) must
+        // complete successfully before it may be attempted.
         int sequencePosition = 0;
-        Map<String, String> detailIdByVmId = new HashMap<>();
+        Map<String, String> detailIdByStepKey = new HashMap<>();
 
-        for (Vm vm : orderedVms) {
+        for (PlannedStep step : plan) {
             OperationDetail detail = new OperationDetail();
             detail.setDetailId(UUID.randomUUID().toString());
             detail.setExecution(execution);
             detail.setTargetType("vm");
-            detail.setTargetId(vm.getVmId());
-            detail.setTargetName(vm.getName());
-            detail.setAction(actionName);
+            detail.setTargetId(step.vm().getVmId());
+            detail.setTargetName(step.vm().getName());
+            detail.setAction(step.action());
             detail.setStatus("pending");
             detail.setSequencePosition(++sequencePosition);
 
-            List<String> depDetailIds = scopedDependencyVmIds.getOrDefault(vm.getVmId(), Collections.emptyList())
-                    .stream()
-                    .map(detailIdByVmId::get)
+            List<String> depDetailIds = step.dependsOnKeys().stream()
+                    .map(detailIdByStepKey::get)
                     .filter(Objects::nonNull)
                     .toList();
             if (!depDetailIds.isEmpty()) {
@@ -175,11 +172,12 @@ public class VmOperationsService {
             }
 
             detailRepository.save(detail);
-            detailIdByVmId.put(vm.getVmId(), detail.getDetailId());
+            detailIdByStepKey.put(step.key(), detail.getDetailId());
         }
+        int vmCount = targetVms.size();
 
-        log.info("Created operation execution {} for environment {} ({} VMs)",
-                execution.getExecutionId(), environmentId, orderedVms.size());
+        log.info("Created operation execution {} for environment {} ({} VMs, {} steps)",
+                execution.getExecutionId(), environmentId, vmCount, plan.size());
 
         // Audit logging
         auditService.logOperationStarted(userId, environmentId, environment.getName(),
@@ -192,7 +190,7 @@ public class VmOperationsService {
                         userId,
                         dto.getOperationType().name(),
                         operationScopeLabel(dto),
-                        orderedVms.size()
+                        vmCount
                 ));
 
         // Fire async execution after this transaction commits so the execution row is visible
@@ -493,6 +491,8 @@ public class VmOperationsService {
 
         Map<String, String> targetNameByDetailId = details.stream()
                 .collect(Collectors.toMap(OperationDetail::getDetailId, OperationDetail::getTargetName));
+        Map<String, String> actionByDetailId = details.stream()
+                .collect(Collectors.toMap(OperationDetail::getDetailId, d -> d.getAction() != null ? d.getAction() : ""));
         Map<String, List<String>> depsByDetailId = details.stream()
                 .collect(Collectors.toMap(OperationDetail::getDetailId,
                         d -> parseDependsOnDetailIds(d.getDependsOnDetailIds())));
@@ -526,11 +526,12 @@ public class VmOperationsService {
             // Split the wave into VMs blocked by a failed/skipped dependency vs. runnable ones.
             List<OperationDetail> runnable = new ArrayList<>();
             for (OperationDetail detail : ready) {
-                String blockingDependencyName = findBlockingDependency(
-                        depsByDetailId.getOrDefault(detail.getDetailId(), List.of()),
-                        finalStatusByDetailId, targetNameByDetailId);
-                if (blockingDependencyName != null) {
-                    skipDetail(detail, blockingDependencyName, executionId);
+                String blockingDetailId = findBlockingDependency(
+                        depsByDetailId.getOrDefault(detail.getDetailId(), List.of()), finalStatusByDetailId);
+                if (blockingDetailId != null) {
+                    skipDetail(detail, skipReason(detail.getAction(),
+                            actionByDetailId.get(blockingDetailId),
+                            targetNameByDetailId.getOrDefault(blockingDetailId, blockingDetailId)), executionId);
                     finalStatusByDetailId.put(detail.getDetailId(), "skipped");
                 } else {
                     runnable.add(detail);
@@ -541,7 +542,8 @@ public class VmOperationsService {
                 CompletableFuture<?>[] futures = runnable.stream()
                         .map(detail -> CompletableFuture.runAsync(() -> {
                             try {
-                                executeVmOperation(detail, operationType, executionId, initiatedByUserId);
+                                executeVmOperation(detail, stepType(detail, operationType), executionId,
+                                        initiatedByUserId);
                             } catch (Exception e) {
                                 log.error("Error executing operation on {}: {}",
                                         detail.getTargetName(), e.getMessage());
@@ -565,6 +567,17 @@ public class VmOperationsService {
 
             remaining.removeAll(ready);
 
+            boolean waveFailed = runnable.stream()
+                    .anyMatch(d -> "failed".equals(finalStatusByDetailId.get(d.getDetailId())));
+            if (waveFailed && !continueOnFailure && !remaining.isEmpty()) {
+                log.info("Execution {}: a step failed and continue-on-failure is off; skipping {} remaining step(s)",
+                        executionId, remaining.size());
+                for (OperationDetail detail : remaining) {
+                    skipDetail(detail, "Skipped: an earlier step failed and continue-on-failure is off", executionId);
+                }
+                remaining.clear();
+            }
+
             if (getExecution(executionId).getStatus() == ExecutionStatus.CANCELLED) {
                 log.info("Execution {} was cancelled after a wave completed, stopping", executionId);
                 return;
@@ -580,25 +593,93 @@ public class VmOperationsService {
      * recorded status yet are treated as satisfied — execution order guarantees dependencies
      * are processed first, so this only happens for ids outside the current run's detail set.
      */
-    private String findBlockingDependency(List<String> depDetailIds, Map<String, String> finalStatusByDetailId,
-                                          Map<String, String> targetNameByDetailId) {
+    private String findBlockingDependency(List<String> depDetailIds, Map<String, String> finalStatusByDetailId) {
         for (String depId : depDetailIds) {
             String status = finalStatusByDetailId.get(depId);
             if ("failed".equals(status) || "skipped".equals(status)) {
-                return targetNameByDetailId.getOrDefault(depId, depId);
+                return depId;
             }
         }
         return null;
     }
 
-    private void skipDetail(OperationDetail detail, String blockingDependencyName, String executionId) {
+    /** Why a step is skipped, in terms of the step it was waiting for. */
+    static String skipReason(String blockedAction, String blockingAction, String blockingName) {
+        if ("stop".equals(blockingAction) && "stop".equals(blockedAction)) {
+            // STOP runs in reverse order: the blocker is a VM that depends on this one.
+            return "Skipped: '" + blockingName + "' depends on this VM and did not stop";
+        }
+        if ("stop".equals(blockingAction)) {
+            // RESTART: the start of a VM waits for its own (or a dependent's) stop.
+            return "Skipped: '" + blockingName + "' did not stop";
+        }
+        return "Skipped: dependency '" + blockingName + "' did not start";
+    }
+
+    private void skipDetail(OperationDetail detail, String reason, String executionId) {
         detail.setStatus("skipped");
-        detail.setErrorMessage("Skipped: dependency '" + blockingDependencyName + "' failed to start");
+        detail.setErrorMessage(reason);
         detail.setCompletedAt(Timestamp.from(Instant.now()));
         detailRepository.save(detail);
         executionRepository.incrementCounters(executionId, 0, 0, 1);
-        log.warn("Skipping {} because dependency '{}' did not complete successfully",
-                detail.getTargetName(), blockingDependencyName);
+        log.warn("{} ({})", reason, detail.getTargetName());
+    }
+
+    /** The provider call a step makes: its own action, so a RESTART runs as stop steps then start steps. */
+    private static OperationType stepType(OperationDetail detail, OperationType executionType) {
+        if ("stop".equals(detail.getAction())) {
+            return OperationType.STOP;
+        }
+        if ("start".equals(detail.getAction())) {
+            return OperationType.START;
+        }
+        return executionType;
+    }
+
+    /** One planned step: a VM, its action, and the keys of the steps it waits for. */
+    record PlannedStep(Vm vm, String action, List<String> dependsOnKeys) {
+        String key() {
+            return action + ":" + vm.getVmId();
+        }
+
+        static String key(String action, String vmId) {
+            return action + ":" + vmId;
+        }
+    }
+
+    /**
+     * Steps in execution order (H2). START: prerequisites first. STOP: reverse order, a VM after
+     * everything in scope that depends on it. RESTART: every stop (in STOP order), then every
+     * start (in START order), where a VM's start also waits for its own stop.
+     */
+    List<PlannedStep> planSteps(List<Vm> vms, OperationType operationType) {
+        List<PlannedStep> plan = new ArrayList<>();
+        if (operationType == OperationType.START || operationType == OperationType.RESTART) {
+            if (operationType == OperationType.RESTART) {
+                plan.addAll(phase(vms, OperationType.STOP, "stop", null));
+            }
+            plan.addAll(phase(vms, OperationType.START, "start",
+                    operationType == OperationType.RESTART ? "stop" : null));
+        } else {
+            plan.addAll(phase(vms, OperationType.STOP, "stop", null));
+        }
+        return plan;
+    }
+
+    private List<PlannedStep> phase(List<Vm> vms, OperationType orderType, String action, String afterOwnAction) {
+        List<Vm> ordered = dependencyValidator.orderForExecution(vms, orderType);
+        Map<String, List<String>> waitsFor = dependencyValidator.buildScopedDependencyMap(ordered, orderType);
+        List<PlannedStep> steps = new ArrayList<>();
+        for (Vm vm : ordered) {
+            List<String> keys = new ArrayList<>();
+            if (afterOwnAction != null) {
+                keys.add(PlannedStep.key(afterOwnAction, vm.getVmId()));
+            }
+            waitsFor.getOrDefault(vm.getVmId(), List.of())
+                    .forEach(other -> keys.add(PlannedStep.key(action, other)));
+            steps.add(new PlannedStep(vm, action, keys));
+        }
+        return steps;
     }
 
     private List<String> parseDependsOnDetailIds(String json) {
@@ -655,24 +736,12 @@ public class VmOperationsService {
                         CloudProviderService.VmOperationProgress.of(VmStatus.STARTING, "Start requested", 10));
                 result = providerService.startVm(vm.getProviderVmId(), vm.getRegion(),
                         progress -> updateOperationProgress(executionId, detailId, progress)).join();
-            } else if (operationType == OperationType.STOP) {
+            } else {
+                // Every step is a start or a stop (a RESTART is planned as stop steps then start steps).
                 updateOperationProgress(executionId, detailId,
                         CloudProviderService.VmOperationProgress.of(VmStatus.STOPPING, "Stop requested", 10));
                 result = providerService.stopVm(vm.getProviderVmId(), vm.getRegion(), false,
                         progress -> updateOperationProgress(executionId, detailId, progress)).join();
-            } else {
-                // RESTART = stop then start
-                updateOperationProgress(executionId, detailId,
-                        CloudProviderService.VmOperationProgress.of(VmStatus.STOPPING, "EC2 stopping", 50));
-                result = providerService.stopVm(vm.getProviderVmId(), vm.getRegion(), false,
-                        progress -> updateOperationProgress(executionId, detailId, progress)).join();
-                if (result.isSuccess()) {
-                    Thread.sleep(5000);
-                    updateOperationProgress(executionId, detailId,
-                            CloudProviderService.VmOperationProgress.of(VmStatus.STARTING, "Start requested", 10));
-                    result = providerService.startVm(vm.getProviderVmId(), vm.getRegion(),
-                            progress -> updateOperationProgress(executionId, detailId, progress)).join();
-                }
             }
 
             detail = detailRepository.findById(detailId).orElse(detail);

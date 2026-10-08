@@ -275,6 +275,66 @@ class DependencyValidatorTest extends AbstractIntegrationTest {
 
     // ==================== Helper Methods ====================
 
+    // ==================== Operation-aware ordering (E05-T03, H2) ====================
+
+    private static List<String> names(List<Vm> vms) {
+        return vms.stream().map(Vm::getName).toList();
+    }
+
+    @Test
+    void orderForExecution_stopReversesVmLevelDependencies() {
+        VmGroup group = createGroup("g", 1, null);
+        Vm db = createVm(group, "db", 1, null);
+        Vm api = createVm(group, "api", 2, List.of(db.getVmId()));
+        Vm web = createVm(group, "web", 3, List.of(api.getVmId()));
+        List<Vm> scope = List.of(web, db, api);
+
+        assertEquals(List.of("db", "api", "web"), names(dependencyValidator.orderForExecution(scope, OperationType.START)));
+        assertEquals(List.of("web", "api", "db"), names(dependencyValidator.orderForExecution(scope, OperationType.STOP)));
+        // The one-argument form is START order, unchanged for existing callers.
+        assertEquals(List.of("db", "api", "web"), names(dependencyValidator.orderForExecution(scope)));
+    }
+
+    @Test
+    void orderForExecution_stopReversesGroupLevelDependencies() {
+        VmGroup dbGroup = createGroup("db-group", 1, null);
+        VmGroup appGroup = createGroup("app-group", 2, List.of(dbGroup.getGroupId()));
+        Vm db = createVm(dbGroup, "db", 1, null);
+        Vm app1 = createVm(appGroup, "app1", 1, null);
+        Vm app2 = createVm(appGroup, "app2", 2, null);
+        List<Vm> scope = List.of(db, app1, app2);
+
+        List<String> stop = names(dependencyValidator.orderForExecution(scope, OperationType.STOP));
+        assertEquals("db", stop.get(2), "the DB group stops after every app VM");
+        List<String> start = names(dependencyValidator.orderForExecution(scope, OperationType.START));
+        assertEquals("db", start.get(0), "the DB group starts first");
+    }
+
+    @Test
+    void buildScopedDependencyMap_stopMapsEachVmToItsInScopeDependents() {
+        VmGroup group = createGroup("g", 1, null);
+        Vm db = createVm(group, "db", 1, null);
+        Vm api = createVm(group, "api", 2, List.of(db.getVmId()));
+
+        var stop = dependencyValidator.buildScopedDependencyMap(List.of(db, api), OperationType.STOP);
+
+        assertEquals(List.of(api.getVmId()), stop.get(db.getVmId()));
+        assertEquals(List.of(), stop.get(api.getVmId()));
+    }
+
+    @Test
+    void validateLiveDependencies_deactivatedDependencyIsIgnored() {
+        // LOW-OPS-DEACTIVATED-DEP: a deactivated VM must not block starts forever.
+        VmGroup group = createGroup("g", 1, null);
+        Vm retired = createVm(group, "retired", 1, null);
+        retired.setStatus(VmStatus.STOPPED);
+        retired.setIsActive(false);
+        vmRepository.save(retired);
+        Vm app = createVm(group, "app", 2, List.of(retired.getVmId()));
+
+        assertDoesNotThrow(() -> dependencyValidator.validateLiveDependencies(List.of(app)));
+    }
+
     private VmGroup createGroup(String name, int sequence, List<String> dependsOn) {
         VmGroup group = new VmGroup();
         group.setGroupId(UUID.randomUUID().toString());

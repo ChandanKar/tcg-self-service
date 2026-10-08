@@ -2,6 +2,7 @@ package com.tcgdigital.vmcontrol.service;
 
 import com.tcgdigital.vmcontrol.exception.CircularDependencyException;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
+import com.tcgdigital.vmcontrol.model.OperationType;
 import com.tcgdigital.vmcontrol.model.Vm;
 import com.tcgdigital.vmcontrol.model.VmGroup;
 import com.tcgdigital.vmcontrol.model.VmStatus;
@@ -176,11 +177,19 @@ public class DependencyValidator {
      * and {@link #validateGroupDependencies}, so a subgraph of a validated graph cannot cycle.
      */
     public List<Vm> orderForExecution(List<Vm> vms) {
+        return orderForExecution(vms, OperationType.START);
+    }
+
+    /**
+     * Execution order for one kind of step: START runs prerequisites first; STOP runs in reverse
+     * dependency order, so a VM is stopped only after everything in scope that depends on it (H2).
+     */
+    public List<Vm> orderForExecution(List<Vm> vms, OperationType operationType) {
         if (vms == null || vms.size() <= 1) {
             return vms == null ? new ArrayList<>() : new ArrayList<>(vms);
         }
 
-        Map<String, List<String>> dependsOn = buildScopedDependencyMap(vms);
+        Map<String, List<String>> dependsOn = buildScopedDependencyMap(vms, operationType);
 
         List<Vm> remaining = new ArrayList<>(vms);
         Set<String> done = new LinkedHashSet<>();
@@ -223,6 +232,11 @@ public class DependencyValidator {
                     continue;
                 }
                 Vm depVm = vmRepository.findById(depVmId).orElse(null);
+                if (depVm != null && !Boolean.TRUE.equals(depVm.getIsActive())) {
+                    // A deactivated VM is out of service: it cannot block starts forever.
+                    log.debug("Ignoring deactivated dependency {} of VM {}", depVm.getName(), vm.getName());
+                    continue;
+                }
                 if (depVm == null || depVm.getStatus() != VmStatus.RUNNING) {
                     throw new ValidationException("VM '" + vm.getName() + "' depends on '" +
                             (depVm != null ? depVm.getName() : depVmId) + "' which is not currently running");
@@ -252,6 +266,21 @@ public class DependencyValidator {
      * combining its own intra-group dependencies with its group's cross-group dependencies
      * (a dependency on group G means "depends on every VM in G that's part of this scope").
      */
+    /**
+     * The scoped dependency map for one kind of step. START: each VM waits for its in-scope
+     * prerequisites. STOP: inverted, each VM waits for the in-scope VMs that depend on it.
+     */
+    public Map<String, List<String>> buildScopedDependencyMap(List<Vm> vms, OperationType operationType) {
+        Map<String, List<String>> prerequisites = buildScopedDependencyMap(vms);
+        if (operationType != OperationType.STOP) {
+            return prerequisites;
+        }
+        Map<String, List<String>> dependents = new LinkedHashMap<>();
+        vms.forEach(vm -> dependents.put(vm.getVmId(), new ArrayList<>()));
+        prerequisites.forEach((vmId, deps) -> deps.forEach(dep -> dependents.get(dep).add(vmId)));
+        return dependents;
+    }
+
     public Map<String, List<String>> buildScopedDependencyMap(List<Vm> vms) {
         Set<String> scopeIds = vms.stream().map(Vm::getVmId).collect(Collectors.toSet());
         Map<String, List<String>> vmIdsByGroup = vms.stream()
