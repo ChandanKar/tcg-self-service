@@ -4,6 +4,7 @@ import com.tcgdigital.vmcontrol.dto.CreateVmGroupDTO;
 import com.tcgdigital.vmcontrol.dto.VmGroupDTO;
 import com.tcgdigital.vmcontrol.model.VmGroup;
 import com.tcgdigital.vmcontrol.service.SecurityService;
+import com.tcgdigital.vmcontrol.service.UserService;
 import com.tcgdigital.vmcontrol.service.VmGroupService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -31,10 +32,12 @@ public class VmGroupController {
 
     private final VmGroupService groupService;
     private final SecurityService securityService;
+    private final UserService userService;
 
-    public VmGroupController(VmGroupService groupService, SecurityService securityService) {
+    public VmGroupController(VmGroupService groupService, SecurityService securityService, UserService userService) {
         this.groupService = groupService;
         this.securityService = securityService;
+        this.userService = userService;
     }
 
     /** The environment a group belongs to (404 when the group does not exist). */
@@ -203,7 +206,8 @@ public class VmGroupController {
     @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Delete a group",
-            description = "Deletes a VM group (only if no VMs exist in it)"
+            description = "Deletes a VM group (only if it holds no VMs, active or removed). Other groups stop depending "
+                    + "on it; grants, pending requests and automation rules scoped to it are revoked, cancelled and disabled."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "204", description = "Group deleted successfully"),
@@ -217,7 +221,7 @@ public class VmGroupController {
         securityService.assertCanAdminister(environmentId);
 
 
-        groupService.deleteGroup(groupId);
+        groupService.deleteGroup(groupId, userService.getCurrentUserId());
         return ResponseEntity.noContent().build();
     }
 }

@@ -126,4 +126,8 @@ public interface EnvironmentAccessRequestRepository extends JpaRepository<Enviro
            "WHERE r.requestId = :requestId " +
            "AND r.status = com.tcgdigital.vmcontrol.model.AccessRequestStatus.PENDING")
     int cancelIfPending(@Param("requestId") String requestId, @Param("now") Timestamp now);
+
+    /** Requests on one scope in a status (group delete cancels the PENDING ones, M2). */
+    List<EnvironmentAccessRequest> findByScopeTypeAndScopeIdAndStatus(AccessScopeType scopeType, String scopeId,
+                                                                      AccessRequestStatus status);
 }

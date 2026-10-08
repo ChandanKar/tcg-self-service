@@ -62,4 +62,8 @@ public interface AutomationRuleRepository extends JpaRepository<AutomationRule, 
     @Query("SELECT r FROM AutomationRule r JOIN FETCH r.environment " +
            "WHERE r.environment.environmentId = :environmentId ORDER BY r.createdAt DESC")
     List<AutomationRule> findByEnvironmentFetchEnvironment(@Param("environmentId") String environmentId);
+
+    /** Rules targeting one group or VM (group delete disables them, M2). */
+    List<AutomationRule> findByScopeTypeAndScopeId(com.tcgdigital.vmcontrol.model.AutomationScopeType scopeType,
+                                                   String scopeId);
 }

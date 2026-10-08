@@ -301,5 +301,8 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
            "WHERE ea.environment.environmentId = :environmentId " +
            "AND ea.status = 'ACTIVE'")
     long countActiveAccessByEnvironment(@Param("environmentId") String environmentId);
-}
 
+    /** Grants on one scope in a status, expired or not (group delete revokes every ACTIVE one, M2). */
+    List<EnvironmentAccess> findByScopeTypeAndScopeIdAndStatus(AccessScopeType scopeType, String scopeId,
+                                                               com.tcgdigital.vmcontrol.model.AccessStatus status);
+}

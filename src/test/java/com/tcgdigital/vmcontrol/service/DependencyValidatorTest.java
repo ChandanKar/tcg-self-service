@@ -335,6 +335,27 @@ class DependencyValidatorTest extends AbstractIntegrationTest {
         assertDoesNotThrow(() -> dependencyValidator.validateLiveDependencies(List.of(app)));
     }
 
+    // ---- E10-T01 (M2): a dependency on a deleted group is ignored, a real cycle still fails ----
+
+    @Test
+    void topologicalSortIgnoresADanglingDependency() {
+        VmGroup db = createGroup("db-tier", 1, List.of());
+        VmGroup app = createGroup("app-tier", 2, List.of(db.getGroupId(), "group-that-was-deleted"));
+
+        List<VmGroup> sorted = assertDoesNotThrow(() -> dependencyValidator.topologicalSort(List.of(db, app)));
+
+        assertEquals(List.of(db.getGroupId(), app.getGroupId()), sorted.stream().map(VmGroup::getGroupId).toList());
+    }
+
+    @Test
+    void topologicalSortStillDetectsARealCycle() {
+        VmGroup a = createGroup("a-tier", 1, List.of());
+        VmGroup b = createGroup("b-tier", 2, List.of(a.getGroupId()));
+        a.setDependencies(List.of(b.getGroupId(), "group-that-was-deleted"));
+
+        assertThrows(CircularDependencyException.class, () -> dependencyValidator.topologicalSort(List.of(a, b)));
+    }
+
     private VmGroup createGroup(String name, int sequence, List<String> dependsOn) {
         VmGroup group = new VmGroup();
         group.setGroupId(UUID.randomUUID().toString());

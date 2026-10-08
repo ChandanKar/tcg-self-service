@@ -393,4 +393,8 @@ public interface VmRepository extends JpaRepository<Vm, String> {
 
     @Query("SELECT COUNT(v) FROM Vm v WHERE v.group.environment.environmentId = :envId AND v.isActive = false")
     long countInactiveInEnvironment(@Param("envId") String envId);
+
+    /** Every VM row of a group, active and inactive (deleting the group would cascade them all, M2). */
+    @Query("SELECT COUNT(v) FROM Vm v WHERE v.group.groupId = :groupId")
+    long countAllByGroupId(@Param("groupId") String groupId);
 }

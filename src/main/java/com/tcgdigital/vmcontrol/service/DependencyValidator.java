@@ -89,10 +89,19 @@ public class DependencyValidator {
 
         for (VmGroup group : groups) {
             groupMap.put(group.getGroupId(), group);
+        }
+        for (VmGroup group : groups) {
             graph.putIfAbsent(group.getGroupId(), new ArrayList<>());
             inDegree.putIfAbsent(group.getGroupId(), 0);
 
             for (String depId : group.getDependencies()) {
+                // A dependency on a group that no longer exists (left by an old delete, M2) is
+                // not a cycle: ignore it rather than failing the whole environment's start order.
+                if (!groupMap.containsKey(depId)) {
+                    log.warn("Group {} has a dangling dependency on missing group {}; ignoring it",
+                            group.getGroupId(), depId);
+                    continue;
+                }
                 graph.putIfAbsent(depId, new ArrayList<>());
                 graph.get(depId).add(group.getGroupId());
                 inDegree.put(group.getGroupId(), inDegree.getOrDefault(group.getGroupId(), 0) + 1);
