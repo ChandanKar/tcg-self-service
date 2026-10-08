@@ -49,6 +49,14 @@ public class OperationExecution {
     @Column(name = "failed_targets", nullable = false)
     private Integer failedTargets = 0;
 
+    /** Refreshed while a worker runs this execution (V30); null until it starts. */
+    @Column(name = "last_heartbeat_at")
+    private Timestamp lastHeartbeatAt;
+
+    /** The node running it, "hostname-pid" (V30). */
+    @Column(name = "executor_id", length = 128)
+    private String executorId;
+
     /** Steps not attempted because a dependency failed or was skipped (V28). */
     @Column(name = "skipped_targets", nullable = false)
     private Integer skippedTargets = 0;
@@ -208,5 +216,21 @@ public class OperationExecution {
     /** The status string as stored, e.g. {@code in_progress} (used by the conditional updates). */
     public static String statusValue(ExecutionStatus status) {
         return status.name().toLowerCase();
+    }
+
+    public Timestamp getLastHeartbeatAt() {
+        return lastHeartbeatAt;
+    }
+
+    public void setLastHeartbeatAt(Timestamp lastHeartbeatAt) {
+        this.lastHeartbeatAt = lastHeartbeatAt;
+    }
+
+    public String getExecutorId() {
+        return executorId;
+    }
+
+    public void setExecutorId(String executorId) {
+        this.executorId = executorId;
     }
 }

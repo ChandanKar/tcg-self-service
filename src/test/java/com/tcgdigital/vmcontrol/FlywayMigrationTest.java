@@ -507,4 +507,15 @@ class FlywayMigrationTest extends AbstractIntegrationTest {
         assertEquals("NO", column.get("IS_NULLABLE"));
         assertEquals("0", String.valueOf(column.get("COLUMN_DEFAULT")));
     }
+
+    @Test
+    void testOperationExecutionHeartbeatColumnsAdded() {
+        // V30 (H12): heartbeat and executor for restart recovery; both nullable.
+        List<Map<String, Object>> columns = jdbcTemplate.queryForList(
+            "SELECT COLUMN_NAME, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() " +
+            "AND TABLE_NAME = 'operation_execution' AND COLUMN_NAME IN ('last_heartbeat_at', 'executor_id')"
+        );
+        assertEquals(2, columns.size());
+        columns.forEach(c -> assertEquals("YES", c.get("IS_NULLABLE"), c.get("COLUMN_NAME") + " must be nullable"));
+    }
 }

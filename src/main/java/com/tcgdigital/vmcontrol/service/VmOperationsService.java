@@ -69,6 +69,10 @@ public class VmOperationsService {
     @Autowired
     private SecurityService securityService;
 
+    @Lazy
+    @Autowired
+    private OperationRecoveryService operationRecoveryService;
+
     public VmOperationsService(OperationExecutionRepository executionRepository,
                                OperationDetailRepository detailRepository,
                                EnvironmentRepository environmentRepository,
@@ -110,8 +114,12 @@ public class VmOperationsService {
         // Verify user has lock on environment
         lockService.verifyLockPermission(environmentId, userId);
 
-        // Check for existing active operations
-        if (executionRepository.hasActiveOperations(environmentId)) {
+        // Check for existing active operations; a run orphaned by a restart (no heartbeat for
+        // vm.operations.stale-after-minutes) is failed first instead of blocking forever (H12).
+        if (operationRecoveryService.failStale(environmentId) > 0) {
+            log.info("Failed stale operation(s) in environment {} before starting a new one", environmentId);
+        }
+        if (!executionRepository.findActiveForUpdate(environmentId).isEmpty()) {
             throw new ValidationException("An operation is already in progress for this environment");
         }
 
@@ -474,6 +482,7 @@ public class VmOperationsService {
             log.info("Execution {} was cancelled before it started; nothing to do", executionId);
             return;
         }
+        heartbeat(executionId, operationRecoveryService.executorId());
         OperationExecution execution = getExecution(executionId);
         // Captured up front so the per-VM steps (which run on worker threads, off any session)
         // never have to navigate detail.getExecution() for a non-id property.
@@ -502,6 +511,7 @@ public class VmOperationsService {
         List<OperationDetail> remaining = new ArrayList<>(details);
 
         while (!remaining.isEmpty()) {
+            heartbeat(executionId, null);
             if (getExecution(executionId).getStatus() == ExecutionStatus.CANCELLED) {
                 log.info("Execution {} was cancelled before the next wave", executionId);
                 return;
@@ -857,6 +867,7 @@ public class VmOperationsService {
         if (getExecution(executionId).getStatus() == ExecutionStatus.CANCELLED) {
             throw new OperationCancelledException("Execution " + executionId + " was cancelled");
         }
+        heartbeat(executionId, null);
 
         detailRepository.findById(detailId).ifPresent(detail -> {
             detail.setStageLabel(progress.getStageLabel());
@@ -1023,6 +1034,15 @@ public class VmOperationsService {
         }
 
         return new ArrayList<>(targetVms);
+    }
+
+    /** Record that this execution is alive (and, the first time, which node runs it). */
+    private void heartbeat(String executionId, String executorId) {
+        try {
+            executionRepository.touchHeartbeat(executionId, Timestamp.from(Instant.now()), executorId);
+        } catch (Exception e) {
+            log.warn("Could not record heartbeat for execution {}: {}", executionId, e.getMessage());
+        }
     }
 
     private void updateExecutionCounters(String executionId, boolean success) {

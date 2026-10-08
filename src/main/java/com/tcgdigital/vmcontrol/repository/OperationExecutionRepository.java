@@ -3,7 +3,9 @@ package com.tcgdigital.vmcontrol.repository;
 import com.tcgdigital.vmcontrol.model.ExecutionStatus;
 import com.tcgdigital.vmcontrol.model.OperationExecution;
 import org.springframework.data.domain.Pageable;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -112,4 +114,30 @@ public interface OperationExecutionRepository extends JpaRepository<OperationExe
                           @Param("completed") int completed,
                           @Param("failed") int failed,
                           @Param("skipped") int skipped);
+
+    /**
+     * Mark the execution as alive (H12). Deliberately does not bump the version: it races with
+     * nothing that matters, and runs on every provider poll tick.
+     */
+    @Modifying(flushAutomatically = true)
+    @Transactional
+    @Query("UPDATE OperationExecution e SET e.lastHeartbeatAt = :at, " +
+           "e.executorId = COALESCE(:executorId, e.executorId) WHERE e.executionId = :id")
+    int touchHeartbeat(@Param("id") String id, @Param("at") Timestamp at, @Param("executorId") String executorId);
+
+    /** PENDING / IN_PROGRESS executions, of one environment or (null) all, with their environment. */
+    @Query("SELECT e FROM OperationExecution e JOIN FETCH e.environment " +
+           "WHERE (e.status = 'pending' OR e.status = 'in_progress') " +
+           "AND (:environmentId IS NULL OR e.environment.environmentId = :environmentId)")
+    List<OperationExecution> findActiveWithEnvironment(@Param("environmentId") String environmentId);
+
+    /**
+     * The environment's active executions as a locking read: unlike a plain read inside a
+     * REPEATABLE READ transaction it sees rows committed after the transaction began (e.g. a
+     * stale run just failed by recovery), and two concurrent starts serialize on it.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT e FROM OperationExecution e WHERE e.environment.environmentId = :environmentId " +
+           "AND (e.status = 'pending' OR e.status = 'in_progress')")
+    List<OperationExecution> findActiveForUpdate(@Param("environmentId") String environmentId);
 }
