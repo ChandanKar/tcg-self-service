@@ -318,14 +318,14 @@ const VmRegistry = (function() {
         if (!env) return;
         DestructiveConfirm.confirmDeleteEnvironment(env.displayName, env.vmCount || 0, async function() {
             try {
-                Loading.show('Deleting...');
+                Loading.show('Deactivating...');
                 await ApiClient.delete(`/api/v1/environments/${environmentId}`);
-                Notifications.success('Environment deleted');
+                Notifications.success('Environment deactivated');
                 await loadEnvironmentsData();
                 Loading.hide();
             } catch (error) {
-                console.error('Failed to delete environment:', error);
-                Notifications.error(error.responseJSON?.message || 'Failed to delete');
+                console.error('Failed to deactivate environment:', error);
+                Notifications.error(error.responseJSON?.message || 'Failed to deactivate');
                 Loading.hide();
             }
         });

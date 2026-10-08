@@ -8,6 +8,7 @@ import { signIn, canSignIn, devIds } from '../../fixtures/auth';
  */
 
 declare const ContentRouter: any;
+declare const DestructiveConfirm: any;
 
 const ENVS = [
   { environmentId: 'env-list-1', name: 'pay-qa', displayName: 'Payments QA', description: null, isActive: true,
@@ -44,5 +45,24 @@ test.describe('My Environments list', () => {
     await expect(locked).toContainText('Riya Sharma');     // holder from the payload
     await expect(page.locator('#content-area tr', { hasText: 'billing' })).toContainText('Unlocked');
     expect(lockRequests).toEqual([]);
+  });
+});
+
+test.describe('Deactivate environment dialog', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+  });
+
+  test('says deactivate and reactivate, never permanent (E10-T06)', async ({ page }) => {
+    await signIn(page, 'admin');
+    await page.waitForFunction(() => typeof DestructiveConfirm !== 'undefined');
+
+    await page.evaluate(() => DestructiveConfirm.confirmDeleteEnvironment('Payments QA', 3, () => {}));
+
+    const dialog = page.locator('.modal.show');
+    await expect(dialog).toContainText('Deactivate environment');
+    await expect(dialog).toContainText('can be reactivated later');
+    await expect(dialog).toContainText('Its active lock is released');
+    await expect(dialog).not.toContainText(/permanent|cannot be undone/i);
   });
 });

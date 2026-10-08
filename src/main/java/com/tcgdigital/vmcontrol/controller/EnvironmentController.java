@@ -314,10 +314,12 @@ public class EnvironmentController {
     @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Deactivate an environment",
-            description = "Soft deletes an environment by marking it as inactive"
+            description = "Soft deletes an environment by marking it as inactive; its active lock is released. "
+                    + "Refused while an operation is running. It can be reactivated later."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "204", description = "Environment deactivated successfully"),
+            @ApiResponse(responseCode = "400", description = "An operation is running in the environment"),
             @ApiResponse(responseCode = "404", description = "Environment not found")
     })
     public ResponseEntity<Void> deactivateEnvironment(

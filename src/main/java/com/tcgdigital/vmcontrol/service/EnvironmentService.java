@@ -43,6 +43,8 @@ public class EnvironmentService {
     private final UserService userService;
     private final com.tcgdigital.vmcontrol.repository.EnvironmentLockRepository lockRepository;
     private final com.tcgdigital.vmcontrol.repository.UserRepository userRepository;
+    private final com.tcgdigital.vmcontrol.repository.OperationExecutionRepository operationExecutionRepository;
+    private final LockService lockService;
 
     public EnvironmentService(EnvironmentRepository environmentRepository,
                               EnvironmentAccessRepository accessRepository,
@@ -51,9 +53,13 @@ public class EnvironmentService {
                               AuditService auditService,
                               UserService userService,
                               com.tcgdigital.vmcontrol.repository.EnvironmentLockRepository lockRepository,
-                              com.tcgdigital.vmcontrol.repository.UserRepository userRepository) {
+                              com.tcgdigital.vmcontrol.repository.UserRepository userRepository,
+                              com.tcgdigital.vmcontrol.repository.OperationExecutionRepository operationExecutionRepository,
+                              @org.springframework.context.annotation.Lazy LockService lockService) {
         this.lockRepository = lockRepository;
         this.userRepository = userRepository;
+        this.operationExecutionRepository = operationExecutionRepository;
+        this.lockService = lockService;
         this.environmentRepository = environmentRepository;
         this.accessRepository = accessRepository;
         this.groupRepository = groupRepository;
@@ -253,11 +259,32 @@ public class EnvironmentService {
     @Transactional
     public void deactivateEnvironment(String environmentId) {
         Environment environment = getEnvironmentById(environmentId);
+        // A running start/stop would keep acting on an environment nobody can see any more.
+        if (operationExecutionRepository.hasActiveOperations(environmentId)) {
+            throw new ValidationException("Environment has running operations; wait for them to finish or cancel them");
+        }
+        String actor = currentUserIdOrSystem();
+        boolean lockReleased = false;
+        if (lockService.getCurrentLock(environmentId).isPresent()) {
+            // The lock would otherwise outlive the environment (and block it after reactivation).
+            lockService.breakLock(environmentId, actor, "Environment deactivated");
+            lockReleased = true;
+        }
         environment.setIsActive(false);
         environmentRepository.save(environment);
-        log.info("Deactivated environment: {} ({})", environment.getName(), environmentId);
-        auditService.logEnvironmentAction("system", AuditAction.ENVIRONMENT_DEACTIVATED, environmentId,
-                environment.getName(), "environment", environmentId, environment.getName(), null);
+        log.info("Deactivated environment: {} ({}) by {}", environment.getName(), environmentId, actor);
+        auditService.logEnvironmentAction(actor, AuditAction.ENVIRONMENT_DEACTIVATED, environmentId,
+                environment.getName(), "environment", environmentId, environment.getName(),
+                lockReleased ? "Active lock released" : null);
+    }
+
+    private String currentUserIdOrSystem() {
+        try {
+            String userId = userService.getCurrentUserId();
+            return userId != null ? userId : "system";
+        } catch (Exception e) {
+            return "system";
+        }
     }
 
     /**

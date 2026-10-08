@@ -807,15 +807,15 @@ const DestructiveConfirm = (function() {
      */
     function confirmDeleteEnvironment(environmentName, vmCount, onConfirm) {
         show({
-            title: 'Delete Environment',
-            message: `This will permanently delete "${environmentName}".`,
+            title: 'Deactivate environment',
+            message: `This will deactivate "${environmentName}". It disappears from lists and schedules, and can be reactivated later.`,
             impact: [
-                `${vmCount} VM(s) will be unregistered`,
-                'All access permissions will be removed',
-                'This action cannot be undone'
+                `${vmCount} VM(s) stop being synced and operated`,
+                'Its active lock is released',
+                'Access grants stay but cannot be used while it is inactive'
             ],
             confirmText: environmentName,
-            actionText: 'Delete Environment',
+            actionText: 'Deactivate',
             onConfirm
         });
     }

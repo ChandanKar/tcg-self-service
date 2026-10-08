@@ -192,6 +192,72 @@ class EnvironmentServiceTest extends AbstractIntegrationTest {
         assertDoesNotThrow(() -> environmentService.updateEnvironment(created.getEnvironmentId(), same));
     }
 
+    // ---- E10-T06: deactivation waits for running operations and releases the lock ----
+
+    @Autowired private LockService lockService;
+    @Autowired private com.tcgdigital.vmcontrol.repository.OperationExecutionRepository executionRepository;
+    @Autowired private com.tcgdigital.vmcontrol.repository.EnvironmentLockRepository lockRepository;
+    @Autowired private com.tcgdigital.vmcontrol.repository.LockHistoryRepository lockHistoryRepository;
+
+    private Environment activeEnv() {
+        return environmentService.createEnvironment(env("deact-" + UUID.randomUUID().toString().substring(0, 6), "EC2"));
+    }
+
+    @Test
+    void aRunningOperationBlocksDeactivation() {
+        Environment created = activeEnv();
+        com.tcgdigital.vmcontrol.model.OperationExecution execution = new com.tcgdigital.vmcontrol.model.OperationExecution();
+        execution.setExecutionId(UUID.randomUUID().toString());
+        execution.setEnvironment(created);
+        execution.setOperationType(com.tcgdigital.vmcontrol.model.OperationType.STOP);
+        execution.setStatus(com.tcgdigital.vmcontrol.model.ExecutionStatus.IN_PROGRESS);
+        execution.setInitiatedByUserId(newUser("deact-" + UUID.randomUUID() + "@example.com", false, false).getUserId());
+        execution.setStartedAt(new java.sql.Timestamp(System.currentTimeMillis()));
+        execution.setTotalTargets(1);
+        executionRepository.saveAndFlush(execution);
+
+        ValidationException e = assertThrows(ValidationException.class,
+                () -> environmentService.deactivateEnvironment(created.getEnvironmentId()));
+        assertEquals("Environment has running operations; wait for them to finish or cancel them", e.getMessage());
+        assertTrue(environmentRepository.findById(created.getEnvironmentId()).orElseThrow().getIsActive());
+    }
+
+    @Test
+    void deactivationReleasesTheActiveLock() {
+        Environment created = activeEnv();
+        User holder = newUser("holder-" + UUID.randomUUID() + "@example.com", false, false);
+        grant(holder, com.tcgdigital.vmcontrol.model.AccessScopeType.ENVIRONMENT, created.getEnvironmentId(), AccessLevel.USER);
+        lockService.acquireLock(created.getEnvironmentId(), holder.getUserId(), "testing", null);
+        User admin = newUser("deact-admin-" + UUID.randomUUID() + "@example.com", true, false);
+        // As through the controller: a signed-in admin (lock history records who broke the lock).
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(admin.getUserId(), null,
+                        List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN"))));
+        try {
+            environmentService.deactivateEnvironment(created.getEnvironmentId());
+        } finally {
+            org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        }
+
+        assertFalse(environmentRepository.findById(created.getEnvironmentId()).orElseThrow().getIsActive());
+        assertTrue(lockRepository.findByEnvironmentEnvironmentIdAndIsActiveTrue(created.getEnvironmentId()).isEmpty());
+        assertEquals("Environment deactivated", lockRepository.findByEnvironmentEnvironmentIdOrderByLockedAtDesc(
+                created.getEnvironmentId()).get(0).getBreakReason());
+        assertEquals(admin.getUserId(), lockRepository.findByEnvironmentEnvironmentIdOrderByLockedAtDesc(
+                created.getEnvironmentId()).get(0).getBrokenByAdminUserId());
+        assertTrue(lockHistoryRepository.findAll().stream().anyMatch(h ->
+                created.getEnvironmentId().equals(h.getEnvironmentId())
+                        && h.getAction() == com.tcgdigital.vmcontrol.model.LockAction.BROKEN));
+    }
+
+    @Test
+    void deactivatingAnUnlockedEnvironmentDoesNotTouchLocks() {
+        Environment created = activeEnv();
+
+        assertDoesNotThrow(() -> environmentService.deactivateEnvironment(created.getEnvironmentId()));
+        assertTrue(lockRepository.findByEnvironmentEnvironmentIdOrderByLockedAtDesc(created.getEnvironmentId()).isEmpty());
+    }
+
     @Test
     void testGetEnvironmentById_Found() {
         // Given

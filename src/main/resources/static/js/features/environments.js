@@ -724,15 +724,24 @@ const Environments = (function() {
                              runningCount === 0 ? 'bg-secondary' :
                              runningCount === totalCount ? 'bg-success' : 'bg-warning';
 
-        let dependsText = 'None';
-        if (group.dependsOnGroupIds && Array.isArray(group.dependsOnGroupIds) && group.dependsOnGroupIds.length > 0) {
-            dependsText = group.dependsOnGroupIds.join(', ');
+        // Dependency ids shown as the groups' names (escaped); an id no longer present reads 'removed group'.
+        let dependsIds = [];
+        if (Array.isArray(group.dependsOnGroupIds)) {
+            dependsIds = group.dependsOnGroupIds;
         } else if (typeof group.dependsOnGroupIds === 'string' && group.dependsOnGroupIds) {
             try {
                 const parsed = JSON.parse(group.dependsOnGroupIds);
-                dependsText = Array.isArray(parsed) && parsed.length > 0 ? parsed.join(', ') : 'None';
-            } catch (e) { dependsText = group.dependsOnGroupIds; }
+                dependsIds = Array.isArray(parsed) ? parsed : [];
+            } catch (e) { dependsIds = []; }
         }
+        const groupNames = {};
+        (env && env.groups || []).forEach(gd => {
+            const g = gd.group || gd;
+            if (g && g.groupId) groupNames[g.groupId] = g.displayName || g.name;
+        });
+        const dependsText = dependsIds.length > 0
+            ? Utils.escapeHtml(dependsIds.map(id => groupNames[id] || 'removed group').join(', '))
+            : 'None';
 
         // VM rows — compact icon-only action buttons
         const vmRows = vms.map(vm => {
@@ -888,21 +897,22 @@ const Environments = (function() {
      */
     function deleteEnvironment(envId, envName) {
         Modals.confirm(
-            'Delete Environment',
-            `Are you sure you want to delete "<strong>${Utils.escapeHtml(envName)}</strong>"?<br><br>
-             <span class="text-danger">This action cannot be undone.</span>`,
+            'Deactivate environment',
+            Utils.html`This will deactivate "<strong>${envName}</strong>". It disappears from lists and schedules,
+             its active lock is released, and it can be reactivated later.`,
             function() {
-                ApiClient.delete(Config.API.environments.delete(envId))
+                ApiClient.delete(Config.API.environments.delete(envId), { suppressGlobalError: true })
                     .done(function() {
-                        Notifications.success(`Environment "${envName}" deleted`);
+                        Notifications.success(`Environment "${envName}" deactivated`);
                         reloadListIfCurrent();
                     })
                     .fail(function(xhr) {
-                        const msg = xhr.responseJSON?.message || 'Failed to delete environment';
+                        // e.g. "Environment has running operations; wait for them to finish or cancel them"
+                        const msg = xhr.responseJSON?.message || 'Failed to deactivate environment';
                         Notifications.error(msg);
                     });
             },
-            { confirmText: 'Delete', confirmClass: 'btn-danger', html: true }
+            { confirmText: 'Deactivate', confirmClass: 'btn-danger', html: true }
         );
     }
 
