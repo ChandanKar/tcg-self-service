@@ -256,15 +256,13 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
     List<EnvironmentAccess> findExpiredAccess(@Param("now") Timestamp now);
 
     /**
-     * Find expired access grants with user and environment loaded for notifications.
+     * Ids of active grants past their expiry; each is expired in its own transaction.
      */
-    @Query("SELECT ea FROM EnvironmentAccess ea " +
-           "JOIN FETCH ea.user " +
-           "JOIN FETCH ea.environment " +
+    @Query("SELECT ea.accessId FROM EnvironmentAccess ea " +
            "WHERE ea.status = 'ACTIVE' " +
            "AND ea.expiresAt IS NOT NULL " +
            "AND ea.expiresAt <= :now")
-    List<EnvironmentAccess> findExpiredAccessWithDetails(@Param("now") Timestamp now);
+    List<String> findExpiredAccessIds(@Param("now") Timestamp now);
 
     /**
      * Find active access grants expiring inside a warning window.

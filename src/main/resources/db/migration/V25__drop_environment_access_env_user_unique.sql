@@ -1,0 +1,12 @@
+-- V25: Drop the V1 unique index on environment_access(environment_id, user_id, status).
+--
+-- V1:70 created it before access scopes existed. Since V20 a user can hold several grants in
+-- one environment (an ENVIRONMENT grant plus GROUP grants), and revoked / expired history rows
+-- repeat the same (environment, user, status). V20:23 already says the index must not exist:
+-- "one active grant per (user, scope, scope_id)" is enforced by the applyGrant upsert.
+-- With the index, a second grant in the environment, a second revoke, or a collision in the
+-- nightly expiry batch failed with a 500 (C4).
+--
+-- The foreign keys stay covered: environment_id by idx_environment_access_env and user_id by
+-- idx_environment_access_user (both V1).
+DROP INDEX idx_environment_access_env_user ON environment_access;

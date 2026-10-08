@@ -61,6 +61,7 @@ public class EnvironmentAccessService {
     private final NotificationService notificationService;
     private final UserService userService;
     private final AutomationRuleService automationRuleService;
+    private final AccessExpiryProcessor accessExpiryProcessor;
 
     public EnvironmentAccessService(EnvironmentAccessRepository accessRepository,
                                      EnvironmentAccessRequestRepository requestRepository,
@@ -70,7 +71,8 @@ public class EnvironmentAccessService {
                                      AuditService auditService,
                                      NotificationService notificationService,
                                      UserService userService,
-                                     AutomationRuleService automationRuleService) {
+                                     AutomationRuleService automationRuleService,
+                                     AccessExpiryProcessor accessExpiryProcessor) {
         this.accessRepository = accessRepository;
         this.requestRepository = requestRepository;
         this.environmentRepository = environmentRepository;
@@ -80,6 +82,7 @@ public class EnvironmentAccessService {
         this.notificationService = notificationService;
         this.userService = userService;
         this.automationRuleService = automationRuleService;
+        this.accessExpiryProcessor = accessExpiryProcessor;
     }
 
     public boolean isGroupScopeEnabled() {
@@ -433,6 +436,11 @@ public class EnvironmentAccessService {
 
     /** Human label for a grant's scope — the environment name, or {@code group X (env)}. */
     private String scopeLabel(EnvironmentAccess access) {
+        return scopeLabel(access, vmGroupRepository);
+    }
+
+    /** "Env name", or "group G (Env name)" for a GROUP grant; shared with AccessExpiryProcessor. */
+    static String scopeLabel(EnvironmentAccess access, VmGroupRepository vmGroupRepository) {
         if (access.getScopeType() == AccessScopeType.GROUP) {
             String groupName = vmGroupRepository.findById(access.getScopeId())
                     .map(VmGroup::getDisplayName).orElse(access.getScopeId());
@@ -740,29 +748,24 @@ public class EnvironmentAccessService {
     // ============= Expiration Handling =============
 
     /**
-     * Process expired access grants.
-     * Should be called by a scheduled job.
+     * Expire past-due grants, one transaction per grant: a failing row is logged and retried on
+     * the next run instead of rolling back the whole batch (C4). Called by a scheduled job.
+     *
+     * @return the number of grants actually expired
      */
-    @Transactional
     public int processExpiredAccess() {
         Timestamp now = new Timestamp(System.currentTimeMillis());
-        List<EnvironmentAccess> expiredAccess = accessRepository.findExpiredAccessWithDetails(now);
-
-        for (EnvironmentAccess access : expiredAccess) {
-            access.setStatus(AccessStatus.EXPIRED);
-            accessRepository.save(access);
-            log.info("Access expired for user {} on environment {}",
-                    access.getUser().getUserId(), access.getEnvironment().getEnvironmentId());
-
-            runNotificationSideEffect("notify access expired", access.getAccessId(), () ->
-                    notificationService.notifyAccessExpired(
-                            access.getUser().getUserId(),
-                            scopeLabel(access),
-                            access.getEnvironment().getEnvironmentId(),
-                            access.getAccessId()));
+        int expired = 0;
+        for (String accessId : accessRepository.findExpiredAccessIds(now)) {
+            try {
+                if (accessExpiryProcessor.expireOne(accessId)) {
+                    expired++;
+                }
+            } catch (Exception e) {
+                log.warn("Could not expire access {}; will retry on the next run: {}", accessId, e.getMessage());
+            }
         }
-
-        return expiredAccess.size();
+        return expired;
     }
 
     /**

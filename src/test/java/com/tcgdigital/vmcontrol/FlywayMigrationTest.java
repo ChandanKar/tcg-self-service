@@ -449,4 +449,15 @@ class FlywayMigrationTest extends AbstractIntegrationTest {
         jdbcTemplate.update("DELETE FROM vm_group WHERE group_id = ?", groupId);
         jdbcTemplate.update("DELETE FROM environment WHERE environment_id = ?", envId);
     }
+
+    @Test
+    void testEnvironmentAccessEnvUserUniqueIndexDropped() {
+        // V25 (C4): the V1 unique index rejected a second grant / history row per environment and user.
+        Integer count = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() " +
+            "AND TABLE_NAME = 'environment_access' AND INDEX_NAME = 'idx_environment_access_env_user'",
+            Integer.class
+        );
+        assertEquals(0, count, "idx_environment_access_env_user must not exist after V25");
+    }
 }

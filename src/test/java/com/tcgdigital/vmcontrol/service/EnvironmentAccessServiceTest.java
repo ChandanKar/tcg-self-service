@@ -514,8 +514,6 @@ class EnvironmentAccessServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @Disabled("C4: UNIQUE idx_environment_access_env_user rejects a second active grant in one environment")
-    // TODO(E04-T01): re-enable once the C4 migration drops the unique index
     @DisplayName("grantScoped GROUP creates one active grant per group")
     void grantScoped_group_createsOneRowPerGroup() {
         VmGroup g1 = createGroup("grp-a", 1);
@@ -617,8 +615,6 @@ class EnvironmentAccessServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @Disabled("C4: UNIQUE idx_environment_access_env_user rejects a second active grant in one environment")
-    // TODO(E04-T01): re-enable once the C4 migration drops the unique index
     @DisplayName("findDistinctActiveEnvironmentsForUser collapses several grants in one environment")
     void distinctEnvironmentsForUser_dedupesAcrossScopes() {
         VmGroup g1 = createGroup("grp-x", 1);
@@ -782,5 +778,37 @@ class EnvironmentAccessServiceTest extends AbstractIntegrationTest {
         assertThat(pending).hasSize(2);
         assertThat(pending).allMatch(r -> r.getStatus() == AccessRequestStatus.PENDING);
     }
-}
 
+    @Test
+    @DisplayName("C4: revoke, re-grant and revoke again the same user on the same environment")
+    void revokeRegrantRevoke_keepsBothRevokedRows() {
+        String envId = testEnvironment.getEnvironmentId();
+        GrantAccessDTO dto = new GrantAccessDTO(requesterUser.getEmail(), AccessLevel.USER, null, "c4");
+
+        accessService.grantAccess(envId, adminUser.getUserId(), dto);
+        accessService.revokeAccess(envId, requesterUser.getUserId(), adminUser.getUserId());
+        accessService.grantAccess(envId, adminUser.getUserId(), dto);
+        accessService.revokeAccess(envId, requesterUser.getUserId(), adminUser.getUserId());
+        accessRepository.flush();
+
+        assertThat(accessRepository.findAll())
+                .filteredOn(ea -> ea.getUser().getUserId().equals(requesterUser.getUserId()))
+                .extracting(EnvironmentAccess::getStatus)
+                .containsExactly(AccessStatus.REVOKED, AccessStatus.REVOKED);
+    }
+
+    @Test
+    @DisplayName("C4: an environment grant and a group grant in the same environment are both active")
+    void environmentAndGroupGrantInOneEnvironment_bothActive() {
+        VmGroup g1 = createGroup("grp-c4", 1);
+        accessService.grantAccess(testEnvironment.getEnvironmentId(), adminUser.getUserId(),
+                new GrantAccessDTO(requesterUser.getEmail(), AccessLevel.VIEWER, null, null));
+        accessService.grantScoped(adminUser.getUserId(), groupGrant(AccessLevel.USER, List.of(g1.getGroupId())));
+        accessRepository.flush();
+
+        assertThat(accessRepository.findAll())
+                .filteredOn(ea -> ea.getUser().getUserId().equals(requesterUser.getUserId()))
+                .extracting(EnvironmentAccess::getStatus)
+                .containsExactly(AccessStatus.ACTIVE, AccessStatus.ACTIVE);
+    }
+}
