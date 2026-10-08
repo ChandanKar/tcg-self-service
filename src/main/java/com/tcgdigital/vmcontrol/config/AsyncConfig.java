@@ -39,11 +39,14 @@ public class AsyncConfig {
      * Executes the individual VM start/stop steps of a single operation. A group/environment
      * operation submits every VM that has no unmet dependency to this pool at once, so
      * independent VMs start (and poll their AWS status checks) concurrently rather than one
-     * blocking the next. {@code vm.operations.parallelism} caps how many run at a time;
+     * blocking the next. {@code vm.operations.parallelism} caps how many run at a time across
+     * all executions; {@code vm.operations.per-execution-parallelism} caps one execution's share
+     * (M10), so a 40-VM Start All cannot hold every thread while a one-VM start elsewhere waits.
+     * With the defaults (20 / 5) four executions run side by side at full speed.
      * VMs with dependencies still wait for their prerequisites.
      */
     @Bean(name = "vmOperationExecutor")
-    public Executor vmOperationExecutor(@Value("${vm.operations.parallelism:10}") int parallelism) {
+    public Executor vmOperationExecutor(@Value("${vm.operations.parallelism:20}") int parallelism) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(parallelism);
         executor.setMaxPoolSize(parallelism);
@@ -53,6 +56,24 @@ public class AsyncConfig {
         executor.setAwaitTerminationSeconds(60);
         // Queue full + all threads busy: run on the submitting thread rather than reject —
         // degrades to partial parallelism, never drops a VM.
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
+    }
+
+    /**
+     * Runs EKS node-group start/stop calls and their polling (M10), which used the JVM-wide
+     * ForkJoinPool.commonPool shared with everything else.
+     */
+    @Bean(name = "eksOperationExecutor")
+    public Executor eksOperationExecutor(@Value("${eks.operations.parallelism:10}") int parallelism) {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(parallelism);
+        executor.setMaxPoolSize(parallelism);
+        executor.setQueueCapacity(200);
+        executor.setThreadNamePrefix("eks-op-");
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.initialize();
         return executor;

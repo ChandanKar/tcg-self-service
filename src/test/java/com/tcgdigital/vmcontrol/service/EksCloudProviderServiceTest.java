@@ -46,7 +46,7 @@ class EksCloudProviderServiceTest {
     @BeforeEach
     @SuppressWarnings("unchecked")
     void setUp() {
-        service = new EksCloudProviderService(vmRepository, objectMapper);
+        service = new EksCloudProviderService(vmRepository, objectMapper, Runnable::run);
         ReflectionTestUtils.setField(service, "accessKey", "test-key");
         ReflectionTestUtils.setField(service, "secretKey", "test-secret");
         ReflectionTestUtils.setField(service, "defaultRegion", REGION);
@@ -471,5 +471,35 @@ class EksCloudProviderServiceTest {
         assertFalse(result.isSuccess());
         assertTrue(result.isTimedOut());
         assertTrue(result.getMessage().startsWith("Node group still"), result.getMessage());
+    }
+
+    @Test
+    void startVm_runsOnTheInjectedExecutor() throws Exception {
+        // E05-T07 (M10): EKS work runs on the dedicated eks-op- pool, not ForkJoinPool.commonPool.
+        java.util.concurrent.ExecutorService eksPool = java.util.concurrent.Executors.newSingleThreadExecutor(
+                r -> new Thread(r, "eks-op-test"));
+        try {
+            EksCloudProviderService onPool = new EksCloudProviderService(vmRepository, objectMapper, eksPool);
+            ReflectionTestUtils.setField(onPool, "defaultRegion", REGION);
+            ReflectionTestUtils.setField(onPool, "defaultMinSize", 1);
+            ReflectionTestUtils.setField(onPool, "pollIntervalMs", 0L);
+            ReflectionTestUtils.setField(onPool, "operationTimeoutMs", 500L);
+            @SuppressWarnings("unchecked")
+            Map<String, EksClient> cache = (Map<String, EksClient>) ReflectionTestUtils.getField(onPool, "clientCache");
+            cache.put(REGION, mockEksClient);
+            when(vmRepository.findByProviderAndProviderVmId(CloudProvider.AWS_EKS, PROVIDER_VM_ID)).thenReturn(Optional.empty());
+            java.util.concurrent.atomic.AtomicReference<String> thread = new java.util.concurrent.atomic.AtomicReference<>();
+            when(mockEksClient.updateNodegroupConfig(any(UpdateNodegroupConfigRequest.class))).thenAnswer(inv -> {
+                thread.set(Thread.currentThread().getName());
+                return UpdateNodegroupConfigResponse.builder().update(Update.builder().id("u").build()).build();
+            });
+            mockDescribeActive(1);
+
+            onPool.startVm(PROVIDER_VM_ID, REGION).get();
+
+            assertEquals("eks-op-test", thread.get());
+        } finally {
+            eksPool.shutdownNow();
+        }
     }
 }

@@ -8,6 +8,8 @@ import com.tcgdigital.vmcontrol.repository.VmRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Qualifier;
+import java.util.concurrent.Executor;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -60,8 +62,11 @@ public class EksCloudProviderService implements CloudProviderService {
 
     private final VmRepository vmRepository;
     private final ObjectMapper objectMapper;
+    private final Executor eksOperationExecutor;
 
-    public EksCloudProviderService(VmRepository vmRepository, ObjectMapper objectMapper) {
+    public EksCloudProviderService(VmRepository vmRepository, ObjectMapper objectMapper,
+                                   @Qualifier("eksOperationExecutor") Executor eksOperationExecutor) {
+        this.eksOperationExecutor = eksOperationExecutor;
         this.vmRepository = vmRepository;
         this.objectMapper = objectMapper;
     }
@@ -141,7 +146,7 @@ public class EksCloudProviderService implements CloudProviderService {
                 }
                 return VmOperationResult.failure("Error: " + e.getMessage());
             }
-        });
+        }, eksOperationExecutor);
     }
 
     @Override
@@ -207,7 +212,7 @@ public class EksCloudProviderService implements CloudProviderService {
                 }
                 return VmOperationResult.failure("Error: " + e.getMessage());
             }
-        });
+        }, eksOperationExecutor);
     }
 
     @Override

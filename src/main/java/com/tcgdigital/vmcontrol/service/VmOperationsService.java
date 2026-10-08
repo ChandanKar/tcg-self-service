@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Async;
@@ -72,6 +73,10 @@ public class VmOperationsService {
     @Lazy
     @Autowired
     private OperationRecoveryService operationRecoveryService;
+
+    /** At most this many of one execution's steps run at once (M10). */
+    @Value("${vm.operations.per-execution-parallelism:5}")
+    private int perExecutionParallelism = 5;
 
     public VmOperationsService(OperationExecutionRepository executionRepository,
                                OperationDetailRepository detailRepository,
@@ -549,18 +554,24 @@ public class VmOperationsService {
             }
 
             if (!runnable.isEmpty()) {
-                CompletableFuture<?>[] futures = runnable.stream()
-                        .map(detail -> CompletableFuture.runAsync(() -> {
-                            try {
-                                executeVmOperation(detail, stepType(detail, operationType), executionId,
-                                        initiatedByUserId);
-                            } catch (Exception e) {
-                                log.error("Error executing operation on {}: {}",
-                                        detail.getTargetName(), e.getMessage());
-                            }
-                        }, vmOperationExecutor))
-                        .toArray(CompletableFuture[]::new);
-                CompletableFuture.allOf(futures).join();
+                // Submit the wave in slices of perExecutionParallelism, so one big run leaves
+                // threads for other environments' operations (M10).
+                int slice = Math.max(1, perExecutionParallelism);
+                for (int from = 0; from < runnable.size(); from += slice) {
+                    CompletableFuture<?>[] futures = runnable.subList(from, Math.min(from + slice, runnable.size()))
+                            .stream()
+                            .map(detail -> CompletableFuture.runAsync(() -> {
+                                try {
+                                    executeVmOperation(detail, stepType(detail, operationType), executionId,
+                                            initiatedByUserId);
+                                } catch (Exception e) {
+                                    log.error("Error executing operation on {}: {}",
+                                            detail.getTargetName(), e.getMessage());
+                                }
+                            }, vmOperationExecutor))
+                            .toArray(CompletableFuture[]::new);
+                    CompletableFuture.allOf(futures).join();
+                }
 
                 for (OperationDetail detail : runnable) {
                     OperationDetail reloaded = detailRepository.findById(detail.getDetailId()).orElse(detail);
