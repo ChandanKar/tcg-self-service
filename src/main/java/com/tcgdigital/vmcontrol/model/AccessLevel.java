@@ -1,5 +1,8 @@
 package com.tcgdigital.vmcontrol.model;
 
+import java.util.Arrays;
+import java.util.List;
+
 /**
  * Access level for environment access.
  * Defines what operations a user can perform on an environment.
@@ -48,6 +51,14 @@ public enum AccessLevel {
      */
     public boolean hasAtLeast(AccessLevel required) {
         return this.ordinal() >= required.ordinal();
+    }
+
+    /**
+     * Every level ranked at or above {@code min}, for queries: the column stores the enum name,
+     * so comparing it with {@code >=} in SQL is alphabetical ('USER' > 'ADMIN'), not by rank (H6).
+     */
+    public static List<AccessLevel> atLeast(AccessLevel min) {
+        return Arrays.stream(values()).filter(level -> level.hasAtLeast(min)).toList();
     }
 }
 

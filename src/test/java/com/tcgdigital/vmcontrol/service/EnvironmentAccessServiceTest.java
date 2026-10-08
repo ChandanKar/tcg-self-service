@@ -14,9 +14,10 @@ import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
 import com.tcgdigital.vmcontrol.repository.VmGroupRepository;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -721,8 +722,6 @@ class EnvironmentAccessServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @Disabled("H6: access level compared as VARCHAR (ea.accessLevel >= :minLevel), so every level counts as ADMIN")
-    // TODO(E04-T02): re-enable with the H6 fix
     @DisplayName("Should return only environments where user holds ADMIN-level access")
     void getAdministeredEnvironmentIds_returnsOnlyAdminLevelEnvironments() {
         Environment secondEnvironment = new Environment();
@@ -810,5 +809,24 @@ class EnvironmentAccessServiceTest extends AbstractIntegrationTest {
                 .filteredOn(ea -> ea.getUser().getUserId().equals(requesterUser.getUserId()))
                 .extracting(EnvironmentAccess::getStatus)
                 .containsExactly(AccessStatus.ACTIVE, AccessStatus.ACTIVE);
+    }
+
+    @ParameterizedTest(name = "held {0}, required {1}")
+    @CsvSource({
+            "VIEWER, VIEWER, true", "VIEWER, USER, false", "VIEWER, ADMIN, false",
+            "USER, VIEWER, true", "USER, USER, true", "USER, ADMIN, false",
+            "ADMIN, VIEWER, true", "ADMIN, USER, true", "ADMIN, ADMIN, true"})
+    @DisplayName("H6: repository level queries compare by rank, not alphabetically")
+    void repositoryLevelQueries_compareByRank(AccessLevel held, AccessLevel required, boolean expected) {
+        String envId = testEnvironment.getEnvironmentId();
+        accessService.grantAccess(envId, adminUser.getUserId(),
+                new GrantAccessDTO(requesterUser.getEmail(), held, null, null));
+        Timestamp now = new Timestamp(System.currentTimeMillis());
+
+        assertThat(accessRepository.hasAccessLevel(envId, requesterUser.getUserId(), required, now))
+                .isEqualTo(expected);
+        assertThat(accessRepository.findByUserWithMinAccessLevel(requesterUser.getUserId(), required, now))
+                .extracting(ea -> ea.getEnvironment().getEnvironmentId())
+                .isEqualTo(expected ? List.of(envId) : List.of());
     }
 }

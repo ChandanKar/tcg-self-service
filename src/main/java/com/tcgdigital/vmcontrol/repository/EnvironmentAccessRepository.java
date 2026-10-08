@@ -101,15 +101,20 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
     /**
      * Find environments where user has at least the specified access level.
      */
+    default List<EnvironmentAccess> findByUserWithMinAccessLevel(String userId, AccessLevel minLevel, Timestamp now) {
+        return findByUserWithAccessLevelIn(userId, AccessLevel.atLeast(minLevel), now);
+    }
+
+    /** Levels are matched by list, never with {@code >=}: the column holds enum names (H6). */
     @Query("SELECT ea FROM EnvironmentAccess ea " +
            "WHERE ea.user.userId = :userId " +
            "AND ea.scopeType = 'ENVIRONMENT' " +
            "AND ea.status = 'ACTIVE' " +
-           "AND ea.accessLevel >= :minLevel " +
+           "AND ea.accessLevel IN :levels " +
            "AND (ea.expiresAt IS NULL OR ea.expiresAt > :now)")
-    List<EnvironmentAccess> findByUserWithMinAccessLevel(
+    List<EnvironmentAccess> findByUserWithAccessLevelIn(
             @Param("userId") String userId,
-            @Param("minLevel") AccessLevel minLevel,
+            @Param("levels") Collection<AccessLevel> levels,
             @Param("now") Timestamp now);
 
     /**
@@ -207,17 +212,21 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
     /**
      * Check if user has at least the required ENVIRONMENT-scoped access level.
      */
+    default boolean hasAccessLevel(String environmentId, String userId, AccessLevel requiredLevel, Timestamp now) {
+        return hasAccessLevelIn(environmentId, userId, AccessLevel.atLeast(requiredLevel), now);
+    }
+
     @Query("SELECT COUNT(ea) > 0 FROM EnvironmentAccess ea " +
            "WHERE ea.environment.environmentId = :environmentId " +
            "AND ea.user.userId = :userId " +
            "AND ea.scopeType = 'ENVIRONMENT' " +
            "AND ea.status = 'ACTIVE' " +
-           "AND ea.accessLevel >= :requiredLevel " +
+           "AND ea.accessLevel IN :levels " +
            "AND (ea.expiresAt IS NULL OR ea.expiresAt > :now)")
-    boolean hasAccessLevel(
+    boolean hasAccessLevelIn(
             @Param("environmentId") String environmentId,
             @Param("userId") String userId,
-            @Param("requiredLevel") AccessLevel requiredLevel,
+            @Param("levels") Collection<AccessLevel> levels,
             @Param("now") Timestamp now);
 
     /**

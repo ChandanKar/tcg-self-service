@@ -98,6 +98,25 @@ class MyAccountServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("H6: environments where the user is only VIEWER or USER are not listed as administered")
+    void profile_doesNotListViewerOrUserEnvironmentsAsAdministered() {
+        Environment other = new Environment();
+        other.setEnvironmentId(UUID.randomUUID().toString());
+        other.setName("my-account-env-" + UUID.randomUUID());
+        other.setDisplayName("Viewer Env");
+        other.setIsActive(true);
+        other = environmentRepository.save(other);
+        accessService.grantAccess(environment.getEnvironmentId(), admin.getUserId(),
+                new GrantAccessDTO(user.getEmail(), AccessLevel.USER, null, null));
+        accessService.grantAccess(other.getEnvironmentId(), admin.getUserId(),
+                new GrantAccessDTO(user.getEmail(), AccessLevel.VIEWER, null, null));
+
+        MyProfileDTO profile = myAccountService.getProfile(user.getUserId());
+
+        assertThat(profile.administeredEnvironments()).isEmpty();
+    }
+
+    @Test
     @DisplayName("Activity merges operations, requests, decisions and direct grants, newest first")
     void activity_mergesSourcesNewestFirst() {
         accessService.grantAccess(environment.getEnvironmentId(), admin.getUserId(),
