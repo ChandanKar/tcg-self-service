@@ -1,8 +1,12 @@
 package com.tcgdigital.vmcontrol.controller;
 
 import com.tcgdigital.vmcontrol.dto.*;
+import com.tcgdigital.vmcontrol.model.AccessLevel;
+import com.tcgdigital.vmcontrol.model.AccessScopeType;
 import com.tcgdigital.vmcontrol.model.Environment;
+import com.tcgdigital.vmcontrol.model.User;
 import com.tcgdigital.vmcontrol.service.EksSyncService;
+import com.tcgdigital.vmcontrol.service.EnvironmentAccessService;
 import com.tcgdigital.vmcontrol.service.EnvironmentInsightsService;
 import com.tcgdigital.vmcontrol.service.EnvironmentService;
 import com.tcgdigital.vmcontrol.service.NotificationService;
@@ -42,13 +46,16 @@ public class EnvironmentController {
     private final EnvironmentInsightsService environmentInsightsService;
     private final NotificationService notificationService;
     private final UserService userService;
+    private final EnvironmentAccessService environmentAccessService;
 
     public EnvironmentController(EnvironmentService environmentService,
                                  SecurityService securityService,
                                  EksSyncService eksSyncService,
                                  EnvironmentInsightsService environmentInsightsService,
                                  NotificationService notificationService,
-                                 UserService userService) {
+                                 UserService userService,
+                                 EnvironmentAccessService environmentAccessService) {
+        this.environmentAccessService = environmentAccessService;
         this.environmentService = environmentService;
         this.securityService = securityService;
         this.eksSyncService = eksSyncService;
@@ -245,8 +252,27 @@ public class EnvironmentController {
             @Valid @RequestBody CreateEnvironmentDTO dto) {
 
         Environment created = environmentService.createEnvironment(dto);
+        grantCreatorAdmin(created);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(EnvironmentDTO.fromEntity(created));
+    }
+
+    /**
+     * A non-global admin who creates an environment gets an ENVIRONMENT ADMIN grant on it, so they
+     * keep administering it when security.env-admin.scope=assigned (a new environment has no grants).
+     */
+    private void grantCreatorAdmin(Environment created) {
+        User creator = userService.getCurrentUser();
+        if (creator == null || creator.isAdmin() || creator.getEmail() == null) {
+            return;
+        }
+        AccessGrantRequestDTO grant = new AccessGrantRequestDTO();
+        grant.setUserEmail(creator.getEmail());
+        grant.setEnvironmentId(created.getEnvironmentId());
+        grant.setAccessLevel(AccessLevel.ADMIN);
+        grant.setScopeType(AccessScopeType.ENVIRONMENT);
+        grant.setNotes("Created the environment");
+        environmentAccessService.grantScoped(creator.getUserId(), grant);
     }
 
     @PutMapping("/{environmentId}")
@@ -266,6 +292,7 @@ public class EnvironmentController {
     public ResponseEntity<EnvironmentDTO> updateEnvironment(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Valid @RequestBody UpdateEnvironmentDTO dto) {
+        securityService.assertCanAdminister(environmentId);
 
         Environment updated = environmentService.updateEnvironment(environmentId, dto);
         return ResponseEntity.ok(EnvironmentDTO.fromEntity(updated));
@@ -283,6 +310,7 @@ public class EnvironmentController {
     })
     public ResponseEntity<Void> deactivateEnvironment(
             @Parameter(description = "Environment ID") @PathVariable String environmentId) {
+        securityService.assertCanAdminister(environmentId);
 
         environmentService.deactivateEnvironment(environmentId);
         return ResponseEntity.noContent().build();
@@ -304,6 +332,7 @@ public class EnvironmentController {
     })
     public ResponseEntity<EnvironmentDTO> reactivateEnvironment(
             @Parameter(description = "Environment ID") @PathVariable String environmentId) {
+        securityService.assertCanAdminister(environmentId);
 
         Environment reactivated = environmentService.reactivateEnvironment(environmentId);
         return ResponseEntity.ok(EnvironmentDTO.fromEntity(reactivated));
@@ -323,6 +352,7 @@ public class EnvironmentController {
     public ResponseEntity<Map<String, Object>> notifyStop(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @RequestBody(required = false) Map<String, String> body) {
+        securityService.assertCanAdminister(environmentId);
 
         Environment environment = environmentService.getEnvironmentById(environmentId);
         String reason = body != null ? body.get("reason") : null;

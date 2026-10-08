@@ -115,6 +115,7 @@ public class MonitoringController {
     )
     public ResponseEntity<Map<String, Object>> syncEnvironment(
             @Parameter(description = "Environment ID") @PathVariable String environmentId) {
+        securityService.assertCanAdminister(environmentId);
 
         int driftCount = stateSyncService.syncEnvironmentVmStates(environmentId);
 
@@ -164,6 +165,7 @@ public class MonitoringController {
     })
     public ResponseEntity<Map<String, Object>> triggerEksSyncForEnvironment(
             @Parameter(description = "Environment ID") @PathVariable String environmentId) {
+        securityService.assertCanAdminister(environmentId);
         int synced = eksSyncService.syncEksEnvironmentById(environmentId);
         return ResponseEntity.ok(Map.of(
                 "environmentId", environmentId,

@@ -111,7 +111,7 @@ class MonitoringControllerIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void testSyncEnvironment() throws Exception {
-        mockMvc.perform(post("/api/v1/monitoring/sync/environment/" + testEnvironment.getEnvironmentId()))
+        mockMvc.perform(post("/api/v1/monitoring/sync/environment/" + testEnvironment.getEnvironmentId()).header("X-User-Id", "admin-001"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.environmentId").value(testEnvironment.getEnvironmentId()))
                 .andExpect(jsonPath("$.status").value("completed"))

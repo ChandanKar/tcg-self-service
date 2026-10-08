@@ -19,6 +19,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
@@ -26,6 +27,7 @@ import java.util.UUID;
 
 import static org.hamcrest.Matchers.*;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -93,6 +95,11 @@ class EnvironmentAccessControllerTest extends AbstractIntegrationTest {
                 new UsernamePasswordAuthenticationToken("test@example.com", null, Collections.emptyList()));
     }
 
+    /** Admin-only endpoints are called as the admin (E03-T05 checks administer rights). */
+    private RequestPostProcessor asAdmin() {
+        return authentication(new UsernamePasswordAuthenticationToken("admin@example.com", null, Collections.emptyList()));
+    }
+
     @AfterEach
     void tearDown() {
         SecurityContextHolder.clearContext();
@@ -107,7 +114,7 @@ class EnvironmentAccessControllerTest extends AbstractIntegrationTest {
         EnvironmentAccess access = EnvironmentAccess.create(testEnvironment, testUser, AccessLevel.USER, adminUser);
         accessRepository.save(access);
 
-        mockMvc.perform(get("/api/v1/environments/{envId}/access", testEnvironment.getEnvironmentId()))
+        mockMvc.perform(get("/api/v1/environments/{envId}/access", testEnvironment.getEnvironmentId()).with(asAdmin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].userEmail").value("test@example.com"))
@@ -127,7 +134,7 @@ class EnvironmentAccessControllerTest extends AbstractIntegrationTest {
         accessService.grantAccess(testEnvironment.getEnvironmentId(), adminUser.getUserId(), dto);
 
         // Verify via GET endpoint
-        mockMvc.perform(get("/api/v1/environments/{envId}/access", testEnvironment.getEnvironmentId()))
+        mockMvc.perform(get("/api/v1/environments/{envId}/access", testEnvironment.getEnvironmentId()).with(asAdmin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].accessLevel").value("USER"))
@@ -146,7 +153,7 @@ class EnvironmentAccessControllerTest extends AbstractIntegrationTest {
         accessService.revokeAccess(testEnvironment.getEnvironmentId(), testUser.getUserId(), adminUser.getUserId());
 
         // Verify via GET endpoint - should be empty
-        mockMvc.perform(get("/api/v1/environments/{envId}/access", testEnvironment.getEnvironmentId()))
+        mockMvc.perform(get("/api/v1/environments/{envId}/access", testEnvironment.getEnvironmentId()).with(asAdmin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(0)));
     }
@@ -165,7 +172,7 @@ class EnvironmentAccessControllerTest extends AbstractIntegrationTest {
         accessService.createAccessRequest(testEnvironment.getEnvironmentId(), testUser.getUserId(), dto);
 
         // Verify via pending endpoint
-        mockMvc.perform(get("/api/v1/access-requests/pending"))
+        mockMvc.perform(get("/api/v1/access-requests/pending").with(asAdmin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].requestedAccessLevel").value("USER"))
@@ -207,7 +214,7 @@ class EnvironmentAccessControllerTest extends AbstractIntegrationTest {
         );
         requestRepository.save(request);
 
-        mockMvc.perform(get("/api/v1/access-requests/pending"))
+        mockMvc.perform(get("/api/v1/access-requests/pending").with(asAdmin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].status").value("PENDING"));
@@ -247,7 +254,7 @@ class EnvironmentAccessControllerTest extends AbstractIntegrationTest {
         accessService.approveRequest(request.getRequestId(), adminUser.getUserId(), "Approved for project", null);
 
         // Verify access was granted via endpoint
-        mockMvc.perform(get("/api/v1/environments/{envId}/access", testEnvironment.getEnvironmentId()))
+        mockMvc.perform(get("/api/v1/environments/{envId}/access", testEnvironment.getEnvironmentId()).with(asAdmin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].accessLevel").value("USER"))
@@ -327,7 +334,7 @@ class EnvironmentAccessControllerTest extends AbstractIntegrationTest {
                 testEnvironment, testUser, AccessLevel.USER, "Request 1", null);
         requestRepository.save(request);
 
-        mockMvc.perform(get("/api/v1/environments/{envId}/access-requests", testEnvironment.getEnvironmentId()))
+        mockMvc.perform(get("/api/v1/environments/{envId}/access-requests", testEnvironment.getEnvironmentId()).with(asAdmin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)));
     }

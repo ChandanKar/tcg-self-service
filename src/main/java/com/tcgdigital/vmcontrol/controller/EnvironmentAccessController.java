@@ -102,6 +102,7 @@ public class EnvironmentAccessController {
     })
     public ResponseEntity<List<EnvironmentAccessDTO>> listEnvironmentAccess(
             @Parameter(description = "Environment ID") @PathVariable String environmentId) {
+        securityService.assertCanAdminister(environmentId);
 
         List<EnvironmentAccess> accessList = accessService.getAccessForEnvironment(environmentId);
         return ResponseEntity.ok(toAccessDtos(accessList));
@@ -126,6 +127,7 @@ public class EnvironmentAccessController {
     public ResponseEntity<EnvironmentAccessDTO> grantAccess(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Valid @RequestBody GrantAccessDTO dto) {
+        securityService.assertCanAdminister(environmentId);
 
         String grantedByUserId = userService.getCurrentUserId();
         EnvironmentAccess access = accessService.grantAccess(environmentId, grantedByUserId, dto);
@@ -149,6 +151,7 @@ public class EnvironmentAccessController {
     public ResponseEntity<Void> revokeAccess(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Parameter(description = "User ID") @PathVariable String userId) {
+        securityService.assertCanAdminister(environmentId);
 
         String revokedByUserId = userService.getCurrentUserId();
         accessService.revokeAccess(environmentId, userId, revokedByUserId);
@@ -237,7 +240,12 @@ public class EnvironmentAccessController {
             @ApiResponse(responseCode = "403", description = "Access denied")
     })
     public ResponseEntity<List<EnvironmentAccessRequestDTO>> listPendingRequests() {
-        List<EnvironmentAccessRequest> requests = accessService.getPendingRequests();
+        // Only requests on environments the caller administers (one check per environment).
+        java.util.Map<String, Boolean> administers = new java.util.HashMap<>();
+        List<EnvironmentAccessRequest> requests = accessService.getPendingRequests().stream()
+                .filter(r -> r.getEnvironment() != null && administers.computeIfAbsent(
+                        r.getEnvironment().getEnvironmentId(), securityService::canAdministerEnvironment))
+                .toList();
         List<EnvironmentAccessRequestDTO> dtos = toRequestDtos(requests);
 
         return ResponseEntity.ok(dtos);
@@ -314,6 +322,7 @@ public class EnvironmentAccessController {
     public ResponseEntity<EnvironmentAccessDTO> approveRequest(
             @Parameter(description = "Request ID") @PathVariable String requestId,
             @RequestBody(required = false) ReviewAccessRequestDTO dto) {
+        securityService.assertCanAdminister(accessService.getAccessRequest(requestId).getEnvironment().getEnvironmentId());
 
         String reviewerUserId = userService.getCurrentUserId();
         String notes = dto != null ? dto.getNotes() : null;
@@ -342,6 +351,7 @@ public class EnvironmentAccessController {
     public ResponseEntity<EnvironmentAccessRequestDTO> denyRequest(
             @Parameter(description = "Request ID") @PathVariable String requestId,
             @RequestBody(required = false) ReviewAccessRequestDTO dto) {
+        securityService.assertCanAdminister(accessService.getAccessRequest(requestId).getEnvironment().getEnvironmentId());
 
         String reviewerUserId = userService.getCurrentUserId();
         String reason = dto != null ? dto.getNotes() : null;
@@ -389,6 +399,7 @@ public class EnvironmentAccessController {
     })
     public ResponseEntity<List<EnvironmentAccessRequestDTO>> listEnvironmentAccessRequests(
             @Parameter(description = "Environment ID") @PathVariable String environmentId) {
+        securityService.assertCanAdminister(environmentId);
 
         List<EnvironmentAccessRequest> requests = accessService.getRequestsForEnvironment(environmentId);
         List<EnvironmentAccessRequestDTO> dtos = toRequestDtos(requests);
