@@ -67,6 +67,11 @@ public interface VmRepository extends JpaRepository<Vm, String> {
     @Query("SELECT v FROM Vm v WHERE v.group.environment.environmentId = :environmentId AND v.isActive = true ORDER BY v.group.sequencePosition, v.sequencePosition")
     List<Vm> findByEnvironmentId(String environmentId);
 
+    /** Active VMs of an environment with group and environment loaded (sync, no transaction). */
+    @Query("SELECT v FROM Vm v JOIN FETCH v.group g JOIN FETCH g.environment e " +
+           "WHERE e.environmentId = :environmentId AND v.isActive = true ORDER BY g.sequencePosition, v.sequencePosition")
+    List<Vm> findByEnvironmentIdFetchGroupAndEnvironment(@Param("environmentId") String environmentId);
+
     /**
      * Find all active VMs across many environments in a single query — avoids querying each
      * environment individually when aggregating VMs for several environments at once.
@@ -350,4 +355,16 @@ public interface VmRepository extends JpaRepository<Vm, String> {
     Optional<Vm> findByProviderVmIdFetchGroupAndEnvironment(
             @Param("provider") com.tcgdigital.vmcontrol.model.CloudProvider provider,
             @Param("providerVmId") String providerVmId);
+
+    /**
+     * EKS sync of a node group an operation is driving: refresh metadata and sync time only.
+     * A whole-row save would bump updated_at (@UpdateTimestamp) and keep the transitional guard
+     * "fresh" forever.
+     */
+    @Modifying(flushAutomatically = true)
+    @Transactional
+    @Query("UPDATE Vm v SET v.metadata = :metadata, v.lastStateSyncAt = :syncedAt, v.version = v.version + 1 " +
+           "WHERE v.vmId = :vmId")
+    int refreshSyncMetadata(@Param("vmId") String vmId, @Param("metadata") String metadata,
+                            @Param("syncedAt") Timestamp syncedAt);
 }

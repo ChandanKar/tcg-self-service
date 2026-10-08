@@ -510,6 +510,23 @@ public class EksCloudProviderService implements CloudProviderService {
     }
 
     // package-private for testing
+    /**
+     * Status for EKS sync, which (unlike operation polling) knows the VM's current status:
+     * UPDATING is also a version or config update of a running group, so it means STARTING
+     * only for a group that was stopped or starting, and STOPPING when scaled to zero.
+     * Every other status maps as {@link #mapNodegroupToVmStatus}.
+     */
+    VmStatus mapNodegroupForSync(Nodegroup ng, VmStatus current) {
+        if (ng != null && ng.status() == NodegroupStatus.UPDATING) {
+            int desired = ng.scalingConfig() != null ? ng.scalingConfig().desiredSize() : -1;
+            if (desired == 0) {
+                return VmStatus.STOPPING;
+            }
+            return current == VmStatus.STOPPED || current == VmStatus.STARTING ? VmStatus.STARTING : VmStatus.RUNNING;
+        }
+        return mapNodegroupToVmStatus(ng);
+    }
+
     VmStatus mapNodegroupToVmStatus(Nodegroup ng) {
         if (ng == null) return VmStatus.NOT_FOUND;
         NodegroupStatus status = ng.status();

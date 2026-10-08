@@ -236,6 +236,24 @@ class EksCloudProviderServiceTest {
     }
 
     @Test
+    void mapNodegroupForSync_readsUpdatingByTheCurrentStatus() {
+        // UPDATING x current status x desired (E09-T07): a version/config update of a running
+        // group is not a start.
+        assertEquals(VmStatus.RUNNING,  service.mapNodegroupForSync(buildNodegroup(NodegroupStatus.UPDATING, 3), VmStatus.RUNNING));
+        assertEquals(VmStatus.RUNNING,  service.mapNodegroupForSync(buildNodegroup(NodegroupStatus.UPDATING, 3), VmStatus.UNKNOWN));
+        assertEquals(VmStatus.STARTING, service.mapNodegroupForSync(buildNodegroup(NodegroupStatus.UPDATING, 2), VmStatus.STOPPED));
+        assertEquals(VmStatus.STARTING, service.mapNodegroupForSync(buildNodegroup(NodegroupStatus.UPDATING, 2), VmStatus.STARTING));
+        assertEquals(VmStatus.STOPPING, service.mapNodegroupForSync(buildNodegroup(NodegroupStatus.UPDATING, 0), VmStatus.RUNNING));
+        assertEquals(VmStatus.STOPPING, service.mapNodegroupForSync(buildNodegroup(NodegroupStatus.UPDATING, 0), VmStatus.STOPPED));
+        // Everything else maps as for operation polling.
+        assertEquals(VmStatus.RUNNING,  service.mapNodegroupForSync(buildNodegroup(NodegroupStatus.ACTIVE, 2), VmStatus.STOPPED));
+        assertEquals(VmStatus.STOPPED,  service.mapNodegroupForSync(buildNodegroup(NodegroupStatus.ACTIVE, 0), VmStatus.RUNNING));
+        assertEquals(VmStatus.STARTING, service.mapNodegroupForSync(buildNodegroup(NodegroupStatus.CREATING, 0), VmStatus.RUNNING));
+        // Operation polling is unchanged: UPDATING is still STARTING there.
+        assertEquals(VmStatus.STARTING, service.mapNodegroupToVmStatus(buildNodegroup(NodegroupStatus.UPDATING, 3)));
+    }
+
+    @Test
     void mapNodegroupToVmStatus_coversAllStatusValues() {
         assertEquals(VmStatus.RUNNING,  service.mapNodegroupToVmStatus(buildNodegroup(NodegroupStatus.ACTIVE, 2)));
         assertEquals(VmStatus.STOPPED,  service.mapNodegroupToVmStatus(buildNodegroup(NodegroupStatus.ACTIVE, 0)));

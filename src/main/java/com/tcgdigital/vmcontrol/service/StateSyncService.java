@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -44,20 +43,10 @@ public class StateSyncService {
     private final AuditService auditService;
     private final NotificationService notificationService;
     private final Executor syncExecutor;
+    private final VmTransitionalGuard transitionalGuard;
 
     @Value("${vm.state.sync.interval:300000}")
     private long syncIntervalMs;
-
-    /**
-     * A VM in STARTING/STOPPING is assumed to be driven by an in-flight operation and is
-     * skipped from sync — but only while that assumption is plausible. The longest legitimate
-     * single-VM operation timeout in this app is 15 minutes (EKS node group scaling); this
-     * threshold is set comfortably above that so sync never interrupts a real operation, while
-     * still eventually reconciling a VM whose status update was orphaned by a crashed/failed
-     * operation that never wrote back a terminal status.
-     */
-    @Value("${vm.state.sync.stale-transitional-minutes:20}")
-    private long staleTransitionalMinutes;
 
     /**
      * Consecutive NOT_FOUND results before a VM is deactivated (M7): one miss (a wrong region
@@ -79,13 +68,15 @@ public class StateSyncService {
                             CloudProviderFactory cloudProviderFactory,
                             AuditService auditService,
                             NotificationService notificationService,
-                            @Qualifier("syncExecutor") Executor syncExecutor) {
+                            @Qualifier("syncExecutor") Executor syncExecutor,
+                            VmTransitionalGuard transitionalGuard) {
         this.vmRepository = vmRepository;
         this.stateHistoryRepository = stateHistoryRepository;
         this.cloudProviderFactory = cloudProviderFactory;
         this.auditService = auditService;
         this.notificationService = notificationService;
         this.syncExecutor = syncExecutor;
+        this.transitionalGuard = transitionalGuard;
     }
 
     /**
@@ -124,7 +115,7 @@ public class StateSyncService {
             int skipped = activeVms.size() - vmsToSync.size();
             if (skipped > 0) {
                 log.debug("Skipping {} VM(s) in transitional state (STARTING/STOPPING) less than {}m old",
-                        skipped, staleTransitionalMinutes);
+                        skipped, transitionalGuard.getStaleTransitionalMinutes());
             }
 
             // Group by "PROVIDER:region" — one batch API call per group
@@ -217,21 +208,22 @@ public class StateSyncService {
     }
 
     /**
-     * Sync VMs for a specific environment.
+     * Sync VMs for a specific environment. Not {@code @Transactional}: each VM's cloud call
+     * runs with no DB connection held, and each write is its own narrow update (E09-T07).
      */
-    @Transactional
     public int syncEnvironmentVmStates(String environmentId) {
         log.info("Starting VM state sync for environment: {}", environmentId);
         int driftCount = 0;
 
-        List<Vm> vms = vmRepository.findByEnvironmentId(environmentId);
-        for (Vm vm : vms) {
+        List<SyncTarget> vms = vmRepository.findByEnvironmentIdFetchGroupAndEnvironment(environmentId).stream()
+                .map(SyncTarget::of).toList();
+        for (SyncTarget vm : vms) {
             try {
-                if (syncVmState(vm)) {
+                if (syncTarget(vm)) {
                     driftCount++;
                 }
             } catch (Exception e) {
-                log.error("Failed to sync VM {}: {}", vm.getVmId(), e.getMessage());
+                log.error("Failed to sync VM {}: {}", vm.vmId(), e.getMessage());
             }
         }
 
@@ -251,9 +243,13 @@ public class StateSyncService {
             log.debug("VM {} no longer exists; nothing to sync", vm.getVmId());
             return false;
         }
+        return syncTarget(target);
+    }
+
+    private boolean syncTarget(SyncTarget target) {
         if (isFreshTransitional(target)) {
             log.debug("Skipping sync for VM {} — transitional state {} less than {}m old",
-                    target.vmId(), target.status(), staleTransitionalMinutes);
+                    target.vmId(), target.status(), transitionalGuard.getStaleTransitionalMinutes());
             return false;
         }
         VmStatus cloudStatus = fetchCloudVmStatusWithRetry(target, 2);
@@ -275,22 +271,9 @@ public class StateSyncService {
         }
     }
 
-    /**
-     * True if the VM is in STARTING/STOPPING and recently entered that status (within
-     * {@link #staleTransitionalMinutes}), meaning it's plausibly still driven by a real
-     * in-flight operation and should be left alone by sync.
-     */
+    /** See {@link VmTransitionalGuard}: a STARTING/STOPPING VM an operation is still driving. */
     private boolean isFreshTransitional(SyncTarget vm) {
-        VmStatus status = vm.status();
-        if (status != VmStatus.STARTING && status != VmStatus.STOPPING) {
-            return false;
-        }
-        Timestamp updatedAt = vm.updatedAt();
-        if (updatedAt == null) {
-            return false;
-        }
-        long minutesInState = Duration.between(updatedAt.toInstant(), Instant.now()).toMinutes();
-        return minutesInState < staleTransitionalMinutes;
+        return transitionalGuard.isFreshTransitional(vm.status(), vm.updatedAt());
     }
 
     /**

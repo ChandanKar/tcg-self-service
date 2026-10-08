@@ -50,7 +50,7 @@ class EksSyncServiceTest {
     @BeforeEach
     void setUp() {
         service = new EksSyncService(environmentRepository, groupRepository, vmRepository,
-                eksService, auditService, notificationService, objectMapper);
+                eksService, auditService, notificationService, objectMapper, new VmTransitionalGuard());
         ReflectionTestUtils.setField(service, "defaultRegion", REGION);
         // In production `self` is the Spring proxy (for REQUIRES_NEW boundaries); in this unit
         // test point it at the instance so `self.upsertNodeGroup(...)` is a plain call.
@@ -59,6 +59,7 @@ class EksSyncServiceTest {
         // EksCloudProviderService rather than keeping its own copy — let the mock compute it for
         // real instead of returning null. `lenient` since not every test exercises this path.
         lenient().when(eksService.mapNodegroupToVmStatus(any())).thenCallRealMethod();
+        lenient().when(eksService.mapNodegroupForSync(any(), any())).thenCallRealMethod();
     }
 
     // ---- syncEksEnvironment tests ----
@@ -295,6 +296,79 @@ class EksSyncServiceTest {
         assertTrue(saved.getStateDriftDetected(), "Drift must be flagged when DB and live status differ");
         assertEquals(VmStatus.RUNNING, saved.getStatus());
         verify(auditService).logAction(any(), eq(AuditAction.STATE_DRIFT_DETECTED), any(), any(), any(), any());
+    }
+
+    // ---- E09-T07: UPDATING by current status, the transitional guard, AWS before the transaction ----
+
+    private Nodegroup updating(int desired) {
+        return Nodegroup.builder().clusterName(CLUSTER).nodegroupName(NODEGROUP).status(NodegroupStatus.UPDATING)
+                .scalingConfig(NodegroupScalingConfig.builder().minSize(0).desiredSize(desired).maxSize(10).build())
+                .build();
+    }
+
+    private Vm existingVm(VmStatus status, java.sql.Timestamp updatedAt) {
+        Vm vm = new Vm();
+        vm.setVmId("vm-eks");
+        vm.setStatus(status);
+        vm.setUpdatedAt(updatedAt);
+        when(groupRepository.findByEnvironmentEnvironmentIdAndName(ENV_ID, NODEGROUP)).thenReturn(Optional.empty());
+        when(groupRepository.findByEnvironmentEnvironmentIdOrderBySequencePositionAsc(ENV_ID)).thenReturn(List.of());
+        when(groupRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(vmRepository.findByGroupGroupIdAndName(anyString(), eq(NODEGROUP))).thenReturn(Optional.of(vm));
+        lenient().when(vmRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(eksService.listNodegroups(CLUSTER, REGION)).thenReturn(List.of(NODEGROUP));
+        return vm;
+    }
+
+    @Test
+    void syncEksEnvironment_updatingRunningGroupStaysRunningWithoutDrift() {
+        Vm vm = existingVm(VmStatus.RUNNING, null);
+        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, REGION)).thenReturn(updating(3));
+
+        service.syncEksEnvironment(buildEnvironment());
+
+        assertEquals(VmStatus.RUNNING, vm.getStatus());
+        assertFalse(vm.getStateDriftDetected());
+        verify(auditService, never()).logAction(any(), eq(AuditAction.STATE_DRIFT_DETECTED), any(), any(), any(), any());
+    }
+
+    @Test
+    void syncEksEnvironment_updatingStoppedGroupBeingScaledUpIsStarting() {
+        Vm vm = existingVm(VmStatus.STOPPED, null);
+        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, REGION)).thenReturn(updating(2));
+
+        service.syncEksEnvironment(buildEnvironment());
+
+        assertEquals(VmStatus.STARTING, vm.getStatus());
+    }
+
+    @Test
+    void syncEksEnvironment_leavesAFreshlyStartedGroupAlone() {
+        java.sql.Timestamp twoMinutesAgo = java.sql.Timestamp.from(java.time.Instant.now().minusSeconds(120));
+        Vm vm = existingVm(VmStatus.STARTING, twoMinutesAgo);
+        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, REGION)).thenReturn(buildNodegroup(0, 0)); // ACTIVE, desired 0
+
+        service.syncEksEnvironment(buildEnvironment());
+
+        assertEquals(VmStatus.STARTING, vm.getStatus());
+        verify(vmRepository).refreshSyncMetadata(eq("vm-eks"), any(), any());
+        verify(vmRepository, never()).save(any(Vm.class)); // no whole-row save: updated_at keeps dating the start
+        verify(auditService, never()).logAction(any(), eq(AuditAction.STATE_DRIFT_DETECTED), any(), any(), any(), any());
+    }
+
+    @Test
+    void syncEksEnvironment_describesTheNodeGroupBeforeItsTransaction() {
+        existingVm(VmStatus.RUNNING, null);
+        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, REGION)).thenReturn(buildNodegroup(1, 2));
+        EksSyncService spy = org.mockito.Mockito.spy(service);
+        ReflectionTestUtils.setField(spy, "self", spy);
+
+        spy.syncEksEnvironment(buildEnvironment());
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(eksService, spy);
+        order.verify(eksService).describeNodegroup(CLUSTER, NODEGROUP, REGION);
+        order.verify(spy).upsertNodeGroup(any(), eq(CLUSTER), eq(NODEGROUP), eq(REGION), any(Nodegroup.class), any());
+        verify(eksService, times(1)).describeNodegroup(CLUSTER, NODEGROUP, REGION); // not again inside
     }
 
     @Test

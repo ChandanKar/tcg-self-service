@@ -27,6 +27,9 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
     private StateSyncService stateSyncService;
 
     @Autowired
+    private VmTransitionalGuard transitionalGuard;
+
+    @Autowired
     private VmStateHistoryRepository stateHistoryRepository;
 
     @Autowired
@@ -48,12 +51,12 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
 
     @AfterEach
     void restoreReflectedSettings() {
-        ReflectionTestUtils.setField(stateSyncService, "staleTransitionalMinutes", originalStaleTransitionalMinutes);
+        ReflectionTestUtils.setField(transitionalGuard, "staleTransitionalMinutes", originalStaleTransitionalMinutes);
     }
 
     @BeforeEach
     void setUp() {
-        originalStaleTransitionalMinutes = ReflectionTestUtils.getField(stateSyncService, "staleTransitionalMinutes");
+        originalStaleTransitionalMinutes = ReflectionTestUtils.getField(transitionalGuard, "staleTransitionalMinutes");
         stateHistoryRepository.deleteAll();
         vmRepository.deleteAll();
         groupRepository.deleteAll();
@@ -341,7 +344,7 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
     void testSyncVmState_ReconcilesStaleTransitionalVm_WhenStuckStarting() {
         // A VM whose status was orphaned mid-operation (e.g. a crashed operation that never
         // wrote back a terminal status) must eventually be corrected, not skipped forever.
-        ReflectionTestUtils.setField(stateSyncService, "staleTransitionalMinutes", 0L);
+        ReflectionTestUtils.setField(transitionalGuard, "staleTransitionalMinutes", 0L);
         testVm.setStatus(VmStatus.STARTING);
         testVm = vmRepository.save(testVm);
         when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.RUNNING);
@@ -356,7 +359,7 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
 
     @Test
     void testSyncVmState_ReconcilesStaleTransitionalVm_WhenStuckStopping() {
-        ReflectionTestUtils.setField(stateSyncService, "staleTransitionalMinutes", 0L);
+        ReflectionTestUtils.setField(transitionalGuard, "staleTransitionalMinutes", 0L);
         testVm.setStatus(VmStatus.STOPPING);
         testVm = vmRepository.save(testVm);
         when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.STOPPED);

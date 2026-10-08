@@ -46,6 +46,7 @@ public class EksSyncService {
     private final AuditService auditService;
     private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
+    private final VmTransitionalGuard transitionalGuard;
 
     @Value("${aws.region:ap-south-1}")
     private String defaultRegion;
@@ -65,7 +66,8 @@ public class EksSyncService {
                           EksCloudProviderService eksService,
                           AuditService auditService,
                           NotificationService notificationService,
-                          ObjectMapper objectMapper) {
+                          ObjectMapper objectMapper,
+                          VmTransitionalGuard transitionalGuard) {
         this.environmentRepository = environmentRepository;
         this.groupRepository = groupRepository;
         this.vmRepository = vmRepository;
@@ -73,6 +75,7 @@ public class EksSyncService {
         this.auditService = auditService;
         this.notificationService = notificationService;
         this.objectMapper = objectMapper;
+        this.transitionalGuard = transitionalGuard;
     }
 
     /**
@@ -146,8 +149,8 @@ public class EksSyncService {
      * Discovers EKS clusters in AWS that have no corresponding Environment record in the DB,
      * across every region configured in eks.sync.regions (falling back to aws.region if unset).
      * Creates an Environment (serviceType=EKS) for each new cluster found.
+     * Not {@code @Transactional}: listClusters is an AWS call, and each save commits on its own.
      */
-    @Transactional
     public void autoDiscoverClusters() {
         for (String region : resolveSyncRegions()) {
             autoDiscoverClustersInRegion(region);
@@ -254,7 +257,10 @@ public class EksSyncService {
         // bad node group doesn't discard the rest (or the newly-added one).
         for (String nodeGroupName : liveNodeGroups) {
             try {
-                changes.add(self.upsertNodeGroup(environment, clusterName, nodeGroupName, region, nextSequence));
+                // The AWS call happens here, before the node group's transaction opens: no DB
+                // connection is held while EKS answers.
+                Nodegroup nodegroup = eksService.describeNodegroup(clusterName, nodeGroupName, region);
+                changes.add(self.upsertNodeGroup(environment, clusterName, nodeGroupName, region, nodegroup, nextSequence));
             } catch (Exception e) {
                 log.error("Failed to upsert node group {}/{}: {}", clusterName, nodeGroupName, e.getMessage(), e);
                 changes.failed++;
@@ -323,8 +329,8 @@ public class EksSyncService {
      * this node group.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public EksSyncChanges upsertNodeGroup(Environment environment, String clusterName,
-                                          String nodeGroupName, String region, AtomicInteger nextSequence) {
+    public EksSyncChanges upsertNodeGroup(Environment environment, String clusterName, String nodeGroupName,
+                                          String region, Nodegroup nodegroup, AtomicInteger nextSequence) {
         EksSyncChanges changes = new EksSyncChanges();
         // Upsert VmGroup — always write identity metadata so the DB record is self-describing
         Optional<VmGroup> groupOpt = groupRepository
@@ -343,10 +349,8 @@ public class EksSyncService {
         group.setMetadata(buildVmGroupMetadata(clusterName, nodeGroupName, region));
         group = groupRepository.save(group);
 
-        // Fetch live status and scaling config from EKS
+        // Live status and scaling config were fetched by the caller (outside this transaction)
         String providerVmId = clusterName + "/" + nodeGroupName;
-        Nodegroup nodegroup = eksService.describeNodegroup(clusterName, nodeGroupName, region);
-        VmStatus liveStatus = nodegroup != null ? eksService.mapNodegroupToVmStatus(nodegroup) : VmStatus.UNKNOWN;
 
         // Upsert Vm representing this node group
         final VmGroup savedGroup = group;
@@ -380,20 +384,35 @@ public class EksSyncService {
         // configuration (from the same DescribeNodegroup call, no extra AWS API cost), not live
         // scaling state, so it's captured on every sync regardless of running state — otherwise
         // a node group that's currently stopped would never get priced by Cost Management.
+        String metadata = vm.getMetadata();
         if (nodegroup != null && nodegroup.scalingConfig() != null) {
             int liveDesired = nodegroup.scalingConfig().desiredSize();
             int liveMin = nodegroup.scalingConfig().minSize();
             String instanceType = (nodegroup.instanceTypes() != null && !nodegroup.instanceTypes().isEmpty())
                     ? nodegroup.instanceTypes().get(0) : null;
             if (liveDesired > 0 || liveMin > 0) {
-                vm.setMetadata(buildVmMetadata(liveMin, liveDesired, instanceType));
+                metadata = buildVmMetadata(liveMin, liveDesired, instanceType);
             } else if (instanceType != null) {
-                vm.setMetadata(mergeInstanceTypeIntoMetadata(vm.getMetadata(), instanceType));
+                metadata = mergeInstanceTypeIntoMetadata(vm.getMetadata(), instanceType);
             }
         }
 
-        // Drift detection
         VmStatus currentStatus = vm.getStatus();
+        if (!vmCreated && transitionalGuard.isFreshTransitional(currentStatus, vm.getUpdatedAt())) {
+            // A start/stop is driving this node group: keep its status and drift flag, record no
+            // drift, and do not bump updated_at (the guard dates the operation from it).
+            log.debug("EKS node group {}/{} is {} from a recent operation; status left alone",
+                    clusterName, nodeGroupName, currentStatus);
+            vmRepository.refreshSyncMetadata(vm.getVmId(), metadata, Timestamp.from(Instant.now()));
+            if (groupCreated) {
+                changes.created++;
+            }
+            return changes;
+        }
+        vm.setMetadata(metadata);
+        VmStatus liveStatus = nodegroup != null ? eksService.mapNodegroupForSync(nodegroup, currentStatus) : VmStatus.UNKNOWN;
+
+        // Drift detection
         if (liveStatus != VmStatus.UNKNOWN && currentStatus != liveStatus) {
             log.info("EKS node group {}/{} drift detected: {} → {}", clusterName, nodeGroupName, currentStatus, liveStatus);
             vm.setStateDriftDetected(true);
