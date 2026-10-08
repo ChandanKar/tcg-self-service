@@ -243,6 +243,47 @@ class OperationStateMachineIntegrationTest extends AbstractIntegrationTest {
         assertThat(executions.findById(executionId).orElseThrow().getStatus()).isEqualTo(ExecutionStatus.COMPLETED);
     }
 
+    @Test
+    void aTimedOutStopIsAFailureAndKeepsTheVmStopping() throws Exception {
+        // E05-T05 (M9): no live "reconcile" turns it into completed, and the VM is not reset to RUNNING.
+        Vm vm = newVm(group, "slow-stop", VmStatus.RUNNING);
+        when(awsCloudProviderService.stopVm(eq(vm.getProviderVmId()), anyString(), org.mockito.ArgumentMatchers.anyBoolean(), any()))
+                .thenReturn(CompletableFuture.completedFuture(
+                        CloudProviderService.VmOperationResult.timedOut("Instance still STOPPING after 180s", VmStatus.STOPPING)));
+        StartOperationDTO dto = new StartOperationDTO();
+        dto.setOperationType(OperationType.STOP);
+        dto.setSkipAlreadyInTargetState(false);
+
+        OperationExecution done = awaitFinal(
+                operationsService.startOperation(env.getEnvironmentId(), user.getUserId(), dto).getExecutionId());
+
+        assertThat(done.getStatus()).isEqualTo(ExecutionStatus.FAILED);
+        OperationDetail step = details.findByExecutionExecutionIdAndStatusOrderBySequencePositionAsc(
+                done.getExecutionId(), "failed").get(0);
+        assertThat(step.getErrorMessage()).isEqualTo("Instance still STOPPING after 180s");
+        assertThat(step.getStageLabel()).isNotEqualTo("Stop completed");
+        assertThat(vmRepository.findById(vm.getVmId()).orElseThrow().getStatus()).isEqualTo(VmStatus.STOPPING);
+        verify(awsCloudProviderService, never()).getVmStatus(eq(vm.getProviderVmId()), anyString());
+    }
+
+    @Test
+    void aFailedStopIsNotAcceptedJustBecauseTheVmIsStillStopping() throws Exception {
+        // STOP is reconciled as done only for a real STOPPED, never STOPPING (M9).
+        Vm vm = newVm(group, "stuck", VmStatus.RUNNING);
+        when(awsCloudProviderService.stopVm(eq(vm.getProviderVmId()), anyString(), org.mockito.ArgumentMatchers.anyBoolean(), any()))
+                .thenReturn(CompletableFuture.completedFuture(CloudProviderService.VmOperationResult.failure("throttled")));
+        when(awsCloudProviderService.getVmStatus(eq(vm.getProviderVmId()), anyString())).thenReturn(VmStatus.STOPPING);
+        StartOperationDTO dto = new StartOperationDTO();
+        dto.setOperationType(OperationType.STOP);
+        dto.setSkipAlreadyInTargetState(false);
+
+        OperationExecution done = awaitFinal(
+                operationsService.startOperation(env.getEnvironmentId(), user.getUserId(), dto).getExecutionId());
+
+        assertThat(done.getStatus()).isEqualTo(ExecutionStatus.FAILED);
+        assertThat(done.getFailedTargets()).isEqualTo(1);
+    }
+
     // ---------------------------------------------------------------- repository
 
     @Test

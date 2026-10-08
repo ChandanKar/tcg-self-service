@@ -438,4 +438,38 @@ class EksCloudProviderServiceTest {
         verify(mockEksClient).updateNodegroupConfig(captor.capture());
         assertEquals(2, captor.getValue().scalingConfig().desiredSize());
     }
+
+    // --- M9: error and non-target final states are failures (E05-T05) ---
+
+    @Test
+    void startVm_nodeGroupCreateFailed_isAFailure() throws Exception {
+        when(vmRepository.findByProviderAndProviderVmId(CloudProvider.AWS_EKS, PROVIDER_VM_ID)).thenReturn(Optional.empty());
+        when(mockEksClient.updateNodegroupConfig(any(UpdateNodegroupConfigRequest.class)))
+                .thenReturn(UpdateNodegroupConfigResponse.builder().update(Update.builder().id("u").build()).build());
+        when(mockEksClient.describeNodegroup(any(DescribeNodegroupRequest.class)))
+                .thenReturn(buildDescribeResponse(NodegroupStatus.CREATE_FAILED, 1, 1));
+
+        VmOperationResult result = service.startVm(PROVIDER_VM_ID, REGION).get();
+
+        assertFalse(result.isSuccess());
+        assertEquals("Node group entered error state", result.getMessage());
+    }
+
+    @Test
+    void stopVm_stillScalingWhenPollingStops_isATimedOutFailure() throws Exception {
+        Vm vm = new Vm();
+        vm.setVmId("vm-123");
+        when(vmRepository.findByProviderAndProviderVmId(CloudProvider.AWS_EKS, PROVIDER_VM_ID)).thenReturn(Optional.of(vm));
+        when(mockEksClient.updateNodegroupConfig(any(UpdateNodegroupConfigRequest.class)))
+                .thenReturn(UpdateNodegroupConfigResponse.builder().update(Update.builder().id("u").build()).build());
+        // Never reaches desired=0 within operationTimeoutMs (500 ms in setUp).
+        when(mockEksClient.describeNodegroup(any(DescribeNodegroupRequest.class)))
+                .thenReturn(buildDescribeResponse(NodegroupStatus.UPDATING, 2, 2));
+
+        VmOperationResult result = service.stopVm(PROVIDER_VM_ID, REGION, false).get();
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.isTimedOut());
+        assertTrue(result.getMessage().startsWith("Node group still"), result.getMessage());
+    }
 }

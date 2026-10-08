@@ -169,12 +169,19 @@ public interface CloudProviderService {
         private final String message;
         private final String requestId;
         private final VmStatus resultStatus;
+        private final boolean timedOut;
 
         public VmOperationResult(boolean success, String message, String requestId, VmStatus resultStatus) {
+            this(success, message, requestId, resultStatus, false);
+        }
+
+        public VmOperationResult(boolean success, String message, String requestId, VmStatus resultStatus,
+                                 boolean timedOut) {
             this.success = success;
             this.message = message;
             this.requestId = requestId;
             this.resultStatus = resultStatus;
+            this.timedOut = timedOut;
         }
 
         public static VmOperationResult success(String requestId, VmStatus status) {
@@ -183,6 +190,18 @@ public interface CloudProviderService {
 
         public static VmOperationResult failure(String message) {
             return new VmOperationResult(false, message, null, null);
+        }
+
+        /**
+         * The cloud call was accepted but the target state was not reached in time (M9): a
+         * failure, carrying the last status seen so the caller records what is really there.
+         */
+        public static VmOperationResult timedOut(String message, VmStatus lastStatus) {
+            return new VmOperationResult(false, message, null, lastStatus, true);
+        }
+
+        public boolean isTimedOut() {
+            return timedOut;
         }
 
         public boolean isSuccess() {

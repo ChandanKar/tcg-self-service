@@ -746,9 +746,10 @@ public class VmOperationsService {
 
             detail = detailRepository.findById(detailId).orElse(detail);
 
+            // A timed-out step already reports the last real status: no second live check (M9).
             VmStatus reconciledStatus = result.isSuccess()
                     ? result.getResultStatus()
-                    : reconcileCloudStateAfterFailure(providerService, vm, operationType);
+                    : result.isTimedOut() ? null : reconcileCloudStateAfterFailure(providerService, vm, operationType);
 
             if (result.isSuccess() || reconciledStatus != null) {
                 detail.setStatus("completed");
@@ -770,7 +771,10 @@ public class VmOperationsService {
             } else {
                 detail.setStatus("failed");
                 detail.setErrorMessage(result.getMessage());
-                if (shouldRestorePreviousStatus(operationType, result)) {
+                if (result.isTimedOut() && result.getResultStatus() != null) {
+                    // Still STOPPING (say) when polling gave up: record that, not the old status.
+                    writeStatus(vm.getVmId(), result.getResultStatus());
+                } else if (shouldRestorePreviousStatus(operationType, result)) {
                     writeStatus(vm.getVmId(), previousStatus);
                 }
                 updateExecutionCounters(executionId, false);
@@ -886,7 +890,8 @@ public class VmOperationsService {
     private boolean isAcceptablePostFailureState(OperationType operationType, VmStatus status) {
         switch (operationType) {
             case STOP:
-                return status == VmStatus.STOPPING || status == VmStatus.STOPPED;
+                // Only a real STOPPED counts; STOPPING is not done (M9).
+                return status == VmStatus.STOPPED;
             case START:
                 // The provider poll gave up (typically because AWS status checks were slow
                 // to all report OK, or a transient DescribeInstances error), but the cloud

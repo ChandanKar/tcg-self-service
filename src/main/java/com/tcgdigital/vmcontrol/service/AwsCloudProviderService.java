@@ -32,7 +32,6 @@ public class AwsCloudProviderService implements CloudProviderService {
 
     private static final Logger log = LoggerFactory.getLogger(AwsCloudProviderService.class);
 
-    private static final int STOP_TIMEOUT_MS = 180_000;          // 3 minutes
 
     // Overridable via ReflectionTestUtils in tests.
     // EC2 status checks (system + instance + attached-EBS) routinely take 2-5+ min after an
@@ -44,6 +43,18 @@ public class AwsCloudProviderService implements CloudProviderService {
 
     @Value("${aws.status-check.poll-interval-ms:10000}")
     private int statusCheckPollIntervalMs;
+
+    /** How long a stop may take to reach STOPPED before the step fails as timed out. */
+    @Value("${aws.stop.timeout-ms:180000}")
+    private long stopTimeoutMs = 180_000;
+
+    /**
+     * How long a start may keep reporting STOPPED before failing (AWS can lag right after
+     * StartInstances); once the instance was seen pending/running, falling back to stopped
+     * fails at once (M9).
+     */
+    @Value("${aws.start.stopped-grace-ms:60000}")
+    private long startStoppedGraceMs = 60_000;
 
     @Value("${aws.stop.poll-interval-ms:10000}")
     private int stopPollIntervalMs;
@@ -197,8 +208,8 @@ public class AwsCloudProviderService implements CloudProviderService {
                     if (finalStatus == VmStatus.STOPPED) {
                         notifyProgress(progressListener, VmOperationProgress.of(VmStatus.STOPPED, "Stop completed", 100));
                     }
-                    log.info("AWS EC2 instance {} stop complete, final status: {}", providerVmId, finalStatus);
-                    return VmOperationResult.success(stopRequestId, finalStatus);
+                    log.info("AWS EC2 instance {} stop finished, final status: {}", providerVmId, finalStatus);
+                    return stopResult(stopRequestId, finalStatus);
                 }
 
                 // stoppingInstances is empty — instance may already be stopping or stopped
@@ -215,7 +226,7 @@ public class AwsCloudProviderService implements CloudProviderService {
                         if (finalStatus == VmStatus.STOPPED) {
                             notifyProgress(progressListener, VmOperationProgress.of(VmStatus.STOPPED, "Stop completed", 100));
                         }
-                        return VmOperationResult.success(stopRequestId, finalStatus);
+                        return stopResult(stopRequestId, finalStatus);
                     }
                     if (currentStatus == VmStatus.STOPPED) {
                         log.info("AWS EC2 instance {} already STOPPED", providerVmId);
@@ -232,10 +243,10 @@ public class AwsCloudProviderService implements CloudProviderService {
                 if ("IncorrectInstanceState".equals(e.awsErrorDetails().errorCode())) {
                     VmStatus currentStatus = getVmStatus(providerVmId, region);
                     if (currentStatus == VmStatus.STOPPING || currentStatus == VmStatus.STOPPED) {
-                        log.info("AWS EC2 instance {} is already {} — treating stop as success", providerVmId, currentStatus);
+                        log.info("AWS EC2 instance {} is already {} — waiting for it to stop", providerVmId, currentStatus);
                         VmStatus finalStatus = currentStatus == VmStatus.STOPPING
                                 ? waitForStopped(getEc2Client(region), providerVmId, progressListener) : VmStatus.STOPPED;
-                        return VmOperationResult.success(e.requestId(), finalStatus);
+                        return stopResult(e.requestId(), finalStatus);
                     }
                 }
                 log.error("Failed to stop AWS EC2 instance {}: {}", providerVmId, e.getMessage());
@@ -245,10 +256,10 @@ public class AwsCloudProviderService implements CloudProviderService {
                 try {
                     VmStatus currentStatus = getVmStatus(providerVmId, region);
                     if (currentStatus == VmStatus.STOPPING || currentStatus == VmStatus.STOPPED) {
-                        log.info("AWS EC2 instance {} is {} despite exception — treating stop as success", providerVmId, currentStatus);
+                        log.info("AWS EC2 instance {} is {} despite exception — waiting for it to stop", providerVmId, currentStatus);
                         VmStatus finalStatus = currentStatus == VmStatus.STOPPING
                                 ? waitForStopped(getEc2Client(region), providerVmId, progressListener) : VmStatus.STOPPED;
-                        return VmOperationResult.success(null, finalStatus);
+                        return stopResult(null, finalStatus);
                     }
                 } catch (OperationCancelledException e2) {
                     throw e2;
@@ -277,6 +288,7 @@ public class AwsCloudProviderService implements CloudProviderService {
         VmStatus lastKnownStatus = VmStatus.STARTING;
         int lastChecksPassed = 0;
         int lastChecksTotal = 0;
+        boolean seenStarting = false; // AWS reported pending/running at least once
 
         while (System.currentTimeMillis() - startTime < statusCheckTimeoutMs) {
             try {
@@ -331,6 +343,17 @@ public class AwsCloudProviderService implements CloudProviderService {
                         notifyProgress(progressListener, VmOperationProgress.of(VmStatus.STARTING, "EC2 running", 70));
                     } else {
                         notifyProgress(progressListener, VmOperationProgress.of(VmStatus.STARTING, "EC2 starting", 30));
+                    }
+                }
+
+                if (lastKnownStatus == VmStatus.STARTING || lastKnownStatus == VmStatus.RUNNING) {
+                    seenStarting = true;
+                } else if (lastKnownStatus == VmStatus.STOPPED || lastKnownStatus == VmStatus.TERMINATED) {
+                    // Fell back (e.g. InsufficientInstanceCapacity) or never left stopped: fail now
+                    // instead of polling for the full status-check timeout (M9).
+                    if (seenStarting || System.currentTimeMillis() - startTime > startStoppedGraceMs) {
+                        log.warn("Instance {} is {} while starting — giving up", instanceId, lastKnownStatus);
+                        return new StartReadiness(lastKnownStatus, false, lastChecksPassed, lastChecksTotal);
                     }
                 }
 
@@ -437,6 +460,10 @@ public class AwsCloudProviderService implements CloudProviderService {
                     providerVmId, readiness.checksPassed(), readiness.checksTotal());
             return VmOperationResult.success(requestId, VmStatus.RUNNING);
         }
+        if (readiness.status() == VmStatus.STOPPED || readiness.status() == VmStatus.TERMINATED) {
+            log.warn("AWS EC2 instance {} returned to {} while starting", providerVmId, readiness.status());
+            return VmOperationResult.failure("Instance returned to " + readiness.status() + " while starting");
+        }
         log.warn("AWS EC2 instance {} did not reach RUNNING in time, current status: {}", providerVmId, readiness.status());
         return VmOperationResult.failure(readiness.timeoutMessage());
     }
@@ -447,11 +474,20 @@ public class AwsCloudProviderService implements CloudProviderService {
      * cancelled execution (an {@link OperationCancelledException} thrown by the listener) is
      * noticed within one poll interval instead of only after this method returns.
      */
+    /** A stop succeeded only if the instance is STOPPED; still STOPPING (or anything else) is a timeout. */
+    private VmOperationResult stopResult(String requestId, VmStatus finalStatus) {
+        if (finalStatus == VmStatus.STOPPED) {
+            return VmOperationResult.success(requestId, VmStatus.STOPPED);
+        }
+        return VmOperationResult.timedOut(
+                "Instance still " + finalStatus + " after " + (stopTimeoutMs / 1000) + "s", finalStatus);
+    }
+
     private VmStatus waitForStopped(Ec2Client ec2, String instanceId, OperationProgressListener progressListener) {
         long startTime = System.currentTimeMillis();
         VmStatus lastKnownStatus = VmStatus.STOPPING;
 
-        while (System.currentTimeMillis() - startTime < STOP_TIMEOUT_MS) {
+        while (System.currentTimeMillis() - startTime < stopTimeoutMs) {
             try {
                 Thread.sleep(stopPollIntervalMs);
 
@@ -485,7 +521,7 @@ public class AwsCloudProviderService implements CloudProviderService {
             }
         }
 
-        log.warn("Timed out waiting for instance {} to stop after {}ms", instanceId, STOP_TIMEOUT_MS);
+        log.warn("Timed out waiting for instance {} to stop after {}ms", instanceId, stopTimeoutMs);
         return lastKnownStatus;
     }
 

@@ -427,4 +427,93 @@ class AwsCloudProviderServiceTest {
 
         assertEquals(VmStatus.NOT_FOUND, service.getVmStatus(INSTANCE_ID, REGION));
     }
+
+    // --- M9: timeouts are failures; a start that falls back to stopped fails fast (E05-T05) ---
+
+    @Test
+    void stopVm_stillStoppingAtTheTimeout_isATimedOutFailure() throws ExecutionException, InterruptedException {
+        ReflectionTestUtils.setField(service, "stopTimeoutMs", 30L);
+        when(mockEc2Client.stopInstances(any(StopInstancesRequest.class)))
+                .thenReturn(stopResponse(InstanceStateName.RUNNING, InstanceStateName.STOPPING));
+        when(mockEc2Client.describeInstances(any(DescribeInstancesRequest.class)))
+                .thenReturn(describeResponse(InstanceStateName.STOPPING));
+
+        CloudProviderService.VmOperationResult result = service.stopVm(INSTANCE_ID, REGION, false).get();
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.isTimedOut());
+        assertEquals(VmStatus.STOPPING, result.getResultStatus());
+        assertTrue(result.getMessage().startsWith("Instance still STOPPING after"), result.getMessage());
+    }
+
+    @Test
+    void stopVm_timeoutMessageNamesTheConfiguredSeconds() throws ExecutionException, InterruptedException {
+        // The production default (180000 ms) reads "after 180s"; shown here with 2 s.
+        ReflectionTestUtils.setField(service, "stopTimeoutMs", 2000L);
+        ReflectionTestUtils.setField(service, "stopPollIntervalMs", 500);
+        when(mockEc2Client.stopInstances(any(StopInstancesRequest.class)))
+                .thenReturn(stopResponse(InstanceStateName.RUNNING, InstanceStateName.STOPPING));
+        when(mockEc2Client.describeInstances(any(DescribeInstancesRequest.class)))
+                .thenReturn(describeResponse(InstanceStateName.STOPPING));
+
+        assertEquals("Instance still STOPPING after 2s", service.stopVm(INSTANCE_ID, REGION, false).get().getMessage());
+    }
+
+    @Test
+    void startVm_pendingThenStopped_failsFastInsteadOfPollingForTheFullTimeout()
+            throws ExecutionException, InterruptedException {
+        ReflectionTestUtils.setField(service, "statusCheckTimeoutMs", 60_000);
+        ReflectionTestUtils.setField(service, "statusCheckPollIntervalMs", 5);
+        when(mockEc2Client.startInstances(any(StartInstancesRequest.class)))
+                .thenReturn(startResponse(InstanceStateName.STOPPED, InstanceStateName.PENDING));
+        when(mockEc2Client.describeInstanceStatus(any(DescribeInstanceStatusRequest.class)))
+                .thenReturn(noInstanceStatusYet());
+        when(mockEc2Client.describeInstances(any(DescribeInstancesRequest.class)))
+                .thenReturn(describeResponse(InstanceStateName.PENDING), describeResponse(InstanceStateName.STOPPED));
+
+        long started = System.currentTimeMillis();
+        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, REGION).get();
+
+        assertTrue(System.currentTimeMillis() - started < 5_000, "must not wait out the 60 s timeout");
+        assertFalse(result.isSuccess());
+        assertEquals("Instance returned to STOPPED while starting", result.getMessage());
+    }
+
+    @Test
+    void startVm_neverLeavingStopped_failsAfterTheGracePeriod() throws ExecutionException, InterruptedException {
+        ReflectionTestUtils.setField(service, "statusCheckTimeoutMs", 60_000);
+        ReflectionTestUtils.setField(service, "statusCheckPollIntervalMs", 5);
+        ReflectionTestUtils.setField(service, "startStoppedGraceMs", 50L);
+        when(mockEc2Client.startInstances(any(StartInstancesRequest.class)))
+                .thenReturn(startResponse(InstanceStateName.STOPPED, InstanceStateName.PENDING));
+        when(mockEc2Client.describeInstanceStatus(any(DescribeInstanceStatusRequest.class)))
+                .thenReturn(noInstanceStatusYet());
+        when(mockEc2Client.describeInstances(any(DescribeInstancesRequest.class)))
+                .thenReturn(describeResponse(InstanceStateName.STOPPED));
+
+        long started = System.currentTimeMillis();
+        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, REGION).get();
+
+        assertTrue(System.currentTimeMillis() - started < 5_000, "must not wait out the 60 s timeout");
+        assertFalse(result.isSuccess());
+        assertEquals("Instance returned to STOPPED while starting", result.getMessage());
+    }
+
+    @Test
+    void startVm_briefStoppedReadingWithinTheGraceStillSucceeds() throws ExecutionException, InterruptedException {
+        // AWS can still report "stopped" right after StartInstances: inside the grace, keep polling.
+        ReflectionTestUtils.setField(service, "statusCheckTimeoutMs", 60_000);
+        ReflectionTestUtils.setField(service, "statusCheckPollIntervalMs", 1);
+        when(mockEc2Client.startInstances(any(StartInstancesRequest.class)))
+                .thenReturn(startResponse(InstanceStateName.STOPPED, InstanceStateName.PENDING));
+        when(mockEc2Client.describeInstanceStatus(any(DescribeInstanceStatusRequest.class)))
+                .thenReturn(noInstanceStatusYet(), noInstanceStatusYet(), statusChecksOk());
+        when(mockEc2Client.describeInstances(any(DescribeInstancesRequest.class)))
+                .thenReturn(describeResponse(InstanceStateName.STOPPED), describeResponse(InstanceStateName.PENDING));
+
+        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, REGION).get();
+
+        assertTrue(result.isSuccess());
+        assertEquals(VmStatus.RUNNING, result.getResultStatus());
+    }
 }

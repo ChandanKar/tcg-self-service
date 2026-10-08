@@ -109,7 +109,7 @@ public class EksCloudProviderService implements CloudProviderService {
                         clusterName, nodeGroupName, minSize, desiredSize, updateId);
 
                 VmStatus finalStatus = waitForNodegroupActive(eks, clusterName, nodeGroupName, true);
-                return VmOperationResult.success(updateId, finalStatus);
+                return nodegroupResult(updateId, finalStatus, true);
 
             } catch (EksException e) {
                 // Node group may already be updating (prior request in flight) — check actual state
@@ -120,7 +120,7 @@ public class EksCloudProviderService implements CloudProviderService {
                         log.info("EKS node group {}/{} already transitioning ({}) — waiting to complete",
                                 clusterName, nodeGroupName, currentStatus);
                         VmStatus finalStatus = waitForNodegroupActive(eks, clusterName, nodeGroupName, true);
-                        return VmOperationResult.success("recovered", finalStatus);
+                        return nodegroupResult("recovered", finalStatus, true);
                     }
                 } catch (Exception inner) {
                     log.warn("Could not verify EKS node group state after error: {}", inner.getMessage());
@@ -134,7 +134,7 @@ public class EksCloudProviderService implements CloudProviderService {
                         log.info("EKS node group {}/{} is {} despite exception — waiting to complete",
                                 clusterName, nodeGroupName, currentStatus);
                         VmStatus finalStatus = waitForNodegroupActive(eks, clusterName, nodeGroupName, true);
-                        return VmOperationResult.success("recovered", finalStatus);
+                        return nodegroupResult("recovered", finalStatus, true);
                     }
                 } catch (Exception inner) {
                     log.warn("Could not verify EKS node group state after error: {}", inner.getMessage());
@@ -175,7 +175,7 @@ public class EksCloudProviderService implements CloudProviderService {
                         clusterName, nodeGroupName, updateId);
 
                 VmStatus finalStatus = waitForNodegroupActive(eks, clusterName, nodeGroupName, false);
-                return VmOperationResult.success(updateId, finalStatus);
+                return nodegroupResult(updateId, finalStatus, false);
 
             } catch (EksException e) {
                 // Node group may already be updating — check whether it's scaling down
@@ -186,7 +186,7 @@ public class EksCloudProviderService implements CloudProviderService {
                         log.info("EKS node group {}/{} already transitioning to stopped ({}) — waiting",
                                 clusterName, nodeGroupName, currentStatus);
                         VmStatus finalStatus = waitForNodegroupActive(eks, clusterName, nodeGroupName, false);
-                        return VmOperationResult.success("recovered", finalStatus);
+                        return nodegroupResult("recovered", finalStatus, false);
                     }
                 } catch (Exception inner) {
                     log.warn("Could not verify EKS node group state after error: {}", inner.getMessage());
@@ -200,7 +200,7 @@ public class EksCloudProviderService implements CloudProviderService {
                         log.info("EKS node group {}/{} is {} despite exception — waiting to complete",
                                 clusterName, nodeGroupName, currentStatus);
                         VmStatus finalStatus = waitForNodegroupActive(eks, clusterName, nodeGroupName, false);
-                        return VmOperationResult.success("recovered", finalStatus);
+                        return nodegroupResult("recovered", finalStatus, false);
                     }
                 } catch (Exception inner) {
                     log.warn("Could not verify EKS node group state after error: {}", inner.getMessage());
@@ -330,6 +330,21 @@ public class EksCloudProviderService implements CloudProviderService {
     }
 
     // ---- private helpers ----
+
+    /**
+     * A node-group start/stop succeeded only when it reached RUNNING / STOPPED; an error state is
+     * a failure and anything else (still scaling at the poll timeout) a timeout (M9).
+     */
+    private VmOperationResult nodegroupResult(String requestId, VmStatus finalStatus, boolean expectRunning) {
+        VmStatus target = expectRunning ? VmStatus.RUNNING : VmStatus.STOPPED;
+        if (finalStatus == target) {
+            return VmOperationResult.success(requestId, finalStatus);
+        }
+        if (finalStatus == VmStatus.ERROR) {
+            return VmOperationResult.failure("Node group entered error state");
+        }
+        return VmOperationResult.timedOut("Node group still " + finalStatus + " when polling stopped", finalStatus);
+    }
 
     /**
      * Reads the saved minSize from Vm.metadata written by a previous stopVm.
