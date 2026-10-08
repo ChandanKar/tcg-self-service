@@ -699,6 +699,7 @@ const Environments = (function() {
                 ${lockSection}
                 ${metricsRow}
 
+                <section id="env-cost-card" aria-label="Environment cost"></section>
                 <div id="env-idle-panel"></div>
 
                 <div class="mb-1">
@@ -925,6 +926,11 @@ const Environments = (function() {
         const envId = env.environmentId;
         const envName = env.displayName || env.name;
         console.log('bindDetailEvents called for environment:', envId, envName);
+
+        // Cost card (E18): loads after the page, never blocks it.
+        if (typeof EnvCost !== 'undefined') {
+            EnvCost.render(env);
+        }
 
         // Idle auto-stop panel (E16): renders nothing while the feature is off.
         if (typeof IdleStop !== 'undefined') {

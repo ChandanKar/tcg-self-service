@@ -33,6 +33,7 @@ const Config = (function() {
         // User Management
         users: {
             list: `${API_BASE_URL}/users`,
+            myCost: `${API_BASE_URL}/users/me/cost`,
             listAll: `${API_BASE_URL}/users?includeInactive=true`,
             create: `${API_BASE_URL}/users`,
             get: (id) => `${API_BASE_URL}/users/${id}`,
@@ -83,6 +84,7 @@ const Config = (function() {
             available: `${API_BASE_URL}/environments/available`,
             get: (id) => `${API_BASE_URL}/environments/${id}`,
             insights: (id) => `${API_BASE_URL}/environments/${id}/insights`,
+            cost: (id) => `${API_BASE_URL}/environments/${encodeURIComponent(id)}/cost`,
             create: `${API_BASE_URL}/environments`,
             update: (id) => `${API_BASE_URL}/environments/${id}`,
             delete: (id) => `${API_BASE_URL}/environments/${id}`,

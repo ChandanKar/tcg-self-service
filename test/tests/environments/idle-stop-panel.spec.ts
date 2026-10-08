@@ -63,9 +63,11 @@ async function mount(page: Page, fake: FakeIdleStop, role: 'user' | 'admin' = 'u
   await fake.install(page);
   await signIn(page, role);
   await page.waitForFunction(() => typeof IdleStop !== 'undefined');
+  await page.waitForLoadState('networkidle');
   await page.evaluate(envId => {
-    // Outside #content-area, so the router rendering the landing page cannot replace it.
-    document.body.insertAdjacentHTML('beforeend', '<div id="env-idle-panel"></div>');
+    // Outside #content-area (the router cannot replace it), as a fixed overlay above the shell.
+    document.body.insertAdjacentHTML('beforeend',
+      '<div id="env-idle-panel" style="position:fixed;top:0;left:0;right:0;z-index:20000;background:#fff"></div>');
     IdleStop.renderPanel({ environmentId: envId, groups: [] });
   }, ENV_ID);
 }

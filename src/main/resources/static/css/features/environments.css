@@ -1020,3 +1020,32 @@
     }
 }
 
+/* Cost card on the environment page (E18-T03) */
+.env-cost-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+.env-cost-mtd {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+.env-cost-change {
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-left: 0.25rem;
+}
+.env-cost-change.up { color: var(--status-error-text, #991b1b); }
+.env-cost-change.down { color: var(--status-running-text, #166534); }
+.env-cost-trend {
+    height: 70px;
+    width: 100%;
+}
+@media (max-width: 767.98px) {
+    .env-cost-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
