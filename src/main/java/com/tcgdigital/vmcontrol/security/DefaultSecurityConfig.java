@@ -62,6 +62,12 @@ public class DefaultSecurityConfig {
                 .anyRequest().permitAll()
             )
             .csrf(csrf -> csrf.disable())
+            // Local logout only (no Entra session in dev); with CSRF off it also accepts GET.
+            .logout(logout -> logout
+                .logoutUrl("/logout")
+                .logoutSuccessUrl("/login?logout=true")
+                .invalidateHttpSession(true)
+                .deleteCookies("JSESSIONID"))
             .headers(SecurityHeaders.apply(cspReportOnly));
 
         return http.build();

@@ -185,7 +185,8 @@ const ApiClient = (function() {
         put,
         patch,
         delete: del,
-        getErrorMessage
+        getErrorMessage,
+        readCsrfToken
     };
 })();
 

@@ -69,9 +69,25 @@ const Auth = (function() {
     /**
      * Logout user
      */
+    /**
+     * Log out with a POST form (GET /logout is ignored under Entra ID), carrying the CSRF token.
+     * The server then ends the Entra session too and returns to /login?logout=true.
+     */
     function logout() {
-        const logoutUrl = Config.AUTH.logoutUrl || '/logout';
-        window.location.href = logoutUrl;
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = Config.AUTH.logoutUrl || '/logout';
+        form.style.display = 'none';
+        const csrfToken = ApiClient.readCsrfToken();
+        if (csrfToken) {
+            const field = document.createElement('input');
+            field.type = 'hidden';
+            field.name = '_csrf';
+            field.value = csrfToken;
+            form.appendChild(field);
+        }
+        document.body.appendChild(form);
+        form.submit();
     }
 
     /**

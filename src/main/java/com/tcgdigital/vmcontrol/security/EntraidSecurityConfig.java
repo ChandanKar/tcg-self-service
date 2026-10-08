@@ -27,15 +27,19 @@ public class EntraidSecurityConfig {
     private final boolean cspReportOnly;
     private final UserRepository userRepository;
     private final Duration sessionAbsoluteTimeout;
+    private final EntraLogoutSuccessHandler logoutSuccessHandler;
 
     public EntraidSecurityConfig(CustomOAuth2UserService customOAuth2UserService,
                                  @Value("${security.csp.report-only:true}") boolean cspReportOnly,
                                  UserRepository userRepository,
-                                 @Value("${security.session.absolute-timeout:PT12H}") Duration sessionAbsoluteTimeout) {
+                                 @Value("${security.session.absolute-timeout:PT12H}") Duration sessionAbsoluteTimeout,
+                                 @Value("${entraid.end-session-uri:}") String endSessionUri,
+                                 @Value("${entraid.post-logout-redirect-uri:}") String postLogoutRedirectUri) {
         this.customOAuth2UserService = customOAuth2UserService;
         this.cspReportOnly = cspReportOnly;
         this.userRepository = userRepository;
         this.sessionAbsoluteTimeout = sessionAbsoluteTimeout;
+        this.logoutSuccessHandler = new EntraLogoutSuccessHandler(endSessionUri, postLogoutRedirectUri);
     }
 
     @Bean
@@ -44,7 +48,7 @@ public class EntraidSecurityConfig {
             .authorizeHttpRequests(authorize -> authorize
                 // allow static resources, login page, health/error endpoints, oauth callback, CSP reports and Swagger UI
                 .requestMatchers("/", "/login", "/login.html", "/css/**", "/js/**", "/vendor/**", "/logo/**", "/images/**", "/static/**",
-                    "/error", "/login/**", "/oauth2/**", "/logout",
+                    "/error", "/login/**", "/oauth2/**",
                     "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/swagger-resources/**", "/webjars/**",
                     "/api/auth/login", "/api/auth/options", SecurityHeaders.REPORT_PATH,
                     "/actuator/health", "/actuator/health/**").permitAll()
@@ -58,9 +62,11 @@ public class EntraidSecurityConfig {
                 )
                 .defaultSuccessUrl("/home", true)
             )
+            // POST /logout only (CSRF is on, so LogoutFilter ignores GET); Entra users are then
+            // sent to the Entra end-session endpoint so the Microsoft session ends too.
             .logout(logout -> logout
                 .logoutUrl("/logout")
-                .logoutSuccessUrl("/login?logout=true")
+                .logoutSuccessHandler(logoutSuccessHandler)
                 .invalidateHttpSession(true)
                 .deleteCookies("JSESSIONID")
                 .clearAuthentication(true)

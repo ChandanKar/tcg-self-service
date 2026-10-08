@@ -34,7 +34,8 @@ public final class SecurityHeaders {
             "object-src 'none'",
             "base-uri 'self'",
             "frame-ancestors 'none'",
-            "form-action 'self'",
+            // Logout POSTs to /logout, which redirects to Entra's end-session endpoint.
+            "form-action 'self' https://login.microsoftonline.com",
             "report-uri " + REPORT_PATH);
 
     private static final RequestMatcher SWAGGER = new OrRequestMatcher(

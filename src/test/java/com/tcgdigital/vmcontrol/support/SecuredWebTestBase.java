@@ -40,7 +40,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.security.oauth2.client.provider.azure.token-uri=http://localhost/token",
         "spring.security.oauth2.client.provider.azure.jwk-set-uri=http://localhost/keys",
         "spring.security.oauth2.client.provider.azure.user-info-uri=http://localhost/userinfo",
-        "spring.security.oauth2.client.provider.azure.user-name-attribute=name"
+        "spring.security.oauth2.client.provider.azure.user-name-attribute=name",
+        "entraid.end-session-uri=https://login.microsoftonline.com/test-tenant/oauth2/v2.0/logout"
 })
 public abstract class SecuredWebTestBase extends AbstractIntegrationTest {
 

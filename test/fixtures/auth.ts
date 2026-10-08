@@ -76,8 +76,8 @@ export function canSignIn(role: 'user' | 'admin' = 'user'): boolean {
 }
 
 export async function logout(page: Page): Promise<void> {
-  // Best-effort: hits the logout endpoint the app itself uses (see AuthController /
-  // the user menu's logout action) and returns to the login page.
+  // Dev mode only: GET /logout works because CSRF is off there (Entra mode needs the POST
+  // form the user menu submits) and returns to the login page.
   await page.goto('/logout');
   await expect(page).toHaveURL(/\/login/);
 }
