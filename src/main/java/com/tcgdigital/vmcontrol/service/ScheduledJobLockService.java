@@ -16,6 +16,7 @@ import java.net.InetAddress;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
 @Service
@@ -113,7 +114,9 @@ public class ScheduledJobLockService {
     public void release(String lockName) {
         lockRepository.findForUpdate(lockName).ifPresent(lock -> {
             if (ownerId.equals(lock.getLockedBy())) {
-                lock.setLockedUntil(Timestamp.from(Instant.now()));
+                // Whole seconds: the column rounds fractions, so "now" could be stored up to half a
+                // second in the future and the next tick would find its own lock still held.
+                lock.setLockedUntil(Timestamp.from(Instant.now().truncatedTo(ChronoUnit.SECONDS)));
                 lockRepository.save(lock);
             }
         });
