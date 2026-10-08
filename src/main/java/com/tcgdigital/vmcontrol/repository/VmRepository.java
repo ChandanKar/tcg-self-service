@@ -6,9 +6,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.Timestamp;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -198,4 +202,53 @@ public interface VmRepository extends JpaRepository<Vm, String> {
         String getEnvironmentId();
         String getRegion();
     }
+
+    // ============= Targeted writes (E05-T04, H14) =============
+    // Never clear the persistence context: callers in a surrounding transaction keep their
+    // loaded VMs (and must not modify them after one of these updates).
+
+    /** The VM's status as stored now (no entity load). */
+    @Query("SELECT v.status FROM Vm v WHERE v.vmId = :vmId")
+    Optional<VmStatus> findStatusById(@Param("vmId") String vmId);
+
+    /** Set the status only if it is still {@code expectedStatus}; 0 when someone changed it first. */
+    @Modifying(flushAutomatically = true)
+    @Transactional
+    @Query("UPDATE Vm v SET v.status = :newStatus, v.lastStateSyncAt = :syncedAt, v.updatedAt = :syncedAt, " +
+           "v.version = v.version + 1 WHERE v.vmId = :vmId AND v.status = :expectedStatus")
+    int updateStatusIfCurrent(@Param("vmId") String vmId,
+                              @Param("expectedStatus") VmStatus expectedStatus,
+                              @Param("newStatus") VmStatus newStatus,
+                              @Param("syncedAt") Timestamp syncedAt);
+
+    /** A state sync's drift write: status, active flag and drift flag, only if the status is unchanged. */
+    @Modifying(flushAutomatically = true)
+    @Transactional
+    @Query("UPDATE Vm v SET v.status = :newStatus, v.isActive = :active, v.stateDriftDetected = :drift, " +
+           "v.lastStateSyncAt = :syncedAt, v.updatedAt = :syncedAt, v.version = v.version + 1 " +
+           "WHERE v.vmId = :vmId AND v.status = :expectedStatus")
+    int applySyncedStatusIfCurrent(@Param("vmId") String vmId,
+                                   @Param("expectedStatus") VmStatus expectedStatus,
+                                   @Param("newStatus") VmStatus newStatus,
+                                   @Param("active") Boolean active,
+                                   @Param("drift") Boolean drift,
+                                   @Param("syncedAt") Timestamp syncedAt);
+
+    /** A state sync that found no drift: record the sync time and clear the drift flag. */
+    @Modifying(flushAutomatically = true)
+    @Transactional
+    @Query("UPDATE Vm v SET v.stateDriftDetected = false, v.lastStateSyncAt = :syncedAt, " +
+           "v.version = v.version + 1 WHERE v.vmId = :vmId")
+    int markSyncedWithoutDrift(@Param("vmId") String vmId, @Param("syncedAt") Timestamp syncedAt);
+
+    @Modifying(flushAutomatically = true)
+    @Transactional
+    @Query("UPDATE Vm v SET v.metadata = :metadata, v.updatedAt = :at, v.version = v.version + 1 " +
+           "WHERE v.vmId = :vmId")
+    int updateMetadata(@Param("vmId") String vmId, @Param("metadata") String metadata, @Param("at") Timestamp at);
+
+    @Modifying(flushAutomatically = true)
+    @Transactional
+    @Query("UPDATE Vm v SET v.tagsSyncedAt = :at, v.version = v.version + 1 WHERE v.vmId IN :vmIds")
+    int markTagsSynced(@Param("vmIds") Collection<String> vmIds, @Param("at") Timestamp at);
 }

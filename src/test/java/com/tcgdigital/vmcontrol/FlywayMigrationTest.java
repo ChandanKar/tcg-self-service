@@ -496,4 +496,15 @@ class FlywayMigrationTest extends AbstractIntegrationTest {
             assertEquals("0", String.valueOf(c.get("COLUMN_DEFAULT")), c.get("COLUMN_NAME") + " defaults to 0");
         });
     }
+
+    @Test
+    void testVmVersionColumnAdded() {
+        // V29 (H14): optimistic lock on vm.
+        Map<String, Object> column = jdbcTemplate.queryForMap(
+            "SELECT IS_NULLABLE, COLUMN_DEFAULT FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() " +
+            "AND TABLE_NAME = 'vm' AND COLUMN_NAME = 'version'"
+        );
+        assertEquals("NO", column.get("IS_NULLABLE"));
+        assertEquals("0", String.valueOf(column.get("COLUMN_DEFAULT")));
+    }
 }

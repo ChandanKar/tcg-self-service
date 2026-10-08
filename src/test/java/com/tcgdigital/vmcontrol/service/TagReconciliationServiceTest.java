@@ -78,9 +78,9 @@ class TagReconciliationServiceTest {
         assertEquals("prod-01", tags.get("tcg:environment"));
         assertEquals("payments", tags.get("tcg:team"));
 
-        verify(vmRepository).saveAll(List.of(vm1, vm2));
-        assertNotNull(vm1.getTagsSyncedAt());
-        assertNotNull(vm2.getTagsSyncedAt());
+        // Targeted update by id (E05-T04): the VMs loaded at the start of the run are never re-saved.
+        verify(vmRepository).markTagsSynced(eq(List.of(vm1.getVmId(), vm2.getVmId())), any());
+        verify(vmRepository, never()).saveAll(any());
     }
 
     @Test

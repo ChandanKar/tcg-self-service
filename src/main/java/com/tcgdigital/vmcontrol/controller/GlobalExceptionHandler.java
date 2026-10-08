@@ -74,6 +74,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ));
     }
 
+    @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<Map<String, Object>> handleOptimisticLock(
+            org.springframework.orm.ObjectOptimisticLockingFailureException ex) {
+        log.warn("Concurrent modification: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(body("Conflict", "This item was changed by someone else. Reload and try again."));
+    }
+
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<Map<String, Object>> handleConflict(ConflictException ex) {
         log.warn("Conflict: {}", ex.getMessage());

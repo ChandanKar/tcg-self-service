@@ -298,7 +298,12 @@ public class VmDiscoveryService {
             if (Boolean.TRUE.equals(vm.getIsActive()) && !liveInstanceIds.contains(vm.getProviderVmId())) {
                 vm.setStateDriftDetected(true);
                 vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
-                vmRepository.save(vm);
+                try {
+                    vmRepository.save(vm);
+                } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
+                    log.info("VM '{}' changed during discovery; flagging it on the next run", vm.getName());
+                    continue;
+                }
                 log.warn("VM '{}' (instance={}) no longer found in AWS — drift flagged", vm.getName(), vm.getProviderVmId());
             }
         }

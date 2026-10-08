@@ -282,13 +282,14 @@ public class StateSyncService {
             String details = cloudStatus == VmStatus.NOT_FOUND
                     ? "VM not found in cloud provider - may have been deleted externally"
                     : "VM terminated in cloud provider";
+            // Conditional on the status this sync read: an operation that changed it meanwhile
+            // wins, and no false drift is recorded (H14).
+            if (vmRepository.applySyncedStatusIfCurrent(vm.getVmId(), currentStatus, cloudStatus,
+                    false, true, Timestamp.from(Instant.now())) == 0) {
+                log.info("VM {} changed while syncing; not marking it {}", vm.getName(), cloudStatus);
+                return false;
+            }
             recordStateChange(vm, currentStatus, cloudStatus, "state_sync", null, null, details);
-
-            vm.setStatus(cloudStatus);
-            vm.setIsActive(false);
-            vm.setStateDriftDetected(true);
-            vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
-            vmRepository.save(vm);
 
             auditService.logEnvironmentAction(null, AuditAction.STATE_DRIFT_DETECTED,
                     vm.getGroup().getEnvironment().getEnvironmentId(),
@@ -311,15 +312,16 @@ public class StateSyncService {
         syncVmNameIfNeeded(vm);
 
         if (currentStatus != cloudStatus) {
+            if (vmRepository.applySyncedStatusIfCurrent(vm.getVmId(), currentStatus, cloudStatus,
+                    vm.getIsActive(), true, Timestamp.from(Instant.now())) == 0) {
+                log.info("VM {} changed while syncing; not recording drift {} -> {}",
+                        vm.getName(), currentStatus, cloudStatus);
+                return false;
+            }
             log.info("State drift detected for VM {}: {} -> {}", vm.getName(), currentStatus, cloudStatus);
 
             recordStateChange(vm, currentStatus, cloudStatus, "state_sync", null, null,
                     "Drift detected during state sync");
-
-            vm.setStatus(cloudStatus);
-            vm.setStateDriftDetected(true);
-            vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
-            vmRepository.save(vm);
 
             auditService.logEnvironmentAction(null, AuditAction.STATE_DRIFT_DETECTED,
                     vm.getGroup().getEnvironment().getEnvironmentId(),
@@ -338,9 +340,7 @@ public class StateSyncService {
         }
 
         // No drift — clear the flag and record the sync time
-        vm.setStateDriftDetected(false);
-        vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
-        vmRepository.save(vm);
+        vmRepository.markSyncedWithoutDrift(vm.getVmId(), Timestamp.from(Instant.now()));
         return false;
     }
 

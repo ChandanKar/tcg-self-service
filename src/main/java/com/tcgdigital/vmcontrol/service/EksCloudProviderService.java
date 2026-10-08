@@ -87,8 +87,9 @@ public class EksCloudProviderService implements CloudProviderService {
             String clusterName = parts[0];
             String nodeGroupName = parts[1];
 
-            // Restore saved minSize; desiredSize = minSize (start exactly that many nodes)
+            // Restore the sizes saved at stop: min as saved, desired = max(saved desired, min).
             int minSize = readSavedMinSize(providerVmId);
+            int desiredSize = Math.max(readSavedDesiredSize(providerVmId), minSize);
 
             EksClient eks = getEksClient(region);
             try {
@@ -97,15 +98,15 @@ public class EksCloudProviderService implements CloudProviderService {
                         .nodegroupName(nodeGroupName)
                         .scalingConfig(NodegroupScalingConfig.builder()
                                 .minSize(minSize)
-                                .desiredSize(minSize)
+                                .desiredSize(desiredSize)
                                 .build())
                         .build();
 
                 UpdateNodegroupConfigResponse response = eks.updateNodegroupConfig(request);
                 String updateId = response.update() != null ? response.update().id() : "unknown";
 
-                log.info("EKS node group {}/{} scale-up to {} requested (updateId={})",
-                        clusterName, nodeGroupName, minSize, updateId);
+                log.info("EKS node group {}/{} scale-up to min {} / desired {} requested (updateId={})",
+                        clusterName, nodeGroupName, minSize, desiredSize, updateId);
 
                 VmStatus finalStatus = waitForNodegroupActive(eks, clusterName, nodeGroupName, true);
                 return VmOperationResult.success(updateId, finalStatus);
@@ -334,6 +335,23 @@ public class EksCloudProviderService implements CloudProviderService {
      * Reads the saved minSize from Vm.metadata written by a previous stopVm.
      * Falls back to the defaultMinSize property when no saved value exists.
      */
+    /** The desiredSize saved by a previous stopVm, or 0 when none was saved. */
+    private int readSavedDesiredSize(String providerVmId) {
+        try {
+            Optional<Vm> vmOpt = vmRepository.findByProviderAndProviderVmId(CloudProvider.AWS_EKS, providerVmId);
+            if (vmOpt.isPresent() && vmOpt.get().getMetadata() != null) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> meta = objectMapper.readValue(vmOpt.get().getMetadata(), Map.class);
+                if (meta.get("desiredSize") instanceof Number n) {
+                    return Math.max(n.intValue(), 0);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to read saved desiredSize for EKS VM {}: {}", providerVmId, e.getMessage());
+        }
+        return 0;
+    }
+
     private int readSavedMinSize(String providerVmId) {
         try {
             Optional<Vm> vmOpt = vmRepository.findByProviderAndProviderVmId(CloudProvider.AWS_EKS, providerVmId);
@@ -379,16 +397,26 @@ public class EksCloudProviderService implements CloudProviderService {
             }
 
             int saveMin = liveMin > 0 ? liveMin : defaultMinSize;
-            String metaJson = objectMapper.writeValueAsString(
-                    Map.of("minSize", saveMin, "desiredSize", liveDesired));
 
             Optional<Vm> vmOpt = vmRepository.findByProviderAndProviderVmId(CloudProvider.AWS_EKS, providerVmId);
-            vmOpt.ifPresentOrElse(vm -> {
-                vm.setMetadata(metaJson);
-                vmRepository.save(vm);
-                log.info("Saved EKS scaling config before stop for {}: minSize={}, desiredSize={}",
-                        providerVmId, saveMin, liveDesired);
-            }, () -> log.warn("EKS VM not found in DB for metadata save: {}", providerVmId));
+            if (vmOpt.isEmpty()) {
+                log.warn("EKS VM not found in DB for metadata save: {}", providerVmId);
+                return;
+            }
+            // Merge into the existing metadata (keep other keys) and write only that column (H14).
+            Map<String, Object> meta = new java.util.LinkedHashMap<>();
+            String existing = vmOpt.get().getMetadata();
+            if (existing != null && !existing.isBlank()) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> parsed = objectMapper.readValue(existing, Map.class);
+                meta.putAll(parsed);
+            }
+            meta.put("minSize", saveMin);
+            meta.put("desiredSize", liveDesired);
+            vmRepository.updateMetadata(vmOpt.get().getVmId(), objectMapper.writeValueAsString(meta),
+                    java.sql.Timestamp.from(java.time.Instant.now()));
+            log.info("Saved EKS scaling config before stop for {}: minSize={}, desiredSize={}",
+                    providerVmId, saveMin, liveDesired);
 
         } catch (Exception e) {
             log.warn("Failed to save scaling config for EKS VM {} (stop will continue): {}",

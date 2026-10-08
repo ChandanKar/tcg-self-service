@@ -62,7 +62,7 @@ class EksCloudProviderServiceTest {
     // ---- startVm tests ----
 
     @Test
-    void startVm_restoresMinSizeAsDesiredSize() throws Exception {
+    void startVm_restoresSavedMinAndDesiredSize() throws Exception {
         Vm vm = new Vm();
         vm.setMetadata("{\"minSize\":3,\"desiredSize\":5}");
         when(vmRepository.findByProviderAndProviderVmId(CloudProvider.AWS_EKS, PROVIDER_VM_ID))
@@ -87,8 +87,9 @@ class EksCloudProviderServiceTest {
         verify(mockEksClient).updateNodegroupConfig(captor.capture());
 
         NodegroupScalingConfig scaling = captor.getValue().scalingConfig();
+        // H14: min 3 / desired 5 saved at stop come back as min 3 / desired 5 (not one node).
         assertEquals(3, scaling.minSize(),     "minSize must be restored from saved metadata");
-        assertEquals(3, scaling.desiredSize(), "desiredSize must equal minSize on start");
+        assertEquals(5, scaling.desiredSize(), "desiredSize must be restored from saved metadata");
     }
 
     @Test
@@ -164,10 +165,12 @@ class EksCloudProviderServiceTest {
         assertTrue(result.isSuccess());
         assertEquals(VmStatus.STOPPED, result.getResultStatus());
 
-        // Verify metadata was saved with live values
-        ArgumentCaptor<Vm> vmCaptor = ArgumentCaptor.forClass(Vm.class);
-        verify(vmRepository).save(vmCaptor.capture());
-        String savedMeta = vmCaptor.getValue().getMetadata();
+        // Verify metadata was written with live values, as a targeted update (H14): never a
+        // whole-entity save that a stale VM copy could later overwrite.
+        ArgumentCaptor<String> metaCaptor = ArgumentCaptor.forClass(String.class);
+        verify(vmRepository).updateMetadata(eq("vm-123"), metaCaptor.capture(), any());
+        verify(vmRepository, never()).save(any(Vm.class));
+        String savedMeta = metaCaptor.getValue();
         assertNotNull(savedMeta);
         assertTrue(savedMeta.contains("\"minSize\":2"), "minSize=2 must be saved");
         assertTrue(savedMeta.contains("\"desiredSize\":4"), "desiredSize=4 must be saved");
@@ -391,5 +394,48 @@ class EksCloudProviderServiceTest {
                         .maxSize(10)
                         .build())
                 .build();
+    }
+
+    @Test
+    void stopVm_mergesScalingIntoExistingMetadata() throws Exception {
+        // E05-T04: other metadata keys survive the stop's scaling save.
+        Vm vm = new Vm();
+        vm.setVmId("vm-123");
+        vm.setMetadata("{\"owner\":\"payments\",\"minSize\":1}");
+        when(vmRepository.findByProviderAndProviderVmId(CloudProvider.AWS_EKS, PROVIDER_VM_ID))
+                .thenReturn(Optional.of(vm));
+        when(mockEksClient.describeNodegroup(any(DescribeNodegroupRequest.class)))
+                .thenReturn(buildDescribeResponse(NodegroupStatus.ACTIVE, 3, 5),
+                        buildDescribeResponse(NodegroupStatus.ACTIVE, 0, 0));
+        when(mockEksClient.updateNodegroupConfig(any(UpdateNodegroupConfigRequest.class)))
+                .thenReturn(UpdateNodegroupConfigResponse.builder()
+                        .update(Update.builder().id("upd-stop").build()).build());
+
+        assertTrue(service.stopVm(PROVIDER_VM_ID, REGION, false).get().isSuccess());
+
+        ArgumentCaptor<String> metaCaptor = ArgumentCaptor.forClass(String.class);
+        verify(vmRepository).updateMetadata(eq("vm-123"), metaCaptor.capture(), any());
+        String meta = metaCaptor.getValue();
+        assertTrue(meta.contains("\"owner\":\"payments\""), "other keys are kept: " + meta);
+        assertTrue(meta.contains("\"minSize\":3"), meta);
+        assertTrue(meta.contains("\"desiredSize\":5"), meta);
+    }
+
+    @Test
+    void startVm_desiredNeverBelowMin() throws Exception {
+        Vm vm = new Vm();
+        vm.setMetadata("{\"minSize\":2,\"desiredSize\":1}");
+        when(vmRepository.findByProviderAndProviderVmId(CloudProvider.AWS_EKS, PROVIDER_VM_ID))
+                .thenReturn(Optional.of(vm));
+        when(mockEksClient.updateNodegroupConfig(any(UpdateNodegroupConfigRequest.class)))
+                .thenReturn(UpdateNodegroupConfigResponse.builder()
+                        .update(Update.builder().id("upd-002").build()).build());
+        mockDescribeActive(2);
+
+        service.startVm(PROVIDER_VM_ID, REGION).get();
+
+        ArgumentCaptor<UpdateNodegroupConfigRequest> captor = ArgumentCaptor.forClass(UpdateNodegroupConfigRequest.class);
+        verify(mockEksClient).updateNodegroupConfig(captor.capture());
+        assertEquals(2, captor.getValue().scalingConfig().desiredSize());
     }
 }

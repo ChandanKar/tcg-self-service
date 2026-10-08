@@ -159,11 +159,11 @@ public class TagReconciliationService {
         return tags;
     }
 
+    /** Targeted update: never re-save VMs loaded at the start of the run (they may be stale, H14). */
     private void markTagged(List<Vm> vms) {
-        Timestamp now = Timestamp.from(Instant.now());
-        for (Vm vm : vms) {
-            vm.setTagsSyncedAt(now);
+        if (vms.isEmpty()) {
+            return;
         }
-        vmRepository.saveAll(vms);
+        vmRepository.markTagsSynced(vms.stream().map(Vm::getVmId).toList(), Timestamp.from(Instant.now()));
     }
 }

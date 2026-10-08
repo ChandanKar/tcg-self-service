@@ -90,6 +90,14 @@ public class Vm {
     @UpdateTimestamp
     private Timestamp updatedAt;
 
+    /**
+     * Optimistic lock (V29). Null until first persisted, so Spring Data treats a new VM as new;
+     * the targeted status/metadata/tag updates in VmRepository bump it explicitly.
+     */
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     @Column(columnDefinition = "TEXT")
     private String metadata;
 
@@ -317,5 +325,8 @@ public class Vm {
     public void setTagsSyncedAt(Timestamp tagsSyncedAt) {
         this.tagsSyncedAt = tagsSyncedAt;
     }
-}
 
+    public Long getVersion() {
+        return version;
+    }
+}

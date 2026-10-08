@@ -763,9 +763,7 @@ public class VmOperationsService {
                                 initiatedByUserId, executionId,
                                 operationType + " operation completed");
                     }
-                    vm.setStatus(reconciledStatus);
-                    vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
-                    vmRepository.save(vm);
+                    writeStatus(vm.getVmId(), reconciledStatus);
                 }
 
                 updateExecutionCounters(executionId, true);
@@ -773,9 +771,7 @@ public class VmOperationsService {
                 detail.setStatus("failed");
                 detail.setErrorMessage(result.getMessage());
                 if (shouldRestorePreviousStatus(operationType, result)) {
-                    vm.setStatus(previousStatus);
-                    vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
-                    vmRepository.save(vm);
+                    writeStatus(vm.getVmId(), previousStatus);
                 }
                 updateExecutionCounters(executionId, false);
             }
@@ -824,10 +820,23 @@ public class VmOperationsService {
         detailRepository.save(detail);
     }
 
-    private void markVmTransitioning(Vm vm, VmStatus status) {
-        vm.setStatus(status);
-        vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
-        vmRepository.save(vm);
+    /**
+     * Set a VM's status with a targeted conditional update (H14): never save the VM copy loaded
+     * at the start of the step, which would overwrite what the provider wrote meanwhile (EKS
+     * node-group sizes in metadata). Retries when another writer changes the status in between.
+     */
+    private boolean writeStatus(String vmId, VmStatus newStatus) {
+        for (int attempt = 0; attempt < 3; attempt++) {
+            Optional<VmStatus> current = vmRepository.findStatusById(vmId);
+            if (current.isEmpty()) {
+                return false;
+            }
+            if (vmRepository.updateStatusIfCurrent(vmId, current.get(), newStatus, Timestamp.from(Instant.now())) == 1) {
+                return true;
+            }
+        }
+        log.warn("Could not set VM {} to {}: its status kept changing", vmId, newStatus);
+        return false;
     }
 
     /**
@@ -852,9 +861,8 @@ public class VmOperationsService {
             detail.setStatusChecksTotal(progress.getStatusChecksTotal());
             detailRepository.save(detail);
 
-            Vm vm = vmRepository.findById(detail.getTargetId()).orElse(null);
-            if (vm != null && progress.getStatus() != null) {
-                markVmTransitioning(vm, progress.getStatus());
+            if (progress.getStatus() != null) {
+                writeStatus(detail.getTargetId(), progress.getStatus());
             }
         });
     }
