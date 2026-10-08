@@ -952,4 +952,49 @@ class EnvironmentAccessServiceTest extends AbstractIntegrationTest {
 
         assertAbout(regranted.getExpiresAt(), java.time.Instant.now().plus(10, java.time.temporal.ChronoUnit.DAYS));
     }
+
+    // ============= Editing a grant keeps its expiry unless asked (E04-T06, H15) =============
+
+    private EnvironmentAccess editGrant(EnvironmentAccess grant, Integer durationDays, Boolean clearExpiry, String notes) {
+        UpdateAccessGrantDTO patch = new UpdateAccessGrantDTO();
+        patch.setAccessLevel(grant.getAccessLevel());
+        patch.setDurationDays(durationDays);
+        patch.setClearExpiry(clearExpiry);
+        patch.setNotes(notes);
+        accessService.updateGrant(adminUser.getUserId(), grant.getAccessId(), patch);
+        entityManager.flush();
+        entityManager.clear();
+        return accessRepository.findById(grant.getAccessId()).orElseThrow();
+    }
+
+    @Test
+    @DisplayName("H15: editing only the notes keeps the grant's expiry")
+    void updateGrant_notesOnly_keepsExpiry() {
+        EnvironmentAccess grant = grantExpiringIn(java.time.Duration.ofDays(30));
+        entityManager.clear();
+        Timestamp stored = accessRepository.findById(grant.getAccessId()).orElseThrow().getExpiresAt(); // as stored (seconds)
+
+        EnvironmentAccess edited = editGrant(grant, null, null, "Moved to the payments team");
+
+        assertThat(edited.getExpiresAt()).isEqualTo(stored);
+        assertThat(edited.getNotes()).isEqualTo("Moved to the payments team");
+    }
+
+    @Test
+    @DisplayName("H15: choosing Permanent clears the expiry")
+    void updateGrant_clearExpiry_makesPermanent() {
+        EnvironmentAccess grant = grantExpiringIn(java.time.Duration.ofDays(30));
+
+        assertThat(editGrant(grant, null, true, null).getExpiresAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("H15: choosing '30 days from today' sets the expiry to now + 30 days")
+    void updateGrant_durationDays_countsFromToday() {
+        EnvironmentAccess grant = grantExpiringIn(java.time.Duration.ofDays(3));
+
+        EnvironmentAccess edited = editGrant(grant, 30, null, null);
+
+        assertAbout(edited.getExpiresAt(), java.time.Instant.now().plus(30, java.time.temporal.ChronoUnit.DAYS));
+    }
 }

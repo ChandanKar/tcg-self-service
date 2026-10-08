@@ -460,15 +460,17 @@ const AccessManagement = (function() {
                                     </select>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Duration (optional)</label>
-                                    <select class="form-select" id="grant-duration">
-                                        <option value="">Permanent</option>
-                                        <option value="7">7 days</option>
-                                        <option value="30">30 days</option>
-                                        <option value="90">90 days</option>
-                                        <option value="180">180 days</option>
-                                        <option value="365">1 year</option>
+                                    <label class="form-label" for="grant-duration">Expiry</label>
+                                    <select class="form-select" id="grant-duration" aria-describedby="grant-current-expiry">
+                                        <option value="keep">Keep current expiry</option>
+                                        <option value="permanent">Permanent (no expiry)</option>
+                                        <option value="7">7 days from today</option>
+                                        <option value="30">30 days from today</option>
+                                        <option value="90">90 days from today</option>
+                                        <option value="180">180 days from today</option>
+                                        <option value="365">1 year from today</option>
                                     </select>
+                                    <div class="form-text" id="grant-current-expiry"></div>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Notes (optional)</label>
@@ -1047,6 +1049,22 @@ const AccessManagement = (function() {
     /**
      * Open the Grant / Edit Access modal. Pass a grant object to edit an existing one.
      */
+    /** "Keep current expiry" only makes sense when editing an existing grant. */
+    function setKeepExpiryOption(editing) {
+        $('#grant-duration option[value="keep"]').prop('hidden', !editing).prop('disabled', !editing);
+    }
+
+    /**
+     * The expiry choice as request fields: a number of days from today, permanent (clear the
+     * expiry), or keep (send neither, so the server leaves the expiry alone).
+     */
+    function expiryChoice(value) {
+        return {
+            durationDays: /^\d+$/.test(value) ? parseInt(value, 10) : null,
+            clearExpiry: value === 'permanent'
+        };
+    }
+
     function showGrantAccessModal(editAccess) {
         const editing = !!editAccess;
         $('#grant-access-id').val(editing ? editAccess.accessId : '');
@@ -1069,7 +1087,12 @@ const AccessManagement = (function() {
             document.getElementById('grant-group-checklist').hidden = !isGroup;
             if (isGroup) loadGroupsForGrant(editAccess.environmentId, [editAccess.scopeId], true);
             $('#grant-access-level').val(editAccess.accessLevel || 'USER');
-            $('#grant-duration').val('');
+            // Editing keeps the expiry unless the admin picks another one (H15).
+            setKeepExpiryOption(true);
+            $('#grant-duration').val('keep');
+            $('#grant-current-expiry').text(editAccess.expiresAt
+                ? `Currently expires ${Utils.formatDate(editAccess.expiresAt)}`
+                : 'Currently permanent');
             $('#grant-notes').val(editAccess.notes || '');
         } else {
             grantUserPick = null;
@@ -1087,7 +1110,9 @@ const AccessManagement = (function() {
             $('#grant-group-selall').prop('checked', false);
             $('#grant-group-filter').val('');
             $('#grant-access-level').val('USER');
-            $('#grant-duration').val('');
+            setKeepExpiryOption(false);
+            $('#grant-duration').val('permanent');
+            $('#grant-current-expiry').text('');
             $('#grant-notes').val('');
         }
 
@@ -1311,8 +1336,7 @@ const AccessManagement = (function() {
         const editing = !!accessId;
         const envId = $('#grant-environment').val();
         const accessLevel = $('#grant-access-level').val();
-        const durationRaw = $('#grant-duration').val();
-        const durationDays = durationRaw ? parseInt(durationRaw, 10) : null;
+        const { durationDays, clearExpiry } = expiryChoice($('#grant-duration').val());
         const notes = $('#grant-notes').val().trim() || null;
         const scopeType = grantScope();
         const groupIds = scopeType === 'GROUP'
@@ -1345,7 +1369,7 @@ const AccessManagement = (function() {
                 if (editing) {
                     req = ApiClient.patch(Config.API.access.updateGrant(accessId), {
                         accessLevel, durationDays,
-                        clearExpiry: durationRaw === '' ? true : null,
+                        clearExpiry: clearExpiry || null,
                         notes
                     });
                 } else {
