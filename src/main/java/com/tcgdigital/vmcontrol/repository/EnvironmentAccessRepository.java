@@ -255,6 +255,13 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
            "ORDER BY ea.grantedAt DESC")
     List<EnvironmentAccess> findRecentGrantsByUser(@Param("userId") String userId, Pageable pageable);
 
+    /** The user's grants that an admin edited directly, most recent edit first (My Account "Updated"). */
+    @Query("SELECT ea FROM EnvironmentAccess ea " +
+           "JOIN FETCH ea.environment " +
+           "WHERE ea.user.userId = :userId AND ea.lastModifiedAt IS NOT NULL " +
+           "ORDER BY ea.lastModifiedAt DESC")
+    List<EnvironmentAccess> findRecentlyModifiedGrantsByUser(@Param("userId") String userId, Pageable pageable);
+
     /**
      * Find expired access grants that need to be marked as expired.
      */

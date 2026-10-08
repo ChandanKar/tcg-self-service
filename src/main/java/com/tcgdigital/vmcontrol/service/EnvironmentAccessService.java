@@ -533,7 +533,12 @@ public class EnvironmentAccessService {
             access = existing.get();
             previousLevel = access.getAccessLevel();
             access.setAccessLevel(spec.level);
-            access.setGrantedBy(spec.actor);
+            // Keep the original granter (LOW-ACC-3). A direct edit records its editor; an approved
+            // request shows as its own activity event instead.
+            if (!spec.fromRequestApproval) {
+                access.setLastModifiedBy(spec.actor);
+                access.setLastModifiedAt(now);
+            }
             if (spec.notes != null) {
                 access.setNotes(spec.notes);
             }
@@ -619,12 +624,15 @@ public class EnvironmentAccessService {
         final String notes;
         /** Add durationDays to the grant's current (future) expiry instead of to now. */
         final boolean extendFromCurrent;
+        /** The change comes from approving a request (not a direct edit by an admin). */
+        final boolean fromRequestApproval;
 
         private GrantSpec(Environment environment, User targetUser, User actor, AccessLevel level,
                           AccessScopeType scopeType, String scopeId, AccessInitiation initiation,
                           String sourceRequestId, Integer durationDays, boolean clearExpiry, String notes,
-                          boolean extendFromCurrent) {
+                          boolean extendFromCurrent, boolean fromRequestApproval) {
             this.extendFromCurrent = extendFromCurrent;
+            this.fromRequestApproval = fromRequestApproval;
             this.environment = environment;
             this.targetUser = targetUser;
             this.actor = actor;
@@ -642,13 +650,13 @@ public class EnvironmentAccessService {
                                    Integer durationDays, boolean clearExpiry, String notes) {
             return new GrantSpec(environment, targetUser, actor, level, AccessScopeType.ENVIRONMENT,
                     environment.getEnvironmentId(), AccessInitiation.DIRECT, null, durationDays, clearExpiry, notes,
-                    false);
+                    false, false);
         }
 
         static GrantSpec directGroup(Environment environment, VmGroup group, User targetUser, User actor,
                                      AccessLevel level, Integer durationDays, boolean clearExpiry, String notes) {
             return new GrantSpec(environment, targetUser, actor, level, AccessScopeType.GROUP,
-                    group.getGroupId(), AccessInitiation.DIRECT, null, durationDays, clearExpiry, notes, false);
+                    group.getGroupId(), AccessInitiation.DIRECT, null, durationDays, clearExpiry, notes, false, false);
         }
 
         static GrantSpec fromApprovedRequest(EnvironmentAccessRequest request, User reviewer,
@@ -656,7 +664,7 @@ public class EnvironmentAccessService {
             return new GrantSpec(request.getEnvironment(), request.getRequester(), reviewer,
                     request.getRequestedAccessLevel(), request.getScopeType(), request.getScopeId(),
                     AccessInitiation.REQUEST, request.getRequestId(), durationDays, clearExpiry, notes,
-                    request.isExtension());
+                    request.isExtension(), true);
         }
 
         /** Re-apply an existing grant with a possibly-changed level / expiry, keeping its scope and origin. */
@@ -664,7 +672,7 @@ public class EnvironmentAccessService {
                                      Integer durationDays, boolean clearExpiry, String notes) {
             return new GrantSpec(existing.getEnvironment(), existing.getUser(), actor, level,
                     existing.getScopeType(), existing.getScopeId(), existing.getInitiation(),
-                    existing.getSourceRequestId(), durationDays, clearExpiry, notes, false);
+                    existing.getSourceRequestId(), durationDays, clearExpiry, notes, false, false);
         }
     }
 

@@ -2,17 +2,21 @@ package com.tcgdigital.vmcontrol.service;
 
 import com.tcgdigital.vmcontrol.support.AbstractIntegrationTest;
 import com.tcgdigital.vmcontrol.dto.CreateAccessRequestDTO;
+import com.tcgdigital.vmcontrol.dto.EnvironmentAccessDTO;
 import com.tcgdigital.vmcontrol.dto.GrantAccessDTO;
 import com.tcgdigital.vmcontrol.dto.MyActivityItemDTO;
 import com.tcgdigital.vmcontrol.dto.MyProfileDTO;
+import com.tcgdigital.vmcontrol.dto.UpdateAccessGrantDTO;
 import com.tcgdigital.vmcontrol.model.*;
 import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import com.tcgdigital.vmcontrol.repository.OperationExecutionRepository;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
@@ -43,6 +47,12 @@ class MyAccountServiceTest extends AbstractIntegrationTest {
 
     @Autowired
     private OperationExecutionRepository executionRepository;
+
+    @Autowired
+    private EntityManager entityManager;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     private Environment environment;
     private User user;
@@ -178,5 +188,78 @@ class MyAccountServiceTest extends AbstractIntegrationTest {
         }
 
         assertThat(myAccountService.getActivity(user.getUserId(), 2)).hasSize(2);
+    }
+
+    // ============= Granter kept, edits and extensions shown (E04-T08) =============
+
+    private User secondAdmin() {
+        String suffix = UUID.randomUUID().toString();
+        User carol = User.fromAzureAd("carol-" + suffix, "carol-" + suffix + "@example.com", "Carol Editor");
+        carol.setAdmin(true);
+        return userRepository.save(carol);
+    }
+
+    /** Persist pending changes and move a grant's grantedAt one hour back, so ordering is deterministic. */
+    private void backdateGrant(EnvironmentAccess grant) {
+        entityManager.flush();
+        jdbcTemplate.update("UPDATE environment_access SET granted_at = ? WHERE access_id = ?",
+                new Timestamp(System.currentTimeMillis() - 3_600_000L), grant.getAccessId());
+        entityManager.clear();
+    }
+
+    @Test
+    @DisplayName("LOW-ACC-3: a direct edit by another admin is an UPDATED event after the original GRANTED one")
+    void activity_directEditIsUpdatedByTheEditor() {
+        EnvironmentAccess grant = accessService.grantAccess(environment.getEnvironmentId(), admin.getUserId(),
+                new GrantAccessDTO(user.getEmail(), AccessLevel.VIEWER, null, null));
+        backdateGrant(grant);
+        User carol = secondAdmin();
+        UpdateAccessGrantDTO patch = new UpdateAccessGrantDTO();
+        patch.setAccessLevel(AccessLevel.VIEWER);
+        patch.setNotes("Moved to the payments team");
+        accessService.updateGrant(carol.getUserId(), grant.getAccessId(), patch);
+        entityManager.flush();
+        entityManager.clear();
+
+        List<MyActivityItemDTO> access = myAccountService.getActivity(user.getUserId(), 25).stream()
+                .filter(i -> "ACCESS".equals(i.kind())).toList();
+
+        assertThat(access).extracting(MyActivityItemDTO::event, MyActivityItemDTO::actorName)
+                .containsExactly(tuple("UPDATED", "Carol Editor"), tuple("GRANTED", "Admin User"));
+    }
+
+    @Test
+    @DisplayName("LOW-ACC-4: an approved extension request shows as EXTENDED by the reviewer")
+    void activity_approvedExtensionIsExtended() {
+        accessService.grantAccess(environment.getEnvironmentId(), admin.getUserId(),
+                new GrantAccessDTO(user.getEmail(), AccessLevel.USER, 3, null));
+        EnvironmentAccessRequest extension = accessService.createAccessRequest(environment.getEnvironmentId(),
+                user.getUserId(), new CreateAccessRequestDTO(AccessLevel.USER, "Release testing runs longer", 7));
+        accessService.approveRequest(extension.getRequestId(), admin.getUserId(), null, null);
+
+        List<MyActivityItemDTO> activity = myAccountService.getActivity(user.getUserId(), 25);
+
+        assertThat(activity).extracting(MyActivityItemDTO::event, MyActivityItemDTO::actorName)
+                .contains(tuple("EXTENDED", "Admin User"))
+                .doesNotContain(tuple("APPROVED", "Admin User"), tuple("UPDATED", "Admin User"));
+    }
+
+    @Test
+    @DisplayName("LOW-ACC-3: the grant keeps the original granter and names the last editor")
+    void grants_keepOriginalGranterAndNameTheEditor() {
+        EnvironmentAccess grant = accessService.grantAccess(environment.getEnvironmentId(), admin.getUserId(),
+                new GrantAccessDTO(user.getEmail(), AccessLevel.VIEWER, null, null));
+        User carol = secondAdmin();
+        UpdateAccessGrantDTO patch = new UpdateAccessGrantDTO();
+        patch.setAccessLevel(AccessLevel.USER);
+        accessService.updateGrant(carol.getUserId(), grant.getAccessId(), patch);
+        entityManager.flush();
+        entityManager.clear();
+
+        EnvironmentAccessDTO dto = EnvironmentAccessDTO.fromEntity(accessService.getGrantById(grant.getAccessId()));
+
+        assertThat(dto.getGrantedByUserName()).isEqualTo("Admin User");
+        assertThat(dto.getLastModifiedByUserName()).isEqualTo("Carol Editor");
+        assertThat(dto.getLastModifiedAt()).isNotNull();
     }
 }

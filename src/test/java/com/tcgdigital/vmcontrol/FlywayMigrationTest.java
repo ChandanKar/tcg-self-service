@@ -471,4 +471,15 @@ class FlywayMigrationTest extends AbstractIntegrationTest {
         assertEquals("NO", column.get("IS_NULLABLE"));
         assertEquals("0", String.valueOf(column.get("COLUMN_DEFAULT")));
     }
+
+    @Test
+    void testEnvironmentAccessLastModifiedColumnsAdded() {
+        // V27 (LOW-ACC-3): who last edited a grant, without overwriting the granter.
+        List<Map<String, Object>> columns = jdbcTemplate.queryForList(
+            "SELECT COLUMN_NAME, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() " +
+            "AND TABLE_NAME = 'environment_access' AND COLUMN_NAME IN ('last_modified_by_user_id', 'last_modified_at')"
+        );
+        assertEquals(2, columns.size());
+        columns.forEach(c -> assertEquals("YES", c.get("IS_NULLABLE"), c.get("COLUMN_NAME") + " must be nullable"));
+    }
 }

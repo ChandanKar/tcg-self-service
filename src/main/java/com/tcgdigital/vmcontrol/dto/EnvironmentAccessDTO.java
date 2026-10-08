@@ -5,6 +5,7 @@ import com.tcgdigital.vmcontrol.model.AccessLevel;
 import com.tcgdigital.vmcontrol.model.AccessScopeType;
 import com.tcgdigital.vmcontrol.model.AccessStatus;
 import com.tcgdigital.vmcontrol.model.EnvironmentAccess;
+import com.tcgdigital.vmcontrol.model.User;
 
 import java.sql.Timestamp;
 
@@ -27,6 +28,8 @@ public class EnvironmentAccessDTO {
     private AccessInitiation initiation;
     private String grantedByUserId;
     private String grantedByUserName;
+    private String lastModifiedByUserName;
+    private Timestamp lastModifiedAt;
     private Timestamp grantedAt;
     private Timestamp expiresAt;
     private Timestamp revokedAt;
@@ -77,6 +80,11 @@ public class EnvironmentAccessDTO {
             dto.setUserDisplayName(access.getUser().getDisplayName());
         }
 
+        if (access.getLastModifiedBy() != null) {
+            User editor = access.getLastModifiedBy();
+            dto.setLastModifiedByUserName(editor.getDisplayName() != null ? editor.getDisplayName() : editor.getEmail());
+            dto.setLastModifiedAt(access.getLastModifiedAt());
+        }
         if (access.getGrantedBy() != null) {
             dto.setGrantedByUserId(access.getGrantedBy().getUserId());
             dto.setGrantedByUserName(access.getGrantedBy().getDisplayName());
@@ -228,5 +236,22 @@ public class EnvironmentAccessDTO {
 
     public void setRevokedAt(Timestamp revokedAt) {
         this.revokedAt = revokedAt;
+    }
+
+    /** Who last edited the grant directly; null if it was never edited. */
+    public String getLastModifiedByUserName() {
+        return lastModifiedByUserName;
+    }
+
+    public void setLastModifiedByUserName(String lastModifiedByUserName) {
+        this.lastModifiedByUserName = lastModifiedByUserName;
+    }
+
+    public Timestamp getLastModifiedAt() {
+        return lastModifiedAt;
+    }
+
+    public void setLastModifiedAt(Timestamp lastModifiedAt) {
+        this.lastModifiedAt = lastModifiedAt;
     }
 }

@@ -546,8 +546,11 @@ const AccessRequests = (function() {
 
     /**
      * Show request access modal
+     *
+     * @param {object=} preset - { scopeType, groupId, groupName, accessLevel } to preselect, e.g.
+     *                           when requesting the same access again from My Account
      */
-    function showRequestAccessModal(envId, envName) {
+    function showRequestAccessModal(envId, envName, preset) {
         Modals.show({
             id: 'requestAccessModal',
             title: `Request Access: ${envName}`,
@@ -594,21 +597,55 @@ const AccessRequests = (function() {
                     $(this).removeClass('is-invalid');
                 });
 
+                // Load the environment's groups once; a failed load is retried on the next try.
+                let groupsLoad = null;
+                function loadGroups() {
+                    if (groupsLoad) return groupsLoad;
+                    $('#reqGroupHint').text('Loading groups…');
+                    groupsLoad = new Promise(resolve => {
+                        ApiClient.get(Config.API.groups.list(envId))
+                            .done(groups => {
+                                if (!groups || !groups.length) {
+                                    $('#reqGroupHint').text('This environment has no groups.');
+                                    resolve();
+                                    return;
+                                }
+                                $('#reqGroupId').html(groups.map(g =>
+                                    `<option value="${Utils.escapeHtml(g.groupId)}">${Utils.escapeHtml(g.displayName || g.name)} — ${g.vmCount || 0} VMs</option>`).join(''));
+                                $('#reqGroupHint').text('');
+                                resolve();
+                            })
+                            .fail(() => {
+                                $('#reqGroupHint').text('You need view access to this environment before you can request a specific group.');
+                                groupsLoad = null;
+                                resolve();
+                            });
+                    });
+                    return groupsLoad;
+                }
+
                 $('input[name="reqScope"]').off('change').on('change', function() {
                     const isGroup = $('input[name="reqScope"]:checked').val() === 'GROUP';
                     document.getElementById('reqGroupField').hidden = !isGroup;
-                    if (isGroup && !$('#reqGroupId option').length) {
-                        $('#reqGroupHint').text('Loading groups…');
-                        ApiClient.get(Config.API.groups.list(envId))
-                            .done(groups => {
-                                if (!groups || !groups.length) { $('#reqGroupHint').text('This environment has no groups.'); return; }
-                                $('#reqGroupId').html(groups.map(g =>
-                                    `<option value="${g.groupId}">${Utils.escapeHtml(g.displayName || g.name)} — ${g.vmCount || 0} VMs</option>`).join(''));
-                                $('#reqGroupHint').text('');
-                            })
-                            .fail(() => $('#reqGroupHint').text('You need view access to this environment before you can request a specific group.'));
-                    }
+                    if (isGroup) loadGroups();
                 });
+
+                if (preset) {
+                    if (preset.accessLevel) $('#accessLevel').val(preset.accessLevel);
+                    if (preset.scopeType === 'GROUP') {
+                        $('#reqScopeGroup').prop('checked', true).trigger('change');
+                        loadGroups().then(() => {
+                            if (!preset.groupId) return;
+                            // Without access to the environment the group list may not load (or may
+                            // not include the group): offer the group from the ended grant anyway.
+                            if (!$('#reqGroupId option').filter((_, o) => o.value === preset.groupId).length) {
+                                $('#reqGroupId').append($('<option>').val(preset.groupId).text(preset.groupName || preset.groupId));
+                                $('#reqGroupHint').text('The same group as your previous access.');
+                            }
+                            $('#reqGroupId').val(preset.groupId);
+                        });
+                    }
+                }
 
                 $('#submitRequest').off('click').on('click', function() {
                     const accessLevel = $('#accessLevel').val();

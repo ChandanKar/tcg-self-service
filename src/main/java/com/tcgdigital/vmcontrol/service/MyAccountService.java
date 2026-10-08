@@ -120,17 +120,20 @@ public class MyAccountService {
         List<EnvironmentAccessRequest> requests = requestRepository.findByRequester_UserIdOrderByCreatedAtDesc(userId)
                 .stream().limit(limit).toList();
         List<EnvironmentAccess> grants = accessRepository.findRecentGrantsByUser(userId, top);
+        List<EnvironmentAccess> edited = accessRepository.findRecentlyModifiedGrantsByUser(userId, top);
         Timestamp now = new Timestamp(System.currentTimeMillis());
         Timestamp since = Timestamp.valueOf(LocalDateTime.now().minusDays(ENDED_ACCESS_LOOKBACK_DAYS));
         List<EnvironmentAccess> ended = accessRepository.findEndedAccessByUserSince(userId, now, since);
-        Map<String, String> groupNames = groupNames(requests, grants, ended);
+        Map<String, String> groupNames = groupNames(requests, grants, ended, edited);
 
         for (EnvironmentAccessRequest r : requests) {
             String scope = r.getScopeType() == AccessScopeType.GROUP ? groupNames.get(r.getScopeId()) : null;
             items.add(accessItem("REQUESTED", r.getEnvironment(), scope, r, null, null, r.getCreatedAt()));
             AccessRequestStatus status = r.getStatus();
             if (status == AccessRequestStatus.APPROVED || status == AccessRequestStatus.DENIED) {
-                items.add(accessItem(status.name(), r.getEnvironment(), scope, r,
+                // An approved extension moved the expiry of an existing grant (LOW-ACC-4).
+                String event = status == AccessRequestStatus.APPROVED && r.isExtension() ? "EXTENDED" : status.name();
+                items.add(accessItem(event, r.getEnvironment(), scope, r,
                         r.getReviewedBy() != null ? nameOf(r.getReviewedBy()) : null,
                         r.getReviewDecisionNotes(),
                         r.getReviewedAt() != null ? r.getReviewedAt() : r.getUpdatedAt()));
@@ -144,6 +147,9 @@ public class MyAccountService {
             if (g.getInitiation() == AccessInitiation.DIRECT) {
                 items.add(grantItem("GRANTED", g, groupNames, nameOf(g.getGrantedBy()), g.getGrantedAt()));
             }
+        }
+        for (EnvironmentAccess g : edited) {
+            items.add(grantItem("UPDATED", g, groupNames, nameOf(g.getLastModifiedBy()), g.getLastModifiedAt()));
         }
         for (EnvironmentAccess g : ended) {
             String event = g.getStatus() == AccessStatus.REVOKED ? "REVOKED" : "EXPIRED";
@@ -177,13 +183,16 @@ public class MyAccountService {
     /** Resolve every GROUP scope id in the feed to its display name, in one query. */
     private Map<String, String> groupNames(List<EnvironmentAccessRequest> requests,
                                            List<EnvironmentAccess> grants,
-                                           List<EnvironmentAccess> ended) {
+                                           List<EnvironmentAccess> ended,
+                                           List<EnvironmentAccess> edited) {
         List<String> ids = new ArrayList<>();
         requests.stream().filter(r -> r.getScopeType() == AccessScopeType.GROUP)
                 .forEach(r -> ids.add(r.getScopeId()));
         grants.stream().filter(g -> g.getScopeType() == AccessScopeType.GROUP)
                 .forEach(g -> ids.add(g.getScopeId()));
         ended.stream().filter(g -> g.getScopeType() == AccessScopeType.GROUP)
+                .forEach(g -> ids.add(g.getScopeId()));
+        edited.stream().filter(g -> g.getScopeType() == AccessScopeType.GROUP)
                 .forEach(g -> ids.add(g.getScopeId()));
         if (ids.isEmpty()) {
             return Map.of();

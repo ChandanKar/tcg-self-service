@@ -33,6 +33,14 @@ public class EnvironmentAccess {
     @JoinColumn(name = "granted_by_user_id", nullable = false)
     private User grantedBy;
 
+    /** Who last edited this grant directly (V27); null until the first edit. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "last_modified_by_user_id")
+    private User lastModifiedBy;
+
+    @Column(name = "last_modified_at")
+    private Timestamp lastModifiedAt;
+
     @Column(name = "granted_at", nullable = false)
     @CreationTimestamp
     private Timestamp grantedAt;
@@ -239,5 +247,20 @@ public class EnvironmentAccess {
                 ", status=" + status +
                 '}';
     }
-}
 
+    public User getLastModifiedBy() {
+        return lastModifiedBy;
+    }
+
+    public void setLastModifiedBy(User lastModifiedBy) {
+        this.lastModifiedBy = lastModifiedBy;
+    }
+
+    public Timestamp getLastModifiedAt() {
+        return lastModifiedAt;
+    }
+
+    public void setLastModifiedAt(Timestamp lastModifiedAt) {
+        this.lastModifiedAt = lastModifiedAt;
+    }
+}

@@ -1008,4 +1008,47 @@ class EnvironmentAccessServiceTest extends AbstractIntegrationTest {
 
         assertThat(granted.getExpiresAt()).isNull();
     }
+
+    // ============= Original granter kept (E04-T08, LOW-ACC-3) =============
+
+    private User otherAdmin(String name) {
+        User other = User.fromAzureAd(name + "-oid", name + "@example.com", name);
+        other.setAdmin(true);
+        return userRepository.save(other);
+    }
+
+    @Test
+    @DisplayName("LOW-ACC-3: an edit by another admin keeps grantedBy and records lastModifiedBy/At")
+    void updateGrant_keepsGranterAndRecordsEditor() {
+        User carol = otherAdmin("carol");
+        EnvironmentAccess grant = grantExpiringIn(java.time.Duration.ofDays(30));
+
+        UpdateAccessGrantDTO patch = new UpdateAccessGrantDTO();
+        patch.setAccessLevel(AccessLevel.ADMIN);
+        accessService.updateGrant(carol.getUserId(), grant.getAccessId(), patch);
+        entityManager.flush();
+        entityManager.clear();
+
+        EnvironmentAccess edited = accessRepository.findById(grant.getAccessId()).orElseThrow();
+        assertThat(edited.getGrantedBy().getUserId()).isEqualTo(adminUser.getUserId());
+        assertThat(edited.getLastModifiedBy().getUserId()).isEqualTo(carol.getUserId());
+        assertThat(edited.getLastModifiedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("LOW-ACC-3: approving an extension keeps grantedBy and is not recorded as an edit")
+    void approveExtension_keepsGranterAndIsNotAnEdit() {
+        User reviewer = otherAdmin("reviewer");
+        EnvironmentAccess grant = grantExpiringIn(java.time.Duration.ofDays(3));
+        EnvironmentAccessRequest extension = requestDays(7);
+
+        accessService.approveRequest(extension.getRequestId(), reviewer.getUserId(), null, null);
+        entityManager.flush();
+        entityManager.clear();
+
+        EnvironmentAccess extended = accessRepository.findById(grant.getAccessId()).orElseThrow();
+        assertThat(extended.getGrantedBy().getUserId()).isEqualTo(adminUser.getUserId());
+        assertThat(extended.getLastModifiedBy()).isNull();
+        assertThat(extended.getLastModifiedAt()).isNull();
+    }
 }

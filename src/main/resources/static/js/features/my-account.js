@@ -395,7 +395,9 @@ const MyAccount = (function() {
                 </div>
                 ${g.notes ? `<p class="ma-card-notes">${Utils.escapeHtml(g.notes)}</p>` : ''}
                 <div class="ma-card-foot">
-                    <span class="ma-muted">${by}${via} · ${formatDate(g.grantedAt)}</span>
+                    <span class="ma-muted">${by}${via} · ${formatDate(g.grantedAt)}${g.lastModifiedAt
+                        ? `<span class="ma-updated"> · Updated by ${Utils.escapeHtml(g.lastModifiedByUserName || 'an admin')} on ${formatDate(g.lastModifiedAt)}</span>`
+                        : ''}</span>
                     ${action}
                 </div>
                 ${state.extendingId === g.accessId ? extendFormHtml(g) : ''}
@@ -480,7 +482,11 @@ const MyAccount = (function() {
                         ? `Revoked ${formatDate(g.revokedAt)}` : `Expired ${formatDate(g.expiresAt)}`}</div>
                 </div>
                 <button type="button" class="btn btn-outline-primary btn-sm" data-ma-action="request-again"
-                        data-env-id="${Utils.escapeHtml(g.environmentId)}" data-env-name="${Utils.escapeHtml(g.environmentName)}">Request again</button>
+                        data-env-id="${Utils.escapeHtml(g.environmentId)}" data-env-name="${Utils.escapeHtml(g.environmentName)}"
+                        data-scope-type="${Utils.escapeHtml(g.scopeType || 'ENVIRONMENT')}"
+                        data-group-id="${g.scopeType === 'GROUP' ? Utils.escapeHtml(g.scopeId) : ''}"
+                        data-group-name="${g.scopeType === 'GROUP' ? Utils.escapeHtml(g.scopeName || '') : ''}"
+                        data-level="${Utils.escapeHtml(g.accessLevel || '')}">Request again</button>
             </div>`).join('') : '';
 
         return `
@@ -583,6 +589,8 @@ const MyAccount = (function() {
             DENIED: [`Request denied${by}`, 'fa-times', 'Denied', 'err'],
             CANCELLED: ['Request cancelled', 'fa-ban', 'Cancelled', 'muted'],
             GRANTED: [`Access granted${by}`, 'fa-key', 'Granted', 'ok'],
+            EXTENDED: [`Access extended${by}`, 'fa-calendar-plus', 'Extended', 'ok'],
+            UPDATED: [`Access updated${by}`, 'fa-pen', 'Updated', 'info'],
             REVOKED: ['Access revoked', 'fa-ban', 'Revoked', 'err'],
             EXPIRED: ['Access expired', 'fa-hourglass-end', 'Expired', 'muted']
         }[item.event] || [item.event, 'fa-key', item.event, 'muted'];
@@ -650,8 +658,14 @@ const MyAccount = (function() {
                 leaveTo('environment-detail', { environmentId: String($btn.data('env-id')) });
                 break;
             case 'request-again':
+                // Same scope and level as the grant that ended (LOW-ACC-4).
                 leaveTo('request-access');
-                AccessRequests.showRequestAccessModal($btn.data('env-id'), $btn.data('env-name'));
+                AccessRequests.showRequestAccessModal($btn.data('env-id'), $btn.data('env-name'), {
+                    scopeType: $btn.attr('data-scope-type'),
+                    groupId: $btn.attr('data-group-id') || null,
+                    groupName: $btn.attr('data-group-name') || null,
+                    accessLevel: $btn.attr('data-level') || null
+                });
                 break;
             case 'activity-logs':
                 leaveTo('activity-logs');
