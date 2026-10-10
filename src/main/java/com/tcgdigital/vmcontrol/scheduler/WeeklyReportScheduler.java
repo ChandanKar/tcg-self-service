@@ -13,10 +13,11 @@ import org.springframework.stereotype.Component;
  * Weekly digest reports — Cost, Idle Waste, Rightsizing — Monday 9:00 AM IST by default. Each
  * report is wrapped in its own try/catch so one report's failure doesn't block the other two;
  * all three still run under a single lock acquisition since they're cheap DB reads plus one
- * Excel build each, not worth three separate locks.
+ * Excel build each, not worth three separate locks. Enabled by default (E08-T10): bell
+ * notifications only, unless the per-report email toggles are on.
  */
 @Component
-@ConditionalOnProperty(name = "notification.weekly-reports.enabled", havingValue = "true", matchIfMissing = false)
+@ConditionalOnProperty(name = "notification.weekly-reports.enabled", havingValue = "true", matchIfMissing = true)
 public class WeeklyReportScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(WeeklyReportScheduler.class);
@@ -25,7 +26,7 @@ public class WeeklyReportScheduler {
     private final WeeklyReportService weeklyReportService;
     private final ScheduledJobLockService lockService;
 
-    @Value("${notification.weekly-reports.enabled:false}")
+    @Value("${notification.weekly-reports.enabled:true}")
     private boolean enabled;
 
     public WeeklyReportScheduler(WeeklyReportService weeklyReportService, ScheduledJobLockService lockService) {

@@ -34,7 +34,7 @@ public class ReservationCoverageService {
 
     private static final Logger log = LoggerFactory.getLogger(ReservationCoverageService.class);
 
-    @Value("${cost.reservations.enabled:false}")
+    @Value("${cost.reservations.enabled:true}")
     private boolean enabled;
 
     private final ReservationCoverageSnapshotRepository repository;

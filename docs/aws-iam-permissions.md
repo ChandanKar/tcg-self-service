@@ -35,14 +35,14 @@ Run this (or the AWS Console's "Policy simulator" under IAM) before flipping any
 | EKS sync/start/stop | `eks:ListClusters` | ✅ Granted | Used successfully during EKS cluster auto-discovery |
 | EKS sync/start/stop | `eks:UpdateNodegroupConfig` | ✅ Granted | Used successfully for EKS node-group start/stop during regression testing |
 | CloudWatch metrics | `cloudwatch:GetMetricData` (or `GetMetricStatistics`) | ✅ Granted | The app's scheduled metrics collection has been running and returning real CPU/memory data throughout this session |
-| **Phase 1 — cost-allocation tagging** (`COST_TAGGING_ENABLED`, off by default) | `ec2:CreateTags` | ❓ Unverified | Never called — `cost.tagging.enabled` stayed `false` all session |
+| **Phase 1 — cost-allocation tagging** (`COST_TAGGING_ENABLED`, off by default; on with the `cost` profile) | `ec2:CreateTags` | ❓ Unverified | Never called — `cost.tagging.enabled` stayed `false` all session |
 | Phase 1 | `ec2:DescribeTags` | ❓ Unverified | Same — never called |
 | Phase 1 | `eks:TagResource` | ❓ Unverified | Same — never called |
 | Phase 1 | `ce:UpdateCostAllocationTagsStatus` | ❓ Unverified | Same — never called |
 | Phase 1 | `ce:ListCostAllocationTags` | ❓ Unverified | Same — never called |
-| **Phase 2 — real billing ingestion** (`COST_ACTUALS_ENABLED`, off by default) | `ce:GetCostAndUsage` | ❌ **Missing** | Confirmed via real `CostExplorerException`: *"User: .../self-service-user is not authorized to perform: ce:GetCostAndUsage... because no identity-based policy allows the ce:GetCostAndUsage action"* — captured live when this was briefly (and unintentionally) called during Phase 2 testing |
+| **Phase 2 — real billing ingestion** (`COST_ACTUALS_ENABLED`, on by default since E08-T10) | `ce:GetCostAndUsage` | ❌ **Missing** | Confirmed via real `CostExplorerException`: *"User: .../self-service-user is not authorized to perform: ce:GetCostAndUsage... because no identity-based policy allows the ce:GetCostAndUsage action"* — captured live when this was briefly (and unintentionally) called during Phase 2 testing |
 | Phase 2 | `ce:GetTags` | ❓ Unverified | Never called directly, but given `ce:GetCostAndUsage` is denied, the account likely has **no** `ce:*` permissions at all — a Cost Explorer policy is normally granted as a set, not action-by-action |
-| **Phase 3 — AWS-native optimization signals** (`COST_OPTIMIZER_ENABLED` / `COST_RESERVATIONS_ENABLED`, both off by default) | `compute-optimizer:GetEC2InstanceRecommendations` | ❓ Unverified | Never called — `cost.optimizer.enabled` stayed `false`. Note: this one is **not billed per-call** (unlike the `ce:*` actions), so it's safe to test live once you want to enable it |
+| **Phase 3 — AWS-native optimization signals** (`COST_OPTIMIZER_ENABLED` / `COST_RESERVATIONS_ENABLED`, both on by default since E08-T10) | `compute-optimizer:GetEC2InstanceRecommendations` | ❓ Unverified | Never called — `cost.optimizer.enabled` stayed `false`. Note: this one is **not billed per-call** (unlike the `ce:*` actions), so it's safe to test live once you want to enable it |
 | Phase 3 | `compute-optimizer:GetEnrollmentStatus` | ❓ Unverified | Not currently called by the code at all (handled instead by catching `OptInRequiredException`) — listed for completeness if you later add an explicit enrollment check |
 | Phase 3 | `ce:GetReservationCoverage` | ❓ Unverified | Never called; same reasoning as `ce:GetTags` above — likely missing given `ce:GetCostAndUsage` is denied |
 | Phase 3 | `ce:GetReservationUtilization` | ❓ Unverified | Same |
@@ -56,6 +56,69 @@ Run this (or the AWS Console's "Policy simulator" under IAM) before flipping any
 ## Practical takeaway
 
 - **EC2, EKS, CloudWatch: solid** — this is the app's original functionality and it's been exercised continuously and successfully all session.
-- **Every `ce:*` (Cost Explorer) action should be treated as missing** until proven otherwise — one is confirmed denied, and Cost Explorer access is normally an all-or-nothing policy grant, not per-action. Don't enable `COST_ACTUALS_ENABLED` or `COST_RESERVATIONS_ENABLED` until this is fixed and re-verified.
+- **Every `ce:*` (Cost Explorer) action should be treated as missing** until proven otherwise — one is confirmed denied, and Cost Explorer access is normally an all-or-nothing policy grant, not per-action. Since E08-T10 `COST_ACTUALS_ENABLED` and `COST_RESERVATIONS_ENABLED` default to `true`: until the policy below is granted, their daily runs log the denial (denied calls are not billed). Grant the policy, or set both to `false`.
 - **`ec2:CreateTags`/`eks:TagResource` (Phase 1) status is a genuine unknown** — these are a different service/action family from the confirmed-denied Cost Explorer actions, so don't assume they're missing too. Run the policy simulator command above before enabling `COST_TAGGING_ENABLED`.
 - **`compute-optimizer:GetEC2InstanceRecommendations` is the cheapest one to just try** — it's free per-call, so if you want a real answer fastest, temporarily flip `COST_OPTIMIZER_ENABLED=true`, restart, hit `GET /api/v1/cost-management/rightsizing`, and check the log for a `ComputeOptimizerException` vs. real recommendation data (or an `OptInRequiredException`, which means the permission is fine but the account isn't opted into Compute Optimizer yet).
+
+## Cost features
+
+One policy per feature (E08-T10). Grant only the ones you use; see
+[cost-management-setup.md](cost-management-setup.md) for defaults and billing impact.
+
+**Actual costs** (`COST_ACTUALS_ENABLED`, on by default; ~1 billed call a day):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{ "Effect": "Allow", "Action": ["ce:GetCostAndUsage"], "Resource": "*" }]
+}
+```
+
+**Cost-allocation tagging** (`COST_TAGGING_ENABLED`, off by default; writes tags):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["ec2:CreateTags", "eks:TagResource", "ce:ListCostAllocationTags", "ce:UpdateCostAllocationTagsStatus"],
+    "Resource": "*"
+  }]
+}
+```
+
+**Compute Optimizer** (`COST_OPTIMIZER_ENABLED`, on by default; not billed):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["compute-optimizer:GetEC2InstanceRecommendations", "compute-optimizer:GetEnrollmentStatus"],
+    "Resource": "*"
+  }]
+}
+```
+
+**RI / Savings Plan coverage** (`COST_RESERVATIONS_ENABLED`, on by default; 4 billed calls a day):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["ce:GetReservationCoverage", "ce:GetReservationUtilization", "ce:GetSavingsPlansCoverage", "ce:GetSavingsPlansUtilization"],
+    "Resource": "*"
+  }]
+}
+```
+
+**Cost Setup pre-flight check** (the admin page that tests the permissions above):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{ "Effect": "Allow", "Action": ["sts:GetCallerIdentity", "iam:SimulatePrincipalPolicy"], "Resource": "*" }]
+}
+```
+

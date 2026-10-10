@@ -30,9 +30,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * returns anything, and has no recommendation type for EKS managed node groups at all, so
  * {@code AWS_EKS} VMs always stay on the CPU-threshold rule regardless of this service.
  *
- * Disabled by default ({@code cost.optimizer.enabled=false}) — unlike Cost Explorer, Compute
- * Optimizer's own API calls aren't billed per-request, but it's still an extra AWS dependency
- * this feature can run without.
+ * Enabled by default (E08-T10; {@code cost.optimizer.enabled}): read-only, not billed per
+ * request, cached per region, and skipped without AWS credentials. An account not opted in
+ * just falls back to the CPU-threshold rule.
  */
 @Service
 public class ComputeOptimizerService {
@@ -45,7 +45,7 @@ public class ComputeOptimizerService {
     @Value("${aws.secret-key:}")
     private String secretKey;
 
-    @Value("${cost.optimizer.enabled:false}")
+    @Value("${cost.optimizer.enabled:true}")
     private boolean enabled;
 
     private final Map<String, ComputeOptimizerClient> clientCache = new ConcurrentHashMap<>();

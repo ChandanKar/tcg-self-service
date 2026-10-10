@@ -49,7 +49,7 @@ public class CostExplorerBillingService {
     @Value("${cost.tagging.key-prefix:tcg:}")
     private String tagKeyPrefix;
 
-    @Value("${cost.actuals.enabled:false}")
+    @Value("${cost.actuals.enabled:true}")
     private boolean actualsEnabled;
 
     private final EnvironmentRepository environmentRepository;

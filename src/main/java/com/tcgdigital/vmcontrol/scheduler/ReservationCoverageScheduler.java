@@ -10,12 +10,11 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Daily account-wide Reserved Instance / Savings Plan coverage snapshot. Disabled by default —
- * the underlying Cost Explorer calls are both rate-limited and billed per call, same rationale
- * as {@code ActualCostIngestionScheduler}.
+ * Daily account-wide Reserved Instance / Savings Plan coverage snapshot. Enabled by default;
+ * read-only (E08-T10): four billed Cost Explorer calls a day, skipped without AWS credentials.
  */
 @Component
-@ConditionalOnProperty(name = "cost.reservations.enabled", havingValue = "true", matchIfMissing = false)
+@ConditionalOnProperty(name = "cost.reservations.enabled", havingValue = "true", matchIfMissing = true)
 public class ReservationCoverageScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(ReservationCoverageScheduler.class);
@@ -24,7 +23,7 @@ public class ReservationCoverageScheduler {
     private final ReservationCoverageService reservationCoverageService;
     private final ScheduledJobLockService lockService;
 
-    @Value("${cost.reservations.enabled:false}")
+    @Value("${cost.reservations.enabled:true}")
     private boolean enabled;
 
     public ReservationCoverageScheduler(ReservationCoverageService reservationCoverageService,

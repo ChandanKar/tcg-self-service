@@ -16,11 +16,11 @@ import org.springframework.stereotype.Component;
  * with the corrected numbers. One billed request (plus one per extra page) per run; intra-day
  * polling would just waste money on the ~$0.01/call charge. Runs
  * after the 3am estimate snapshot so the actuals scheduler finds an existing snapshot row to
- * attach to. Disabled by default: requires Phase 1's cost-allocation tags to already be active
- * in Cost Explorer (24h propagation) or every day will resolve zero environments.
+ * attach to. Enabled by default; read-only (E08-T10). Environments resolve only once Phase 1's
+ * cost-allocation tags are active in Cost Explorer (24h propagation).
  */
 @Component
-@ConditionalOnProperty(name = "cost.actuals.enabled", havingValue = "true", matchIfMissing = false)
+@ConditionalOnProperty(name = "cost.actuals.enabled", havingValue = "true", matchIfMissing = true)
 public class ActualCostIngestionScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(ActualCostIngestionScheduler.class);
@@ -29,7 +29,7 @@ public class ActualCostIngestionScheduler {
     private final CostExplorerBillingService costExplorerBillingService;
     private final ScheduledJobLockService lockService;
 
-    @Value("${cost.actuals.enabled:false}")
+    @Value("${cost.actuals.enabled:true}")
     private boolean enabled;
 
     @Value("${cost.actuals.trailing-days:3}")
