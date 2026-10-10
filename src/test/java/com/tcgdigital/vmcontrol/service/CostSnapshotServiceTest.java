@@ -46,6 +46,7 @@ class CostSnapshotServiceTest {
     @Mock private VmRepository vmRepository;
     @Mock private CostDataProvider costDataProvider;
     @Mock private CostDailySnapshotRepository snapshotRepository;
+    @Mock private CostEstimationService costEstimationService;
 
     private Environment env;
 
@@ -61,7 +62,7 @@ class CostSnapshotServiceTest {
     private CostSnapshotService service(String zone, int recomputeDays) {
         CostDayBoundary boundary = new CostDayBoundary(zone, Clock.fixed(RUN_AT, ZoneId.of("Asia/Kolkata")));
         return new CostSnapshotService(environmentRepository, vmRepository, costDataProvider, snapshotRepository,
-                boundary, recomputeDays);
+                boundary, costEstimationService, recomputeDays);
     }
 
     private List<Date> savedDates(int expected) {
@@ -101,6 +102,7 @@ class CostSnapshotServiceTest {
         assertThat(dates.get(0)).isEqualTo(Date.valueOf(LocalDate.parse("2026-09-07")));
         assertThat(dates.get(29)).isEqualTo(Date.valueOf("2026-10-06"));
         assertThat(dates).doesNotContain(Date.valueOf("2026-10-07"));
+        verify(costEstimationService).invalidateBundles(); // E08-T04: the cost page rebuilds
     }
 
     @Test

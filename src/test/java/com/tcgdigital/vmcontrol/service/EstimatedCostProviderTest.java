@@ -68,8 +68,8 @@ class EstimatedCostProviderTest {
         when(vmInventorySnapshotRepository.findInstanceTypesByVmIds(any())).thenReturn(List.of());
         when(vmStateHistoryRepository.findByVmVmIdInAndChangedAtBetweenOrderByVmVmIdAscChangedAtAsc(any(), any(), any()))
                 .thenReturn(List.of());
-        when(vmStateHistoryRepository.findTopByVmVmIdAndChangedAtLessThanOrderByChangedAtDesc(any(), any()))
-                .thenReturn(Optional.empty());
+        org.mockito.Mockito.lenient().when(vmStateHistoryRepository.findLatestBeforeForVms(any(), any()))
+                .thenReturn(List.of());
     }
 
     private Vm eksNodeGroupVm(String metadataJson) {
@@ -186,5 +186,28 @@ class EstimatedCostProviderTest {
         CostDataProvider.VmCostEstimate estimate = provider.estimateCosts(List.of(vm), windowStart, windowEnd).get("vm-old");
 
         assertEquals(0, storageCost(300, "0.416667").compareTo(estimate.cost()));
+    }
+
+    // --- One seed query for the whole batch (E08-T04, M12) ---
+
+    @Test
+    void seedStatesComeFromOneBatchedQueryNotOnePerVm() {
+        Vm a = ec2Vm("vm-a", Timestamp.from(windowStart.toInstant().minus(10, ChronoUnit.DAYS)));
+        Vm b = ec2Vm("vm-b", Timestamp.from(windowStart.toInstant().minus(10, ChronoUnit.DAYS)));
+        instanceType("vm-a", "t3.large");
+        com.tcgdigital.vmcontrol.model.VmStateHistory aWasRunning = com.tcgdigital.vmcontrol.model.VmStateHistory.builder()
+                .newStatus(com.tcgdigital.vmcontrol.model.VmStatus.RUNNING).build();
+        aWasRunning.setVm(a);
+        when(vmStateHistoryRepository.findLatestBeforeForVms(any(), any())).thenReturn(List.of(aWasRunning));
+
+        Map<String, CostDataProvider.VmCostEstimate> result = provider.estimateCosts(List.of(a, b), windowStart, windowEnd);
+
+        org.mockito.Mockito.verify(vmStateHistoryRepository, org.mockito.Mockito.times(1)).findLatestBeforeForVms(any(), any());
+        org.mockito.Mockito.verify(vmStateHistoryRepository, org.mockito.Mockito.never())
+                .findTopByVmVmIdAndChangedAtLessThanOrderByChangedAtDesc(any(), any());
+        // vm-a was RUNNING before the window (seed from the batch) and ran all 10 hours;
+        // vm-b has no history, so its current status (STOPPED) is the seed.
+        assertEquals(0, new BigDecimal("10.000").compareTo(result.get("vm-a").runtimeHours()));
+        assertEquals(0, BigDecimal.ZERO.compareTo(result.get("vm-b").runtimeHours()));
     }
 }

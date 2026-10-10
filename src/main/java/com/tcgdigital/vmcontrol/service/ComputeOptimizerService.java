@@ -49,6 +49,27 @@ public class ComputeOptimizerService {
 
     private final Map<String, ComputeOptimizerClient> clientCache = new ConcurrentHashMap<>();
 
+    /** How long a region's recommendations are reused (E08-T04); failures are never cached. */
+    @Value("${cost.optimizer.cache-minutes:60}")
+    private long cacheMinutes = 60;
+
+    private record CachedRecs(java.time.Instant fetchedAt, Map<String, Recommendation> recommendations) {
+    }
+
+    private final Map<String, CachedRecs> recommendationCache = new ConcurrentHashMap<>();
+    /** Builds a region's client; replaceable in tests. */
+    private java.util.function.Function<String, ComputeOptimizerClient> clientFactory = this::buildClient;
+    private java.time.Clock clock = java.time.Clock.systemUTC();
+
+    public ComputeOptimizerService() {
+    }
+
+    /** Test seam: fixed clients and clock. */
+    ComputeOptimizerService(java.util.function.Function<String, ComputeOptimizerClient> clientFactory, java.time.Clock clock) {
+        this.clientFactory = clientFactory;
+        this.clock = clock;
+    }
+
     public record Recommendation(String instanceId, String suggestedInstanceType, String finding) {
     }
 
@@ -66,10 +87,23 @@ public class ComputeOptimizerService {
         if (!isAvailable()) {
             return Map.of();
         }
+        CachedRecs cached = recommendationCache.get(region);
+        if (cached != null && cached.fetchedAt().plus(java.time.Duration.ofMinutes(cacheMinutes)).isAfter(clock.instant())) {
+            return cached.recommendations();
+        }
         try {
-            GetEc2InstanceRecommendationsResponse response = getClient(region)
-                    .getEC2InstanceRecommendations(GetEc2InstanceRecommendationsRequest.builder().build());
-            return parseRecommendations(response);
+            // Every page (E08-T04): one response covers at most a page of the region's instances.
+            Map<String, Recommendation> all = new LinkedHashMap<>();
+            String token = null;
+            do {
+                GetEc2InstanceRecommendationsResponse response = getClient(region)
+                        .getEC2InstanceRecommendations(GetEc2InstanceRecommendationsRequest.builder().nextToken(token).build());
+                all.putAll(parseRecommendations(response));
+                token = response.nextToken();
+            } while (token != null && !token.isEmpty());
+            Map<String, Recommendation> result = java.util.Collections.unmodifiableMap(all);
+            recommendationCache.put(region, new CachedRecs(clock.instant(), result));
+            return result;
         } catch (OptInRequiredException e) {
             log.warn("Compute Optimizer is not enrolled for this account (region {}) — enable it in the " +
                     "AWS console to get real rightsizing recommendations; falling back to the CPU-threshold rule.", region);
@@ -117,7 +151,11 @@ public class ComputeOptimizerService {
     }
 
     private ComputeOptimizerClient getClient(String region) {
-        return clientCache.computeIfAbsent(region, r -> ComputeOptimizerClient.builder()
+        return clientCache.computeIfAbsent(region, clientFactory);
+    }
+
+    private ComputeOptimizerClient buildClient(String r) {
+        return ComputeOptimizerClient.builder()
                 .region(Region.of(r))
                 .credentialsProvider(StaticCredentialsProvider.create(
                         AwsBasicCredentials.create(accessKey, secretKey)))
@@ -125,6 +163,6 @@ public class ComputeOptimizerService {
                         .apiCallTimeout(Duration.ofSeconds(30))
                         .apiCallAttemptTimeout(Duration.ofSeconds(25))
                         .build())
-                .build());
+                .build();
     }
 }

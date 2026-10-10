@@ -61,4 +61,63 @@ class ComputeOptimizerServiceTest {
 
         assertFalse(!result.isEmpty());
     }
+
+    // ---- Pagination and per-region cache (E08-T04) ----
+
+    private static software.amazon.awssdk.services.computeoptimizer.model.InstanceRecommendation rec(String id) {
+        return InstanceRecommendation.builder()
+                .instanceArn("arn:aws:ec2:us-east-1:1:instance/" + id)
+                .finding(Finding.OVERPROVISIONED)
+                .recommendationOptions(InstanceRecommendationOption.builder().instanceType("t3.small").rank(1).build())
+                .build();
+    }
+
+    private static final class MutableClock extends java.time.Clock {
+        java.time.Instant now = java.time.Instant.parse("2026-10-07T10:00:00Z");
+        @Override public java.time.ZoneId getZone() { return java.time.ZoneOffset.UTC; }
+        @Override public java.time.Clock withZone(java.time.ZoneId zone) { return this; }
+        @Override public java.time.Instant instant() { return now; }
+    }
+
+    private ComputeOptimizerService enabled(software.amazon.awssdk.services.computeoptimizer.ComputeOptimizerClient client,
+                                            MutableClock clock) {
+        ComputeOptimizerService s = new ComputeOptimizerService(region -> client, clock);
+        org.springframework.test.util.ReflectionTestUtils.setField(s, "enabled", true);
+        org.springframework.test.util.ReflectionTestUtils.setField(s, "accessKey", "k");
+        org.springframework.test.util.ReflectionTestUtils.setField(s, "secretKey", "s");
+        return s;
+    }
+
+    @Test
+    void pagesAreMergedAndASecondCallWithinTheTtlIsServedFromCache() {
+        var client = org.mockito.Mockito.mock(software.amazon.awssdk.services.computeoptimizer.ComputeOptimizerClient.class);
+        org.mockito.Mockito.when(client.getEC2InstanceRecommendations(org.mockito.ArgumentMatchers.any(
+                        software.amazon.awssdk.services.computeoptimizer.model.GetEc2InstanceRecommendationsRequest.class)))
+                .thenReturn(GetEc2InstanceRecommendationsResponse.builder().instanceRecommendations(rec("i-1")).nextToken("t2").build())
+                .thenReturn(GetEc2InstanceRecommendationsResponse.builder().instanceRecommendations(rec("i-2")).build());
+        MutableClock clock = new MutableClock();
+        ComputeOptimizerService s = enabled(client, clock);
+
+        assertEquals(2, s.getEc2Recommendations("us-east-1").size());
+        clock.now = clock.now.plusSeconds(30 * 60);
+        assertEquals(2, s.getEc2Recommendations("us-east-1").size());
+
+        var requests = org.mockito.ArgumentCaptor.forClass(
+                software.amazon.awssdk.services.computeoptimizer.model.GetEc2InstanceRecommendationsRequest.class);
+        org.mockito.Mockito.verify(client, org.mockito.Mockito.times(2)).getEC2InstanceRecommendations(requests.capture());
+        assertEquals("t2", requests.getAllValues().get(1).nextToken());
+    }
+
+    @Test
+    void aFailureIsNotCached() {
+        var client = org.mockito.Mockito.mock(software.amazon.awssdk.services.computeoptimizer.ComputeOptimizerClient.class);
+        org.mockito.Mockito.when(client.getEC2InstanceRecommendations(org.mockito.ArgumentMatchers.any(
+                        software.amazon.awssdk.services.computeoptimizer.model.GetEc2InstanceRecommendationsRequest.class)))
+                .thenThrow(software.amazon.awssdk.services.computeoptimizer.model.ComputeOptimizerException.builder().message("throttled").build())
+                .thenReturn(GetEc2InstanceRecommendationsResponse.builder().instanceRecommendations(rec("i-1")).build());
+        ComputeOptimizerService s = enabled(client, new MutableClock());
+
+        assertTrue(s.getEc2Recommendations("us-east-1").isEmpty());
+        assertEquals(1, s.getEc2Recommendations("us-east-1").size());
+    }
 }

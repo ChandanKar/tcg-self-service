@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * Cost source backed by the static pricing reference and this app's own runtime/storage data —
@@ -80,6 +79,20 @@ public class EstimatedCostProvider implements CostDataProvider {
             transitionsByVmId.computeIfAbsent(transition.getVm().getVmId(), k -> new ArrayList<>()).add(transition);
         }
 
+        // Seed states for every VM that needs a lookback, in one query (E08-T04, M12).
+        List<String> needLookback = vms.stream().map(Vm::getVmId)
+                .filter(id -> {
+                    List<VmStateHistory> t = transitionsByVmId.get(id);
+                    return t == null || t.isEmpty() || t.get(0).getPreviousStatus() == null;
+                })
+                .toList();
+        Map<String, VmStatus> statusBefore = new LinkedHashMap<>();
+        if (!needLookback.isEmpty()) {
+            for (VmStateHistory h : vmStateHistoryRepository.findLatestBeforeForVms(needLookback, windowStart)) {
+                statusBefore.put(h.getVm().getVmId(), h.getNewStatus()); // on a tie, the last row wins
+            }
+        }
+
         BigDecimal storageGbMonthRate = pricingReferenceService.getStorageGbMonthRate();
 
         for (Vm vm : vms) {
@@ -89,7 +102,7 @@ public class EstimatedCostProvider implements CostDataProvider {
             // Storage only for the part of the window the VM existed (E08-T01).
             BigDecimal storageDays = vmCostCalculator.storageWindowDays(vm.getCreatedAt(), windowStart, windowEnd);
 
-            VmStatus seedStatus = resolveSeedStatus(vm, transitions, windowStart);
+            VmStatus seedStatus = resolveSeedStatus(vm, transitions, statusBefore);
             BigDecimal runtimeHours = vmCostCalculator.computeRuntimeHours(vm, seedStatus, transitions, windowStart, windowEnd);
 
             boolean isEks = vm.getProvider() == CloudProvider.AWS_EKS;
@@ -142,19 +155,15 @@ public class EstimatedCostProvider implements CostDataProvider {
     private record EksNodeInfo(String instanceType, int nodeCount) {}
 
     /**
-     * The first in-window transition already carries its own previousStatus, so only VMs with
-     * zero in-window transitions need the single-row lookback fallback; only if even that finds
-     * nothing do we fall back to the VM's current status as a last-resort assumption.
+     * The first in-window transition already carries its own previousStatus, so only VMs without
+     * one use the batched lookback ({@code statusBefore}); only if even that finds nothing do we
+     * fall back to the VM's current status as a last-resort assumption.
      */
-    private VmStatus resolveSeedStatus(Vm vm, List<VmStateHistory> transitionsInWindow, Timestamp windowStart) {
+    private VmStatus resolveSeedStatus(Vm vm, List<VmStateHistory> transitionsInWindow, Map<String, VmStatus> statusBefore) {
         if (!transitionsInWindow.isEmpty() && transitionsInWindow.get(0).getPreviousStatus() != null) {
             return transitionsInWindow.get(0).getPreviousStatus();
         }
-        Optional<VmStateHistory> before = vmStateHistoryRepository
-                .findTopByVmVmIdAndChangedAtLessThanOrderByChangedAtDesc(vm.getVmId(), windowStart);
-        if (before.isPresent()) {
-            return before.get().getNewStatus();
-        }
-        return vm.getStatus();
+        VmStatus before = statusBefore.get(vm.getVmId());
+        return before != null ? before : vm.getStatus();
     }
 }

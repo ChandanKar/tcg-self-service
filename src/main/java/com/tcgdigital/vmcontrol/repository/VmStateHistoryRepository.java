@@ -75,6 +75,16 @@ public interface VmStateHistoryRepository extends JpaRepository<VmStateHistory, 
             List<String> vmIds, Timestamp start, Timestamp end);
 
     /**
+     * The latest transition before {@code before} for each of many VMs, in one query (E08-T04):
+     * the seed state of every VM with no usable in-window transition. Uses
+     * idx_vm_state_history_vm (vm_id, created_at). Ties at the same instant return several rows.
+     */
+    @Query("SELECT h FROM VmStateHistory h WHERE h.vm.vmId IN :vmIds AND h.changedAt = "
+            + "(SELECT MAX(h2.changedAt) FROM VmStateHistory h2 WHERE h2.vm = h.vm AND h2.changedAt < :before)")
+    List<VmStateHistory> findLatestBeforeForVms(@org.springframework.data.repository.query.Param("vmIds") List<String> vmIds,
+                                                @org.springframework.data.repository.query.Param("before") Timestamp before);
+
+    /**
      * Fallback for a single VM whose seed state (the state it was in immediately before a
      * window) wasn't found in the batched lookback query above.
      */

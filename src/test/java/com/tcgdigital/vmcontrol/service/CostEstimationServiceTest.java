@@ -185,4 +185,73 @@ class CostEstimationServiceTest {
         vm.setLastStateSyncAt(Timestamp.from(Instant.now()));
         return vm;
     }
+
+    // ---- Bundle cache and KPI alignment (E08-T04, M12) ----
+
+    @Test
+    void theSixEndpointsShareOneBundleBuildWithinTheTtl() {
+        service.getSummary();
+        service.getSpendByEnvironment();
+        service.getSpendByVmType();
+        service.getIdleWaste(PageRequest.of(0, 25));
+        service.getRightsizingCandidates(PageRequest.of(0, 25));
+        service.getVmCostDetail(PageRequest.of(0, 25));
+
+        org.mockito.Mockito.verify(vmRepository, org.mockito.Mockito.times(1)).findByIsActiveTrueFetchGroupAndEnvironment();
+    }
+
+    @Test
+    void invalidatingForcesARebuild() {
+        service.getSummary();
+        service.invalidateBundles();
+        service.getSummary();
+
+        org.mockito.Mockito.verify(vmRepository, org.mockito.Mockito.times(2)).findByIsActiveTrueFetchGroupAndEnvironment();
+    }
+
+    @Test
+    void idleWasteKpiIsTheSumOfTheTablesMonthlyIdleCost() {
+        com.tcgdigital.vmcontrol.model.VmIdleSummary idle = new com.tcgdigital.vmcontrol.model.VmIdleSummary();
+        idle.setVm(buildAwsVm());
+        idle.setIdle(true);
+        idle.setIdleDurationMinutes(600); // 10 h at $0.1664/h = $1.66, not the VM's $119.81 monthly cost
+        when(vmIdleSummaryRepository.findByVmVmIdIn(anyList())).thenReturn(List.of(idle));
+
+        com.tcgdigital.vmcontrol.dto.CostSummaryDTO summary = service.getSummary();
+        BigDecimal tableTotal = service.getIdleWaste(PageRequest.of(0, 25)).getContent().stream()
+                .map(com.tcgdigital.vmcontrol.dto.IdleWasteRowDTO::monthlyIdleCost)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        assertEquals(0, new BigDecimal("1.66").compareTo(summary.idleWasteMonthlyCost()));
+        assertEquals(0, tableTotal.compareTo(summary.idleWasteMonthlyCost()));
+    }
+
+    @Test
+    void rightsizingKpiCountsOnlyMoneySavingScaleDowns() {
+        com.tcgdigital.vmcontrol.dto.CostSummaryDTO summary = service.getSummary();
+        RightsizingCandidateDTO down = onlyCandidate();
+
+        assertEquals("SCALE_DOWN", down.direction());
+        assertEquals(1, summary.rightsizingCandidateCount());
+        assertEquals(0, down.estimatedMonthlySavings().compareTo(summary.rightsizingPotentialSavings()));
+        assertEquals(0, summary.scaleUpCandidateCount());
+    }
+
+    @Test
+    void aScaleUpIsCountedSeparatelyAndNotAsASaving() {
+        when(vmMetricDailyRepository.findByVmVmIdInAndBucketDateGreaterThanEqualOrderByVmVmIdAscBucketDateDesc(anyList(), any()))
+                .thenReturn(List.of());
+        Vm vm = buildAwsVm();
+        com.tcgdigital.vmcontrol.model.VmMetricSample sample = org.mockito.Mockito.mock(com.tcgdigital.vmcontrol.model.VmMetricSample.class);
+        when(sample.getVm()).thenReturn(vm);
+        when(sample.getCpuUtilization()).thenReturn(BigDecimal.valueOf(85));
+        when(vmMetricSampleRepository.findByVmVmIdInAndSampleTimeBetweenOrderBySampleTimeAsc(anyList(), any(), any()))
+                .thenReturn(List.of(sample, sample));
+
+        com.tcgdigital.vmcontrol.dto.CostSummaryDTO summary = service.getSummary();
+
+        assertEquals(0, summary.rightsizingCandidateCount());
+        assertEquals(0, BigDecimal.ZERO.compareTo(summary.rightsizingPotentialSavings()));
+        assertEquals(1, summary.scaleUpCandidateCount());
+    }
 }

@@ -75,6 +75,15 @@ public class CostEstimationService {
     @Value("${rightsizing.scale-up.consecutive-minutes:15}")
     private int scaleUpConsecutiveMinutes;
 
+    /** How long built bundles are reused across the page's burst of requests (E08-T04, M12). */
+    @Value("${cost.bundle-cache-seconds:60}")
+    private long bundleCacheSeconds = 60;
+
+    private record BundleCache(Instant builtAt, List<VmCostBundle> bundles) {
+    }
+
+    private volatile BundleCache bundleCache;
+
     public CostEstimationService(VmRepository vmRepository,
                                   VmIdleSummaryRepository vmIdleSummaryRepository,
                                   VmMetricDailyRepository vmMetricDailyRepository,
@@ -118,14 +127,19 @@ public class CostEstimationService {
                     .setScale(1, RoundingMode.HALF_UP);
         }
 
+        // KPI tiles add up the same numbers their tables show (E08-T04, M12).
         List<VmCostBundle> idle = bundles.stream().filter(VmCostBundle::idle).toList();
-        BigDecimal idleWasteCost = sumCost(idle);
+        BigDecimal idleWasteCost = idle.stream().map(this::monthlyIdleCost).reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        List<RightsizingCandidateDTO> candidates = buildRightsizingCandidates(bundles);
+        List<RightsizingCandidateDTO> allCandidates = buildRightsizingCandidates(bundles);
+        List<RightsizingCandidateDTO> candidates = allCandidates.stream()
+                .filter(c -> "SCALE_DOWN".equals(c.direction()))
+                .filter(c -> c.estimatedMonthlySavings() != null && c.estimatedMonthlySavings().signum() > 0)
+                .toList();
         BigDecimal rightsizingSavings = candidates.stream()
                 .map(RightsizingCandidateDTO::estimatedMonthlySavings)
-                .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        int scaleUpCandidateCount = allCandidates.size() - candidates.size();
 
         long costKnownCount = bundles.stream().filter(b -> b.estimate().costKnown()).count();
 
@@ -139,7 +153,8 @@ public class CostEstimationService {
                 candidates.size(),
                 bundles.size(),
                 (int) costKnownCount,
-                Timestamp.from(Instant.now())
+                Timestamp.from(Instant.now()),
+                scaleUpCandidateCount
         );
     }
 
@@ -239,7 +254,37 @@ public class CostEstimationService {
 
     // ---- internal ----
 
+    /** Drop the cached bundles, e.g. after a backfill or a resize (E08-T04). */
+    public void invalidateBundles() {
+        bundleCache = null;
+    }
+
+    /**
+     * The per-VM bundles, rebuilt at most every cost.bundle-cache-seconds (E08-T04, M12): the
+     * cost page calls six bundle-backed endpoints at once, and each used to rebuild them.
+     */
     private List<VmCostBundle> buildBundles() {
+        BundleCache cached = bundleCache;
+        if (fresh(cached)) {
+            return cached.bundles();
+        }
+        synchronized (this) {
+            cached = bundleCache;
+            if (fresh(cached)) {
+                return cached.bundles();
+            }
+            List<VmCostBundle> bundles = List.copyOf(computeBundles());
+            bundleCache = new BundleCache(Instant.now(), bundles);
+            return bundles;
+        }
+    }
+
+    private boolean fresh(BundleCache cached) {
+        return cached != null && bundleCacheSeconds > 0
+                && cached.builtAt().plusSeconds(bundleCacheSeconds).isAfter(Instant.now());
+    }
+
+    private List<VmCostBundle> computeBundles() {
         List<Vm> vms = vmRepository.findByIsActiveTrueFetchGroupAndEnvironment();
         if (vms.isEmpty()) {
             return List.of();

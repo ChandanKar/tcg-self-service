@@ -36,6 +36,7 @@ public class CostSnapshotService {
     private final CostDataProvider costDataProvider;
     private final CostDailySnapshotRepository costDailySnapshotRepository;
     private final CostDayBoundary dayBoundary;
+    private final CostEstimationService costEstimationService;
     /** How many complete days each run (re)captures, so late state-history rows are picked up. */
     private final int recomputeDays;
 
@@ -44,7 +45,9 @@ public class CostSnapshotService {
                                 CostDataProvider costDataProvider,
                                 CostDailySnapshotRepository costDailySnapshotRepository,
                                 CostDayBoundary dayBoundary,
+                                @org.springframework.context.annotation.Lazy CostEstimationService costEstimationService,
                                 @Value("${cost.snapshot.recompute-days:3}") int recomputeDays) {
+        this.costEstimationService = costEstimationService;
         this.environmentRepository = environmentRepository;
         this.vmRepository = vmRepository;
         this.costDataProvider = costDataProvider;
@@ -77,6 +80,9 @@ public class CostSnapshotService {
             captureForDate(today.minusDays(i));
         }
         log.info("Backfilled {} day(s) of cost snapshots ending {}", days, dayBoundary.yesterday());
+        if (costEstimationService != null) {
+            costEstimationService.invalidateBundles();
+        }
     }
 
     private void captureForDate(LocalDate date) {
