@@ -1,5 +1,7 @@
 package com.tcgdigital.vmcontrol.repository;
 
+import org.springframework.data.repository.query.Param;
+import org.springframework.data.jpa.repository.Modifying;
 import com.tcgdigital.vmcontrol.model.VmStateHistory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -94,4 +96,9 @@ public interface VmStateHistoryRepository extends JpaRepository<VmStateHistory, 
     @Query("SELECT h FROM VmStateHistory h WHERE h.vm.vmId IN :vmIds AND h.changedAt > :after ORDER BY h.changedAt ASC")
     List<VmStateHistory> findByVmIdsChangedAfter(@org.springframework.data.repository.query.Param("vmIds") List<String> vmIds,
                                                  @org.springframework.data.repository.query.Param("after") Timestamp after);
+
+    /** Retention (E11-T07): delete up to {@code limit} of the oldest rows before {@code cutoff}. */
+    @Modifying
+    @Query(nativeQuery = true, value = "DELETE FROM vm_state_history WHERE created_at < :cutoff ORDER BY created_at LIMIT :limit")
+    int deleteOlderThan(@Param("cutoff") java.sql.Timestamp cutoff, @Param("limit") int limit);
 }

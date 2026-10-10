@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.repository;
 
+import org.springframework.data.jpa.repository.Modifying;
 import com.tcgdigital.vmcontrol.model.AuditLog;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -149,4 +150,9 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, String> {
                                            @Param("action") String action, @Param("status") String status,
                                            @Param("from") Timestamp from, @Param("to") Timestamp to, @Param("text") String text,
                                            Pageable pageable);
+
+    /** Retention (E11-T07): delete up to {@code limit} of the oldest rows before {@code cutoff}. */
+    @Modifying
+    @Query(nativeQuery = true, value = "DELETE FROM audit_log WHERE created_at < :cutoff ORDER BY created_at LIMIT :limit")
+    int deleteOlderThan(@Param("cutoff") java.sql.Timestamp cutoff, @Param("limit") int limit);
 }

@@ -30,4 +30,14 @@ public interface NotificationRepository extends JpaRepository<Notification, Stri
     @Modifying
     @Query("UPDATE Notification n SET n.isRead = true WHERE n.userId = :userId AND n.isRead = false")
     int markAllReadForUser(@Param("userId") String userId);
+
+    /** Retention (E11-T07): delete up to {@code limit} of the oldest rows before {@code cutoff}. */
+    @Modifying
+    @Query(nativeQuery = true, value = "DELETE FROM notification WHERE created_at < :cutoff AND is_read = TRUE ORDER BY created_at LIMIT :limit")
+    int deleteReadOlderThan(@Param("cutoff") java.sql.Timestamp cutoff, @Param("limit") int limit);
+
+    /** Retention (E11-T07): delete up to {@code limit} of the oldest rows before {@code cutoff}. */
+    @Modifying
+    @Query(nativeQuery = true, value = "DELETE FROM notification WHERE created_at < :cutoff ORDER BY created_at LIMIT :limit")
+    int deleteOlderThan(@Param("cutoff") java.sql.Timestamp cutoff, @Param("limit") int limit);
 }
