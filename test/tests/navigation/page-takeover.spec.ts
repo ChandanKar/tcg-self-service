@@ -62,11 +62,16 @@ test.describe('Dashboard lifecycle', () => {
     let call = 0;
     await page.route(`**${SUMMARY}`, async (route) => {
       call++;
-      const response = await route.fetch();
-      const body = await response.json();
-      // Change the data on refreshes so the dashboard re-renders.
-      if (call > 1) body.summary = { ...(body.summary || {}), _refreshMarker: call };
-      await route.fulfill({ response, json: body });
+      try {
+        const response = await route.fetch();
+        const body = await response.json();
+        // Change the data on refreshes so the dashboard re-renders.
+        if (call > 1) body.summary = { ...(body.summary || {}), _refreshMarker: call };
+        await route.fulfill({ response, json: body });
+      } catch {
+        // The page dropped this request (an overlapping refresh under the fake clock, or the
+        // test ending): its response is already disposed, so there is nothing to fulfil.
+      }
     });
 
     await signIn(page, 'user');
