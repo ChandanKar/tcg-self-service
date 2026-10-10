@@ -128,15 +128,15 @@ const Sidebar = (function() {
 
         if (isCurrentlyExpanded) {
             // Collapse clicked section
-            $clickedSection.addClass('collapsed');
+            $clickedSection.addClass('collapsed').attr('aria-expanded', 'false');
             $clickedMenu.slideUp(200);
         } else {
             // Collapse all other sections
-            $('.sidebar-section-title').not($clickedSection).addClass('collapsed');
+            $('.sidebar-section-title').not($clickedSection).addClass('collapsed').attr('aria-expanded', 'false');
             $('.sidebar-menu').not($clickedMenu).slideUp(200);
 
             // Expand clicked section
-            $clickedSection.removeClass('collapsed');
+            $clickedSection.removeClass('collapsed').attr('aria-expanded', 'true');
             $clickedMenu.slideDown(200);
         }
     }
@@ -210,7 +210,11 @@ const Sidebar = (function() {
         // Environment Detail lives under My Environments in the menu.
         const key = contentType === 'environment-detail' ? 'my-environments' : contentType;
         $('.sidebar-menu-link').removeClass('active');
-        $(`.sidebar-menu-link[data-content="${key}"]`).addClass('active');
+        const $link = $(`.sidebar-menu-link[data-content="${key}"]`).addClass('active');
+
+        // Open the section holding the active page, so refreshes and deep links show it (E13-T02).
+        const $menu = $link.closest('.sidebar-menu');
+        if ($menu.length && $menu.css('display') === 'none') expandSection($menu.attr('id'));
 
         // Bottom bar: the item for this page, or More for pages only the drawer reaches.
         const $items = $('.mobile-nav-item').removeClass('active').removeAttr('aria-current');
@@ -227,7 +231,7 @@ const Sidebar = (function() {
         const $section = $(`#${sectionId}`);
         const $title = $section.prev('.sidebar-section-title');
 
-        $title.removeClass('collapsed');
+        $title.removeClass('collapsed').attr('aria-expanded', 'true');
         $section.slideDown(200);
     }
 
@@ -235,7 +239,7 @@ const Sidebar = (function() {
      * Collapse all sections
      */
     function collapseAllSections() {
-        $('.sidebar-section-title').addClass('collapsed');
+        $('.sidebar-section-title').addClass('collapsed').attr('aria-expanded', 'false');
         $('.sidebar-menu').slideUp(200);
     }
 

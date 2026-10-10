@@ -109,10 +109,11 @@
     <aside class="sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
         <!-- MY WORKSPACE Section -->
         <div class="sidebar-section" id="workspace-section" style="display: none;" role="region" aria-labelledby="workspace-title">
-            <div class="sidebar-section-title collapsed" data-section="workspace" id="workspace-title">
+            <button type="button" class="sidebar-section-title collapsed" data-section="workspace" id="workspace-title"
+                    aria-expanded="false" aria-controls="workspace-menu">
                 <span><i class="fas fa-briefcase" aria-hidden="true"></i> MY WORKSPACE</span>
                 <i class="fas fa-chevron-down toggle" aria-hidden="true"></i>
-            </div>
+            </button>
             <ul class="sidebar-menu" id="workspace-menu" style="display: none;">
                 <li class="sidebar-menu-item">
                     <a class="sidebar-menu-link" data-panel="running" tabindex="0">
@@ -183,10 +184,11 @@
 
         <!-- OPERATIONS Section -->
         <div class="sidebar-section" role="region" aria-labelledby="operations-title">
-            <div class="sidebar-section-title" data-section="operations" id="operations-title">
+            <button type="button" class="sidebar-section-title" data-section="operations" id="operations-title"
+                    aria-expanded="true" aria-controls="operations-menu">
                 <span><i class="fas fa-cogs" aria-hidden="true"></i> OPERATIONS</span>
                 <i class="fas fa-chevron-down toggle" aria-hidden="true"></i>
-            </div>
+            </button>
             <ul class="sidebar-menu" id="operations-menu">
                 <li class="sidebar-menu-item">
                     <a class="sidebar-menu-link active" href="#/dashboard" data-content="dashboard" tabindex="0">
@@ -224,10 +226,11 @@
 
         <!-- ADMIN Section (Admin/Env Admin Only) -->
         <div class="sidebar-section admin-only" id="admin-section" style="display: none;" role="region" aria-labelledby="admin-title">
-            <div class="sidebar-section-title collapsed" data-section="admin" id="admin-title">
+            <button type="button" class="sidebar-section-title collapsed" data-section="admin" id="admin-title"
+                    aria-expanded="false" aria-controls="admin-menu">
                 <span><i class="fas fa-user-shield" aria-hidden="true"></i> ADMIN</span>
                 <i class="fas fa-chevron-down toggle" aria-hidden="true"></i>
-            </div>
+            </button>
             <ul class="sidebar-menu" id="admin-menu" style="display: none;">
                 <li class="sidebar-menu-item admin-only" id="user-management-link">
                     <a class="sidebar-menu-link" href="#/user-management" data-content="user-management" tabindex="0">
