@@ -119,8 +119,9 @@ class OperationStateMachineIntegrationTest extends AbstractIntegrationTest {
         assertThat(done.getFailedTargets()).isEqualTo(3);
         assertThat(done.getSkippedTargets()).isZero();
         assertThat(done.getErrorMessage()).isEqualTo("All 3 steps failed");
-        assertThat(auditLogs.findByActionOrderByCreatedAtDesc("OPERATION_FAILED", PageRequest.of(0, 5)).getContent())
-                .anySatisfy(a -> assertThat(a.getTargetId()).isEqualTo(done.getExecutionId()));
+        // Audit rows are written on the async executor.
+        awaitAsync(() -> assertThat(auditLogs.findByActionOrderByCreatedAtDesc("OPERATION_FAILED", PageRequest.of(0, 5)).getContent())
+                .anySatisfy(a -> assertThat(a.getTargetId()).isEqualTo(done.getExecutionId())));
     }
 
     @Test
