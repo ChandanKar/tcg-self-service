@@ -117,7 +117,7 @@ public class EstimatedCostProvider implements CostDataProvider {
             if (rate.priceKnown()) {
                 BigDecimal effectiveHourlyRate = rate.hourlyRate().multiply(BigDecimal.valueOf(nodeCount));
                 BigDecimal cost = vmCostCalculator.estimateCost(effectiveHourlyRate, runtimeHours, storageGib, storageGbMonthRate, storageDays);
-                result.put(vmId, new VmCostEstimate(true, effectiveHourlyRate, runtimeHours, storageGib, cost));
+                result.put(vmId, new VmCostEstimate(true, effectiveHourlyRate, runtimeHours, storageGib, cost, rate.approximate()));
             } else {
                 BigDecimal proratedStorageRate = storageGbMonthRate.multiply(storageDays)
                         .divide(BigDecimal.valueOf(30), 6, RoundingMode.HALF_UP);

@@ -38,5 +38,18 @@ public record RightsizingCandidateDTO(
         String source,
         String findingLevel,
         String direction,
-        String vmStatus
-) {}
+        String vmStatus,
+        /** The current or the suggested rate is another region's (E08-T07). */
+        Boolean priceApproximate
+) {
+    public RightsizingCandidateDTO(String vmId, String vmName, String environmentId, String environmentName,
+                                   String currentInstanceType, String suggestedInstanceType,
+                                   BigDecimal avgCpuUtilization, BigDecimal peakCpuUtilization,
+                                   BigDecimal currentMonthlyCost, BigDecimal estimatedMonthlyCostAfter,
+                                   BigDecimal estimatedMonthlySavings, Boolean costKnown, String source,
+                                   String findingLevel, String direction, String vmStatus) {
+        this(vmId, vmName, environmentId, environmentName, currentInstanceType, suggestedInstanceType,
+                avgCpuUtilization, peakCpuUtilization, currentMonthlyCost, estimatedMonthlyCostAfter,
+                estimatedMonthlySavings, costKnown, source, findingLevel, direction, vmStatus, false);
+    }
+}

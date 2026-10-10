@@ -232,13 +232,13 @@ public class WeeklyReportService {
 
         for (User admin : userRepository.findByAdminTrueAndIsActiveTrue()) {
             notificationService.notifyWeeklyReportSent(admin.getUserId(), NotificationType.WEEKLY_IDLE_WASTE_REPORT,
-                    subject, "Your weekly idle waste report is ready. Total idle cost: " + grandTotal + deltaSuffix + ".");
+                    subject, "Your weekly idle waste report is ready. Idle cost over the last 30 days: " + grandTotal + deltaSuffix + ".");
 
             if (!weeklyIdleWasteReportEmailEnabled || isBlank(admin.getEmail())) {
                 continue;
             }
             String bodyHtml = EmailTemplates.digestSummary(subject,
-                    "Total idle-waste cost this week: " + grandTotal + deltaSuffix + ".", List.of(), List.of());
+                    "Idle cost over the last 30 days: " + grandTotal + deltaSuffix + ".", List.of(), List.of());
             emailService.sendHtml(List.of(admin.getEmail()), subject, bodyHtml, "weekly-idle-waste-report.xlsx", workbook);
         }
     }
@@ -255,7 +255,7 @@ public class WeeklyReportService {
                 })
                 .toList();
         return excelExportService.toWorkbook("Weekly Idle Waste Report",
-                List.of("Environment", "Group", "VM", "Monthly Cost", "Monthly Idle Cost", "Idle Duration (min)"), data);
+                List.of("Environment", "Group", "VM", "Cost (30 days)", "Idle cost (30 days, capped)", "Idle Duration (min)"), data);
     }
 
     // ============= Weekly Rightsizing Report (Admin + Env Admin) =============

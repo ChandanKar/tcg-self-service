@@ -17,5 +17,7 @@ public record VmCostDetailDTO(
         BigDecimal runtimeHours,
         BigDecimal monthlyCost,
         Boolean costKnown,
-        Long storageGib
+        Long storageGib,
+        /** The rate is another region's, so the cost is approximate (E08-T07). */
+        Boolean priceApproximate
 ) {}

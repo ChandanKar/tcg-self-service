@@ -236,11 +236,14 @@ public class CostManagementController {
     public ResponseEntity<byte[]> exportVmCostDetail() {
         List<VmCostDetailDTO> rows = costEstimationService.getVmCostDetail(PageRequest.of(0, Integer.MAX_VALUE)).getContent();
         byte[] xlsx = excelExportService.toWorkbook("VM Cost Detail",
-                List.of("VM", "Environment", "Group", "Status", "Instance Type", "Region", "Runtime (h)", "Storage (GiB)", "Monthly Cost"),
+                List.of("VM", "Environment", "Group", "Status", "Instance Type", "Region", "Runtime (h)", "Storage (GiB)",
+                        "Monthly Cost", "Price basis"),
                 rows.stream()
                         .map(r -> new Object[]{
                                 nameOrId(r.vmName(), r.vmId()), r.environmentName(), r.groupName(), r.status(),
-                                r.instanceType(), r.region(), r.runtimeHours(), r.storageGib(), r.monthlyCost()
+                                r.instanceType(), r.region(), r.runtimeHours(), r.storageGib(), r.monthlyCost(),
+                                !Boolean.TRUE.equals(r.costKnown()) ? "Unknown"
+                                        : Boolean.TRUE.equals(r.priceApproximate()) ? "Other-region rate (approx.)" : "Exact region"
                         })
                         .toList());
         return excelResponse(xlsx, "vm-cost-detail");

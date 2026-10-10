@@ -8,6 +8,7 @@ import java.sql.Timestamp;
  * table shows (E08-T04): {@code idleWasteMonthlyCost} is the sum of the Idle table's Monthly Idle
  * Cost; {@code rightsizingPotentialSavings} and {@code rightsizingCandidateCount} cover only
  * scale-down candidates that save money; {@code scaleUpCandidateCount} counts the rest.
+ * {@code approximatePriceVmCount} VMs are priced with another region's rate (E08-T07).
  */
 public record CostSummaryDTO(
         BigDecimal totalMonthlyCost,
@@ -20,5 +21,6 @@ public record CostSummaryDTO(
         Integer totalVmCount,
         Integer costKnownVmCount,
         Timestamp generatedAt,
-        Integer scaleUpCandidateCount
+        Integer scaleUpCandidateCount,
+        Integer approximatePriceVmCount
 ) {}

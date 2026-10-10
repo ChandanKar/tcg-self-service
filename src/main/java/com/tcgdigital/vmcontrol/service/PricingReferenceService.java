@@ -91,11 +91,12 @@ public class PricingReferenceService {
         }
         BigDecimal rate = ratesByTypeAndRegion.get(typeAndRegionKey(provider, instanceType, region));
         if (rate != null) {
-            return new PriceLookupResult(true, rate);
+            return new PriceLookupResult(true, rate, false);
         }
+        // Another region's rate: usable, but flagged as approximate (E08-T07).
         rate = ratesByTypeAnyRegion.get(typeKey(provider, instanceType));
         if (rate != null) {
-            return new PriceLookupResult(true, rate);
+            return new PriceLookupResult(true, rate, true);
         }
         return PriceLookupResult.unknown();
     }
@@ -126,9 +127,17 @@ public class PricingReferenceService {
         return provider + ":" + instanceType;
     }
 
-    public record PriceLookupResult(boolean priceKnown, BigDecimal hourlyRate) {
+    /**
+     * {@code approximate} is true when the rate came from another region because the VM's own
+     * region has none in the pricing file (E08-T07).
+     */
+    public record PriceLookupResult(boolean priceKnown, BigDecimal hourlyRate, boolean approximate) {
+        public PriceLookupResult(boolean priceKnown, BigDecimal hourlyRate) {
+            this(priceKnown, hourlyRate, false);
+        }
+
         public static PriceLookupResult unknown() {
-            return new PriceLookupResult(false, null);
+            return new PriceLookupResult(false, null, false);
         }
     }
 }

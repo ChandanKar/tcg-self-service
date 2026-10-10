@@ -222,6 +222,9 @@ class WeeklyReportServiceTest {
         // current grand total = 100.00, previous = 80.00 -> +25.0%
         verify(notificationService).notifyWeeklyReportSent(eq("user-admin"), eq(NotificationType.WEEKLY_IDLE_WASTE_REPORT),
                 anyString(), contains("+25.0%"));
+        // The figure is a 30-day capped total, not this week's (E08-T07).
+        verify(notificationService).notifyWeeklyReportSent(eq("user-admin"), eq(NotificationType.WEEKLY_IDLE_WASTE_REPORT),
+                anyString(), contains("Idle cost over the last 30 days: 100.00"));
         verify(weeklySnapshotService).captureSnapshot(eq(WeeklyOptimizationReportType.IDLE_WASTE), any(Date.class), anyMap());
     }
 

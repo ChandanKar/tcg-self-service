@@ -22,11 +22,18 @@ public interface CostDataProvider {
      */
     Map<String, VmCostEstimate> estimateCosts(List<Vm> vms, Timestamp windowStart, Timestamp windowEnd);
 
+    /** {@code priceApproximate}: the hourly rate is another region's (E08-T07). */
     record VmCostEstimate(
             boolean costKnown,
             BigDecimal hourlyRate,
             BigDecimal runtimeHours,
             long storageGib,
-            BigDecimal cost
-    ) {}
+            BigDecimal cost,
+            boolean priceApproximate
+    ) {
+        public VmCostEstimate(boolean costKnown, BigDecimal hourlyRate, BigDecimal runtimeHours, long storageGib,
+                              BigDecimal cost) {
+            this(costKnown, hourlyRate, runtimeHours, storageGib, cost, false);
+        }
+    }
 }

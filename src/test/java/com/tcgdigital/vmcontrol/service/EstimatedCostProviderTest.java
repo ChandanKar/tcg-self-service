@@ -211,4 +211,20 @@ class EstimatedCostProviderTest {
         assertEquals(0, new BigDecimal("10.000").compareTo(result.get("vm-a").runtimeHours()));
         assertEquals(0, BigDecimal.ZERO.compareTo(result.get("vm-b").runtimeHours()));
     }
+
+    // --- Another region's rate is flagged as approximate (E08-T07) ---
+
+    @Test
+    void anOtherRegionRateIsMarkedApproximate() {
+        Vm exact = ec2Vm("vm-exact", Timestamp.from(windowStart.toInstant().minus(10, ChronoUnit.DAYS)));
+        instanceType("vm-exact", "t3.large");
+        assertEquals(false, provider.estimateCosts(List.of(exact), windowStart, windowEnd).get("vm-exact").priceApproximate());
+
+        Vm far = ec2Vm("vm-far", Timestamp.from(windowStart.toInstant().minus(10, ChronoUnit.DAYS)));
+        far.setRegion("sa-east-1"); // not in the pricing file
+        instanceType("vm-far", "t3.large");
+        CostDataProvider.VmCostEstimate estimate = provider.estimateCosts(List.of(far), windowStart, windowEnd).get("vm-far");
+        assertTrue(estimate.costKnown());
+        assertTrue(estimate.priceApproximate());
+    }
 }

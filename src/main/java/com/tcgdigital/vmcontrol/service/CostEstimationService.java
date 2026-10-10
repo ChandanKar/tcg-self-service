@@ -159,7 +159,8 @@ public class CostEstimationService {
                 bundles.size(),
                 (int) costKnownCount,
                 Timestamp.from(Instant.now()),
-                scaleUpCandidateCount
+                scaleUpCandidateCount,
+                (int) bundles.stream().filter(b -> b.estimate() != null && b.estimate().priceApproximate()).count()
         );
     }
 
@@ -500,11 +501,13 @@ public class CostEstimationService {
             BigDecimal afterCost = null;
             BigDecimal savings = null;
             boolean costKnown = false;
+            boolean approximate = b.estimate().priceApproximate();
 
             if (suggestedType != null && b.estimate().costKnown()) {
                 PricingReferenceService.PriceLookupResult afterRate =
                         pricingReferenceService.lookupHourlyRate(provider, suggestedType, b.vm().getRegion());
                 if (afterRate.priceKnown()) {
+                    approximate = approximate || afterRate.approximate();
                     afterCost = vmCostCalculator.estimateCost(afterRate.hourlyRate(), b.estimate().runtimeHours(),
                             b.estimate().storageGib(), pricingReferenceService.getStorageGbMonthRate(),
                             // Intentionally the full window: the "after" cost is a 30-day projection.
@@ -536,7 +539,8 @@ public class CostEstimationService {
                     source,
                     findingLevel,
                     direction,
-                    b.vm().getStatus().name()
+                    b.vm().getStatus().name(),
+                    approximate
             ));
         }
 
@@ -604,7 +608,8 @@ public class CostEstimationService {
                 b.estimate().runtimeHours(),
                 b.estimate().cost(),
                 b.estimate().costKnown(),
-                b.estimate().storageGib()
+                b.estimate().storageGib(),
+                b.estimate().priceApproximate()
         );
     }
 
