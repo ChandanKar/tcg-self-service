@@ -14,6 +14,7 @@ import com.tcgdigital.vmcontrol.service.support.AfterCommit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,6 +41,10 @@ public class LockService {
     private final AutomationRuleService automationRuleService;
     private final UserRepository userRepository;
     private final AfterCommit afterCommit;
+    /** The acquire itself: joins the caller's transaction, if any. */
+    private final org.springframework.transaction.support.TransactionTemplate acquireTransaction;
+    /** Reading the lock that won a race: a fresh snapshot that sees it. */
+    private final org.springframework.transaction.support.TransactionTemplate freshRead;
 
     public LockService(EnvironmentLockRepository lockRepository,
                        LockHistoryRepository historyRepository,
@@ -48,7 +53,12 @@ public class LockService {
                        NotificationService notificationService,
                        @Lazy AutomationRuleService automationRuleService,
                        UserRepository userRepository,
-                       AfterCommit afterCommit) {
+                       AfterCommit afterCommit,
+                       org.springframework.transaction.PlatformTransactionManager transactionManager) {
+        this.acquireTransaction = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        this.freshRead = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        this.freshRead.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        this.freshRead.setReadOnly(true);
         this.userRepository = userRepository;
         this.afterCommit = afterCommit;
         this.lockRepository = lockRepository;
@@ -60,11 +70,32 @@ public class LockService {
     }
 
     /**
-     * Acquire lock on environment.
-     * Uses database-level checking to prevent concurrent acquisition.
+     * Acquire lock on environment. The unique index ux_environment_lock_one_active (V36) decides a
+     * race between simultaneous acquires (M1): the loser's transaction rolls back and it gets a
+     * LockAlreadyHeldException naming the winner (409); the same user's concurrent request gets
+     * the lock that won. The insert stays in the caller's transaction, so a rolled-back caller
+     * leaves no lock behind.
      */
-    @Transactional
     public EnvironmentLock acquireLock(String environmentId, String userId, String reason, Integer expectedDurationMinutes) {
+        try {
+            return acquireTransaction.execute(status -> doAcquire(environmentId, userId, reason, expectedDurationMinutes));
+        } catch (DataIntegrityViolationException raceLost) {
+            EnvironmentLock winner = freshRead.execute(status ->
+                    lockRepository.findByEnvironmentIdWithEnvironment(environmentId).orElse(null));
+            if (winner == null) {
+                throw raceLost;
+            }
+            if (winner.getLockedByUserId().equals(userId)) {
+                log.info("User {} acquired the lock on environment {} twice at once; returning it", userId, environmentId);
+                return winner; // the same user's concurrent request (e.g. a double click) won
+            }
+            throw new LockAlreadyHeldException(
+                    "Environment was just locked by " + holderName(winner.getLockedByUserId()),
+                    environmentId, winner.getLockedByUserId());
+        }
+    }
+
+    private EnvironmentLock doAcquire(String environmentId, String userId, String reason, Integer expectedDurationMinutes) {
         // Verify environment exists
         Environment environment = environmentRepository.findById(environmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Environment", environmentId));
@@ -86,7 +117,7 @@ public class LockService {
 
             // Lock held by another user
             throw new LockAlreadyHeldException(
-                    "Environment is locked by user " + activeLock.getLockedByUserId() +
+                    "Environment is locked by " + holderName(activeLock.getLockedByUserId()) +
                             " since " + activeLock.getLockedAt(),
                     environmentId,
                     activeLock.getLockedByUserId()
@@ -102,7 +133,8 @@ public class LockService {
         lock.setExpectedDurationMinutes(expectedDurationMinutes);
         lock.setIsActive(true);
 
-        lock = lockRepository.save(lock);
+        // Flushed now: a lost race fails here, on ux_environment_lock_one_active (M1).
+        lock = lockRepository.saveAndFlush(lock);
 
         // Record history
         recordLockHistory(lock, LockAction.ACQUIRED, userId, "Reason: " + reason);
@@ -110,12 +142,13 @@ public class LockService {
         // Audit logging
         auditService.logLockAcquired(userId, environmentId, environment.getName(), reason);
 
-        runNotificationSideEffect("notify lock acquired", environmentId, () ->
+        // After commit: a failing notification never rolls back the lock change.
+        afterCommit.run(() -> runNotificationSideEffect("notify lock acquired", environmentId, () ->
                 notificationService.notifyLockAcquiredForEnvironment(
                         environmentId,
                         environment.getName(),
                         userId,
-                        reason));
+                        reason)));
 
         // After commit (C5): a failing rule must never roll back the lock it was triggered by,
         // and the operation it starts must see the committed lock.
@@ -163,11 +196,11 @@ public class LockService {
         // Audit logging
         auditService.logLockReleased(userId, environmentId, environmentName);
 
-        runNotificationSideEffect("notify lock released", environmentId, () ->
+        afterCommit.run(() -> runNotificationSideEffect("notify lock released", environmentId, () ->
                 notificationService.notifyLockReleasedForEnvironment(
                         environmentId,
                         environmentName,
-                        userId));
+                        userId)));
 
         log.info("Lock released on environment {} by user {}", environmentId, userId);
     }
@@ -201,13 +234,20 @@ public class LockService {
         log.warn("Lock on environment {} broken by admin {} (was held by {}). Reason: {}",
                 environmentId, adminUserId, originalLockHolder, breakReason);
 
-        runNotificationSideEffect("notify lock broken", environmentId, () ->
+        afterCommit.run(() -> runNotificationSideEffect("notify lock broken", environmentId, () ->
                 notificationService.notifyLockBrokenForEnvironment(
                         environmentId,
                         environmentName,
                         adminUserId,
                         originalLockHolder,
-                        breakReason));
+                        breakReason)));
+    }
+
+    /** A lock holder's display name (or email) for messages; never their raw user id. */
+    private String holderName(String userId) {
+        return userRepository.findById(userId)
+                .map(u -> u.getDisplayName() != null && !u.getDisplayName().isBlank() ? u.getDisplayName() : u.getEmail())
+                .orElse("another user");
     }
 
     private void runNotificationSideEffect(String action, String environmentId, Runnable runnable) {

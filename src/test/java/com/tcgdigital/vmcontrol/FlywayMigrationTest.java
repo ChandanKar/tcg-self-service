@@ -518,4 +518,15 @@ class FlywayMigrationTest extends AbstractIntegrationTest {
         assertEquals(2, columns.size());
         columns.forEach(c -> assertEquals("YES", c.get("IS_NULLABLE"), c.get("COLUMN_NAME") + " must be nullable"));
     }
+
+    @Test
+    void testOneActiveLockPerEnvironmentIsAUniqueIndex() {
+        // E07-T01 (M1): V36 adds a unique index over the generated active_environment_id.
+        Integer unique = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() " +
+            "AND TABLE_NAME = 'environment_lock' AND INDEX_NAME = 'ux_environment_lock_one_active' AND NON_UNIQUE = 0",
+            Integer.class
+        );
+        assertEquals(1, unique, "ux_environment_lock_one_active should exist and be unique");
+    }
 }

@@ -104,7 +104,9 @@ class LockServiceTest extends AbstractIntegrationTest {
             lockService.acquireLock(testEnvironment.getEnvironmentId(), user2, "User 2 attempt", null);
         });
 
-        assertTrue(exception.getMessage().contains(user1));
+        // The message names the holder (not their id); the id travels on the exception (409 body).
+        assertEquals(user1, exception.getLockedByUserId());
+        assertFalse(exception.getMessage().contains(user1));
     }
 
     @Test
