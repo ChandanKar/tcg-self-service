@@ -52,4 +52,24 @@ class CostManagementControllerSecurityTest extends SecuredWebTestBase {
     void spendByTeamIsGone() throws Exception {
         expectError(mockMvc.perform(get("/api/v1/cost-management/spend-by-team").with(asAdmin())), 404);
     }
+
+    // ---- Cost Setup (E08-T11) ----
+
+    @Test
+    void costSetupIsAdminOnly() throws Exception {
+        expectError(mockMvc.perform(get("/api/v1/cost-management/setup/status").with(asUser())), 403);
+        expectError(mockMvc.perform(post("/api/v1/cost-management/setup/check").with(asUser())), 403);
+        expectError(mockMvc.perform(get("/api/v1/cost-management/setup/status").with(asEnvAdmin())), 403);
+    }
+
+    @Test
+    void anAdminSeesEachFeaturesSwitchWithoutAnyAwsCall() throws Exception {
+        mockMvc.perform(get("/api/v1/cost-management/setup/status").with(asAdmin()))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.features.length()").value(6))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.features[?(@.key=='tagging')].property")
+                        .value("cost.tagging.enabled"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.probes.length()").value(0));
+        org.mockito.Mockito.verifyNoInteractions(computeOptimizerService, costExplorerTagActivationService, awsCloudProviderService);
+    }
 }

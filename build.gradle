@@ -35,6 +35,7 @@ dependencies {
 	implementation 'software.amazon.awssdk:cloudwatch'
 	implementation 'software.amazon.awssdk:costexplorer'
 	implementation 'software.amazon.awssdk:computeoptimizer'
+	implementation 'software.amazon.awssdk:iam'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'

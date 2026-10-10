@@ -127,6 +127,16 @@ public class ComputeOptimizerService {
     }
 
     /**
+     * The account's Compute Optimizer enrollment in a region (E08-T11): e.g. "Active" or
+     * "Inactive". Free, read-only. Throws on an AWS error so the caller can report it.
+     */
+    public String getEnrollmentStatus(String region) {
+        return getClient(region)
+                .getEnrollmentStatus(software.amazon.awssdk.services.computeoptimizer.model.GetEnrollmentStatusRequest.builder().build())
+                .statusAsString();
+    }
+
+    /**
      * Parses recommendations keyed by instance ID (extracted from each recommendation's ARN,
      * since the request doesn't filter by instance and the response covers every EC2 instance
      * Compute Optimizer knows about). Only instances with at least one recommendation option are

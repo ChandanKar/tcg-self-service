@@ -1,0 +1,74 @@
+/*
+ * Cost Setup page (E08-T11). Reuses .cost-table-card / .dashboard-panel-head from
+ * cost-management.css.
+ */
+
+.cost-setup-view .cost-table-card {
+    margin-bottom: var(--space-lg, 1.5rem);
+}
+
+.cost-setup-pill {
+    display: inline-block;
+    padding: 0.1rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.cost-setup-pill.on {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.cost-setup-pill.off {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.cost-setup-check {
+    font-size: 0.82rem;
+    margin-bottom: 0.25rem;
+}
+
+.cost-setup-result {
+    display: inline-block;
+    min-width: 4.8rem;
+    font-weight: 600;
+    font-size: 0.72rem;
+}
+
+.cost-setup-ok .cost-setup-result {
+    color: #15803d;
+}
+
+.cost-setup-denied .cost-setup-result {
+    color: #b91c1c;
+}
+
+.cost-setup-unknown .cost-setup-result {
+    color: #92400e;
+}
+
+.cost-setup-principal {
+    color: var(--text-secondary, #64748b);
+    font-size: 0.85rem;
+}
+
+.cost-setup-probes ul,
+.cost-setup-notes ul {
+    padding: 0 1rem 1rem;
+}
+
+.cost-setup-table code {
+    word-break: break-all;
+}
+
+.cost-setup-probes .dashboard-panel-head,
+.cost-setup-notes .dashboard-panel-head {
+    padding: 0.75rem 1rem 0.25rem;
+}
+
+.cost-setup-notes ul {
+    font-size: 0.85rem;
+    padding-left: 2rem;
+}

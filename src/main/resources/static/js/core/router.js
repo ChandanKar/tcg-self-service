@@ -34,6 +34,7 @@ const ContentRouter = (function() {
         'audit-logs-all':     '#/audit-logs-all',
         'automation-rules':   '#/automation-rules',
         'cost-management':    '#/cost-management',
+        'cost-setup':         '#/cost-setup',
         'system-health':      '#/system-health',
         'settings':           '#/settings',
         'help':               '#/help'
@@ -82,6 +83,7 @@ const ContentRouter = (function() {
             'automation-rules':   () => window.Features?.loadAutomationRules?.(),
             'audit-logs-all':     () => AllLogs.loadAllAuditLogs(),
             'cost-management':    () => window.CostManagement?.load?.(),
+            'cost-setup':         () => window.CostSetup?.load?.(),
             'system-health':      () => SystemHealth.load(),
             'settings':           () => showPlaceholder('settings'),
             'help':               () => showPlaceholder('help')

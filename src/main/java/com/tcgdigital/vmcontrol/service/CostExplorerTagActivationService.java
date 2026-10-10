@@ -49,6 +49,21 @@ public class CostExplorerTagActivationService {
     }
 
     /**
+     * Each tag key's Cost Explorer status, e.g. "Active" or "Inactive"; a key Cost Explorer has
+     * never seen is "Not found" (E08-T11). One billed ListCostAllocationTags call.
+     */
+    public java.util.Map<String, String> tagKeyStatus(List<String> tagKeys) {
+        java.util.Map<String, String> status = new java.util.LinkedHashMap<>();
+        tagKeys.forEach(k -> status.put(k, "Not found"));
+        clientProvider.client().listCostAllocationTags(
+                        software.amazon.awssdk.services.costexplorer.model.ListCostAllocationTagsRequest.builder()
+                                .tagKeys(tagKeys).build())
+                .costAllocationTags()
+                .forEach(t -> status.put(t.tagKey(), t.statusAsString()));
+        return status;
+    }
+
+    /**
      * Makes sure the cost-allocation tag keys are active in Cost Explorer. Already-active keys
      * (ListCostAllocationTags) need no update call; a failed update is retried after
      * cost.tagging.activation-retry-minutes rather than never again; once active, a no-op.

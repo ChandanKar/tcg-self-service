@@ -37,6 +37,15 @@ public class AwsConfig {
             .build();
     }
 
+    /** IAM is a global service; used only by the Cost Setup pre-flight check (E08-T11). */
+    @Bean
+    public software.amazon.awssdk.services.iam.IamClient iamClient(AwsCredentialsProvider awsCredentialsProvider) {
+        return software.amazon.awssdk.services.iam.IamClient.builder()
+            .region(Region.AWS_GLOBAL)
+            .credentialsProvider(awsCredentialsProvider)
+            .build();
+    }
+
     @Bean
     public Ec2Client ec2Client(AwsCredentialsProvider awsCredentialsProvider) {
         return Ec2Client.builder()

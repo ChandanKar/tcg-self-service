@@ -289,6 +289,9 @@ const CostManagement = (function() {
                         <button class="btn btn-ghost btn-sm" id="cost-export-pdf-btn">
                             <i class="fas fa-file-pdf"></i> Export PDF
                         </button>
+                        <a class="btn btn-ghost btn-sm" href="#/cost-setup" title="Which cost features are on, and their AWS permissions">
+                            <i class="fas fa-stethoscope"></i> Setup
+                        </a>
                     </div>
                 </div>
 

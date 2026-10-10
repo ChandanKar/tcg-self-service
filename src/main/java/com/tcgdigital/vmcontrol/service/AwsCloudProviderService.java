@@ -812,6 +812,31 @@ public class AwsCloudProviderService implements CloudProviderService {
         return discovered;
     }
 
+    /**
+     * Whether the credential may tag this instance (E08-T11): a CreateTags dry run, which never
+     * changes anything. True on DryRunOperation, false on UnauthorizedOperation; any other
+     * error is rethrown for the caller to report.
+     */
+    public boolean canTagInstance(String region, String instanceId) {
+        try {
+            getEc2Client(region).createTags(CreateTagsRequest.builder()
+                    .dryRun(true)
+                    .resources(instanceId)
+                    .tags(Tag.builder().key("tcg:preflight").value("dry-run").build())
+                    .build());
+            return true; // not expected: a dry run always answers with an error code
+        } catch (Ec2Exception e) {
+            String code = e.awsErrorDetails() != null ? e.awsErrorDetails().errorCode() : null;
+            if ("DryRunOperation".equals(code)) {
+                return true;
+            }
+            if ("UnauthorizedOperation".equals(code)) {
+                return false;
+            }
+            throw e;
+        }
+    }
+
     private Ec2Client getEc2Client(String region) {
         String effectiveRegion = region != null && !region.isEmpty() ? region : defaultRegion;
         return clientCache.computeIfAbsent(effectiveRegion, r -> Ec2Client.builder()

@@ -231,7 +231,10 @@ const Config = (function() {
             actualsBackfill: (days = 30) => `${API_BASE_URL}/cost-management/actuals/backfill?days=${days}`,
             reservationsCoverage: (days = 30) => `${API_BASE_URL}/cost-management/reservations/coverage?days=${days}`,
             forecast: (historyDays = 30, forecastDays = 14) =>
-                `${API_BASE_URL}/cost-management/forecast?historyDays=${historyDays}&forecastDays=${forecastDays}`
+                `${API_BASE_URL}/cost-management/forecast?historyDays=${historyDays}&forecastDays=${forecastDays}`,
+            reservationsUtilization: `${API_BASE_URL}/cost-management/reservations/utilization`,
+            setupStatus: `${API_BASE_URL}/cost-management/setup/status`,
+            setupCheck: `${API_BASE_URL}/cost-management/setup/check`
         },
 
         // Automation Rules (admin / env admin)

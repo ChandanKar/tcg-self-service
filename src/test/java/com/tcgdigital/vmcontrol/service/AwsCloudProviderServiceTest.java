@@ -564,4 +564,32 @@ class AwsCloudProviderServiceTest {
         assertTrue(result.isSuccess());
         assertEquals(VmStatus.RUNNING, result.getResultStatus());
     }
+
+    // --- CreateTags dry run for the Cost Setup pre-flight (E08-T11) ---
+
+    private static software.amazon.awssdk.services.ec2.model.Ec2Exception ec2Error(String code) {
+        return (software.amazon.awssdk.services.ec2.model.Ec2Exception) software.amazon.awssdk.services.ec2.model.Ec2Exception.builder()
+                .awsErrorDetails(software.amazon.awssdk.awscore.exception.AwsErrorDetails.builder().errorCode(code).build())
+                .build();
+    }
+
+    @Test
+    void aDryRunOperationAnswerMeansTaggingIsAllowed() {
+        when(mockEc2Client.createTags(any(software.amazon.awssdk.services.ec2.model.CreateTagsRequest.class)))
+                .thenThrow(ec2Error("DryRunOperation"));
+
+        org.junit.jupiter.api.Assertions.assertTrue(service.canTagInstance(REGION, INSTANCE_ID));
+        org.mockito.ArgumentCaptor<software.amazon.awssdk.services.ec2.model.CreateTagsRequest> request =
+                org.mockito.ArgumentCaptor.forClass(software.amazon.awssdk.services.ec2.model.CreateTagsRequest.class);
+        org.mockito.Mockito.verify(mockEc2Client).createTags(request.capture());
+        org.junit.jupiter.api.Assertions.assertTrue(request.getValue().dryRun()); // never a real write
+    }
+
+    @Test
+    void anUnauthorizedOperationAnswerMeansTaggingIsDenied() {
+        when(mockEc2Client.createTags(any(software.amazon.awssdk.services.ec2.model.CreateTagsRequest.class)))
+                .thenThrow(ec2Error("UnauthorizedOperation"));
+
+        org.junit.jupiter.api.Assertions.assertFalse(service.canTagInstance(REGION, INSTANCE_ID));
+    }
 }

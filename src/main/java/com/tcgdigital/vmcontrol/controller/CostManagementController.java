@@ -63,6 +63,7 @@ public class CostManagementController {
     private final ExcelExportService excelExportService;
     private final VmResizeService vmResizeService;
     private final UserService userService;
+    private final com.tcgdigital.vmcontrol.service.CostSetupService costSetupService;
 
     public CostManagementController(CostEstimationService costEstimationService,
                                      CostSnapshotService costSnapshotService,
@@ -74,7 +75,9 @@ public class CostManagementController {
                                      CostForecastService costForecastService,
                                      ExcelExportService excelExportService,
                                      VmResizeService vmResizeService,
-                                     UserService userService) {
+                                     UserService userService,
+                                     com.tcgdigital.vmcontrol.service.CostSetupService costSetupService) {
+        this.costSetupService = costSetupService;
         this.costEstimationService = costEstimationService;
         this.costSnapshotService = costSnapshotService;
         this.tagReconciliationService = tagReconciliationService;
@@ -293,5 +296,21 @@ public class CostManagementController {
             @RequestParam(defaultValue = "30") @jakarta.validation.constraints.Min(14) @jakarta.validation.constraints.Max(400) int historyDays,
             @RequestParam(defaultValue = "14") @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(90) int forecastDays) {
         return ResponseEntity.ok(costForecastService.getForecast(historyDays, forecastDays));
+    }
+
+    @GetMapping("/setup/status")
+    @PreAuthorize("hasRole('ADMIN')")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Cost feature switches and last runs (no AWS calls)")
+    public ResponseEntity<com.tcgdigital.vmcontrol.dto.CostSetupStatusDTO> getSetupStatus() {
+        return ResponseEntity.ok(costSetupService.getStatus());
+    }
+
+    @PostMapping("/setup/check")
+    @PreAuthorize("hasRole('ADMIN')")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Read-only pre-flight check of the cost features' IAM permissions",
+            description = "STS identity, IAM policy simulation and free probes; at most one billed Cost Explorer call. "
+                    + "A result is reused for 60 seconds.")
+    public ResponseEntity<com.tcgdigital.vmcontrol.dto.CostSetupStatusDTO> runSetupCheck() {
+        return ResponseEntity.ok(costSetupService.runChecks());
     }
 }
