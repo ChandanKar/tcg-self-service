@@ -118,3 +118,31 @@
         border: 1px solid #cbd5e1;
     }
 }
+
+/* Panels render on their own; a slot adds no box of its own (E08-T09). */
+.cost-panel-slot {
+    display: contents;
+}
+
+.cost-panel-error {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding: 1rem;
+    color: #92400e;
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    border-radius: 6px;
+}
+
+.cost-panel-error .cost-retry {
+    margin-left: auto;
+}
+
+.badge-approx {
+    background: #e0e7ff;
+    color: #3730a3;
+    font-weight: 600;
+    cursor: help;
+}

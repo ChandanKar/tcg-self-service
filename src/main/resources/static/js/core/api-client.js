@@ -80,7 +80,9 @@ const ApiClient = (function() {
     }
 
     function request(method, url, data = null, options = {}) {
-        const { suppressGlobalError = false } = options;
+        // quietServerErrors: the caller shows its own error for 5xx/network failures (e.g. a
+        // panel with Retry, E08-T09); auth errors (401/403) still get the global handling.
+        const { suppressGlobalError = false, quietServerErrors = false } = options;
 
         const ajaxOptions = {
             url: url,
@@ -110,7 +112,8 @@ const ApiClient = (function() {
         return $.ajax(ajaxOptions)
             .fail(function(xhr, status, error) {
                 console.error(`API Error [${method} ${url}]:`, error);
-                if (!suppressGlobalError) {
+                const quiet = suppressGlobalError || (quietServerErrors && (xhr.status === 0 || xhr.status >= 500));
+                if (!quiet) {
                     handleApiError(xhr, status, error);
                 }
             });

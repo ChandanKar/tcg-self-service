@@ -30,7 +30,9 @@ const CostManagement = (function() {
         reservationCoverage: [],
         idle: emptyPageState(),
         rightsizing: emptyPageState(),
-        detail: emptyPageState()
+        detail: emptyPageState(),
+        // Requests that failed, by key: their panels show an error with Retry (E08-T09).
+        errors: {}
     };
 
     function emptyPageState() {
@@ -61,7 +63,7 @@ const CostManagement = (function() {
     function teardown() {
         disposeCharts();
         $(window).off('resize.costManagementCharts');
-        $('#content-area').off('click.rightsizingApply');
+        $('#content-area').off('click.rightsizingApply click.costRetry');
     }
 
     // ---- hash-based sub-context (per-table page survives refresh/bookmark) ----
@@ -94,11 +96,14 @@ const CostManagement = (function() {
 
     // ---- data loading ----
 
-    function fetchJson(url) {
+    function fetchJson(url, options) {
         return new Promise((resolve, reject) => {
-            ApiClient.get(url).done(resolve).fail(reject);
+            ApiClient.get(url, options).done(resolve).fail(reject);
         });
     }
+
+    // Panel requests show their own error with Retry; no global toast for a server error.
+    const PANEL_REQUEST = { quietServerErrors: true };
 
     function mapPage(pageData) {
         // Spring Data serializes Page<T> as { content: [...], page: { size, number, totalElements, totalPages } }
@@ -127,38 +132,58 @@ const CostManagement = (function() {
         };
     }
 
+    /**
+     * Every request behind the page, by key (E08-T09). apply() stores a successful response;
+     * a failed one only marks state.errors[key], so one bad endpoint never blanks the page.
+     */
+    const REQUESTS = {
+        summary: { url: () => Config.API.costManagement.summary, apply: d => { state.summary = d; } },
+        spendByEnvironment: { url: () => Config.API.costManagement.spendByEnvironment, apply: d => { state.spendByEnvironment = d || []; } },
+        spendByVmType: { url: () => Config.API.costManagement.spendByVmType, apply: d => { state.spendByVmType = d || []; } },
+        teamTrend: { url: () => Config.API.costManagement.spendTrendByTeam(TREND_DAYS), apply: d => { state.teamTrend = d || []; } },
+        trend: { url: () => Config.API.costManagement.spendTrend(TREND_DAYS), apply: d => { state.trend = d || []; } },
+        reconciliation: {
+            url: () => Config.API.costManagement.reconciliation(TREND_DAYS),
+            apply: d => {
+                state.reconciliationAll = d || [];
+                state.reconciliation = paginateArray(state.reconciliationAll, state.reconciliation.page || 0, PAGE_SIZE);
+            }
+        },
+        reservationCoverage: { url: () => Config.API.costManagement.reservationsCoverage(TREND_DAYS), apply: d => { state.reservationCoverage = d || []; } },
+        forecast: { url: () => Config.API.costManagement.forecast(30, 14), apply: d => { state.forecast = d || null; } },
+        idle: { url: () => Config.API.costManagement.idleWaste(state.idle.page, PAGE_SIZE), apply: d => { state.idle = mapPage(d); } },
+        rightsizing: { url: () => Config.API.costManagement.rightsizing(state.rightsizing.page, PAGE_SIZE), apply: d => { state.rightsizing = mapPage(d); } },
+        detail: { url: () => Config.API.costManagement.vmDetail(state.detail.page, PAGE_SIZE), apply: d => { state.detail = mapPage(d); } }
+    };
+
+    /** Fetch the given keys; resolves once all settled, recording failures in state.errors. */
+    function fetchKeys(keys) {
+        return Promise.allSettled(keys.map(key => fetchJson(REQUESTS[key].url(), PANEL_REQUEST))).then(results => {
+            results.forEach((result, i) => {
+                const key = keys[i];
+                if (result.status === 'fulfilled') {
+                    delete state.errors[key];
+                    REQUESTS[key].apply(result.value);
+                } else {
+                    state.errors[key] = true;
+                    console.error(`Failed to load cost data (${key}):`, result.reason);
+                }
+            });
+            return results;
+        });
+    }
+
     function fetchAll() {
-        Promise.all([
-            fetchJson(Config.API.costManagement.summary),
-            fetchJson(Config.API.costManagement.spendByEnvironment),
-            fetchJson(Config.API.costManagement.spendByVmType),
-            fetchJson(Config.API.costManagement.spendTrendByTeam(TREND_DAYS)),
-            fetchJson(Config.API.costManagement.spendTrend(TREND_DAYS)),
-            fetchJson(Config.API.costManagement.reconciliation(TREND_DAYS)),
-            fetchJson(Config.API.costManagement.reservationsCoverage(TREND_DAYS)),
-            fetchJson(Config.API.costManagement.forecast(30, 14)),
-            fetchJson(Config.API.costManagement.idleWaste(state.idle.page, PAGE_SIZE)),
-            fetchJson(Config.API.costManagement.rightsizing(state.rightsizing.page, PAGE_SIZE)),
-            fetchJson(Config.API.costManagement.vmDetail(state.detail.page, PAGE_SIZE))
-        ]).then(([summary, byEnv, byType, teamTrend, trend, reconciliation, reservationCoverage, forecast, idle, rightsizing, detail]) => {
-            if (!isActive()) return;
-            state.summary = summary;
-            state.spendByEnvironment = byEnv || [];
-            state.spendByVmType = byType || [];
-            state.teamTrend = teamTrend || [];
-            state.trend = trend || [];
-            state.reconciliationAll = reconciliation || [];
-            state.reconciliation = paginateArray(state.reconciliationAll, state.reconciliation.page || 0, PAGE_SIZE);
-            state.reservationCoverage = reservationCoverage || [];
-            state.forecast = forecast || null;
-            state.idle = mapPage(idle);
-            state.rightsizing = mapPage(rightsizing);
-            state.detail = mapPage(detail);
+        const token = ContentRouter.token();
+        const keys = Object.keys(REQUESTS);
+        state.errors = {};
+        fetchKeys(keys).then(results => {
+            if (!ContentRouter.isCurrent(token) || !isActive()) return;
+            if (results.every(r => r.status === 'rejected')) {
+                showError('Failed to load cost data. Please try again.');
+                return;
+            }
             render();
-        }).catch(error => {
-            if (!isActive()) return;
-            console.error('Failed to load cost management data:', error);
-            showError('Failed to load cost data. Please try again.');
         });
     }
 
@@ -268,16 +293,117 @@ const CostManagement = (function() {
                 </div>
 
                 <div class="cost-report" id="cost-report">
-                    ${buildKpiStrip(state.summary)}
-                    ${buildBreakdownCharts()}
-                    ${buildTrendChart()}
-                    ${buildReservationsChart()}
-                    ${buildReconciliationTable()}
-                    ${buildIdleWasteTable()}
-                    ${buildRightsizingTable()}
-                    ${buildVmDetailTable()}
+                    ${panelSlot('kpi')}
+                    <div class="cost-breakdown-layout">
+                        ${panelSlot('env')}
+                        ${panelSlot('type')}
+                        ${panelSlot('team')}
+                    </div>
+                    ${panelSlot('trend')}
+                    ${panelSlot('reservations')}
+                    ${panelSlot('reconciliation')}
+                    ${panelSlot('idle')}
+                    ${panelSlot('rightsizing')}
+                    ${panelSlot('detail')}
                 </div>
             </div>
+        `;
+    }
+
+    // ---- panels: each renders on its own, or an error with Retry (E08-T09) ----
+
+    const PANELS = {
+        kpi: { keys: ['summary'], label: 'the cost summary', build: () => buildKpiStrip(state.summary) },
+        env: {
+            keys: ['spendByEnvironment'], label: 'spend by environment', chartPanel: true,
+            build: () => buildChartPanel('Spend by Environment', `${state.spendByEnvironment.length} environment(s)`, 'cost-chart-env'),
+            charts: () => [['cost-chart-env', buildEnvironmentPieOption(state.spendByEnvironment)]]
+        },
+        type: {
+            keys: ['spendByVmType'], label: 'spend by VM type', chartPanel: true,
+            build: () => buildChartPanel('Spend by VM Type', `${state.spendByVmType.length} type(s)`, 'cost-chart-type'),
+            charts: () => [['cost-chart-type', buildVmTypePolarBarOption(state.spendByVmType)]]
+        },
+        team: {
+            keys: ['teamTrend'], label: 'spend by team', chartPanel: true,
+            build: () => buildChartPanel('Spend by Team', `Trend, last ${TREND_DAYS} days`, 'cost-chart-team'),
+            charts: () => [['cost-chart-team', buildTeamStackedLineOption(state.teamTrend)]]
+        },
+        trend: {
+            keys: ['trend', 'forecast'], label: 'the spend trend', chartPanel: true, wide: true,
+            build: () => buildTrendChart(),
+            charts: () => [['cost-chart-trend', buildTrendOption(state.trend)]]
+        },
+        reservations: {
+            keys: ['reservationCoverage'], label: 'reservation coverage', chartPanel: true, wide: true,
+            build: () => buildReservationsChart(),
+            charts: () => [['cost-chart-reservations', buildReservationsOption(state.reservationCoverage)]]
+        },
+        reconciliation: { keys: ['reconciliation'], label: 'estimated vs. actual cost', build: () => buildReconciliationTable() },
+        idle: { keys: ['idle'], label: 'idle VMs', build: () => buildIdleWasteTable() },
+        rightsizing: { keys: ['rightsizing'], label: 'rightsizing recommendations', build: () => buildRightsizingTable() },
+        detail: { keys: ['detail'], label: 'VM cost detail', build: () => buildVmDetailTable() }
+    };
+
+    function panelFailed(name) {
+        return PANELS[name].keys.some(key => state.errors[key]);
+    }
+
+    function panelSlot(name) {
+        return `<div class="cost-panel-slot" data-cost-panel="${name}">${buildPanel(name)}</div>`;
+    }
+
+    function buildPanel(name) {
+        return panelFailed(name) ? buildPanelError(name) : PANELS[name].build();
+    }
+
+    function buildPanelError(name) {
+        const panel = PANELS[name];
+        const cls = panel.chartPanel ? `dashboard-chart-panel${panel.wide ? ' dashboard-wide' : ''}` : 'cost-table-card';
+        return Utils.html`
+            <section class="${cls}">
+                <div class="cost-panel-error" role="alert">
+                    <i class="fas fa-triangle-exclamation"></i>
+                    <span>Couldn't load ${panel.label}.</span>
+                    <button type="button" class="btn btn-sm btn-ghost cost-retry" data-key="${name}">
+                        <i class="fas fa-sync"></i> Retry
+                    </button>
+                </div>
+            </section>`;
+    }
+
+    /** Re-render one panel in place and (re)draw its charts. */
+    function renderPanel(name) {
+        const panel = PANELS[name];
+        (panel.charts ? panel.charts() : []).forEach(([id]) => disposeChart(id));
+        $(`[data-cost-panel="${name}"]`).html(buildPanel(name));
+        if (!panelFailed(name) && panel.charts && window.echarts) {
+            panel.charts().forEach(([id, option]) => chart(id, option));
+        }
+    }
+
+    /** Retry only the failed requests behind one panel. */
+    function retryPanel(name, $btn) {
+        const keys = PANELS[name].keys.filter(key => state.errors[key]);
+        $btn.prop('disabled', true);
+        fetchKeys(keys.length ? keys : PANELS[name].keys).then(() => {
+            if (!isActive()) return;
+            renderPanel(name);
+            if (panelFailed(name)) {
+                Notifications.error(`Still couldn't load ${PANELS[name].label}.`);
+            }
+        });
+    }
+
+    function buildChartPanel(title, subtitle, chartId) {
+        return `
+            <section class="dashboard-chart-panel">
+                <div class="dashboard-panel-head">
+                    <h2>${Utils.escapeHtml(title)}</h2>
+                    <small>${Utils.escapeHtml(subtitle)}</small>
+                </div>
+                <div id="${chartId}" class="dashboard-chart"></div>
+            </section>
         `;
     }
 
@@ -292,10 +418,20 @@ const CostManagement = (function() {
             <div class="dashboard-kpi-grid cost-kpi-grid">
                 ${buildKpi('Total Monthly Cost', Utils.formatCurrency(summary.totalMonthlyCost || 0), 'fa-dollar-sign', deltaText)}
                 ${buildKpi('Idle Waste', Utils.formatCurrency(summary.idleWasteMonthlyCost || 0), 'fa-moon', `${summary.idleVmCount || 0} idle VM(s)`)}
-                ${buildKpi('Rightsizing Potential', Utils.formatCurrency(summary.rightsizingPotentialSavings || 0), 'fa-compress-arrows-alt', `${summary.rightsizingCandidateCount || 0} candidate(s)`)}
-                ${buildKpi('Pricing Coverage', `${summary.costKnownVmCount || 0} / ${summary.totalVmCount || 0}`, 'fa-tag', 'VMs with a known instance price')}
+                ${buildKpi('Rightsizing Potential', Utils.formatCurrency(summary.rightsizingPotentialSavings || 0), 'fa-compress-arrows-alt', rightsizingSubtitle(summary))}
+                ${buildKpi('Pricing Coverage', `${summary.costKnownVmCount || 0} / ${summary.totalVmCount || 0}`, 'fa-tag', pricingSubtitle(summary))}
             </div>
         `;
+    }
+
+    function rightsizingSubtitle(summary) {
+        const up = summary.scaleUpCandidateCount || 0;
+        return `${summary.rightsizingCandidateCount || 0} saving candidate(s)` + (up > 0 ? ` · ${up} need more capacity` : '');
+    }
+
+    function pricingSubtitle(summary) {
+        const approx = summary.approximatePriceVmCount || 0;
+        return 'VMs with a known instance price' + (approx > 0 ? `, ${approx} approximate` : '');
     }
 
     function buildKpi(label, value, icon, subtitle) {
@@ -312,34 +448,6 @@ const CostManagement = (function() {
     }
 
     // ---- breakdown & trend charts ----
-
-    function buildBreakdownCharts() {
-        return `
-            <div class="cost-breakdown-layout">
-                <section class="dashboard-chart-panel">
-                    <div class="dashboard-panel-head">
-                        <h2>Spend by Environment</h2>
-                        <small>${state.spendByEnvironment.length} environment(s)</small>
-                    </div>
-                    <div id="cost-chart-env" class="dashboard-chart"></div>
-                </section>
-                <section class="dashboard-chart-panel">
-                    <div class="dashboard-panel-head">
-                        <h2>Spend by VM Type</h2>
-                        <small>${state.spendByVmType.length} type(s)</small>
-                    </div>
-                    <div id="cost-chart-type" class="dashboard-chart"></div>
-                </section>
-                <section class="dashboard-chart-panel">
-                    <div class="dashboard-panel-head">
-                        <h2>Spend by Team</h2>
-                        <small>Trend, last ${TREND_DAYS} days</small>
-                    </div>
-                    <div id="cost-chart-team" class="dashboard-chart"></div>
-                </section>
-            </div>
-        `;
-    }
 
     function buildTrendChart() {
         return `
@@ -379,20 +487,33 @@ const CostManagement = (function() {
 
     function initCharts() {
         if (!window.echarts) return;
-        chart('cost-chart-env', buildEnvironmentPieOption(state.spendByEnvironment));
-        chart('cost-chart-type', buildVmTypePolarBarOption(state.spendByVmType));
-        chart('cost-chart-team', buildTeamStackedLineOption(state.teamTrend));
-        chart('cost-chart-trend', buildTrendOption(state.trend));
-        chart('cost-chart-reservations', buildReservationsOption(state.reservationCoverage));
+        Object.keys(PANELS).forEach(name => {
+            const panel = PANELS[name];
+            if (panel.charts && !panelFailed(name)) {
+                panel.charts().forEach(([id, option]) => chart(id, option));
+            }
+        });
         setTimeout(resizeCharts, 40);
     }
 
+    /** Draw a chart, first disposing any instance already on that element (no leaks, E08-T09). */
     function chart(id, option) {
         const el = document.getElementById(id);
         if (!el || !window.echarts) return;
+        disposeChart(id);
+        const existing = echarts.getInstanceByDom(el);
+        if (existing) existing.dispose();
         const instance = echarts.init(el, null, { renderer: 'svg' });
         instance.setOption(option);
         chartRegistry.set(id, instance);
+    }
+
+    function disposeChart(id) {
+        const instance = chartRegistry.get(id);
+        if (instance) {
+            instance.dispose();
+            chartRegistry.delete(id);
+        }
     }
 
     function disposeCharts() {
@@ -720,11 +841,11 @@ const CostManagement = (function() {
         if (!state.reconciliation.totalElements) return '';
         return buildTableCard({
             title: 'Estimated vs. Actual Cost',
-            subtitle: 'Real AWS billing data, per environment, where ingested',
+            subtitle: 'Real AWS billing data, per environment, where ingested. Variance compares only days that have actual billing data.',
             tableId: 'cost-reconciliation-table',
             bodyId: 'cost-reconciliation-table-body',
             paginationId: 'cost-reconciliation-pagination',
-            columns: ['Environment', { label: 'Estimated', numeric: true }, { label: 'Actual', numeric: true }, { label: 'Variance', numeric: true }],
+            columns: ['Environment', { label: 'Estimated', numeric: true }, { label: 'Actual', numeric: true }, { label: 'Variance', numeric: true }, { label: 'Coverage', numeric: true }],
             rowsHtml: buildReconciliationRows(state.reconciliation.content),
             pageState: state.reconciliation,
             tableKey: 'reconciliation',
@@ -734,18 +855,22 @@ const CostManagement = (function() {
 
     function buildReconciliationRows(rows) {
         if (!rows.length) {
-            return `<tr><td colspan="4" class="text-center text-muted py-4">No cost reconciliation data found.</td></tr>`;
+            return `<tr><td colspan="5" class="text-center text-muted py-4">No cost reconciliation data found.</td></tr>`;
         }
         return rows.map(row => {
             const hasActual = row.actualCost !== null && row.actualCost !== undefined;
             const hasVariance = row.variancePercent !== null && row.variancePercent !== undefined;
-            const varianceText = hasVariance ? `${row.variancePercent >= 0 ? '+' : ''}${row.variancePercent}%` : '-';
+            const varianceText = hasVariance
+                ? Utils.escapeHtml(`${row.variancePercent >= 0 ? '+' : ''}${row.variancePercent}%`)
+                : '<span title="No actual billing data yet">&mdash;</span>';
+            const coverage = row.daysInWindow ? `${row.daysWithActuals || 0}/${row.daysInWindow} days` : '-';
             return `
                 <tr>
                     <td>${Utils.escapeHtml(row.environmentName || '-')}</td>
                     <td class="cost-num">${Utils.formatCurrency(Number(row.estimatedCost) || 0)}</td>
                     <td class="cost-num">${hasActual ? Utils.formatCurrency(Number(row.actualCost)) : '<span class="text-muted">Not yet ingested</span>'}</td>
                     <td class="cost-num">${varianceText}</td>
+                    <td class="cost-num">${Utils.escapeHtml(coverage)}</td>
                 </tr>
             `;
         }).join('');
@@ -802,10 +927,13 @@ const CostManagement = (function() {
         });
     }
 
-    function costCell(amount, costKnown) {
+    function costCell(amount, costKnown, approximate) {
         const formatted = Utils.formatCurrency(Number(amount) || 0);
         if (costKnown === false) {
             return `${formatted} <i class="fas fa-triangle-exclamation cost-partial-icon" title="Instance pricing unknown for this VM — storage cost only"></i>`;
+        }
+        if (approximate === true) {
+            return `${formatted} <span class="badge badge-approx" title="Rate from another region — approximate">&asymp;</span>`;
         }
         return formatted;
     }
@@ -877,8 +1005,8 @@ const CostManagement = (function() {
                 <td>${buildRightsizingSourceBadge(row)}</td>
                 <td class="cost-num">${row.avgCpuUtilization != null ? Number(row.avgCpuUtilization).toFixed(1) + '%' : '-'}</td>
                 <td class="cost-num">${row.peakCpuUtilization != null ? Number(row.peakCpuUtilization).toFixed(1) + '%' : '-'}</td>
-                <td class="cost-num">${costCell(row.currentMonthlyCost, true)}</td>
-                <td class="cost-num">${row.estimatedMonthlySavings != null ? costCell(row.estimatedMonthlySavings, row.costKnown) : '<span class="text-muted">Unknown</span>'}</td>
+                <td class="cost-num">${costCell(row.currentMonthlyCost, true, row.priceApproximate)}</td>
+                <td class="cost-num">${row.estimatedMonthlySavings != null ? costCell(row.estimatedMonthlySavings, row.costKnown, row.priceApproximate) : '<span class="text-muted">Unknown</span>'}</td>
                 <td>${buildRightsizingApplyButton(row)}</td>
             </tr>
         `).join('');
@@ -949,7 +1077,7 @@ const CostManagement = (function() {
                 <td>${Utils.escapeHtml(row.region || '-')}</td>
                 <td class="cost-num">${row.runtimeHours != null ? Number(row.runtimeHours).toFixed(1) + 'h' : '-'}</td>
                 <td class="cost-num">${row.storageGib != null ? row.storageGib + ' GiB' : '-'}</td>
-                <td class="cost-num">${costCell(row.monthlyCost, row.costKnown)}</td>
+                <td class="cost-num">${costCell(row.monthlyCost, row.costKnown, row.priceApproximate)}</td>
             </tr>
         `).join('');
     }
@@ -975,6 +1103,10 @@ const CostManagement = (function() {
             .on('click.rightsizingApply', '.rightsizing-apply-btn', function() {
                 if ($(this).prop('disabled')) return;
                 applyRightsizing($(this).data());
+            });
+        $('#content-area').off('click.costRetry')
+            .on('click.costRetry', '.cost-retry', function() {
+                retryPanel(String($(this).data('key')), $(this));
             });
     }
 
@@ -1146,7 +1278,7 @@ const CostManagement = (function() {
 
             // html2canvas cannot reliably snapshot live SVG-rendered ECharts, so swap each
             // chart <div> for a static <img> taken from the chart's own dataURL first.
-            ['cost-chart-env', 'cost-chart-type', 'cost-chart-team', 'cost-chart-trend'].forEach(id => {
+            ['cost-chart-env', 'cost-chart-type', 'cost-chart-team', 'cost-chart-trend', 'cost-chart-reservations'].forEach(id => {
                 const liveEl = document.getElementById(id);
                 const cloneEl = clone.querySelector('#' + id);
                 const instance = chartRegistry.get(id);
