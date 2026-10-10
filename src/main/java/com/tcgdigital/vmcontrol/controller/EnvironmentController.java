@@ -279,7 +279,7 @@ public class EnvironmentController {
     public ResponseEntity<EnvironmentDTO> createEnvironment(
             @Valid @RequestBody CreateEnvironmentDTO dto) {
 
-        Environment created = environmentService.createEnvironment(dto);
+        Environment created = environmentService.createEnvironment(dto, userService.getCurrentUserId());
         grantCreatorAdmin(created);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(EnvironmentDTO.fromEntity(created));
@@ -342,7 +342,7 @@ public class EnvironmentController {
             @Parameter(description = "Environment ID") @PathVariable String environmentId) {
         securityService.assertCanAdminister(environmentId);
 
-        environmentService.deactivateEnvironment(environmentId);
+        environmentService.deactivateEnvironment(environmentId, userService.getCurrentUserId());
         return ResponseEntity.noContent().build();
     }
 
@@ -364,7 +364,7 @@ public class EnvironmentController {
             @Parameter(description = "Environment ID") @PathVariable String environmentId) {
         securityService.assertCanAdminister(environmentId);
 
-        Environment reactivated = environmentService.reactivateEnvironment(environmentId);
+        Environment reactivated = environmentService.reactivateEnvironment(environmentId, userService.getCurrentUserId());
         return ResponseEntity.ok(EnvironmentDTO.fromEntity(reactivated));
     }
 

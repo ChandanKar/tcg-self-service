@@ -29,8 +29,8 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Service for audit logging.
- * All audit log operations are async and non-blocking.
+ * Service for audit logging. Rows are written by {@link AuditWriter}: success rows after the
+ * caller commits, failure rows at once, both asynchronously and in their own transaction.
  */
 @Service
 public class AuditService {
@@ -40,180 +40,135 @@ public class AuditService {
     private final AuditLogRepository auditLogRepository;
     private final EnvironmentRepository environmentRepository;
     private final UserRepository userRepository;
+    private final AuditWriter auditWriter;
+    private final com.tcgdigital.vmcontrol.service.support.AfterCommit afterCommit;
 
     public AuditService(AuditLogRepository auditLogRepository,
                         EnvironmentRepository environmentRepository,
-                        UserRepository userRepository) {
+                        UserRepository userRepository,
+                        AuditWriter auditWriter,
+                        com.tcgdigital.vmcontrol.service.support.AfterCommit afterCommit) {
         this.auditLogRepository = auditLogRepository;
         this.environmentRepository = environmentRepository;
         this.userRepository = userRepository;
+        this.auditWriter = auditWriter;
+        this.afterCommit = afterCommit;
     }
 
     // ============= Logging Methods =============
+    // Success rows are written after the caller's transaction commits (so they roll back with
+    // it); failure rows are written at once (so they survive the caller's rollback). Both go
+    // through AuditWriter, whose @Async / REQUIRES_NEW the proxy applies (E11-T01, H9).
 
     /**
-     * Log an audit action asynchronously.
+     * Log an audit action (after commit, asynchronously).
      */
-    @Async("notificationExecutor")
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void logAction(String userId, AuditAction action, String targetType, String targetId,
                           String targetName, String details) {
-        try {
-            AuditLog auditLog = AuditLog.builder()
-                    .logId(UUID.randomUUID().toString())
-                    .userId(userId)
-                    .action(action)
-                    .targetType(targetType)
-                    .targetId(targetId)
-                    .targetName(targetName)
-                    .details(details)
-                    .success(true)
-                    .build();
-
-            auditLogRepository.save(auditLog);
-            log.debug("Audit log created: {} - {} on {}", action, userId, targetName);
-
-        } catch (Exception e) {
-            log.error("Failed to create audit log: {}", e.getMessage());
-        }
+        writeAfterCommit(AuditLog.builder()
+                .logId(UUID.randomUUID().toString())
+                .userId(auditUserId(userId))
+                .action(action)
+                .targetType(targetType)
+                .targetId(targetId)
+                .targetName(targetName)
+                .details(details)
+                .success(true)
+                .build());
     }
 
     /**
-     * Log an audit action with environment context.
+     * Log an audit action with environment context (after commit, asynchronously).
      */
-    @Async("notificationExecutor")
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void logEnvironmentAction(String userId, AuditAction action, String environmentId,
                                      String environmentName, String targetType, String targetId,
                                      String targetName, String details) {
-        try {
-            AuditLog auditLog = AuditLog.builder()
-                    .logId(UUID.randomUUID().toString())
-                    .userId(userId)
-                    .action(action)
-                    .environmentId(environmentId)
-                    .environmentName(environmentName)
-                    .targetType(targetType)
-                    .targetId(targetId)
-                    .targetName(targetName)
-                    .details(details)
-                    .success(true)
-                    .build();
-
-            auditLogRepository.save(auditLog);
-            log.debug("Audit log created: {} - {} on {} in {}", action, userId, targetName, environmentName);
-
-        } catch (Exception e) {
-            log.error("Failed to create audit log: {}", e.getMessage());
-        }
+        writeAfterCommit(AuditLog.builder()
+                .logId(UUID.randomUUID().toString())
+                .userId(auditUserId(userId))
+                .action(action)
+                .environmentId(environmentId)
+                .environmentName(environmentName)
+                .targetType(targetType)
+                .targetId(targetId)
+                .targetName(targetName)
+                .details(details)
+                .success(true)
+                .build());
     }
 
     /**
-     * Log an audit action with change tracking.
+     * Log an audit action with change tracking (after commit, asynchronously).
      * Note: old/new values are embedded in details since V1 schema doesn't have separate columns.
      */
-    @Async("notificationExecutor")
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void logChange(String userId, AuditAction action, String targetType, String targetId,
                           String targetName, String oldValue, String newValue, String details) {
-        try {
-            // Embed old/new values in details
-            String changeDetails = String.format("%s | Changed from: %s to: %s",
-                    details != null ? details : "", oldValue, newValue);
-
-            AuditLog auditLog = AuditLog.builder()
-                    .logId(UUID.randomUUID().toString())
-                    .userId(userId)
-                    .action(action)
-                    .targetType(targetType)
-                    .targetId(targetId)
-                    .targetName(targetName)
-                    .details(changeDetails)
-                    .success(true)
-                    .build();
-
-            auditLogRepository.save(auditLog);
-            log.debug("Audit log created: {} - {} changed {}", action, userId, targetName);
-
-        } catch (Exception e) {
-            log.error("Failed to create audit log: {}", e.getMessage());
-        }
+        String changeDetails = String.format("%s | Changed from: %s to: %s",
+                details != null ? details : "", oldValue, newValue);
+        writeAfterCommit(AuditLog.builder()
+                .logId(UUID.randomUUID().toString())
+                .userId(auditUserId(userId))
+                .action(action)
+                .targetType(targetType)
+                .targetId(targetId)
+                .targetName(targetName)
+                .details(changeDetails)
+                .success(true)
+                .build());
     }
 
     /**
-     * Log a failed action.
+     * Log a failed action (at once, so it survives the caller's rollback).
      */
-    @Async("notificationExecutor")
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void logFailure(String userId, AuditAction action, String targetType, String targetId,
                            String targetName, String errorMessage) {
-        try {
-            AuditLog auditLog = AuditLog.builder()
-                    .logId(UUID.randomUUID().toString())
-                    .userId(userId)
-                    .action(action)
-                    .targetType(targetType)
-                    .targetId(targetId)
-                    .targetName(targetName)
-                    .success(false)
-                    .errorMessage(errorMessage)
-                    .build();
-
-            auditLogRepository.save(auditLog);
-            log.debug("Audit failure logged: {} - {} on {}: {}", action, userId, targetName, errorMessage);
-
-        } catch (Exception e) {
-            log.error("Failed to create audit log: {}", e.getMessage());
-        }
+        auditWriter.write(AuditLog.builder()
+                .logId(UUID.randomUUID().toString())
+                .userId(auditUserId(userId))
+                .action(action)
+                .targetType(targetType)
+                .targetId(targetId)
+                .targetName(targetName)
+                .success(false)
+                .errorMessage(errorMessage)
+                .build());
     }
 
     /**
-     * Log a failed action with environment context.
+     * Log a failed action with environment context (at once, so it survives the caller's rollback).
      */
-    @Async("notificationExecutor")
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void logEnvironmentFailure(String userId, AuditAction action, String environmentId,
                                       String environmentName, String targetType, String targetId,
                                       String targetName, String errorMessage) {
-        try {
-            AuditLog auditLog = AuditLog.builder()
-                    .logId(UUID.randomUUID().toString())
-                    .userId(userId)
-                    .action(action)
-                    .environmentId(environmentId)
-                    .environmentName(environmentName)
-                    .targetType(targetType)
-                    .targetId(targetId)
-                    .targetName(targetName)
-                    .success(false)
-                    .errorMessage(errorMessage)
-                    .details(errorMessage)
-                    .build();
-
-            auditLogRepository.save(auditLog);
-            log.debug("Audit failure logged: {} - {} on {} in {}: {}",
-                    action, userId, targetName, environmentName, errorMessage);
-
-        } catch (Exception e) {
-            log.error("Failed to create audit log: {}", e.getMessage());
-        }
+        auditWriter.write(AuditLog.builder()
+                .logId(UUID.randomUUID().toString())
+                .userId(auditUserId(userId))
+                .action(action)
+                .environmentId(environmentId)
+                .environmentName(environmentName)
+                .targetType(targetType)
+                .targetId(targetId)
+                .targetName(targetName)
+                .success(false)
+                .errorMessage(errorMessage)
+                .details(errorMessage)
+                .build());
     }
 
     /**
-     * Log an action with full context (synchronous for critical operations).
+     * Log an action with full context, now and in its own transaction (critical operations).
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public AuditLog logActionSync(AuditLog.Builder builder) {
-        try {
-            if (builder.build().getLogId() == null) {
-                builder.logId(UUID.randomUUID().toString());
-            }
-            AuditLog auditLog = builder.build();
-            return auditLogRepository.save(auditLog);
-        } catch (Exception e) {
-            log.error("Failed to create sync audit log: {}", e.getMessage());
-            return null;
+        if (builder.build().getLogId() == null) {
+            builder.logId(UUID.randomUUID().toString());
         }
+        AuditLog auditLog = builder.build();
+        auditLog.setUserId(auditUserId(auditLog.getUserId()));
+        return auditWriter.writeSync(auditLog);
+    }
+
+    private void writeAfterCommit(AuditLog entry) {
+        afterCommit.run(() -> auditWriter.write(entry));
     }
 
     // ============= Query Methods =============

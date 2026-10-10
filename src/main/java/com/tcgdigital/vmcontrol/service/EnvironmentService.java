@@ -183,6 +183,12 @@ public class EnvironmentService {
      */
     @Transactional
     public Environment createEnvironment(CreateEnvironmentDTO dto) {
+        return createEnvironment(dto, currentUserIdOrSystem());
+    }
+
+    /** Create an environment, audited as {@code actorUserId} (E11-T01). */
+    @Transactional
+    public Environment createEnvironment(CreateEnvironmentDTO dto, String actorUserId) {
         // Validate name uniqueness on the name as stored (M3)
         String name = com.tcgdigital.vmcontrol.service.support.NameNormalizer.slug(dto.getName());
         if (environmentRepository.existsByName(name)) {
@@ -213,7 +219,7 @@ public class EnvironmentService {
         log.info("Created environment: {} ({})", saved.getName(), saved.getEnvironmentId());
 
         // Audit logging
-        auditService.logEnvironmentCreated("system", saved.getEnvironmentId(), saved.getName());
+        auditService.logEnvironmentCreated(actorUserId, saved.getEnvironmentId(), saved.getName());
 
         return saved;
     }
@@ -258,12 +264,18 @@ public class EnvironmentService {
      */
     @Transactional
     public void deactivateEnvironment(String environmentId) {
+        deactivateEnvironment(environmentId, currentUserIdOrSystem());
+    }
+
+    /** Deactivate an environment, audited as {@code actorUserId} (E11-T01). */
+    @Transactional
+    public void deactivateEnvironment(String environmentId, String actorUserId) {
         Environment environment = getEnvironmentById(environmentId);
         // A running start/stop would keep acting on an environment nobody can see any more.
         if (operationExecutionRepository.hasActiveOperations(environmentId)) {
             throw new ValidationException("Environment has running operations; wait for them to finish or cancel them");
         }
-        String actor = currentUserIdOrSystem();
+        String actor = actorUserId;
         boolean lockReleased = false;
         if (lockService.getCurrentLock(environmentId).isPresent()) {
             // The lock would otherwise outlive the environment (and block it after reactivation).
@@ -292,11 +304,17 @@ public class EnvironmentService {
      */
     @Transactional
     public Environment reactivateEnvironment(String environmentId) {
+        return reactivateEnvironment(environmentId, currentUserIdOrSystem());
+    }
+
+    /** Reactivate an environment, audited as {@code actorUserId} (E11-T01). */
+    @Transactional
+    public Environment reactivateEnvironment(String environmentId, String actorUserId) {
         Environment environment = getEnvironmentById(environmentId);
         environment.setIsActive(true);
         Environment saved = environmentRepository.save(environment);
         log.info("Reactivated environment: {} ({})", saved.getName(), environmentId);
-        auditService.logEnvironmentAction("system", AuditAction.ENVIRONMENT_ACTIVATED, environmentId,
+        auditService.logEnvironmentAction(actorUserId, AuditAction.ENVIRONMENT_ACTIVATED, environmentId,
                 saved.getName(), "environment", environmentId, saved.getName(), null);
         return saved;
     }
