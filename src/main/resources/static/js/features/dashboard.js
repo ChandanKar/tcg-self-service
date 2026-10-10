@@ -299,18 +299,20 @@ const Dashboard = (function() {
         return environments.map(env => {
             const running = env.runningVms || 0;
             const total = env.totalVms || 0;
-            const statusClass = total === 0 ? 'secondary' : running === total ? 'success' : running === 0 ? 'secondary' : 'warning';
+            // The running cell carries the running/total colour; the badge shows the lock (E11-T11).
+            const runningClass = total === 0 ? 'text-muted' : running === total ? 'text-success' : running === 0 ? 'text-muted' : 'text-warning';
+            const searchText = `${env.displayName || ''} ${env.name || ''}`.toLowerCase();
             return `
-                <tr class="dashboard-env-row" data-name="${Utils.escapeHtml((env.name || '').toLowerCase())}">
+                <tr class="dashboard-env-row" data-name="${Utils.escapeHtml(searchText)}">
                     <td>
                         <strong>${Utils.escapeHtml(env.displayName || env.name || '-')}</strong>
                         <small>${Utils.escapeHtml(env.name || '')}</small>
                     </td>
                     <td>${Utils.escapeHtml(env.serviceType || 'EC2')}</td>
-                    <td>${running}/${total}</td>
+                    <td class="${runningClass}">${running}/${total}</td>
                     <td>${formatPercent(env.avgCpuUtilization)}</td>
                     <td>${formatGiB(env.allocatedStorageGib)}</td>
-                    <td><span class="badge bg-${statusClass}">${env.locked ? 'Locked' : 'Open'}</span></td>
+                    <td><span class="badge ${env.locked ? 'bg-warning text-dark' : 'bg-success'}">${env.locked ? 'Locked' : 'Open'}</span></td>
                 </tr>
             `;
         }).join('');
@@ -456,7 +458,7 @@ const Dashboard = (function() {
             .on('input.dashboardSearch', '#dashboard-env-search', function() {
                 const term = ($(this).val() || '').toLowerCase().trim();
                 $('#dashboard-env-rows .dashboard-env-row').each(function() {
-                    const name = $(this).data('name') || '';
+                    const name = String($(this).attr('data-name') || '');
                     $(this).toggle(!term || name.includes(term));
                 });
             });

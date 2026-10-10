@@ -34,6 +34,7 @@ public class DashboardSummaryService {
     private final EnvironmentLockRepository lockRepository;
     private final ScheduledJobLockRepository scheduledJobLockRepository;
     private final EnvironmentAccessRequestRepository accessRequestRepository;
+    private final SecurityService securityService;
 
     public DashboardSummaryService(EnvironmentService environmentService,
                                    UserService userService,
@@ -44,7 +45,9 @@ public class DashboardSummaryService {
                                    VmVolumeSnapshotRepository volumeRepository,
                                    EnvironmentLockRepository lockRepository,
                                    ScheduledJobLockRepository scheduledJobLockRepository,
-                                   EnvironmentAccessRequestRepository accessRequestRepository) {
+                                   EnvironmentAccessRequestRepository accessRequestRepository,
+                                   @org.springframework.context.annotation.Lazy SecurityService securityService) {
+        this.securityService = securityService;
         this.environmentService = environmentService;
         this.userService = userService;
         this.vmRepository = vmRepository;
@@ -63,15 +66,28 @@ public class DashboardSummaryService {
         List<Environment> environments = admin
                 ? environmentService.getAllActiveEnvironments()
                 : environmentService.getEnvironmentsForCurrentUser();
-        return buildSummary(admin ? "ADMIN" : "USER", environments);
+        if (admin) {
+            return buildSummary("ADMIN", environments, null);
+        }
+        // A group-grant user sees only their groups' VMs (E11-T11, H20).
+        com.tcgdigital.vmcontrol.model.User user = userService.getCurrentUser();
+        Set<String> visibleGroupIds = new java.util.HashSet<>();
+        for (Environment environment : environments) {
+            visibleGroupIds.addAll(securityService.getVisibleGroupIds(user, environment.getEnvironmentId()));
+        }
+        return buildSummary("USER", environments, visibleGroupIds);
     }
 
-    private DashboardSummaryDTO buildSummary(String persona, List<Environment> environments) {
+    /** @param visibleGroupIds the groups whose VMs count; null for every group (admins). */
+    private DashboardSummaryDTO buildSummary(String persona, List<Environment> environments, Set<String> visibleGroupIds) {
         List<String> environmentIds = environments.stream()
                 .map(Environment::getEnvironmentId)
                 .toList();
 
         List<Vm> vms = environmentIds.isEmpty() ? List.of() : vmRepository.findByEnvironmentIdIn(environmentIds);
+        if (visibleGroupIds != null) {
+            vms = vms.stream().filter(vm -> visibleGroupIds.contains(vm.getGroup().getGroupId())).toList();
+        }
         List<String> vmIds = vms.stream().map(Vm::getVmId).toList();
         Map<String, Environment> environmentById = environments.stream()
                 .collect(Collectors.toMap(Environment::getEnvironmentId, Function.identity()));
