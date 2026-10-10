@@ -140,6 +140,19 @@ public class NotificationService {
                 environmentId);
     }
 
+    /** A lock ran out (E07-T02): the holder and the environment's users can now act. */
+    public void notifyLockExpiredForEnvironment(String environmentId, String environmentName, String holderUserId) {
+        String holderName = resolveUserDisplayName(holderUserId);
+        broadcastToEnvironment(environmentId, holderUserId,
+                NotificationType.LOCK_EXPIRED,
+                "Your lock expired: " + environmentName,
+                "Your lock on environment \"" + environmentName + "\" expired and was released.",
+                holderName + "'s lock expired: " + environmentName,
+                holderName + "'s lock on environment \"" + environmentName + "\" expired; the environment is unlocked.",
+                "ENVIRONMENT",
+                environmentId);
+    }
+
     public void notifyLockBrokenForEnvironment(String environmentId, String environmentName,
                                                String adminUserId, String originalHolderUserId,
                                                String reason) {

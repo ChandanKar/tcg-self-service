@@ -38,6 +38,10 @@ public class EnvironmentLock {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
+    /** When the expiry sweep releases this lock (V37); null = until manually released. */
+    @Column(name = "expires_at")
+    private Timestamp expiresAt;
+
     @Column(name = "released_at")
     private Timestamp releasedAt;
 
@@ -167,5 +171,13 @@ public class EnvironmentLock {
 
     public String getActiveEnvironmentId() {
         return activeEnvironmentId;
+    }
+
+    public Timestamp getExpiresAt() {
+        return expiresAt;
+    }
+
+    public void setExpiresAt(Timestamp expiresAt) {
+        this.expiresAt = expiresAt;
     }
 }

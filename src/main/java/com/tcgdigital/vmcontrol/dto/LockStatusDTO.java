@@ -18,6 +18,8 @@ public class LockStatusDTO {
     private Timestamp lockedAt;
     private String lockReason;
     private Integer expectedDurationMinutes;
+    /** When the lock is released automatically; null = until manually released (E07-T02). */
+    private Timestamp expiresAt;
 
     public LockStatusDTO() {
     }
@@ -37,6 +39,7 @@ public class LockStatusDTO {
         dto.setLockedAt(lock.getLockedAt());
         dto.setLockReason(lock.getLockReason());
         dto.setExpectedDurationMinutes(lock.getExpectedDurationMinutes());
+        dto.setExpiresAt(lock.getExpiresAt());
         return dto;
     }
 
@@ -118,5 +121,13 @@ public class LockStatusDTO {
 
     public void setExpectedDurationMinutes(Integer expectedDurationMinutes) {
         this.expectedDurationMinutes = expectedDurationMinutes;
+    }
+
+    public Timestamp getExpiresAt() {
+        return expiresAt;
+    }
+
+    public void setExpiresAt(Timestamp expiresAt) {
+        this.expiresAt = expiresAt;
     }
 }

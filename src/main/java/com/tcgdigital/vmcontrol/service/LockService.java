@@ -45,6 +45,8 @@ public class LockService {
     private final org.springframework.transaction.support.TransactionTemplate acquireTransaction;
     /** Reading the lock that won a race: a fresh snapshot that sees it. */
     private final org.springframework.transaction.support.TransactionTemplate freshRead;
+    /** One expiry, committed on its own: one failing lock does not stop the sweep. */
+    private final org.springframework.transaction.support.TransactionTemplate expiryTransaction;
 
     public LockService(EnvironmentLockRepository lockRepository,
                        LockHistoryRepository historyRepository,
@@ -59,6 +61,8 @@ public class LockService {
         this.freshRead = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
         this.freshRead.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         this.freshRead.setReadOnly(true);
+        this.expiryTransaction = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        this.expiryTransaction.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         this.userRepository = userRepository;
         this.afterCommit = afterCommit;
         this.lockRepository = lockRepository;
@@ -131,6 +135,10 @@ public class LockService {
         lock.setLockedByUserId(userId);
         lock.setLockReason(reason);
         lock.setExpectedDurationMinutes(expectedDurationMinutes);
+        if (expectedDurationMinutes != null) {
+            // From the clock, not the DB default for locked_at; null = until manually released (E07-T02).
+            lock.setExpiresAt(Timestamp.from(Instant.now().plus(java.time.Duration.ofMinutes(expectedDurationMinutes))));
+        }
         lock.setIsActive(true);
 
         // Flushed now: a lost race fails here, on ux_environment_lock_one_active (M1).
@@ -241,6 +249,59 @@ public class LockService {
                         adminUserId,
                         originalLockHolder,
                         breakReason)));
+    }
+
+    /**
+     * Release every active lock past its expiry (E07-T02, H4). Each lock is released in its own
+     * transaction under a row lock, re-checked first, so a second instance (or a release that
+     * happened meanwhile) makes it a no-op. Locks that expired while the app was down are released
+     * on the first sweep.
+     *
+     * @return how many locks were released
+     */
+    public int processExpiredLocks() {
+        int released = 0;
+        for (String lockId : lockRepository.findExpiredActiveLockIds(Timestamp.from(Instant.now()))) {
+            try {
+                if (expireLock(lockId)) {
+                    released++;
+                }
+            } catch (Exception e) {
+                log.error("Could not expire lock {}: {}", lockId, e.getMessage(), e);
+            }
+        }
+        if (released > 0) {
+            log.info("Lock expiry released {} lock(s)", released);
+        }
+        return released;
+    }
+
+    /** Release one lock if it is still active and past its expiry; false otherwise (idempotent). */
+    public boolean expireLock(String lockId) {
+        Boolean expired = expiryTransaction.execute(status -> {
+            EnvironmentLock lock = lockRepository.findByIdForUpdate(lockId).orElse(null);
+            Instant now = Instant.now();
+            if (lock == null || !Boolean.TRUE.equals(lock.getIsActive()) || lock.getExpiresAt() == null
+                    || lock.getExpiresAt().toInstant().isAfter(now)) {
+                return false;
+            }
+            String holderId = lock.getLockedByUserId();
+            String environmentId = lock.getEnvironment().getEnvironmentId();
+            String environmentName = lock.getEnvironment().getName();
+            long minutes = java.time.Duration.between(lock.getLockedAt().toInstant(), lock.getExpiresAt().toInstant()).toMinutes();
+            lock.setIsActive(false);
+            lock.setReleasedAt(Timestamp.from(now));
+            lock.setReleasedByUserId(null);
+            lockRepository.save(lock);
+            // performed_by is NOT NULL: the holder whose lock ended.
+            recordLockHistory(lock, LockAction.EXPIRED, holderId, "Expired after " + minutes + " minutes");
+            auditService.logLockExpired(holderId, environmentId, environmentName, "Expired after " + minutes + " minutes");
+            afterCommit.run(() -> runNotificationSideEffect("notify lock expired", environmentId, () ->
+                    notificationService.notifyLockExpiredForEnvironment(environmentId, environmentName, holderId)));
+            log.info("Lock on environment {} held by {} expired after {} minutes", environmentId, holderId, minutes);
+            return true;
+        });
+        return Boolean.TRUE.equals(expired);
     }
 
     /** A lock holder's display name (or email) for messages; never their raw user id. */

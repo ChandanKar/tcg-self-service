@@ -529,4 +529,17 @@ class FlywayMigrationTest extends AbstractIntegrationTest {
         );
         assertEquals(1, unique, "ux_environment_lock_one_active should exist and be unique");
     }
+
+    @Test
+    void testLockExpiryColumnAndIndexExist() {
+        // E07-T02 (H4): V37 adds environment_lock.expires_at and an index for the expiry sweep.
+        Integer column = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() " +
+            "AND TABLE_NAME = 'environment_lock' AND COLUMN_NAME = 'expires_at'", Integer.class);
+        Integer index = jdbcTemplate.queryForObject(
+            "SELECT COUNT(DISTINCT INDEX_NAME) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() " +
+            "AND TABLE_NAME = 'environment_lock' AND INDEX_NAME = 'ix_environment_lock_active_expires'", Integer.class);
+        assertEquals(1, column);
+        assertEquals(1, index);
+    }
 }

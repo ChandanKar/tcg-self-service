@@ -4,6 +4,7 @@ public enum NotificationType {
     LOCK_ACQUIRED,
     LOCK_RELEASED,
     LOCK_BROKEN,
+    LOCK_EXPIRED,
     ACCESS_REQUESTED,
     ACCESS_GRANTED,
     ACCESS_LEVEL_CHANGED,

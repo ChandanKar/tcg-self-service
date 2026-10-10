@@ -57,4 +57,14 @@ public interface EnvironmentLockRepository extends JpaRepository<EnvironmentLock
     /** Active locks of many environments in one query (environment lists, M36). */
     @Query("SELECT l FROM EnvironmentLock l WHERE l.environment.environmentId IN :ids AND l.isActive = true")
     List<EnvironmentLock> findActiveByEnvironmentIdIn(@org.springframework.data.repository.query.Param("ids") List<String> ids);
+
+    /** Active locks past their expiry (E07-T02); the sweep re-checks each under a row lock. */
+    @Query("SELECT l.lockId FROM EnvironmentLock l WHERE l.isActive = true AND l.expiresAt IS NOT NULL " +
+           "AND l.expiresAt <= :now")
+    List<String> findExpiredActiveLockIds(@org.springframework.data.repository.query.Param("now") java.sql.Timestamp now);
+
+    /** One lock, row-locked, with its environment (expiry: one instance releases it, once). */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT l FROM EnvironmentLock l JOIN FETCH l.environment WHERE l.lockId = :lockId")
+    Optional<EnvironmentLock> findByIdForUpdate(@org.springframework.data.repository.query.Param("lockId") String lockId);
 }
