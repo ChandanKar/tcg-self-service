@@ -239,6 +239,34 @@ const Utils = (function() {
     }
 
     /**
+     * One CSV cell (E11-T05, M14): quoted, quotes doubled, and a value starting with = + - @ tab
+     * or carriage return prefixed with an apostrophe so a spreadsheet shows it as text instead of
+     * running it as a formula.
+     * @param {*} value
+     * @returns {string}
+     */
+    function csvCell(value) {
+        let s = value === null || value === undefined ? '' : String(value);
+        if (/^[=+\-@\t\r]/.test(s)) {
+            s = "'" + s;
+        }
+        return '"' + s.replace(/"/g, '""') + '"';
+    }
+
+    /**
+     * Download rows as a CSV file (UTF-8 with BOM so Excel reads accents), every cell through
+     * csvCell.
+     * @param {string} fileName
+     * @param {string[]} headers
+     * @param {Array<Array<*>>} rows
+     */
+    function downloadCsv(fileName, headers, rows) {
+        const lines = [headers.map(csvCell).join(',')].concat(rows.map(row => row.map(csvCell).join(',')));
+        const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+        downloadBlob(blob, fileName);
+    }
+
+    /**
      * Render a VM status badge with screen reader text (TASK-033)
      * @param {string} status - VM status (RUNNING, STOPPED, etc.)
      * @returns {string} - HTML for the status badge
@@ -317,7 +345,9 @@ const Utils = (function() {
         parseQueryString,
         formatRelativeTime,
         renderStatusBadge,
-        downloadBlob
+        downloadBlob,
+        csvCell,
+        downloadCsv
     };
 })();
 

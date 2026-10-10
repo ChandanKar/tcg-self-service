@@ -161,6 +161,7 @@ const Config = (function() {
         // Audit
         audit: {
             logs: `${API_BASE_URL}/audit/logs`,
+            stats: `${API_BASE_URL}/audit/logs/stats`,
             allLogs: `${API_BASE_URL}/audit/logs`,
             myLogs: `${API_BASE_URL}/audit/logs/my`,
             recent: `${API_BASE_URL}/audit/logs/recent`,

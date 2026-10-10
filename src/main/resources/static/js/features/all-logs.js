@@ -1,10 +1,16 @@
 /**
  * VM Self-Service Platform - All Logs (Audit) Module
- * Handles admin audit log viewing, filtering, and reporting
+ * Global audit log for admins and environment admins: every filter is applied together on the
+ * server, time ranges are exact instants (not UTC calendar days), the stat cards come from the
+ * server for the whole filtered set (E11-T05), and the CSV export neutralises formulas.
  */
 
 const AllLogs = (function() {
     'use strict';
+
+    const EXPORT_PAGE_SIZE = 500;
+    const EXPORT_MAX_ROWS = 10000;
+    const RANGE_HOURS = { '24h': 24, '7d': 24 * 7, '30d': 24 * 30 };
 
     /**
      * Spring Data serializes Page<T> as { content: [...], page: { totalElements, totalPages,
@@ -22,36 +28,56 @@ const AllLogs = (function() {
         };
     }
 
-    // Cache for filter state
+    // Filter state. from/to are ISO instants; customStart/customEnd back the date inputs.
     let currentFilters = {
-        startDate: '',
-        endDate: '',
+        from: '',
+        to: '',
+        customStart: '',
+        customEnd: '',
         userId: '',
+        userLabel: '',
         environmentId: '',
         actionType: '',
         resultStatus: '',
         timeRange: '24h',
         page: 0,
-        size: 1000
+        size: 100
     };
 
-    let allUsers = [];
+    let allUsers = [];          // ADMIN: full list; ENV_ADMIN: type-ahead results
     let allEnvironments = [];
-    let stats = {
-        totalActions: 0,
-        successRate: '0%',
-        failures: 0,
-        topUser: 'N/A',
-        topEnvironment: 'N/A'
-    };
+    let allActions = [];
+    let stats = emptyStats();
 
-    /**
-     * Load all audit logs page (admin only)
-     */
+    function emptyStats() {
+        return { total: 0, failures: 0, successRate: 0, topUser: null, topEnvironment: null };
+    }
+
+    /** An exact range ending now (E11-T05: "Last 24h" at 02:00 includes today 00:00-02:00). */
+    function setPresetRange(range) {
+        const hours = RANGE_HOURS[range] || 24;
+        const now = new Date();
+        currentFilters.from = new Date(now.getTime() - hours * 3600 * 1000).toISOString();
+        currentFilters.to = now.toISOString();
+    }
+
+    /** Custom days are local calendar days: from local midnight of start to local midnight after end. */
+    function setCustomRange(startDate, endDate) {
+        const [sy, sm, sd] = startDate.split('-').map(Number);
+        const [ey, em, ed] = endDate.split('-').map(Number);
+        currentFilters.from = new Date(sy, sm - 1, sd).toISOString();
+        currentFilters.to = new Date(ey, em - 1, ed + 1).toISOString();
+        currentFilters.customStart = startDate;
+        currentFilters.customEnd = endDate;
+    }
+
+    function isAdmin() {
+        return typeof Auth !== 'undefined' && Auth.isAdmin && Auth.isAdmin();
+    }
+
     /** Router loader (see the page contract in core/router.js). */
     async function loadAllAuditLogs() {
         const t = ContentRouter.token();
-        // Check admin permission
         if (!Auth.isEnvAdmin()) {
             showError('Access denied. This page is only available to administrators.');
             return;
@@ -59,36 +85,26 @@ const AllLogs = (function() {
 
         try {
             showLoading();
-
-            // Set default date range (last 24 hours)
-            const endDate = new Date();
-            const startDate = new Date();
-            startDate.setDate(startDate.getDate() - 1);
-
-            currentFilters.startDate = formatDateForApi(startDate);
-            currentFilters.endDate = formatDateForApi(endDate);
+            if (currentFilters.timeRange !== 'custom') {
+                setPresetRange(currentFilters.timeRange);
+            }
             currentFilters.page = 0;
 
-            // Load data in parallel
-            const [logs, users, environments] = await Promise.all([
+            const [logs, statsData, users, environments, actions] = await Promise.all([
                 fetchAllAuditLogs(currentFilters),
-                fetchAllUsers(),
-                fetchAllEnvironments()
+                fetchStats(currentFilters),
+                isAdmin() ? fetchAllUsers() : Promise.resolve([]),
+                fetchAllEnvironments(),
+                fetchActions()
             ]);
             if (!ContentRouter.isCurrent(t)) return;
 
             allUsers = users || [];
             allEnvironments = environments || [];
+            allActions = actions || [];
+            stats = statsData || emptyStats();
 
-            // Calculate stats from logs
-            calculateStats(logs);
-
-            const html = buildAllLogsHtml(logs);
-            $('#content-area').html(html);
-            bindAllLogsEvents();
-            renderAllLogsPagination(logs);
-
-            console.log('All audit logs loaded successfully');
+            render(logs);
         } catch (error) {
             if (!ContentRouter.isCurrent(t)) return;
             console.error('Failed to load audit logs:', error);
@@ -96,31 +112,30 @@ const AllLogs = (function() {
         }
     }
 
-    /**
-     * Fetch all audit logs with filters
-     */
+    /** Query params shared by the logs, stats and export requests. */
+    function filterParams(filters) {
+        const params = new URLSearchParams();
+        if (filters.from) params.append('from', filters.from);
+        if (filters.to) params.append('to', filters.to);
+        if (filters.userId) params.append('userId', filters.userId);
+        if (filters.environmentId) params.append('environmentId', filters.environmentId);
+        if (filters.actionType) params.append('action', filters.actionType);
+        if (filters.resultStatus === 'true' || filters.resultStatus === 'false') {
+            params.append('success', filters.resultStatus);
+        }
+        return params;
+    }
+
     function fetchAllAuditLogs(filters) {
         return new Promise((resolve, reject) => {
-            const params = new URLSearchParams();
+            const params = filterParams(filters);
             params.append('page', filters.page);
             params.append('size', filters.size);
-
-            if (filters.startDate) params.append('startDate', filters.startDate);
-            if (filters.endDate) params.append('endDate', filters.endDate);
-            if (filters.userId) params.append('userId', filters.userId);
-            if (filters.environmentId) params.append('environmentId', filters.environmentId);
-            if (filters.actionType) params.append('action', filters.actionType);
-            if (filters.resultStatus !== '') params.append('success', filters.resultStatus);
-
-            const url = `${Config.API.audit.logs}?${params.toString()}`;
-
-            ApiClient.get(url)
-                .done(function(data) {
-                    resolve(normalizePage(data));
-                })
-                .fail(function(xhr) {
+            ApiClient.get(`${Config.API.audit.logs}?${params.toString()}`)
+                .done(data => resolve(normalizePage(data)))
+                .fail(xhr => {
                     if (xhr.status === 404) {
-                        resolve({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 50 });
+                        resolve({ content: [], totalElements: 0, totalPages: 0, number: 0, size: filters.size });
                     } else {
                         reject(xhr);
                     }
@@ -128,221 +143,165 @@ const AllLogs = (function() {
         });
     }
 
-    /**
-     * Fetch all users for filter dropdown
-     */
+    /** Server totals for the same filters (never computed from one page). */
+    function fetchStats(filters) {
+        return new Promise(resolve => {
+            ApiClient.get(`${Config.API.audit.stats}?${filterParams(filters).toString()}`, { suppressGlobalError: true })
+                .done(resolve)
+                .fail(() => resolve(emptyStats()));
+        });
+    }
+
+    /** ADMIN only: the user list endpoint is ADMIN-only, so an ENV_ADMIN uses type-ahead search. */
     function fetchAllUsers() {
-        return new Promise((resolve) => {
-            ApiClient.get(Config.API.users.list)
-                .done(function(data) {
-                    const users = Array.isArray(data) ? data : [];
-                    resolve(users.map(u => ({
-                        id: u.userId || u.id,
-                        email: u.email,
-                        name: u.displayName || u.email
-                    })));
-                })
-                .fail(() => {
-                    resolve([]);
-                });
+        return new Promise(resolve => {
+            ApiClient.get(Config.API.users.list, { suppressGlobalError: true })
+                .done(data => resolve((Array.isArray(data) ? data : []).map(toUserOption)))
+                .fail(() => resolve([]));
         });
     }
 
-    /**
-     * Fetch all environments for filter dropdown
-     */
+    function toUserOption(u) {
+        return { id: u.userId || u.id, email: u.email, name: u.displayName || u.email };
+    }
+
     function fetchAllEnvironments() {
-        return new Promise((resolve) => {
-            ApiClient.get(Config.API.environments.list)
-                .done(function(data) {
-                    const envs = Array.isArray(data) ? data : [];
-                    resolve(envs.map(e => ({
-                        id: e.environmentId || e.id,
-                        name: e.displayName || e.name
-                    })));
-                })
-                .fail(() => {
-                    resolve([]);
-                });
+        return new Promise(resolve => {
+            ApiClient.get(Config.API.environments.list, { suppressGlobalError: true })
+                .done(data => resolve((Array.isArray(data) ? data : []).map(e => ({
+                    id: e.environmentId || e.id,
+                    name: e.displayName || e.name
+                }))))
+                .fail(() => resolve([]));
         });
     }
 
-    /**
-     * Calculate statistics from audit logs
-     */
-    function calculateStats(data) {
-        const logs = data.content || [];
+    function fetchActions() {
+        return new Promise(resolve => {
+            ApiClient.get(Config.API.audit.actions, { suppressGlobalError: true })
+                .done(data => resolve(Array.isArray(data) ? data : []))
+                .fail(() => resolve([]));
+        });
+    }
 
-        if (logs.length === 0) {
-            stats = {
-                totalActions: 0,
-                successRate: '0%',
-                failures: 0,
-                topUser: '-',
-                topEnvironment: '-'
-            };
-            return;
+    function render(logs) {
+        $('#content-area').html(buildAllLogsHtml(logs));
+        bindAllLogsEvents();
+        renderAllLogsPagination(logs);
+    }
+
+    function statCard(value, label, cls, title) {
+        return Utils.html`
+            <div class="col">
+                <div class="metric-card">
+                    <div class="${cls}" title="${title || ''}">${value}</div>
+                    <div class="metric-label-hint">${label}</div>
+                </div>
+            </div>`;
+    }
+
+    function buildStatsHtml() {
+        const topUser = stats.topUser ? `${stats.topUser.name} (${stats.topUser.count})` : 'N/A';
+        const topEnv = stats.topEnvironment ? `${stats.topEnvironment.name} (${stats.topEnvironment.count})` : 'N/A';
+        return [
+            statCard(Number(stats.total || 0).toLocaleString(), 'Total Actions', 'metric-value'),
+            statCard(`${stats.successRate || 0}%`, 'Success Rate', 'metric-value text-success'),
+            statCard(Number(stats.failures || 0).toLocaleString(), 'Failures', 'metric-value text-danger'),
+            statCard(topUser, 'Most Active User', 'metric-value-sm', topUser),
+            statCard(topEnv, 'Most Active Env', 'metric-value-sm', topEnv)
+        ].join('');
+    }
+
+    function formatActionName(action) {
+        if (!action) return '';
+        return action.replace(/_/g, ' ').toLowerCase()
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+    }
+
+    function buildActionOptions() {
+        return allActions.map(a => Utils.html`<option value="${a}" ${currentFilters.actionType === a ? 'selected' : ''}>${formatActionName(a)}</option>`).join('');
+    }
+
+    function buildUserFilter() {
+        if (isAdmin()) {
+            return Utils.html`
+                <select class="form-select form-select-sm" id="user-filter" aria-label="User">
+                    <option value="">All Users</option>
+                    ${Utils.raw(allUsers.map(u => Utils.html`<option value="${u.id}" ${currentFilters.userId === u.id ? 'selected' : ''}>${u.name}</option>`).join(''))}
+                </select>`;
         }
-
-        const total = data.totalElements || 0;
-        const successful = logs.filter(l => l.success !== false).length;
-        const failed = logs.filter(l => l.success === false).length;
-        const successRate = logs.length > 0 ? Math.round((successful / logs.length) * 100) : 0;
-
-        // Find top user and environment from current page
-        const userCounts = {};
-        const envCounts = {};
-
-        logs.forEach(log => {
-            if (log.userId) {
-                userCounts[log.userId] = (userCounts[log.userId] || 0) + 1;
-            }
-            if (log.environmentId) {
-                envCounts[log.environmentId] = (envCounts[log.environmentId] || 0) + 1;
-            }
-        });
-
-        const topUser = Object.entries(userCounts)
-            .sort((a, b) => b[1] - a[1])[0];
-        const topEnv = Object.entries(envCounts)
-            .sort((a, b) => b[1] - a[1])[0];
-
-        stats = {
-            totalActions: total,
-            successRate: `${successRate}%`,
-            failures: failed,
-            topUser: topUser ? (allUsers.find(u => u.id === topUser[0])?.name || 'Unknown User') : 'N/A',
-            topEnvironment: topEnv ? (allEnvironments.find(e => e.id === topEnv[0])?.name || topEnv[0]) : 'N/A'
-        };
+        // ENV_ADMIN: type-ahead over /users/search (no ADMIN-only /users call, so no 403).
+        return Utils.html`
+            <input type="search" class="form-control form-control-sm" id="user-search-input" list="audit-user-options"
+                   placeholder="Any user (type to search)" aria-label="User" value="${currentFilters.userLabel}">
+            <datalist id="audit-user-options"></datalist>`;
     }
 
-    /**
-     * Build all logs page HTML
-     */
     function buildAllLogsHtml(data) {
         const logs = data.content || [];
-        const totalElements = data.totalElements || 0;
-        const totalPages = data.totalPages || 0;
-        const currentPage = data.number || 0;
+        const rows = logs.length > 0 ? logs.map(buildAuditLogRow).join('') : `
+            <tr>
+                <td colspan="7" class="text-center text-muted py-4">
+                    <i class="fas fa-inbox fa-3x mb-2 d-block" style="opacity:0.5;"></i>
+                    No audit logs found for the selected filters
+                </td>
+            </tr>`;
 
         return `
             <div class="all-logs-container">
-                <!-- Header -->
                 <div class="content-header">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h1><i class="fas fa-file-alt"></i> Global Audit Logs</h1>
-                            <p class="text-muted">Complete audit trail across all environments</p>
+                            <p class="text-muted">Complete audit trail across ${isAdmin() ? 'all environments' : 'your environments'}</p>
                         </div>
                     </div>
                 </div>
 
-                <!-- Stats: compact metric cards — directly after header, same as Dashboard -->
-                <div class="row g-2 mb-2">
-                    <div class="col">
-                        <div class="metric-card">
-                            <div class="metric-value">${stats.totalActions.toLocaleString()}</div>
-                            <div class="metric-label-hint">Total Actions</div>
-                        </div>
-                    </div>
-                    <div class="col">
-                        <div class="metric-card">
-                            <div class="metric-value text-success">${stats.successRate}</div>
-                            <div class="metric-label-hint">Success Rate</div>
-                        </div>
-                    </div>
-                    <div class="col">
-                        <div class="metric-card">
-                            <div class="metric-value text-danger">${stats.failures}</div>
-                            <div class="metric-label-hint">Failures</div>
-                        </div>
-                    </div>
-                    <div class="col">
-                        <div class="metric-card">
-                            <div class="metric-value-sm" title="${stats.topUser}">${stats.topUser}</div>
-                            <div class="metric-label-hint">Most Active User</div>
-                        </div>
-                    </div>
-                    <div class="col">
-                        <div class="metric-card">
-                            <div class="metric-value-sm" title="${stats.topEnvironment}">${stats.topEnvironment}</div>
-                            <div class="metric-label-hint">Most Active Env</div>
-                        </div>
-                    </div>
-                </div>
+                <div class="row g-2 mb-2" id="all-logs-stats">${buildStatsHtml()}</div>
 
-                <!-- Filter Bar: dropdowns only, no labels -->
                 <div class="all-logs-filter-bar mb-2">
-                    <select class="form-select form-select-sm" id="time-range-filter">
-                        <option value="24h" ${currentFilters.timeRange === '24h' || !currentFilters.timeRange ? 'selected' : ''}>Last 24h</option>
+                    <select class="form-select form-select-sm" id="time-range-filter" aria-label="Time range">
+                        <option value="24h" ${currentFilters.timeRange === '24h' ? 'selected' : ''}>Last 24h</option>
                         <option value="7d" ${currentFilters.timeRange === '7d' ? 'selected' : ''}>Last 7 days</option>
                         <option value="30d" ${currentFilters.timeRange === '30d' ? 'selected' : ''}>Last 30 days</option>
                         <option value="custom" ${currentFilters.timeRange === 'custom' ? 'selected' : ''}>Custom range</option>
                     </select>
-                    <select class="form-select form-select-sm" id="user-filter">
-                        <option value="">All Users</option>
-                        ${allUsers.map(u => `<option value="${Utils.escapeHtml(u.id)}" ${currentFilters.userId === u.id ? 'selected' : ''}>${Utils.escapeHtml(u.name)}</option>`).join('')}
-                    </select>
-                    <select class="form-select form-select-sm" id="environment-filter">
+                    ${buildUserFilter()}
+                    <select class="form-select form-select-sm" id="environment-filter" aria-label="Environment">
                         <option value="">All Environments</option>
-                        ${allEnvironments.map(e => `<option value="${Utils.escapeHtml(e.id)}" ${currentFilters.environmentId === e.id ? 'selected' : ''}>${Utils.escapeHtml(e.name)}</option>`).join('')}
+                        ${allEnvironments.map(e => Utils.html`<option value="${e.id}" ${currentFilters.environmentId === e.id ? 'selected' : ''}>${e.name}</option>`).join('')}
                     </select>
-                    <select class="form-select form-select-sm" id="action-type-filter">
+                    <select class="form-select form-select-sm" id="action-type-filter" aria-label="Action">
                         <option value="">All Actions</option>
-                        <optgroup label="VM Operations">
-                            <option value="VM_START_REQUESTED" ${currentFilters.actionType === 'VM_START_REQUESTED' ? 'selected' : ''}>VM Start</option>
-                            <option value="VM_STOP_REQUESTED" ${currentFilters.actionType === 'VM_STOP_REQUESTED' ? 'selected' : ''}>VM Stop</option>
-                            <option value="VM_RESTART_REQUESTED" ${currentFilters.actionType === 'VM_RESTART_REQUESTED' ? 'selected' : ''}>VM Restart</option>
-                        </optgroup>
-                        <optgroup label="Lock Operations">
-                            <option value="LOCK_ACQUIRED" ${currentFilters.actionType === 'LOCK_ACQUIRED' ? 'selected' : ''}>Lock Acquired</option>
-                            <option value="LOCK_RELEASED" ${currentFilters.actionType === 'LOCK_RELEASED' ? 'selected' : ''}>Lock Released</option>
-                            <option value="LOCK_BROKEN" ${currentFilters.actionType === 'LOCK_BROKEN' ? 'selected' : ''}>Lock Broken</option>
-                        </optgroup>
-                        <optgroup label="Access">
-                            <option value="ACCESS_GRANTED" ${currentFilters.actionType === 'ACCESS_GRANTED' ? 'selected' : ''}>Access Granted</option>
-                            <option value="ACCESS_REVOKED" ${currentFilters.actionType === 'ACCESS_REVOKED' ? 'selected' : ''}>Access Revoked</option>
-                        </optgroup>
-                        <optgroup label="User Management">
-                            <option value="USER_CREATED" ${currentFilters.actionType === 'USER_CREATED' ? 'selected' : ''}>User Created</option>
-                            <option value="USER_PROMOTED_TO_ADMIN" ${currentFilters.actionType === 'USER_PROMOTED_TO_ADMIN' ? 'selected' : ''}>User Promoted</option>
-                        </optgroup>
-                        <optgroup label="Automation Rules">
-                            <option value="AUTOMATION_RULE_TRIGGERED" ${currentFilters.actionType === 'AUTOMATION_RULE_TRIGGERED' ? 'selected' : ''}>Rule Triggered</option>
-                            <option value="AUTOMATION_RULE_SKIPPED" ${currentFilters.actionType === 'AUTOMATION_RULE_SKIPPED' ? 'selected' : ''}>Rule Skipped</option>
-                            <option value="AUTOMATION_RULE_FAILED" ${currentFilters.actionType === 'AUTOMATION_RULE_FAILED' ? 'selected' : ''}>Rule Failed</option>
-                            <option value="AUTOMATION_RULE_CREATED" ${currentFilters.actionType === 'AUTOMATION_RULE_CREATED' ? 'selected' : ''}>Rule Created</option>
-                            <option value="AUTOMATION_RULE_UPDATED" ${currentFilters.actionType === 'AUTOMATION_RULE_UPDATED' ? 'selected' : ''}>Rule Updated</option>
-                            <option value="AUTOMATION_RULE_DELETED" ${currentFilters.actionType === 'AUTOMATION_RULE_DELETED' ? 'selected' : ''}>Rule Deleted</option>
-                        </optgroup>
+                        ${buildActionOptions()}
                     </select>
-                    <select class="form-select form-select-sm" id="result-filter">
+                    <select class="form-select form-select-sm" id="result-filter" aria-label="Result">
                         <option value="">All Results</option>
                         <option value="true" ${currentFilters.resultStatus === 'true' ? 'selected' : ''}>Success</option>
                         <option value="false" ${currentFilters.resultStatus === 'false' ? 'selected' : ''}>Failure</option>
                     </select>
-                    <select class="form-select form-select-sm" id="page-size-filter" title="Rows per fetch">
-                        <option value="100"  ${currentFilters.size === 100  ? 'selected' : ''}>100</option>
-                        <option value="500"  ${currentFilters.size === 500  ? 'selected' : ''}>500</option>
-                        <option value="1000" ${currentFilters.size === 1000 ? 'selected' : ''}>1000</option>
-                        <option value="10000" ${currentFilters.size === 10000 ? 'selected' : ''}>All</option>
+                    <select class="form-select form-select-sm" id="page-size-filter" title="Rows per page" aria-label="Rows per page">
+                        <option value="50" ${currentFilters.size === 50 ? 'selected' : ''}>50</option>
+                        <option value="100" ${currentFilters.size === 100 ? 'selected' : ''}>100</option>
+                        <option value="500" ${currentFilters.size === 500 ? 'selected' : ''}>500</option>
                     </select>
                     <button class="btn btn-outline-danger btn-ghost btn-sm" id="clear-filters-btn" title="Clear all filters">
                         <i class="fas fa-times"></i> Clear
                     </button>
-                    <button class="btn btn-ghost btn-sm" id="export-logs-btn" title="Export CSV">
+                    <button class="btn btn-ghost btn-sm" id="export-logs-btn" title="Export CSV (up to ${EXPORT_MAX_ROWS.toLocaleString()} rows)">
                         <i class="fas fa-download"></i> Export
                     </button>
                 </div>
 
-                <!-- Custom Date Range (shown only when "Custom range" is selected) -->
                 <div id="custom-date-range" class="all-logs-custom-range mb-2" style="display:${currentFilters.timeRange === 'custom' ? 'flex' : 'none'};">
-                    <input type="date" class="form-control form-control-sm" id="start-date-input" value="${currentFilters.startDate}">
-                    <input type="date" class="form-control form-control-sm" id="end-date-input" value="${currentFilters.endDate}">
+                    <input type="date" class="form-control form-control-sm" id="start-date-input" value="${Utils.escapeHtml(currentFilters.customStart)}" aria-label="From date">
+                    <input type="date" class="form-control form-control-sm" id="end-date-input" value="${Utils.escapeHtml(currentFilters.customEnd)}" aria-label="To date">
                     <button class="btn btn-primary btn-sm" id="apply-custom-range-btn">Apply</button>
                 </div>
 
-                <!-- Table Card: fills remaining space -->
                 <div class="card all-logs-table-card">
                     <div class="card-body all-logs-card-body">
                         <div class="all-logs-table-wrapper">
@@ -358,19 +317,9 @@ const AllLogs = (function() {
                                         <th>Details</th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    ${logs.length > 0 ? logs.map(log => buildAuditLogRow(log)).join('') : `
-                                        <tr>
-                                            <td colspan="7" class="text-center text-muted py-4">
-                                                <i class="fas fa-inbox fa-3x mb-2 d-block" style="opacity:0.5;"></i>
-                                                No audit logs found for the selected filters
-                                            </td>
-                                        </tr>
-                                    `}
-                                </tbody>
+                                <tbody>${rows}</tbody>
                             </table>
                         </div>
-                        <!-- Pagination: pinned to bottom of card -->
                         <div class="pagination-bar-wrap" id="all-logs-pagination"></div>
                     </div>
                 </div>
@@ -378,10 +327,6 @@ const AllLogs = (function() {
         `;
     }
 
-    /**
-     * Render pagination controls into #all-logs-pagination — called after the container has
-     * been inserted into the DOM (buildAllLogsHtml leaves it empty for this).
-     */
     function renderAllLogsPagination(logs) {
         Pagination.renderNumbered('#all-logs-pagination', {
             page: logs.number || 0,
@@ -397,46 +342,36 @@ const AllLogs = (function() {
         });
     }
 
-    /**
-     * Build a single audit log row
-     */
     function buildAuditLogRow(log) {
         const timestamp = formatTimestamp(log.createdAt);
         const actionBadgeClass = getActionBadgeClass(log.action);
         const actionDisplay = log.actionDisplay || formatActionName(log.action);
         const resultIcon = log.success !== false ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>';
-        const details = log.details ? log.details.substring(0, 40) + (log.details.length > 40 ? '...' : '') : (log.errorMessage ? log.errorMessage.substring(0, 40) + (log.errorMessage.length > 40 ? '...' : '') : '-');
-        const userName = getUserDisplay(log);
-        const environment = Utils.escapeHtml(getEnvironmentDisplay(log));
-        const safeUserName = Utils.escapeHtml(userName);
-        const safeActionDisplay = Utils.escapeHtml(actionDisplay);
-        const safeTargetName = Utils.escapeHtml(log.targetName || '-');
-        const safeDetails = Utils.escapeHtml(details);
-        const safeDetailsTitle = Utils.escapeHtml(log.details || log.errorMessage || '');
+        const full = log.details || log.errorMessage || '';
+        const details = full ? full.substring(0, 40) + (full.length > 40 ? '...' : '') : '-';
 
-        return `
+        return Utils.html`
             <tr>
                 <td>
                     <div>${timestamp.relative}</div>
                     <small class="text-muted">${timestamp.absolute}</small>
                 </td>
-                <td><small>${safeUserName}</small></td>
-                <td>${environment}</td>
-                <td>
-                    <span class="badge ${actionBadgeClass}">${safeActionDisplay}</span>
-                </td>
-                <td>${safeTargetName}</td>
-                <td class="text-center">${resultIcon}</td>
-                <td title="${safeDetailsTitle}">${safeDetails}</td>
+                <td><small>${getUserDisplay(log)}</small></td>
+                <td>${getEnvironmentDisplay(log)}</td>
+                <td><span class="badge ${actionBadgeClass}">${actionDisplay}</span></td>
+                <td>${log.targetName || '-'}</td>
+                <td class="text-center">${Utils.raw(resultIcon)}</td>
+                <td title="${full}">${details}</td>
             </tr>
         `;
     }
 
-    /**
-     * Bind event handlers for filter changes and pagination
-     */
+    function reloadFromFirstPage() {
+        currentFilters.page = 0;
+        loadAllLogs();
+    }
+
     function bindAllLogsEvents() {
-        // Time range filter
         $('#time-range-filter').on('change', function() {
             const value = $(this).val();
             currentFilters.timeRange = value;
@@ -444,39 +379,53 @@ const AllLogs = (function() {
                 $('#custom-date-range').show();
             } else {
                 $('#custom-date-range').hide();
-                applyTimeRangeFilter(value);
+                setPresetRange(value);
+                reloadFromFirstPage();
             }
         });
 
-        // User filter
         $('#user-filter').on('change', function() {
             currentFilters.userId = $(this).val();
-            currentFilters.page = 0;
-            loadAllLogs();
+            reloadFromFirstPage();
         });
 
-        // Environment filter
+        const searchUsers = Utils.debounce(function(query) {
+            ApiClient.get(Config.API.users.search(query), { suppressGlobalError: true }).done(function(users) {
+                allUsers = (Array.isArray(users) ? users : []).map(toUserOption);
+                $('#audit-user-options').html(allUsers.map(u => Utils.html`<option value="${u.name} <${u.email}>"></option>`).join(''));
+            });
+        }, 300);
+        $('#user-search-input').on('input', function() {
+            const value = $(this).val().trim();
+            const match = allUsers.find(u => `${u.name} <${u.email}>` === value);
+            if (match) {
+                currentFilters.userId = match.id;
+                currentFilters.userLabel = value;
+                reloadFromFirstPage();
+            } else if (!value && currentFilters.userId) {
+                currentFilters.userId = '';
+                currentFilters.userLabel = '';
+                reloadFromFirstPage();
+            } else if (value.length >= 2) {
+                searchUsers(value);
+            }
+        });
+
         $('#environment-filter').on('change', function() {
             currentFilters.environmentId = $(this).val();
-            currentFilters.page = 0;
-            loadAllLogs();
+            reloadFromFirstPage();
         });
 
-        // Action type filter
         $('#action-type-filter').on('change', function() {
             currentFilters.actionType = $(this).val();
-            currentFilters.page = 0;
-            loadAllLogs();
+            reloadFromFirstPage();
         });
 
-        // Result filter
         $('#result-filter').on('change', function() {
             currentFilters.resultStatus = $(this).val();
-            currentFilters.page = 0;
-            loadAllLogs();
+            reloadFromFirstPage();
         });
 
-        // Custom date range
         $('#apply-custom-range-btn').on('click', function() {
             const startDate = $('#start-date-input').val();
             const endDate = $('#end-date-input').val();
@@ -484,109 +433,65 @@ const AllLogs = (function() {
                 Notifications.show('Please select both start and end dates', 'warning');
                 return;
             }
-            if (new Date(startDate) > new Date(endDate)) {
+            if (startDate > endDate) {
                 Notifications.show('Start date must be before end date', 'warning');
                 return;
             }
-            currentFilters.startDate = startDate;
-            currentFilters.endDate = endDate;
-            currentFilters.page = 0;
-            loadAllLogs();
+            setCustomRange(startDate, endDate);
+            reloadFromFirstPage();
         });
 
-
-        // Page size
         $('#page-size-filter').on('change', function() {
-            currentFilters.size = parseInt($(this).val());
-            currentFilters.page = 0;
-            loadAllLogs();
+            currentFilters.size = parseInt($(this).val(), 10);
+            reloadFromFirstPage();
         });
 
-        // Clear all filters
         $('#clear-filters-btn').on('click', function() {
-            const endDate = new Date();
-            const startDate = new Date();
-            startDate.setDate(startDate.getDate() - 1);
-            currentFilters.startDate = formatDateForApi(startDate);
-            currentFilters.endDate = formatDateForApi(endDate);
             currentFilters.userId = '';
+            currentFilters.userLabel = '';
             currentFilters.environmentId = '';
             currentFilters.actionType = '';
             currentFilters.resultStatus = '';
             currentFilters.timeRange = '24h';
-            currentFilters.page = 0;
-            loadAllLogs();
+            setPresetRange('24h');
+            reloadFromFirstPage();
         });
 
-        // Export
-        $('#export-logs-btn').on('click', function() {
-            exportAuditLogs();
-        });
+        $('#export-logs-btn').on('click', exportAuditLogs);
     }
 
     /**
-     * Apply time range filter
-     */
-    function applyTimeRangeFilter(range) {
-        const endDate = new Date();
-        const startDate = new Date();
-
-        switch (range) {
-            case '24h':
-                startDate.setDate(startDate.getDate() - 1);
-                break;
-            case '7d':
-                startDate.setDate(startDate.getDate() - 7);
-                break;
-            case '30d':
-                startDate.setDate(startDate.getDate() - 30);
-                break;
-            default:
-                return;
-        }
-
-        currentFilters.startDate = formatDateForApi(startDate);
-        currentFilters.endDate = formatDateForApi(endDate);
-        currentFilters.page = 0;
-        loadAllLogs();
-    }
-
-    /**
-     * Reload all logs with current filters
-     * @param {boolean} [pageChangeOnly=false] — skip stats recalculation on page changes
+     * Reload with the current filters; stats are refetched unless only the page changed.
+     * @param {boolean} [pageChangeOnly=false]
      */
     function loadAllLogs(pageChangeOnly) {
         const t = ContentRouter.token();
         showLoading();
-        fetchAllAuditLogs(currentFilters)
-            .then(logs => {
-                if (!ContentRouter.isCurrent(t)) return;
-                if (!pageChangeOnly) calculateStats(logs);
-                const html = buildAllLogsHtml(logs);
-                $('#content-area').html(html);
-                bindAllLogsEvents();
-                renderAllLogsPagination(logs);
-            })
-            .catch(error => {
-                if (!ContentRouter.isCurrent(t)) return;
-                console.error('Error loading audit logs:', error);
-                showError('Failed to load audit logs.');
-            });
+        Promise.all([
+            fetchAllAuditLogs(currentFilters),
+            pageChangeOnly ? Promise.resolve(stats) : fetchStats(currentFilters)
+        ]).then(([logs, statsData]) => {
+            if (!ContentRouter.isCurrent(t)) return;
+            stats = statsData || emptyStats();
+            render(logs);
+        }).catch(error => {
+            if (!ContentRouter.isCurrent(t)) return;
+            console.error('Error loading audit logs:', error);
+            showError('Failed to load audit logs.');
+        });
     }
 
-    /**
-     * Export audit logs to CSV
-     */
-    function exportAuditLogs() {
+    /** Page through the filtered rows (500 at a time, at most 10,000) and download a CSV. */
+    async function exportAuditLogs() {
+        const t = ContentRouter.token();
         const fileName = `audit-logs-${new Date().toISOString().split('T')[0]}.csv`;
         const headers = ['Timestamp', 'User', 'Environment', 'Action', 'Target', 'Result', 'Details'];
-
-        // Fetch all logs for export (without pagination)
-        const exportParams = { ...currentFilters, page: 0, size: 10000 };
-        fetchAllAuditLogs(exportParams)
-            .then(data => {
+        const rows = [];
+        try {
+            for (let page = 0; rows.length < EXPORT_MAX_ROWS; page++) {
+                const data = await fetchAllAuditLogs({ ...currentFilters, page, size: EXPORT_PAGE_SIZE });
                 const logs = data.content || [];
-                const rows = logs.map(log => [
+                logs.forEach(log => rows.push([
                     log.createdAt,
                     getUserDisplay(log),
                     getEnvironmentDisplay(log),
@@ -594,44 +499,28 @@ const AllLogs = (function() {
                     log.targetName || '',
                     log.success !== false ? 'Success' : 'Failed',
                     log.details || log.errorMessage || ''
-                ]);
-
-                const csv = [
-                    headers.join(','),
-                    ...rows.map(row => row.map(cell => `"${(cell || '').toString().replace(/"/g, '""')}"`).join(','))
-                ].join('\n');
-
-                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                const link = document.createElement('a');
-                link.setAttribute('href', URL.createObjectURL(blob));
-                link.setAttribute('download', fileName);
-                link.style.visibility = 'hidden';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-
-                Notifications.show('Audit logs exported successfully', 'success');
-            })
-            .catch(error => {
-                console.error('Error exporting logs:', error);
-                Notifications.show('Failed to export logs', 'danger');
-            });
+                ]));
+                if (page + 1 >= (data.totalPages || 0) || logs.length === 0) break;
+            }
+            if (!ContentRouter.isCurrent(t)) return;
+            Utils.downloadCsv(fileName, headers, rows.slice(0, EXPORT_MAX_ROWS));
+            Notifications.show(`Exported ${Math.min(rows.length, EXPORT_MAX_ROWS).toLocaleString()} audit log row(s)`, 'success');
+        } catch (error) {
+            console.error('Error exporting logs:', error);
+            Notifications.show('Failed to export logs', 'danger');
+        }
     }
 
-    /**
-     * Helper: Format timestamp for display
-     */
     function formatTimestamp(timestamp) {
         if (!timestamp) return { relative: '-', absolute: '' };
 
         const date = new Date(timestamp);
-        const now = new Date();
-        const diff = now - date;
+        const diff = Date.now() - date.getTime();
         const minutes = Math.floor(diff / 60000);
         const hours = Math.floor(diff / 3600000);
         const days = Math.floor(diff / 86400000);
 
-        let relative = '';
+        let relative;
         if (minutes < 60) {
             relative = `${minutes}m ago`;
         } else if (hours < 24) {
@@ -641,22 +530,9 @@ const AllLogs = (function() {
         } else {
             relative = date.toLocaleDateString();
         }
-
-        const absolute = date.toLocaleString();
-
-        return { relative, absolute };
+        return { relative, absolute: date.toLocaleString() };
     }
 
-    /**
-     * Helper: Format date for API calls (YYYY-MM-DD)
-     */
-    function formatDateForApi(date) {
-        return date.toISOString().split('T')[0];
-    }
-
-    /**
-     * Helper: Get badge CSS class for action type
-     */
     function getActionBadgeClass(action) {
         if (!action) return 'bg-secondary';
 
@@ -669,26 +545,15 @@ const AllLogs = (function() {
         if (actionStr === 'automation_rule_failed') return 'bg-danger';
         if (actionStr.startsWith('automation_rule_')) return 'bg-primary';
 
+        if (actionStr.includes('failed')) return 'bg-danger';
         if (actionStr.includes('start')) return 'bg-success';
         if (actionStr.includes('stop')) return 'bg-danger';
         if (actionStr.includes('lock')) return 'bg-warning';
         if (actionStr.includes('restart')) return 'bg-info';
-        if (actionStr.includes('failed')) return 'bg-danger';
         if (actionStr.includes('access')) return 'bg-primary';
         if (actionStr.includes('user')) return 'bg-info';
 
         return 'bg-secondary';
-    }
-
-    /**
-     * Helper: Format action enum name
-     */
-    function formatActionName(action) {
-        if (!action) return '';
-        return action.replace(/_/g, ' ').toLowerCase()
-            .split(' ')
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(' ');
     }
 
     function getEnvironmentDisplay(log) {
@@ -706,9 +571,6 @@ const AllLogs = (function() {
         return log.userDisplayName || log.userEmail || 'System';
     }
 
-    /**
-     * Show loading state
-     */
     function showLoading() {
         $('#content-area').html(`
             <div class="d-flex justify-content-center align-items-center" style="min-height: 400px;">
@@ -722,11 +584,8 @@ const AllLogs = (function() {
         `);
     }
 
-    /**
-     * Show error state
-     */
     function showError(message) {
-        $('#content-area').html(`
+        $('#content-area').html(Utils.html`
             <div class="d-flex justify-content-center align-items-center" style="min-height: 400px;">
                 <div class="text-center">
                     <i class="fas fa-exclamation-triangle text-danger fa-3x mb-3"></i>
