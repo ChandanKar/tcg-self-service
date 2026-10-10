@@ -195,6 +195,61 @@ public class AuditService {
 
     // ============= Query Methods =============
 
+    /** One placeholder for an unrestricted filter: an empty IN list is invalid SQL. */
+    private static final List<String> NO_RESTRICTION = List.of("-");
+
+    /** Audit rows matching every criterion of {@code filter}, newest first (E11-T04). */
+    public Page<AuditLog> search(AuditFilter filter, Pageable pageable) {
+        if (filter.allowedEnvironmentIds() != null && filter.allowedEnvironmentIds().isEmpty()) {
+            return Page.empty(pageable);
+        }
+        F f = F.of(filter);
+        return enrichEnvironmentInfo(auditLogRepository.searchLogs(f.restricted, f.allowed, filter.environmentId(),
+                filter.userId(), filter.action(), f.status, filter.from(), filter.to(), f.text, pageable));
+    }
+
+    /** Totals for the same criteria as {@link #search} (E11-T04): never page-based. */
+    public com.tcgdigital.vmcontrol.dto.AuditStatsDTO stats(AuditFilter filter) {
+        if (filter.allowedEnvironmentIds() != null && filter.allowedEnvironmentIds().isEmpty()) {
+            return new com.tcgdigital.vmcontrol.dto.AuditStatsDTO(0, 0, 0, null, null);
+        }
+        F f = F.of(filter);
+        long total = auditLogRepository.countByFilter(f.restricted, f.allowed, filter.environmentId(), filter.userId(),
+                filter.action(), f.status, filter.from(), filter.to(), f.text);
+        long failures = Boolean.TRUE.equals(filter.success()) ? 0
+                : auditLogRepository.countByFilter(f.restricted, f.allowed, filter.environmentId(), filter.userId(),
+                        filter.action(), "failed", filter.from(), filter.to(), f.text);
+        int successRate = total == 0 ? 0 : (int) Math.round((total - failures) * 100.0 / total);
+        Pageable top = PageRequest.of(0, 1);
+        com.tcgdigital.vmcontrol.dto.AuditStatsDTO.Top topUser = auditLogRepository.topUsersByFilter(f.restricted, f.allowed,
+                        filter.environmentId(), filter.userId(), filter.action(), f.status, filter.from(), filter.to(), f.text, top)
+                .stream().findFirst().map(r -> {
+                    String id = (String) r[0];
+                    String name = userRepository.findById(id).map(u -> firstNonBlank(u.getDisplayName(), u.getEmail())).orElse(id);
+                    return new com.tcgdigital.vmcontrol.dto.AuditStatsDTO.Top(id, name, ((Number) r[1]).longValue());
+                }).orElse(null);
+        com.tcgdigital.vmcontrol.dto.AuditStatsDTO.Top topEnvironment = auditLogRepository.topEnvironmentsByFilter(f.restricted,
+                        f.allowed, filter.environmentId(), filter.userId(), filter.action(), f.status, filter.from(), filter.to(),
+                        f.text, top)
+                .stream().findFirst().map(r -> {
+                    String id = (String) r[0];
+                    String name = environmentRepository.findById(id).map(e -> firstNonBlank(e.getDisplayName(), e.getName())).orElse(id);
+                    return new com.tcgdigital.vmcontrol.dto.AuditStatsDTO.Top(id, name, ((Number) r[1]).longValue());
+                }).orElse(null);
+        return new com.tcgdigital.vmcontrol.dto.AuditStatsDTO(total, failures, successRate, topUser, topEnvironment);
+    }
+
+    /** The filter's derived query parameters. */
+    private record F(boolean restricted, java.util.Collection<String> allowed, String status, String text) {
+        static F of(AuditFilter filter) {
+            boolean restricted = filter.allowedEnvironmentIds() != null;
+            String status = filter.success() == null ? null : (filter.success() ? "succeeded" : "failed");
+            String text = filter.text() == null || filter.text().isBlank() ? null
+                    : "%" + filter.text().trim().toLowerCase() + "%";
+            return new F(restricted, restricted ? filter.allowedEnvironmentIds() : NO_RESTRICTION, status, text);
+        }
+    }
+
     /**
      * Get recent audit logs.
      */

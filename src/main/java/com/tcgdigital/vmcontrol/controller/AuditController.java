@@ -4,6 +4,7 @@ import com.tcgdigital.vmcontrol.dto.AuditLogDTO;
 import com.tcgdigital.vmcontrol.dto.AuditReportDTO;
 import com.tcgdigital.vmcontrol.model.AuditAction;
 import com.tcgdigital.vmcontrol.model.AuditLog;
+import com.tcgdigital.vmcontrol.service.AuditFilter;
 import com.tcgdigital.vmcontrol.service.AuditService;
 import com.tcgdigital.vmcontrol.service.SecurityService;
 import com.tcgdigital.vmcontrol.service.UserService;
@@ -48,7 +49,9 @@ public class AuditController {
     @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
             summary = "Get audit logs",
-            description = "Retrieves audit logs with optional filtering"
+            description = "Audit logs matching every given filter together (E11-T04). from/to are instants "
+                    + "(to exclusive); startDate/endDate are deprecated day fallbacks. Default: the last 7 days. "
+                    + "An ENV_ADMIN scoped to assigned environments sees only those."
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -58,40 +61,64 @@ public class AuditController {
     })
     public ResponseEntity<Page<AuditLogDTO>> getAuditLogs(
             @Parameter(description = "Page number (0-based)") @RequestParam(defaultValue = "0") int page,
-            @Parameter(description = "Page size") @RequestParam(defaultValue = "50") int size,
+            @Parameter(description = "Page size (max 500)") @RequestParam(defaultValue = "50") int size,
             @Parameter(description = "Filter by environment ID") @RequestParam(required = false) String environmentId,
             @Parameter(description = "Filter by user ID") @RequestParam(required = false) String userId,
             @Parameter(description = "Filter by action type") @RequestParam(required = false) AuditAction action,
-            @Parameter(description = "Start date (YYYY-MM-DD)") @RequestParam(required = false)
+            @Parameter(description = "true = succeeded only, false = failed only") @RequestParam(required = false) Boolean success,
+            @Parameter(description = "From (ISO instant, inclusive)") @RequestParam(required = false)
+                @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) java.time.Instant from,
+            @Parameter(description = "To (ISO instant, exclusive)") @RequestParam(required = false)
+                @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) java.time.Instant to,
+            @Parameter(description = "Deprecated: start date (YYYY-MM-DD)") @RequestParam(required = false)
                 @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @Parameter(description = "End date (YYYY-MM-DD)") @RequestParam(required = false)
+            @Parameter(description = "Deprecated: end date (YYYY-MM-DD)") @RequestParam(required = false)
                 @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @Parameter(description = "Search text") @RequestParam(required = false) String search) {
 
-        Page<AuditLog> logs;
+        AuditFilter filter = filter(environmentId, userId, action, success, from, to, startDate, endDate, search);
+        Page<AuditLog> logs = auditService.search(filter, com.tcgdigital.vmcontrol.controller.support.Paging.of(page, size, 500));
+        return ResponseEntity.ok(logs.map(AuditLogDTO::fromEntity));
+    }
 
-        if (environmentId != null) {
-            logs = auditService.getLogsForEnvironment(environmentId, page, size);
-        } else if (userId != null) {
-            logs = auditService.getLogsForUser(userId, page, size);
-        } else if (action != null) {
-            logs = auditService.getLogsByAction(action, page, size);
-        } else if (startDate != null && endDate != null) {
-            logs = auditService.getLogsInDateRange(startDate, endDate, page, size);
-        } else if (search != null && !search.isBlank()) {
-            logs = auditService.searchLogs(search, page, size);
-        } else {
-            // Default: return recent logs
-            logs = auditService.getLogsInDateRange(
-                    LocalDate.now().minusDays(7),
-                    LocalDate.now(),
-                    page,
-                    size
-            );
+    @GetMapping("/logs/stats")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(summary = "Audit totals for the same filters as /logs (E11-T04)")
+    public ResponseEntity<com.tcgdigital.vmcontrol.dto.AuditStatsDTO> getAuditStats(
+            @RequestParam(required = false) String environmentId,
+            @RequestParam(required = false) String userId,
+            @RequestParam(required = false) AuditAction action,
+            @RequestParam(required = false) Boolean success,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) java.time.Instant from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) java.time.Instant to,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) String search) {
+        return ResponseEntity.ok(auditService.stats(
+                filter(environmentId, userId, action, success, from, to, startDate, endDate, search)));
+    }
+
+    /** Build the combined filter, scoped to what the caller may see; an environment outside it is a 404. */
+    private AuditFilter filter(String environmentId, String userId, AuditAction action, Boolean success,
+                               java.time.Instant from, java.time.Instant to, LocalDate startDate, LocalDate endDate,
+                               String search) {
+        java.util.List<String> allowed = securityService.administeredEnvironmentIdsOrAll();
+        if (environmentId != null && allowed != null && !allowed.contains(environmentId)) {
+            throw new com.tcgdigital.vmcontrol.exception.ResourceNotFoundException("Environment", environmentId);
         }
+        java.sql.Timestamp fromTs = from != null ? java.sql.Timestamp.from(from)
+                : startDate != null ? java.sql.Timestamp.valueOf(startDate.atStartOfDay()) : null;
+        java.sql.Timestamp toTs = to != null ? java.sql.Timestamp.from(to)
+                : endDate != null ? java.sql.Timestamp.valueOf(endDate.plusDays(1).atStartOfDay()) : null;
+        if (fromTs == null && toTs == null) {
+            fromTs = java.sql.Timestamp.from(java.time.Instant.now().minus(java.time.Duration.ofDays(7)));
+        }
+        return new AuditFilter(allowed, blankToNull(environmentId), blankToNull(userId),
+                action != null ? action.name() : null, success, fromTs, toTs, blankToNull(search));
+    }
 
-        Page<AuditLogDTO> dtos = logs.map(AuditLogDTO::fromEntity);
-        return ResponseEntity.ok(dtos);
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     @GetMapping("/logs/my")

@@ -89,6 +89,30 @@ public class SecurityService {
         return atLeast(environmentGrantLevel(user, environmentId), AccessLevel.ADMIN);
     }
 
+    /**
+     * The environments the current user may read admin views (e.g. the global audit log) for
+     * (E11-T04): null means all (ADMIN, or ENV_ADMIN with security.env-admin.scope=global);
+     * otherwise the environments they hold an ENVIRONMENT ADMIN grant on (possibly none).
+     */
+    public List<String> administeredEnvironmentIdsOrAll() {
+        User user = userService.getCurrentUser();
+        if (user == null) {
+            // No user record (e.g. a pre-authenticated principal): fall back to the granted role.
+            org.springframework.security.core.Authentication auth =
+                    org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || auth instanceof org.springframework.security.authentication.AnonymousAuthenticationToken) {
+                // Only reachable in the dev permit-all mode: the endpoints using this require a role.
+                return null;
+            }
+            boolean admin = auth.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+            return admin ? null : List.of();
+        }
+        if (user.isAdmin() || (user.isEnvAdmin() && ENV_ADMIN_SCOPE_GLOBAL.equalsIgnoreCase(envAdminScope))) {
+            return null;
+        }
+        return accessService.getAdministeredEnvironmentIds(user.getUserId());
+    }
+
     /** True when {@code userId} is the signed-in user (for SpEL: @securityService.isCurrentUser(#userId)). */
     public boolean isCurrentUser(String userId) {
         User user = userService.getCurrentUser();

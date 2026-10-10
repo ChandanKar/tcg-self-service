@@ -125,4 +125,44 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, String> {
      */
     @Query("SELECT a FROM AuditLog a WHERE LOWER(a.details) LIKE LOWER(CONCAT('%', :searchText, '%')) ORDER BY a.createdAt DESC")
     Page<AuditLog> searchByDetails(String searchText, Pageable pageable);
+
+    /** The combined audit filter (E11-T04): every non-null criterion applies. */
+    String FILTER = "(:restricted = false OR a.environmentId IN :allowedEnvIds) "
+            + "AND (:environmentId IS NULL OR a.environmentId = :environmentId) "
+            + "AND (:userId IS NULL OR a.userId = :userId) "
+            + "AND (:action IS NULL OR a.action = :action) "
+            + "AND (:status IS NULL OR a.actionStatus = :status) "
+            + "AND (:from IS NULL OR a.createdAt >= :from) "
+            + "AND (:to IS NULL OR a.createdAt < :to) "
+            + "AND (:text IS NULL OR LOWER(a.targetName) LIKE :text OR LOWER(a.details) LIKE :text)";
+
+    @Query(value = "SELECT a FROM AuditLog a WHERE " + FILTER + " ORDER BY a.createdAt DESC",
+            countQuery = "SELECT COUNT(a) FROM AuditLog a WHERE " + FILTER)
+    Page<AuditLog> searchLogs(@Param("restricted") boolean restricted, @Param("allowedEnvIds") java.util.Collection<String> allowedEnvIds,
+                              @Param("environmentId") String environmentId, @Param("userId") String userId,
+                              @Param("action") String action, @Param("status") String status,
+                              @Param("from") Timestamp from, @Param("to") Timestamp to, @Param("text") String text,
+                              Pageable pageable);
+
+    @Query("SELECT COUNT(a) FROM AuditLog a WHERE " + FILTER)
+    long countByFilter(@Param("restricted") boolean restricted, @Param("allowedEnvIds") java.util.Collection<String> allowedEnvIds,
+                       @Param("environmentId") String environmentId, @Param("userId") String userId,
+                       @Param("action") String action, @Param("status") String status,
+                       @Param("from") Timestamp from, @Param("to") Timestamp to, @Param("text") String text);
+
+    @Query("SELECT a.userId, COUNT(a) FROM AuditLog a WHERE " + FILTER
+            + " AND a.userId IS NOT NULL GROUP BY a.userId ORDER BY COUNT(a) DESC")
+    List<Object[]> topUsersByFilter(@Param("restricted") boolean restricted, @Param("allowedEnvIds") java.util.Collection<String> allowedEnvIds,
+                                    @Param("environmentId") String environmentId, @Param("userId") String userId,
+                                    @Param("action") String action, @Param("status") String status,
+                                    @Param("from") Timestamp from, @Param("to") Timestamp to, @Param("text") String text,
+                                    Pageable pageable);
+
+    @Query("SELECT a.environmentId, COUNT(a) FROM AuditLog a WHERE " + FILTER
+            + " AND a.environmentId IS NOT NULL GROUP BY a.environmentId ORDER BY COUNT(a) DESC")
+    List<Object[]> topEnvironmentsByFilter(@Param("restricted") boolean restricted, @Param("allowedEnvIds") java.util.Collection<String> allowedEnvIds,
+                                           @Param("environmentId") String environmentId, @Param("userId") String userId,
+                                           @Param("action") String action, @Param("status") String status,
+                                           @Param("from") Timestamp from, @Param("to") Timestamp to, @Param("text") String text,
+                                           Pageable pageable);
 }
