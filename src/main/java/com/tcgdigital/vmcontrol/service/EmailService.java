@@ -75,7 +75,14 @@ public class EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message,
                     attachmentBytes != null, "UTF-8");
             helper.setFrom(fromAddress);
-            helper.setTo(toAddresses.toArray(new String[0]));
+            if (toAddresses.size() == 1) {
+                helper.setTo(toAddresses.get(0));
+            } else {
+                // A broadcast never shows the recipient list (E11-T09, M13): To is our own
+                // address and everyone is Bcc. email_log still records all recipients.
+                helper.setTo(fromAddress);
+                helper.setBcc(toAddresses.toArray(new String[0]));
+            }
             helper.setSubject(subject);
             helper.setText(htmlBody, true);
             if (attachmentBytes != null && attachmentName != null) {

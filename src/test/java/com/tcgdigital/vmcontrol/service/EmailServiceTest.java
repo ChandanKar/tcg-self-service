@@ -131,4 +131,40 @@ class EmailServiceTest {
     private void awaitAsync() throws InterruptedException {
         TimeUnit.MILLISECONDS.sleep(10);
     }
+
+    // ---- Recipients (E11-T09, M13) ----
+
+    private jakarta.mail.internet.MimeMessage realMessage() {
+        jakarta.mail.internet.MimeMessage message = new jakarta.mail.internet.MimeMessage((jakarta.mail.Session) null);
+        when(mailSender.createMimeMessage()).thenReturn(message);
+        return message;
+    }
+
+    @Test
+    void aBroadcastHidesItsRecipientsInBcc() throws Exception {
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "enabled", true);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "fromAddress", "noreply@tcgdigital.com");
+        jakarta.mail.internet.MimeMessage message = realMessage();
+        java.util.List<String> recipients = java.util.stream.IntStream.range(0, 15)
+                .mapToObj(i -> "user" + i + "@example.com").toList();
+
+        service.sendHtml(recipients, "Stop notice", "<p>body</p>", null, null);
+
+        org.assertj.core.api.Assertions.assertThat(message.getRecipients(jakarta.mail.Message.RecipientType.TO))
+                .extracting(Object::toString).containsExactly("noreply@tcgdigital.com");
+        org.assertj.core.api.Assertions.assertThat(message.getRecipients(jakarta.mail.Message.RecipientType.BCC)).hasSize(15);
+    }
+
+    @Test
+    void aSingleRecipientIsTheToAddress() throws Exception {
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "enabled", true);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "fromAddress", "noreply@tcgdigital.com");
+        jakarta.mail.internet.MimeMessage message = realMessage();
+
+        service.sendHtml(java.util.List.of("one@example.com"), "Access granted", "<p>body</p>", null, null);
+
+        org.assertj.core.api.Assertions.assertThat(message.getRecipients(jakarta.mail.Message.RecipientType.TO))
+                .extracting(Object::toString).containsExactly("one@example.com");
+        org.assertj.core.api.Assertions.assertThat(message.getRecipients(jakarta.mail.Message.RecipientType.BCC)).isNull();
+    }
 }

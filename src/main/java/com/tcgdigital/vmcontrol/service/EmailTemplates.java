@@ -11,11 +11,15 @@ final class EmailTemplates {
 
     private EmailTemplates() {}
 
-    /** Wraps a short body for a single-event email (access granted, lock broken, etc). */
-    static String eventEmail(String title, String bodyHtml) {
+    /**
+     * Wraps a short plain-text body for a single-event email (access granted, lock broken, etc).
+     * The body is escaped and its newlines become line breaks (E11-T09, M13): a lock reason or a
+     * name can never inject markup or a link. URLs are not auto-linked.
+     */
+    static String eventEmail(String title, String bodyText) {
         return "<html><body style=\"font-family:Arial,sans-serif;font-size:14px;color:#222;\">"
                 + "<h2 style=\"margin:0 0 12px;\">" + escape(title) + "</h2>"
-                + "<p>" + bodyHtml + "</p>"
+                + "<p>" + escape(bodyText).replace("\r\n", "\n").replace("\n", "<br>") + "</p>"
                 + "</body></html>";
     }
 
@@ -65,6 +69,7 @@ final class EmailTemplates {
         return value.replace("&", "&amp;")
                 .replace("<", "&lt;")
                 .replace(">", "&gt;")
-                .replace("\"", "&quot;");
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
     }
 }
