@@ -220,5 +220,39 @@ class MonitoringControllerIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.content", hasSize(3)))
                 .andExpect(jsonPath("$.page.totalElements").value(greaterThanOrEqualTo(5)));
     }
-}
 
+    // ---- Manual triggers take the scheduler's job lock (E12-T02) ----
+
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    private void holdLock(String job) {
+        jdbcTemplate.update("DELETE FROM scheduled_job_lock WHERE lock_name = ?", job);
+        jdbcTemplate.update("INSERT INTO scheduled_job_lock (lock_name, locked_by, locked_until, acquired_at) VALUES (?, 'other-node', ?, ?)",
+                job, java.sql.Timestamp.from(java.time.Instant.now().plusSeconds(600)), java.sql.Timestamp.from(java.time.Instant.now()));
+    }
+
+    @Test
+    void aManualArchiveWhileTheScheduledOneRunsIsRefused() throws Exception {
+        holdLock("vm_metrics_archive");
+
+        mockMvc.perform(post("/api/v1/monitoring/metrics/archive"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value("busy"));
+        mockMvc.perform(post("/api/v1/monitoring/metrics/sync")).andExpect(status().isOk());
+        jdbcTemplate.update("DELETE FROM scheduled_job_lock WHERE lock_name = 'vm_metrics_archive'");
+    }
+
+    @Test
+    void aManualRunTakesAndReleasesTheLock() throws Exception {
+        jdbcTemplate.update("DELETE FROM scheduled_job_lock WHERE lock_name = 'vm_inventory_sync'");
+
+        mockMvc.perform(post("/api/v1/monitoring/inventory/sync"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("completed"));
+
+        java.sql.Timestamp until = jdbcTemplate.queryForObject(
+                "SELECT locked_until FROM scheduled_job_lock WHERE lock_name = 'vm_inventory_sync'", java.sql.Timestamp.class);
+        org.assertj.core.api.Assertions.assertThat(until.toInstant()).isBeforeOrEqualTo(java.time.Instant.now().plusSeconds(1));
+    }
+}

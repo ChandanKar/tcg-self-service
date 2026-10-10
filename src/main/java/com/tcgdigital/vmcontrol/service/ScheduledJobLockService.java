@@ -72,6 +72,24 @@ public class ScheduledJobLockService {
         return true;
     }
 
+    /**
+     * Run a job under its scheduler lock and return its result, or empty when the lock is held
+     * (E12-T02): a manual trigger never overlaps the scheduled run. Unlike runLocked, a failure is
+     * rethrown to the caller; the lock is released either way.
+     */
+    public <T> Optional<T> tryRunLocked(String jobName, Duration defaultTtl, java.util.function.Supplier<T> job) {
+        long ttlMs = environment.getProperty("scheduler.lock.ttl." + jobName + "-ms", Long.class, defaultTtl.toMillis());
+        if (!Boolean.TRUE.equals(transactions.execute(status -> tryAcquire(jobName, ttlMs)))) {
+            log.debug("Manual run of {} refused: lock held", jobName);
+            return Optional.empty();
+        }
+        try {
+            return Optional.ofNullable(job.get());
+        } finally {
+            transactions.executeWithoutResult(status -> release(jobName));
+        }
+    }
+
     @Transactional
     public boolean tryAcquire(String lockName) {
         return tryAcquire(lockName, defaultTtlMs);

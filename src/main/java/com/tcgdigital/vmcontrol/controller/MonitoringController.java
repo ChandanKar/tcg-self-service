@@ -51,6 +51,7 @@ public class MonitoringController {
     private final UserRepository userRepository;
     private final VmRepository vmRepository;
     private final SecurityService securityService;
+    private final com.tcgdigital.vmcontrol.service.ScheduledJobLockService jobLockService;
 
     public MonitoringController(StateSyncService stateSyncService,
                                 EksSyncService eksSyncService,
@@ -59,9 +60,11 @@ public class MonitoringController {
                                 VmMetricsArchiveService archiveService,
                                 UserRepository userRepository,
                                 VmRepository vmRepository,
-                                SecurityService securityService) {
+                                SecurityService securityService,
+                                com.tcgdigital.vmcontrol.service.ScheduledJobLockService jobLockService) {
         this.vmRepository = vmRepository;
         this.securityService = securityService;
+        this.jobLockService = jobLockService;
         this.stateSyncService = stateSyncService;
         this.eksSyncService = eksSyncService;
         this.inventoryService = inventoryService;
@@ -181,11 +184,20 @@ public class MonitoringController {
             description = "Fetches cloud inventory snapshots for active VMs"
     )
     public ResponseEntity<Map<String, Object>> triggerInventorySync() {
-        int synced = inventoryService.syncAllInventory();
-        return ResponseEntity.ok(Map.of(
-                "status", "completed",
-                "vmsSynced", synced
-        ));
+        return lockedOr409("vm_inventory_sync", "Inventory sync already running",
+                () -> Map.of("status", "completed", "vmsSynced", inventoryService.syncAllInventory()));
+    }
+
+    /**
+     * Run a manual trigger under the scheduler's job lock (E12-T02, M17): 409 when the scheduled
+     * (or another manual) run holds it, so the two never overlap.
+     */
+    private ResponseEntity<Map<String, Object>> lockedOr409(String jobName, String busyMessage,
+                                                            java.util.function.Supplier<Map<String, Object>> job) {
+        return jobLockService.tryRunLocked(jobName, java.time.Duration.ofHours(2), job)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.status(org.springframework.http.HttpStatus.CONFLICT)
+                        .body(Map.of("status", "busy", "message", busyMessage)));
     }
 
     @PostMapping("/metrics/sync")
@@ -195,11 +207,8 @@ public class MonitoringController {
             description = "Fetches latest utilization metrics for running VMs"
     )
     public ResponseEntity<Map<String, Object>> triggerMetricsSync() {
-        int samples = metricsService.syncRunningVmMetrics();
-        return ResponseEntity.ok(Map.of(
-                "status", "completed",
-                "samplesSaved", samples
-        ));
+        return lockedOr409("vm_metrics_sync", "Metrics sync already running",
+                () -> Map.of("status", "completed", "samplesSaved", metricsService.syncRunningVmMetrics()));
     }
 
     @PostMapping("/metrics/archive")
@@ -209,11 +218,8 @@ public class MonitoringController {
             description = "Moves old raw metric samples from hot storage to archive storage"
     )
     public ResponseEntity<Map<String, Object>> triggerMetricsArchive() {
-        int archived = archiveService.archiveOldRawSamples();
-        return ResponseEntity.ok(Map.of(
-                "status", "completed",
-                "samplesArchived", archived
-        ));
+        return lockedOr409("vm_metrics_archive", "Metrics archive already running",
+                () -> Map.of("status", "completed", "samplesArchived", archiveService.archiveOldRawSamples()));
     }
 
     @GetMapping("/vms/{vmId}/history")
