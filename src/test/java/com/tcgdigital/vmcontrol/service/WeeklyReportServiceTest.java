@@ -164,6 +164,48 @@ class WeeklyReportServiceTest {
         verifyNoInteractions(emailService);
     }
 
+    @Test
+    void buildCostRows_carriesActualCoverage() {
+        Date currentStart = Date.valueOf(LocalDate.of(2026, 7, 20));
+        Date currentEnd = Date.valueOf(LocalDate.of(2026, 7, 27));
+        var total = costTotal("env-A", "70.00", "33.00", 3, "30.00");
+        when(costDailySnapshotRepository.sumByEnvironmentBetween(currentStart, currentEnd))
+                .thenReturn(List.of(total));
+        when(costDailySnapshotRepository.sumByEnvironmentBetween(Date.valueOf(LocalDate.of(2026, 7, 13)), currentStart))
+                .thenReturn(List.of());
+        when(environmentRepository.findAll()).thenReturn(List.of(environment("env-A", "Env A")));
+
+        WeeklyCostReportRowDTO row = service.buildCostRows(currentStart, currentEnd,
+                Date.valueOf(LocalDate.of(2026, 7, 13)), currentStart).get(0);
+
+        assertEquals(3, row.actualDays());
+        assertEquals(7, row.daysInWindow());
+        assertEquals(0, new BigDecimal("30.00").compareTo(row.estimatedOnActualDays()));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void sendWeeklyCostReport_workbookMarksPartialActualCoverage() {
+        User admin = user("user-admin", "admin@tcg.com", true, false);
+        when(userRepository.findByAdminTrueAndIsActiveTrue()).thenReturn(List.of(admin));
+        when(userRepository.findByEnvAdminTrueAndIsActiveTrue()).thenReturn(List.of());
+        var total = costTotal("env-A", "70.00", "33.00", 3, "30.00");
+        when(costDailySnapshotRepository.sumByEnvironmentBetween(any(Date.class), any(Date.class)))
+                .thenReturn(List.of(total))
+                .thenReturn(List.of());
+        when(environmentRepository.findAll()).thenReturn(List.of(environment("env-A", "Env A")));
+
+        service.sendWeeklyCostReport();
+
+        org.mockito.ArgumentCaptor<List<String>> headers = org.mockito.ArgumentCaptor.forClass(List.class);
+        org.mockito.ArgumentCaptor<List<Object[]>> data = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(excelExportService, org.mockito.Mockito.atLeastOnce()).toWorkbook(eq("Weekly Cost Report"), headers.capture(), data.capture());
+        assertEquals("Estimated (days with actuals)", headers.getValue().get(3));
+        Object[] row = data.getValue().get(0);
+        assertEquals("33.00 (3/7 days)", row[2]);
+        assertEquals(0, new BigDecimal("30.00").compareTo((BigDecimal) row[3]));
+    }
+
     // ---- Weekly Idle Waste Report ----
 
     @Test
@@ -247,6 +289,15 @@ class WeeklyReportServiceTest {
         Environment env = new Environment(id);
         env.setDisplayName(displayName);
         return env;
+    }
+
+    private static CostDailySnapshotRepository.EnvironmentCostTotal costTotal(String environmentId, String estimated,
+                                                                             String actual, long actualDays,
+                                                                             String estimatedOnActualDays) {
+        CostDailySnapshotRepository.EnvironmentCostTotal total = costTotal(environmentId, estimated, actual);
+        lenient().when(total.getActualDays()).thenReturn(actualDays);
+        lenient().when(total.getEstimatedOnActualDays()).thenReturn(new BigDecimal(estimatedOnActualDays));
+        return total;
     }
 
     private static CostDailySnapshotRepository.EnvironmentCostTotal costTotal(String environmentId, String estimated, String actual) {

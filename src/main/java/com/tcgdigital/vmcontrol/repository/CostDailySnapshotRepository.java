@@ -39,7 +39,9 @@ public interface CostDailySnapshotRepository extends JpaRepository<CostDailySnap
      * comparison (called once for "this week", once for "last week").
      */
     @Query("SELECT c.environment.environmentId AS environmentId, " +
-           "SUM(c.estimatedCost) AS totalEstimatedCost, SUM(c.actualCost) AS totalActualCost " +
+           "SUM(c.estimatedCost) AS totalEstimatedCost, SUM(c.actualCost) AS totalActualCost, " +
+           "SUM(CASE WHEN c.actualCost IS NOT NULL THEN c.estimatedCost ELSE 0 END) AS estimatedOnActualDays, " +
+           "SUM(CASE WHEN c.actualCost IS NOT NULL THEN 1 ELSE 0 END) AS actualDays " +
            "FROM CostDailySnapshot c WHERE c.snapshotDate >= :start AND c.snapshotDate < :end " +
            "GROUP BY c.environment.environmentId")
     List<EnvironmentCostTotal> sumByEnvironmentBetween(@Param("start") Date start, @Param("end") Date end);
@@ -54,6 +56,10 @@ public interface CostDailySnapshotRepository extends JpaRepository<CostDailySnap
         String getEnvironmentId();
         BigDecimal getTotalEstimatedCost();
         BigDecimal getTotalActualCost();
+        /** The estimate summed only over days that have an actual (E08-T03). */
+        BigDecimal getEstimatedOnActualDays();
+        /** How many days in the window have an actual (E08-T03). */
+        Long getActualDays();
     }
 
     /** One environment's daily snapshots in a date range, oldest first (owner cost view, E18). */

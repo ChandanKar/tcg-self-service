@@ -135,6 +135,7 @@ public class WeeklyReportService {
             uptimeHoursByEnvironment = Map.of();
         }
 
+        int daysInWindow = (int) java.time.temporal.ChronoUnit.DAYS.between(currentStart.toLocalDate(), currentEnd.toLocalDate());
         List<WeeklyCostReportRowDTO> rows = new ArrayList<>();
         for (Map.Entry<String, CostDailySnapshotRepository.EnvironmentCostTotal> entry : currentTotals.entrySet()) {
             String environmentId = entry.getKey();
@@ -148,7 +149,10 @@ public class WeeklyReportService {
             String name = environmentNames.getOrDefault(environmentId, environmentId);
             BigDecimal uptimeHours = uptimeHoursByEnvironment.getOrDefault(environmentId, BigDecimal.ZERO)
                     .setScale(1, RoundingMode.HALF_UP);
-            rows.add(new WeeklyCostReportRowDTO(environmentId, name, estimated, actual, deltaPercent, uptimeHours));
+            Long actualDays = entry.getValue().getActualDays();
+            rows.add(new WeeklyCostReportRowDTO(environmentId, name, estimated, actual, deltaPercent, uptimeHours,
+                    actualDays == null ? 0 : actualDays.intValue(), daysInWindow,
+                    entry.getValue().getEstimatedOnActualDays()));
         }
 
         rows.sort(Comparator.comparing(WeeklyCostReportRowDTO::estimatedCost).reversed());
@@ -174,13 +178,26 @@ public class WeeklyReportService {
                 .map(row -> new Object[]{
                         row.environmentName(),
                         row.estimatedCost(),
-                        row.actualCost() != null ? row.actualCost() : "N/A",
+                        actualCell(row),
+                        row.actualDays() > 0 && row.estimatedOnActualDays() != null ? row.estimatedOnActualDays() : "N/A",
                         row.weekOverWeekChangePercent() != null ? row.weekOverWeekChangePercent() + "%" : "N/A",
                         row.uptimeHours() != null ? row.uptimeHours() : BigDecimal.ZERO
                 })
                 .toList();
         return excelExportService.toWorkbook("Weekly Cost Report",
-                List.of("Environment", "Estimated Cost", "Actual Cost", "Week-over-Week Change", "Uptime (hrs)"), data);
+                List.of("Environment", "Estimated Cost", "Actual Cost", "Estimated (days with actuals)",
+                        "Week-over-Week Change", "Uptime (hrs)"), data);
+    }
+
+    /** The actual, marked with its coverage when only some days have one (E08-T03). */
+    private static Object actualCell(WeeklyCostReportRowDTO row) {
+        if (row.actualCost() == null || row.actualDays() == 0) {
+            return "N/A";
+        }
+        if (row.actualDays() < row.daysInWindow()) {
+            return row.actualCost().setScale(2, RoundingMode.HALF_UP) + " (" + row.actualDays() + "/" + row.daysInWindow() + " days)";
+        }
+        return row.actualCost();
     }
 
     // ============= Weekly Idle Waste Report (Admin only) =============

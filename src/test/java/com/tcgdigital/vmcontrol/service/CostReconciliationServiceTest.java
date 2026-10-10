@@ -12,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.sql.Date;
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -78,6 +79,42 @@ class CostReconciliationServiceTest {
 
         assertEquals("big-env", result.get(0).environmentName());
         assertEquals("small-env", result.get(1).environmentName());
+    }
+
+    // ---- Like-for-like variance and coverage (E08-T03, H18) ----
+
+    @Test
+    void varianceComparesOnlyTheDaysThatHaveActualsAndReportsCoverage() {
+        Environment env = buildEnvironment("env-1", "prod-01");
+        java.util.List<CostDailySnapshot> snapshots = new java.util.ArrayList<>();
+        LocalDate first = LocalDate.of(2026, 7, 1);
+        for (int i = 0; i < 90; i++) {
+            CostDailySnapshot s = buildSnapshot(env, "100.00", i >= 80 ? "100.00" : null);
+            s.setSnapshotDate(Date.valueOf(first.plusDays(i)));
+            snapshots.add(s);
+        }
+        when(costDailySnapshotRepository.findWithEnvironmentSince(any())).thenReturn(snapshots);
+
+        CostReconciliationRowDTO row = service.getReconciliation(90).get(0);
+
+        assertEquals(0, new BigDecimal("9000.00").compareTo(row.estimatedCost()));
+        assertEquals(0, new BigDecimal("1000.00").compareTo(row.estimatedCostOnActualDays()));
+        assertEquals(0, new BigDecimal("1000.00").compareTo(row.actualCost()));
+        assertEquals(0, new BigDecimal("0.0").compareTo(row.variancePercent()));  // not +800%
+        assertEquals(10, row.daysWithActuals());
+        assertEquals(90, row.daysInWindow());
+    }
+
+    @Test
+    void withoutActualsCoverageIsZero() {
+        Environment env = buildEnvironment("env-1", "prod-01");
+        when(costDailySnapshotRepository.findWithEnvironmentSince(any())).thenReturn(List.of(buildSnapshot(env, "100.00", null)));
+
+        CostReconciliationRowDTO row = service.getReconciliation(30).get(0);
+
+        assertEquals(0, row.daysWithActuals());
+        assertEquals(1, row.daysInWindow());
+        assertNull(row.variancePercent());
     }
 
     private Environment buildEnvironment(String id, String displayName) {

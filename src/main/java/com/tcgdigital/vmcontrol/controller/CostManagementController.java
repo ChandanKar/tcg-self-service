@@ -187,9 +187,11 @@ public class CostManagementController {
     public ResponseEntity<byte[]> exportReconciliation(@RequestParam(defaultValue = "90") int days) {
         List<CostReconciliationRowDTO> rows = costReconciliationService.getReconciliation(days);
         byte[] xlsx = excelExportService.toWorkbook("Estimated vs Actual",
-                List.of("Environment", "Estimated Cost", "Actual Cost", "Variance %"),
+                List.of("Environment", "Estimated Cost (window)", "Estimated Cost (days with actuals)", "Actual Cost",
+                        "Variance %", "Actual coverage (days)"),
                 rows.stream()
-                        .map(r -> new Object[]{r.environmentName(), r.estimatedCost(), r.actualCost(), r.variancePercent()})
+                        .map(r -> new Object[]{r.environmentName(), r.estimatedCost(), r.estimatedCostOnActualDays(),
+                                r.actualCost(), r.variancePercent(), r.daysWithActuals() + "/" + r.daysInWindow()})
                         .toList());
         return excelResponse(xlsx, "estimated-vs-actual-cost");
     }

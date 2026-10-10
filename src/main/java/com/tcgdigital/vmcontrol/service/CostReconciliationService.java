@@ -47,8 +47,11 @@ public class CostReconciliationService {
             Accumulator acc = byEnvironment.computeIfAbsent(env.getEnvironmentId(),
                     k -> new Accumulator(env.getDisplayName()));
             acc.estimatedTotal = acc.estimatedTotal.add(nullToZero(snapshot.getEstimatedCost()));
+            acc.days.add(snapshot.getSnapshotDate());
             if (snapshot.getActualCost() != null) {
                 acc.actualTotal = acc.actualTotal.add(snapshot.getActualCost());
+                acc.estimatedOnActualDays = acc.estimatedOnActualDays.add(nullToZero(snapshot.getEstimatedCost()));
+                acc.daysWithActuals++;
                 acc.hasActual = true;
             }
         }
@@ -59,12 +62,14 @@ public class CostReconciliationService {
             BigDecimal actualCost = acc.hasActual ? acc.actualTotal : null;
             BigDecimal variancePercent = null;
             if (actualCost != null && actualCost.compareTo(BigDecimal.ZERO) > 0) {
-                variancePercent = acc.estimatedTotal.subtract(actualCost)
+                // Same days on both sides: the estimate only where actuals exist (E08-T03).
+                variancePercent = acc.estimatedOnActualDays.subtract(actualCost)
                         .divide(actualCost, 4, RoundingMode.HALF_UP)
                         .multiply(BigDecimal.valueOf(100))
                         .setScale(1, RoundingMode.HALF_UP);
             }
-            rows.add(new CostReconciliationRowDTO(entry.getKey(), acc.displayName, acc.estimatedTotal, actualCost, variancePercent));
+            rows.add(new CostReconciliationRowDTO(entry.getKey(), acc.displayName, acc.estimatedTotal, actualCost,
+                    variancePercent, acc.estimatedOnActualDays, acc.daysWithActuals, acc.days.size()));
         }
 
         rows.sort(Comparator.comparing(CostReconciliationRowDTO::estimatedCost).reversed());
@@ -79,6 +84,9 @@ public class CostReconciliationService {
         private final String displayName;
         private BigDecimal estimatedTotal = BigDecimal.ZERO;
         private BigDecimal actualTotal = BigDecimal.ZERO;
+        private BigDecimal estimatedOnActualDays = BigDecimal.ZERO;
+        private int daysWithActuals = 0;
+        private final java.util.Set<Date> days = new java.util.HashSet<>();
         private boolean hasActual = false;
 
         private Accumulator(String displayName) {
