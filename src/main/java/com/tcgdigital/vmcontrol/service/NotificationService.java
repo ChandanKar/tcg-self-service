@@ -82,9 +82,10 @@ public class NotificationService {
 
     @Transactional
     public NotificationDTO markAsRead(String notificationId, String userId) {
+        // Missing and someone else's look the same: a 404, never a 500 (E11-T08).
         Notification n = notificationRepository.findById(notificationId)
                 .filter(notif -> notif.getUserId().equals(userId))
-                .orElseThrow(() -> new RuntimeException("Notification not found"));
+                .orElseThrow(() -> new com.tcgdigital.vmcontrol.exception.ResourceNotFoundException("Notification", notificationId));
         n.setRead(true);
         return NotificationDTO.from(notificationRepository.save(n));
     }
@@ -308,20 +309,21 @@ public class NotificationService {
         }
     }
 
-    public void notifyOperationCompleted(String userId, String environmentName, String operationType) {
+    public void notifyOperationCompleted(String userId, String environmentId, String environmentName, String operationType) {
         create(userId, NotificationType.OPERATION_COMPLETED,
                operationType + " completed: " + environmentName,
                "The " + operationType.toLowerCase() + " operation on environment \"" +
                        environmentName + "\" finished successfully.",
-               "ENVIRONMENT", null);
+               "ENVIRONMENT", environmentId);
     }
 
-    public void notifyOperationFailed(String userId, String environmentName, String operationType, String reason) {
+    public void notifyOperationFailed(String userId, String environmentId, String environmentName, String operationType,
+                                      String reason) {
         create(userId, NotificationType.OPERATION_FAILED,
                operationType + " failed: " + environmentName,
                "The " + operationType.toLowerCase() + " operation on environment \"" +
                        environmentName + "\" failed. Reason: " + reason,
-               "ENVIRONMENT", null);
+               "ENVIRONMENT", environmentId);
     }
 
     public void notifyOperationRequestedForEnvironment(String environmentId, String environmentName,
@@ -439,14 +441,17 @@ public class NotificationService {
                                         String actorTitle, String actorMessage,
                                         String otherTitle, String otherMessage,
                                         String entityType, String entityId) {
-        resolveEnvironmentRecipients(environmentId).forEach(user -> {
-            boolean isActor = user.getUserId().equals(actorUserId);
-            create(user.getUserId(), type,
-                    isActor ? actorTitle : otherTitle,
-                    isActor ? actorMessage : otherMessage,
-                    entityType,
-                    entityId);
-        });
+        // One saveAll for the whole broadcast (E11-T08).
+        List<Notification> batch = resolveEnvironmentRecipients(environmentId).stream()
+                .map(user -> {
+                    boolean isActor = user.getUserId().equals(actorUserId);
+                    return newNotification(user.getUserId(), type,
+                            isActor ? actorTitle : otherTitle,
+                            isActor ? actorMessage : otherMessage,
+                            entityType, entityId);
+                })
+                .toList();
+        notificationRepository.saveAll(batch);
     }
 
     private List<User> resolveEnvironmentRecipients(String environmentId) {
@@ -510,15 +515,14 @@ public class NotificationService {
      * every environment platform-wide.
      */
     private List<User> resolveAdministeringEnvAdmins(String environmentId) {
-        Timestamp now = new Timestamp(System.currentTimeMillis());
-        return userRepository.findByEnvAdminTrueAndIsActiveTrue().stream()
-                .filter(user -> accessRepository
-                        .findByUserWithMinAccessLevel(user.getUserId(), AccessLevel.ADMIN, now).stream()
-                        .anyMatch(access -> access.getEnvironment().getEnvironmentId().equals(environmentId)))
-                .toList();
+        // One query, not one per env-admin (E11-T08).
+        return accessRepository.findActiveEnvAdminGrantHolders(environmentId, new Timestamp(System.currentTimeMillis()));
     }
 
     private String resolveUserDisplayName(String userId) {
+        if (isBlank(userId)) {
+            return "Automation"; // a system-initiated action has no actor (E11-T08)
+        }
         return userRepository.findById(userId)
                 .map(user -> firstNonBlank(user.getDisplayName(), user.getEmail(), user.getUsername(), user.getUserId()))
                 .orElse(firstNonBlank(userId, "Someone"));
@@ -550,6 +554,12 @@ public class NotificationService {
 
     private void create(String userId, NotificationType type, String title, String message,
                         String entityType, String entityId) {
+        notificationRepository.save(newNotification(userId, type, title, message, entityType, entityId));
+        log.debug("Notification created for user {}: {}", userId, title);
+    }
+
+    private static Notification newNotification(String userId, NotificationType type, String title, String message,
+                                                String entityType, String entityId) {
         Notification n = new Notification();
         n.setNotificationId(UUID.randomUUID().toString());
         n.setUserId(userId);
@@ -558,8 +568,7 @@ public class NotificationService {
         n.setMessage(message);
         n.setEntityType(entityType);
         n.setEntityId(entityId);
-        notificationRepository.save(n);
-        log.debug("Notification created for user {}: {}", userId, title);
+        return n;
     }
 
     /**
@@ -613,12 +622,14 @@ public class NotificationService {
         String otherTitle = actorName + " is stopping: " + environmentName;
         String otherMessage = actorName + " is stopping environment \"" + environmentName + "\"." + detail;
 
-        recipients.forEach(user -> {
-            boolean isActor = user.getUserId().equals(actorUserId);
-            create(user.getUserId(), NotificationType.ENVIRONMENT_STOP_NOTICE,
-                    isActor ? actorTitle : otherTitle, isActor ? actorMessage : otherMessage,
-                    "ENVIRONMENT", environmentId);
-        });
+        notificationRepository.saveAll(recipients.stream()
+                .map(user -> {
+                    boolean isActor = user.getUserId().equals(actorUserId);
+                    return newNotification(user.getUserId(), NotificationType.ENVIRONMENT_STOP_NOTICE,
+                            isActor ? actorTitle : otherTitle, isActor ? actorMessage : otherMessage,
+                            "ENVIRONMENT", environmentId);
+                })
+                .toList());
 
         List<String> addresses = recipients.stream()
                 .filter(user -> user != null && Boolean.TRUE.equals(user.getIsActive()) && !isBlank(user.getEmail()))

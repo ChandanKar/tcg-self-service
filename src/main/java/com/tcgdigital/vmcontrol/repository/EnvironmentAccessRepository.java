@@ -105,6 +105,20 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
         return findByUserWithAccessLevelIn(userId, AccessLevel.atLeast(minLevel), now);
     }
 
+    /**
+     * Active env-admin users holding an active ENVIRONMENT ADMIN grant on one environment, in one
+     * query (E11-T08): notification fan-out no longer runs a grant query per env-admin.
+     */
+    @Query("SELECT DISTINCT ea.user FROM EnvironmentAccess ea " +
+           "WHERE ea.environment.environmentId = :environmentId " +
+           "AND ea.scopeType = 'ENVIRONMENT' " +
+           "AND ea.status = 'ACTIVE' " +
+           "AND ea.accessLevel = 'ADMIN' " +
+           "AND (ea.expiresAt IS NULL OR ea.expiresAt > :now) " +
+           "AND ea.user.envAdmin = true AND ea.user.isActive = true")
+    List<com.tcgdigital.vmcontrol.model.User> findActiveEnvAdminGrantHolders(@Param("environmentId") String environmentId,
+                                                                            @Param("now") Timestamp now);
+
     /** Levels are matched by list, never with {@code >=}: the column holds enum names (H6). */
     @Query("SELECT ea FROM EnvironmentAccess ea " +
            "WHERE ea.user.userId = :userId " +

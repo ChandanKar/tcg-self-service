@@ -54,12 +54,12 @@ class NotificationServiceTest {
         lenient().when(userRepository.findByAdminTrueAndIsActiveTrue()).thenReturn(List.of(platformAdmin));
         lenient().when(userRepository.findByEnvAdminTrueAndIsActiveTrue()).thenReturn(List.of(envAdmin));
 
-        // envAdmin administers only envA (ADMIN-level EnvironmentAccess), regardless of which
-        // environmentId resolveAdministeringEnvAdmins is asked about — the filtering by
-        // environmentId happens in NotificationService itself, in-memory.
+        // envAdmin administers only envA: one query per environment returns its env-admins (E11-T08).
         EnvironmentAccess envAdminAccessOnA = EnvironmentAccess.create(envA, envAdmin, AccessLevel.ADMIN, null);
-        lenient().when(accessRepository.findByUserWithMinAccessLevel(eq("user-envadmin"), eq(AccessLevel.ADMIN), any(Timestamp.class)))
-                .thenReturn(List.of(envAdminAccessOnA));
+        lenient().when(accessRepository.findActiveEnvAdminGrantHolders(eq("env-A"), any(Timestamp.class)))
+                .thenReturn(List.of(envAdmin));
+        lenient().when(accessRepository.findActiveEnvAdminGrantHolders(eq("env-B"), any(Timestamp.class)))
+                .thenReturn(List.of());
 
         // Direct access holders on envA: the env-admin's own ADMIN grant + a regular USER grant
         // + a user with ONLY a GROUP-scoped grant (must be excluded from environment broadcasts).
@@ -86,36 +86,84 @@ class NotificationServiceTest {
         return u;
     }
 
+    /** Every user a broadcast (one saveAll each, E11-T08) created a notification for. */
+    @SuppressWarnings("unchecked")
+    private List<String> broadcastUserIds() {
+        ArgumentCaptor<Iterable<com.tcgdigital.vmcontrol.model.Notification>> saved = ArgumentCaptor.forClass(Iterable.class);
+        verify(notificationRepository, org.mockito.Mockito.atLeast(0)).saveAll(saved.capture());
+        java.util.List<String> ids = new java.util.ArrayList<>();
+        saved.getAllValues().forEach(batch -> batch.forEach(n -> ids.add(n.getUserId())));
+        return ids;
+    }
+
     // ---- Phase 1: env-admin recipient scoping ----
 
     @Test
     void broadcast_excludesEnvAdminForEnvironmentTheyDoNotAdminister() {
         service.notifyLockAcquiredForEnvironment("env-B", "Env B", "user-regular", null);
 
-        verify(notificationRepository, never()).save(argThat(n -> "user-envadmin".equals(n.getUserId())));
+        assertFalse(broadcastUserIds().contains("user-envadmin"));
     }
 
     @Test
     void broadcast_includesEnvAdminForEnvironmentTheyDoAdminister() {
         service.notifyLockAcquiredForEnvironment("env-A", "Env A", "user-regular", null);
 
-        verify(notificationRepository).save(argThat(n -> "user-envadmin".equals(n.getUserId())));
+        assertTrue(broadcastUserIds().contains("user-envadmin"));
     }
 
     @Test
     void broadcast_platformAdminAlwaysIncludedRegardlessOfEnvironment() {
         service.notifyLockAcquiredForEnvironment("env-B", "Env B", "user-regular", null);
 
-        verify(notificationRepository).save(argThat(n -> "user-admin".equals(n.getUserId())));
+        assertTrue(broadcastUserIds().contains("user-admin"));
     }
 
     @Test
     void broadcast_excludesUserWithOnlyAGroupScopedGrant() {
         service.notifyLockAcquiredForEnvironment("env-A", "Env A", "user-regular", null);
 
-        verify(notificationRepository, never()).save(argThat(n -> "user-groupscoped".equals(n.getUserId())));
+        List<String> ids = broadcastUserIds();
+        assertFalse(ids.contains("user-groupscoped"));
         // sanity: the ENVIRONMENT-scoped regular user IS notified
-        verify(notificationRepository).save(argThat(n -> "user-regular".equals(n.getUserId())));
+        assertTrue(ids.contains("user-regular"));
+    }
+
+    // ---- E11-T08: 404 not 500, null actor, constant-query fan-out ----
+
+    @Test
+    void markingSomeoneElsesNotificationReadIsANotFound() {
+        com.tcgdigital.vmcontrol.model.Notification theirs = new com.tcgdigital.vmcontrol.model.Notification();
+        theirs.setNotificationId("n-1");
+        theirs.setUserId("user-admin");
+        when(notificationRepository.findById("n-1")).thenReturn(Optional.of(theirs));
+
+        org.junit.jupiter.api.Assertions.assertThrows(com.tcgdigital.vmcontrol.exception.ResourceNotFoundException.class,
+                () -> service.markAsRead("n-1", "user-regular"));
+        org.junit.jupiter.api.Assertions.assertThrows(com.tcgdigital.vmcontrol.exception.ResourceNotFoundException.class,
+                () -> service.markAsRead("missing", "user-regular"));
+    }
+
+    @Test
+    void aSystemInitiatedBroadcastNamesAutomationWithoutLookingUpANullUser() {
+        service.notifyLockAcquiredForEnvironment("env-A", "Env A", null, null);
+
+        verify(userRepository, never()).findById(null);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Iterable<com.tcgdigital.vmcontrol.model.Notification>> saved = ArgumentCaptor.forClass(Iterable.class);
+        verify(notificationRepository).saveAll(saved.capture());
+        saved.getValue().forEach(n -> assertTrue(n.getTitle().contains("Automation") || n.getMessage().contains("Automation"),
+                "names the automation: " + n.getTitle()));
+    }
+
+    @Test
+    void aBroadcastSavesOnceAndResolvesEnvAdminsInOneQuery() {
+        service.notifyLockAcquiredForEnvironment("env-A", "Env A", "user-regular", null);
+
+        verify(notificationRepository, org.mockito.Mockito.times(1)).saveAll(any());
+        verify(notificationRepository, never()).save(any());
+        verify(accessRepository, org.mockito.Mockito.times(1)).findActiveEnvAdminGrantHolders(eq("env-A"), any(Timestamp.class));
+        verify(accessRepository, never()).findByUserWithMinAccessLevel(anyString(), any(), any());
     }
 
     // ---- Phase 3: per-type email dispatch ----
