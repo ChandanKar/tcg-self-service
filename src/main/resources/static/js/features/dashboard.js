@@ -361,16 +361,21 @@ const Dashboard = (function() {
 
     function buildSchedulerHealthPanel(rows, prominent = false) {
         const visibleRows = prominent ? rows : rows.slice(0, 4);
-        const body = visibleRows.length ? visibleRows.map(row => `
-            <div class="dashboard-scheduler-row">
+        // Every job, its own schedule and (admins only) the instance holding its lock (E12-T05).
+        const body = visibleRows.length ? visibleRows.map(row => {
+            const ran = row.freshnessSeconds === null || row.freshnessSeconds === undefined
+                ? (row.status === 'DISABLED' ? 'switched off' : 'never ran')
+                : `${formatAge(row.freshnessSeconds)} ago`;
+            return Utils.html`
+            <div class="dashboard-scheduler-row" title="${row.owner ? 'Lock owner: ' + row.owner : ''}">
                 <span class="dashboard-dot ${schedulerTone(row.status)}"></span>
                 <div>
-                    <strong>${Utils.escapeHtml(row.name || '-')}</strong>
-                    <small>${formatAge(row.freshnessSeconds)} ago</small>
+                    <strong>${row.name || '-'}</strong>
+                    <small>${ran} · ${formatInterval(row.expectedIntervalSeconds)}</small>
                 </div>
-                <em class="${schedulerTone(row.status)}">${Utils.escapeHtml(row.status || 'UNKNOWN')}</em>
-            </div>
-        `).join('') : `<div class="dashboard-empty-small">No scheduler data yet</div>`;
+                <em class="${schedulerTone(row.status)}">${row.status || 'UNKNOWN'}</em>
+            </div>`;
+        }).join('') : `<div class="dashboard-empty-small">No scheduler data yet</div>`;
 
         return `
             <section class="dashboard-list-panel ${prominent ? 'dashboard-list-panel-prominent dashboard-wide dashboard-list-panel-scroll' : ''}" ${prominent ? 'id="dashboard-scheduler-health"' : ''}>
@@ -381,6 +386,16 @@ const Dashboard = (function() {
                 <div>${body}</div>
             </section>
         `;
+    }
+
+    /** "every 5 min", "hourly", "daily", "weekly" from an interval in seconds. */
+    function formatInterval(seconds) {
+        if (!seconds) return '';
+        if (seconds >= 7 * 86400) return 'weekly';
+        if (seconds >= 86400) return 'daily';
+        if (seconds === 3600) return 'hourly';
+        if (seconds >= 3600) return `every ${Math.round(seconds / 3600)} h`;
+        return `every ${Math.max(1, Math.round(seconds / 60))} min`;
     }
 
     function buildRiskCompliancePanel(rows) {

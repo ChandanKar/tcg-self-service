@@ -35,6 +35,7 @@ public class DashboardSummaryService {
     private final ScheduledJobLockRepository scheduledJobLockRepository;
     private final EnvironmentAccessRequestRepository accessRequestRepository;
     private final SecurityService securityService;
+    private final SchedulerJobCatalog jobCatalog;
 
     public DashboardSummaryService(EnvironmentService environmentService,
                                    UserService userService,
@@ -46,8 +47,10 @@ public class DashboardSummaryService {
                                    EnvironmentLockRepository lockRepository,
                                    ScheduledJobLockRepository scheduledJobLockRepository,
                                    EnvironmentAccessRequestRepository accessRequestRepository,
-                                   @org.springframework.context.annotation.Lazy SecurityService securityService) {
+                                   @org.springframework.context.annotation.Lazy SecurityService securityService,
+                                   SchedulerJobCatalog jobCatalog) {
         this.securityService = securityService;
+        this.jobCatalog = jobCatalog;
         this.environmentService = environmentService;
         this.userService = userService;
         this.vmRepository = vmRepository;
@@ -182,7 +185,7 @@ public class DashboardSummaryService {
                 buildVolumeTypeCounts(volumes),
                 buildTopBusyVms(vms, idleByVmId),
                 buildIdleVms(vms, idleByVmId, inventoryByVmId),
-                buildSchedulerHealth(vms),
+                buildSchedulerHealth("ADMIN".equals(persona)),
                 buildRiskCompliance(totalVms, driftedVms, idleVms, coverage, volumes),
                 buildRecommendations(totalVms, driftedVms, idleVms, coverage, pendingAccessRequests),
                 new Timestamp(System.currentTimeMillis())
@@ -358,56 +361,39 @@ public class DashboardSummaryService {
                 .toList();
     }
 
-    private List<DashboardSummaryDTO.SchedulerHealthDTO> buildSchedulerHealth(List<Vm> vms) {
+    /**
+     * Every scheduled job from the catalog (E12-T05): DISABLED when switched off, RUNNING while its
+     * lock is held, NEVER without a lock row, else HEALTHY / LATE / STALE against 1.5x and 3x its
+     * own interval. Lock owners (host names) are shown to admins only.
+     */
+    List<DashboardSummaryDTO.SchedulerHealthDTO> buildSchedulerHealth(boolean admin) {
         Timestamp now = new Timestamp(System.currentTimeMillis());
         Map<String, ScheduledJobLock> locksByName = scheduledJobLockRepository.findAll().stream()
                 .collect(Collectors.toMap(ScheduledJobLock::getLockName, Function.identity(), (left, right) -> left));
-        Timestamp latestStateSync = vms.stream()
-                .map(Vm::getLastStateSyncAt)
-                .filter(Objects::nonNull)
-                .max(Timestamp::compareTo)
-                .orElse(null);
-
-        return List.of(
-                stateSyncHealth("State sync", latestStateSync, now),
-                lockHealth("Metrics sync", locksByName.get("vm_metrics_sync"), now),
-                lockHealth("Inventory sync", locksByName.get("vm_inventory_sync"), now),
-                lockHealth("Metrics archive", locksByName.get("vm_metrics_archive"), now)
-        );
+        return jobCatalog.jobs().stream().map(job -> {
+            ScheduledJobLock lock = locksByName.get(job.jobName());
+            long intervalSeconds = job.expectedInterval().toSeconds();
+            Timestamp lastRunAt = lock == null ? null : lock.getAcquiredAt();
+            Timestamp lockedUntil = lock == null ? null : lock.getLockedUntil();
+            return new DashboardSummaryDTO.SchedulerHealthDTO(
+                    job.label(),
+                    schedulerStatus(job.enabled(), lastRunAt, lockedUntil, intervalSeconds, now),
+                    lastRunAt,
+                    lockedUntil,
+                    freshnessSeconds(lastRunAt, now),
+                    admin && lock != null ? lock.getLockedBy() : null,
+                    intervalSeconds);
+        }).toList();
     }
 
-    private DashboardSummaryDTO.SchedulerHealthDTO stateSyncHealth(String name, Timestamp lastRunAt, Timestamp now) {
-        Long freshness = freshnessSeconds(lastRunAt, now);
-        return new DashboardSummaryDTO.SchedulerHealthDTO(
-                name,
-                schedulerStatus(lastRunAt, null, now),
-                lastRunAt,
-                null,
-                freshness,
-                null
-        );
-    }
-
-    private DashboardSummaryDTO.SchedulerHealthDTO lockHealth(String name, ScheduledJobLock lock, Timestamp now) {
-        if (lock == null) {
-            return new DashboardSummaryDTO.SchedulerHealthDTO(name, "NEVER", null, null, null, null);
-        }
-        return new DashboardSummaryDTO.SchedulerHealthDTO(
-                name,
-                schedulerStatus(lock.getAcquiredAt(), lock.getLockedUntil(), now),
-                lock.getAcquiredAt(),
-                lock.getLockedUntil(),
-                freshnessSeconds(lock.getAcquiredAt(), now),
-                lock.getLockedBy()
-        );
-    }
-
-    private String schedulerStatus(Timestamp lastRunAt, Timestamp lockedUntil, Timestamp now) {
+    static String schedulerStatus(boolean enabled, Timestamp lastRunAt, Timestamp lockedUntil,
+                                  long intervalSeconds, Timestamp now) {
+        if (!enabled) return "DISABLED";
         if (lockedUntil != null && lockedUntil.after(now)) return "RUNNING";
         if (lastRunAt == null) return "NEVER";
-        long seconds = freshnessSeconds(lastRunAt, now);
-        if (seconds <= 15 * 60) return "HEALTHY";
-        if (seconds <= 2 * 60 * 60) return "LATE";
+        long age = Math.max(0, (now.getTime() - lastRunAt.getTime()) / 1000);
+        if (age <= intervalSeconds * 3 / 2) return "HEALTHY";
+        if (age <= intervalSeconds * 3) return "LATE";
         return "STALE";
     }
 

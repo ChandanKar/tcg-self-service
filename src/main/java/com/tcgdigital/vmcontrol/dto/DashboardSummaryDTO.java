@@ -91,13 +91,15 @@ public record DashboardSummaryDTO(
             Integer allocatedStorageGib
     ) {}
 
+    /** {@code owner} is shown to admins only; {@code expectedIntervalSeconds} is the job's own schedule (E12-T05). */
     public record SchedulerHealthDTO(
             String name,
             String status,
             Timestamp lastRunAt,
             Timestamp lockedUntil,
             Long freshnessSeconds,
-            String owner
+            String owner,
+            Long expectedIntervalSeconds
     ) {}
 
     public record RiskComplianceDTO(

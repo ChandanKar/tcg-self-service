@@ -39,4 +39,25 @@ class DashboardScopeIntegrationTest extends SecuredWebTestBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.summary.totalVms", greaterThanOrEqualTo(5)));
     }
+
+    // ---- Scheduler health (E12-T05) ----
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    @Test
+    void lockOwnersAreShownToAdminsOnly() throws Exception {
+        jdbcTemplate.update("DELETE FROM scheduled_job_lock WHERE lock_name = 'vm_metrics_sync'");
+        jdbcTemplate.update("INSERT INTO scheduled_job_lock (lock_name, locked_by, locked_until, acquired_at) VALUES "
+                + "('vm_metrics_sync', 'host-a@pid', ?, ?)", java.sql.Timestamp.from(java.time.Instant.now()),
+                java.sql.Timestamp.from(java.time.Instant.now().minusSeconds(60)));
+
+        mockMvc.perform(get("/api/v1/dashboard/summary").with(asUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.schedulerHealth.length()").value(17))
+                .andExpect(jsonPath("$.schedulerHealth[?(@.owner != null)]").isEmpty());
+        mockMvc.perform(get("/api/v1/dashboard/summary").with(asAdmin()))
+                .andExpect(jsonPath("$.schedulerHealth[?(@.name == 'Metrics sync')].owner").value(
+                        org.hamcrest.Matchers.contains("host-a@pid")));
+    }
 }
