@@ -174,12 +174,6 @@ public class CostEstimationService {
         return groupSpend(buildBundles(), b -> b.vm().getVmType().name(), b -> b.vm().getVmType().name());
     }
 
-    public List<SpendByDimensionDTO> getSpendByTeam() {
-        return groupSpend(buildBundles(),
-                b -> teamResolver.resolveTeam(b.vm().getGroup().getEnvironment().getMetadata()),
-                b -> teamResolver.resolveTeam(b.vm().getGroup().getEnvironment().getMetadata()));
-    }
-
     public Page<IdleWasteRowDTO> getIdleWaste(Pageable pageable) {
         List<IdleWasteRowDTO> rows = buildBundles().stream()
                 .filter(VmCostBundle::idle)

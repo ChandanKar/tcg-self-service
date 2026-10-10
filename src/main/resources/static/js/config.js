@@ -214,7 +214,6 @@ const Config = (function() {
             summary: `${API_BASE_URL}/cost-management/summary`,
             spendByEnvironment: `${API_BASE_URL}/cost-management/spend-by-environment`,
             spendByVmType: `${API_BASE_URL}/cost-management/spend-by-vm-type`,
-            spendByTeam: `${API_BASE_URL}/cost-management/spend-by-team`,
             spendTrend: (days = 90) => `${API_BASE_URL}/cost-management/spend-trend?days=${days}`,
             spendTrendByTeam: (days = 90) => `${API_BASE_URL}/cost-management/spend-trend-by-team?days=${days}`,
             idleWaste: (page = 0, size = 10) => `${API_BASE_URL}/cost-management/idle-waste?page=${page}&size=${size}`,

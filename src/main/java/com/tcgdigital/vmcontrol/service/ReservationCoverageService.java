@@ -39,11 +39,14 @@ public class ReservationCoverageService {
 
     private final ReservationCoverageSnapshotRepository repository;
     private final CostExplorerClientProvider clientProvider;
+    private final CostDayBoundary dayBoundary;
 
     public ReservationCoverageService(ReservationCoverageSnapshotRepository repository,
-                                      CostExplorerClientProvider clientProvider) {
+                                      CostExplorerClientProvider clientProvider,
+                                      CostDayBoundary dayBoundary) {
         this.repository = repository;
         this.clientProvider = clientProvider;
+        this.dayBoundary = dayBoundary;
     }
 
     public boolean isAvailable() {
@@ -60,8 +63,9 @@ public class ReservationCoverageService {
             return;
         }
 
-        LocalDate today = LocalDate.now();
-        Date snapshotDate = Date.valueOf(today);
+        // The row is dated the day it describes: yesterday, the last complete cost day (E08-T08).
+        LocalDate coveredDay = dayBoundary.yesterday();
+        Date snapshotDate = Date.valueOf(coveredDay);
         ReservationCoverageSnapshot snapshot = repository.findBySnapshotDate(snapshotDate)
                 .orElseGet(() -> {
                     ReservationCoverageSnapshot s = new ReservationCoverageSnapshot();
@@ -70,8 +74,8 @@ public class ReservationCoverageService {
                 });
 
         DateInterval period = DateInterval.builder()
-                .start(today.minusDays(1).toString())
-                .end(today.toString())
+                .start(coveredDay.toString())
+                .end(coveredDay.plusDays(1).toString())
                 .build();
 
         captureReservationCoverage(snapshot, period);
@@ -80,7 +84,7 @@ public class ReservationCoverageService {
         captureSavingsPlansUtilization(snapshot, period);
 
         repository.save(snapshot);
-        log.info("Reservation coverage snapshot captured for {}", today);
+        log.info("Reservation coverage snapshot captured for {}", coveredDay);
     }
 
     // ---- individual metric captures, each independently fault-tolerant ----
@@ -129,6 +133,7 @@ public class ReservationCoverageService {
             var coverage = response.savingsPlansCoverages().get(0).coverage();
             if (coverage != null) {
                 parseBigDecimal(coverage.coveragePercentage()).ifPresent(snapshot::setSpCoveragePercent);
+                parseBigDecimal(coverage.spendCoveredBySavingsPlans()).ifPresent(snapshot::setCoveredCost);
             }
         } catch (Exception e) {
             log.warn("Could not fetch Savings Plans coverage (may be missing ce:GetSavingsPlansCoverage): {}", e.getMessage());

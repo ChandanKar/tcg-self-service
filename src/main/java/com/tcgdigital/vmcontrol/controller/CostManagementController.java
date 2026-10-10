@@ -47,6 +47,7 @@ import java.util.Map;
  * per-VM cost detail, and the spend trend. All figures are estimates (see {@link CostEstimationService}).
  */
 @RestController
+@org.springframework.validation.annotation.Validated
 @RequestMapping("/api/v1/cost-management")
 @Tag(name = "Cost Management", description = "Estimated cost reporting for admins")
 public class CostManagementController {
@@ -105,21 +106,15 @@ public class CostManagementController {
         return ResponseEntity.ok(costEstimationService.getSpendByVmType());
     }
 
-    @GetMapping("/spend-by-team")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<SpendByDimensionDTO>> getSpendByTeam() {
-        return ResponseEntity.ok(costEstimationService.getSpendByTeam());
-    }
-
     @GetMapping("/spend-trend")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<SpendTrendPointDTO>> getSpendTrend(@RequestParam(defaultValue = "90") int days) {
+    public ResponseEntity<List<SpendTrendPointDTO>> getSpendTrend(@RequestParam(defaultValue = "90") @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(400) int days) {
         return ResponseEntity.ok(costEstimationService.getSpendTrend(days));
     }
 
     @GetMapping("/spend-trend-by-team")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<TeamSpendTrendPointDTO>> getSpendTrendByTeam(@RequestParam(defaultValue = "90") int days) {
+    public ResponseEntity<List<TeamSpendTrendPointDTO>> getSpendTrendByTeam(@RequestParam(defaultValue = "90") @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(400) int days) {
         return ResponseEntity.ok(costEstimationService.getSpendTrendByTeam(days));
     }
 
@@ -128,7 +123,7 @@ public class CostManagementController {
     public ResponseEntity<Page<IdleWasteRowDTO>> getIdleWaste(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "25") int size) {
-        return ResponseEntity.ok(costEstimationService.getIdleWaste(PageRequest.of(page, size)));
+        return ResponseEntity.ok(costEstimationService.getIdleWaste(com.tcgdigital.vmcontrol.controller.support.Paging.of(page, size, 100)));
     }
 
     @GetMapping("/rightsizing")
@@ -136,7 +131,7 @@ public class CostManagementController {
     public ResponseEntity<Page<RightsizingCandidateDTO>> getRightsizingCandidates(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "25") int size) {
-        return ResponseEntity.ok(costEstimationService.getRightsizingCandidates(PageRequest.of(page, size)));
+        return ResponseEntity.ok(costEstimationService.getRightsizingCandidates(com.tcgdigital.vmcontrol.controller.support.Paging.of(page, size, 100)));
     }
 
     /**
@@ -156,12 +151,12 @@ public class CostManagementController {
     public ResponseEntity<Page<VmCostDetailDTO>> getVmCostDetail(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "25") int size) {
-        return ResponseEntity.ok(costEstimationService.getVmCostDetail(PageRequest.of(page, size)));
+        return ResponseEntity.ok(costEstimationService.getVmCostDetail(com.tcgdigital.vmcontrol.controller.support.Paging.of(page, size, 100)));
     }
 
     @PostMapping("/snapshots/backfill")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> backfillSnapshots(@RequestParam(defaultValue = "30") int days) {
+    public ResponseEntity<Void> backfillSnapshots(@RequestParam(defaultValue = "30") @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(90) int days) {
         costSnapshotService.backfillHistoricalSnapshots(days);
         return ResponseEntity.ok().build();
     }
@@ -183,13 +178,13 @@ public class CostManagementController {
 
     @GetMapping("/reconciliation")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<CostReconciliationRowDTO>> getReconciliation(@RequestParam(defaultValue = "30") int days) {
+    public ResponseEntity<List<CostReconciliationRowDTO>> getReconciliation(@RequestParam(defaultValue = "30") @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(400) int days) {
         return ResponseEntity.ok(costReconciliationService.getReconciliation(days));
     }
 
     @GetMapping("/reconciliation/export")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<byte[]> exportReconciliation(@RequestParam(defaultValue = "90") int days) {
+    public ResponseEntity<byte[]> exportReconciliation(@RequestParam(defaultValue = "90") @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(400) int days) {
         List<CostReconciliationRowDTO> rows = costReconciliationService.getReconciliation(days);
         byte[] xlsx = excelExportService.toWorkbook("Estimated vs Actual",
                 List.of("Environment", "Estimated Cost (window)", "Estimated Cost (days with actuals)", "Actual Cost",
@@ -267,14 +262,14 @@ public class CostManagementController {
 
     @PostMapping("/actuals/backfill")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<CostExplorerBillingService.IngestResult> backfillActuals(@RequestParam(defaultValue = "30") int days) {
+    public ResponseEntity<CostExplorerBillingService.IngestResult> backfillActuals(@RequestParam(defaultValue = "30") @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(90) int days) {
         return ResponseEntity.ok(costExplorerBillingService.backfillActualCosts(days));
     }
 
     @GetMapping("/reservations/coverage")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<ReservationCoverageSnapshotDTO>> getReservationCoverageTrend(
-            @RequestParam(defaultValue = "30") int days) {
+            @RequestParam(defaultValue = "30") @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(400) int days) {
         Date since = Date.valueOf(LocalDate.now().minusDays(days));
         return ResponseEntity.ok(
                 reservationCoverageSnapshotRepository.findBySnapshotDateGreaterThanEqualOrderBySnapshotDateAsc(since)
@@ -295,8 +290,8 @@ public class CostManagementController {
     @GetMapping("/forecast")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<CostForecastDTO> getForecast(
-            @RequestParam(defaultValue = "30") int historyDays,
-            @RequestParam(defaultValue = "14") int forecastDays) {
+            @RequestParam(defaultValue = "30") @jakarta.validation.constraints.Min(14) @jakarta.validation.constraints.Max(400) int historyDays,
+            @RequestParam(defaultValue = "14") @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(90) int forecastDays) {
         return ResponseEntity.ok(costForecastService.getForecast(historyDays, forecastDays));
     }
 }
