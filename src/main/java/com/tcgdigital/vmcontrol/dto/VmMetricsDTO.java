@@ -15,6 +15,19 @@ public class VmMetricsDTO {
     private SampleDTO latest;
     private List<SampleDTO> series;
 
+    /** Already-bucketed points (E12-T04): the series is one SampleDTO per period bucket. */
+    public static VmMetricsDTO fromSeries(String vmId, String window, Integer periodSeconds,
+                                          VmIdleSummary idleSummary, List<SampleDTO> series) {
+        VmMetricsDTO dto = new VmMetricsDTO();
+        dto.setVmId(vmId);
+        dto.setWindow(window);
+        dto.setPeriodSeconds(periodSeconds);
+        dto.setIdle(IdleDTO.from(idleSummary));
+        dto.setSeries(series);
+        dto.setLatest(series.isEmpty() ? null : series.get(series.size() - 1));
+        return dto;
+    }
+
     public static VmMetricsDTO from(String vmId, String window, Integer periodSeconds,
                                     VmIdleSummary idleSummary, List<VmMetricSample> samples) {
         VmMetricsDTO dto = new VmMetricsDTO();
@@ -61,6 +74,8 @@ public class VmMetricsDTO {
     public static class SampleDTO {
         private Timestamp sampleTime;
         private BigDecimal cpuUtilization;
+        /** Only when the CloudWatch agent publishes it (E12-T04). */
+        private BigDecimal memoryUtilization;
         private Long networkInBytes;
         private Long networkOutBytes;
         private Long diskReadBytes;
@@ -70,6 +85,7 @@ public class VmMetricsDTO {
             SampleDTO dto = new SampleDTO();
             dto.setSampleTime(sample.getSampleTime());
             dto.setCpuUtilization(sample.getCpuUtilization());
+            dto.setMemoryUtilization(sample.getMemoryUtilization());
             dto.setNetworkInBytes(sample.getNetworkInBytes());
             dto.setNetworkOutBytes(sample.getNetworkOutBytes());
             dto.setDiskReadBytes(sample.getDiskReadBytes());
@@ -81,6 +97,8 @@ public class VmMetricsDTO {
         public void setSampleTime(Timestamp sampleTime) { this.sampleTime = sampleTime; }
         public BigDecimal getCpuUtilization() { return cpuUtilization; }
         public void setCpuUtilization(BigDecimal cpuUtilization) { this.cpuUtilization = cpuUtilization; }
+        public BigDecimal getMemoryUtilization() { return memoryUtilization; }
+        public void setMemoryUtilization(BigDecimal memoryUtilization) { this.memoryUtilization = memoryUtilization; }
         public Long getNetworkInBytes() { return networkInBytes; }
         public void setNetworkInBytes(Long networkInBytes) { this.networkInBytes = networkInBytes; }
         public Long getNetworkOutBytes() { return networkOutBytes; }

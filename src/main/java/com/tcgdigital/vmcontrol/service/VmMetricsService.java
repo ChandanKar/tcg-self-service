@@ -144,7 +144,59 @@ public class VmMetricsService {
                 .findByVmVmIdAndSampleTimeBetweenOrderBySampleTimeAsc(
                         vmId, Timestamp.from(start), Timestamp.from(end));
         VmIdleSummary idleSummary = idleSummaryRepository.findByVmVmId(vmId).orElse(null);
-        return VmMetricsDTO.from(vmId, window, requestedPeriodSeconds, idleSummary, samples);
+        if (!ALLOWED_PERIODS.contains(requestedPeriodSeconds)) {
+            throw new com.tcgdigital.vmcontrol.exception.ValidationException(
+                    "period must be one of " + ALLOWED_PERIODS + " seconds");
+        }
+        int storedPeriod = samples.isEmpty() || samples.get(0).getPeriodSeconds() == null
+                ? periodSeconds : samples.get(0).getPeriodSeconds();
+        if (requestedPeriodSeconds <= storedPeriod) {
+            return VmMetricsDTO.from(vmId, window, storedPeriod, idleSummary, samples);
+        }
+        return VmMetricsDTO.fromSeries(vmId, window, requestedPeriodSeconds, idleSummary,
+                bucket(samples, requestedPeriodSeconds));
+    }
+
+    /** Periods the metrics endpoint accepts (E12-T04). */
+    static final java.util.Set<Integer> ALLOWED_PERIODS = new java.util.TreeSet<>(java.util.List.of(300, 900, 3600));
+
+    /**
+     * One point per {@code period}: CPU and memory averaged over the bucket's samples, byte
+     * counters summed, stamped with the bucket start (E12-T04).
+     */
+    static List<VmMetricsDTO.SampleDTO> bucket(List<VmMetricSample> samples, int period) {
+        Map<Long, List<VmMetricSample>> byBucket = new java.util.TreeMap<>();
+        for (VmMetricSample s : samples) {
+            long start = Math.floorDiv(s.getSampleTime().toInstant().getEpochSecond(), period) * period;
+            byBucket.computeIfAbsent(start, k -> new java.util.ArrayList<>()).add(s);
+        }
+        List<VmMetricsDTO.SampleDTO> points = new java.util.ArrayList<>();
+        byBucket.forEach((start, group) -> {
+            VmMetricsDTO.SampleDTO p = new VmMetricsDTO.SampleDTO();
+            p.setSampleTime(Timestamp.from(Instant.ofEpochSecond(start)));
+            p.setCpuUtilization(average(group, VmMetricSample::getCpuUtilization));
+            p.setMemoryUtilization(average(group, VmMetricSample::getMemoryUtilization));
+            p.setNetworkInBytes(sum(group, VmMetricSample::getNetworkInBytes));
+            p.setNetworkOutBytes(sum(group, VmMetricSample::getNetworkOutBytes));
+            p.setDiskReadBytes(sum(group, VmMetricSample::getDiskReadBytes));
+            p.setDiskWriteBytes(sum(group, VmMetricSample::getDiskWriteBytes));
+            points.add(p);
+        });
+        return points;
+    }
+
+    private static BigDecimal average(List<VmMetricSample> group, java.util.function.Function<VmMetricSample, BigDecimal> value) {
+        List<BigDecimal> values = group.stream().map(value).filter(java.util.Objects::nonNull).toList();
+        if (values.isEmpty()) {
+            return null;
+        }
+        return values.stream().reduce(BigDecimal.ZERO, BigDecimal::add)
+                .divide(BigDecimal.valueOf(values.size()), 3, java.math.RoundingMode.HALF_UP);
+    }
+
+    private static Long sum(List<VmMetricSample> group, java.util.function.Function<VmMetricSample, Long> value) {
+        List<Long> values = group.stream().map(value).filter(java.util.Objects::nonNull).toList();
+        return values.isEmpty() ? null : values.stream().mapToLong(Long::longValue).sum();
     }
 
     @Transactional(readOnly = true)

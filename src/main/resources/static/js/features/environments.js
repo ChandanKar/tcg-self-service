@@ -1759,6 +1759,9 @@ const Environments = (function() {
 
                 <div class="vm-util-grid">
                     ${buildMetricTile('CPU Utilization', formatPercent(mock.cpu.latest), 'Avg 1h', mock.cpu.series, 'cpu')}
+                    ${mock.memory && mock.memory.available
+                        ? buildMetricTile('Memory', formatPercent(mock.memory.latest), 'Avg 1h', mock.memory.series, 'cpu')
+                        : buildMetricTile('Memory', '-', 'Memory needs the CloudWatch agent', [], 'cpu')}
                     ${buildMetricTile('Network In', formatBytes(mock.network.inBytes), 'Last period', mock.network.inSeries, 'network')}
                     ${buildMetricTile('Network Out', formatBytes(mock.network.outBytes), 'Last period', mock.network.outSeries, 'network')}
                     ${buildMetricTile('Disk Read', formatBytes(mock.disk.readBytes), 'Last period', mock.disk.readSeries, 'disk')}
@@ -1969,6 +1972,12 @@ const Environments = (function() {
             cpu: {
                 latest: latest?.cpuUtilization ?? summary?.latestCpuUtilization ?? null,
                 series: sampleSeries(samples, 'cpuUtilization', 'percent')
+            },
+            // Memory only exists when the CloudWatch agent publishes it (E12-T04).
+            memory: {
+                available: samples.some(s => s.memoryUtilization !== null && s.memoryUtilization !== undefined),
+                latest: latest?.memoryUtilization ?? null,
+                series: sampleSeries(samples, 'memoryUtilization', 'percent')
             },
             network: {
                 inBytes: latest?.networkInBytes ?? null,

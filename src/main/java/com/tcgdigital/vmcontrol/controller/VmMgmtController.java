@@ -300,6 +300,7 @@ public class VmMgmtController {
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Parameter(description = "VM ID") @PathVariable String vmId,
             @RequestParam(defaultValue = "1h") String window,
+            @Parameter(description = "Point spacing in seconds: 300, 900 or 3600 (anything else is a 400)")
             @RequestParam(defaultValue = "300") int period) {
         securityService.assertSameEnvironment(envOfVm(vmId), environmentId);
 
