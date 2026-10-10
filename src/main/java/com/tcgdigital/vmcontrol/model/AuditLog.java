@@ -53,6 +53,13 @@ public class AuditLog {
     @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
 
+    /** The actor's name and email when the row was written (E11-T02): survives user deletion. */
+    @Column(name = "actor_name", length = 255)
+    private String actorName;
+
+    @Column(name = "actor_email", length = 255)
+    private String actorEmail;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @CreationTimestamp
     private Timestamp createdAt;
@@ -85,6 +92,16 @@ public class AuditLog {
 
         public Builder userId(String userId) {
             log.userId = userId;
+            return this;
+        }
+
+        public Builder actorName(String actorName) {
+            log.actorName = actorName;
+            return this;
+        }
+
+        public Builder actorEmail(String actorEmail) {
+            log.actorEmail = actorEmail;
             return this;
         }
 
@@ -189,6 +206,22 @@ public class AuditLog {
 
     public void setUserDisplayName(String userDisplayName) {
         this.userDisplayName = userDisplayName;
+    }
+
+    public String getActorName() {
+        return actorName;
+    }
+
+    public void setActorName(String actorName) {
+        this.actorName = actorName;
+    }
+
+    public String getActorEmail() {
+        return actorEmail;
+    }
+
+    public void setActorEmail(String actorEmail) {
+        this.actorEmail = actorEmail;
     }
 
     public AuditAction getAction() {

@@ -122,7 +122,7 @@ public class AuditService {
      */
     public void logFailure(String userId, AuditAction action, String targetType, String targetId,
                            String targetName, String errorMessage) {
-        auditWriter.write(AuditLog.builder()
+        writeNow(AuditLog.builder()
                 .logId(UUID.randomUUID().toString())
                 .userId(auditUserId(userId))
                 .action(action)
@@ -140,7 +140,7 @@ public class AuditService {
     public void logEnvironmentFailure(String userId, AuditAction action, String environmentId,
                                       String environmentName, String targetType, String targetId,
                                       String targetName, String errorMessage) {
-        auditWriter.write(AuditLog.builder()
+        writeNow(AuditLog.builder()
                 .logId(UUID.randomUUID().toString())
                 .userId(auditUserId(userId))
                 .action(action)
@@ -164,11 +164,33 @@ public class AuditService {
         }
         AuditLog auditLog = builder.build();
         auditLog.setUserId(auditUserId(auditLog.getUserId()));
+        stampActor(auditLog);
         return auditWriter.writeSync(auditLog);
     }
 
     private void writeAfterCommit(AuditLog entry) {
+        stampActor(entry);
         afterCommit.run(() -> auditWriter.write(entry));
+    }
+
+    private void writeNow(AuditLog entry) {
+        stampActor(entry);
+        auditWriter.write(entry);
+    }
+
+    /** Snapshot the actor's name and email on the row (E11-T02); a lookup failure leaves them empty. */
+    private void stampActor(AuditLog entry) {
+        if (entry.getUserId() == null || entry.getActorName() != null) {
+            return;
+        }
+        try {
+            userRepository.findById(entry.getUserId()).ifPresent(user -> {
+                entry.setActorName(firstNonBlank(user.getDisplayName(), user.getEmail()));
+                entry.setActorEmail(user.getEmail());
+            });
+        } catch (Exception e) {
+            log.debug("Could not snapshot audit actor {}: {}", entry.getUserId(), e.getMessage());
+        }
     }
 
     // ============= Query Methods =============
@@ -418,6 +440,10 @@ public class AuditService {
             if (user != null) {
                 logEntry.setUserDisplayName(firstNonBlank(user.getDisplayName(), user.getEmail()));
                 logEntry.setUserEmail(user.getEmail());
+            } else if (logEntry.getActorName() != null || logEntry.getActorEmail() != null) {
+                // The user is gone: show who it was when the row was written (E11-T02).
+                logEntry.setUserDisplayName(firstNonBlank(logEntry.getActorName(), logEntry.getActorEmail()));
+                logEntry.setUserEmail(logEntry.getActorEmail());
             }
         });
     }

@@ -98,4 +98,23 @@ class AuditWriterIntegrationTest extends AbstractIntegrationTest {
                     + "AND environment_id = ?", String.class, env.getEnvironmentId())).isEqualTo(admin.getUserId());
         });
     }
+
+    // ---- Actor snapshot (E11-T02) ----
+
+    @Test
+    void aDeletedUsersRowsStillShowTheirNameAndEmail() {
+        User gone = newUser("leaver-" + UUID.randomUUID() + "@example.com", false, false);
+        String target = UUID.randomUUID().toString();
+        auditService.logAction(gone.getUserId(), AuditAction.ENVIRONMENT_UPDATED, "test", target, "t", "before leaving");
+        awaitAsync(() -> assertThat(rows(target)).isEqualTo(1));
+        assertThat(jdbcTemplate.queryForObject("SELECT actor_email FROM audit_log WHERE target_id = ?", String.class, target))
+                .isEqualTo(gone.getEmail());
+
+        jdbcTemplate.update("DELETE FROM app_user WHERE user_id = ?", gone.getUserId());
+
+        var entry = auditService.getRecentLogs().stream().filter(l -> target.equals(l.getTargetId())).findFirst().orElseThrow();
+        assertThat(entry.getUserId()).isNull();
+        assertThat(entry.getUserDisplayName()).isEqualTo(gone.getDisplayName());
+        assertThat(entry.getUserEmail()).isEqualTo(gone.getEmail());
+    }
 }
