@@ -205,5 +205,50 @@ class AuditControllerIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.page.size").value(5))
                 .andExpect(jsonPath("$.page.number").value(0));
     }
-}
 
+    // ---- Exact report windows and server-side success counts (E12-T06) ----
+
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    private static String isoAgo(java.time.Duration d) {
+        return java.time.Instant.now().minus(d).toString();
+    }
+
+    @Test
+    void theReportCountsSuccessesAndFailuresOverTheWholeWindow() throws Exception {
+        mockMvc.perform(get("/api/v1/audit/report")
+                        .param("from", isoAgo(java.time.Duration.ofHours(24)))
+                        .param("to", isoAgo(java.time.Duration.ofMinutes(-1))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalActions").value(10))
+                .andExpect(jsonPath("$.successfulActions").value(8))
+                .andExpect(jsonPath("$.failedActions").value(2));
+    }
+
+    @Test
+    void rowsOlderThanTheWindowAreLeftOut() throws Exception {
+        jdbcTemplate.update("UPDATE audit_log SET created_at = ? WHERE target_id IN ('env-000', 'env-001', 'vm-fail-0')",
+                java.sql.Timestamp.from(java.time.Instant.now().minus(java.time.Duration.ofHours(40))));
+        String from = isoAgo(java.time.Duration.ofHours(24));
+        String to = isoAgo(java.time.Duration.ofMinutes(-1));
+
+        mockMvc.perform(get("/api/v1/audit/report/locks").param("from", from).param("to", to))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)));
+        mockMvc.perform(get("/api/v1/audit/report/vm-operations").param("from", from).param("to", to))
+                .andExpect(jsonPath("$", hasSize(6)));
+        mockMvc.perform(get("/api/v1/audit/report").param("from", from).param("to", to))
+                .andExpect(jsonPath("$.totalActions").value(7))
+                .andExpect(jsonPath("$.successfulActions").value(6))
+                .andExpect(jsonPath("$.failedActions").value(1));
+    }
+
+    @Test
+    void aReportWithoutARangeIsRejected() throws Exception {
+        mockMvc.perform(get("/api/v1/audit/report"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/audit/report/locks").param("from", isoAgo(java.time.Duration.ofHours(1))))
+                .andExpect(status().isBadRequest());
+    }
+}

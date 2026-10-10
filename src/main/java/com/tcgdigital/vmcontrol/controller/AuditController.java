@@ -247,30 +247,38 @@ public class AuditController {
             )
     })
     public ResponseEntity<AuditReportDTO> generateReport(
-            @Parameter(description = "Start date (YYYY-MM-DD)", required = true)
-                @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @Parameter(description = "End date (YYYY-MM-DD)", required = true)
-                @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+            @Parameter(description = "Start date (YYYY-MM-DD); use from/to for an exact range")
+                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @Parameter(description = "End date (YYYY-MM-DD), inclusive")
+                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @Parameter(description = "From (ISO instant, inclusive)")
+                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) java.time.Instant from,
+            @Parameter(description = "To (ISO instant, exclusive)")
+                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) java.time.Instant to) {
+        java.sql.Timestamp[] range = reportRange(startDate, endDate, from, to);
 
         AuditReportDTO report = new AuditReportDTO();
-        report.setStartDate(startDate);
-        report.setEndDate(endDate);
+        report.setStartDate(startDate != null ? startDate : range[0].toLocalDateTime().toLocalDate());
+        report.setEndDate(endDate != null ? endDate : range[1].toLocalDateTime().toLocalDate());
 
         // Get action counts by type
-        Map<AuditAction, Long> actionCounts = auditService.getActionCountsByType(startDate, endDate);
+        Map<AuditAction, Long> actionCounts = auditService.getActionCountsByType(range[0], range[1]);
         report.setActionCounts(actionCounts);
 
         // Calculate totals
         long totalActions = actionCounts.values().stream().mapToLong(Long::longValue).sum();
         report.setTotalActions(totalActions);
+        // Over the whole range, never from the 20-row sample below (E12-T06).
+        report.setSuccessfulActions(auditService.countByStatusInRange("succeeded", range[0], range[1]));
+        report.setFailedActions(auditService.countByStatusInRange("failed", range[0], range[1]));
 
         // Get user activity counts
-        Map<String, Long> userCounts = auditService.getActionCountsByUser(startDate, endDate);
+        Map<String, Long> userCounts = auditService.getActionCountsByUser(range[0], range[1]);
         report.setUserActivityCounts(userCounts);
 
         // Get environment activity
         List<AuditService.EnvironmentActivitySummary> envActivities =
-                auditService.getActionCountsByEnvironment(startDate, endDate);
+                auditService.getActionCountsByEnvironment(range[0], range[1]);
         report.setEnvironmentActivities(
                 envActivities.stream()
                         .map(ea -> new AuditReportDTO.EnvironmentActivityDTO(
@@ -282,7 +290,7 @@ public class AuditController {
         );
 
         // Get recent logs for the period (first page)
-        Page<AuditLog> recentLogs = auditService.getLogsInDateRange(startDate, endDate, 0, 20);
+        Page<AuditLog> recentLogs = auditService.getLogsInRange(range[0], range[1], 0, 20);
         report.setRecentLogs(
                 recentLogs.getContent().stream()
                         .map(AuditLogDTO::fromEntity)
@@ -299,12 +307,17 @@ public class AuditController {
             description = "Retrieves all lock-related operations for compliance"
     )
     public ResponseEntity<List<AuditLogDTO>> getLockOperationsReport(
-            @Parameter(description = "Start date (YYYY-MM-DD)", required = true)
-                @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @Parameter(description = "End date (YYYY-MM-DD)", required = true)
-                @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+            @Parameter(description = "Start date (YYYY-MM-DD); use from/to for an exact range")
+                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @Parameter(description = "End date (YYYY-MM-DD), inclusive")
+                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @Parameter(description = "From (ISO instant, inclusive)")
+                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) java.time.Instant from,
+            @Parameter(description = "To (ISO instant, exclusive)")
+                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) java.time.Instant to) {
+        java.sql.Timestamp[] range = reportRange(startDate, endDate, from, to);
 
-        List<AuditLog> logs = auditService.getLockOperationsReport(startDate, endDate);
+        List<AuditLog> logs = auditService.getLockOperationsReport(range[0], range[1]);
         List<AuditLogDTO> dtos = logs.stream()
                 .map(AuditLogDTO::fromEntity)
                 .toList();
@@ -318,16 +331,37 @@ public class AuditController {
             description = "Retrieves all VM start/stop operations for compliance"
     )
     public ResponseEntity<List<AuditLogDTO>> getVmOperationsReport(
-            @Parameter(description = "Start date (YYYY-MM-DD)", required = true)
-                @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @Parameter(description = "End date (YYYY-MM-DD)", required = true)
-                @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+            @Parameter(description = "Start date (YYYY-MM-DD); use from/to for an exact range")
+                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @Parameter(description = "End date (YYYY-MM-DD), inclusive")
+                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @Parameter(description = "From (ISO instant, inclusive)")
+                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) java.time.Instant from,
+            @Parameter(description = "To (ISO instant, exclusive)")
+                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) java.time.Instant to) {
+        java.sql.Timestamp[] range = reportRange(startDate, endDate, from, to);
 
-        List<AuditLog> logs = auditService.getVmOperationsReport(startDate, endDate);
+        List<AuditLog> logs = auditService.getVmOperationsReport(range[0], range[1]);
         List<AuditLogDTO> dtos = logs.stream()
                 .map(AuditLogDTO::fromEntity)
                 .toList();
         return ResponseEntity.ok(dtos);
+    }
+
+    /**
+     * The report range (E12-T06): from/to instants when both are given (to exclusive), else whole
+     * days startDate..endDate; neither pair is a 400.
+     */
+    private static java.sql.Timestamp[] reportRange(LocalDate startDate, LocalDate endDate,
+                                                    java.time.Instant from, java.time.Instant to) {
+        if (from != null && to != null) {
+            return new java.sql.Timestamp[]{java.sql.Timestamp.from(from), java.sql.Timestamp.from(to)};
+        }
+        if (startDate != null && endDate != null) {
+            return new java.sql.Timestamp[]{java.sql.Timestamp.valueOf(startDate.atStartOfDay()),
+                    java.sql.Timestamp.valueOf(endDate.plusDays(1).atStartOfDay())};
+        }
+        throw new com.tcgdigital.vmcontrol.exception.ValidationException("Give from and to, or startDate and endDate");
     }
 
     @GetMapping("/actions")

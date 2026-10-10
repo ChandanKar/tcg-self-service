@@ -45,6 +45,13 @@ public interface VmStateHistoryRepository extends JpaRepository<VmStateHistory, 
     @Query("SELECT h FROM VmStateHistory h WHERE h.changeSource = 'state_sync' AND h.changedAt BETWEEN :startTime AND :endTime ORDER BY h.changedAt DESC")
     List<VmStateHistory> findDriftEventsInRange(Timestamp startTime, Timestamp endTime);
 
+    /** Drift events in [start, end), newest first, paged (System Health 24 h table, E12-T06). */
+    @Query("SELECT h FROM VmStateHistory h WHERE h.changeSource = 'state_sync' AND h.changedAt >= :start "
+            + "AND h.changedAt < :end ORDER BY h.changedAt DESC")
+    Page<VmStateHistory> findDriftEventsBetween(@org.springframework.data.repository.query.Param("start") Timestamp start,
+                                                @org.springframework.data.repository.query.Param("end") Timestamp end,
+                                                Pageable pageable);
+
     /**
      * Find drift events with pagination.
      */

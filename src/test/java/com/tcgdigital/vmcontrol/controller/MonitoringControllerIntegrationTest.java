@@ -255,4 +255,24 @@ class MonitoringControllerIntegrationTest extends AbstractIntegrationTest {
                 "SELECT locked_until FROM scheduled_job_lock WHERE lock_name = 'vm_inventory_sync'", java.sql.Timestamp.class);
         org.assertj.core.api.Assertions.assertThat(until.toInstant()).isBeforeOrEqualTo(java.time.Instant.now().plusSeconds(1));
     }
+
+    // ---- Drift events in an exact window (E12-T06) ----
+
+    @Test
+    void driftEventsCanBeLimitedToAWindow() throws Exception {
+        stateSyncService.recordStateChange(testVm, VmStatus.RUNNING, VmStatus.STOPPED, "state_sync", null, null, "Old drift");
+        jdbcTemplate.update("UPDATE vm_state_history SET created_at = ? WHERE change_source = 'state_sync'",
+                java.sql.Timestamp.from(java.time.Instant.now().minus(java.time.Duration.ofHours(40))));
+        stateSyncService.recordStateChange(testVm, VmStatus.STOPPED, VmStatus.RUNNING, "state_sync", null, null, "New drift");
+
+        mockMvc.perform(get("/api/v1/monitoring/drift-events")
+                        .param("from", java.time.Instant.now().minus(java.time.Duration.ofHours(24)).toString())
+                        .param("to", java.time.Instant.now().plusSeconds(60).toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.page.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].newStatus").value("RUNNING"));
+        mockMvc.perform(get("/api/v1/monitoring/drift-events"))
+                .andExpect(jsonPath("$.page.totalElements").value(2));
+    }
 }

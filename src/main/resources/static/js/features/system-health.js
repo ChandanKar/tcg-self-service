@@ -5,12 +5,13 @@
  *   POST /monitoring/sync
  *   GET  /monitoring/state-changes
  *   GET  /monitoring/drift-events
- *   GET  /monitoring/drift-events/count
  *   GET  /monitoring/drift-events/report
  *   GET  /audit/report
  *   GET  /audit/report/locks
  *   GET  /audit/report/vm-operations
  *   GET  /audit/actions  (used to populate action labels)
+ * Drift and audit sections, and the sync buttons, are shown to environment admins only; every
+ * window is the last 24 hours as exact instants (E12-T06).
  */
 
 const SystemHealth = (function () {
@@ -18,8 +19,9 @@ const SystemHealth = (function () {
 
     // ─── helpers ─────────────────────────────────────────────────────────────
 
-    function formatDate(date) {
-        return date.toISOString().split('T')[0];
+    /** "from=...&to=..." for an exact instant range (E12-T06). */
+    function rangeQuery(range) {
+        return `from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`;
     }
 
     function relativeTime(ts) {
@@ -81,46 +83,31 @@ const SystemHealth = (function () {
         return apiFetch(Config.API.monitoring.stateChanges, []);
     }
 
-    function fetchDriftEvents() {
+    /** Drift events in the range: the first page of rows plus the total across the range. */
+    function fetchDriftEvents(range) {
         return new Promise(resolve => {
-            ApiClient.get(Config.API.monitoring.driftEvents, { suppressGlobalError: true })
-                .done(data => resolve(Array.isArray(data) ? data : (data.content || [])))
-                .fail(() => resolve([]));
+            ApiClient.get(`${Config.API.monitoring.driftEvents}?page=0&size=20&${rangeQuery(range)}`,
+                { suppressGlobalError: true })
+                .done(data => {
+                    const events = Array.isArray(data) ? data : ((data && data.content) || []);
+                    const total = data && data.page && data.page.totalElements != null
+                        ? Number(data.page.totalElements) : events.length;
+                    resolve({ events, total });
+                })
+                .fail(() => resolve({ events: [], total: 0 }));
         });
     }
 
-    function fetchDriftCount(startDate, endDate) {
-        return new Promise(resolve => {
-            ApiClient.get(
-                `${Config.API.monitoring.driftCount}?startDate=${startDate}&endDate=${endDate}`,
-                { suppressGlobalError: true }
-            )
-            .done(data => {
-                // Backend may return a plain number or a wrapped object. The real field name
-                // from MonitoringController's /drift-events/count response is "driftEventCount".
-                if (typeof data === 'number') resolve(data);
-                else resolve(Number(data.driftEventCount ?? data.count ?? data.driftCount ?? data.value) || 0);
-            })
-            .fail(() => resolve(0));
-        });
+    function fetchAuditReport(range) {
+        return apiFetch(`${Config.API.audit.report}?${rangeQuery(range)}`, null);
     }
 
-    function fetchAuditReport(startDate, endDate) {
-        return apiFetch(
-            `${Config.API.audit.report}?startDate=${startDate}&endDate=${endDate}`, null
-        );
+    function fetchLockReport(range) {
+        return apiFetch(`${Config.API.audit.lockReport}?${rangeQuery(range)}`, []);
     }
 
-    function fetchLockReport(startDate, endDate) {
-        return apiFetch(
-            `${Config.API.audit.lockReport}?startDate=${startDate}&endDate=${endDate}`, []
-        );
-    }
-
-    function fetchVmOpsReport(startDate, endDate) {
-        return apiFetch(
-            `${Config.API.audit.vmReport}?startDate=${startDate}&endDate=${endDate}`, []
-        );
+    function fetchVmOpsReport(range) {
+        return apiFetch(`${Config.API.audit.vmReport}?${rangeQuery(range)}`, []);
     }
 
     function fetchEmailLog() {
@@ -138,18 +125,17 @@ const SystemHealth = (function () {
         const t = ContentRouter.token();
         showLoading();
 
-        const now       = new Date();
-        const yesterday = new Date(now);
-        yesterday.setDate(yesterday.getDate() - 1);
-        const startDate = formatDate(yesterday);
-        const endDate   = formatDate(now);
+        // A true last-24-hours window, not "yesterday and today" (E12-T06).
+        const to = new Date();
+        const range = { from: new Date(to.getTime() - 86400000).toISOString(), to: to.toISOString() };
+        // Drift and audit reports are environment-admin endpoints; other roles skip them.
+        const canAdmin = Auth.isEnvAdmin();
 
         try {
             const [
                 syncStatus,
                 stateChanges,
-                driftEvents,
-                driftCount,
+                drift,
                 auditReport,
                 lockReport,
                 vmOpsReport,
@@ -157,18 +143,17 @@ const SystemHealth = (function () {
             ] = await Promise.all([
                 fetchSyncStatus(),
                 fetchStateChanges(),
-                fetchDriftEvents(),
-                fetchDriftCount(startDate, endDate),
-                fetchAuditReport(startDate, endDate),
-                fetchLockReport(startDate, endDate),
-                fetchVmOpsReport(startDate, endDate),
+                canAdmin ? fetchDriftEvents(range) : Promise.resolve({ events: [], total: 0 }),
+                canAdmin ? fetchAuditReport(range) : Promise.resolve(null),
+                canAdmin ? fetchLockReport(range) : Promise.resolve([]),
+                canAdmin ? fetchVmOpsReport(range) : Promise.resolve([]),
                 fetchEmailLog()
             ]);
             if (!ContentRouter.isCurrent(t)) return;
 
             render({
-                syncStatus, stateChanges, driftEvents,
-                driftCount, auditReport, lockReport, vmOpsReport, emailLog
+                canAdmin, syncStatus, stateChanges, driftEvents: drift.events,
+                driftCount: drift.total, auditReport, lockReport, vmOpsReport, emailLog
             });
         } catch (err) {
             if (!ContentRouter.isCurrent(t)) return;
@@ -201,7 +186,7 @@ const SystemHealth = (function () {
                 if (xhr && xhr.status === 409) {
                     Notifications.show('Sync already in progress', 'warning');
                 } else {
-                    Notifications.show('Failed to trigger sync', 'danger');
+                    Notifications.show('Failed to trigger sync', 'error');
                 }
                 $btn.prop('disabled', false).html('<i class="fas fa-sync me-1"></i>Trigger State Sync');
             });
@@ -221,7 +206,7 @@ const SystemHealth = (function () {
                 if (xhr && xhr.status === 503) {
                     Notifications.show('EKS not available — check AWS credentials in .env', 'warning');
                 } else {
-                    Notifications.show('EKS sync failed', 'danger');
+                    Notifications.show('EKS sync failed', 'error');
                 }
             })
             .always(() => {
@@ -231,16 +216,15 @@ const SystemHealth = (function () {
 
     // ─── render ───────────────────────────────────────────────────────────────
 
-    function render({ syncStatus, stateChanges, driftEvents, driftCount, auditReport, lockReport, vmOpsReport, emailLog }) {
+    function render({ canAdmin, syncStatus, stateChanges, driftEvents, driftCount, auditReport, lockReport, vmOpsReport, emailLog }) {
 
         const auditTotal    = auditReport ? (auditReport.totalActions || 0) : 0;
-        // successfulActions/failedActions are not computed by the backend report endpoint;
-        // derive from recentLogs sample as a best-effort indicator
-        const recentLogs    = (auditReport && auditReport.recentLogs) || [];
-        const auditSuccess  = recentLogs.filter(l => l.success !== false).length;
-        const auditFailures = recentLogs.filter(l => l.success === false).length;
-        const successRate   = recentLogs.length > 0
-            ? Math.round((auditSuccess / recentLogs.length) * 100) : 0;
+        // Counted by the server over the whole window (E12-T06), not from the 20-row sample.
+        const auditSuccess  = auditReport ? Number(auditReport.successfulActions) || 0 : 0;
+        const auditFailures = auditReport ? Number(auditReport.failedActions) || 0 : 0;
+        const decided       = auditSuccess + auditFailures;
+        const successRate   = decided > 0 ? Math.round((auditSuccess / decided) * 100) : null;
+        const successText   = successRate === null ? '—' : `${successRate}%`;
 
         const topEnvList = (auditReport && auditReport.environmentActivities) || [];
         const topEnv     = topEnvList.length > 0
@@ -261,12 +245,13 @@ const SystemHealth = (function () {
                     <p class="text-muted mb-0">Live platform health and state synchronization</p>
                 </div>
                 <div class="d-flex gap-2 flex-shrink-0">
+                    ${canAdmin ? `
                     <button class="btn btn-sm btn-primary" id="trigger-sync-btn" data-action="sh-trigger-sync">
                         <i class="fas fa-sync me-1"></i>Trigger Sync
                     </button>
                     <button class="btn btn-sm btn-tonal btn-warning" id="trigger-eks-sync-btn" data-action="sh-trigger-eks-sync">
                         <i class="fab fa-aws me-1"></i>EKS Sync Now
-                    </button>
+                    </button>` : ''}
                     <button class="btn btn-sm btn-ghost" data-action="sh-reload">
                         <i class="fas fa-redo me-1"></i>Refresh
                     </button>
@@ -289,6 +274,7 @@ const SystemHealth = (function () {
                         <div class="metric-subtitle">${syncStatus.totalVmsSynced || 0} VMs synced</div>
                     </div>
                 </div>
+                ${canAdmin ? `
                 <div class="col-md-3">
                     <div class="metric-card">
                         <div class="metric-title">Drift Events (24h)</div>
@@ -300,11 +286,12 @@ const SystemHealth = (function () {
                     <div class="metric-card">
                         <div class="metric-title">Audit Actions (24h)</div>
                         <div class="metric-value">${auditTotal.toLocaleString()}</div>
-                        <div class="metric-subtitle">${successRate}% success rate</div>
+                        <div class="metric-subtitle">${successText} success rate</div>
                     </div>
-                </div>
+                </div>` : ''}
             </div>
 
+            ${canAdmin ? `
             <!-- Audit Summary -->
             <div class="card sh-summary-card mb-3">
                 <div class="card-header d-flex align-items-center gap-2">
@@ -326,7 +313,7 @@ const SystemHealth = (function () {
                             <div class="sh-stat-label">Failures</div>
                         </div>
                         <div class="col border-end">
-                            <div class="sh-stat-value">${successRate}%</div>
+                            <div class="sh-stat-value">${successText}</div>
                             <div class="sh-stat-label">Success Rate</div>
                         </div>
                         <div class="col">
@@ -335,7 +322,7 @@ const SystemHealth = (function () {
                         </div>
                     </div>
                 </div>
-            </div>
+            </div>` : ''}
 
             <!-- State Changes + Drift side-by-side -->
             <div class="row g-2 mb-3">
@@ -351,20 +338,22 @@ const SystemHealth = (function () {
                         </div>
                     </div>
                 </div>
+                ${canAdmin ? `
                 <div class="col-md-6">
                     <div class="card sh-table-card h-100">
                         <div class="card-header d-flex align-items-center gap-2">
                             <i class="fas fa-exclamation-triangle text-warning"></i>
                             <strong>Drift Events (24h)</strong>
-                            <span class="badge bg-warning text-dark ms-auto">${driftEvents.length}</span>
+                            <span class="badge bg-warning text-dark ms-auto">${driftCount}</span>
                         </div>
                         <div class="card-body">
                             ${buildDriftTable(driftEvents)}
                         </div>
                     </div>
-                </div>
+                </div>` : ''}
             </div>
 
+            ${canAdmin ? `
             <!-- Lock Compliance Report -->
             <div class="card sh-compliance-card mb-3">
                 <div class="card-header d-flex align-items-center gap-2">
@@ -387,7 +376,7 @@ const SystemHealth = (function () {
                 <div class="card-body">
                     ${buildComplianceTable(vmOpsReport, ['User', 'Action', 'Environment', 'Target', 'Result', 'Time'])}
                 </div>
-            </div>
+            </div>` : ''}
 
             <!-- Email Log: who we've emailed -->
             <div class="card sh-compliance-card mb-3">

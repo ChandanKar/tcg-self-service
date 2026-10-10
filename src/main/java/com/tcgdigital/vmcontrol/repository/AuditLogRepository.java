@@ -155,4 +155,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, String> {
     @Modifying
     @Query(nativeQuery = true, value = "DELETE FROM audit_log WHERE created_at < :cutoff ORDER BY created_at LIMIT :limit")
     int deleteOlderThan(@Param("cutoff") java.sql.Timestamp cutoff, @Param("limit") int limit);
+
+    /** Rows with an action status in [start, end) (System Health success rate, E12-T06). */
+    long countByActionStatusAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(String actionStatus, Timestamp start, Timestamp end);
 }

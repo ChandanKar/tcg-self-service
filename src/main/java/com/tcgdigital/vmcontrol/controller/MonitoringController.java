@@ -265,9 +265,17 @@ public class MonitoringController {
     )
     public ResponseEntity<Page<VmStateHistoryDTO>> getDriftEvents(
             @Parameter(description = "Page number") @RequestParam(defaultValue = "0") int page,
-            @Parameter(description = "Page size") @RequestParam(defaultValue = "20") int size) {
+            @Parameter(description = "Page size") @RequestParam(defaultValue = "20") int size,
+            @Parameter(description = "From (ISO instant, inclusive)") @RequestParam(required = false)
+                @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME)
+                java.time.Instant from,
+            @Parameter(description = "To (ISO instant, exclusive)") @RequestParam(required = false)
+                @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME)
+                java.time.Instant to) {
 
-        Page<VmStateHistory> driftEvents = stateSyncService.getDriftEvents(page, size);
+        Page<VmStateHistory> driftEvents = from != null && to != null
+                ? stateSyncService.getDriftEvents(java.sql.Timestamp.from(from), java.sql.Timestamp.from(to), page, size)
+                : stateSyncService.getDriftEvents(page, size);
         Page<VmStateHistoryDTO> dtos = driftEvents.map(VmStateHistoryDTO::fromEntity);
         resolveUsernames(dtos.getContent());
         return ResponseEntity.ok(dtos);

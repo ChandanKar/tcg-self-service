@@ -307,8 +307,12 @@ public class AuditService {
      * Get audit logs within date range.
      */
     public Page<AuditLog> getLogsInDateRange(LocalDate startDate, LocalDate endDate, int page, int size) {
-        Timestamp start = Timestamp.valueOf(startDate.atStartOfDay());
-        Timestamp end = Timestamp.valueOf(endDate.plusDays(1).atStartOfDay());
+        return getLogsInRange(Timestamp.valueOf(startDate.atStartOfDay()),
+                Timestamp.valueOf(endDate.plusDays(1).atStartOfDay()), page, size);
+    }
+
+    /** Audit rows in an exact instant range, newest first (E12-T06). */
+    public Page<AuditLog> getLogsInRange(Timestamp start, Timestamp end, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         return enrichEnvironmentInfo(auditLogRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(start, end, pageable));
     }
@@ -335,8 +339,11 @@ public class AuditService {
      * Get action counts by type for a date range.
      */
     public Map<AuditAction, Long> getActionCountsByType(LocalDate startDate, LocalDate endDate) {
-        Timestamp start = Timestamp.valueOf(startDate.atStartOfDay());
-        Timestamp end = Timestamp.valueOf(endDate.plusDays(1).atStartOfDay());
+        return getActionCountsByType(Timestamp.valueOf(startDate.atStartOfDay()), Timestamp.valueOf(endDate.plusDays(1).atStartOfDay()));
+    }
+
+    /** The same over an exact instant range, end exclusive (E12-T06). */
+    public Map<AuditAction, Long> getActionCountsByType(Timestamp start, Timestamp end) {
 
         List<Object[]> results = auditLogRepository.countActionsByTypeInRange(start, end);
 
@@ -358,8 +365,11 @@ public class AuditService {
      * Get action counts by user for a date range.
      */
     public Map<String, Long> getActionCountsByUser(LocalDate startDate, LocalDate endDate) {
-        Timestamp start = Timestamp.valueOf(startDate.atStartOfDay());
-        Timestamp end = Timestamp.valueOf(endDate.plusDays(1).atStartOfDay());
+        return getActionCountsByUser(Timestamp.valueOf(startDate.atStartOfDay()), Timestamp.valueOf(endDate.plusDays(1).atStartOfDay()));
+    }
+
+    /** The same over an exact instant range, end exclusive (E12-T06). */
+    public Map<String, Long> getActionCountsByUser(Timestamp start, Timestamp end) {
 
         List<Object[]> results = auditLogRepository.countActionsByUserInRange(start, end);
 
@@ -375,8 +385,11 @@ public class AuditService {
      * Get action counts by environment for a date range.
      */
     public List<EnvironmentActivitySummary> getActionCountsByEnvironment(LocalDate startDate, LocalDate endDate) {
-        Timestamp start = Timestamp.valueOf(startDate.atStartOfDay());
-        Timestamp end = Timestamp.valueOf(endDate.plusDays(1).atStartOfDay());
+        return getActionCountsByEnvironment(Timestamp.valueOf(startDate.atStartOfDay()), Timestamp.valueOf(endDate.plusDays(1).atStartOfDay()));
+    }
+
+    /** The same over an exact instant range, end exclusive (E12-T06). */
+    public List<EnvironmentActivitySummary> getActionCountsByEnvironment(Timestamp start, Timestamp end) {
 
         List<Object[]> results = auditLogRepository.countActionsByEnvironmentInRange(start, end);
 
@@ -409,8 +422,11 @@ public class AuditService {
      * Get lock operations for compliance.
      */
     public List<AuditLog> getLockOperationsReport(LocalDate startDate, LocalDate endDate) {
-        Timestamp start = Timestamp.valueOf(startDate.atStartOfDay());
-        Timestamp end = Timestamp.valueOf(endDate.plusDays(1).atStartOfDay());
+        return getLockOperationsReport(Timestamp.valueOf(startDate.atStartOfDay()), Timestamp.valueOf(endDate.plusDays(1).atStartOfDay()));
+    }
+
+    /** The same over an exact instant range, end exclusive (E12-T06). */
+    public List<AuditLog> getLockOperationsReport(Timestamp start, Timestamp end) {
         return enrichEnvironmentInfo(auditLogRepository.findLockOperationsInRange(start, end));
     }
 
@@ -418,9 +434,17 @@ public class AuditService {
      * Get VM operations for compliance.
      */
     public List<AuditLog> getVmOperationsReport(LocalDate startDate, LocalDate endDate) {
-        Timestamp start = Timestamp.valueOf(startDate.atStartOfDay());
-        Timestamp end = Timestamp.valueOf(endDate.plusDays(1).atStartOfDay());
+        return getVmOperationsReport(Timestamp.valueOf(startDate.atStartOfDay()), Timestamp.valueOf(endDate.plusDays(1).atStartOfDay()));
+    }
+
+    /** The same over an exact instant range, end exclusive (E12-T06). */
+    public List<AuditLog> getVmOperationsReport(Timestamp start, Timestamp end) {
         return enrichEnvironmentInfo(auditLogRepository.findVmOperationsInRange(start, end));
+    }
+
+    /** Rows with this action_status ('succeeded' / 'failed') in [start, end) (E12-T06). */
+    public long countByStatusInRange(String status, Timestamp start, Timestamp end) {
+        return auditLogRepository.countByActionStatusAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(status, start, end);
     }
 
     // ============= Convenience Methods for Common Actions =============

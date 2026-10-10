@@ -515,6 +515,11 @@ public class StateSyncService {
         return stateHistoryRepository.findDriftEvents(pageable);
     }
 
+    /** Drift events in [from, to), paged (E12-T06). */
+    public Page<VmStateHistory> getDriftEvents(Timestamp from, Timestamp to, int page, int size) {
+        return stateHistoryRepository.findDriftEventsBetween(from, to, PageRequest.of(page, size));
+    }
+
     /**
      * Get drift events in a date range.
      */
