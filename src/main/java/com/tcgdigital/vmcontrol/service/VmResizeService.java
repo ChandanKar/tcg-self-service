@@ -34,13 +34,16 @@ public class VmResizeService {
     private final LockService lockService;
     private final AuditService auditService;
     private final OperationExecutionRepository executionRepository;
+    private final CostEstimationService costEstimationService;
 
     public VmResizeService(VmRepository vmRepository,
                             VmInventorySnapshotRepository vmInventorySnapshotRepository,
                             AwsCloudProviderService awsCloudProviderService,
                             LockService lockService,
                             AuditService auditService,
-                            OperationExecutionRepository executionRepository) {
+                            OperationExecutionRepository executionRepository,
+                            CostEstimationService costEstimationService) {
+        this.costEstimationService = costEstimationService;
         this.executionRepository = executionRepository;
         this.vmRepository = vmRepository;
         this.vmInventorySnapshotRepository = vmInventorySnapshotRepository;
@@ -78,6 +81,15 @@ public class VmResizeService {
         if (liveStatus != VmStatus.STOPPED) {
             throw new ValidationException("VM must be stopped before changing its instance type (it is "
                     + (liveStatus != null ? liveStatus : VmStatus.UNKNOWN) + ")");
+        }
+
+        // Only the type the page recommends right now (M11, E08-T05): a replayed or edited
+        // request cannot resize the VM to anything else.
+        boolean matches = costEstimationService.findCandidate(vmId)
+                .map(c -> targetInstanceType.equals(c.suggestedInstanceType()))
+                .orElse(false);
+        if (!matches) {
+            throw new ValidationException("Target instance type does not match the current recommendation for this VM");
         }
 
         String oldInstanceType = vmInventorySnapshotRepository.findByVmVmId(vmId)
@@ -120,6 +132,7 @@ public class VmResizeService {
         }
         auditService.logChange(userId, AuditAction.VM_RESIZE_COMPLETED, "vm", vmId, vm.getDisplayName(),
                 oldInstanceType, targetInstanceType, null);
+        costEstimationService.invalidateBundles(); // the page must not offer the old recommendation
     }
 
     private String liveInstanceType(Vm vm) {

@@ -118,7 +118,7 @@ class CostEstimationServiceTest {
     @Test
     void prefersComputeOptimizerRecommendationWhenOneExists() {
         ComputeOptimizerService.Recommendation recommendation =
-                new ComputeOptimizerService.Recommendation(INSTANCE_ID, "m6a.large", "OVER_PROVISIONED");
+                new ComputeOptimizerService.Recommendation(INSTANCE_ID, "OVER_PROVISIONED", List.of("m6a.large"));
         when(computeOptimizerService.getEc2Recommendations(REGION)).thenReturn(Map.of(INSTANCE_ID, recommendation));
 
         RightsizingCandidateDTO row = onlyCandidate();
@@ -253,5 +253,46 @@ class CostEstimationServiceTest {
         assertEquals(0, summary.rightsizingCandidateCount());
         assertEquals(0, BigDecimal.ZERO.compareTo(summary.rightsizingPotentialSavings()));
         assertEquals(1, summary.scaleUpCandidateCount());
+    }
+
+    // ---- Compute Optimizer options must be cheaper; no zero-saving scale-downs (E08-T05, M11) ----
+
+    @Test
+    void aComputeOptimizerOptionDearerThanTheCurrentTypeIsSkipped() {
+        // t3.xlarge now; the top option (t3.2xlarge) costs more, the next (m6a.large) is cheaper.
+        ComputeOptimizerService.Recommendation recommendation = new ComputeOptimizerService.Recommendation(
+                INSTANCE_ID, "OVERPROVISIONED", List.of("t3.2xlarge", "m6a.large"));
+        when(computeOptimizerService.getEc2Recommendations(REGION)).thenReturn(Map.of(INSTANCE_ID, recommendation));
+
+        RightsizingCandidateDTO row = onlyCandidate();
+
+        assertEquals("m6a.large", row.suggestedInstanceType());
+        assertEquals("compute-optimizer", row.source());
+        org.junit.jupiter.api.Assertions.assertTrue(row.estimatedMonthlySavings().signum() > 0);
+    }
+
+    @Test
+    void withOnlyDearerOptionsTheRuleBasedSuggestionIsUsed() {
+        ComputeOptimizerService.Recommendation recommendation = new ComputeOptimizerService.Recommendation(
+                INSTANCE_ID, "OVERPROVISIONED", List.of("t3.2xlarge"));
+        when(computeOptimizerService.getEc2Recommendations(REGION)).thenReturn(Map.of(INSTANCE_ID, recommendation));
+
+        RightsizingCandidateDTO row = onlyCandidate();
+
+        assertEquals("cpu-threshold-rule", row.source());
+        assertEquals("t3.large", row.suggestedInstanceType());
+    }
+
+    @Test
+    void aScaleDownWithNoSavingIsNotListed() {
+        when(instanceTypeProjection.getInstanceType()).thenReturn("t3.nano"); // nothing smaller to suggest
+
+        assertEquals(0, service.getRightsizingCandidates(PageRequest.of(0, 25)).getTotalElements());
+        assertEquals(java.util.Optional.empty(), service.findCandidate(VM_ID));
+    }
+
+    @Test
+    void findCandidateReturnsTheVmsCurrentRecommendation() {
+        assertEquals("t3.large", service.findCandidate(VM_ID).orElseThrow().suggestedInstanceType());
     }
 }

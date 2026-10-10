@@ -120,4 +120,32 @@ class ComputeOptimizerServiceTest {
         assertTrue(s.getEc2Recommendations("us-east-1").isEmpty());
         assertEquals(1, s.getEc2Recommendations("us-east-1").size());
     }
+
+    // ---- Only OVERPROVISIONED findings, every option in rank order (E08-T05, M11) ----
+
+    private static InstanceRecommendation withFinding(String id, Finding finding) {
+        return InstanceRecommendation.builder()
+                .instanceArn("arn:aws:ec2:us-east-1:1:instance/" + id)
+                .finding(finding)
+                .recommendationOptions(
+                        InstanceRecommendationOption.builder().instanceType("m6a.xlarge").rank(2).build(),
+                        InstanceRecommendationOption.builder().instanceType("m6a.large").rank(1).build(),
+                        InstanceRecommendationOption.builder().instanceType("t3.large").rank(3).build())
+                .build();
+    }
+
+    @Test
+    void onlyOverprovisionedInstancesAreRecommendationsWithEveryOptionInRankOrder() {
+        GetEc2InstanceRecommendationsResponse response = GetEc2InstanceRecommendationsResponse.builder()
+                .instanceRecommendations(
+                        withFinding("i-over", Finding.OVERPROVISIONED),
+                        withFinding("i-under", Finding.UNDERPROVISIONED),
+                        withFinding("i-ok", Finding.OPTIMIZED))
+                .build();
+
+        Map<String, ComputeOptimizerService.Recommendation> result = service.parseRecommendations(response);
+
+        assertEquals(java.util.Set.of("i-over"), result.keySet());
+        assertEquals(List.of("m6a.large", "m6a.xlarge", "t3.large"), result.get("i-over").optionTypesByRank());
+    }
 }

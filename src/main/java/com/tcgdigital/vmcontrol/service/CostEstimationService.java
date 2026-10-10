@@ -38,6 +38,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -254,6 +255,31 @@ public class CostEstimationService {
 
     // ---- internal ----
 
+    /**
+     * The current rightsizing candidate for one VM, from the cached bundles (E08-T05): what an
+     * Apply must match.
+     */
+    public Optional<RightsizingCandidateDTO> findCandidate(String vmId) {
+        return buildRightsizingCandidates(buildBundles()).stream()
+                .filter(c -> c.vmId().equals(vmId))
+                .findFirst();
+    }
+
+    /** The best-ranked option priced below the current hourly rate, or null. */
+    private String firstCheaperOption(ComputeOptimizerService.Recommendation recommendation, String provider,
+                                      String region, BigDecimal currentHourlyRate) {
+        if (currentHourlyRate == null) {
+            return null;
+        }
+        for (String type : recommendation.optionTypesByRank()) {
+            PricingReferenceService.PriceLookupResult rate = pricingReferenceService.lookupHourlyRate(provider, type, region);
+            if (rate.priceKnown() && rate.hourlyRate().compareTo(currentHourlyRate) < 0) {
+                return type;
+            }
+        }
+        return null;
+    }
+
     /** Drop the cached bundles, e.g. after a backfill or a resize (E08-T04). */
     public void invalidateBundles() {
         bundleCache = null;
@@ -435,8 +461,11 @@ public class CostEstimationService {
             String suggestedType;
             String source;
             String findingLevel;
-            if (recommendation != null) {
-                suggestedType = recommendation.suggestedInstanceType();
+            // A Compute Optimizer option counts only if it is actually cheaper (E08-T05, M11).
+            String cheaperOption = recommendation == null ? null
+                    : firstCheaperOption(recommendation, provider, b.vm().getRegion(), b.estimate().hourlyRate());
+            if (cheaperOption != null) {
+                suggestedType = cheaperOption;
                 source = "compute-optimizer";
                 findingLevel = recommendation.finding();
             } else {
@@ -465,6 +494,10 @@ public class CostEstimationService {
                     savings = currentCost.subtract(afterCost);
                     costKnown = true;
                 }
+            }
+            // A scale-down that saves nothing is not a recommendation (E08-T05).
+            if (isScaleDown && (savings == null || savings.signum() <= 0)) {
+                continue;
             }
 
             candidates.add(new RightsizingCandidateDTO(

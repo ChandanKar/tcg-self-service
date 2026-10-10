@@ -19,6 +19,7 @@ import software.amazon.awssdk.services.computeoptimizer.model.OptInRequiredExcep
 import java.time.Duration;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -70,7 +71,15 @@ public class ComputeOptimizerService {
         this.clock = clock;
     }
 
-    public record Recommendation(String instanceId, String suggestedInstanceType, String finding) {
+    /**
+     * An OVERPROVISIONED instance and its recommended types, best rank first (E08-T05). Callers
+     * still check each option is actually cheaper before suggesting it.
+     */
+    public record Recommendation(String instanceId, String finding, List<String> optionTypesByRank) {
+        /** The top-ranked option. */
+        public String suggestedInstanceType() {
+            return optionTypesByRank.isEmpty() ? null : optionTypesByRank.get(0);
+        }
     }
 
     public boolean isAvailable() {
@@ -130,14 +139,20 @@ public class ComputeOptimizerService {
             if (instanceId == null) {
                 continue;
             }
-            String suggested = rec.recommendationOptions().stream()
-                    .min(Comparator.comparing(InstanceRecommendationOption::rank))
-                    .map(InstanceRecommendationOption::instanceType)
-                    .orElse(null);
-            if (suggested == null) {
+            // Only an over-provisioned instance is a scale-down; an under-provisioned one's
+            // options are larger (M11, E08-T05).
+            if (rec.finding() != software.amazon.awssdk.services.computeoptimizer.model.Finding.OVERPROVISIONED) {
                 continue;
             }
-            result.put(instanceId, new Recommendation(instanceId, suggested, rec.findingAsString()));
+            List<String> options = rec.recommendationOptions().stream()
+                    .sorted(Comparator.comparing(InstanceRecommendationOption::rank))
+                    .map(InstanceRecommendationOption::instanceType)
+                    .filter(java.util.Objects::nonNull)
+                    .toList();
+            if (options.isEmpty()) {
+                continue;
+            }
+            result.put(instanceId, new Recommendation(instanceId, rec.findingAsString(), options));
         }
         return result;
     }

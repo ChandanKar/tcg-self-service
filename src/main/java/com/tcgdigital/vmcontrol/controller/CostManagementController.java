@@ -139,6 +139,11 @@ public class CostManagementController {
         return ResponseEntity.ok(costEstimationService.getRightsizingCandidates(PageRequest.of(page, size)));
     }
 
+    /**
+     * Apply the current rightsizing recommendation. 400 when the type is malformed or is not the
+     * type currently recommended for the VM (E08-T05, M11); the lock, running-operation and
+     * stopped-VM checks still apply.
+     */
     @PostMapping("/rightsizing/apply")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> applyRightsizing(@Valid @RequestBody ApplyRightsizingRequestDTO request) {

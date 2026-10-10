@@ -45,13 +45,18 @@ class VmResizeServiceTest {
     @Mock private LockService lockService;
     @Mock private AuditService auditService;
     @Mock private OperationExecutionRepository executions;
+    @Mock private CostEstimationService costEstimationService;
+
+    /** The type the cost page currently recommends for vm-1 (E08-T05). */
+    private String recommended = "t3.large";
 
     private VmResizeService service;
     private Vm vm;
 
     @BeforeEach
     void setUp() {
-        service = new VmResizeService(vmRepository, snapshots, aws, lockService, auditService, executions);
+        service = new VmResizeService(vmRepository, snapshots, aws, lockService, auditService, executions,
+                costEstimationService);
         Environment env = new Environment();
         env.setEnvironmentId("env-1");
         env.setDisplayName("Env 1");
@@ -67,6 +72,46 @@ class VmResizeServiceTest {
         vm.setDisplayName("app-1");
         when(vmRepository.findById("vm-1")).thenReturn(Optional.of(vm));
         lenient().when(snapshots.findByVmVmId("vm-1")).thenReturn(Optional.empty());
+        lenient().when(costEstimationService.findCandidate("vm-1")).thenAnswer(inv -> Optional.of(candidate(recommended)));
+    }
+
+    private static com.tcgdigital.vmcontrol.dto.RightsizingCandidateDTO candidate(String suggested) {
+        return new com.tcgdigital.vmcontrol.dto.RightsizingCandidateDTO("vm-1", "app-1", "env-1", "Env 1",
+                "t3.xlarge", suggested, null, null, null, null, null, true, "cpu-threshold-rule", null, "SCALE_DOWN", "STOPPED");
+    }
+
+    // ---- Only the current recommendation can be applied (E08-T05, M11) ----
+
+    @Test
+    void aTypeOtherThanTheCurrentRecommendationIsRejectedBeforeAnyAwsChange() {
+        when(aws.getVmStatus("i-123", "ap-south-1")).thenReturn(VmStatus.STOPPED);
+
+        assertThatThrownBy(() -> service.applyInstanceTypeChange("vm-1", "p4d.24xlarge", "user-1"))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("does not match the current recommendation");
+
+        verify(aws, never()).changeInstanceType(any(), any(), any());
+        verify(auditService, never()).logEnvironmentAction(any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void aVmWithNoCurrentRecommendationCannotBeResized() {
+        when(aws.getVmStatus("i-123", "ap-south-1")).thenReturn(VmStatus.STOPPED);
+        when(costEstimationService.findCandidate("vm-1")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.applyInstanceTypeChange("vm-1", "t3.large", "user-1"))
+                .isInstanceOf(ValidationException.class);
+        verify(aws, never()).changeInstanceType(any(), any(), any());
+    }
+
+    @Test
+    void theRecommendedTypeIsAppliedAndTheCostPageRebuilds() {
+        when(aws.getVmStatus("i-123", "ap-south-1")).thenReturn(VmStatus.STOPPED);
+
+        service.applyInstanceTypeChange("vm-1", "t3.large", "user-1");
+
+        verify(aws).changeInstanceType("ap-south-1", "i-123", "t3.large");
+        verify(costEstimationService).invalidateBundles();
     }
 
     @Test
@@ -130,6 +175,7 @@ class VmResizeServiceTest {
                 .changeInstanceType("ap-south-1", "i-123", "t9.huge");
         when(aws.getInstanceType("ap-south-1", "i-123")).thenReturn("t3.medium");
 
+        recommended = "t9.huge";
         assertThatThrownBy(() -> service.applyInstanceTypeChange("vm-1", "t9.huge", "user-1"))
                 .hasMessage("Unsupported instance type");
 
