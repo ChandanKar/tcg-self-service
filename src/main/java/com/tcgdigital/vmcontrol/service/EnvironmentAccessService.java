@@ -71,6 +71,8 @@ public class EnvironmentAccessService {
     private final AutomationRuleService automationRuleService;
     private final AccessExpiryProcessor accessExpiryProcessor;
     private final AfterCommit afterCommit;
+    /** Releases a holder's lock when a grant change takes their right to hold it (E07-T04). */
+    private final LockService lockService;
 
     public EnvironmentAccessService(EnvironmentAccessRepository accessRepository,
                                      EnvironmentAccessRequestRepository requestRepository,
@@ -82,7 +84,9 @@ public class EnvironmentAccessService {
                                      UserService userService,
                                      AutomationRuleService automationRuleService,
                                      AccessExpiryProcessor accessExpiryProcessor,
-                                     AfterCommit afterCommit) {
+                                     AfterCommit afterCommit,
+                                     @org.springframework.context.annotation.Lazy LockService lockService) {
+        this.lockService = lockService;
         this.accessRepository = accessRepository;
         this.requestRepository = requestRepository;
         this.environmentRepository = environmentRepository;
@@ -457,6 +461,7 @@ public class EnvironmentAccessService {
 
         auditService.logAccessRevoked(actorUserId, targetUserId,
                 environment.getEnvironmentId(), environment.getName());
+        lockService.releaseIfHolderLostAccess(environment.getEnvironmentId(), targetUserId, "access revoked");
         String environmentName = environment.getName();
         String environmentId = environment.getEnvironmentId();
         sideEffectAfterCommit("notify access revoked", accessId, () ->
@@ -569,6 +574,9 @@ public class EnvironmentAccessService {
         } else if (levelChanged) {
             auditService.logAccessLevelChanged(actorId, targetUserId, environmentId, environmentName,
                     previousLevel.getValue(), spec.level.getValue());
+            // Lowered to VIEWER: the holder may no longer hold the lock (E07-T04).
+            lockService.releaseIfHolderLostAccess(environmentId, targetUserId,
+                    "access level changed to " + spec.level.getValue());
         }
 
         log.info("Access {} for user {} on {} scope {}:{} by {}",
@@ -693,6 +701,7 @@ public class EnvironmentAccessService {
         log.info("Access revoked for user {} on environment {} by {}", userId, environmentId, revokedByUserId);
 
         auditService.logAccessRevoked(revokedByUserId, userId, environmentId, environment.getName());
+        lockService.releaseIfHolderLostAccess(environmentId, userId, "access revoked");
 
         String environmentName = environment.getName();
         sideEffectAfterCommit("notify access revoked", access.getAccessId(), () ->

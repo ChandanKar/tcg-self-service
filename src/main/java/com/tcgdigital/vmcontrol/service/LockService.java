@@ -41,6 +41,8 @@ public class LockService {
     private final AutomationRuleService automationRuleService;
     private final UserRepository userRepository;
     private final AfterCommit afterCommit;
+    /** Whether a holder may still hold a lock (E07-T04); lazy: SecurityService reaches back here. */
+    private final SecurityService securityService;
     /** The acquire itself: joins the caller's transaction, if any. */
     private final org.springframework.transaction.support.TransactionTemplate acquireTransaction;
     /** Reading the lock that won a race: a fresh snapshot that sees it. */
@@ -63,7 +65,9 @@ public class LockService {
                        @Lazy AutomationRuleService automationRuleService,
                        UserRepository userRepository,
                        AfterCommit afterCommit,
+                       @Lazy SecurityService securityService,
                        org.springframework.transaction.PlatformTransactionManager transactionManager) {
+        this.securityService = securityService;
         this.acquireTransaction = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
         this.freshRead = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
         this.freshRead.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -256,6 +260,58 @@ public class LockService {
                         adminUserId,
                         originalLockHolder,
                         breakReason)));
+    }
+
+    /**
+     * Release every active lock held by {@code userId} (E07-T04, H4), e.g. when they are
+     * deactivated. Joins the caller's transaction.
+     *
+     * @return how many locks were released
+     */
+    @Transactional
+    public int releaseLocksForUser(String userId, String reason) {
+        List<EnvironmentLock> locks = lockRepository.findByLockedByUserIdAndIsActiveTrue(userId);
+        locks.forEach(lock -> autoRelease(lock, reason));
+        return locks.size();
+    }
+
+    /**
+     * Release the lock on {@code environmentId} if {@code userId} holds it and can no longer
+     * operate there (E07-T04, H4): a revoked, expired or lowered grant. A holder who can still
+     * operate, through another grant, a group grant or a global role, keeps it. Joins the caller's
+     * transaction, so the grant change is already visible.
+     *
+     * @return true if the lock was released
+     */
+    @Transactional
+    public boolean releaseIfHolderLostAccess(String environmentId, String userId, String reason) {
+        EnvironmentLock lock = lockRepository.findByEnvironmentIdWithEnvironment(environmentId).orElse(null);
+        if (lock == null || !lock.getLockedByUserId().equals(userId)) {
+            return false;
+        }
+        User holder = userRepository.findById(userId).orElse(null);
+        if (holder != null && Boolean.TRUE.equals(holder.getIsActive())
+                && securityService.canOperateInEnvironment(holder, environmentId)) {
+            return false;
+        }
+        autoRelease(lock, reason);
+        return true;
+    }
+
+    private void autoRelease(EnvironmentLock lock, String reason) {
+        String holderId = lock.getLockedByUserId();
+        String environmentId = lock.getEnvironment().getEnvironmentId();
+        String environmentName = lock.getEnvironment().getName();
+        lock.setIsActive(false);
+        lock.setReleasedAt(Timestamp.from(Instant.now()));
+        lock.setReleasedByUserId(null);
+        lockRepository.save(lock);
+        // performed_by is NOT NULL: the holder whose lock ended.
+        recordLockHistory(lock, LockAction.RELEASED, holderId, "Auto-released: " + reason);
+        auditService.logLockAutoReleased(holderId, environmentId, environmentName, reason);
+        afterCommit.run(() -> runNotificationSideEffect("notify lock released", environmentId, () ->
+                notificationService.notifyLockReleasedForEnvironment(environmentId, environmentName, holderId)));
+        log.info("Lock on environment {} held by {} auto-released: {}", environmentId, holderId, reason);
     }
 
     /**

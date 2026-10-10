@@ -33,7 +33,7 @@ class UserServiceFindOrCreateTest {
 
     @BeforeEach
     void setUp() {
-        service = new UserService(userRepository, auditService);
+        service = new UserService(userRepository, auditService, null);
         lenient().when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 

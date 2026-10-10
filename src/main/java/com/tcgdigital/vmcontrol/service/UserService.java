@@ -30,13 +30,17 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final AuditService auditService;
+    /** Releases a deactivated user's locks (E07-T04); lazy to avoid a bean cycle. */
+    private final LockService lockService;
 
     @Value("${app.initial-admin-email:}")
     private String initialAdminEmail;
 
-    public UserService(UserRepository userRepository, AuditService auditService) {
+    public UserService(UserRepository userRepository, AuditService auditService,
+                       @org.springframework.context.annotation.Lazy LockService lockService) {
         this.userRepository = userRepository;
         this.auditService = auditService;
+        this.lockService = lockService;
     }
 
     /**
@@ -339,6 +343,8 @@ public class UserService {
         log.info("User {} deactivated by {}", userId, performedByUserId);
 
         auditService.logUserDeactivated(performedByUserId, userId);
+        // A deactivated user's locks must not keep environments locked (E07-T04, H4).
+        lockService.releaseLocksForUser(userId, "user deactivated");
 
         return saved;
     }

@@ -26,11 +26,15 @@ public class AccessExpiryProcessor {
     private final VmGroupRepository vmGroupRepository;
     private final NotificationService notificationService;
     private final AfterCommit afterCommit;
+    /** Releases the holder's lock when the expired grant was their right to hold it (E07-T04). */
+    private final LockService lockService;
 
     public AccessExpiryProcessor(EnvironmentAccessRepository accessRepository,
                                  VmGroupRepository vmGroupRepository,
                                  NotificationService notificationService,
-                                 AfterCommit afterCommit) {
+                                 AfterCommit afterCommit,
+                                 @org.springframework.context.annotation.Lazy LockService lockService) {
+        this.lockService = lockService;
         this.accessRepository = accessRepository;
         this.vmGroupRepository = vmGroupRepository;
         this.notificationService = notificationService;
@@ -57,6 +61,7 @@ public class AccessExpiryProcessor {
         String environmentId = access.getEnvironment().getEnvironmentId();
         String scopeLabel = EnvironmentAccessService.scopeLabel(access, vmGroupRepository);
         log.info("Access {} expired for user {} on environment {}", accessId, userId, environmentId);
+        lockService.releaseIfHolderLostAccess(environmentId, userId, "access expired");
 
         afterCommit.run(() -> notificationService.notifyAccessExpired(userId, scopeLabel, environmentId, accessId));
         return true;

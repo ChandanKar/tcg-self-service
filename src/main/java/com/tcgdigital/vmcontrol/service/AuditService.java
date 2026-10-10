@@ -546,6 +546,14 @@ public class AuditService {
                 "Lock released by user: " + resolveUsername(userId) + ". Environment: " + environmentName);
     }
 
+    /** A lock released by the system because its holder lost the right to hold it (E07-T04). */
+    public void logLockAutoReleased(String holderUserId, String environmentId, String environmentName, String reason) {
+        logEnvironmentAction(auditUserId("system"), AuditAction.LOCK_RELEASED, environmentId, environmentName,
+                "lock", environmentId, environmentName,
+                "Lock held by " + resolveUsername(holderUserId) + " auto-released: " + reason
+                        + ". Environment: " + environmentName);
+    }
+
     public void logLockExtended(String userId, String environmentId, String environmentName, String details) {
         logEnvironmentAction(auditUserId(userId), AuditAction.LOCK_EXTENDED, environmentId, environmentName,
                 "lock", environmentId, environmentName,

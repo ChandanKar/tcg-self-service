@@ -223,7 +223,15 @@ public class SecurityService {
      * USER (or a global role), or USER on at least one group in it.
      */
     public boolean canOperateInEnvironment(String environmentId) {
-        User user = userService.getCurrentUser();
+        return canOperateInEnvironment(userService.getCurrentUser(), environmentId);
+    }
+
+    /**
+     * Whether {@code user} can start/stop anything in an environment (see the current-user
+     * overload). Explicit-user variant for checks made on someone else's behalf, e.g. whether a
+     * lock holder may still hold the lock (E07-T04).
+     */
+    public boolean canOperateInEnvironment(User user, String environmentId) {
         if (user == null) {
             return false;
         }
