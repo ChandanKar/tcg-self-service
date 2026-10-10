@@ -147,4 +147,33 @@ class VmCostCalculatorTest {
         assertEquals(0, new BigDecimal("1.000000").compareTo(calculator.windowDays(start, oneDayLater)));
         assertEquals(0, new BigDecimal("0.500000").compareTo(calculator.windowDays(start, twelveHoursLater)));
     }
+
+    // --- storageWindowDays (E08-T01): storage only while the VM existed, never into the future ---
+
+    @Test
+    void storageForAVmCreated18HoursIntoADayIsAQuarterDay() {
+        Timestamp dayStart = Timestamp.from(Instant.now().minus(3, ChronoUnit.DAYS));
+        Timestamp dayEnd = Timestamp.from(dayStart.toInstant().plus(24, ChronoUnit.HOURS));
+        Timestamp created = Timestamp.from(dayStart.toInstant().plus(18, ChronoUnit.HOURS));
+
+        assertEquals(0, new BigDecimal("0.250000").compareTo(calculator.storageWindowDays(created, dayStart, dayEnd)));
+    }
+
+    @Test
+    void aVmCreatedAfterTheWindowHasNoStorageDays() {
+        Timestamp created = Timestamp.from(windowEnd.toInstant().plus(1, ChronoUnit.HOURS));
+
+        assertEquals(0, BigDecimal.ZERO.compareTo(calculator.storageWindowDays(created, windowStart, windowEnd)));
+    }
+
+    @Test
+    void aWindowEndingInTheFutureStopsAtNow() {
+        Timestamp start = Timestamp.from(Instant.now().minus(6, ChronoUnit.HOURS));
+        Timestamp end = Timestamp.from(Instant.now().plus(18, ChronoUnit.HOURS));
+
+        BigDecimal days = calculator.storageWindowDays(null, start, end);
+
+        // About 6 hours (0.25 day), not the full 24.
+        assertEquals(0.25, days.doubleValue(), 0.002);
+    }
 }

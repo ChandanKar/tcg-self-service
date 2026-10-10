@@ -81,12 +81,13 @@ public class EstimatedCostProvider implements CostDataProvider {
         }
 
         BigDecimal storageGbMonthRate = pricingReferenceService.getStorageGbMonthRate();
-        BigDecimal windowDays = vmCostCalculator.windowDays(windowStart, windowEnd);
 
         for (Vm vm : vms) {
             String vmId = vm.getVmId();
             List<VmStateHistory> transitions = transitionsByVmId.getOrDefault(vmId, List.of());
             long storageGib = storageByVmId.getOrDefault(vmId, 0L);
+            // Storage only for the part of the window the VM existed (E08-T01).
+            BigDecimal storageDays = vmCostCalculator.storageWindowDays(vm.getCreatedAt(), windowStart, windowEnd);
 
             VmStatus seedStatus = resolveSeedStatus(vm, transitions, windowStart);
             BigDecimal runtimeHours = vmCostCalculator.computeRuntimeHours(vm, seedStatus, transitions, windowStart, windowEnd);
@@ -102,10 +103,10 @@ public class EstimatedCostProvider implements CostDataProvider {
 
             if (rate.priceKnown()) {
                 BigDecimal effectiveHourlyRate = rate.hourlyRate().multiply(BigDecimal.valueOf(nodeCount));
-                BigDecimal cost = vmCostCalculator.estimateCost(effectiveHourlyRate, runtimeHours, storageGib, storageGbMonthRate, windowDays);
+                BigDecimal cost = vmCostCalculator.estimateCost(effectiveHourlyRate, runtimeHours, storageGib, storageGbMonthRate, storageDays);
                 result.put(vmId, new VmCostEstimate(true, effectiveHourlyRate, runtimeHours, storageGib, cost));
             } else {
-                BigDecimal proratedStorageRate = storageGbMonthRate.multiply(windowDays)
+                BigDecimal proratedStorageRate = storageGbMonthRate.multiply(storageDays)
                         .divide(BigDecimal.valueOf(30), 6, RoundingMode.HALF_UP);
                 BigDecimal storageOnlyCost = proratedStorageRate.multiply(BigDecimal.valueOf(storageGib))
                         .setScale(2, RoundingMode.HALF_UP);

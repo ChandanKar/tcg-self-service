@@ -87,6 +87,19 @@ public class VmCostCalculator {
         return BigDecimal.valueOf(minutes).divide(BigDecimal.valueOf(1440), 6, RoundingMode.HALF_UP);
     }
 
+    /**
+     * Days of storage to charge a VM for in a window (E08-T01): the window clamped to the VM's
+     * creation and to now, so storage is never billed before the VM existed or into the future.
+     */
+    public BigDecimal storageWindowDays(Timestamp vmCreatedAt, Timestamp windowStart, Timestamp windowEnd) {
+        Timestamp start = clampToCreation(windowStart, vmCreatedAt);
+        Timestamp end = clampToNow(windowEnd);
+        if (!start.before(end)) {
+            return BigDecimal.ZERO;
+        }
+        return windowDays(start, end);
+    }
+
     private Timestamp clampToNow(Timestamp windowEnd) {
         Timestamp now = Timestamp.from(Instant.now());
         return windowEnd.after(now) ? now : windowEnd;

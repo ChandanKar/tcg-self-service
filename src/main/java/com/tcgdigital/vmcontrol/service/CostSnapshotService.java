@@ -8,6 +8,7 @@ import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import com.tcgdigital.vmcontrol.repository.VmRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,33 +35,48 @@ public class CostSnapshotService {
     private final VmRepository vmRepository;
     private final CostDataProvider costDataProvider;
     private final CostDailySnapshotRepository costDailySnapshotRepository;
+    private final CostDayBoundary dayBoundary;
+    /** How many complete days each run (re)captures, so late state-history rows are picked up. */
+    private final int recomputeDays;
 
     public CostSnapshotService(EnvironmentRepository environmentRepository,
                                 VmRepository vmRepository,
                                 CostDataProvider costDataProvider,
-                                CostDailySnapshotRepository costDailySnapshotRepository) {
+                                CostDailySnapshotRepository costDailySnapshotRepository,
+                                CostDayBoundary dayBoundary,
+                                @Value("${cost.snapshot.recompute-days:3}") int recomputeDays) {
         this.environmentRepository = environmentRepository;
         this.vmRepository = vmRepository;
         this.costDataProvider = costDataProvider;
         this.costDailySnapshotRepository = costDailySnapshotRepository;
-    }
-
-    @Transactional
-    public void captureDailySnapshot() {
-        captureForDate(LocalDate.now());
+        this.dayBoundary = dayBoundary;
+        this.recomputeDays = Math.max(1, recomputeDays);
     }
 
     /**
-     * Captures {@code days} days of history ending today (inclusive), oldest first. Safe to
+     * Captures the last {@code cost.snapshot.recompute-days} complete cost days, oldest first,
+     * ending yesterday (E08-T01, H7): never today, which is still in progress and would clamp
+     * compute to the hours elapsed so far while charging a full day of storage.
+     */
+    @Transactional
+    public void captureDailySnapshot() {
+        LocalDate today = dayBoundary.today();
+        for (int i = recomputeDays; i >= 1; i--) {
+            captureForDate(today.minusDays(i));
+        }
+    }
+
+    /**
+     * Captures {@code days} complete days of history ending yesterday, oldest first. Safe to
      * re-run: each date upserts its existing row rather than duplicating it.
      */
     @Transactional
     public void backfillHistoricalSnapshots(int days) {
-        LocalDate today = LocalDate.now();
-        for (int i = days; i >= 0; i--) {
+        LocalDate today = dayBoundary.today();
+        for (int i = days; i >= 1; i--) {
             captureForDate(today.minusDays(i));
         }
-        log.info("Backfilled {} day(s) of cost snapshots ending {}", days + 1, today);
+        log.info("Backfilled {} day(s) of cost snapshots ending {}", days, dayBoundary.yesterday());
     }
 
     private void captureForDate(LocalDate date) {
@@ -72,8 +88,9 @@ public class CostSnapshotService {
         List<String> environmentIds = environments.stream().map(Environment::getEnvironmentId).toList();
         List<Vm> vms = vmRepository.findByEnvironmentIdIn(environmentIds);
 
-        Timestamp windowStart = Timestamp.valueOf(date.atStartOfDay());
-        Timestamp windowEnd = Timestamp.valueOf(date.plusDays(1).atStartOfDay());
+        // Whole days in the cost zone (UTC by default), as Cost Explorer reports them.
+        Timestamp windowStart = dayBoundary.startOf(date);
+        Timestamp windowEnd = dayBoundary.startOf(date.plusDays(1));
         Date snapshotDate = Date.valueOf(date);
 
         Map<String, List<Vm>> vmsByEnvironmentId = vms.stream()

@@ -42,6 +42,7 @@ class EstimatedCostProviderTest {
     private VmInventorySnapshotRepository vmInventorySnapshotRepository;
 
     private EstimatedCostProvider provider;
+    private PricingReferenceService pricing;
     private Timestamp windowStart;
     private Timestamp windowEnd;
 
@@ -49,6 +50,7 @@ class EstimatedCostProviderTest {
     void setUp() {
         PricingReferenceService pricingReferenceService = new PricingReferenceService();
         pricingReferenceService.loadPricing();
+        pricing = pricingReferenceService;
 
         provider = new EstimatedCostProvider(
                 pricingReferenceService,
@@ -115,5 +117,74 @@ class EstimatedCostProviderTest {
 
         CostDataProvider.VmCostEstimate estimate = result.get("eks-vm-1");
         assertEquals(0, new BigDecimal("0.0832").compareTo(estimate.hourlyRate()));
+    }
+
+    // --- Storage limited to the VM's lifetime (E08-T01) ---
+
+    private Vm ec2Vm(String id, Timestamp createdAt) {
+        Vm vm = new Vm(id);
+        vm.setProvider(CloudProvider.AWS);
+        vm.setRegion("us-east-1");
+        vm.setCreatedAt(createdAt);
+        vm.setStatus(com.tcgdigital.vmcontrol.model.VmStatus.STOPPED);
+        return vm;
+    }
+
+    private void storage(String vmId, long gib) {
+        VmVolumeSnapshotRepository.VolumeSizeTotal total = new VmVolumeSnapshotRepository.VolumeSizeTotal() {
+            public String getVmId() { return vmId; }
+            public Long getTotalSizeGib() { return gib; }
+        };
+        when(vmVolumeSnapshotRepository.sumSizeGibByVmIds(any())).thenReturn(List.of(total));
+    }
+
+    private void instanceType(String vmId, String type) {
+        VmInventorySnapshotRepository.InstanceTypeProjection p = new VmInventorySnapshotRepository.InstanceTypeProjection() {
+            public String getVmId() { return vmId; }
+            public String getInstanceType() { return type; }
+        };
+        when(vmInventorySnapshotRepository.findInstanceTypesByVmIds(any())).thenReturn(List.of(p));
+    }
+
+    /** Cost of {@code gib} GiB of storage for {@code days} days, rounded as the provider rounds it. */
+    private BigDecimal storageCost(long gib, String days) {
+        return pricing.getStorageGbMonthRate().multiply(new BigDecimal(days))
+                .divide(BigDecimal.valueOf(30), 6, java.math.RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(gib)).setScale(2, java.math.RoundingMode.HALF_UP);
+    }
+
+    @Test
+    void aStoppedVmCreatedMidWindowPaysStorageOnlySinceCreation() {
+        // 10-hour window; the VM was created 5 hours into it, then stayed stopped.
+        Vm vm = ec2Vm("vm-new", Timestamp.from(windowStart.toInstant().plus(5, ChronoUnit.HOURS)));
+        storage("vm-new", 300);
+        instanceType("vm-new", "t3.large");
+
+        CostDataProvider.VmCostEstimate estimate = provider.estimateCosts(List.of(vm), windowStart, windowEnd).get("vm-new");
+
+        assertTrue(estimate.costKnown());
+        // 5 hours = 0.208333 day of storage, not the window's 0.416667.
+        assertEquals(0, storageCost(300, "0.208333").compareTo(estimate.cost()));
+    }
+
+    @Test
+    void anUnpricedVmsStorageOnlyCostIsProratedToo() {
+        Vm vm = ec2Vm("vm-unpriced", Timestamp.from(windowStart.toInstant().plus(5, ChronoUnit.HOURS)));
+        storage("vm-unpriced", 300);
+
+        CostDataProvider.VmCostEstimate estimate = provider.estimateCosts(List.of(vm), windowStart, windowEnd).get("vm-unpriced");
+
+        assertEquals(false, estimate.costKnown());
+        assertEquals(0, storageCost(300, "0.208333").compareTo(estimate.cost()));
+    }
+
+    @Test
+    void aVmOlderThanTheWindowPaysStorageForTheWholeWindow() {
+        Vm vm = ec2Vm("vm-old", Timestamp.from(windowStart.toInstant().minus(10, ChronoUnit.DAYS)));
+        storage("vm-old", 300);
+
+        CostDataProvider.VmCostEstimate estimate = provider.estimateCosts(List.of(vm), windowStart, windowEnd).get("vm-old");
+
+        assertEquals(0, storageCost(300, "0.416667").compareTo(estimate.cost()));
     }
 }

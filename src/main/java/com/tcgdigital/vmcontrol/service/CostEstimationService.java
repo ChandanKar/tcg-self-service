@@ -413,6 +413,7 @@ public class CostEstimationService {
                 if (afterRate.priceKnown()) {
                     afterCost = vmCostCalculator.estimateCost(afterRate.hourlyRate(), b.estimate().runtimeHours(),
                             b.estimate().storageGib(), pricingReferenceService.getStorageGbMonthRate(),
+                            // Intentionally the full window: the "after" cost is a 30-day projection.
                             BigDecimal.valueOf(COST_WINDOW_DAYS));
                     // Negative for scale-up (a cost increase) — expected, not a bug; the shared
                     // sort below naturally ranks scale-up candidates after every real saving.
