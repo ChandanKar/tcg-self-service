@@ -64,19 +64,21 @@ public class VmMetricRollupService {
     }
 
     /**
-     * Aggregates every day in the lookback window, including today (so today's row stays fresh
-     * as more samples arrive). Returns the number of vm_metric_daily rows written/updated.
+     * Aggregates every day still fully in the hot table, including today (so today's row stays
+     * fresh as more samples arrive): days 0 .. lookbackDays-1. The archive cutoff is the start of
+     * day (today - lookbackDays), so that day may already be partly archived and is not
+     * re-aggregated (E12-T01, M17). Returns the number of vm_metric_daily rows written/updated.
      */
     @Transactional
     public int rollupDailyMetrics() {
         LocalDate today = LocalDate.now();
         List<Vm> activeVms = vmRepository.findByIsActiveTrue();
         int totalWritten = 0;
-        for (int daysAgo = 0; daysAgo <= lookbackDays; daysAgo++) {
+        for (int daysAgo = 0; daysAgo < lookbackDays; daysAgo++) {
             totalWritten += rollupForDate(today.minusDays(daysAgo), activeVms);
         }
         log.info("VM metric daily rollup complete: {} bucket(s) written across {} day(s) for {} active VM(s)",
-                totalWritten, lookbackDays + 1, activeVms.size());
+                totalWritten, lookbackDays, activeVms.size());
         return totalWritten;
     }
 
@@ -101,7 +103,15 @@ public class VmMetricRollupService {
             }
             vmIdsWithData.add(agg.getVmId());
 
-            VmMetricDaily daily = existingByVmId.getOrDefault(agg.getVmId(), new VmMetricDaily());
+            VmMetricDaily existing = existingByVmId.get(agg.getVmId());
+            int newCount = agg.getSampleCount() == null ? 0 : agg.getSampleCount().intValue();
+            if (existing != null && existing.getSampleCount() != null && existing.getSampleCount() > newCount) {
+                // A fuller aggregate from before part of the day's samples left the hot table: keep it.
+                log.debug("Keeping {}-sample rollup for VM {} on {} over a {}-sample one",
+                        existing.getSampleCount(), agg.getVmId(), date, newCount);
+                continue;
+            }
+            VmMetricDaily daily = existing != null ? existing : new VmMetricDaily();
             daily.setVm(vm);
             daily.setBucketDate(bucketDate);
             daily.setAvgCpuUtilization(agg.getAvgCpu());

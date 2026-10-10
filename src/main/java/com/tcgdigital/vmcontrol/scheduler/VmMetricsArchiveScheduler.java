@@ -32,7 +32,8 @@ public class VmMetricsArchiveScheduler {
         if (!enabled) {
             return;
         }
-        lockService.runLocked(LOCK_NAME, () -> {
+        // A backlog run can take a while: the lock outlives it (E12-T01).
+        lockService.runLocked(LOCK_NAME, java.time.Duration.ofHours(2), () -> {
             try {
                 archiveService.archiveOldRawSamples();
             } catch (Exception e) {

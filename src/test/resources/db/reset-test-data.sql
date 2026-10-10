@@ -14,6 +14,10 @@ DELETE FROM operation_execution;
 DELETE FROM lock_history;
 DELETE FROM environment_lock;
 DELETE FROM vm_provider_details;
+-- Metric rows belong to VMs; with FK checks off they would otherwise outlive them (E12-T01).
+DELETE FROM vm_metric_sample;
+DELETE FROM vm_metric_sample_archive;
+DELETE FROM vm_metric_daily;
 DELETE FROM vm;
 DELETE FROM vm_group;
 DELETE FROM environment_access_request;
