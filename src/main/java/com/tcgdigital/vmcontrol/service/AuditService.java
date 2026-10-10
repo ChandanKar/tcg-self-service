@@ -546,6 +546,12 @@ public class AuditService {
                 "Lock released by user: " + resolveUsername(userId) + ". Environment: " + environmentName);
     }
 
+    public void logLockExtended(String userId, String environmentId, String environmentName, String details) {
+        logEnvironmentAction(auditUserId(userId), AuditAction.LOCK_EXTENDED, environmentId, environmentName,
+                "lock", environmentId, environmentName,
+                "Lock extended by " + resolveUsername(userId) + ". " + details);
+    }
+
     /** The expiry sweep released a lock (E07-T02); attributed to the holder whose lock ended. */
     public void logLockExpired(String holderId, String environmentId, String environmentName, String details) {
         logEnvironmentAction(auditUserId(holderId), AuditAction.LOCK_EXPIRED, environmentId, environmentName,

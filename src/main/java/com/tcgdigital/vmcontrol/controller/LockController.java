@@ -120,6 +120,26 @@ public class LockController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/extend")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "Extend my lock",
+            description = "Extends the current user's lock by 15-480 minutes, from its expiry (or from now if that has "
+                    + "passed). Only the holder may extend; the total may not exceed locks.max-duration-minutes."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Lock extended"),
+            @ApiResponse(responseCode = "400", description = "Invalid minutes, no expiry, or over the maximum duration"),
+            @ApiResponse(responseCode = "403", description = "User does not hold the lock")
+    })
+    public ResponseEntity<LockStatusDTO> extendLock(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId,
+            @jakarta.validation.Valid @RequestBody com.tcgdigital.vmcontrol.dto.ExtendLockDTO dto) {
+        String effectiveUserId = userService.getCurrentUserId();
+        EnvironmentLock lock = lockService.extend(environmentId, effectiveUserId, dto.getMinutes());
+        return ResponseEntity.ok(LockStatusDTO.fromEntity(lock));
+    }
+
     @PostMapping("/break")
     @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(

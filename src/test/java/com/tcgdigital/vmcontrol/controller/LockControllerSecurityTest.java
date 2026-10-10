@@ -107,6 +107,34 @@ class LockControllerSecurityTest extends SecuredWebTestBase {
         assertThat(locked()).isFalse();
     }
 
+    private MockHttpServletRequestBuilder extend(RequestPostProcessor who, String body) {
+        return post(url("/extend")).with(who).contentType(MediaType.APPLICATION_JSON).content(body);
+    }
+
+    @Test
+    void onlyTheHolderCanExtendTheLock() throws Exception {
+        grantEnv(operator, env.getEnvironmentId(), AccessLevel.USER);
+        grantEnv(viewer, env.getEnvironmentId(), AccessLevel.VIEWER);
+        User colleague = newUser("extend-colleague@secured.test", false, false);
+        grantEnv(colleague, env.getEnvironmentId(), AccessLevel.USER);
+        mockMvc.perform(acquire(asUser()).content("{\"expectedDurationMinutes\":30}")).andExpect(status().isOk());
+
+        mockMvc.perform(extend(asUser(), "{\"minutes\":30}")).andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.expiresAt").exists());
+        expectError(mockMvc.perform(extend(as(colleague), "{\"minutes\":30}")), 403);
+        expectError(mockMvc.perform(extend(asViewer(), "{\"minutes\":30}")), 403);
+        expectError(mockMvc.perform(extend(asUser(), "{\"minutes\":0}")), 400);
+        expectError(mockMvc.perform(extend(asUser(), "{\"minutes\":481}")), 400);
+        expectError(mockMvc.perform(extend(asUser(), "{}")), 400);
+    }
+
+    @Test
+    void extendingWithoutALockIsABadRequest() throws Exception {
+        grantEnv(operator, env.getEnvironmentId(), AccessLevel.USER);
+
+        expectError(mockMvc.perform(extend(asUser(), "{\"minutes\":30}")), 400);
+    }
+
     @Test
     void inactiveEnvironmentCannotBeLocked() throws Exception {
         env.setIsActive(false);

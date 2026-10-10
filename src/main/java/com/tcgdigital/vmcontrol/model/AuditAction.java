@@ -37,6 +37,7 @@ public enum AuditAction {
     LOCK_RELEASED,
     LOCK_BROKEN,
     LOCK_EXPIRED,
+    LOCK_EXTENDED,
 
     // Operation execution
     OPERATION_STARTED,

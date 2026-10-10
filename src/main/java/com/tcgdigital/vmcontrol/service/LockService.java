@@ -45,6 +45,13 @@ public class LockService {
     private final org.springframework.transaction.support.TransactionTemplate acquireTransaction;
     /** Reading the lock that won a race: a fresh snapshot that sees it. */
     private final org.springframework.transaction.support.TransactionTemplate freshRead;
+    @org.springframework.beans.factory.annotation.Value("${locks.max-duration-minutes:1440}")
+    private long maxDurationMinutes = 1440;
+
+    /** Minutes before expiry at which the holder is warned (E07-T03). */
+    @org.springframework.beans.factory.annotation.Value("${locks.expiry.warning-minutes:15,5}")
+    private List<Integer> warningMinutes = List.of(15, 5);
+
     /** One expiry, committed on its own: one failing lock does not stop the sweep. */
     private final org.springframework.transaction.support.TransactionTemplate expiryTransaction;
 
@@ -249,6 +256,66 @@ public class LockService {
                         adminUserId,
                         originalLockHolder,
                         breakReason)));
+    }
+
+    /**
+     * Extend the caller's own lock by {@code minutes} (E07-T03): from its current expiry, or from
+     * now if that has already passed. Only the holder may extend; a lock without an expiry cannot
+     * be extended; the total since acquisition may not exceed locks.max-duration-minutes.
+     */
+    @Transactional
+    public EnvironmentLock extend(String environmentId, String userId, int minutes) {
+        EnvironmentLock lock = lockRepository.findByEnvironmentIdWithLock(environmentId)
+                .orElseThrow(() -> new NoActiveLockException("No active lock on environment", environmentId));
+        if (!lock.getLockedByUserId().equals(userId)) {
+            throw new UnauthorizedException("Only the lock holder can extend the lock");
+        }
+        if (lock.getExpiresAt() == null) {
+            throw new ValidationException("This lock has no expiry");
+        }
+        Instant now = Instant.now();
+        Instant base = lock.getExpiresAt().toInstant().isAfter(now) ? lock.getExpiresAt().toInstant() : now;
+        Instant newExpiry = base.plus(java.time.Duration.ofMinutes(minutes));
+        if (java.time.Duration.between(lock.getLockedAt().toInstant(), newExpiry).toMinutes() > maxDurationMinutes) {
+            throw new ValidationException("A lock can last at most " + maxDurationMinutes
+                    + " minutes from when it was taken; release it and lock again if you need longer");
+        }
+        lock.setExpiresAt(Timestamp.from(newExpiry));
+        lock = lockRepository.save(lock);
+        String notes = "Extended by " + minutes + " minutes to " + newExpiry;
+        recordLockHistory(lock, LockAction.EXTENDED, userId, notes);
+        auditService.logLockExtended(userId, environmentId, lock.getEnvironment().getName(), notes);
+        log.info("Lock on environment {} extended by {} to {}", environmentId, userId, newExpiry);
+        return lock;
+    }
+
+    /**
+     * Warn holders whose locks expire within each locks.expiry.warning-minutes threshold
+     * (E07-T03). Each threshold warns at most once per lock; an extension re-arms the warnings.
+     *
+     * @return how many warnings were sent
+     */
+    public int processExpiringLockWarnings() {
+        Instant now = Instant.now();
+        int sent = 0;
+        List<Integer> thresholds = warningMinutes.stream().sorted(java.util.Comparator.reverseOrder()).toList();
+        for (Integer threshold : thresholds) {
+            for (EnvironmentLock lock : lockRepository.findActiveExpiringBetween(Timestamp.from(now),
+                    Timestamp.from(now.plus(java.time.Duration.ofMinutes(threshold))))) {
+                Instant windowStart = lock.getExpiresAt().toInstant().minus(java.time.Duration.ofMinutes(threshold));
+                Instant since = windowStart.isAfter(lock.getLockedAt().toInstant()) ? windowStart : lock.getLockedAt().toInstant();
+                try {
+                    if (notificationService.notifyLockExpiring(lock.getLockedByUserId(),
+                            lock.getEnvironment().getEnvironmentId(), lock.getEnvironment().getName(),
+                            lock.getExpiresAt().toInstant(), java.time.ZoneId.systemDefault(), Timestamp.from(since))) {
+                        sent++;
+                    }
+                } catch (Exception e) {
+                    log.warn("Could not warn about expiring lock {}: {}", lock.getLockId(), e.getMessage());
+                }
+            }
+        }
+        return sent;
     }
 
     /**

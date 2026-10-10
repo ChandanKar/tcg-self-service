@@ -67,4 +67,10 @@ public interface EnvironmentLockRepository extends JpaRepository<EnvironmentLock
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT l FROM EnvironmentLock l JOIN FETCH l.environment WHERE l.lockId = :lockId")
     Optional<EnvironmentLock> findByIdForUpdate(@org.springframework.data.repository.query.Param("lockId") String lockId);
+
+    /** Active locks expiring within (now, until], with environments (expiry warnings, E07-T03). */
+    @Query("SELECT l FROM EnvironmentLock l JOIN FETCH l.environment WHERE l.isActive = true " +
+           "AND l.expiresAt > :now AND l.expiresAt <= :until")
+    List<EnvironmentLock> findActiveExpiringBetween(@org.springframework.data.repository.query.Param("now") java.sql.Timestamp now,
+                                                    @org.springframework.data.repository.query.Param("until") java.sql.Timestamp until);
 }

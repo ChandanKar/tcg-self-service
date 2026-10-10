@@ -140,6 +140,22 @@ public class NotificationService {
                 environmentId);
     }
 
+    /**
+     * Warn a lock holder that their lock expires soon (E07-T03). At most one warning per
+     * environment since {@code since} (the later of expiry minus the threshold and the lock's
+     * start), so each threshold warns once and an extension re-arms the warnings.
+     *
+     * @return true if a warning was created
+     */
+    public boolean notifyLockExpiring(String holderUserId, String environmentId, String environmentName,
+                                      java.time.Instant expiresAt, java.time.ZoneId zone, Timestamp since) {
+        String at = java.time.format.DateTimeFormatter.ofPattern("HH:mm").format(expiresAt.atZone(zone));
+        return createIfAbsentSince(holderUserId, NotificationType.LOCK_EXPIRING,
+                "Your lock expires at " + at + ": " + environmentName,
+                "Your lock on " + environmentName + " expires at " + at + ". Extend it from the environment page.",
+                "ENVIRONMENT", environmentId, since);
+    }
+
     /** A lock ran out (E07-T02): the holder and the environment's users can now act. */
     public void notifyLockExpiredForEnvironment(String environmentId, String environmentName, String holderUserId) {
         String holderName = resolveUserDisplayName(holderUserId);

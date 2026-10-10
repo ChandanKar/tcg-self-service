@@ -9,8 +9,8 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 
 /**
- * Releases expired environment locks every locks.expiry.interval-ms under the cluster job lock
- * (E07-T02). Absent unless locks.expiry.enabled=true.
+ * Warns holders of expiring locks and releases expired ones every locks.expiry.interval-ms under
+ * the cluster job lock (E07-T02, E07-T03). Absent unless locks.expiry.enabled=true.
  */
 @Component
 @ConditionalOnProperty(name = "locks.expiry.enabled", havingValue = "true")
@@ -28,6 +28,9 @@ public class LockExpiryScheduler {
 
     @Scheduled(fixedDelayString = "${locks.expiry.interval-ms:60000}", initialDelayString = "60000")
     public void run() {
-        jobLockService.runLocked(JOB_NAME, Duration.ofMinutes(5), lockService::processExpiredLocks);
+        jobLockService.runLocked(JOB_NAME, Duration.ofMinutes(5), () -> {
+            lockService.processExpiringLockWarnings(); // warn first (E07-T03), then release
+            lockService.processExpiredLocks();
+        });
     }
 }

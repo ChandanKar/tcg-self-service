@@ -7,6 +7,7 @@ public enum LockAction {
     ACQUIRED,
     RELEASED,
     BROKEN,
-    EXPIRED
+    EXPIRED,
+    EXTENDED
 }
 

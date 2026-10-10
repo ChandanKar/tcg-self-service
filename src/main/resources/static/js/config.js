@@ -151,6 +151,7 @@ const Config = (function() {
         // Locks
         locks: {
             status: (envId) => `${API_BASE_URL}/environments/${envId}/lock`,
+            extend: (envId) => `${API_BASE_URL}/environments/${envId}/lock/extend`,
             acquire: (envId) => `${API_BASE_URL}/environments/${envId}/lock/acquire`,
             release: (envId) => `${API_BASE_URL}/environments/${envId}/lock/release`,
             break: (envId) => `${API_BASE_URL}/environments/${envId}/lock/break`,

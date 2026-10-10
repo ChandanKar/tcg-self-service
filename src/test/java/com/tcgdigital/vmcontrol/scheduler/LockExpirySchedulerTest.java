@@ -28,6 +28,8 @@ class LockExpirySchedulerTest {
         ArgumentCaptor<Runnable> job = ArgumentCaptor.forClass(Runnable.class);
         verify(jobLocks).runLocked(eq("lock-expiry"), eq(Duration.ofMinutes(5)), job.capture());
         job.getValue().run();
-        verify(lockService).processExpiredLocks();
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(lockService);
+        order.verify(lockService).processExpiringLockWarnings(); // E07-T03: warn before releasing
+        order.verify(lockService).processExpiredLocks();
     }
 }
