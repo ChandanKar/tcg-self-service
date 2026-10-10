@@ -172,9 +172,7 @@ const Config = (function() {
             report: `${API_BASE_URL}/audit/report`,
             lockReport: `${API_BASE_URL}/audit/report/locks`,
             vmReport: `${API_BASE_URL}/audit/report/vm-operations`,
-            actions: `${API_BASE_URL}/audit/actions`,
-            export: `${API_BASE_URL}/audit/logs/export`,
-            exportMy: `${API_BASE_URL}/audit/logs/my/export`
+            actions: `${API_BASE_URL}/audit/actions`
         },
 
         // Monitoring

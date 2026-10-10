@@ -149,4 +149,57 @@ class AuditFilterIntegrationTest extends SecuredWebTestBase {
                 .andExpect(jsonPath("$.page.size").value(500))
                 .andExpect(jsonPath("$.content.length()").value(1));
     }
+
+    // ---- My Activity (E11-T06) ----
+
+    private void rowWithDetails(String userId, String details, Instant at) {
+        jdbcTemplate.update("INSERT INTO audit_log (audit_id, user_id, environment_id, action_type, target_type, target_id, "
+                        + "target_name, action_status, details, created_at) VALUES (?, ?, ?, 'ACCESS_GRANTED', 'test', ?, ?, 'succeeded', ?, ?)",
+                UUID.randomUUID().toString(), userId, env1.getEnvironmentId(), UUID.randomUUID().toString(),
+                marker, details, Timestamp.from(at));
+    }
+
+    @Test
+    void myActivityListsOnlyRowsWhereIAmTheActor() throws Exception {
+        Instant at = Instant.now().minus(Duration.ofHours(1));
+        rowWithDetails(operator.getUserId(), "I did this", at);
+        rowWithDetails(admin.getUserId(), "Access granted to " + operator.getUserId(), at); // operator is only the subject
+
+        mockMvc.perform(get("/api/v1/audit/logs/my").with(asUser()).param("from", Instant.now().minus(Duration.ofDays(1)).toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.targetName == '" + marker + "')].userId", everyItem(is(operator.getUserId()))))
+                .andExpect(jsonPath("$.content[?(@.targetName == '" + marker + "')]").value(org.hamcrest.Matchers.hasSize(1)));
+    }
+
+    @Test
+    void myActivityHonoursFromToAndCapsThePageSize() throws Exception {
+        Instant now = Instant.now();
+        rowWithDetails(operator.getUserId(), "recent", now.minus(Duration.ofHours(1)));
+        rowWithDetails(operator.getUserId(), "old", now.minus(Duration.ofDays(3)));
+
+        mockMvc.perform(get("/api/v1/audit/logs/my").with(asUser())
+                        .param("from", now.minus(Duration.ofDays(1)).toString()).param("to", now.toString()).param("size", "10000"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page.size").value(500))
+                .andExpect(jsonPath("$.content[?(@.targetName == '" + marker + "')].details").value(org.hamcrest.Matchers.contains("recent")));
+    }
+
+    @Test
+    void theActorBackfillUsesOnlyTheExplicitByUserPattern() throws Exception {
+        String byActor = UUID.randomUUID().toString();
+        String bySubject = UUID.randomUUID().toString();
+        jdbcTemplate.update("INSERT INTO audit_log (audit_id, user_id, action_type, target_type, target_id, action_status, details) "
+                + "VALUES (?, NULL, 'ACCESS_GRANTED', 'test', 't', 'succeeded', ?)", byActor, "Access granted by user: " + operator.getUserId());
+        jdbcTemplate.update("INSERT INTO audit_log (audit_id, user_id, action_type, target_type, target_id, action_status, details) "
+                + "VALUES (?, NULL, 'ACCESS_GRANTED', 'test', 't', 'succeeded', ?)", bySubject, "Access granted to " + operator.getUserId());
+
+        String sql = new String(new org.springframework.core.io.ClassPathResource("db/migration/V40__backfill_audit_actor.sql")
+                .getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        jdbcTemplate.update(sql.replaceAll("(?m)^--.*$", "").trim().replaceAll(";$", ""));
+
+        org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject("SELECT user_id FROM audit_log WHERE audit_id = ?",
+                String.class, byActor)).isEqualTo(operator.getUserId());
+        org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject("SELECT user_id FROM audit_log WHERE audit_id = ?",
+                String.class, bySubject)).isNull();
+    }
 }

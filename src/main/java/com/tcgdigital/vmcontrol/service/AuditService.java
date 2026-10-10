@@ -274,23 +274,10 @@ public class AuditService {
     }
 
     /**
-     * Get audit logs for a user, optionally filtered by date range.
+     * A user's own activity with optional filters; {@code to} is exclusive (E11-T06).
      */
-    public Page<AuditLog> getLogsForUserInRange(String userId, LocalDate startDate, LocalDate endDate, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
-        Timestamp start = startDate != null ? Timestamp.valueOf(startDate.atStartOfDay()) : null;
-        Timestamp end = endDate != null ? Timestamp.valueOf(endDate.plusDays(1).atStartOfDay()) : null;
-        return enrichEnvironmentInfo(auditLogRepository.findUserActivity(userId, start, end, null, null, pageable));
-    }
-
-    /**
-     * Get audit logs for a user with optional activity-log filters.
-     */
-    public Page<AuditLog> getUserActivityLogs(String userId, LocalDate startDate, LocalDate endDate,
-                                              String environmentId, AuditAction action, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
-        Timestamp start = startDate != null ? Timestamp.valueOf(startDate.atStartOfDay()) : null;
-        Timestamp end = endDate != null ? Timestamp.valueOf(endDate.plusDays(1).atStartOfDay()) : null;
+    public Page<AuditLog> getUserActivityLogs(String userId, Timestamp start, Timestamp end,
+                                              String environmentId, AuditAction action, Pageable pageable) {
         return enrichEnvironmentInfo(auditLogRepository.findUserActivity(
                 userId,
                 start,

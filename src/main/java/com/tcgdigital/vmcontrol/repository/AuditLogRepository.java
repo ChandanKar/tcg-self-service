@@ -23,17 +23,12 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, String> {
     Page<AuditLog> findByUserIdOrderByCreatedAtDesc(String userId, Pageable pageable);
 
     /**
-     * Find audit logs by user within a time range.
-     */
-    Page<AuditLog> findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(
-            String userId, Timestamp startTime, Timestamp endTime, Pageable pageable);
-
-    /**
-     * Find activity for a user with optional filters. The details fallback keeps
-     * legacy audit rows visible where older code stored the actor only in details.
+     * Activity of one user (the actor) with optional filters (E11-T06, M37): matched on user_id
+     * only, so idx_audit_log_user serves it and rows where the user is merely the subject are not
+     * listed. V40 gave legacy rows (actor only in details) their user_id.
      */
     @Query("SELECT a FROM AuditLog a " +
-           "WHERE (a.userId = :userId OR LOWER(a.details) LIKE LOWER(CONCAT('%', :userId, '%'))) " +
+           "WHERE a.userId = :userId " +
            "AND (:startTime IS NULL OR a.createdAt >= :startTime) " +
            "AND (:endTime IS NULL OR a.createdAt < :endTime) " +
            "AND (:environmentId IS NULL OR a.environmentId = :environmentId OR a.targetId = :environmentId) " +
@@ -69,20 +64,9 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, String> {
     Page<AuditLog> findByCreatedAtBetweenOrderByCreatedAtDesc(Timestamp startTime, Timestamp endTime, Pageable pageable);
 
     /**
-     * Find audit logs by environment and time range.
-     */
-    Page<AuditLog> findByEnvironmentIdAndCreatedAtBetweenOrderByCreatedAtDesc(
-            String environmentId, Timestamp startTime, Timestamp endTime, Pageable pageable);
-
-    /**
      * Find recent audit logs.
      */
     List<AuditLog> findTop100ByOrderByCreatedAtDesc();
-
-    /**
-     * Find recent audit logs for an environment.
-     */
-    List<AuditLog> findTop50ByEnvironmentIdOrderByCreatedAtDesc(String environmentId);
 
     /**
      * Find failed operations.

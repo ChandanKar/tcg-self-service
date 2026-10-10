@@ -23,9 +23,12 @@ const ActivityLogs = (function() {
     }
 
     // Cache for filter state
+    // from/to are ISO instants (E11-T06); customStart/customEnd back the date inputs.
     let currentFilters = {
-        startDate: '',
-        endDate: '',
+        from: '',
+        to: '',
+        customStart: '',
+        customEnd: '',
         environmentId: '',
         actionType: '',
         timeRange: '7d',
@@ -34,6 +37,37 @@ const ActivityLogs = (function() {
     };
 
     let userEnvironments = [];
+    let allActions = [];
+
+    const RANGE_HOURS = { '24h': 24, '7d': 24 * 7, '30d': 24 * 30 };
+    const EXPORT_PAGE_SIZE = 500;
+    const EXPORT_MAX_ROWS = 10000;
+
+    /** An exact range ending now. */
+    function setPresetRange(range) {
+        const hours = RANGE_HOURS[range] || 24 * 7;
+        const now = new Date();
+        currentFilters.from = new Date(now.getTime() - hours * 3600 * 1000).toISOString();
+        currentFilters.to = now.toISOString();
+    }
+
+    /** Local calendar days: from local midnight of start to local midnight after end. */
+    function setCustomRange(startDate, endDate) {
+        const [sy, sm, sd] = startDate.split('-').map(Number);
+        const [ey, em, ed] = endDate.split('-').map(Number);
+        currentFilters.from = new Date(sy, sm - 1, sd).toISOString();
+        currentFilters.to = new Date(ey, em - 1, ed + 1).toISOString();
+        currentFilters.customStart = startDate;
+        currentFilters.customEnd = endDate;
+    }
+
+    function fetchActions() {
+        return new Promise(resolve => {
+            ApiClient.get(Config.API.audit.actions, { suppressGlobalError: true })
+                .done(data => resolve(Array.isArray(data) ? data : []))
+                .fail(() => resolve([]));
+        });
+    }
 
     /**
      * Load activity logs page
@@ -44,23 +78,21 @@ const ActivityLogs = (function() {
         try {
             showLoading();
 
-            // Set default date range (last 7 days)
-            const endDate = new Date();
-            const startDate = new Date();
-            startDate.setDate(startDate.getDate() - 7);
-
-            currentFilters.startDate = formatDateForApi(startDate);
-            currentFilters.endDate = formatDateForApi(endDate);
+            if (currentFilters.timeRange !== 'custom') {
+                setPresetRange(currentFilters.timeRange);
+            }
             currentFilters.page = 0;
 
-            // Load environments and logs in parallel
-            const [logs, environments] = await Promise.all([
+            // Load environments, actions and logs in parallel
+            const [logs, environments, actions] = await Promise.all([
                 fetchActivityLogs(currentFilters),
-                fetchUserEnvironments()
+                fetchUserEnvironments(),
+                fetchActions()
             ]);
             if (!ContentRouter.isCurrent(t)) return;
 
             userEnvironments = environments || [];
+            allActions = actions || [];
 
             const html = buildActivityLogsHtml(logs);
             $('#content-area').html(html);
@@ -84,8 +116,8 @@ const ActivityLogs = (function() {
             params.append('page', filters.page);
             params.append('size', filters.size);
 
-            if (filters.startDate) params.append('startDate', filters.startDate);
-            if (filters.endDate) params.append('endDate', filters.endDate);
+            if (filters.from) params.append('from', filters.from);
+            if (filters.to) params.append('to', filters.to);
             if (filters.environmentId) params.append('environmentId', filters.environmentId);
             if (filters.actionType) params.append('action', filters.actionType);
 
@@ -161,21 +193,12 @@ const ActivityLogs = (function() {
                     </select>
                     <select class="form-select form-select-sm" id="al-action-type-filter">
                         <option value="">All Actions</option>
-                        <optgroup label="VM Operations">
-                            <option value="VM_START_REQUESTED"   ${currentFilters.actionType === 'VM_START_REQUESTED'   ? 'selected' : ''}>VM Start</option>
-                            <option value="VM_STOP_REQUESTED"    ${currentFilters.actionType === 'VM_STOP_REQUESTED'    ? 'selected' : ''}>VM Stop</option>
-                            <option value="VM_RESTART_REQUESTED" ${currentFilters.actionType === 'VM_RESTART_REQUESTED' ? 'selected' : ''}>VM Restart</option>
-                        </optgroup>
-                        <optgroup label="Lock Management">
-                            <option value="LOCK_ACQUIRED" ${currentFilters.actionType === 'LOCK_ACQUIRED' ? 'selected' : ''}>Lock Acquired</option>
-                            <option value="LOCK_RELEASED" ${currentFilters.actionType === 'LOCK_RELEASED' ? 'selected' : ''}>Lock Released</option>
-                        </optgroup>
+                        ${allActions.map(a => Utils.html`<option value="${a}" ${currentFilters.actionType === a ? 'selected' : ''}>${formatActionName(a)}</option>`).join('')}
                     </select>
                     <select class="form-select form-select-sm" id="al-page-size-filter" title="Rows per fetch">
                         <option value="50"    ${currentFilters.size === 50    ? 'selected' : ''}>50</option>
                         <option value="100"   ${currentFilters.size === 100   ? 'selected' : ''}>100</option>
                         <option value="500"   ${currentFilters.size === 500   ? 'selected' : ''}>500</option>
-                        <option value="10000" ${currentFilters.size === 10000 ? 'selected' : ''}>All</option>
                     </select>
                     <button class="btn btn-outline-danger btn-ghost btn-sm" id="al-clear-filters-btn" title="Clear all filters">
                         <i class="fas fa-times"></i> Clear
@@ -187,8 +210,8 @@ const ActivityLogs = (function() {
 
                 <!-- Custom Date Range (shown only when "Custom range" is selected) -->
                 <div id="al-custom-date-range" class="activity-logs-custom-range mb-2" style="display:${currentFilters.timeRange === 'custom' ? 'flex' : 'none'};">
-                    <input type="date" class="form-control form-control-sm" id="al-start-date-input" value="${currentFilters.startDate}">
-                    <input type="date" class="form-control form-control-sm" id="al-end-date-input"   value="${currentFilters.endDate}">
+                    <input type="date" class="form-control form-control-sm" id="al-start-date-input" value="${Utils.escapeHtml(currentFilters.customStart)}" aria-label="From date">
+                    <input type="date" class="form-control form-control-sm" id="al-end-date-input"   value="${Utils.escapeHtml(currentFilters.customEnd)}" aria-label="To date">
                     <button class="btn btn-primary btn-sm" id="al-apply-custom-range-btn">Apply</button>
                 </div>
 
@@ -316,11 +339,7 @@ const ActivityLogs = (function() {
 
         // Clear all filters
         $('#al-clear-filters-btn').on('click', function() {
-            const endDate = new Date();
-            const startDate = new Date();
-            startDate.setDate(startDate.getDate() - 7);
-            currentFilters.startDate = formatDateForApi(startDate);
-            currentFilters.endDate = formatDateForApi(endDate);
+            setPresetRange('7d');
             currentFilters.environmentId = '';
             currentFilters.actionType = '';
             currentFilters.timeRange = '7d';
@@ -336,12 +355,11 @@ const ActivityLogs = (function() {
                 Notifications.show('Please select both start and end dates', 'warning');
                 return;
             }
-            if (new Date(startDate) > new Date(endDate)) {
+            if (startDate > endDate) {
                 Notifications.show('Start date must be before end date', 'warning');
                 return;
             }
-            currentFilters.startDate = startDate;
-            currentFilters.endDate = endDate;
+            setCustomRange(startDate, endDate);
             currentFilters.page = 0;
             loadActivityLogs();
         });
@@ -356,19 +374,9 @@ const ActivityLogs = (function() {
      * Apply time range filter
      */
     function applyTimeRangeFilter(range) {
-        const endDate = new Date();
-        const startDate = new Date();
-
-        switch (range) {
-            case '24h': startDate.setDate(startDate.getDate() - 1);  break;
-            case '7d':  startDate.setDate(startDate.getDate() - 7);  break;
-            case '30d': startDate.setDate(startDate.getDate() - 30); break;
-            default: return;
-        }
-
+        if (!RANGE_HOURS[range]) return;
         currentFilters.timeRange = range;
-        currentFilters.startDate = formatDateForApi(startDate);
-        currentFilters.endDate = formatDateForApi(endDate);
+        setPresetRange(range);
         currentFilters.page = 0;
         loadActivityLogs();
     }
@@ -397,44 +405,33 @@ const ActivityLogs = (function() {
     /**
      * Export activity logs to CSV
      */
-    function exportActivityLogs() {
+    async function exportActivityLogs() {
+        const t = ContentRouter.token();
         const fileName = `activity-logs-${new Date().toISOString().split('T')[0]}.csv`;
         const headers = ['Timestamp', 'Environment', 'Action', 'Target', 'Result', 'Details'];
-
-        // Fetch all logs for export (without pagination)
-        const exportParams = { ...currentFilters, page: 0, size: 10000 };
-        fetchActivityLogs(exportParams)
-            .then(data => {
+        const rows = [];
+        try {
+            // Page through (500 a page, at most 10,000 rows): the server caps the page size.
+            for (let page = 0; rows.length < EXPORT_MAX_ROWS; page++) {
+                const data = await fetchActivityLogs({ ...currentFilters, page, size: EXPORT_PAGE_SIZE });
                 const logs = data.content || [];
-                const rows = logs.map(log => [
+                logs.forEach(log => rows.push([
                     log.createdAt,
                     getEnvironmentDisplay(log),
                     log.actionDisplay || log.action || '',
                     log.targetName || '',
                     log.success ? 'Success' : 'Failed',
                     log.details || ''
-                ]);
-
-                const csv = [
-                    headers.join(','),
-                    ...rows.map(row => row.map(cell => `"${(cell || '').toString().replace(/"/g, '""')}"`).join(','))
-                ].join('\n');
-
-                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                const link = document.createElement('a');
-                link.setAttribute('href', URL.createObjectURL(blob));
-                link.setAttribute('download', fileName);
-                link.style.visibility = 'hidden';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-
-                Notifications.show('Activity logs exported successfully', 'success');
-            })
-            .catch(error => {
-                console.error('Error exporting logs:', error);
-                Notifications.show('Failed to export logs', 'danger');
-            });
+                ]));
+                if (page + 1 >= (data.totalPages || 0) || logs.length === 0) break;
+            }
+            if (!ContentRouter.isCurrent(t)) return;
+            Utils.downloadCsv(fileName, headers, rows.slice(0, EXPORT_MAX_ROWS));
+            Notifications.show('Activity logs exported successfully', 'success');
+        } catch (error) {
+            console.error('Error exporting logs:', error);
+            Notifications.show('Failed to export logs', 'danger');
+        }
     }
 
     /**
@@ -464,13 +461,6 @@ const ActivityLogs = (function() {
         const absolute = date.toLocaleString();
 
         return { relative, absolute };
-    }
-
-    /**
-     * Helper: Format date for API calls (YYYY-MM-DD)
-     */
-    function formatDateForApi(date) {
-        return date.toISOString().split('T')[0];
     }
 
     /**
