@@ -117,6 +117,11 @@ public class VmInventoryService {
         snapshot.setVm(vm);
         snapshot.setProvider(vm.getProvider());
         snapshot.setProviderVmId(vm.getProviderVmId());
+        // A type change, in the app or outside it, restarts the rightsizing evidence (E08-T06).
+        if (snapshot.getInstanceType() != null && data.getInstanceType() != null
+                && !snapshot.getInstanceType().equals(data.getInstanceType())) {
+            snapshot.setInstanceTypeChangedAt(now);
+        }
         snapshot.setInstanceType(data.getInstanceType());
         snapshot.setVcpuCount(data.getVcpuCount());
         snapshot.setMemoryMib(data.getMemoryMib());

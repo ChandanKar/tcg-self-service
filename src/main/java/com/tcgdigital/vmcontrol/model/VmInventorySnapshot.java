@@ -56,6 +56,10 @@ public class VmInventorySnapshot {
     @Column(name = "last_refreshed_at", nullable = false)
     private Timestamp lastRefreshedAt;
 
+    /** When the instance type last changed (E08-T06); null if never seen to change. */
+    @Column(name = "instance_type_changed_at")
+    private Timestamp instanceTypeChangedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @CreationTimestamp
     private Timestamp createdAt;
@@ -99,6 +103,8 @@ public class VmInventorySnapshot {
     public void setTotalStorageGib(Integer totalStorageGib) { this.totalStorageGib = totalStorageGib; }
     public Timestamp getLastRefreshedAt() { return lastRefreshedAt; }
     public void setLastRefreshedAt(Timestamp lastRefreshedAt) { this.lastRefreshedAt = lastRefreshedAt; }
+    public Timestamp getInstanceTypeChangedAt() { return instanceTypeChangedAt; }
+    public void setInstanceTypeChangedAt(Timestamp instanceTypeChangedAt) { this.instanceTypeChangedAt = instanceTypeChangedAt; }
     public Timestamp getCreatedAt() { return createdAt; }
     public void setCreatedAt(Timestamp createdAt) { this.createdAt = createdAt; }
     public Timestamp getUpdatedAt() { return updatedAt; }

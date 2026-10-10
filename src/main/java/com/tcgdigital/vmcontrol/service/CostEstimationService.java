@@ -76,6 +76,10 @@ public class CostEstimationService {
     @Value("${rightsizing.scale-up.consecutive-minutes:15}")
     private int scaleUpConsecutiveMinutes;
 
+    /** Days after an instance-type change during which Compute Optimizer advice is ignored (E08-T06). */
+    @Value("${rightsizing.post-resize-cooldown-days:14}")
+    private int postResizeCooldownDays = 14;
+
     /** How long built bundles are reused across the page's burst of requests (E08-T04, M12). */
     @Value("${cost.bundle-cache-seconds:60}")
     private long bundleCacheSeconds = 60;
@@ -334,12 +338,16 @@ public class CostEstimationService {
         }
 
         Map<String, String> instanceTypeByVmId = new LinkedHashMap<>();
+        Map<String, Timestamp> typeChangedAtByVmId = new LinkedHashMap<>();
         for (VmInventorySnapshotRepository.InstanceTypeProjection projection
                 : vmInventorySnapshotRepository.findInstanceTypesByVmIds(vmIds)) {
             instanceTypeByVmId.put(projection.getVmId(), projection.getInstanceType());
+            if (projection.getInstanceTypeChangedAt() != null) {
+                typeChangedAtByVmId.put(projection.getVmId(), projection.getInstanceTypeChangedAt());
+            }
         }
 
-        Map<String, Boolean> scaleDownByVmId = computeScaleDownCandidates(vmIds);
+        Map<String, Boolean> scaleDownByVmId = computeScaleDownCandidates(vmIds, typeChangedAtByVmId);
         Map<String, Boolean> scaleUpByVmId = computeScaleUpCandidates(vmIds);
 
         List<VmCostBundle> bundles = new ArrayList<>();
@@ -360,7 +368,8 @@ public class CostEstimationService {
                     idleSummary == null ? null : idleSummary.getIdleDurationMinutes(),
                     idleSummary == null ? null : idleSummary.getLatestCpuUtilization(),
                     Boolean.TRUE.equals(scaleDownByVmId.get(vmId)),
-                    Boolean.TRUE.equals(scaleUpByVmId.get(vmId))
+                    Boolean.TRUE.equals(scaleUpByVmId.get(vmId)),
+                    typeChangedAtByVmId.get(vmId)
             ));
         }
         return bundles;
@@ -371,9 +380,10 @@ public class CostEstimationService {
      * *each* have avg CPU below {@code scaleDownCpuThreshold} — not just the window's average —
      * so a VM that had one legitimate busy day inside an otherwise-quiet window isn't flagged.
      * Skipped (false) if fewer than that many days of daily-rollup history exist, same
-     * "don't guess with incomplete data" rule the old aggregate-based check used.
+     * "don't guess with incomplete data" rule the old aggregate-based check used. Days on or
+     * before the VM's last instance-type change measure the old size and are ignored (E08-T06).
      */
-    private Map<String, Boolean> computeScaleDownCandidates(List<String> vmIds) {
+    private Map<String, Boolean> computeScaleDownCandidates(List<String> vmIds, Map<String, Timestamp> typeChangedAtByVmId) {
         Date sinceDate = Date.valueOf(LocalDate.now().minusDays(scaleDownConsecutiveDays));
         List<VmMetricDaily> dailyRows =
                 vmMetricDailyRepository.findByVmVmIdInAndBucketDateGreaterThanEqualOrderByVmVmIdAscBucketDateDesc(vmIds, sinceDate);
@@ -384,6 +394,13 @@ public class CostEstimationService {
         Map<String, Boolean> result = new LinkedHashMap<>();
         for (Map.Entry<String, List<VmMetricDaily>> entry : rowsByVmId.entrySet()) {
             List<VmMetricDaily> rows = entry.getValue();
+            Timestamp changedAt = typeChangedAtByVmId.get(entry.getKey());
+            if (changedAt != null) {
+                LocalDate changeDay = changedAt.toLocalDateTime().toLocalDate();
+                rows = rows.stream()
+                        .filter(d -> d.getBucketDate() != null && d.getBucketDate().toLocalDate().isAfter(changeDay))
+                        .toList();
+            }
             boolean candidate = rows.size() >= scaleDownConsecutiveDays
                     && rows.stream().limit(scaleDownConsecutiveDays)
                             .allMatch(d -> d.getAvgCpuUtilization() != null
@@ -455,8 +472,11 @@ public class CostEstimationService {
 
             String provider = b.vm().getProvider().name();
             boolean isScaleDown = "SCALE_DOWN".equals(direction);
+            // Compute Optimizer needs ~14 days on the new size: ignore it right after a resize (E08-T06).
+            boolean inCooldown = b.instanceTypeChangedAt() != null && b.instanceTypeChangedAt().toInstant()
+                    .isAfter(Instant.now().minus(java.time.Duration.ofDays(postResizeCooldownDays)));
             ComputeOptimizerService.Recommendation recommendation =
-                    isScaleDown ? recommendationsByInstanceId.get(b.vm().getProviderVmId()) : null;
+                    isScaleDown && !inCooldown ? recommendationsByInstanceId.get(b.vm().getProviderVmId()) : null;
 
             String suggestedType;
             String source;
@@ -637,6 +657,7 @@ public class CostEstimationService {
             Integer idleDurationMinutes,
             BigDecimal latestCpuUtilization,
             boolean scaleDownCandidate,
-            boolean scaleUpCandidate
+            boolean scaleUpCandidate,
+            Timestamp instanceTypeChangedAt
     ) {}
 }

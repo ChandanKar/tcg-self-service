@@ -142,6 +142,7 @@ class EstimatedCostProviderTest {
         VmInventorySnapshotRepository.InstanceTypeProjection p = new VmInventorySnapshotRepository.InstanceTypeProjection() {
             public String getVmId() { return vmId; }
             public String getInstanceType() { return type; }
+            public Timestamp getInstanceTypeChangedAt() { return null; }
         };
         when(vmInventorySnapshotRepository.findInstanceTypesByVmIds(any())).thenReturn(List.of(p));
     }

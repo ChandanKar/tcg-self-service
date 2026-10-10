@@ -295,4 +295,45 @@ class CostEstimationServiceTest {
     void findCandidateReturnsTheVmsCurrentRecommendation() {
         assertEquals("t3.large", service.findCandidate(VM_ID).orElseThrow().suggestedInstanceType());
     }
+
+    // ---- After a resize (E08-T06) ----
+
+    private VmMetricDaily quietDay(int daysAgo) {
+        VmMetricDaily d = org.mockito.Mockito.mock(VmMetricDaily.class);
+        org.mockito.Mockito.lenient().when(d.getVm()).thenReturn(buildAwsVm());
+        org.mockito.Mockito.lenient().when(d.getAvgCpuUtilization()).thenReturn(BigDecimal.valueOf(2));
+        org.mockito.Mockito.lenient().when(d.getBucketDate()).thenReturn(java.sql.Date.valueOf(java.time.LocalDate.now().minusDays(daysAgo)));
+        return d;
+    }
+
+    private void resizedDaysAgo(int days) {
+        when(instanceTypeProjection.getInstanceTypeChangedAt())
+                .thenReturn(Timestamp.from(Instant.now().minus(java.time.Duration.ofDays(days))));
+    }
+
+    @Test
+    void dailyRowsFromBeforeTheResizeAreIgnored() {
+        resizedDaysAgo(2);
+        // Three quiet days, but only today and yesterday measure the new size.
+        List<VmMetricDaily> days = List.of(quietDay(0), quietDay(1), quietDay(2));
+        when(vmMetricDailyRepository.findByVmVmIdInAndBucketDateGreaterThanEqualOrderByVmVmIdAscBucketDateDesc(anyList(), any()))
+                .thenReturn(days);
+
+        assertEquals(0, service.getRightsizingCandidates(PageRequest.of(0, 25)).getTotalElements());
+    }
+
+    @Test
+    void enoughPostResizeDaysMakeItACandidateAgainButComputeOptimizerWaitsForTheCooldown() {
+        resizedDaysAgo(10);
+        List<VmMetricDaily> days = List.of(quietDay(0), quietDay(1), quietDay(2));
+        when(vmMetricDailyRepository.findByVmVmIdInAndBucketDateGreaterThanEqualOrderByVmVmIdAscBucketDateDesc(anyList(), any()))
+                .thenReturn(days);
+        org.mockito.Mockito.lenient().when(computeOptimizerService.getEc2Recommendations(REGION)).thenReturn(Map.of(INSTANCE_ID,
+                new ComputeOptimizerService.Recommendation(INSTANCE_ID, "OVERPROVISIONED", List.of("m6a.large"))));
+
+        RightsizingCandidateDTO row = onlyCandidate();
+
+        assertEquals("cpu-threshold-rule", row.source()); // advice from the old size is ignored
+        assertEquals("t3.large", row.suggestedInstanceType());
+    }
 }

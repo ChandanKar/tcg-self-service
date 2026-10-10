@@ -124,6 +124,7 @@ public class VmResizeService {
                 return created;
             });
             snapshot.setInstanceType(targetInstanceType);
+            snapshot.setInstanceTypeChangedAt(Timestamp.from(Instant.now())); // E08-T06
             snapshot.setLastRefreshedAt(Timestamp.from(Instant.now()));
             vmInventorySnapshotRepository.save(snapshot);
         } catch (Exception e) {
