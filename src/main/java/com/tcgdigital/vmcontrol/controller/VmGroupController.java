@@ -175,7 +175,7 @@ public class VmGroupController {
         securityService.assertCanAdminister(environmentId);
 
 
-        VmGroup created = groupService.createGroup(environmentId, dto);
+        VmGroup created = groupService.createGroup(environmentId, dto, userService.getCurrentUserId());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(VmGroupDTO.fromEntity(created));
     }
@@ -202,7 +202,7 @@ public class VmGroupController {
         securityService.assertCanAdminister(environmentId);
 
 
-        VmGroup updated = groupService.updateGroup(groupId, dto);
+        VmGroup updated = groupService.updateGroup(groupId, dto, userService.getCurrentUserId());
         return ResponseEntity.ok(VmGroupDTO.fromEntity(updated));
     }
 

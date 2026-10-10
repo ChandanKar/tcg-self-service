@@ -200,6 +200,10 @@ public interface VmRepository extends JpaRepository<Vm, String> {
      * Per-environment VM/running counts across many environments in a single query —
      * avoids querying each environment individually when building an environment listing.
      */
+    /** A VM's environment id, without loading the lazy group (per-VM operation audit, E11-T03). */
+    @Query("SELECT v.group.environment.environmentId FROM Vm v WHERE v.vmId = :vmId")
+    Optional<String> findEnvironmentIdByVmId(@Param("vmId") String vmId);
+
     @Query("SELECT v.group.environment.environmentId AS environmentId, COUNT(v) AS total, " +
            "SUM(CASE WHEN v.status = :runningStatus THEN 1L ELSE 0L END) AS running " +
            "FROM Vm v WHERE v.group.environment.environmentId IN :environmentIds AND v.isActive = true " +

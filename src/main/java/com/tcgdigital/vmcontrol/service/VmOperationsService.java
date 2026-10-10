@@ -800,9 +800,12 @@ public class VmOperationsService {
                 }
 
                 updateExecutionCounters(executionId, true);
+                auditVmStep(vm.getVmId(), detail.getTargetName(), operationType, initiatedByUserId, null);
             } else {
                 detail.setStatus("failed");
                 detail.setErrorMessage(result.getMessage());
+                auditVmStep(vm.getVmId(), detail.getTargetName(), operationType, initiatedByUserId,
+                        result.getMessage() != null ? result.getMessage() : "failed");
                 if (result.isTimedOut() && result.getResultStatus() != null) {
                     // Still STOPPING (say) when polling gave up: record that, not the old status.
                     writeStatus(vm.getVmId(), result.getResultStatus());
@@ -831,6 +834,7 @@ public class VmOperationsService {
             detail.setCompletedAt(Timestamp.from(Instant.now()));
             detailRepository.save(detail);
             updateExecutionCounters(executionId, false);
+            auditVmStep(detail.getTargetId(), detail.getTargetName(), operationType, initiatedByUserId, ce.getMessage());
         } catch (Exception e) {
             log.error("Error executing operation on {}: {}", detail.getTargetName(), e.getMessage());
 
@@ -840,6 +844,27 @@ public class VmOperationsService {
             detailRepository.save(detail);
 
             updateExecutionCounters(executionId, false);
+            auditVmStep(detail.getTargetId(), detail.getTargetName(), operationType, initiatedByUserId, e.getMessage());
+        }
+    }
+
+    /**
+     * One audit row per VM step (E11-T03, M31): VM_START/STOP_COMPLETED on success, *_FAILED
+     * with the error otherwise. A restart's steps are starts and stops. Never fails the step.
+     */
+    private void auditVmStep(String vmId, String vmName, OperationType stepType, String userId, String error) {
+        try {
+            String environmentId = vmRepository.findEnvironmentIdByVmId(vmId).orElse(null);
+            boolean start = stepType == OperationType.START;
+            if (error == null) {
+                if (start) auditService.logVmStarted(userId, vmId, vmName, environmentId);
+                else auditService.logVmStopped(userId, vmId, vmName, environmentId);
+            } else {
+                if (start) auditService.logVmStartFailed(userId, vmId, vmName, environmentId, error);
+                else auditService.logVmStopFailed(userId, vmId, vmName, environmentId, error);
+            }
+        } catch (Exception e) {
+            log.warn("Could not audit {} of VM {}: {}", stepType, vmId, e.getMessage());
         }
     }
 

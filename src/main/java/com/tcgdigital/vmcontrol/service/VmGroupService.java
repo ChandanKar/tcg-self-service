@@ -94,6 +94,12 @@ public class VmGroupService {
      */
     @Transactional
     public VmGroup createGroup(String environmentId, CreateVmGroupDTO dto) {
+        return createGroup(environmentId, dto, null);
+    }
+
+    /** Create a group, audited as {@code actorUserId} (E11-T03; null for the system). */
+    @Transactional
+    public VmGroup createGroup(String environmentId, CreateVmGroupDTO dto, String actorUserId) {
         // Verify environment exists
         Environment environment = environmentRepository.findById(environmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Environment", environmentId));
@@ -127,8 +133,14 @@ public class VmGroupService {
 
         VmGroup saved = groupRepository.save(group);
         log.info("Created group: {} ({}) in environment {}", saved.getName(), saved.getGroupId(), environmentId);
+        auditService.logGroupCreated(actorUserId, environmentId, environment.getName(), saved.getGroupId(),
+                groupLabel(saved));
 
         return saved;
+    }
+
+    private static String groupLabel(VmGroup group) {
+        return group.getDisplayName() != null && !group.getDisplayName().isBlank() ? group.getDisplayName() : group.getName();
     }
 
     /**
@@ -136,7 +148,19 @@ public class VmGroupService {
      */
     @Transactional
     public VmGroup updateGroup(String groupId, CreateVmGroupDTO dto) {
+        return updateGroup(groupId, dto, null);
+    }
+
+    /** Update a group, audited with its changed fields as {@code actorUserId} (E11-T03). */
+    @Transactional
+    public VmGroup updateGroup(String groupId, CreateVmGroupDTO dto, String actorUserId) {
         VmGroup group = getGroupById(groupId);
+        com.tcgdigital.vmcontrol.service.support.AuditChanges changes = new com.tcgdigital.vmcontrol.service.support.AuditChanges()
+                .add("displayName", group.getDisplayName(), dto.getDisplayName())
+                .add("sequencePosition", group.getSequencePosition(), dto.getSequencePosition())
+                .add("dependencies", group.getDependencies(), dto.getDependsOnGroupIds());
+        String oldDescription = group.getDescription();
+        String oldMetadata = group.getMetadata();
         String environmentId = group.getEnvironment().getEnvironmentId();
 
         // The name is the group's identity (EKS sync matches node groups by it): it cannot change (M4).
@@ -169,6 +193,12 @@ public class VmGroupService {
 
         VmGroup saved = groupRepository.save(group);
         log.info("Updated group: {} ({})", saved.getName(), saved.getGroupId());
+        changes.add("description", oldDescription, saved.getDescription())
+                .changed("metadata", !java.util.Objects.equals(oldMetadata, saved.getMetadata()));
+        if (!changes.isEmpty()) {
+            auditService.logGroupUpdated(actorUserId, environmentId, saved.getEnvironment().getName(),
+                    saved.getGroupId(), groupLabel(saved), changes.toString());
+        }
 
         return saved;
     }

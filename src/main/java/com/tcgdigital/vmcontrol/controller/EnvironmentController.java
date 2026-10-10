@@ -322,7 +322,7 @@ public class EnvironmentController {
             @Valid @RequestBody UpdateEnvironmentDTO dto) {
         securityService.assertCanAdminister(environmentId);
 
-        Environment updated = environmentService.updateEnvironment(environmentId, dto);
+        Environment updated = environmentService.updateEnvironment(environmentId, dto, userService.getCurrentUserId());
         return ResponseEntity.ok(EnvironmentDTO.fromEntity(updated));
     }
 

@@ -508,6 +508,27 @@ public class AuditService {
                 "Group created: " + groupName + " in environment: " + environmentName + " by user: " + resolveUsername(userId));
     }
 
+    /** A group edit, with the changed fields (E11-T03). */
+    public void logGroupUpdated(String userId, String environmentId, String environmentName,
+                                String groupId, String groupName, String changes) {
+        logEnvironmentAction(auditUserId(userId), AuditAction.GROUP_UPDATED, environmentId, environmentName,
+                "group", groupId, groupName, "Group updated by " + resolveUsername(userId) + ": " + changes);
+    }
+
+    /** A VM edit, with the changed fields (E11-T03). */
+    public void logVmUpdated(String userId, String environmentId, String environmentName,
+                             String vmId, String vmName, String changes) {
+        logEnvironmentAction(auditUserId(userId), AuditAction.VM_UPDATED, environmentId, environmentName,
+                "vm", vmId, vmName, "VM updated by " + resolveUsername(userId) + ": " + changes);
+    }
+
+    /** An environment edit, with the changed fields (E11-T03). */
+    public void logEnvironmentUpdated(String userId, String environmentId, String environmentName, String changes) {
+        logEnvironmentAction(auditUserId(userId), AuditAction.ENVIRONMENT_UPDATED, environmentId, environmentName,
+                "environment", environmentId, environmentName,
+                "Environment updated by " + resolveUsername(userId) + ": " + changes);
+    }
+
     public void logVmRegistered(String userId, String environmentId, String environmentName,
                                 String vmId, String vmName) {
         logEnvironmentAction(auditUserId(userId), AuditAction.VM_REGISTERED, environmentId, environmentName,

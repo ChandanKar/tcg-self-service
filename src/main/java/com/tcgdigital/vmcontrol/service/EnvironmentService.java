@@ -229,7 +229,18 @@ public class EnvironmentService {
      */
     @Transactional
     public Environment updateEnvironment(String environmentId, UpdateEnvironmentDTO dto) {
+        return updateEnvironment(environmentId, dto, currentUserIdOrSystem());
+    }
+
+    /** Update an environment, audited with its changed fields as {@code actorUserId} (E11-T03). */
+    @Transactional
+    public Environment updateEnvironment(String environmentId, UpdateEnvironmentDTO dto, String actorUserId) {
         Environment environment = getEnvironmentById(environmentId);
+        String oldDisplayName = environment.getDisplayName();
+        String oldDescription = environment.getDescription();
+        Boolean oldActive = environment.getIsActive();
+        String oldServiceType = environment.getServiceType();
+        String oldMetadata = environment.getMetadata();
 
         if (dto.getDisplayName() != null) {
             environment.setDisplayName(dto.getDisplayName());
@@ -255,6 +266,15 @@ public class EnvironmentService {
 
         Environment saved = environmentRepository.save(environment);
         log.info("Updated environment: {} ({})", saved.getName(), saved.getEnvironmentId());
+        com.tcgdigital.vmcontrol.service.support.AuditChanges changes = new com.tcgdigital.vmcontrol.service.support.AuditChanges()
+                .add("displayName", oldDisplayName, saved.getDisplayName())
+                .add("description", oldDescription, saved.getDescription())
+                .add("isActive", oldActive, saved.getIsActive())
+                .add("serviceType", oldServiceType, saved.getServiceType())
+                .changed("metadata", !java.util.Objects.equals(oldMetadata, saved.getMetadata()));
+        if (!changes.isEmpty()) {
+            auditService.logEnvironmentUpdated(actorUserId, saved.getEnvironmentId(), saved.getName(), changes.toString());
+        }
 
         return saved;
     }

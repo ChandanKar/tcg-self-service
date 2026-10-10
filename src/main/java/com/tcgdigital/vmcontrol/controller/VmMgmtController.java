@@ -343,7 +343,7 @@ public class VmMgmtController {
         securityService.assertCanAdminister(environmentId);
 
 
-        Vm created = vmService.registerVm(dto);
+        Vm created = vmService.registerVm(dto, userService.getCurrentUserId());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(VmDTO.fromEntity(created));
     }
@@ -374,7 +374,7 @@ public class VmMgmtController {
         securityService.assertCanAdminister(environmentId);
 
 
-        Vm updated = vmService.updateVm(vmId, dto);
+        Vm updated = vmService.updateVm(vmId, dto, userService.getCurrentUserId());
         Map<String, String> privateIpsByVmId = inventoryService.getPrivateIpsByVmIds(List.of(vmId));
         return ResponseEntity.ok(withPrivateIp(VmDTO.fromEntity(updated), privateIpsByVmId));
     }

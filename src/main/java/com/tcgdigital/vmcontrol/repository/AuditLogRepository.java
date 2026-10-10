@@ -117,7 +117,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, String> {
     /**
      * Find VM operations for compliance reporting.
      */
-    @Query("SELECT a FROM AuditLog a WHERE a.action IN ('VM_START_REQUESTED', 'VM_STOP_REQUESTED', 'VM_START_COMPLETED', 'VM_STOP_COMPLETED', 'VM_START_FAILED', 'VM_STOP_FAILED') AND a.createdAt BETWEEN :startTime AND :endTime ORDER BY a.createdAt DESC")
+    @Query("SELECT a FROM AuditLog a WHERE a.action IN ('VM_START_REQUESTED', 'VM_STOP_REQUESTED', 'VM_RESTART_REQUESTED', 'VM_START_COMPLETED', 'VM_STOP_COMPLETED', 'VM_START_FAILED', 'VM_STOP_FAILED') AND a.createdAt BETWEEN :startTime AND :endTime ORDER BY a.createdAt DESC")
     List<AuditLog> findVmOperationsInRange(Timestamp startTime, Timestamp endTime);
 
     /**

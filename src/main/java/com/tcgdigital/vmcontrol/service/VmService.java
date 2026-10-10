@@ -98,6 +98,12 @@ public class VmService {
      */
     @Transactional
     public Vm registerVm(RegisterVmDTO dto) {
+        return registerVm(dto, null);
+    }
+
+    /** Register a VM, audited as {@code actorUserId} (E11-T03; null for the system). */
+    @Transactional
+    public Vm registerVm(RegisterVmDTO dto, String actorUserId) {
         // Verify group exists
         VmGroup group = groupRepository.findById(dto.getGroupId())
                 .orElseThrow(() -> new ResourceNotFoundException("VmGroup", dto.getGroupId()));
@@ -149,8 +155,14 @@ public class VmService {
 
         Vm saved = vmRepository.save(vm);
         log.info("Registered VM: {} ({}) in group {}", saved.getName(), saved.getVmId(), dto.getGroupId());
+        auditService.logVmRegistered(actorUserId, group.getEnvironment().getEnvironmentId(),
+                group.getEnvironment().getName(), saved.getVmId(), vmLabel(saved));
 
         return saved;
+    }
+
+    private static String vmLabel(Vm vm) {
+        return vm.getDisplayName() != null && !vm.getDisplayName().isBlank() ? vm.getDisplayName() : vm.getName();
     }
 
     /**
@@ -169,8 +181,27 @@ public class VmService {
      */
     @Transactional
     public Vm updateVm(String vmId, RegisterVmDTO dto) {
+        return updateVm(vmId, dto, null);
+    }
+
+    /** Update a VM, audited with its changed fields as {@code actorUserId} (E11-T03). */
+    @Transactional
+    public Vm updateVm(String vmId, RegisterVmDTO dto, String actorUserId) {
         Vm vm = getVmById(vmId);
         String groupId = vm.getGroup().getGroupId();
+        com.tcgdigital.vmcontrol.service.support.AuditChanges changes = new com.tcgdigital.vmcontrol.service.support.AuditChanges()
+                .add("name", vm.getName(), normalizeName(dto.getName()))
+                .add("displayName", vm.getDisplayName(), dto.getDisplayName())
+                .add("description", vm.getDescription(), dto.getDescription())
+                .add("purpose", vm.getPurpose(), dto.getPurpose())
+                .add("remarks", vm.getRemarks(), dto.getRemarks())
+                .add("provider", vm.getProvider(), dto.getProvider())
+                .add("region", vm.getRegion(), dto.getRegion())
+                .add("providerVmId", vm.getProviderVmId(), dto.getProviderVmId())
+                .add("vmType", vm.getVmType(), dto.getVmType())
+                .add("sequencePosition", vm.getSequencePosition(), dto.getSequencePosition())
+                .add("dependencies", vm.getDependencies(), dto.getDependsOnVmIds())
+                .changed("metadata", !java.util.Objects.equals(vm.getMetadata(), dto.getMetadata()));
 
         // Validate name uniqueness (if changed), on the name as stored
         String name = normalizeName(dto.getName());
@@ -205,6 +236,10 @@ public class VmService {
 
         Vm saved = vmRepository.save(vm);
         log.info("Updated VM: {} ({})", saved.getName(), saved.getVmId());
+        if (!changes.isEmpty()) {
+            auditService.logVmUpdated(actorUserId, saved.getGroup().getEnvironment().getEnvironmentId(),
+                    saved.getGroup().getEnvironment().getName(), saved.getVmId(), vmLabel(saved), changes.toString());
+        }
 
         return saved;
     }
