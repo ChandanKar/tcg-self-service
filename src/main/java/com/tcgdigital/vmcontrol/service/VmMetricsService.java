@@ -47,11 +47,19 @@ public class VmMetricsService {
     @Value("${vm.metrics.idle.minimum-duration-minutes:30}")
     private int idleMinimumDurationMinutes;
 
+    /** How far back a sync fills gaps since each VM's latest stored sample (E12-T03). */
+    @Value("${vm.metrics.backfill-max-hours:3}")
+    private int backfillMaxHours = 3;
+
+    private final org.springframework.transaction.support.TransactionTemplate transactions;
+
     public VmMetricsService(VmRepository vmRepository,
                             VmMetricSampleRepository sampleRepository,
                             VmIdleSummaryRepository idleSummaryRepository,
                             VmInventorySnapshotRepository inventoryRepository,
-                            CloudMetricsProviderFactory providerFactory) {
+                            CloudMetricsProviderFactory providerFactory,
+                            org.springframework.transaction.PlatformTransactionManager transactionManager) {
+        this.transactions = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
         this.vmRepository = vmRepository;
         this.sampleRepository = sampleRepository;
         this.idleSummaryRepository = idleSummaryRepository;
@@ -59,7 +67,14 @@ public class VmMetricsService {
         this.providerFactory = providerFactory;
     }
 
-    @Transactional
+    /**
+     * Stores every CloudWatch datapoint since each group's oldest latest-stored sample (at most
+     * vm.metrics.backfill-max-hours back), so a missed run's gap is filled (E12-T03). Not
+     * transactional: the CloudWatch calls run outside any transaction and each sample is saved in
+     * its own short one.
+     *
+     * @return how many samples were saved
+     */
     public int syncRunningVmMetrics() {
         List<Vm> runningVms = vmRepository.findByStatus(VmStatus.RUNNING);
         Map<String, List<Vm>> groups = runningVms.stream()
@@ -67,7 +82,6 @@ public class VmMetricsService {
                 .collect(Collectors.groupingBy(vm -> vm.getProvider().name() + ":" + vm.getRegion()));
 
         Instant end = Instant.now();
-        Instant start = end.minusSeconds((long) periodSeconds * 3);
         int saved = 0;
 
         for (Map.Entry<String, List<Vm>> entry : groups.entrySet()) {
@@ -81,17 +95,44 @@ public class VmMetricsService {
             }
 
             List<String> ids = entry.getValue().stream().map(Vm::getProviderVmId).toList();
-            Map<String, CloudMetricsProviderService.VmMetricData> metrics =
-                    service.fetchLatestMetrics(ids, region, start, end, periodSeconds);
+            Instant start = windowStart(entry.getValue(), end);
+            Map<String, List<CloudMetricsProviderService.VmMetricData>> series =
+                    service.fetchMetricSeries(ids, region, start, end, periodSeconds);
             for (Vm vm : entry.getValue()) {
-                CloudMetricsProviderService.VmMetricData data = metrics.get(vm.getProviderVmId());
-                if (data == null || data.getSampleTime() == null) continue;
-                if (saveMetricSample(vm, data)) saved++;
-                updateIdleSummary(vm);
+                List<CloudMetricsProviderService.VmMetricData> points = series.getOrDefault(vm.getProviderVmId(), List.of());
+                if (points.isEmpty()) continue;
+                for (CloudMetricsProviderService.VmMetricData data : points) {
+                    if (data.getSampleTime() == null) continue;
+                    Boolean stored = transactions.execute(status -> saveMetricSample(vm, data));
+                    if (Boolean.TRUE.equals(stored)) saved++;
+                }
+                transactions.executeWithoutResult(status -> updateIdleSummary(vm));
             }
         }
         log.info("VM metrics sync completed: {} sample(s) saved", saved);
         return saved;
+    }
+
+    /**
+     * From the oldest of the group's latest stored samples, but never more than
+     * backfill-max-hours back and never less than three periods (E12-T03).
+     */
+    private Instant windowStart(List<Vm> vms, Instant end) {
+        Instant cap = end.minus(Duration.ofHours(Math.max(1, backfillMaxHours)));
+        Instant recent = end.minusSeconds((long) periodSeconds * 3);
+        Map<String, Timestamp> latestByVm = new java.util.HashMap<>();
+        for (VmMetricSample s : sampleRepository.findLatestByVmIds(vms.stream().map(Vm::getVmId).toList())) {
+            latestByVm.merge(s.getVm().getVmId(), s.getSampleTime(), (a, b) -> a.after(b) ? a : b);
+        }
+        Instant start = recent;
+        for (Vm vm : vms) {
+            Timestamp latest = latestByVm.get(vm.getVmId());
+            Instant from = latest == null ? cap : latest.toInstant().plusSeconds(1);
+            if (from.isBefore(start)) {
+                start = from;
+            }
+        }
+        return start.isBefore(cap) ? cap : start;
     }
 
     @Transactional(readOnly = true)

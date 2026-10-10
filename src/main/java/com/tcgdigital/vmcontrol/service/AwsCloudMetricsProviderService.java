@@ -56,73 +56,96 @@ public class AwsCloudMetricsProviderService implements CloudMetricsProviderServi
                 && secretKey != null && !secretKey.isBlank();
     }
 
+    /** The newest datapoint of each VM's series (kept for callers that want only the latest). */
     @Override
     public Map<String, VmMetricData> fetchLatestMetrics(List<String> providerVmIds, String region,
                                                         Instant start, Instant end, int periodSeconds) {
+        Map<String, VmMetricData> latest = new HashMap<>();
+        fetchMetricSeries(providerVmIds, region, start, end, periodSeconds).forEach((id, series) -> {
+            if (!series.isEmpty()) {
+                latest.put(id, series.get(series.size() - 1));
+            }
+        });
+        return latest;
+    }
+
+    /**
+     * Every datapoint per VM in the window (E12-T03): values are aligned by their own timestamp,
+     * every page (NextToken) is read, and a failing chunk of 80 instances is logged and skipped
+     * without losing the other chunks.
+     */
+    @Override
+    public Map<String, List<VmMetricData>> fetchMetricSeries(List<String> providerVmIds, String region,
+                                                             Instant start, Instant end, int periodSeconds) {
         if (!isAvailable() || providerVmIds == null || providerVmIds.isEmpty()) {
             return Collections.emptyMap();
         }
-
-        Map<String, VmMetricData> result = new HashMap<>();
-        try {
-            CloudWatchClient cloudWatch = getCloudWatchClient(region);
-            int queryCounter = 0;
-            for (int offset = 0; offset < providerVmIds.size(); offset += 80) {
-                List<String> chunk = providerVmIds.subList(offset, Math.min(offset + 80, providerVmIds.size()));
-                Map<String, QueryTarget> targets = new HashMap<>();
-                List<MetricDataQuery> queries = new ArrayList<>();
-
-                for (String instanceId : chunk) {
-                    for (MetricSpec spec : MetricSpec.values()) {
-                        String queryId = "m" + queryCounter++;
-                        targets.put(queryId, new QueryTarget(instanceId, spec));
-                        queries.add(MetricDataQuery.builder()
-                                .id(queryId)
-                                .metricStat(MetricStat.builder()
-                                        .metric(Metric.builder()
-                                                .namespace(spec.namespace)
-                                                .metricName(spec.metricName)
-                                                .dimensions(Dimension.builder()
-                                                        .name("InstanceId")
-                                                        .value(instanceId)
-                                                        .build())
-                                                .build())
-                                        .period(periodSeconds)
-                                        .stat(spec.stat)
-                                        .build())
-                                .returnData(true)
-                                .build());
-                    }
-                }
-
-                GetMetricDataResponse response = cloudWatch.getMetricData(GetMetricDataRequest.builder()
-                        .startTime(start)
-                        .endTime(end)
-                        .scanBy(ScanBy.TIMESTAMP_DESCENDING)
-                        .metricDataQueries(queries)
-                        .build());
-
-                for (MetricDataResult metricResult : response.metricDataResults()) {
-                    if (metricResult.values().isEmpty()) continue;
-                    QueryTarget target = targets.get(metricResult.id());
-                    if (target == null) continue;
-
-                    VmMetricData data = result.computeIfAbsent(target.instanceId, id -> {
-                        VmMetricData created = new VmMetricData();
-                        created.setProviderVmId(id);
-                        created.setPeriodSeconds(periodSeconds);
-                        return created;
-                    });
-
-                    Double value = metricResult.values().get(0);
-                    Instant sampleInstant = metricResult.timestamps().isEmpty() ? end : metricResult.timestamps().get(0);
-                    data.setSampleTime(Timestamp.from(sampleInstant));
-                    applyValue(data, target.spec, value);
+        CloudWatchClient cloudWatch = getCloudWatchClient(region);
+        Map<String, java.util.TreeMap<Instant, VmMetricData>> byInstance = new HashMap<>();
+        int queryCounter = 0;
+        for (int offset = 0; offset < providerVmIds.size(); offset += 80) {
+            List<String> chunk = providerVmIds.subList(offset, Math.min(offset + 80, providerVmIds.size()));
+            Map<String, QueryTarget> targets = new HashMap<>();
+            List<MetricDataQuery> queries = new ArrayList<>();
+            for (String instanceId : chunk) {
+                for (MetricSpec spec : MetricSpec.values()) {
+                    String queryId = "m" + queryCounter++;
+                    targets.put(queryId, new QueryTarget(instanceId, spec));
+                    queries.add(MetricDataQuery.builder()
+                            .id(queryId)
+                            .metricStat(MetricStat.builder()
+                                    .metric(Metric.builder()
+                                            .namespace(spec.namespace)
+                                            .metricName(spec.metricName)
+                                            .dimensions(Dimension.builder()
+                                                    .name("InstanceId")
+                                                    .value(instanceId)
+                                                    .build())
+                                            .build())
+                                    .period(periodSeconds)
+                                    .stat(spec.stat)
+                                    .build())
+                            .returnData(true)
+                            .build());
                 }
             }
-        } catch (Exception e) {
-            log.error("Failed to fetch AWS CloudWatch metrics for {} VM(s) in {}: {}", providerVmIds.size(), region, e.getMessage());
+            try {
+                String token = null;
+                do {
+                    GetMetricDataResponse response = cloudWatch.getMetricData(GetMetricDataRequest.builder()
+                            .startTime(start)
+                            .endTime(end)
+                            .scanBy(ScanBy.TIMESTAMP_ASCENDING)
+                            .metricDataQueries(queries)
+                            .nextToken(token)
+                            .build());
+                    for (MetricDataResult metricResult : response.metricDataResults()) {
+                        QueryTarget target = targets.get(metricResult.id());
+                        if (target == null) continue;
+                        List<Instant> times = metricResult.timestamps();
+                        List<Double> values = metricResult.values();
+                        for (int i = 0; i < Math.min(times.size(), values.size()); i++) {
+                            Instant at = times.get(i);
+                            VmMetricData data = byInstance
+                                    .computeIfAbsent(target.instanceId, id -> new java.util.TreeMap<>())
+                                    .computeIfAbsent(at, t -> {
+                                        VmMetricData created = new VmMetricData();
+                                        created.setProviderVmId(target.instanceId);
+                                        created.setPeriodSeconds(periodSeconds);
+                                        created.setSampleTime(Timestamp.from(t));
+                                        return created;
+                                    });
+                            applyValue(data, target.spec, values.get(i));
+                        }
+                    }
+                    token = response.nextToken();
+                } while (token != null && !token.isEmpty());
+            } catch (Exception e) {
+                log.error("Failed to fetch AWS CloudWatch metrics for chunk {} in {}: {}", chunk, region, e.getMessage());
+            }
         }
+        Map<String, List<VmMetricData>> result = new HashMap<>();
+        byInstance.forEach((id, series) -> result.put(id, new ArrayList<>(series.values())));
         return result;
     }
 
