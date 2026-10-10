@@ -25,6 +25,14 @@ async function waitForRouter(page: Page) {
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined' && typeof ContentRouter.query === 'function');
 }
 
+/** The seeded environment's View button; searches by name, since earlier runs leave many E2E environments. */
+async function findInList(page: Page) {
+  await page.locator('#env-list-search').fill(envName);
+  const view = page.locator(`[data-action="view"][data-env-id="${envId}"]`);
+  await expect(view).toBeVisible({ timeout: 10_000 });
+  return view;
+}
+
 test.describe('Route params and deep links', () => {
   test.beforeAll(async ({ playwright }) => {
     if (!devIds.admin || !devIds.user) return;
@@ -53,8 +61,7 @@ test.describe('Route params and deep links', () => {
     await waitForRouter(page);
     await page.evaluate(() => { location.hash = '#/my-environments'; });
 
-    const view = page.locator(`[data-action="view"][data-env-id="${envId}"]`);
-    await expect(view).toBeVisible({ timeout: 10_000 });
+    const view = await findInList(page);
     await view.click();
 
     await expect(page).toHaveURL(new RegExp(`#/environments/${envId}$`));
@@ -67,7 +74,7 @@ test.describe('Route params and deep links', () => {
 
     await page.goBack();
     await expect(page).toHaveURL(/#\/my-environments$/);
-    await expect(page.locator(`[data-action="view"][data-env-id="${envId}"]`)).toBeVisible({ timeout: 10_000 });
+    await findInList(page);
   });
 
   test('a direct link opens Environment Detail', async ({ page }) => {
