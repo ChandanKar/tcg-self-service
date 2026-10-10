@@ -87,24 +87,48 @@ const NotificationBell = (function () {
             });
     }
 
+    /**
+     * Where a notification leads (E11-T10): its environment's page, My Environments for access,
+     * Pending Requests for a request, the registry for a VM, Cost Management for the cost report.
+     * Returns [contentType, params] for ContentRouter.navigate, or null when there is nothing to open.
+     */
+    function linkFor(n) {
+        const entityType = (n.entityType || '').toUpperCase();
+        if (entityType === 'ENVIRONMENT' && n.entityId) return ['environment-detail', { environmentId: n.entityId }];
+        if (entityType === 'ACCESS') return ['my-environments'];
+        if (entityType === 'ACCESS_REQUEST') return ['pending-requests'];
+        if (entityType === 'VM') return ['vm-registry'];
+        if (n.type === 'WEEKLY_COST_REPORT') return ['cost-management'];
+        return null;
+    }
+
+    function openItem(n, $item) {
+        const link = linkFor(n);
+        if (!link) return;
+        if (!n.read) markOneRead(n.notificationId, $item);
+        closeDropdown();
+        ContentRouter.navigate(link[0], link[1]);
+    }
+
     function buildItem(n) {
         const ago    = Utils.timeAgo ? Utils.timeAgo(n.createdAt) : formatAgo(n.createdAt);
         const unread = !n.read;
         const icon   = typeIcon(n.type);
         const tone   = typeTone(n.type);
+        const linked = linkFor(n) !== null;
 
-        const $item = $(`
-            <div class="notification-item ${unread ? 'unread' : ''} ${tone}"
-                 data-id="${n.notificationId}" role="menuitem">
+        const $item = $(Utils.html`
+            <div class="notification-item ${unread ? 'unread' : ''} ${tone} ${linked ? 'linked' : ''}"
+                 data-id="${n.notificationId}" role="menuitem" ${linked ? Utils.raw('tabindex="0"') : ''}>
                 <div class="notification-item-icon">
-                    <i class="fas ${icon}"></i>
+                    <i class="fas ${icon}" aria-hidden="true"></i>
                 </div>
                 <div class="notification-item-body">
-                    <div class="notification-item-title">${Utils.escapeHtml(n.title)}</div>
-                    <div class="notification-item-msg">${Utils.escapeHtml(n.message)}</div>
+                    <div class="notification-item-title">${n.title}</div>
+                    <div class="notification-item-msg">${n.message}</div>
                     <div class="notification-item-time">${ago}</div>
                 </div>
-                ${unread ? '<button class="notification-read-btn" title="Mark as read"><i class="fas fa-check"></i></button>' : ''}
+                ${unread ? Utils.raw('<button class="notification-read-btn" title="Mark as read" aria-label="Mark as read"><i class="fas fa-check"></i></button>') : ''}
             </div>
         `);
 
@@ -112,6 +136,15 @@ const NotificationBell = (function () {
             $item.find('.notification-read-btn').on('click', function (e) {
                 e.stopPropagation();
                 markOneRead(n.notificationId, $item);
+            });
+        }
+        if (linked) {
+            $item.on('click', function () { openItem(n, $item); });
+            $item.on('keydown', function (e) {
+                if (e.key === 'Enter' && e.target === this) {
+                    e.preventDefault();
+                    openItem(n, $item);
+                }
             });
         }
 
@@ -158,7 +191,16 @@ const NotificationBell = (function () {
             OPERATION_COMPLETED:     'fa-check-circle',
             OPERATION_FAILED:        'fa-times-circle',
             STATE_DRIFT_DETECTED:    'fa-exclamation-triangle',
-            EKS_SYNC_CHANGED:        'fa-dharmachakra'
+            EKS_SYNC_CHANGED:        'fa-dharmachakra',
+            LOCK_EXPIRED:            'fa-hourglass-end',
+            LOCK_EXPIRING:           'fa-hourglass-half',
+            ACCESS_LEVEL_CHANGED:    'fa-user-shield',
+            AUTOMATION_RULE_SKIPPED: 'fa-forward',
+            WEEKLY_COST_REPORT:      'fa-file-invoice-dollar',
+            WEEKLY_IDLE_WASTE_REPORT: 'fa-bed',
+            WEEKLY_RIGHTSIZING_REPORT: 'fa-compress-arrows-alt',
+            ENVIRONMENT_STOP_NOTICE: 'fa-stop-circle',
+            IDLE_AUTO_STOPPED:       'fa-moon'
         };
         return icons[type] || 'fa-bell';
     }
@@ -167,7 +209,8 @@ const NotificationBell = (function () {
         if (['OPERATION_FAILED', 'LOCK_BROKEN', 'STATE_DRIFT_DETECTED', 'ACCESS_EXPIRED'].includes(type)) {
             return 'tone-danger';
         }
-        if (['ACCESS_EXPIRING', 'ACCESS_REQUESTED', 'LOCK_ACQUIRED', 'OPERATION_REQUESTED'].includes(type)) {
+        if (['ACCESS_EXPIRING', 'ACCESS_REQUESTED', 'LOCK_ACQUIRED', 'OPERATION_REQUESTED', 'LOCK_EXPIRING',
+             'ENVIRONMENT_STOP_NOTICE', 'AUTOMATION_RULE_SKIPPED'].includes(type)) {
             return 'tone-warning';
         }
         if (['OPERATION_COMPLETED', 'ACCESS_GRANTED', 'ACCESS_REQUEST_APPROVED', 'EKS_SYNC_CHANGED'].includes(type)) {
