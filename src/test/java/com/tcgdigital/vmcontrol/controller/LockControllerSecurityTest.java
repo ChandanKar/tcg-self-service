@@ -135,6 +135,78 @@ class LockControllerSecurityTest extends SecuredWebTestBase {
         expectError(mockMvc.perform(extend(asUser(), "{\"minutes\":30}")), 400);
     }
 
+    private org.springframework.test.web.servlet.ResultActions lockStatus(RequestPostProcessor who) throws Exception {
+        return mockMvc.perform(get(url("")).with(who)).andExpect(status().isOk());
+    }
+
+    private static org.springframework.test.web.servlet.ResultMatcher flags(boolean acquire, boolean release,
+                                                                          boolean extend, boolean breakIt) {
+        return result -> {
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.canAcquire").value(acquire).match(result);
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.canRelease").value(release).match(result);
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.canExtend").value(extend).match(result);
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.canBreak").value(breakIt).match(result);
+        };
+    }
+
+    @Test
+    void anUnlockedEnvironmentOffersAcquireOnlyToThoseWhoCanOperate() throws Exception {
+        grantEnv(viewer, env.getEnvironmentId(), AccessLevel.VIEWER);
+        grantEnv(operator, env.getEnvironmentId(), AccessLevel.USER);
+
+        lockStatus(asViewer()).andExpect(flags(false, false, false, false));
+        lockStatus(asUser()).andExpect(flags(true, false, false, false));
+        lockStatus(asAdmin()).andExpect(flags(true, false, false, false))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.lockExpiryEnabled").value(false));
+    }
+
+    @Test
+    void aLockedEnvironmentOffersReleaseAndExtendToTheHolderAndBreakToAdmins() throws Exception {
+        grantEnv(viewer, env.getEnvironmentId(), AccessLevel.VIEWER);
+        grantEnv(operator, env.getEnvironmentId(), AccessLevel.USER);
+        User colleague = newUser("flags-colleague@secured.test", false, false);
+        grantEnv(colleague, env.getEnvironmentId(), AccessLevel.USER);
+        mockMvc.perform(acquire(asUser()).content("{\"expectedDurationMinutes\":30}")).andExpect(status().isOk())
+                .andExpect(flags(false, true, true, false));
+
+        lockStatus(asUser()).andExpect(flags(false, true, true, false));
+        lockStatus(as(colleague)).andExpect(flags(false, false, false, false));
+        lockStatus(asViewer()).andExpect(flags(false, false, false, false));
+        lockStatus(asEnvAdmin()).andExpect(flags(false, false, false, true));
+        lockStatus(asAdmin()).andExpect(flags(false, false, false, true));
+    }
+
+    @Test
+    void anOpenEndedLockCannotBeExtended() throws Exception {
+        grantEnv(operator, env.getEnvironmentId(), AccessLevel.USER);
+        mockMvc.perform(acquire(asUser())).andExpect(status().isOk());
+
+        lockStatus(asUser()).andExpect(flags(false, true, false, false));
+    }
+
+    @Test
+    void historyRowsCarryTheirOwnTimeAndReason() throws Exception {
+        grantEnv(operator, env.getEnvironmentId(), AccessLevel.USER);
+        mockMvc.perform(acquire(asUser()).content("{\"reason\":\"deploy\",\"expectedDurationMinutes\":30}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(extend(asUser(), "{\"minutes\":30}")).andExpect(status().isOk());
+        mockMvc.perform(post(url("/break")).with(asAdmin()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\":\"stuck deploy\"}")).andExpect(status().isOk());
+
+        String body = mockMvc.perform(get(url("/history")).with(asAdmin()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        com.fasterxml.jackson.databind.JsonNode rows = new com.fasterxml.jackson.databind.ObjectMapper().readTree(body);
+        java.util.Map<String, com.fasterxml.jackson.databind.JsonNode> byAction = new java.util.HashMap<>();
+        rows.forEach(r -> byAction.put(r.get("action").asText(), r));
+
+        assertThat(byAction.get("ACQUIRED").get("reason").asText()).isEqualTo("deploy");
+        assertThat(byAction.get("EXTENDED").get("reason").asText()).startsWith("Extended by 30 minutes");
+        assertThat(byAction.get("BROKEN").get("reason").asText()).isEqualTo("stuck deploy");
+        assertThat(byAction.get("BROKEN").get("breakReason").asText()).isEqualTo("stuck deploy");
+        // Each row's timestamp is its own performedAt, not the lock's acquisition time.
+        rows.forEach(r -> assertThat(r.get("timestamp")).isEqualTo(r.get("performedAt")));
+    }
+
     @Test
     void inactiveEnvironmentCannotBeLocked() throws Exception {
         env.setIsActive(false);

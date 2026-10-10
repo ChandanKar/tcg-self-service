@@ -338,7 +338,9 @@ public class LockService {
         }
         lock.setExpiresAt(Timestamp.from(newExpiry));
         lock = lockRepository.save(lock);
-        String notes = "Extended by " + minutes + " minutes to " + newExpiry;
+        String notes = "Extended by " + minutes + " minutes; expires "
+                + java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm 'UTC'")
+                        .withZone(java.time.ZoneOffset.UTC).format(newExpiry);
         recordLockHistory(lock, LockAction.EXTENDED, userId, notes);
         auditService.logLockExtended(userId, environmentId, lock.getEnvironment().getName(), notes);
         log.info("Lock on environment {} extended by {} to {}", environmentId, userId, newExpiry);

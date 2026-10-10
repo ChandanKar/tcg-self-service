@@ -36,11 +36,30 @@ public class LockController {
     private final LockService lockService;
     private final UserService userService;
     private final SecurityService securityService;
+    private final boolean lockExpiryEnabled;
 
-    public LockController(LockService lockService, UserService userService, SecurityService securityService) {
+    public LockController(LockService lockService, UserService userService, SecurityService securityService,
+                          @org.springframework.beans.factory.annotation.Value("${locks.expiry.enabled:false}") boolean lockExpiryEnabled) {
         this.lockService = lockService;
         this.userService = userService;
         this.securityService = securityService;
+        this.lockExpiryEnabled = lockExpiryEnabled;
+    }
+
+    /**
+     * Fill what the current user may do with this lock (E07-T05). Break follows POST /break: an
+     * ADMIN or ENV_ADMIN role plus administer rights, on someone else's lock.
+     */
+    private LockStatusDTO withViewerFlags(LockStatusDTO dto, String environmentId) {
+        String me = userService.getCurrentUserId();
+        boolean mine = dto.isLocked() && me != null && me.equals(dto.getLockedByUserId());
+        dto.setCanAcquire(!dto.isLocked() && securityService.canOperateInEnvironment(environmentId));
+        dto.setCanRelease(mine);
+        dto.setCanExtend(mine && dto.getExpiresAt() != null);
+        dto.setCanBreak(dto.isLocked() && !mine && securityService.isEnvAdmin()
+                && securityService.canAdministerEnvironment(environmentId));
+        dto.setLockExpiryEnabled(lockExpiryEnabled);
+        return dto;
     }
 
     @GetMapping
@@ -64,9 +83,9 @@ public class LockController {
 
         if (lock.isPresent()) {
             String displayName = resolveDisplayName(lock.get().getLockedByUserId());
-            return ResponseEntity.ok(LockStatusDTO.fromEntity(lock.get(), displayName));
+            return ResponseEntity.ok(withViewerFlags(LockStatusDTO.fromEntity(lock.get(), displayName), environmentId));
         } else {
-            return ResponseEntity.ok(LockStatusDTO.noLock());
+            return ResponseEntity.ok(withViewerFlags(LockStatusDTO.noLock(), environmentId));
         }
     }
 
@@ -97,7 +116,7 @@ public class LockController {
 
         EnvironmentLock lock = lockService.acquireLock(environmentId, effectiveUserId, reason, duration);
         String displayName = resolveDisplayName(lock.getLockedByUserId());
-        return ResponseEntity.ok(LockStatusDTO.fromEntity(lock, displayName));
+        return ResponseEntity.ok(withViewerFlags(LockStatusDTO.fromEntity(lock, displayName), environmentId));
     }
 
     @PostMapping("/release")
@@ -137,7 +156,8 @@ public class LockController {
             @jakarta.validation.Valid @RequestBody com.tcgdigital.vmcontrol.dto.ExtendLockDTO dto) {
         String effectiveUserId = userService.getCurrentUserId();
         EnvironmentLock lock = lockService.extend(environmentId, effectiveUserId, dto.getMinutes());
-        return ResponseEntity.ok(LockStatusDTO.fromEntity(lock));
+        String displayName = resolveDisplayName(lock.getLockedByUserId());
+        return ResponseEntity.ok(withViewerFlags(LockStatusDTO.fromEntity(lock, displayName), environmentId));
     }
 
     @PostMapping("/break")

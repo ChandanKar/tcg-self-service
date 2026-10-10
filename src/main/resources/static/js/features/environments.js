@@ -607,9 +607,9 @@ const Environments = (function() {
         // Lock section
         let lockSection = '';
         try {
-            const isAdmin = (typeof Auth !== 'undefined' && Auth.isEnvAdmin) ? Auth.isEnvAdmin() : false;
+            // Buttons follow the server's per-viewer flags on lockStatus (E07-T05).
             lockSection = (typeof Locks !== 'undefined' && Locks.buildLockBanner) ?
-                Locks.buildLockBanner(env.lockStatus, env.environmentId, isAdmin) : '';
+                Locks.buildLockBanner(env.lockStatus, env.environmentId) : '';
         } catch (e) { lockSection = ''; }
 
         // Compact metric cards — number-only + tooltip (same style as dashboard)
@@ -941,6 +941,10 @@ const Environments = (function() {
         try {
             if (typeof Locks !== 'undefined' && Locks.bindLockEvents) {
                 Locks.bindLockEvents(envId, envName, function() {
+                    reloadDetailIfCurrent(envId);
+                });
+                // Countdown to auto-release; page-scoped, so it stops when the user leaves.
+                Locks.startCountdown(function() {
                     reloadDetailIfCurrent(envId);
                 });
             }

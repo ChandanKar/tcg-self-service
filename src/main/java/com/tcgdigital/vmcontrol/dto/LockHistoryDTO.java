@@ -24,6 +24,8 @@ public class LockHistoryDTO {
     private Timestamp acquiredAt;
     private Timestamp releasedAt;
     private String lockReason;
+    /** Why an admin broke the lock (BROKEN rows; E07-T05). */
+    private String breakReason;
 
     public LockHistoryDTO() {
     }
@@ -43,6 +45,7 @@ public class LockHistoryDTO {
             dto.setAcquiredAt(history.getLock().getLockedAt());
             dto.setReleasedAt(history.getLock().getReleasedAt());
             dto.setLockReason(history.getLock().getLockReason());
+            dto.setBreakReason(history.getLock().getBreakReason());
         }
         
         return dto;
@@ -140,12 +143,26 @@ public class LockHistoryDTO {
     }
 
     /**
-     * Returns the lock reason or notes as 'reason' for frontend compatibility.
+     * The row's own reason (E07-T05): why the lock was taken on ACQUIRED, why it was broken on
+     * BROKEN, otherwise the row's notes (auto-release, expiry or extension details).
      */
     @JsonProperty("reason")
     public String getReason() {
-        // Prefer the lock reason, fall back to notes
-        return lockReason != null ? lockReason : notes;
+        if (action == LockAction.ACQUIRED) {
+            return lockReason != null ? lockReason : notes;
+        }
+        if (action == LockAction.BROKEN) {
+            return breakReason != null ? breakReason : notes;
+        }
+        return notes;
+    }
+
+    public String getBreakReason() {
+        return breakReason;
+    }
+
+    public void setBreakReason(String breakReason) {
+        this.breakReason = breakReason;
     }
 
     public Timestamp getAcquiredAt() {

@@ -17,6 +17,29 @@
     border: 1px solid #f59e0b;
 }
 
+/* Held by someone else: operations are blocked for this viewer (E07-T05). */
+.lock-banner.locked.other {
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+    border-color: #ef4444;
+}
+
+.lock-banner.locked.other .lock-info > i {
+    color: #dc2626;
+}
+
+.lock-countdown {
+    display: inline-block;
+    margin-left: 0.5rem;
+    color: #475569;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.lock-banner.expiring .lock-countdown {
+    color: #b91c1c;
+    font-weight: 600;
+}
+
 .lock-banner.unlocked {
     background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
     border: 1px solid #10b981;

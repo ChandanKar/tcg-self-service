@@ -21,6 +21,14 @@ public class LockStatusDTO {
     /** When the lock is released automatically; null = until manually released (E07-T02). */
     private Timestamp expiresAt;
 
+    // What the current viewer may do (E07-T05); the UI shows buttons from these, never guesses.
+    private boolean canAcquire;
+    private boolean canRelease;
+    private boolean canBreak;
+    private boolean canExtend;
+    /** Whether locks taken for a duration are released automatically (locks.expiry.enabled). */
+    private boolean lockExpiryEnabled;
+
     public LockStatusDTO() {
     }
 
@@ -129,5 +137,45 @@ public class LockStatusDTO {
 
     public void setExpiresAt(Timestamp expiresAt) {
         this.expiresAt = expiresAt;
+    }
+
+    public boolean isCanAcquire() {
+        return canAcquire;
+    }
+
+    public void setCanAcquire(boolean canAcquire) {
+        this.canAcquire = canAcquire;
+    }
+
+    public boolean isCanRelease() {
+        return canRelease;
+    }
+
+    public void setCanRelease(boolean canRelease) {
+        this.canRelease = canRelease;
+    }
+
+    public boolean isCanBreak() {
+        return canBreak;
+    }
+
+    public void setCanBreak(boolean canBreak) {
+        this.canBreak = canBreak;
+    }
+
+    public boolean isCanExtend() {
+        return canExtend;
+    }
+
+    public void setCanExtend(boolean canExtend) {
+        this.canExtend = canExtend;
+    }
+
+    public boolean isLockExpiryEnabled() {
+        return lockExpiryEnabled;
+    }
+
+    public void setLockExpiryEnabled(boolean lockExpiryEnabled) {
+        this.lockExpiryEnabled = lockExpiryEnabled;
     }
 }
