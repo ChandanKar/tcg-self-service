@@ -8,11 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.costexplorer.CostExplorerClient;
 import software.amazon.awssdk.services.costexplorer.model.DateInterval;
 import software.amazon.awssdk.services.costexplorer.model.GetCostAndUsageRequest;
 import software.amazon.awssdk.services.costexplorer.model.GetCostAndUsageResponse;
@@ -25,9 +20,9 @@ import software.amazon.awssdk.services.costexplorer.model.ResultByTime;
 
 import java.math.BigDecimal;
 import java.sql.Date;
-import java.time.Duration;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -51,86 +46,97 @@ public class CostExplorerBillingService {
     private static final Logger log = LoggerFactory.getLogger(CostExplorerBillingService.class);
     private static final String UNBLENDED_COST_METRIC = "UnblendedCost";
 
-    @Value("${aws.access-key:}")
-    private String accessKey;
-
-    @Value("${aws.secret-key:}")
-    private String secretKey;
-
     @Value("${cost.tagging.key-prefix:tcg:}")
     private String tagKeyPrefix;
 
     @Value("${cost.actuals.enabled:false}")
     private boolean actualsEnabled;
 
-    private volatile CostExplorerClient client;
-
     private final EnvironmentRepository environmentRepository;
     private final CostDailySnapshotRepository costDailySnapshotRepository;
+    private final CostExplorerClientProvider clientProvider;
+    private final CostDayBoundary dayBoundary;
 
     public CostExplorerBillingService(EnvironmentRepository environmentRepository,
-                                       CostDailySnapshotRepository costDailySnapshotRepository) {
+                                       CostDailySnapshotRepository costDailySnapshotRepository,
+                                       CostExplorerClientProvider clientProvider,
+                                       CostDayBoundary dayBoundary) {
         this.environmentRepository = environmentRepository;
         this.costDailySnapshotRepository = costDailySnapshotRepository;
+        this.clientProvider = clientProvider;
+        this.dayBoundary = dayBoundary;
     }
 
     public record IngestResult(int updated, int skippedNoEnvironment, int skippedNoSnapshotRow, int groupsReturned) {
     }
 
     public boolean isAvailable() {
-        return accessKey != null && !accessKey.isEmpty()
-                && secretKey != null && !secretKey.isEmpty();
+        return clientProvider.isConfigured();
     }
 
     /**
-     * Ingests one day's actual cost per environment. Skips the Cost Explorer call entirely (and
-     * its ~$0.01/call charge) if this day already has at least one non-null actualCost recorded —
-     * guards against re-billing on a scheduler restart within the same day.
+     * Re-ingests the last {@code days} complete cost days (E08-T02, H18). Cost Explorer figures
+     * stay provisional for about 72 hours, so every value inside the window is overwritten.
      */
+    public IngestResult ingestTrailingWindow(int days) {
+        LocalDate today = dayBoundary.today();
+        return ingestWindow(today.minusDays(Math.max(1, days)), today);
+    }
+
+    /** One day's actuals; a thin wrapper over {@link #ingestWindow}. */
     public IngestResult ingestDailyActualCosts(LocalDate date) {
+        return ingestWindow(date, date.plusDays(1));
+    }
+
+    /**
+     * Backfills {@code days} complete days ending yesterday in one Cost Explorer request (plus one
+     * per extra page), not one billed request per day.
+     */
+    public IngestResult backfillActualCosts(int days) {
+        return ingestTrailingWindow(days);
+    }
+
+    /**
+     * Fetches actual cost per environment for every day in [{@code startInclusive},
+     * {@code endExclusive}) in one paginated, tag-grouped GetCostAndUsage request and writes
+     * each day's values over whatever was stored before.
+     */
+    public IngestResult ingestWindow(LocalDate startInclusive, LocalDate endExclusive) {
         if (!actualsEnabled) {
-            log.debug("Actual cost ingestion disabled (cost.actuals.enabled=false) — skipping {}", date);
+            log.debug("Actual cost ingestion disabled (cost.actuals.enabled=false) — skipping {}..{}", startInclusive, endExclusive);
             return new IngestResult(0, 0, 0, 0);
         }
         if (!isAvailable()) {
-            log.warn("AWS not available — skipping actual cost ingestion for {}", date);
+            log.warn("AWS not available — skipping actual cost ingestion for {}..{}", startInclusive, endExclusive);
             return new IngestResult(0, 0, 0, 0);
         }
-        Date snapshotDate = Date.valueOf(date);
-        if (costDailySnapshotRepository.existsBySnapshotDateAndActualCostIsNotNull(snapshotDate)) {
-            log.debug("Actual costs already ingested for {} — skipping Cost Explorer call", date);
+        if (!startInclusive.isBefore(endExclusive)) {
             return new IngestResult(0, 0, 0, 0);
         }
 
-        Map<String, BigDecimal> costsByEnvironmentName;
+        Map<LocalDate, Map<String, BigDecimal>> costsByDate;
         try {
-            costsByEnvironmentName = parseCostByEnvironmentTag(fetchDailyCostByEnvironment(date));
+            costsByDate = parseCostByDateAndEnvironmentTag(fetchCostByEnvironment(startInclusive, endExclusive));
         } catch (Exception e) {
-            log.error("Failed to fetch actual costs from Cost Explorer for {}: {}", date, e.getMessage(), e);
+            log.error("Failed to fetch actual costs from Cost Explorer for {}..{}: {}",
+                    startInclusive, endExclusive, e.getMessage(), e);
             return new IngestResult(0, 0, 0, 0);
         }
 
-        IngestResult result = applyActualCosts(date, costsByEnvironmentName);
-        log.info("Actual cost ingestion for {} — {} updated, {} skipped (no matching environment), " +
-                        "{} skipped (no estimate snapshot row yet), {} tag group(s) returned",
-                date, result.updated(), result.skippedNoEnvironment(), result.skippedNoSnapshotRow(), result.groupsReturned());
-        return result;
-    }
-
-    /**
-     * @param days how many days back to backfill, oldest first (matches
-     *             {@code CostSnapshotService.backfillHistoricalSnapshots}'s ordering)
-     */
-    public IngestResult backfillActualCosts(int days) {
         int updated = 0, skippedNoEnvironment = 0, skippedNoSnapshotRow = 0, groupsReturned = 0;
-        for (int i = days; i >= 1; i--) {
-            IngestResult dayResult = ingestDailyActualCosts(LocalDate.now().minusDays(i));
-            updated += dayResult.updated();
-            skippedNoEnvironment += dayResult.skippedNoEnvironment();
-            skippedNoSnapshotRow += dayResult.skippedNoSnapshotRow();
-            groupsReturned += dayResult.groupsReturned();
+        for (Map.Entry<LocalDate, Map<String, BigDecimal>> day : costsByDate.entrySet()) {
+            IngestResult r = applyActualCosts(day.getKey(), day.getValue());
+            updated += r.updated();
+            skippedNoEnvironment += r.skippedNoEnvironment();
+            skippedNoSnapshotRow += r.skippedNoSnapshotRow();
+            groupsReturned += r.groupsReturned();
         }
-        return new IngestResult(updated, skippedNoEnvironment, skippedNoSnapshotRow, groupsReturned);
+        IngestResult result = new IngestResult(updated, skippedNoEnvironment, skippedNoSnapshotRow, groupsReturned);
+        log.info("Actual cost ingestion for {}..{} — {} updated, {} skipped (no matching environment), " +
+                        "{} skipped (no estimate snapshot row yet), {} tag group(s) returned",
+                startInclusive, endExclusive, result.updated(), result.skippedNoEnvironment(),
+                result.skippedNoSnapshotRow(), result.groupsReturned());
+        return result;
     }
 
     // ---- pure logic (unit-testable without a real Cost Explorer call) ----
@@ -176,67 +182,72 @@ public class CostExplorerBillingService {
     Map<String, BigDecimal> parseCostByEnvironmentTag(GetCostAndUsageResponse response) {
         Map<String, BigDecimal> result = new LinkedHashMap<>();
         for (ResultByTime resultByTime : response.resultsByTime()) {
-            for (Group group : resultByTime.groups()) {
-                if (group.keys().isEmpty()) {
-                    continue;
-                }
-                String rawKey = group.keys().get(0);
-                int sep = rawKey.indexOf('$');
-                String tagValue = sep >= 0 ? rawKey.substring(sep + 1) : rawKey;
-                if (tagValue.isBlank()) {
-                    continue;
-                }
-
-                MetricValue metric = group.metrics().get(UNBLENDED_COST_METRIC);
-                if (metric == null || metric.amount() == null) {
-                    continue;
-                }
-                BigDecimal amount;
-                try {
-                    amount = new BigDecimal(metric.amount());
-                } catch (NumberFormatException e) {
-                    log.warn("Could not parse Cost Explorer amount '{}' for tag value '{}'", metric.amount(), tagValue);
-                    continue;
-                }
-                result.merge(tagValue, amount, BigDecimal::add);
-            }
+            addGroups(resultByTime, result);
         }
         return result;
     }
 
-    private GetCostAndUsageResponse fetchDailyCostByEnvironment(LocalDate date) {
-        String start = date.toString();
-        String end = date.plusDays(1).toString(); // CE's time period end is exclusive
-
-        return getClient().getCostAndUsage(GetCostAndUsageRequest.builder()
-                .timePeriod(DateInterval.builder().start(start).end(end).build())
-                .granularity(Granularity.DAILY)
-                .metrics(UNBLENDED_COST_METRIC)
-                .groupBy(GroupDefinition.builder()
-                        .type(GroupDefinitionType.TAG)
-                        .key(tagKeyPrefix + "environment")
-                        .build())
-                .build());
+    /**
+     * Per-day variant (E08-T02): {date -> {environment name -> cost}}, each date taken from its
+     * ResultByTime's time period start.
+     */
+    Map<LocalDate, Map<String, BigDecimal>> parseCostByDateAndEnvironmentTag(List<ResultByTime> results) {
+        Map<LocalDate, Map<String, BigDecimal>> byDate = new java.util.TreeMap<>();
+        for (ResultByTime resultByTime : results) {
+            if (resultByTime.timePeriod() == null || resultByTime.timePeriod().start() == null) {
+                continue;
+            }
+            LocalDate date = LocalDate.parse(resultByTime.timePeriod().start());
+            addGroups(resultByTime, byDate.computeIfAbsent(date, d -> new LinkedHashMap<>()));
+        }
+        return byDate;
     }
 
-    private CostExplorerClient getClient() {
-        CostExplorerClient existing = client;
-        if (existing != null) {
-            return existing;
-        }
-        synchronized (this) {
-            if (client == null) {
-                client = CostExplorerClient.builder()
-                        .region(Region.US_EAST_1)
-                        .credentialsProvider(StaticCredentialsProvider.create(
-                                AwsBasicCredentials.create(accessKey, secretKey)))
-                        .overrideConfiguration(ClientOverrideConfiguration.builder()
-                                .apiCallTimeout(Duration.ofSeconds(30))
-                                .apiCallAttemptTimeout(Duration.ofSeconds(25))
-                                .build())
-                        .build();
+    private void addGroups(ResultByTime resultByTime, Map<String, BigDecimal> result) {
+        for (Group group : resultByTime.groups()) {
+            if (group.keys().isEmpty()) {
+                continue;
             }
-            return client;
+            String rawKey = group.keys().get(0);
+            int sep = rawKey.indexOf('$');
+            String tagValue = sep >= 0 ? rawKey.substring(sep + 1) : rawKey;
+            if (tagValue.isBlank()) {
+                continue;
+            }
+
+            MetricValue metric = group.metrics().get(UNBLENDED_COST_METRIC);
+            if (metric == null || metric.amount() == null) {
+                continue;
+            }
+            BigDecimal amount;
+            try {
+                amount = new BigDecimal(metric.amount());
+            } catch (NumberFormatException e) {
+                log.warn("Could not parse Cost Explorer amount '{}' for tag value '{}'", metric.amount(), tagValue);
+                continue;
+            }
+            result.merge(tagValue, amount, BigDecimal::add);
         }
+    }
+
+    /** Every page of one DAILY, tag-grouped request for [start, end) (CE's end is exclusive). */
+    private List<ResultByTime> fetchCostByEnvironment(LocalDate startInclusive, LocalDate endExclusive) {
+        List<ResultByTime> results = new java.util.ArrayList<>();
+        String token = null;
+        do {
+            GetCostAndUsageResponse page = clientProvider.client().getCostAndUsage(GetCostAndUsageRequest.builder()
+                    .timePeriod(DateInterval.builder().start(startInclusive.toString()).end(endExclusive.toString()).build())
+                    .granularity(Granularity.DAILY)
+                    .metrics(UNBLENDED_COST_METRIC)
+                    .groupBy(GroupDefinition.builder()
+                            .type(GroupDefinitionType.TAG)
+                            .key(tagKeyPrefix + "environment")
+                            .build())
+                    .nextPageToken(token)
+                    .build());
+            results.addAll(page.resultsByTime());
+            token = page.nextPageToken();
+        } while (token != null && !token.isEmpty());
+        return results;
     }
 }

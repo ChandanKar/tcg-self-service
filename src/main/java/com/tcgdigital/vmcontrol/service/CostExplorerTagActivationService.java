@@ -4,18 +4,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.costexplorer.CostExplorerClient;
 import software.amazon.awssdk.services.costexplorer.model.CostAllocationTagStatus;
 import software.amazon.awssdk.services.costexplorer.model.CostAllocationTagStatusEntry;
 import software.amazon.awssdk.services.costexplorer.model.UpdateCostAllocationTagsStatusRequest;
 
-import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Activates cost-allocation tag keys in AWS Cost Explorer so a tag can be used as a grouping
@@ -30,29 +23,60 @@ public class CostExplorerTagActivationService {
 
     private static final Logger log = LoggerFactory.getLogger(CostExplorerTagActivationService.class);
 
-    @Value("${aws.access-key:}")
-    private String accessKey;
+    private final CostExplorerClientProvider clientProvider;
+    /** Minutes to wait after a failed activation before trying again (E08-T02). */
+    private final long retryMinutes;
+    private final java.time.Clock clock;
 
-    @Value("${aws.secret-key:}")
-    private String secretKey;
+    // Done once the keys are active; a failure is retried after the backoff (E08-T02).
+    private volatile boolean activated;
+    private volatile java.time.Instant lastAttempt;
 
-    private volatile CostExplorerClient client;
-
-    // Activation only needs to be requested once per key, ever — re-requesting on every
-    // reconciliation cycle would just be a wasted billed API call for an already-active tag.
-    private final AtomicBoolean activationRequested = new AtomicBoolean(false);
-
-    public boolean isAvailable() {
-        return accessKey != null && !accessKey.isEmpty()
-                && secretKey != null && !secretKey.isEmpty();
+    @org.springframework.beans.factory.annotation.Autowired
+    public CostExplorerTagActivationService(CostExplorerClientProvider clientProvider,
+                                            @Value("${cost.tagging.activation-retry-minutes:360}") long retryMinutes) {
+        this(clientProvider, retryMinutes, java.time.Clock.systemUTC());
     }
 
+    CostExplorerTagActivationService(CostExplorerClientProvider clientProvider, long retryMinutes, java.time.Clock clock) {
+        this.clientProvider = clientProvider;
+        this.retryMinutes = retryMinutes;
+        this.clock = clock;
+    }
+
+    public boolean isAvailable() {
+        return clientProvider.isConfigured();
+    }
+
+    /**
+     * Makes sure the cost-allocation tag keys are active in Cost Explorer. Already-active keys
+     * (ListCostAllocationTags) need no update call; a failed update is retried after
+     * cost.tagging.activation-retry-minutes rather than never again; once active, a no-op.
+     */
     public void ensureTagKeysActivated(List<String> tagKeys) {
-        if (tagKeys.isEmpty() || !isAvailable()) {
+        if (tagKeys.isEmpty() || !isAvailable() || activated) {
             return;
         }
-        if (!activationRequested.compareAndSet(false, true)) {
+        java.time.Instant now = clock.instant();
+        java.time.Instant previous = lastAttempt;
+        if (previous != null && previous.plus(java.time.Duration.ofMinutes(retryMinutes)).isAfter(now)) {
             return;
+        }
+        lastAttempt = now;
+        try {
+            java.util.Set<String> active = clientProvider.client().listCostAllocationTags(
+                            software.amazon.awssdk.services.costexplorer.model.ListCostAllocationTagsRequest.builder()
+                                    .tagKeys(tagKeys).build())
+                    .costAllocationTags().stream()
+                    .filter(t -> t.status() == CostAllocationTagStatus.ACTIVE)
+                    .map(software.amazon.awssdk.services.costexplorer.model.CostAllocationTag::tagKey)
+                    .collect(java.util.stream.Collectors.toSet());
+            if (active.containsAll(tagKeys)) {
+                activated = true;
+                return;
+            }
+        } catch (Exception e) {
+            log.debug("Could not list cost-allocation tags (will try to activate anyway): {}", e.getMessage());
         }
         try {
             List<CostAllocationTagStatusEntry> entries = tagKeys.stream()
@@ -62,37 +86,22 @@ public class CostExplorerTagActivationService {
                             .build())
                     .toList();
 
-            getClient().updateCostAllocationTagsStatus(UpdateCostAllocationTagsStatusRequest.builder()
+            var response = clientProvider.client().updateCostAllocationTagsStatus(UpdateCostAllocationTagsStatusRequest.builder()
                     .costAllocationTagsStatus(entries)
                     .build());
+            if (response.hasErrors() && !response.errors().isEmpty()) {
+                log.warn("Cost Explorer refused to activate some tag key(s) {}; will retry in {} minutes: {}",
+                        tagKeys, retryMinutes, response.errors());
+                return;
+            }
+            activated = true;
 
             log.info("Requested Cost Explorer activation for cost-allocation tag key(s): {} " +
                     "(may take up to 24h to appear in Cost Explorer results)", tagKeys);
         } catch (Exception e) {
-            log.warn("Could not activate cost-allocation tag key(s) {} — may already be active, or " +
-                    "ce:UpdateCostAllocationTagsStatus is not granted on the current AWS credential: {}",
-                    tagKeys, e.getMessage());
-        }
-    }
-
-    private CostExplorerClient getClient() {
-        CostExplorerClient existing = client;
-        if (existing != null) {
-            return existing;
-        }
-        synchronized (this) {
-            if (client == null) {
-                client = CostExplorerClient.builder()
-                        .region(Region.US_EAST_1)
-                        .credentialsProvider(StaticCredentialsProvider.create(
-                                AwsBasicCredentials.create(accessKey, secretKey)))
-                        .overrideConfiguration(ClientOverrideConfiguration.builder()
-                                .apiCallTimeout(Duration.ofSeconds(30))
-                                .apiCallAttemptTimeout(Duration.ofSeconds(25))
-                                .build())
-                        .build();
-            }
-            return client;
+            log.warn("Could not activate cost-allocation tag key(s) {} — ce:UpdateCostAllocationTagsStatus may " +
+                    "not be granted on the current AWS credential; will retry in {} minutes: {}",
+                    tagKeys, retryMinutes, e.getMessage());
         }
     }
 }

@@ -32,12 +32,108 @@ class CostExplorerBillingServiceTest {
 
     @Mock private EnvironmentRepository environmentRepository;
     @Mock private CostDailySnapshotRepository costDailySnapshotRepository;
+    @Mock private software.amazon.awssdk.services.costexplorer.CostExplorerClient ceClient;
 
     private CostExplorerBillingService service;
 
+    // "Today" for the trailing window: 2026-10-07 (UTC).
+    private static final java.time.Instant NOW = java.time.Instant.parse("2026-10-07T05:00:00Z");
+
     @BeforeEach
     void setUp() {
-        service = new CostExplorerBillingService(environmentRepository, costDailySnapshotRepository);
+        service = new CostExplorerBillingService(environmentRepository, costDailySnapshotRepository,
+                new CostExplorerClientProvider(ceClient),
+                new CostDayBoundary("UTC", java.time.Clock.fixed(NOW, java.time.ZoneOffset.UTC)));
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "actualsEnabled", true);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "tagKeyPrefix", "tcg:");
+    }
+
+    // ---- ingestWindow (E08-T02): one paginated request, per-day dates, overwrite ----
+
+    private static ResultByTime day(String date, Group... groups) {
+        return ResultByTime.builder()
+                .timePeriod(software.amazon.awssdk.services.costexplorer.model.DateInterval.builder()
+                        .start(date).end(LocalDate.parse(date).plusDays(1).toString()).build())
+                .groups(groups)
+                .build();
+    }
+
+    private Environment env(String name) {
+        Environment e = new Environment();
+        e.setEnvironmentId("id-" + name);
+        e.setName(name);
+        return e;
+    }
+
+    @Test
+    void twoPagesAreMergedAndTheSecondRequestCarriesTheToken() {
+        when(ceClient.getCostAndUsage(any(software.amazon.awssdk.services.costexplorer.model.GetCostAndUsageRequest.class)))
+                .thenReturn(GetCostAndUsageResponse.builder()
+                        .resultsByTime(day("2026-10-04", groupOf("tcg:environment$prod", "10")))
+                        .nextPageToken("page-2").build())
+                .thenReturn(GetCostAndUsageResponse.builder()
+                        .resultsByTime(day("2026-10-05", groupOf("tcg:environment$prod", "20"))).build());
+        when(environmentRepository.findByName("prod")).thenReturn(Optional.of(env("prod")));
+        when(costDailySnapshotRepository.findByEnvironmentEnvironmentIdAndSnapshotDate(any(), any()))
+                .thenAnswer(inv -> Optional.of(new CostDailySnapshot()));
+
+        CostExplorerBillingService.IngestResult result = service.backfillActualCosts(30);
+
+        ArgumentCaptor<software.amazon.awssdk.services.costexplorer.model.GetCostAndUsageRequest> requests =
+                ArgumentCaptor.forClass(software.amazon.awssdk.services.costexplorer.model.GetCostAndUsageRequest.class);
+        org.mockito.Mockito.verify(ceClient, org.mockito.Mockito.times(2)).getCostAndUsage(requests.capture());
+        assertEquals(null, requests.getAllValues().get(0).nextPageToken());
+        assertEquals("page-2", requests.getAllValues().get(1).nextPageToken());
+        // One request for the whole 30 days, ending today (exclusive).
+        assertEquals("2026-09-07", requests.getAllValues().get(0).timePeriod().start());
+        assertEquals("2026-10-07", requests.getAllValues().get(0).timePeriod().end());
+        assertEquals(2, result.updated());
+    }
+
+    @Test
+    void eachDaysCostLandsOnItsOwnDate() {
+        Map<LocalDate, Map<String, BigDecimal>> byDate = service.parseCostByDateAndEnvironmentTag(List.of(
+                day("2026-10-05", groupOf("tcg:environment$prod", "20")),
+                day("2026-10-04", groupOf("tcg:environment$prod", "10"), groupOf("tcg:environment$qa", "1"))));
+
+        assertEquals(0, new BigDecimal("10").compareTo(byDate.get(LocalDate.parse("2026-10-04")).get("prod")));
+        assertEquals(0, new BigDecimal("1").compareTo(byDate.get(LocalDate.parse("2026-10-04")).get("qa")));
+        assertEquals(0, new BigDecimal("20").compareTo(byDate.get(LocalDate.parse("2026-10-05")).get("prod")));
+    }
+
+    @Test
+    void aProvisionalActualInsideTheWindowIsOverwritten() {
+        when(ceClient.getCostAndUsage(any(software.amazon.awssdk.services.costexplorer.model.GetCostAndUsageRequest.class)))
+                .thenReturn(GetCostAndUsageResponse.builder()
+                        .resultsByTime(day("2026-10-06", groupOf("tcg:environment$prod", "95"))).build());
+        when(environmentRepository.findByName("prod")).thenReturn(Optional.of(env("prod")));
+        CostDailySnapshot yesterday = new CostDailySnapshot();
+        yesterday.setActualCost(new BigDecimal("40"));
+        when(costDailySnapshotRepository.findByEnvironmentEnvironmentIdAndSnapshotDate("id-prod", Date.valueOf("2026-10-06")))
+                .thenReturn(Optional.of(yesterday));
+
+        service.ingestTrailingWindow(3);
+
+        assertEquals(0, new BigDecimal("95").compareTo(yesterday.getActualCost()));
+        ArgumentCaptor<software.amazon.awssdk.services.costexplorer.model.GetCostAndUsageRequest> request =
+                ArgumentCaptor.forClass(software.amazon.awssdk.services.costexplorer.model.GetCostAndUsageRequest.class);
+        org.mockito.Mockito.verify(ceClient).getCostAndUsage(request.capture());
+        assertEquals("2026-10-04", request.getValue().timePeriod().start());
+        assertEquals("2026-10-07", request.getValue().timePeriod().end());
+    }
+
+    @Test
+    void aDisabledOrUnconfiguredServiceMakesNoCalls() {
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "actualsEnabled", false);
+        service.ingestTrailingWindow(3);
+
+        CostExplorerBillingService unconfigured = new CostExplorerBillingService(environmentRepository,
+                costDailySnapshotRepository, new CostExplorerClientProvider("", ""),
+                new CostDayBoundary("UTC", java.time.Clock.fixed(NOW, java.time.ZoneOffset.UTC)));
+        org.springframework.test.util.ReflectionTestUtils.setField(unconfigured, "actualsEnabled", true);
+        unconfigured.ingestTrailingWindow(3);
+
+        org.mockito.Mockito.verifyNoInteractions(ceClient);
     }
 
     // ---- parseCostByEnvironmentTag ----

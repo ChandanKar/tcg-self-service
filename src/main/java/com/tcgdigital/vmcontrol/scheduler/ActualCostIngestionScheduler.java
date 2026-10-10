@@ -9,11 +9,12 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDate;
 
 /**
- * Ingests yesterday's real AWS cost once daily — billing data has ~24h latency in Cost Explorer,
- * so intra-day polling would just waste money on the ~$0.01/call charge for no benefit. Runs
+ * Re-ingests the last cost.actuals.trailing-days complete days of real AWS cost once daily
+ * (E08-T02): Cost Explorer figures stay provisional for about 72h, so recent days are overwritten
+ * with the corrected numbers. One billed request (plus one per extra page) per run; intra-day
+ * polling would just waste money on the ~$0.01/call charge. Runs
  * after the 3am estimate snapshot so the actuals scheduler finds an existing snapshot row to
  * attach to. Disabled by default: requires Phase 1's cost-allocation tags to already be active
  * in Cost Explorer (24h propagation) or every day will resolve zero environments.
@@ -31,6 +32,9 @@ public class ActualCostIngestionScheduler {
     @Value("${cost.actuals.enabled:false}")
     private boolean enabled;
 
+    @Value("${cost.actuals.trailing-days:3}")
+    private int trailingDays = 3;
+
     public ActualCostIngestionScheduler(CostExplorerBillingService costExplorerBillingService,
                                          ScheduledJobLockService lockService) {
         this.costExplorerBillingService = costExplorerBillingService;
@@ -45,7 +49,7 @@ public class ActualCostIngestionScheduler {
         lockService.runLocked(LOCK_NAME, () -> {
             try {
                 CostExplorerBillingService.IngestResult result =
-                        costExplorerBillingService.ingestDailyActualCosts(LocalDate.now().minusDays(1));
+                        costExplorerBillingService.ingestTrailingWindow(trailingDays);
                 log.info("Scheduled actual cost ingestion complete — {} updated, {} skipped (no environment), " +
                                 "{} skipped (no snapshot row)",
                         result.updated(), result.skippedNoEnvironment(), result.skippedNoSnapshotRow());

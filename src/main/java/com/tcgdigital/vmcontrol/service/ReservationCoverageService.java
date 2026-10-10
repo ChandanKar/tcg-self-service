@@ -6,11 +6,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.costexplorer.CostExplorerClient;
 import software.amazon.awssdk.services.costexplorer.model.DateInterval;
 import software.amazon.awssdk.services.costexplorer.model.GetReservationCoverageRequest;
 import software.amazon.awssdk.services.costexplorer.model.GetReservationCoverageResponse;
@@ -23,7 +18,6 @@ import software.amazon.awssdk.services.costexplorer.model.GetSavingsPlansUtiliza
 
 import java.math.BigDecimal;
 import java.sql.Date;
-import java.time.Duration;
 import java.time.LocalDate;
 import java.util.Optional;
 
@@ -40,26 +34,20 @@ public class ReservationCoverageService {
 
     private static final Logger log = LoggerFactory.getLogger(ReservationCoverageService.class);
 
-    @Value("${aws.access-key:}")
-    private String accessKey;
-
-    @Value("${aws.secret-key:}")
-    private String secretKey;
-
     @Value("${cost.reservations.enabled:false}")
     private boolean enabled;
 
-    private volatile CostExplorerClient client;
-
     private final ReservationCoverageSnapshotRepository repository;
+    private final CostExplorerClientProvider clientProvider;
 
-    public ReservationCoverageService(ReservationCoverageSnapshotRepository repository) {
+    public ReservationCoverageService(ReservationCoverageSnapshotRepository repository,
+                                      CostExplorerClientProvider clientProvider) {
         this.repository = repository;
+        this.clientProvider = clientProvider;
     }
 
     public boolean isAvailable() {
-        return enabled && accessKey != null && !accessKey.isEmpty()
-                && secretKey != null && !secretKey.isEmpty();
+        return enabled && clientProvider.isConfigured();
     }
 
     /**
@@ -99,7 +87,7 @@ public class ReservationCoverageService {
 
     private void captureReservationCoverage(ReservationCoverageSnapshot snapshot, DateInterval period) {
         try {
-            GetReservationCoverageResponse response = getClient().getReservationCoverage(
+            GetReservationCoverageResponse response = clientProvider.client().getReservationCoverage(
                     GetReservationCoverageRequest.builder().timePeriod(period).build());
             if (response.total() == null) {
                 return;
@@ -119,7 +107,7 @@ public class ReservationCoverageService {
 
     private void captureReservationUtilization(ReservationCoverageSnapshot snapshot, DateInterval period) {
         try {
-            GetReservationUtilizationResponse response = getClient().getReservationUtilization(
+            GetReservationUtilizationResponse response = clientProvider.client().getReservationUtilization(
                     GetReservationUtilizationRequest.builder().timePeriod(period).build());
             if (response.total() == null) {
                 return;
@@ -133,7 +121,7 @@ public class ReservationCoverageService {
 
     private void captureSavingsPlansCoverage(ReservationCoverageSnapshot snapshot, DateInterval period) {
         try {
-            GetSavingsPlansCoverageResponse response = getClient().getSavingsPlansCoverage(
+            GetSavingsPlansCoverageResponse response = clientProvider.client().getSavingsPlansCoverage(
                     GetSavingsPlansCoverageRequest.builder().timePeriod(period).build());
             if (response.savingsPlansCoverages() == null || response.savingsPlansCoverages().isEmpty()) {
                 return;
@@ -149,7 +137,7 @@ public class ReservationCoverageService {
 
     private void captureSavingsPlansUtilization(ReservationCoverageSnapshot snapshot, DateInterval period) {
         try {
-            GetSavingsPlansUtilizationResponse response = getClient().getSavingsPlansUtilization(
+            GetSavingsPlansUtilizationResponse response = clientProvider.client().getSavingsPlansUtilization(
                     GetSavingsPlansUtilizationRequest.builder().timePeriod(period).build());
             if (response.total() == null || response.total().utilization() == null) {
                 return;
@@ -169,27 +157,6 @@ public class ReservationCoverageService {
             return Optional.of(new BigDecimal(value));
         } catch (NumberFormatException e) {
             return Optional.empty();
-        }
-    }
-
-    private CostExplorerClient getClient() {
-        CostExplorerClient existing = client;
-        if (existing != null) {
-            return existing;
-        }
-        synchronized (this) {
-            if (client == null) {
-                client = CostExplorerClient.builder()
-                        .region(Region.US_EAST_1)
-                        .credentialsProvider(StaticCredentialsProvider.create(
-                                AwsBasicCredentials.create(accessKey, secretKey)))
-                        .overrideConfiguration(ClientOverrideConfiguration.builder()
-                                .apiCallTimeout(Duration.ofSeconds(30))
-                                .apiCallAttemptTimeout(Duration.ofSeconds(25))
-                                .build())
-                        .build();
-            }
-            return client;
         }
     }
 }
