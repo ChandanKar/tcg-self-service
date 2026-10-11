@@ -50,6 +50,27 @@ public class EnvironmentService {
     @org.springframework.beans.factory.annotation.Autowired
     private com.tcgdigital.vmcontrol.repository.TeamRepository teamRepository;
 
+    /** Required allocation fields (E23-T04). */
+    @org.springframework.beans.factory.annotation.Autowired
+    private AllocationValidator allocationValidator;
+
+    /** Active environments missing allocation fields, for admins (E23-T04). */
+    @Transactional(readOnly = true)
+    public java.util.List<java.util.Map<String, Object>> allocationGaps() {
+        java.util.List<java.util.Map<String, Object>> gaps = new java.util.ArrayList<>();
+        for (Environment e : environmentRepository.findByIsActiveTrueOrderByNameAsc()) {
+            java.util.List<String> missing = allocationValidator.missing(e);
+            if (!missing.isEmpty()) {
+                java.util.Map<String, Object> gap = new java.util.LinkedHashMap<>();
+                gap.put("environmentId", e.getEnvironmentId());
+                gap.put("name", e.getDisplayName() != null ? e.getDisplayName() : e.getName());
+                gap.put("missing", missing);
+                gaps.add(gap);
+            }
+        }
+        return gaps;
+    }
+
     public EnvironmentService(EnvironmentRepository environmentRepository,
                               EnvironmentAccessRepository accessRepository,
                               VmGroupRepository groupRepository,
@@ -221,6 +242,7 @@ public class EnvironmentService {
         if (dto.getTeamId() != null && !dto.getTeamId().isBlank()) {
             environment.setTeam(activeTeam(dto.getTeamId()));
         }
+        allocationValidator.validate(environment); // E23-T04 (off by default)
 
         Environment saved = environmentRepository.save(environment);
         log.info("Created environment: {} ({})", saved.getName(), saved.getEnvironmentId());
@@ -280,6 +302,7 @@ public class EnvironmentService {
             }
             environment.setServiceType(dto.getServiceType());
         }
+        allocationValidator.validate(environment); // E23-T04 (off by default)
 
         Environment saved = environmentRepository.save(environment);
         log.info("Updated environment: {} ({})", saved.getName(), saved.getEnvironmentId());

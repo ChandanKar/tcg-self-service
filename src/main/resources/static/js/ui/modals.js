@@ -471,6 +471,7 @@ const Modals = (function() {
                         $('#cem-team').html(html);
                         $('#cem-eks-team').html(html);
                     });
+                    Teams.markRequired(['#cem-team', '#cem-eks-team']);
                 }
                 document.getElementById('cem-submitBtn').addEventListener('click', function() {
                     const serviceType = document.getElementById('cem-serviceType').value;
@@ -599,6 +600,7 @@ const Modals = (function() {
                 const $modal = $('#editEnvModal');
                 if (typeof Teams !== 'undefined') {
                     Teams.options(env.teamId).then(html => $modal.find('#editEnvTeam').html(html));
+                    Teams.markRequired(['#editEnvTeam']);
                 }
                 $modal.find('#saveEnvBtn').off('click').on('click', function() {
                     const data = {

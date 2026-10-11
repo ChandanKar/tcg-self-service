@@ -153,7 +153,7 @@ public class TagReconciliationService {
 
         if (tagged > 0) {
             tagActivationService.ensureTagKeysActivated(List.of(
-                    tagKeyPrefix + "managed-by", tagKeyPrefix + "environment", tagKeyPrefix + "team"));
+                    tagKeyPrefix + "managed-by", tagKeyPrefix + "environment", tagKeyPrefix + "team", tagKeyPrefix + "cost-center"));
         }
 
         log.info("Tag reconciliation complete — {} tagged, {} failed, {} total", tagged, failed, vms.size());
@@ -165,6 +165,10 @@ public class TagReconciliationService {
         tags.put(tagKeyPrefix + "managed-by", "vmcontrol");
         tags.put(tagKeyPrefix + "environment", environment.getName());
         tags.put(tagKeyPrefix + "team", teamResolver.resolveTeam(environment));
+        // The team's cost center for chargeback (E23-T04).
+        if (environment.getTeam() != null && environment.getTeam().getCostCenter() != null) {
+            tags.put(tagKeyPrefix + "cost-center", environment.getTeam().getCostCenter());
+        }
         return tags;
     }
 

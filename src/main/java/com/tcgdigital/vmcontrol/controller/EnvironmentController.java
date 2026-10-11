@@ -71,6 +71,23 @@ public class EnvironmentController {
         this.userService = userService;
     }
 
+    /** Active environments missing required allocation fields (E23-T04). */
+    @GetMapping("/allocation-gaps")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    public java.util.List<java.util.Map<String, Object>> allocationGaps() {
+        return environmentService.allocationGaps();
+    }
+
+    /** Which allocation fields are required, so forms can mark them (E23-T04). */
+    @GetMapping("/allocation-rules")
+    @org.springframework.security.access.prepost.PreAuthorize("isAuthenticated()")
+    public com.tcgdigital.vmcontrol.service.AllocationValidator.Rules allocationRules() {
+        return allocationValidator.rules();
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.tcgdigital.vmcontrol.service.AllocationValidator allocationValidator;
+
     @GetMapping
     @PreAuthorize("isAuthenticated()")
     @Operation(

@@ -36,12 +36,25 @@ const Teams = (function() {
                     </div>
                     <button type="button" class="btn btn-primary" data-action="team-new"><i class="fas fa-plus" aria-hidden="true"></i> New team</button>
                 </div>
+                <div id="teams-gaps"></div>
                 <div class="teams-layout">
                     <div id="teams-list"><div class="text-muted small p-2"><i class="fas fa-spinner fa-spin me-1" aria-hidden="true"></i>Loading teams…</div></div>
                     <div id="team-detail"></div>
                 </div>
             </div>`);
         refresh();
+        drawGaps();
+    }
+
+    /** Environments missing required allocation fields, with an Edit link (E23-T04). */
+    function drawGaps() {
+        call('GET', Config.API.teams.allocationGaps).then(gaps => {
+            if (!gaps || !gaps.length) { $('#teams-gaps').html(''); return; }
+            $('#teams-gaps').html(Utils.html`<div class="alert alert-warning" role="status">
+                <strong>${gaps.length} environment${gaps.length === 1 ? '' : 's'} missing allocation fields:</strong>
+                <ul class="mb-0">${Utils.raw(gaps.slice(0, 10).map(g => Utils.html`<li><a href="#/environments/${g.environmentId}">${g.name}</a>
+                    — ${g.missing.join(', ')}</li>`).join(''))}</ul></div>`);
+        }).catch(() => {});
     }
 
     function refresh() {
@@ -228,6 +241,19 @@ const Teams = (function() {
             .catch(e => Notifications.showError(serverMessage(e, 'Could not remove the member.')));
     }
 
+    /** Marks a team picker required when the server requires a team (E23-T04). */
+    function markRequired(selectors) {
+        call('GET', Config.API.teams.allocationRules).then(rules => {
+            if (!rules || !rules.requireTeam) return;
+            selectors.forEach(sel => {
+                const $select = $(sel);
+                $select.attr('required', 'required').attr('aria-required', 'true');
+                const $label = $(`label[for="${$select.attr('id')}"]`);
+                if (!$label.find('.text-danger').length) $label.append(' <span class="text-danger" aria-hidden="true">*</span>');
+            });
+        }).catch(() => {});
+    }
+
     /** Options for an environment's team picker (E23-T03); resolves to [] when teams cannot load. */
     function options(selectedTeamId) {
         return call('GET', Config.API.teams.list(false)).catch(() => []).then(teams => {
@@ -238,7 +264,7 @@ const Teams = (function() {
     }
 
     return {
-        load, refresh, select, openForm, deactivate, searchGroups, link, sync, addMember, removeMember, options,
+        load, refresh, select, openForm, deactivate, searchGroups, link, sync, addMember, removeMember, options, markRequired,
         edit: () => openForm(selectedTeam())
     };
 })();

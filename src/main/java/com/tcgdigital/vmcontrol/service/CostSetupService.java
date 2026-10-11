@@ -42,7 +42,7 @@ public class CostSetupService {
     static final String ALLOWED = "ALLOWED";
     static final String DENIED = "DENIED";
     static final String UNKNOWN = "UNKNOWN";
-    static final List<String> TAG_KEYS = List.of("tcg:environment", "tcg:team", "tcg:managed-by");
+    static final List<String> TAG_KEYS = List.of("tcg:environment", "tcg:team", "tcg:managed-by", "tcg:cost-center");
     private static final Duration CHECK_CACHE = Duration.ofSeconds(60);
 
     /** A feature row: its switch, its job lock (for the last run) and the actions it needs. */

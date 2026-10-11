@@ -64,4 +64,24 @@ test.describe('Teams', () => {
     await expect.poll(() => sent && sent.teamId).toBeTruthy();
     expect(JSON.parse(sent.metadata).ownerTeam).toBeUndefined();
   });
+
+  test('required allocation fields: the picker is marked required and gaps are listed (E23-T04)', async ({ page }) => {
+    await page.route(/\/api\/v1\/environments\/allocation-rules$/, route => route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ requireTeam: true, requiredMetadataKeys: ['costCenter'] }),
+    }));
+    await page.route(/\/api\/v1\/environments\/allocation-gaps$/, route => route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify([{ environmentId: 'env-x', name: 'Legacy <b>env</b>', missing: ['team', 'costCenter'] }]),
+    }));
+    await openTeams(page);
+    const gaps = page.locator('#teams-gaps');
+    await expect(gaps).toContainText('1 environment missing allocation fields');
+    await expect(gaps).toContainText('team, costCenter');
+    await expect(gaps.locator('a[href="#/environments/env-x"]')).toHaveText('Legacy <b>env</b>');
+
+    await page.evaluate('Modals.showCreateEnvironment(function() {})');
+    await expect(page.locator('#cem-team')).toHaveAttribute('aria-required', 'true');
+    await expect(page.locator('label[for="cem-team"] .text-danger')).toHaveCount(1);
+  });
 });

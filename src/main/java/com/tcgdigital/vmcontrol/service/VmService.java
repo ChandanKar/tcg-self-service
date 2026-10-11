@@ -93,6 +93,10 @@ public class VmService {
                 .orElseThrow(() -> new ResourceNotFoundException("Vm", vmId));
     }
 
+    /** Required allocation fields of the target environment (E23-T04). */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private AllocationValidator allocationValidator;
+
     /**
      * Register a new VM in a group.
      */
@@ -107,6 +111,9 @@ public class VmService {
         // Verify group exists
         VmGroup group = groupRepository.findById(dto.getGroupId())
                 .orElseThrow(() -> new ResourceNotFoundException("VmGroup", dto.getGroupId()));
+        if (allocationValidator != null) {
+            allocationValidator.validate(group.getEnvironment()); // E23-T04 (off by default)
+        }
 
         // Validate name uniqueness within group, on the name as stored (the unique index is on it)
         String name = normalizeName(dto.getName());

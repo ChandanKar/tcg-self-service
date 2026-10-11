@@ -137,7 +137,10 @@ const Config = (function() {
             entraGroup: (id) => `${API_BASE_URL}/teams/${encodeURIComponent(id)}/entra-group`,
             sync: (id) => `${API_BASE_URL}/teams/${encodeURIComponent(id)}/sync`,
             members: (id) => `${API_BASE_URL}/teams/${encodeURIComponent(id)}/members`,
-            member: (id, userId) => `${API_BASE_URL}/teams/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}`
+            member: (id, userId) => `${API_BASE_URL}/teams/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}`,
+            // Required allocation fields (E23-T04)
+            allocationRules: `${API_BASE_URL}/environments/allocation-rules`,
+            allocationGaps: `${API_BASE_URL}/environments/allocation-gaps`
         },
 
         // Waste sweeps (E22)

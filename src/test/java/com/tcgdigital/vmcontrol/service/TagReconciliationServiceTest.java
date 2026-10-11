@@ -86,6 +86,27 @@ class TagReconciliationServiceTest {
     }
 
     @Test
+    void reconcileAll_addsTheTeamsCostCenterAndActivatesIt() {
+        Environment env = buildEnvironment("env-1", "prod-01", null);
+        com.tcgdigital.vmcontrol.model.Team team = new com.tcgdigital.vmcontrol.model.Team();
+        team.setTeamId("t-1");
+        team.setDisplayName("Payments");
+        team.setCostCenter("CC-12");
+        env.setTeam(team);
+        Vm vm = buildEc2Vm("vm-1", env, "i-aaa", "ap-south-1");
+        when(vmRepository.findByIsActiveTrueFetchGroupAndEnvironment()).thenReturn(List.of(vm));
+        when(awsCloudProviderService.tagInstances(eq("ap-south-1"), any(), any())).thenReturn(Set.of("i-aaa"));
+
+        service.reconcileAll();
+
+        ArgumentCaptor<Map<String, String>> tagsCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(awsCloudProviderService).tagInstances(eq("ap-south-1"), eq(List.of("i-aaa")), tagsCaptor.capture());
+        assertEquals("CC-12", tagsCaptor.getValue().get("tcg:cost-center"));
+        assertEquals("Payments", tagsCaptor.getValue().get("tcg:team"));
+        verify(tagActivationService).ensureTagKeysActivated(List.of("tcg:managed-by", "tcg:environment", "tcg:team", "tcg:cost-center"));
+    }
+
+    @Test
     void reconcileAll_taggingFailureForOneGroupDoesNotBlockOthers() {
         Environment envA = buildEnvironment("env-a", "env-a-name", null);
         Environment envB = buildEnvironment("env-b", "env-b-name", null);
