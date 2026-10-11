@@ -9,6 +9,7 @@ import java.sql.Timestamp;
  * Cost; {@code rightsizingPotentialSavings} and {@code rightsizingCandidateCount} cover only
  * scale-down candidates that save money; {@code scaleUpCandidateCount} counts the rest.
  * {@code approximatePriceVmCount} VMs are priced with another region's rate (E08-T07).
+ * {@code eksControlPlaneCost} is the EKS control-plane fee, already part of {@code totalMonthlyCost} (E26-T03).
  */
 public record CostSummaryDTO(
         BigDecimal totalMonthlyCost,
@@ -22,5 +23,6 @@ public record CostSummaryDTO(
         Integer costKnownVmCount,
         Timestamp generatedAt,
         Integer scaleUpCandidateCount,
-        Integer approximatePriceVmCount
+        Integer approximatePriceVmCount,
+        BigDecimal eksControlPlaneCost
 ) {}

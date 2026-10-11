@@ -32,6 +32,10 @@ public class PricingReferenceService {
     private final Map<String, String> upsizeMap = new HashMap<>();
     private BigDecimal storageGbMonthRate = BigDecimal.ZERO;
 
+    /** EKS control-plane fee per cluster-hour: 0.10 standard, 0.60 on extended support (E26-T03). */
+    @org.springframework.beans.factory.annotation.Value("${eks.pricing.control-plane-hourly:0.10}")
+    private BigDecimal eksControlPlaneHourlyRate = new BigDecimal("0.10");
+
     @PostConstruct
     void loadPricing() {
         ObjectMapper mapper = new ObjectMapper();
@@ -103,6 +107,10 @@ public class PricingReferenceService {
 
     public BigDecimal getStorageGbMonthRate() {
         return storageGbMonthRate;
+    }
+
+    public BigDecimal getEksControlPlaneHourlyRate() {
+        return eksControlPlaneHourlyRate;
     }
 
     public Optional<String> suggestSmallerType(String provider, String instanceType) {

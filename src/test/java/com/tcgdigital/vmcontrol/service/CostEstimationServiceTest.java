@@ -295,6 +295,19 @@ class CostEstimationServiceTest {
     }
 
     @Test
+    void theEksControlPlaneFeeIsInTheTotalAndItsEnvironmentsBar() {
+        BigDecimal vmOnly = service.getSummary().totalMonthlyCost();
+        service.invalidateBundles();
+        when(costDataProvider.environmentFees(anyList(), any(), any())).thenReturn(Map.of("env-1", new BigDecimal("72.00")));
+
+        com.tcgdigital.vmcontrol.dto.CostSummaryDTO summary = service.getSummary();
+
+        assertEquals(0, new BigDecimal("72.00").compareTo(summary.eksControlPlaneCost()));
+        assertEquals(0, vmOnly.add(new BigDecimal("72.00")).compareTo(summary.totalMonthlyCost()));
+        assertEquals(0, vmOnly.add(new BigDecimal("72.00")).compareTo(service.getSpendByEnvironment().get(0).cost()));
+    }
+
+    @Test
     void rightsizingKpiCountsOnlyMoneySavingScaleDowns() {
         com.tcgdigital.vmcontrol.dto.CostSummaryDTO summary = service.getSummary();
         RightsizingCandidateDTO down = onlyCandidate();

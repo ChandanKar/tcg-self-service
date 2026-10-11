@@ -106,6 +106,18 @@ class CostSnapshotServiceTest {
     }
 
     @Test
+    void environmentFeesSuchAsTheEksControlPlaneAreAddedToTheDailyTotal() {
+        when(snapshotRepository.findByEnvironmentEnvironmentIdAndSnapshotDate(any(), any())).thenReturn(Optional.empty());
+        when(costDataProvider.environmentFees(anyList(), any(), any())).thenReturn(Map.of("env-1", new java.math.BigDecimal("2.40")));
+
+        service("UTC", 1).captureDailySnapshot();
+
+        ArgumentCaptor<CostDailySnapshot> saved = ArgumentCaptor.forClass(CostDailySnapshot.class);
+        verify(snapshotRepository).save(saved.capture());
+        assertThat(saved.getValue().getEstimatedCost()).isEqualByComparingTo("2.40");
+    }
+
+    @Test
     void anExistingRowForADateIsUpdatedNotDuplicated() {
         CostDailySnapshot existing = new CostDailySnapshot();
         when(snapshotRepository.findByEnvironmentEnvironmentIdAndSnapshotDate(any(), any())).thenReturn(Optional.of(existing));

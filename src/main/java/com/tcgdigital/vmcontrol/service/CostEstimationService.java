@@ -115,14 +115,17 @@ public class CostEstimationService {
 
     public CostSummaryDTO getSummary() {
         List<VmCostBundle> bundles = buildBundles();
-        BigDecimal totalMonthlyCost = sumCost(bundles);
-
         List<Vm> vms = bundles.stream().map(VmCostBundle::vm).toList();
+        // The EKS control-plane fee belongs to the environment, not to a node group (E26-T03).
+        BigDecimal eksControlPlaneCost = sumFees(vms, windowStart(COST_WINDOW_DAYS), Timestamp.from(Instant.now()));
+        BigDecimal totalMonthlyCost = sumCost(bundles).add(eksControlPlaneCost);
+
         Timestamp prevEnd = windowStart(COST_WINDOW_DAYS);
         Timestamp prevStart = windowStart(COST_WINDOW_DAYS * 2);
         BigDecimal previousPeriodCost = costDataProvider.estimateCosts(vms, prevStart, prevEnd).values().stream()
                 .map(CostDataProvider.VmCostEstimate::cost)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .add(sumFees(vms, prevStart, prevEnd));
 
         BigDecimal changePercent = null;
         if (previousPeriodCost.compareTo(BigDecimal.ZERO) > 0) {
@@ -160,14 +163,33 @@ public class CostEstimationService {
                 (int) costKnownCount,
                 Timestamp.from(Instant.now()),
                 scaleUpCandidateCount,
-                (int) bundles.stream().filter(b -> b.estimate() != null && b.estimate().priceApproximate()).count()
+                (int) bundles.stream().filter(b -> b.estimate() != null && b.estimate().priceApproximate()).count(),
+                eksControlPlaneCost
         );
     }
 
+    private BigDecimal sumFees(List<Vm> vms, Timestamp start, Timestamp end) {
+        Map<String, BigDecimal> fees = costDataProvider.environmentFees(vms, start, end);
+        return fees == null ? BigDecimal.ZERO : fees.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
     public List<SpendByDimensionDTO> getSpendByEnvironment() {
-        return groupSpend(buildBundles(),
+        List<VmCostBundle> bundles = buildBundles();
+        List<SpendByDimensionDTO> rows = groupSpend(bundles,
                 b -> b.vm().getGroup().getEnvironment().getEnvironmentId(),
                 b -> b.vm().getGroup().getEnvironment().getDisplayName());
+        Map<String, BigDecimal> fees = costDataProvider.environmentFees(bundles.stream().map(VmCostBundle::vm).toList(),
+                windowStart(COST_WINDOW_DAYS), Timestamp.from(Instant.now()));
+        if (fees == null || fees.isEmpty()) {
+            return rows;
+        }
+        // An EKS environment's bar includes its control-plane fee (E26-T03).
+        return rows.stream()
+                .map(r -> fees.containsKey(r.dimensionKey())
+                        ? new SpendByDimensionDTO(r.dimensionKey(), r.dimensionLabel(), r.cost().add(fees.get(r.dimensionKey())), r.vmCount())
+                        : r)
+                .sorted(Comparator.comparing(SpendByDimensionDTO::cost).reversed())
+                .toList();
     }
 
     public List<SpendByDimensionDTO> getSpendByVmType() {

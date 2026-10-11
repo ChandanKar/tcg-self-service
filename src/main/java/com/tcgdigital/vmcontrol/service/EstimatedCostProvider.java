@@ -110,6 +110,11 @@ public class EstimatedCostProvider implements CostDataProvider {
             String pricingProvider = isEks ? "AWS" : vm.getProvider().name();
             String instanceType = isEks ? eksNodeInfo.instanceType() : instanceTypeByVmId.get(vmId);
             int nodeCount = isEks ? eksNodeInfo.nodeCount() : 1;
+            if (isEks && eksNodeInfo.diskSizeGib() > 0) {
+                // Each node has its own root volume, which exists only while the node runs (E26-T03).
+                storageGib = (long) eksNodeInfo.diskSizeGib() * nodeCount;
+                storageDays = runtimeHours.divide(HOURS_PER_DAY, 6, RoundingMode.HALF_UP);
+            }
 
             PricingReferenceService.PriceLookupResult rate =
                     pricingReferenceService.lookupHourlyRate(pricingProvider, instanceType, vm.getRegion());
@@ -137,6 +142,38 @@ public class EstimatedCostProvider implements CostDataProvider {
      * on plain EC2 hardware, so the standard AWS pricing reference applies per node.
      */
     private static final ObjectMapper EKS_JSON = new ObjectMapper();
+    private static final BigDecimal HOURS_PER_DAY = BigDecimal.valueOf(24);
+
+    /**
+     * The EKS control-plane fee (E26-T03): every environment with an EKS node group pays the
+     * hourly cluster rate for each hour of the window since its first node group was registered,
+     * whether or not any node runs.
+     */
+    @Override
+    public Map<String, BigDecimal> environmentFees(List<Vm> vms, Timestamp windowStart, Timestamp windowEnd) {
+        Map<String, Timestamp> firstNodeGroupByEnvironment = new LinkedHashMap<>();
+        for (Vm vm : vms) {
+            if (vm.getProvider() != CloudProvider.AWS_EKS || vm.getGroup() == null || vm.getGroup().getEnvironment() == null) {
+                continue;
+            }
+            // Unknown registration time: charged for the whole window.
+            Timestamp created = vm.getCreatedAt() != null ? vm.getCreatedAt() : new Timestamp(0);
+            firstNodeGroupByEnvironment.merge(vm.getGroup().getEnvironment().getEnvironmentId(), created,
+                    (a, b) -> a.before(b) ? a : b);
+        }
+        BigDecimal hourlyRate = pricingReferenceService.getEksControlPlaneHourlyRate();
+        Map<String, BigDecimal> fees = new LinkedHashMap<>();
+        if (hourlyRate == null || hourlyRate.signum() <= 0) {
+            return fees;
+        }
+        firstNodeGroupByEnvironment.forEach((environmentId, since) -> {
+            BigDecimal days = vmCostCalculator.storageWindowDays(since, windowStart, windowEnd);
+            if (days.signum() > 0) {
+                fees.put(environmentId, hourlyRate.multiply(days).multiply(HOURS_PER_DAY).setScale(2, RoundingMode.HALF_UP));
+            }
+        });
+        return fees;
+    }
 
     /** An EKS node group's node type and count from its Vm metadata (E26-T02); 1 node when unknown. */
     static EksNodeInfo eksNodeInfo(String metadata) {
@@ -144,10 +181,7 @@ public class EstimatedCostProvider implements CostDataProvider {
             return new EksNodeInfo(null, 1);
         }
         try {
-            JsonNode node = EKS_JSON.readTree(metadata);
-            String instanceType = node.hasNonNull("instanceType") ? node.get("instanceType").asText() : null;
-            int desiredSize = node.hasNonNull("desiredSize") ? node.get("desiredSize").asInt() : 1;
-            return new EksNodeInfo(instanceType, Math.max(desiredSize, 1));
+            return parseEksNodeInfo(EKS_JSON.readTree(metadata));
         } catch (Exception e) {
             return new EksNodeInfo(null, 1);
         }
@@ -159,18 +193,29 @@ public class EstimatedCostProvider implements CostDataProvider {
             return new EksNodeInfo(null, 1);
         }
         try {
-            JsonNode node = objectMapper.readTree(metadata);
-            String instanceType = node.hasNonNull("instanceType") ? node.get("instanceType").asText() : null;
-            int desiredSize = node.hasNonNull("desiredSize") ? node.get("desiredSize").asInt() : 1;
-            return new EksNodeInfo(instanceType, Math.max(desiredSize, 1));
+            return parseEksNodeInfo(objectMapper.readTree(metadata));
         } catch (Exception e) {
             log.debug("Could not parse EKS node group metadata for VM {}: {}", vm.getVmId(), e.getMessage());
             return new EksNodeInfo(null, 1);
         }
     }
 
-    /** An EKS node group's node instance type and desired size (also used by the cost preview, E25-T01). */
-    record EksNodeInfo(String instanceType, int nodeCount) {}
+    private static EksNodeInfo parseEksNodeInfo(JsonNode node) {
+        String instanceType = node.hasNonNull("instanceType") ? node.get("instanceType").asText() : null;
+        int desiredSize = node.hasNonNull("desiredSize") ? node.get("desiredSize").asInt() : 1;
+        int diskSizeGib = node.hasNonNull("diskSizeGib") ? Math.max(node.get("diskSizeGib").asInt(), 0) : 0;
+        return new EksNodeInfo(instanceType, Math.max(desiredSize, 1), diskSizeGib);
+    }
+
+    /**
+     * An EKS node group's node instance type, desired size (also used by the cost preview, E25-T01)
+     * and per-node disk size in GiB, 0 when unknown (E26-T03).
+     */
+    record EksNodeInfo(String instanceType, int nodeCount, int diskSizeGib) {
+        EksNodeInfo(String instanceType, int nodeCount) {
+            this(instanceType, nodeCount, 0);
+        }
+    }
 
     /**
      * The first in-window transition already carries its own previousStatus, so only VMs without

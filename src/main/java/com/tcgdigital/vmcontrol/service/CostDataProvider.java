@@ -22,6 +22,14 @@ public interface CostDataProvider {
      */
     Map<String, VmCostEstimate> estimateCosts(List<Vm> vms, Timestamp windowStart, Timestamp windowEnd);
 
+    /**
+     * Charges that belong to an environment rather than to one of its VMs, keyed by environmentId,
+     * over the same window (E26-T03: the EKS control-plane fee). Environments without any are absent.
+     */
+    default Map<String, BigDecimal> environmentFees(List<Vm> vms, Timestamp windowStart, Timestamp windowEnd) {
+        return Map.of();
+    }
+
     /** {@code priceApproximate}: the hourly rate is another region's (E08-T07). */
     record VmCostEstimate(
             boolean costKnown,

@@ -104,6 +104,8 @@ public class CostSnapshotService {
 
         Map<String, CostDataProvider.VmCostEstimate> estimates =
                 costDataProvider.estimateCosts(vms, windowStart, windowEnd);
+        // Environment-level charges such as the EKS control plane (E26-T03).
+        Map<String, BigDecimal> fees = costDataProvider.environmentFees(vms, windowStart, windowEnd);
 
         for (Environment environment : environments) {
             List<Vm> envVms = vmsByEnvironmentId.getOrDefault(environment.getEnvironmentId(), List.of());
@@ -111,7 +113,8 @@ public class CostSnapshotService {
                     .map(v -> estimates.get(v.getVmId()))
                     .filter(Objects::nonNull)
                     .map(CostDataProvider.VmCostEstimate::cost)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .add(fees == null ? BigDecimal.ZERO : fees.getOrDefault(environment.getEnvironmentId(), BigDecimal.ZERO));
 
             CostDailySnapshot snapshot = costDailySnapshotRepository
                     .findByEnvironmentEnvironmentIdAndSnapshotDate(environment.getEnvironmentId(), snapshotDate)

@@ -455,12 +455,18 @@ const CostManagement = (function() {
             : `${summary.monthOverMonthChangePercent >= 0 ? '+' : ''}${summary.monthOverMonthChangePercent}% vs prior 30 days`;
         return `
             <div class="dashboard-kpi-grid cost-kpi-grid">
-                ${buildKpi('Total Monthly Cost', Utils.formatCurrency(summary.totalMonthlyCost || 0), 'fa-dollar-sign', deltaText)}
+                ${buildKpi('Total Monthly Cost', Utils.formatCurrency(summary.totalMonthlyCost || 0), 'fa-dollar-sign', totalSubtitle(summary, deltaText))}
                 ${buildKpi('Idle Waste', Utils.formatCurrency(summary.idleWasteMonthlyCost || 0), 'fa-moon', `${summary.idleVmCount || 0} idle VM(s)`)}
                 ${buildKpi('Rightsizing Potential', Utils.formatCurrency(summary.rightsizingPotentialSavings || 0), 'fa-compress-arrows-alt', rightsizingSubtitle(summary))}
                 ${buildKpi('Pricing Coverage', `${summary.costKnownVmCount || 0} / ${summary.totalVmCount || 0}`, 'fa-tag', pricingSubtitle(summary))}
             </div>
         `;
+    }
+
+    /** The month-over-month change, plus the EKS control-plane fee the total includes (E26-T03). */
+    function totalSubtitle(summary, deltaText) {
+        const fee = Number(summary.eksControlPlaneCost || 0);
+        return fee > 0 ? `${deltaText} · incl. ${Utils.formatCurrency(fee)} EKS control plane` : deltaText;
     }
 
     function rightsizingSubtitle(summary) {

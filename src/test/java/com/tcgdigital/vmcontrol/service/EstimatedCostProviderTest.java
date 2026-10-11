@@ -64,9 +64,10 @@ class EstimatedCostProviderTest {
         windowStart = Timestamp.from(now.minus(20, ChronoUnit.HOURS));
         windowEnd = Timestamp.from(now.minus(10, ChronoUnit.HOURS));
 
-        when(vmVolumeSnapshotRepository.sumSizeGibByVmIds(any())).thenReturn(List.of());
-        when(vmInventorySnapshotRepository.findInstanceTypesByVmIds(any())).thenReturn(List.of());
-        when(vmStateHistoryRepository.findByVmVmIdInAndChangedAtBetweenOrderByVmVmIdAscChangedAtAsc(any(), any(), any()))
+        // Lenient: the environment-fee tests read no repository.
+        org.mockito.Mockito.lenient().when(vmVolumeSnapshotRepository.sumSizeGibByVmIds(any())).thenReturn(List.of());
+        org.mockito.Mockito.lenient().when(vmInventorySnapshotRepository.findInstanceTypesByVmIds(any())).thenReturn(List.of());
+        org.mockito.Mockito.lenient().when(vmStateHistoryRepository.findByVmVmIdInAndChangedAtBetweenOrderByVmVmIdAscChangedAtAsc(any(), any(), any()))
                 .thenReturn(List.of());
         org.mockito.Mockito.lenient().when(vmStateHistoryRepository.findLatestBeforeForVms(any(), any()))
                 .thenReturn(List.of());
@@ -117,6 +118,65 @@ class EstimatedCostProviderTest {
 
         CostDataProvider.VmCostEstimate estimate = result.get("eks-vm-1");
         assertEquals(0, new BigDecimal("0.0832").compareTo(estimate.hourlyRate()));
+    }
+
+    // --- EKS node disks and the control-plane fee (E26-T03) ---
+
+    @Test
+    void eksNodeDisksArePricedPerNodeForTheHoursTheNodesRun() {
+        Vm vm = eksNodeGroupVm("{\"desiredSize\":3,\"instanceType\":\"t3.large\",\"diskSizeGib\":20}");
+
+        CostDataProvider.VmCostEstimate estimate = provider.estimateCosts(List.of(vm), windowStart, windowEnd).get("eks-vm-1");
+
+        assertEquals(60, estimate.storageGib());
+        // 10 running hours: 0.2496/h x 10 for the nodes, plus 60 GiB for 10/24 of a day.
+        BigDecimal disks = pricing.getStorageGbMonthRate().multiply(new BigDecimal("0.416667"))
+                .divide(BigDecimal.valueOf(30), 6, java.math.RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(60));
+        assertEquals(0, new BigDecimal("2.496").add(disks).setScale(2, java.math.RoundingMode.HALF_UP).compareTo(estimate.cost()));
+        assertTrue(disks.signum() > 0);
+    }
+
+    @Test
+    void aStoppedEksNodeGroupPaysForNoDisks() {
+        Vm vm = eksNodeGroupVm("{\"desiredSize\":3,\"instanceType\":\"t3.large\",\"diskSizeGib\":20}");
+        vm.setStatus(com.tcgdigital.vmcontrol.model.VmStatus.STOPPED);
+
+        CostDataProvider.VmCostEstimate estimate = provider.estimateCosts(List.of(vm), windowStart, windowEnd).get("eks-vm-1");
+
+        assertEquals(0, BigDecimal.ZERO.compareTo(estimate.cost()));
+    }
+
+    private Vm inEnvironment(Vm vm, String environmentId) {
+        com.tcgdigital.vmcontrol.model.Environment env = new com.tcgdigital.vmcontrol.model.Environment();
+        env.setEnvironmentId(environmentId);
+        com.tcgdigital.vmcontrol.model.VmGroup group = new com.tcgdigital.vmcontrol.model.VmGroup();
+        group.setEnvironment(env);
+        vm.setGroup(group);
+        return vm;
+    }
+
+    @Test
+    void theControlPlaneFeeIsChargedOncePerEksEnvironmentWhetherOrNotNodesRun() {
+        Vm workers = inEnvironment(eksNodeGroupVm("{\"desiredSize\":3,\"instanceType\":\"t3.large\"}"), "env-eks");
+        Vm batch = inEnvironment(eksNodeGroupVm("{\"desiredSize\":1,\"instanceType\":\"t3.large\"}"), "env-eks");
+        batch.setStatus(com.tcgdigital.vmcontrol.model.VmStatus.STOPPED);
+        Vm ec2 = inEnvironment(ec2Vm("vm-ec2", Timestamp.from(windowStart.toInstant().minus(1, ChronoUnit.DAYS))), "env-ec2");
+
+        Map<String, BigDecimal> fees = provider.environmentFees(List.of(workers, batch, ec2), windowStart, windowEnd);
+
+        // 10 hours at the standard $0.10 per cluster-hour, once for the environment.
+        assertEquals(Map.of("env-eks", new BigDecimal("1.00")), fees);
+    }
+
+    @Test
+    void theControlPlaneFeeStartsWhenTheFirstNodeGroupWasRegistered() {
+        Vm vm = inEnvironment(eksNodeGroupVm("{\"desiredSize\":1}"), "env-eks");
+        vm.setCreatedAt(Timestamp.from(windowStart.toInstant().plus(5, ChronoUnit.HOURS)));
+        org.springframework.test.util.ReflectionTestUtils.setField(pricing, "eksControlPlaneHourlyRate", new BigDecimal("0.60"));
+
+        Map<String, BigDecimal> fees = provider.environmentFees(List.of(vm), windowStart, windowEnd);
+
+        assertEquals(0, new BigDecimal("3.00").compareTo(fees.get("env-eks"))); // extended support: 5 h x $0.60
     }
 
     // --- Storage limited to the VM's lifetime (E08-T01) ---
