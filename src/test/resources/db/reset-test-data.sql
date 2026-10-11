@@ -13,6 +13,7 @@ DELETE FROM operation_detail;
 DELETE FROM operation_execution;
 DELETE FROM savings_ledger_entry;
 DELETE FROM efficiency_snapshot;
+DELETE FROM cost_daily_snapshot;
 DELETE FROM vm_resize_event;
 DELETE FROM reservation_coverage_snapshot;
 DELETE FROM lease_extension_request;
