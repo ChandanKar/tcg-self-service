@@ -47,7 +47,12 @@ test.describe('Keyboard controls', () => {
 
   test('day pills toggle with Space; trigger type moves with the arrow keys', async ({ page }) => {
     await page.evaluate(() => { location.hash = '#/automation-rules'; });
+    await page.waitForLoadState('networkidle');
+    // Bootstrap moves focus into the dialog on 'shown'; wait for it so it cannot steal focus later.
+    const shown = page.evaluate(() => new Promise(resolve =>
+      document.addEventListener('shown.bs.modal', () => resolve(true), { once: true })));
     await page.locator('#ar-new-rule-btn').click();
+    await shown;
     await expect(page.locator('#automationRuleModal')).toBeVisible();
 
     const monday = page.locator('.ar-day-pill[data-day="MON"]');

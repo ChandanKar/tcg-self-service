@@ -85,24 +85,6 @@ const Sidebar = (function() {
         // Submenu item clicks
         $(document).on('click', '.submenu-item[data-content]', handleSubmenuNavigation);
 
-        // Slide-out panel triggers (Running, Locked panels)
-        $(document).on('click', '[data-panel]', handlePanelOpen);
-    }
-
-    /**
-     * Handle slide-out panel open
-     */
-    function handlePanelOpen(e) {
-        e.preventDefault();
-        const panelType = $(this).data('panel');
-
-        if (typeof Slideout !== 'undefined') {
-            if (panelType === 'running') {
-                Slideout.open('runningPanel');
-            } else if (panelType === 'locked') {
-                Slideout.open('lockedPanel');
-            }
-        }
     }
 
     /**

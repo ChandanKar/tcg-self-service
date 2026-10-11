@@ -37,6 +37,8 @@ jobs:
           unzip -p "$JAR" BOOT-INF/classes/static/index.html | grep -q 'dist/app.js'
           unzip -p "$JAR" BOOT-INF/classes/static/index.html | grep -q 'dist/app.css'
           ! unzip -p "$JAR" BOOT-INF/classes/static/index.html | grep -q 'js/core/router.js'
+          # Dead assets stay out (E14-T03)
+          ! jar tf "$JAR" | grep -q -e 'static/templates/' -e 'static/old_backup/' -e 'template-loader.js'
 
       - name: Upload test reports
         if: failure()

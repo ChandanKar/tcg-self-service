@@ -108,81 +108,6 @@
 
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
-        <!-- MY WORKSPACE Section -->
-        <div class="sidebar-section" id="workspace-section" style="display: none;" role="region" aria-labelledby="workspace-title">
-            <button type="button" class="sidebar-section-title collapsed" data-section="workspace" id="workspace-title"
-                    aria-expanded="false" aria-controls="workspace-menu">
-                <span><i class="fas fa-briefcase" aria-hidden="true"></i> MY WORKSPACE</span>
-                <i class="fas fa-chevron-down toggle" aria-hidden="true"></i>
-            </button>
-            <ul class="sidebar-menu" id="workspace-menu" style="display: none;">
-                <li class="sidebar-menu-item">
-                    <a class="sidebar-menu-link" data-panel="running" tabindex="0">
-                        <i class="fas fa-play-circle" aria-hidden="true"></i>
-                        <span>Running</span>
-                        <span class="badge" aria-label="12 running">12</span>
-                    </a>
-                </li>
-                <li class="sidebar-menu-item">
-                    <a class="sidebar-menu-link" data-panel="locked" tabindex="0">
-                        <i class="fas fa-lock" aria-hidden="true"></i>
-                        <span>Locked by Me</span>
-                        <span class="badge" aria-label="2 locked">2</span>
-                    </a>
-                </li>
-                <li class="sidebar-menu-item">
-                    <a class="sidebar-menu-link" data-toggle="submenu" data-target="favorites-submenu" tabindex="0" aria-expanded="false">
-                        <i class="fas fa-star" aria-hidden="true"></i>
-                        <span>Favorites</span>
-                        <span class="badge" aria-label="3 favorites">3</span>
-                    </a>
-                    <ul class="submenu" id="favorites-submenu">
-                        <li class="submenu-item" data-content="environment-detail" data-env="mcube-demo-env">
-                            mcube-demo-env
-                            <button class="btn btn-primary btn-sm" aria-label="View mcube-demo-env">View</button>
-                        </li>
-                        <li class="submenu-item" data-content="environment-detail" data-env="analytics-sandbox">
-                            analytics-sandbox
-                            <button class="btn btn-primary btn-sm" aria-label="View analytics-sandbox">View</button>
-                        </li>
-                        <li class="submenu-item" data-content="environment-detail" data-env="my-dev-env">
-                            my-dev-env
-                            <button class="btn btn-primary btn-sm" aria-label="View my-dev-env">View</button>
-                        </li>
-                    </ul>
-                </li>
-                <li class="sidebar-menu-item">
-                    <a class="sidebar-menu-link" data-toggle="submenu" data-target="recents-submenu" tabindex="0" aria-expanded="false">
-                        <i class="fas fa-clock" aria-hidden="true"></i>
-                        <span>Recents</span>
-                        <span class="badge" aria-label="5 recent">5</span>
-                    </a>
-                    <ul class="submenu" id="recents-submenu">
-                        <li class="submenu-item" data-content="environment-detail" data-env="project-x-dev">
-                            project-x-dev
-                            <button class="btn btn-primary btn-sm" aria-label="View project-x-dev">View</button>
-                        </li>
-                        <li class="submenu-item" data-content="environment-detail" data-env="data-pipeline-test">
-                            data-pipeline-test
-                            <button class="btn btn-primary btn-sm">View</button>
-                        </li>
-                        <li class="submenu-item" data-content="environment-detail" data-env="ml-training-env">
-                            ml-training-env
-                            <button class="btn btn-primary btn-sm">View</button>
-                        </li>
-                        <li class="submenu-item" data-content="environment-detail" data-env="api-sandbox">
-                            api-sandbox
-                            <button class="btn btn-primary btn-sm">View</button>
-                        </li>
-                        <li class="submenu-item" data-content="environment-detail" data-env="integration-test">
-                            integration-test
-                            <button class="btn btn-primary btn-sm" aria-label="View integration-test">View</button>
-                        </li>
-                    </ul>
-                </li>
-            </ul>
-        </div>
-
         <!-- OPERATIONS Section -->
         <div class="sidebar-section" role="region" aria-labelledby="operations-title">
             <button type="button" class="sidebar-section-title" data-section="operations" id="operations-title"
@@ -303,92 +228,6 @@
             </div>
         </div>
     </main>
-
-    <!-- Slide-out Panel for Running VMs -->
-    <div class="slideout-panel" id="runningPanel" role="dialog" aria-modal="true" aria-labelledby="runningPanelTitle" inert>
-        <div class="slideout-panel-header">
-            <h3 id="runningPanelTitle"><i class="fas fa-play-circle text-success"></i> My Running VMs (12)</h3>
-            <button type="button" class="close-btn" aria-label="Close">&times;</button>
-        </div>
-        <div class="slideout-panel-content">
-            <div class="env-card">
-                <h5>mcube-demo-env</h5>
-                <div class="env-meta">
-                    <i class="fas fa-lock text-warning"></i> Locked by you â€¢ 8 VMs running
-                </div>
-                <ul class="vm-list">
-                    <li><i class="fas fa-circle"></i> database-primary (AWS) - 2h 15m uptime</li>
-                    <li><i class="fas fa-circle"></i> database-replica (AWS) - 2h 15m uptime</li>
-                    <li><i class="fas fa-circle"></i> app-server (Azure) - 2h 10m uptime</li>
-                    <li><i class="fas fa-circle"></i> worker-queue (Azure) - 45m uptime</li>
-                    <li><i class="fas fa-circle"></i> redis-cache (Azure) - 2h 15m uptime</li>
-                    <li><i class="fas fa-circle"></i> api-gateway (AWS) - 1h 30m uptime</li>
-                    <li><i class="fas fa-circle"></i> analytics-worker (AWS) - 50m uptime</li>
-                    <li><i class="fas fa-circle"></i> notification-service (AWS) - 2h 5m uptime</li>
-                </ul>
-                <button class="btn btn-danger btn-sm mt-2 w-100">Stop All in Environment</button>
-            </div>
-
-            <div class="env-card">
-                <h5>analytics-sandbox</h5>
-                <div class="env-meta">
-                    <i class="fas fa-unlock text-success"></i> Unlocked â€¢ 4 VMs running
-                </div>
-                <ul class="vm-list">
-                    <li><i class="fas fa-circle"></i> worker-1 (GCP) - 3h 20m uptime</li>
-                    <li><i class="fas fa-circle"></i> worker-2 (GCP) - 3h 20m uptime</li>
-                    <li><i class="fas fa-circle"></i> jupyter-notebook (GCP) - 1h 15m uptime</li>
-                    <li><i class="fas fa-circle"></i> data-processor (GCP) - 2h 40m uptime</li>
-                </ul>
-                <button class="btn btn-danger btn-sm mt-2 w-100">Stop All in Environment</button>
-            </div>
-
-            <button class="btn btn-danger w-100 mt-3">
-                <i class="fas fa-stop-circle"></i> Stop All My Running VMs
-            </button>
-        </div>
-    </div>
-
-    <!-- Slide-out Panel for Locked Environments -->
-    <div class="slideout-panel" id="lockedPanel" role="dialog" aria-modal="true" aria-labelledby="lockedPanelTitle" inert>
-        <div class="slideout-panel-header">
-            <h3 id="lockedPanelTitle"><i class="fas fa-lock text-warning"></i> Environments Locked by Me (2)</h3>
-            <button type="button" class="close-btn" aria-label="Close">&times;</button>
-        </div>
-        <div class="slideout-panel-content">
-            <div class="env-card">
-                <h5>mcube-demo-env</h5>
-                <div class="env-meta">
-                    <i class="fas fa-lock"></i> Locked 2h 15m ago
-                </div>
-                <div class="mb-2">
-                    <strong>Status:</strong> 8/15 VMs running
-                </div>
-                <div class="d-flex gap-2">
-                    <button class="btn btn-warning btn-sm flex-fill">Release Lock</button>
-                    <button class="btn btn-primary btn-sm flex-fill">View Environment</button>
-                </div>
-            </div>
-
-            <div class="env-card">
-                <h5>project-x-staging</h5>
-                <div class="env-meta">
-                    <i class="fas fa-lock"></i> Locked 45m ago
-                </div>
-                <div class="mb-2">
-                    <strong>Status:</strong> All VMs stopped
-                </div>
-                <div class="d-flex gap-2">
-                    <button class="btn btn-warning btn-sm flex-fill">Release Lock</button>
-                    <button class="btn btn-primary btn-sm flex-fill">View Environment</button>
-                </div>
-            </div>
-
-            <button class="btn btn-warning w-100 mt-3">
-                <i class="fas fa-unlock"></i> Release All My Locks
-            </button>
-        </div>
-    </div>
 
     <!-- Overlay for Slide-out -->
     <div class="slideout-overlay" id="slideoutOverlay"></div>
@@ -736,7 +575,6 @@
     <!-- Application JavaScript -->
     <script src="js/config.js?v=202610120600"></script>
     <script src="js/core/api-client.js?v=202610120600"></script>
-    <script src="js/core/template-loader.js?v=202610120600"></script>
     <script src="js/core/utils.js?v=202610120600"></script>
     <script src="js/core/actions.js?v=202610120600"></script>
     <script src="js/core/router.js?v=202610120600"></script>

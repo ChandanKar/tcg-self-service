@@ -225,6 +225,8 @@ tasks.register('patchIndexHtml') {
 // Package the bundle and the patched index.html (E14-T02). A stale local static/dist from the old
 // script is never packaged. -PskipBundle keeps the one-file-per-module index.html for debugging.
 sourceSets.main.resources.exclude 'static/dist/**'
+// Local, gitignored backups are kept on disk but never shipped (E14-T03).
+sourceSets.main.resources.exclude 'static/old_backup/**'
 
 tasks.named('processResources') {
 	if (!project.hasProperty('skipBundle')) {
