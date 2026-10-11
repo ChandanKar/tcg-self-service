@@ -28,6 +28,10 @@ public interface ApprovalRequestRepository extends JpaRepository<ApprovalRequest
                         @Param("now") Timestamp now);
 
     @Query("SELECT r FROM ApprovalRequest r WHERE r.status = com.tcgdigital.vmcontrol.model.ApprovalRequest.Status.PENDING "
+            + "AND r.requestType = :type")
+    List<ApprovalRequest> findPendingOfType(@Param("type") ApprovalRequest.Type type);
+
+    @Query("SELECT r FROM ApprovalRequest r WHERE r.status = com.tcgdigital.vmcontrol.model.ApprovalRequest.Status.PENDING "
             + "AND r.expiresAt < :now")
     List<ApprovalRequest> findExpired(@Param("now") Timestamp now);
 }

@@ -455,7 +455,15 @@ public class LeaseService {
     public ExtendOutcome extend(String environmentId, int minutes, String reason) {
         assertFeatureEnabled();
         securityService.assertCanOperate(environmentId);
-        String userId = userService.getCurrentUserId();
+        return extendAs(environmentId, userService.getCurrentUserId(), minutes, reason);
+    }
+
+    /**
+     * {@link #extend} for a given user, without the signed-in user's checks: for an approved
+     * request (E25-T05), whose requester's permission the caller checked again.
+     */
+    public ExtendOutcome extendAs(String environmentId, String userId, int minutes, String reason) {
+        assertFeatureEnabled();
         try {
             return newTransaction.execute(status -> extendOnce(environmentId, userId, minutes, reason));
         } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {

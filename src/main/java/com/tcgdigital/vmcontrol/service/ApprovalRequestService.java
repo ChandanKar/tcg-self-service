@@ -60,8 +60,25 @@ public class ApprovalRequestService {
     private final EntityManager entityManager;
     private final TransactionTemplate newTransaction;
 
-    /** Runs an approved EXTEND request (set by the lease integration, E25-T05). */
-    private Consumer<ApprovalRequest> extensionExecutor;
+    /** Runs an approved EXTEND request; replaceable in tests. */
+    private Consumer<ApprovalRequest> extensionExecutor = this::runExtension;
+
+    /** Leases (E15), for runtime extensions (E25-T05); optional so approvals work without them. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private LeaseService leaseService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private EnvironmentLeaseRepository leaseRepository;
+
+    /** The lease the extension was for has ended, so there is nothing left to extend. */
+    static class LeaseEndedException extends RuntimeException {
+        LeaseEndedException() {
+            super("lease ended");
+        }
+    }
+
+    /** What an EXTEND request stores. */
+    record ExtensionPayload(String leaseId, int minutes, String reason) {}
 
     @Value("${approvals.request-ttl-hours:24}")
     private long ttlHours = 24;
@@ -119,6 +136,57 @@ public class ApprovalRequestService {
         }
         String scope = (vmId != null ? "1 VM" : groupId != null ? "a group" : "the whole environment") + ", " + ctx.requestedHours() + " h";
         return hold(ApprovalRequest.Type.START, ctx, decision, write(dto), scope);
+    }
+
+    /**
+     * Evaluates a lease extension (E25-T05): the requested hours are the lease's total runtime
+     * after the extension, the cost is that of the extra hours. Holds it and returns what to
+     * answer (202) when it needs approval, or null when the extension may go ahead.
+     */
+    @Transactional
+    public ApprovalRequestDTO.Held holdExtensionIfNeeded(String environmentId, String requesterId, int minutes, String reason) {
+        if (!policyService.isEnabled() || leaseRepository == null) {
+            return null;
+        }
+        securityService.assertCanOperate(environmentId);
+        EnvironmentLease lease = leaseRepository.findActiveByEnvironmentId(environmentId).orElse(null);
+        if (lease == null) {
+            return null; // the extend call answers 404
+        }
+        Instant base = lease.getEndsAt().toInstant().isAfter(Instant.now()) ? lease.getEndsAt().toInstant() : Instant.now();
+        Instant newEnd = base.plusSeconds(minutes * 60L);
+        int totalHours = (int) Math.ceil(java.time.Duration.between(lease.getStartedAt().toInstant(), newEnd).toMinutes() / 60.0);
+        int extraHours = Math.max(1, (int) Math.ceil(minutes / 60.0));
+        ApprovalPolicyService.ApprovalContext priced = policyService.context(environmentId, null, null, extraHours, true, requesterId);
+        ApprovalPolicyService.ApprovalContext ctx = new ApprovalPolicyService.ApprovalContext(priced.environmentId(), priced.teamId(),
+                requesterId, "EXTEND", priced.targets(), totalHours, priced.preview());
+        ApprovalPolicyService.ApprovalDecision decision = policyService.evaluate(ctx);
+        if (!decision.requiresApproval()) {
+            return null;
+        }
+        return hold(ApprovalRequest.Type.EXTEND, ctx, decision,
+                write(new ExtensionPayload(lease.getLeaseId(), minutes, reason)),
+                "+" + minutes + " min (" + totalHours + " h in total)");
+    }
+
+    /** Runs an approved extension as its requester; the lease must still be the one asked about. */
+    private void runExtension(ApprovalRequest request) {
+        if (leaseService == null || leaseRepository == null) {
+            throw new ValidationException("Lease extensions are not available");
+        }
+        ExtensionPayload payload;
+        try {
+            payload = objectMapper.readValue(request.getPayload(), ExtensionPayload.class);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("The stored request is unreadable");
+        }
+        boolean sameLease = leaseRepository.findActiveByEnvironmentId(request.getEnvironmentId())
+                .map(l -> l.getLeaseId().equals(payload.leaseId())).orElse(false);
+        if (!sameLease) {
+            throw new LeaseEndedException();
+        }
+        leaseService.extendAs(request.getEnvironmentId(), request.getRequesterUserId(), payload.minutes(),
+                payload.reason() == null ? "Approved extension" : payload.reason());
     }
 
     /** Creates the request, snapshots the approvers and tells them. Also used for extensions. */
@@ -327,6 +395,8 @@ public class ApprovalRequestService {
                     NotificationType.APPROVAL_GRANTED, "Request approved: " + envName,
                     (request.getRequestType() == ApprovalRequest.Type.EXTEND ? "The extension" : "The start") + " of "
                             + envName + " was approved and is running.");
+        } catch (LeaseEndedException e) {
+            expireBecauseLeaseEnded(request);
         } catch (Exception e) {
             String why = e instanceof JsonProcessingException ? "The stored request is unreadable" : e.getMessage();
             log.warn("Approved request {} could not run: {}", requestId, why);
@@ -342,10 +412,48 @@ public class ApprovalRequestService {
         }
     }
 
-    /** Expires pending requests past their deadline; returns how many. */
+    /** An approved extension whose lease ended first: EXPIRED, and the requester is told. */
+    private void expireBecauseLeaseEnded(ApprovalRequest request) {
+        newTransaction.executeWithoutResult(s -> {
+            ApprovalRequest r = requestRepository.findById(request.getRequestId()).orElseThrow();
+            r.setStatus(ApprovalRequest.Status.EXPIRED);
+            r.setStatusReason("lease ended");
+            requestRepository.save(r);
+        });
+        String envName = environmentName(request.getEnvironmentId());
+        notificationService.notifyApprovalOutcome(request.getRequesterUserId(), request.getEnvironmentId(), envName,
+                request.getRequestId(), NotificationType.APPROVAL_DENIED, "Request expired: " + envName,
+                "The lease on " + envName + " ended before the extension was approved.");
+    }
+
+    /** Expires pending requests past their deadline, and extensions whose lease ended; returns how many. */
     public int expire() {
         int count = 0;
         Timestamp now = new Timestamp(System.currentTimeMillis());
+        if (leaseRepository != null) {
+            for (ApprovalRequest request : requestRepository.findPendingOfType(ApprovalRequest.Type.EXTEND)) {
+                String leaseId;
+                try {
+                    leaseId = objectMapper.readValue(request.getPayload(), ExtensionPayload.class).leaseId();
+                } catch (JsonProcessingException e) {
+                    leaseId = null;
+                }
+                String wanted = leaseId;
+                boolean active = leaseRepository.findActiveByEnvironmentId(request.getEnvironmentId())
+                        .map(l -> l.getLeaseId().equals(wanted)).orElse(false);
+                if (!active) {
+                    Integer changed = newTransaction.execute(s -> requestRepository.decideIfPending(request.getRequestId(),
+                            ApprovalRequest.Status.EXPIRED, "lease ended", now));
+                    if (changed != null && changed == 1) {
+                        count++;
+                        String envName = environmentName(request.getEnvironmentId());
+                        notificationService.notifyApprovalOutcome(request.getRequesterUserId(), request.getEnvironmentId(), envName,
+                                request.getRequestId(), NotificationType.APPROVAL_DENIED, "Request expired: " + envName,
+                                "The lease on " + envName + " ended before the extension was approved.");
+                    }
+                }
+            }
+        }
         for (ApprovalRequest request : requestRepository.findExpired(now)) {
             Integer changed = newTransaction.execute(s -> requestRepository.decideIfPending(request.getRequestId(),
                     ApprovalRequest.Status.EXPIRED, "Nobody decided in time", now));

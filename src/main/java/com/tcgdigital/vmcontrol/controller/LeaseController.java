@@ -55,12 +55,24 @@ public class LeaseController {
         return ResponseEntity.ok(leaseService.updatePolicy(environmentId, dto));
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.tcgdigital.vmcontrol.service.ApprovalRequestService approvalRequestService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.tcgdigital.vmcontrol.service.UserService userService;
+
     @PostMapping("/environments/{environmentId}/lease/extend")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Extend the running lease",
             description = "200 with the lease when within the owner's maximum; 202 with a request the owners must approve beyond it")
     public ResponseEntity<?> extend(@Parameter(description = "Environment ID") @PathVariable String environmentId,
                                     @Valid @RequestBody ExtendLeaseDTO dto) {
+        // Beyond an approval policy the extension waits for its approvers (E25-T05).
+        com.tcgdigital.vmcontrol.dto.ApprovalRequestDTO.Held held = approvalRequestService.holdExtensionIfNeeded(
+                environmentId, userService.getCurrentUserId(), dto.getMinutes(), dto.getReason());
+        if (held != null) {
+            return ResponseEntity.status(HttpStatus.ACCEPTED).body(held);
+        }
         LeaseService.ExtendOutcome outcome = leaseService.extend(environmentId, dto.getMinutes(), dto.getReason());
         return outcome.applied()
                 ? ResponseEntity.ok(outcome.lease())

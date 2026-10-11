@@ -206,8 +206,14 @@ const Leases = (function() {
                         { suppressGlobalError: true })
                         .done((data, _s, xhr) => {
                             Modals.hide('leaseExtendModal');
-                            Notifications.show(xhr && xhr.status === 202
-                                ? 'Sent to the owner for approval.' : 'Extended.', xhr && xhr.status === 202 ? 'info' : 'success');
+                            if (data && data.approvalRequestId) {
+                                // Held by an approval policy (E25-T05).
+                                const who = (data.approvers || []).join(', ');
+                                Notifications.show(`Sent for approval${who ? ' to ' + who : ''}. The lease is unchanged until then.`, 'info', 8000);
+                            } else {
+                                Notifications.show(xhr && xhr.status === 202
+                                    ? 'Sent to the owner for approval.' : 'Extended.', xhr && xhr.status === 202 ? 'info' : 'success');
+                            }
                             if (onDone) onDone();
                         })
                         .fail(xhr => {
