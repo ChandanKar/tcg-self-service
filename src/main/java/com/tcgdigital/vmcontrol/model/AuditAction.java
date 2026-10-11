@@ -114,6 +114,11 @@ public enum AuditAction {
     /** A month's chargeback statement was frozen (E23-T07). */
     CHARGEBACK_FINALIZED,
 
+    // Chat channels (E24-T02); details never carry the webhook URL
+    CHAT_CHANNEL_CREATED,
+    CHAT_CHANNEL_UPDATED,
+    CHAT_CHANNEL_DELETED,
+
     // Waste sweeps (E22)
     WASTE_FINDING_DISMISSED,
     WASTE_FINDING_REOPENED,

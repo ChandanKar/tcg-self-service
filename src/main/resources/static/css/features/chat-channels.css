@@ -1,0 +1,21 @@
+/*
+ * Teams channels panel on the environment detail page (E24-T02).
+ */
+.chat-channel-list > li + li {
+    border-top: 1px solid var(--border-color, #e2e8f0);
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+}
+
+.chat-channel .min-w-0 {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.chat-event-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+    gap: 0.15rem 1rem;
+    max-height: 18rem;
+    overflow-y: auto;
+}

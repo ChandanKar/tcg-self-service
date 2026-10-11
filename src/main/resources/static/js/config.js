@@ -128,6 +128,14 @@ const Config = (function() {
         },
 
         // Teams (E23)
+        // Microsoft Teams channels per environment (E24-T02)
+        chatChannels: {
+            options: `${API_BASE_URL}/chat-channels/options`,
+            list: (environmentId) => `${API_BASE_URL}/chat-channels?environmentId=${encodeURIComponent(environmentId)}`,
+            create: `${API_BASE_URL}/chat-channels`,
+            item: (id) => `${API_BASE_URL}/chat-channels/${encodeURIComponent(id)}`,
+            test: (id) => `${API_BASE_URL}/chat-channels/${encodeURIComponent(id)}/test`
+        },
         teams: {
             list: (includeInactive) => `${API_BASE_URL}/teams` + (includeInactive ? '?includeInactive=true' : ''),
             create: `${API_BASE_URL}/teams`,

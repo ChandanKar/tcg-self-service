@@ -704,6 +704,7 @@ const Environments = (function() {
                 <div id="env-budget-panel"></div>
                 <div id="env-anomaly-panel"></div>
                 <div id="env-idle-panel"></div>
+                <div id="env-chat-panel"></div>
 
                 <div class="mb-1">
                     <span class="text-muted text-uppercase" style="font-size:0.68rem;letter-spacing:0.05em;">Groups &amp; VMs</span>
@@ -949,6 +950,11 @@ const Environments = (function() {
         // Idle auto-stop panel (E16): renders nothing while the feature is off.
         if (typeof IdleStop !== 'undefined') {
             IdleStop.renderPanel(env);
+        }
+
+        // Teams channels (E24-T02): only for those who administer the environment.
+        if (typeof ChatChannels !== 'undefined') {
+            ChatChannels.renderEnvPanel(env);
         }
 
         // Lease banner (E15-T06): renders nothing while leases are off.
