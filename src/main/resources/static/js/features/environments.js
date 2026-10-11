@@ -374,8 +374,8 @@ const Environments = (function() {
                                data-action-input="env-search">
                     </div>
                 </div>
-                <div class="env-list-table-wrapper">
-                    <table class="table table-hover mb-0">
+                <div class="env-list-table-wrapper table-cards-wrap">
+                    <table class="table table-hover mb-0 table-cards">
                         <thead class="table-light sticky-top">
                             <tr>
                                 <th>Environment</th>
@@ -461,22 +461,22 @@ const Environments = (function() {
 
             return `
                 <tr>
-                    <td>
+                    <td class="td-primary" data-label="Environment">
                         <strong${descTooltip}>${Utils.escapeHtml(env.displayName || env.name)}</strong>
                         ${env.displayName && env.displayName !== env.name ? `<div class="small text-muted">${Utils.escapeHtml(env.name)}</div>` : ''}
                     </td>
-                    <td class="text-center">${typeCell}</td>
-                    <td class="text-center"><i class="${cloudCfg.icon} env-cloud-icon" style="color:${cloudCfg.color}" data-bs-toggle="tooltip" title="${cloudCfg.label || cloudProv}"></i></td>
-                    <td class="col-region">${regionCell}</td>
-                    <td class="col-groups text-center">${env.groupCount || 0}</td>
-                    <td class="col-vms text-center">${totalVms}</td>
-                    <td class="col-running">
+                    <td class="text-center" data-label="Type">${typeCell}</td>
+                    <td class="text-center" data-label="Cloud"><i class="${cloudCfg.icon} env-cloud-icon" style="color:${cloudCfg.color}" data-bs-toggle="tooltip" title="${Utils.escapeHtml(cloudCfg.label || cloudProv)}"></i></td>
+                    <td class="col-region" data-label="Region">${regionCell}</td>
+                    <td class="col-groups text-center" data-label="Groups">${env.groupCount || 0}</td>
+                    <td class="col-vms text-center" data-label="Total VMs">${totalVms}</td>
+                    <td class="col-running" data-label="Running">
                         <span class="status-badge ${statusClass}">
                             <i class="fas fa-circle"></i> ${runningVms}/${totalVms}
                         </span>
                     </td>
-                    <td class="col-lock">${lockDisplay}</td>
-                    <td class="col-actions">
+                    <td class="col-lock" data-label="Lock Status">${lockDisplay}</td>
+                    <td class="col-actions td-actions">
                         <button class="btn btn-sm btn-primary btn-action"
                                 data-env-id="${env.environmentId}" data-env-name="${Utils.escapeHtml(env.displayName || env.name)}" data-action="view"
                                 data-bs-toggle="tooltip" title="View">
@@ -753,18 +753,18 @@ const Environments = (function() {
 
             return `
                 <tr>
-                    <td><strong>${Utils.escapeHtml(vm.name)}</strong></td>
-                    <td>
-                        <i class="${providerConfig.icon}" style="color:${providerConfig.color};"></i>
-                        <span class="ms-1" style="font-size:0.8rem;">${vm.region}</span>
+                    <td class="td-primary" data-label="VM Name"><strong>${Utils.escapeHtml(vm.name)}</strong></td>
+                    <td data-label="Location">
+                        <span><i class="${providerConfig.icon}" style="color:${providerConfig.color};"></i>
+                        <span class="ms-1" style="font-size:0.8rem;">${Utils.escapeHtml(vm.region || '')}</span></span>
                     </td>
-                    <td>
+                    <td data-label="Status">
                         <span class="status-badge ${statusConfig.class}">
                             <i class="fas ${statusConfig.icon}"></i> ${statusConfig.label}
                         </span>
                     </td>
-                    <td>${vm.sequencePosition || '-'}</td>
-                    <td>
+                    <td data-label="Seq">${vm.sequencePosition || '-'}</td>
+                    <td class="td-actions">
                         <button class="btn btn-sm btn-outline-primary btn-action"
                                 data-vm-id="${vm.vmId}" data-action="vm-details"
                                 data-bs-toggle="tooltip" title="Details">
@@ -814,8 +814,8 @@ const Environments = (function() {
         const collapseId = `group-collapse-${group.groupId}`;
 
         const vmTableHtml = vms.length > 0 ? `
-            <div class="group-vm-table-wrapper">
-                <table class="table table-sm table-hover mb-0 group-vm-table">
+            <div class="group-vm-table-wrapper table-cards-wrap">
+                <table class="table table-sm table-hover mb-0 group-vm-table table-cards">
                     <thead class="table-light sticky-top">
                         <tr>
                             <th>VM Name</th>

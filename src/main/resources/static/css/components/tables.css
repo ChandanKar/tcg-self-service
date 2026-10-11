@@ -151,3 +151,85 @@
         justify-content: center;
     }
 }
+
+/* ================================================
+   Table-to-cards (E13-T05)
+   On phones a .table-cards table becomes one card per row: the header row is hidden and each
+   cell shows its column name from data-label. Cells marked .td-actions hold the row buttons.
+   ================================================ */
+@media (max-width: 767.98px) {
+    .table-responsive:has(> .table-cards),
+    .table-cards-wrap {
+        overflow: visible;
+    }
+
+    .table.table-cards,
+    .table.table-cards tbody,
+    .table.table-cards tr,
+    .table.table-cards td {
+        display: block;
+        /* Beats page-specific column widths (often ID-scoped nth-child rules) */
+        width: 100% !important;
+    }
+
+    .table.table-cards thead {
+        display: none;
+    }
+
+    .table.table-cards tr {
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        margin-bottom: 0.75rem;
+        padding: 0.5rem;
+        background: #fff;
+    }
+
+    .table.table-cards td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.5rem;
+        border: 0;
+        padding: 0.3rem 0.25rem;
+        white-space: normal;
+        max-width: none !important;
+        text-align: right;
+        overflow-wrap: anywhere;
+    }
+
+    .table.table-cards td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        color: var(--text-secondary);
+        text-align: left;
+        flex-shrink: 0;
+    }
+
+    .table.table-cards td.td-primary {
+        display: block;
+        text-align: left;
+        font-size: 0.95rem;
+    }
+
+    .table.table-cards td.td-primary::before,
+    .table.table-cards td.td-actions::before,
+    .table.table-cards td[colspan]::before {
+        content: none;
+    }
+
+    .table.table-cards td.td-actions {
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        padding-top: 0.5rem;
+    }
+
+    .table.table-cards td.td-actions .btn {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    .table.table-cards td[colspan] {
+        justify-content: center;
+    }
+}

@@ -344,10 +344,26 @@
     to { transform: rotate(360deg); }
 }
 
-/* Hide sync time text on small screens */
-@media (max-width: 576px) {
+/* Phone top bar (E13-T05): logo text, user name/role, the menu arrow and the sync time give
+   way so the bar fits 390px; the user menu is pinned inside the viewport. */
+@media (max-width: 767.98px) {
+    .top-navbar .logo,
+    .top-navbar .user-info,
+    .top-navbar .dropdown-arrow,
     .sync-indicator .sync-time {
         display: none;
+    }
+
+    .top-navbar .user-profile {
+        padding: 0.25rem;
+    }
+
+    .user-dropdown {
+        position: fixed;
+        top: calc(var(--topnav-height) + 4px);
+        right: 8px;
+        left: auto;
+        max-width: calc(100vw - 16px);
     }
 }
 

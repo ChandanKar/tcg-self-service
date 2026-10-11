@@ -72,3 +72,12 @@
 .pg-btn-wide {
     min-width: 84px;
 }
+
+/* Phones (E13-T05): 44px touch targets do not fit seven buttons on one line; let them wrap. */
+@media (max-width: 767.98px) {
+    .pagination-controls {
+        flex-wrap: wrap;
+        justify-content: center;
+        width: 100%;
+    }
+}
