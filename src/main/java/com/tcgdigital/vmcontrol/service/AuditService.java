@@ -628,6 +628,27 @@ public class AuditService {
                 "Lock extended by " + resolveUsername(userId) + ". " + details);
     }
 
+    /** A lease opened on an environment (E15-T02). */
+    public void logLeaseStarted(String userId, String environmentId, String environmentName, String leaseId,
+                                String details) {
+        logEnvironmentAction(auditUserId(userId), AuditAction.LEASE_STARTED, environmentId, environmentName,
+                "lease", leaseId, environmentName, "Lease started by " + resolveUsername(userId) + ". " + details);
+    }
+
+    /** A lease's end time moved later (a join or an extension, E15-T02/T04). */
+    public void logLeaseExtended(String userId, String environmentId, String environmentName, String leaseId,
+                                 String details) {
+        logEnvironmentAction(auditUserId(userId), AuditAction.LEASE_EXTENDED, environmentId, environmentName,
+                "lease", leaseId, environmentName, "Lease extended by " + resolveUsername(userId) + ". " + details);
+    }
+
+    /** A user ended a lease, e.g. by stopping the whole environment (E15-T02). */
+    public void logLeaseEnded(String userId, String environmentId, String environmentName, String leaseId,
+                              String details) {
+        logEnvironmentAction(auditUserId(userId), AuditAction.LEASE_ENDED, environmentId, environmentName,
+                "lease", leaseId, environmentName, details);
+    }
+
     /** The expiry sweep released a lock (E07-T02); attributed to the holder whose lock ended. */
     public void logLockExpired(String holderId, String environmentId, String environmentName, String details) {
         logEnvironmentAction(auditUserId(holderId), AuditAction.LOCK_EXPIRED, environmentId, environmentName,

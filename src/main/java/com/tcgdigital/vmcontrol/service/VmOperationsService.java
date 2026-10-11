@@ -74,6 +74,14 @@ public class VmOperationsService {
     @Autowired
     private OperationRecoveryService operationRecoveryService;
 
+    // Environment leases (E15-T02): opened/joined on start, ended by a whole-environment stop.
+    @Lazy
+    @Autowired
+    private LeaseService leaseService;
+
+    @Autowired
+    private com.tcgdigital.vmcontrol.service.support.AfterCommit afterCommit;
+
     /** At most this many of one execution's steps run at once (M10). */
     @Value("${vm.operations.per-execution-parallelism:5}")
     private int perExecutionParallelism = 5;
@@ -129,6 +137,12 @@ public class VmOperationsService {
 
         // Verify user has lock on environment
         lockService.verifyLockPermission(environmentId, userId);
+
+        // A requested lease longer than the environment allows fails before anything is created.
+        boolean starting = dto.getOperationType() == OperationType.START || dto.getOperationType() == OperationType.RESTART;
+        if (starting) {
+            leaseService.validateRequestedMinutes(environment, dto.getLeaseMinutes());
+        }
 
         // Check for existing active operations; a run orphaned by a restart (no heartbeat for
         // vm.operations.stale-after-minutes) is failed first instead of blocking forever (H12).
@@ -217,6 +231,14 @@ public class VmOperationsService {
                         vmCount
                 ));
 
+        // Leases (E15-T02): a lease error never affects the operation (AfterCommit logs and swallows).
+        if (starting) {
+            final Integer leaseMinutes = dto.getLeaseMinutes();
+            afterCommit.run(() -> leaseService.openOrJoinOnStart(environmentId, userId, leaseMinutes));
+        } else if (dto.getOperationType() == OperationType.STOP && isWholeEnvironment(dto)) {
+            afterCommit.run(() -> leaseService.endOnFullStop(environmentId, userId));
+        }
+
         // Fire async execution after this transaction commits so the execution row is visible
         final String executionId = execution.getExecutionId();
         final boolean continueOnFailure = dto.isContinueOnFailure();
@@ -228,6 +250,11 @@ public class VmOperationsService {
         });
 
         return Optional.of(execution);
+    }
+
+    private static boolean isWholeEnvironment(StartOperationDTO dto) {
+        return (dto.getVmIds() == null || dto.getVmIds().isEmpty())
+                && (dto.getGroupIds() == null || dto.getGroupIds().isEmpty());
     }
 
     /**

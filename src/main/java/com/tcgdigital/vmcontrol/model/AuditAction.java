@@ -39,6 +39,14 @@ public enum AuditAction {
     LOCK_EXPIRED,
     LOCK_EXTENDED,
 
+    // Environment leases (E15)
+    LEASE_STARTED,
+    LEASE_EXTENDED,
+    LEASE_ENDED,
+    LEASE_EXPIRED,
+    LEASE_EXTENSION_REQUESTED,
+    LEASE_EXTENSION_DECIDED,
+
     // Operation execution
     OPERATION_STARTED,
     OPERATION_COMPLETED,

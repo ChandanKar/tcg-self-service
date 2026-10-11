@@ -39,6 +39,22 @@ public class StartOperationDTO {
      */
     private boolean continueOnFailure = true;
 
+    /**
+     * How long a START should keep a lease-enabled environment running (E15-T02); null = the
+     * owner's default. Bounded by the environment's maximum on the server.
+     */
+    @jakarta.validation.constraints.Min(value = 15, message = "A lease is at least 15 minutes")
+    @jakarta.validation.constraints.Max(value = 4320, message = "A lease is at most 4320 minutes")
+    private Integer leaseMinutes;
+
+    public Integer getLeaseMinutes() {
+        return leaseMinutes;
+    }
+
+    public void setLeaseMinutes(Integer leaseMinutes) {
+        this.leaseMinutes = leaseMinutes;
+    }
+
     public StartOperationDTO() {
     }
 

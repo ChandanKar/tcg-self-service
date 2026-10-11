@@ -13,10 +13,22 @@ import com.tcgdigital.vmcontrol.repository.EnvironmentLeaseRepository;
 import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
 import com.tcgdigital.vmcontrol.service.support.AuditChanges;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import java.sql.Timestamp;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.UUID;
 
 import java.util.HashMap;
 import java.util.List;
@@ -34,6 +46,8 @@ import java.util.stream.Collectors;
 @Service
 public class LeaseService {
 
+    private static final Logger log = LoggerFactory.getLogger(LeaseService.class);
+
     /** Shortest lease an owner may configure. */
     public static final int MIN_MINUTES = 15;
 
@@ -49,6 +63,15 @@ public class LeaseService {
     private final int platformDefaultMinutes;
     private final int platformMaxMinutes;
     private final int platformAbsoluteMaxMinutes;
+
+    /** Opening a lease runs in its own transaction so a lost race on the unique index can join instead. */
+    private TransactionTemplate newTransaction;
+
+    @Autowired
+    void setTransactionManager(PlatformTransactionManager transactionManager) {
+        this.newTransaction = new TransactionTemplate(transactionManager);
+        this.newTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    }
 
     public LeaseService(EnvironmentRepository environmentRepository,
                         EnvironmentLeaseRepository leaseRepository,
@@ -172,6 +195,97 @@ public class LeaseService {
         dto.setPlatformAbsoluteMaxMinutes(platformAbsoluteMaxMinutes);
         dto.setCanEdit(canEdit);
         return dto;
+    }
+
+    // ---------------------------------------------------------------- start / stop hooks (E15-T02)
+
+    /** A START asking for more than the environment's maximum is a 400 (no operation is created). */
+    public void validateRequestedMinutes(Environment env, Integer minutes) {
+        if (minutes == null || !isEnabledFor(env)) return;
+        if (minutes > effectiveMax(env)) {
+            throw new ValidationException("This environment runs for at most " + effectiveMax(env)
+                    + " minutes at a time");
+        }
+    }
+
+    /**
+     * After a START commits: open a lease ending {@code requestedMinutes} (or the owner's default)
+     * from now, or join the active one and move its end later if needed — never past
+     * {@code startedAt + effective maximum}. The starter becomes a participant.
+     *
+     * <p>Runs in a transaction of its own; when a concurrent start opened the lease first (the
+     * unique index rejects the second insert) it retries once in a fresh transaction, whose new
+     * snapshot sees that lease and joins it (under REPEATABLE READ the first one cannot).
+     */
+    public void openOrJoinOnStart(String environmentId, String userId, Integer requestedMinutes) {
+        try {
+            newTransaction.executeWithoutResult(status -> openOrJoinOnce(environmentId, userId, requestedMinutes));
+        } catch (DataIntegrityViolationException e) {
+            log.info("Lease for environment {} was opened concurrently; joining it", environmentId);
+            newTransaction.executeWithoutResult(status -> openOrJoinOnce(environmentId, userId, requestedMinutes));
+        }
+    }
+
+    private void openOrJoinOnce(String environmentId, String userId, Integer requestedMinutes) {
+        Environment env = environmentRepository.findById(environmentId).orElse(null);
+        if (!isEnabledFor(env)) return;
+        int minutes = Math.min(requestedMinutes != null ? requestedMinutes : effectiveDefault(env), effectiveMax(env));
+        Instant now = Instant.now();
+
+        Optional<EnvironmentLease> active = leaseRepository.findActiveByEnvironmentId(environmentId);
+        if (active.isEmpty()) {
+            EnvironmentLease lease = new EnvironmentLease();
+            lease.setLeaseId(UUID.randomUUID().toString());
+            lease.setEnvironment(env);
+            lease.setStatus(com.tcgdigital.vmcontrol.model.LeaseStatus.ACTIVE);
+            lease.setSource(com.tcgdigital.vmcontrol.model.LeaseSource.START);
+            lease.setStartedByUserId(userId);
+            lease.setStartedAt(Timestamp.from(now));
+            lease.setEndsAt(Timestamp.from(now.plus(Duration.ofMinutes(minutes))));
+            leaseRepository.saveAndFlush(lease); // a concurrent open fails here on the unique index
+            participantRepository.save(new EnvironmentLeaseParticipant(lease.getLeaseId(), userId, Timestamp.from(now)));
+            auditService.logLeaseStarted(userId, environmentId, env.getName(), lease.getLeaseId(),
+                    "Runs for " + minutes + " minutes.");
+            return;
+        }
+        EnvironmentLease lease = active.get();
+        join(lease, userId, now);
+        Instant cap = lease.getStartedAt().toInstant().plus(Duration.ofMinutes(effectiveMax(env)));
+        Instant wanted = now.plus(Duration.ofMinutes(minutes));
+        Instant newEnd = wanted.isAfter(cap) ? cap : wanted;
+        if (newEnd.isAfter(lease.getEndsAt().toInstant())) {
+            Instant oldEnd = lease.getEndsAt().toInstant();
+            lease.setEndsAt(Timestamp.from(newEnd));
+            leaseRepository.save(lease);
+            auditService.logLeaseExtended(userId, environmentId, env.getName(), lease.getLeaseId(),
+                    "End moved from " + oldEnd + " to " + newEnd + " on start.");
+        }
+    }
+
+    /** Make the user an active participant (rejoining clears an earlier leave). */
+    void join(EnvironmentLease lease, String userId, Instant now) {
+        EnvironmentLeaseParticipant participant = participantRepository
+                .findById(new com.tcgdigital.vmcontrol.model.EnvironmentLeaseParticipantId(lease.getLeaseId(), userId))
+                .orElseGet(() -> new EnvironmentLeaseParticipant(lease.getLeaseId(), userId, Timestamp.from(now)));
+        participant.setLeftAt(null);
+        participant.setLeftReason(null);
+        participantRepository.save(participant);
+    }
+
+    /** After a whole-environment STOP commits: the active lease ends (partial stops do not end it). */
+    @Transactional
+    public void endOnFullStop(String environmentId, String userId) {
+        Environment env = environmentRepository.findById(environmentId).orElse(null);
+        if (!isEnabledFor(env)) return;
+        leaseRepository.findActiveByEnvironmentId(environmentId).ifPresent(lease -> {
+            String who = userRepository.findById(userId).map(LeaseService::displayName).orElse("a user");
+            lease.setStatus(com.tcgdigital.vmcontrol.model.LeaseStatus.ENDED);
+            lease.setEndedAt(Timestamp.from(Instant.now()));
+            lease.setEndReason("Stopped by " + who);
+            leaseRepository.save(lease);
+            auditService.logLeaseEnded(userId, environmentId, env.getName(), lease.getLeaseId(),
+                    "Lease ended: environment stopped by " + who + ".");
+        });
     }
 
     // ---------------------------------------------------------------- leases
