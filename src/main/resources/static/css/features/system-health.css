@@ -41,7 +41,7 @@
     font-size: 0.68rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: #94a3b8;
+    color: var(--text-caption, #64748b);
     margin-bottom: 0.2rem;
     font-weight: 600;
 }
@@ -53,7 +53,7 @@
 }
 #system-health-view .metric-card .metric-subtitle {
     font-size: 0.68rem;
-    color: #94a3b8;
+    color: var(--text-caption, #64748b);
     margin-top: 0.1rem;
 }
 
@@ -75,7 +75,7 @@
     font-size: 0.68rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: #94a3b8;
+    color: var(--text-caption, #64748b);
     margin-top: 0.1rem;
 }
 
@@ -127,7 +127,7 @@
 #system-health-view .sh-empty {
     padding: 1.5rem;
     text-align: center;
-    color: #94a3b8;
+    color: var(--text-caption, #64748b);
     font-size: 0.8rem;
 }
 #system-health-view .sh-empty i {

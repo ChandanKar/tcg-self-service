@@ -90,7 +90,9 @@
     align-items: center;
     justify-content: center;
     padding: 0 0.75rem;
-    color: #ffffff;
+    /* Dark with a light halo: readable on both the filled bar and the empty track (E13-T04) */
+    color: #0f172a;
+    text-shadow: 0 0 2px #fff, 0 0 2px #fff;
     font-size: 0.8rem;
     font-weight: 700;
     text-shadow: 0 1px 2px rgba(15, 23, 42, 0.75);
@@ -118,7 +120,7 @@
 }
 
 .operation-status-cancelled {
-    color: #9ca3af;
+    color: #6b7280;
 }
 
 /* Operation history table */

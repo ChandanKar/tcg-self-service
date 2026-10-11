@@ -541,14 +541,14 @@ const AllLogs = (function() {
         // checks below) — "automation_rule_triggered"/"_skipped" don't contain any of
         // those generic keywords and would otherwise always fall through to bg-secondary.
         if (actionStr === 'automation_rule_triggered') return 'bg-success';
-        if (actionStr === 'automation_rule_skipped') return 'bg-warning';
+        if (actionStr === 'automation_rule_skipped') return 'text-bg-warning';
         if (actionStr === 'automation_rule_failed') return 'bg-danger';
         if (actionStr.startsWith('automation_rule_')) return 'bg-primary';
 
         if (actionStr.includes('failed')) return 'bg-danger';
         if (actionStr.includes('start')) return 'bg-success';
         if (actionStr.includes('stop')) return 'bg-danger';
-        if (actionStr.includes('lock')) return 'bg-warning';
+        if (actionStr.includes('lock')) return 'text-bg-warning';
         if (actionStr.includes('restart')) return 'bg-info';
         if (actionStr.includes('access')) return 'bg-primary';
         if (actionStr.includes('user')) return 'bg-info';

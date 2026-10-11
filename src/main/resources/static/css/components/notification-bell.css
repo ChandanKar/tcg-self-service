@@ -92,7 +92,7 @@
     flex-direction: column;
     align-items: center;
     padding: 2rem 1rem;
-    color: #94a3b8;
+    color: var(--text-caption, #64748b);
     font-size: 0.875rem;
     gap: 0.5rem;
 }
@@ -194,7 +194,7 @@
 
 .notification-item-time {
     font-size: 0.7rem;
-    color: #94a3b8;
+    color: var(--text-caption, #64748b);
     margin-top: 4px;
 }
 

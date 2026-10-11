@@ -20,6 +20,8 @@
     --sidebar-active: #dbeafe;
     --text-primary: #1e293b;
     --text-secondary: #64748b;
+    /* Small caption text: 4.5:1 on white, unlike the old #94a3b8 (E13-T04) */
+    --text-caption: #64748b;
     --border-color: #e2e8f0;
     --background-light: #f8fafc;
 

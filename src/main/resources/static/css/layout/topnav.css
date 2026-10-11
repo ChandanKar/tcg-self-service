@@ -149,7 +149,7 @@
 
 .top-navbar .user-role {
     font-size: 0.875rem;
-    color: #94a3b8;
+    color: var(--text-caption, #64748b);
 }
 
 /* User Profile Loading State */

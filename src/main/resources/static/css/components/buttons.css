@@ -34,6 +34,11 @@
    except when a text row action needs to keep its semantic color, in which case pair it
    with btn-outline-danger/success/warning as you would with .btn-action.
    ================================================ */
+/* Bootstrap's #6c757d is 4.48:1 on the page background; darken it (E13-T04). */
+.btn-outline-secondary {
+    --bs-btn-color: #5c636a;
+}
+
 .btn-ghost {
     background: transparent;
     border-color: transparent;
@@ -47,7 +52,7 @@
 }
 
 .btn-ghost.btn-outline-danger {
-    color: #e2a29e;
+    color: #dc2626;
 }
 
 .btn-ghost.btn-outline-danger:hover:not(:disabled) {
@@ -57,7 +62,7 @@
 }
 
 .btn-ghost.btn-outline-success {
-    color: #94a3b8;
+    color: var(--text-caption, #64748b);
 }
 
 .btn-ghost.btn-outline-success:hover:not(:disabled) {
@@ -67,7 +72,7 @@
 }
 
 .btn-ghost.btn-outline-warning {
-    color: #94a3b8;
+    color: var(--text-caption, #64748b);
 }
 
 .btn-ghost.btn-outline-warning:hover:not(:disabled) {
@@ -78,7 +83,7 @@
 
 .btn-ghost.btn-primary,
 .btn-ghost.btn-outline-primary {
-    color: #94a3b8;
+    color: var(--text-caption, #64748b);
 }
 
 .btn-ghost.btn-primary:hover:not(:disabled),
@@ -111,7 +116,7 @@
     border-radius: 6px;
     background-color: transparent;
     border-color: transparent;
-    color: #94a3b8;
+    color: var(--text-caption, #64748b);
     transition: background-color 0.15s ease, color 0.15s ease;
 }
 
@@ -122,7 +127,7 @@
 
 .btn-action.btn-warning,
 .btn-action.btn-outline-warning {
-    color: #d8b487;
+    color: #92400e;
 }
 
 .btn-action:hover:not(:disabled) {
@@ -148,7 +153,7 @@
 .btn-action.btn-warning:hover:not(:disabled),
 .btn-action.btn-outline-warning:hover:not(:disabled) {
     background-color: rgba(245, 158, 11, 0.12);
-    color: var(--warning-color);
+    color: #78350f;
 }
 
 .btn-action.btn-success:hover:not(:disabled),

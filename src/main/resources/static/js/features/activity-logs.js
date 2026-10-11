@@ -472,7 +472,7 @@ const ActivityLogs = (function() {
         const actionStr = action.toString().toLowerCase();
         if (actionStr.includes('start')) return 'bg-success';
         if (actionStr.includes('stop')) return 'bg-danger';
-        if (actionStr.includes('lock')) return 'bg-warning';
+        if (actionStr.includes('lock')) return 'text-bg-warning';
         if (actionStr.includes('restart')) return 'bg-info';
         if (actionStr.includes('failed')) return 'bg-danger';
         if (actionStr.includes('cancelled')) return 'bg-secondary';

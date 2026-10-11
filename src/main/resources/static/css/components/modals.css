@@ -39,7 +39,7 @@
 
 .modal-body .form-text {
     font-size: 0.75rem;
-    color: #94a3b8;
+    color: var(--text-caption, #64748b);
 }
 
 .modal-body .form-select,
