@@ -32,5 +32,7 @@ public record BudgetDTO(
         BigDecimal forecastPercent,
         String createdByUserId,
         Timestamp createdAt,
-        Timestamp updatedAt) {
+        Timestamp updatedAt,
+        /** Environment budgets: starts are frozen until then (E20-T03); null when not frozen. */
+        Timestamp startFrozenUntil) {
 }

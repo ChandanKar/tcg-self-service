@@ -32,5 +32,9 @@ public enum NotificationType {
     /** A budget's spend reached one of its thresholds (E20-T02). */
     BUDGET_THRESHOLD,
     /** A budget's month-end forecast exceeds it (E20-T02). */
-    BUDGET_FORECAST
+    BUDGET_FORECAST,
+    /** An exhausted budget's action awaits an owner's approval (E20-T03). */
+    BUDGET_ACTION_PENDING,
+    /** Starts are frozen in an environment by its budget (E20-T03). */
+    BUDGET_FREEZE
 }

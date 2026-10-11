@@ -35,8 +35,8 @@ class BudgetEvaluationLoopTest {
     private final BudgetService budgetService = mock(BudgetService.class);
     private final NotificationService notifications = mock(NotificationService.class);
     private final EnvironmentRepository environments = mock(EnvironmentRepository.class);
-    private final BudgetEvaluationService evaluation =
-            new BudgetEvaluationService(budgets, alerts, budgetService, notifications, environments);
+    private final BudgetEvaluationService evaluation = new BudgetEvaluationService(budgets, alerts, budgetService,
+            notifications, environments, mock(BudgetActionService.class));
 
     private static Budget budget(String id) {
         Budget b = new Budget();

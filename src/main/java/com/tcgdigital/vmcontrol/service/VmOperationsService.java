@@ -79,6 +79,12 @@ public class VmOperationsService {
     @Autowired
     private LeaseService leaseService;
 
+    /** For the budget freeze's admin override and its date (E20-T03). */
+    @Autowired
+    private com.tcgdigital.vmcontrol.repository.UserRepository userRepository;
+    @Autowired
+    private CostDayBoundary costDayBoundary;
+
     @Autowired
     private com.tcgdigital.vmcontrol.service.support.AfterCommit afterCommit;
 
@@ -161,6 +167,29 @@ public class VmOperationsService {
         return startOperationInternal(environmentId, attributedUserId, dto, trigger, source);
     }
 
+    /**
+     * An approved budget freeze (E20-T03) blocks starts: only an admin's own manual start goes
+     * through, audited as an override. Automation and system starts stay blocked, so a schedule
+     * rule records the freeze as its skip reason. Stops are never blocked.
+     */
+    private void checkStartFreeze(Environment environment, String userId, boolean system, OperationTriggerSource source) {
+        java.sql.Timestamp until = environment.getStartFrozenUntil();
+        if (until == null || !until.toInstant().isAfter(java.time.Instant.now())) {
+            return;
+        }
+        boolean adminOverride = !system && (source == null || source == OperationTriggerSource.MANUAL)
+                && userId != null && userRepository.findById(userId).map(com.tcgdigital.vmcontrol.model.User::isAdmin).orElse(false);
+        if (!adminOverride) {
+            java.time.LocalDate day = until.toInstant().atZone(costDayBoundary.zone()).toLocalDate();
+            throw new ValidationException("Starts are frozen until " + day + " because the environment's budget is exhausted. "
+                    + "Ask an owner to lift the freeze.");
+        }
+        String name = environment.getDisplayName() != null ? environment.getDisplayName() : environment.getName();
+        auditService.logEnvironmentAction(userId, com.tcgdigital.vmcontrol.model.AuditAction.BUDGET_FREEZE_OVERRIDDEN,
+                environment.getEnvironmentId(), name, "environment", environment.getEnvironmentId(), name,
+                "Admin started VMs during a budget start freeze");
+    }
+
     private Optional<OperationExecution> startOperationInternal(String environmentId, String userId,
                                                                 StartOperationDTO dto, String systemTrigger,
                                                                 OperationTriggerSource source) {
@@ -176,6 +205,9 @@ public class VmOperationsService {
 
         // A requested lease longer than the environment allows fails before anything is created.
         boolean starting = dto.getOperationType() == OperationType.START || dto.getOperationType() == OperationType.RESTART;
+        if (starting) {
+            checkStartFreeze(environment, userId, system, source);
+        }
         if (starting && !system) {
             leaseService.validateRequestedMinutes(environment, dto.getLeaseMinutes());
         }

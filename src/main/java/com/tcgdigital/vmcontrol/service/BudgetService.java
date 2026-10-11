@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Date;
+import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -267,18 +268,25 @@ public class BudgetService {
 
     BudgetDTO toDto(Budget budget) {
         Spend spend = currentSpend(budget);
-        String name;
-        try {
-            name = scopeName(budget.getScopeType(), budget.getScopeId());
-        } catch (ValidationException e) {
+        String name = budget.getScopeId();
+        Timestamp frozenUntil = null;
+        if (budget.getScopeType() == BudgetScopeType.TEAM) {
             name = budget.getScopeId();
+        } else {
+            Optional<Environment> environment = environmentRepository.findById(budget.getScopeId());
+            if (environment.isPresent()) {
+                Environment e = environment.get();
+                name = e.getDisplayName() != null ? e.getDisplayName() : e.getName();
+                Timestamp until = e.getStartFrozenUntil();
+                frozenUntil = until != null && until.toInstant().isAfter(clock.instant()) ? until : null;
+            }
         }
         return new BudgetDTO(budget.getBudgetId(), budget.getScopeType(), budget.getScopeId(), name,
                 budget.getMonthlyAmount(), budget.thresholdList(), Boolean.TRUE.equals(budget.getForecastAlert()),
                 budget.getActionType(), Boolean.TRUE.equals(budget.getEnabled()), budget.getAwsBudgetName(),
                 spend.month().toString(), spend.asOf(), spend.toDate(), percent(spend.toDate(), budget.getMonthlyAmount()),
                 spend.forecast(), spend.forecast() == null ? null : percent(spend.forecast(), budget.getMonthlyAmount()),
-                budget.getCreatedByUserId(), budget.getCreatedAt(), budget.getUpdatedAt());
+                budget.getCreatedByUserId(), budget.getCreatedAt(), budget.getUpdatedAt(), frozenUntil);
     }
 
     private void audit(String userId, AuditAction action, Budget budget, String scopeName, String details) {

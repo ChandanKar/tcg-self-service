@@ -206,7 +206,9 @@ const NotificationBell = (function () {
             LEASE_EXTENSION_REQUESTED: 'fa-user-clock',
             LEASE_EXTENSION_DECIDED: 'fa-gavel',
             BUDGET_THRESHOLD:        'fa-wallet',
-            BUDGET_FORECAST:         'fa-chart-line'
+            BUDGET_FORECAST:         'fa-chart-line',
+            BUDGET_ACTION_PENDING:   'fa-gavel',
+            BUDGET_FREEZE:           'fa-snowflake'
         };
         return icons[type] || 'fa-bell';
     }
@@ -217,7 +219,8 @@ const NotificationBell = (function () {
         }
         if (['ACCESS_EXPIRING', 'ACCESS_REQUESTED', 'LOCK_ACQUIRED', 'OPERATION_REQUESTED', 'LOCK_EXPIRING',
              'ENVIRONMENT_STOP_NOTICE', 'AUTOMATION_RULE_SKIPPED', 'LEASE_EXPIRING', 'LEASE_EXPIRED',
-             'LEASE_EXTENSION_REQUESTED', 'BUDGET_THRESHOLD', 'BUDGET_FORECAST'].includes(type)) {
+             'LEASE_EXTENSION_REQUESTED', 'BUDGET_THRESHOLD', 'BUDGET_FORECAST',
+             'BUDGET_ACTION_PENDING', 'BUDGET_FREEZE'].includes(type)) {
             return 'tone-warning';
         }
         if (['OPERATION_COMPLETED', 'ACCESS_GRANTED', 'ACCESS_REQUEST_APPROVED', 'EKS_SYNC_CHANGED'].includes(type)) {

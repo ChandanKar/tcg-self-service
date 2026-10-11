@@ -40,6 +40,10 @@ public class Environment {
     @UpdateTimestamp
     private Timestamp updatedAt;
 
+    /** Starts are blocked until then by an approved budget freeze (E20-T03); null when not frozen. */
+    @Column(name = "start_frozen_until")
+    private java.sql.Timestamp startFrozenUntil;
+
     @Column(columnDefinition = "TEXT")
     private String metadata;
 
@@ -201,5 +205,13 @@ public class Environment {
 
     public void setIsProduction(Boolean isProduction) {
         this.isProduction = isProduction;
+    }
+
+    public java.sql.Timestamp getStartFrozenUntil() {
+        return startFrozenUntil;
+    }
+
+    public void setStartFrozenUntil(java.sql.Timestamp startFrozenUntil) {
+        this.startFrozenUntil = startFrozenUntil;
     }
 }

@@ -339,6 +339,28 @@ public class NotificationService {
         }
     }
 
+    /** An exhausted budget's action needs an owner's decision (E20-T03). */
+    public void notifyBudgetActionPending(String environmentId, String environmentName, String requestId,
+                                          com.tcgdigital.vmcontrol.model.BudgetActionType action, java.time.YearMonth month) {
+        String what = action == com.tcgdigital.vmcontrol.model.BudgetActionType.STOP_ENVIRONMENT
+                ? "stop the environment" : "freeze starts";
+        String title = "Approve budget action: " + environmentName;
+        String message = environmentName + " has used its whole budget for " + monthName(month) + ". Its budget asks to "
+                + what + "; nothing happens until an owner approves it.";
+        resolveEnvironmentReviewers(environmentId).forEach(u -> create(u.getUserId(),
+                NotificationType.BUDGET_ACTION_PENDING, title, message, "BUDGET_ACTION", requestId));
+    }
+
+    /** Everyone with access hears that starts are frozen (E20-T03). */
+    public void notifyBudgetFreeze(String environmentId, String environmentName, java.time.Instant until) {
+        String title = "Starts frozen: " + environmentName;
+        String message = "Starting VMs in " + environmentName + " is blocked until "
+                + until.atZone(java.time.ZoneOffset.UTC).toLocalDate() + " because its budget is exhausted. "
+                + "Stops still work; an owner can lift the freeze.";
+        resolveEnvironmentRecipients(environmentId).forEach(u -> create(u.getUserId(),
+                NotificationType.BUDGET_FREEZE, title, message, "ENVIRONMENT", environmentId));
+    }
+
     private static String dollars(java.math.BigDecimal value) {
         return value == null ? "$0.00" : "$" + String.format(java.util.Locale.US, "%,.2f", value);
     }

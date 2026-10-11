@@ -37,13 +37,19 @@ public class BudgetEvaluationService {
     private final BudgetService budgetService;
     private final NotificationService notificationService;
     private final EnvironmentRepository environmentRepository;
+    private final BudgetActionService actionService;
+
+    /** Exhausted budgets request their action (E20-T03); off by default, as it changes what users can do. */
+    @org.springframework.beans.factory.annotation.Value("${budgets.actions.enabled:false}")
+    private boolean actionsEnabled = false;
 
     /** Replaceable in tests. */
     private Clock clock = Clock.systemUTC();
 
     public BudgetEvaluationService(BudgetRepository budgetRepository, BudgetAlertRepository alertRepository,
                                    BudgetService budgetService, NotificationService notificationService,
-                                   EnvironmentRepository environmentRepository) {
+                                   EnvironmentRepository environmentRepository, BudgetActionService actionService) {
+        this.actionService = actionService;
         this.budgetRepository = budgetRepository;
         this.alertRepository = alertRepository;
         this.budgetService = budgetService;
@@ -55,6 +61,11 @@ public class BudgetEvaluationService {
     public int evaluateAll() {
         LocalDate asOf = LocalDate.now(clock).minusDays(1);
         int fired = 0;
+        try {
+            actionService.expireBefore(YearMonth.from(asOf));
+        } catch (Exception e) {
+            log.error("Could not expire old budget action requests: {}", e.getMessage(), e);
+        }
         for (Budget budget : budgetRepository.findByEnabledTrue()) {
             try {
                 fired += evaluate(budget, YearMonth.from(asOf), asOf);
@@ -80,6 +91,14 @@ public class BudgetEvaluationService {
                 fired++;
                 notify(() -> notificationService.notifyBudgetThreshold(environmentIds, budget.getBudgetId(),
                         budget.getScopeType() == BudgetScopeType.TEAM, scopeName, month, threshold, spend.toDate(), amount));
+            }
+        }
+        if (actionsEnabled && budget.getActionType() != com.tcgdigital.vmcontrol.model.BudgetActionType.NONE
+                && spend.toDate().compareTo(amount) >= 0) {
+            try {
+                actionService.raise(budget, month);
+            } catch (Exception e) {
+                log.error("Could not raise the action of budget {}: {}", budget.getBudgetId(), e.getMessage(), e);
             }
         }
         if (Boolean.TRUE.equals(budget.getForecastAlert()) && spend.forecast() != null

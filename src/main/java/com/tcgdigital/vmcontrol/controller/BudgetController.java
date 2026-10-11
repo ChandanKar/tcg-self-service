@@ -25,8 +25,11 @@ public class BudgetController {
 
     private final BudgetService budgetService;
     private final UserService userService;
+    private final com.tcgdigital.vmcontrol.service.BudgetActionService budgetActionService;
 
-    public BudgetController(BudgetService budgetService, UserService userService) {
+    public BudgetController(BudgetService budgetService, UserService userService,
+                            com.tcgdigital.vmcontrol.service.BudgetActionService budgetActionService) {
+        this.budgetActionService = budgetActionService;
         this.budgetService = budgetService;
         this.userService = userService;
     }
@@ -43,6 +46,44 @@ public class BudgetController {
     @Operation(summary = "Teams that environments belong to, for team budgets")
     public List<String> teams() {
         return budgetService.teams();
+    }
+
+    // ============= Actions (E20-T03) =============
+
+    /** Body of an approve/reject/lift call. */
+    public record DecisionRequest(@jakarta.validation.constraints.Size(max = 500) String reason) {}
+
+    @GetMapping("/budgets/actions")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Budget action requests of environments you own (admins: all)")
+    public List<com.tcgdigital.vmcontrol.dto.BudgetActionRequestDTO> actions(
+            @RequestParam(required = false) com.tcgdigital.vmcontrol.model.BudgetActionRequest.Status status) {
+        return budgetActionService.list(userService.getCurrentUserId(), status);
+    }
+
+    @PostMapping("/budgets/actions/{requestId}/approve")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Approve a budget action (an owner other than the budget's creator, or an admin)")
+    public com.tcgdigital.vmcontrol.dto.BudgetActionRequestDTO approve(@PathVariable String requestId,
+                                                                     @Valid @RequestBody(required = false) DecisionRequest body) {
+        return budgetActionService.approve(requestId, userService.getCurrentUserId(), body == null ? null : body.reason());
+    }
+
+    @PostMapping("/budgets/actions/{requestId}/reject")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Reject a budget action")
+    public com.tcgdigital.vmcontrol.dto.BudgetActionRequestDTO reject(@PathVariable String requestId,
+                                                                    @Valid @RequestBody(required = false) DecisionRequest body) {
+        return budgetActionService.reject(requestId, userService.getCurrentUserId(), body == null ? null : body.reason());
+    }
+
+    @PostMapping("/environments/{environmentId}/freeze/lift")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Lift an environment's budget start freeze")
+    public ResponseEntity<Void> liftFreeze(@PathVariable String environmentId,
+                                           @Valid @RequestBody(required = false) DecisionRequest body) {
+        budgetActionService.liftFreeze(environmentId, userService.getCurrentUserId(), body == null ? null : body.reason());
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/budgets/{budgetId}")
