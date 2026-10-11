@@ -175,13 +175,8 @@ public class EnvironmentCostService {
         List<CostDailySnapshot> runRateDays = snapshots.stream()
                 .filter(s -> !s.getSnapshotDate().toLocalDate().isBefore(today.minusDays(RUN_RATE_DAYS)))
                 .toList();
-        BigDecimal forecast = null;
-        if (!runRateDays.isEmpty()) {
-            BigDecimal average = runRateDays.stream().map(s -> nz(s.getEstimatedCost())).reduce(BigDecimal.ZERO, BigDecimal::add)
-                    .divide(BigDecimal.valueOf(runRateDays.size()), 4, RoundingMode.HALF_UP);
-            int daysLeft = today.lengthOfMonth() - today.getDayOfMonth();
-            forecast = mtd.add(average.multiply(BigDecimal.valueOf(daysLeft)));
-        }
+        BigDecimal forecast = CostRunRate.forecast(mtd, runRateDays.stream().map(s -> nz(s.getEstimatedCost())).toList(),
+                today.lengthOfMonth() - today.getDayOfMonth());
 
         List<EnvironmentCostDTO.DailyCost> daily = snapshots.stream()
                 .filter(s -> !s.getSnapshotDate().toLocalDate().isBefore(trendStart))

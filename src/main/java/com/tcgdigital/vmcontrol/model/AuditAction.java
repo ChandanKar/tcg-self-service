@@ -89,6 +89,11 @@ public enum AuditAction {
     /** A holiday calendar or its dates changed (E19-T02). */
     HOLIDAY_CALENDAR_CHANGED,
 
+    // Budgets (E20)
+    BUDGET_CREATED,
+    BUDGET_UPDATED,
+    BUDGET_DELETED,
+
     // Idle auto-stop (E16)
     IDLE_STOP_RULE_CHANGED,
     IDLE_STOP_TRIGGERED,

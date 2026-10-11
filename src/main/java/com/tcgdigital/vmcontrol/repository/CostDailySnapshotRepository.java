@@ -79,6 +79,21 @@ public interface CostDailySnapshotRepository extends JpaRepository<CostDailySnap
                                                                 @Param("from") java.sql.Date from,
                                                                 @Param("to") java.sql.Date to);
 
+    /** Daily estimate and actual of many environments (budgets, E20-T01). */
+    @Query("SELECT c.environment.environmentId AS environmentId, c.snapshotDate AS snapshotDate, " +
+           "c.estimatedCost AS estimatedCost, c.actualCost AS actualCost FROM CostDailySnapshot c " +
+           "WHERE c.environment.environmentId IN :ids AND c.snapshotDate BETWEEN :from AND :to")
+    List<EnvironmentDailyActualCost> findDailyWithActualByEnvironmentIdsBetween(@Param("ids") List<String> environmentIds,
+                                                                              @Param("from") java.sql.Date from,
+                                                                              @Param("to") java.sql.Date to);
+
+    interface EnvironmentDailyActualCost {
+        String getEnvironmentId();
+        java.sql.Date getSnapshotDate();
+        java.math.BigDecimal getEstimatedCost();
+        java.math.BigDecimal getActualCost();
+    }
+
     interface EnvironmentDailyCost {
         String getEnvironmentId();
         java.sql.Date getSnapshotDate();
