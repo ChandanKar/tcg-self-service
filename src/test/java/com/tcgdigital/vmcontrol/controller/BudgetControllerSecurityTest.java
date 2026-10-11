@@ -144,4 +144,19 @@ class BudgetControllerSecurityTest extends SecuredWebTestBase {
         mockMvc.perform(get("/api/v1/budgets")).andExpect(status().is(org.hamcrest.Matchers.anyOf(
                 org.hamcrest.Matchers.is(401), org.hamcrest.Matchers.is(302), org.hamcrest.Matchers.is(403))));
     }
+
+    @Test
+    void theConfigListsTheScopesYouMayBudget() throws Exception {
+        mockMvc.perform(get("/api/v1/budgets/config").with(asUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.actionsEnabled").value(false))
+                .andExpect(jsonPath("$.environments.length()").value(1))
+                .andExpect(jsonPath("$.environments[0].environmentId").value(envA.getEnvironmentId()))
+                .andExpect(jsonPath("$.teams.length()").value(0));
+        mockMvc.perform(get("/api/v1/budgets/config").with(asViewer()))
+                .andExpect(jsonPath("$.environments.length()").value(0));
+        mockMvc.perform(get("/api/v1/budgets/config").with(asAdmin()))
+                .andExpect(jsonPath("$.environments.length()").value(org.hamcrest.Matchers.greaterThanOrEqualTo(2)))
+                .andExpect(jsonPath("$.teams").isArray());
+    }
 }

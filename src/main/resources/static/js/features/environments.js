@@ -701,6 +701,7 @@ const Environments = (function() {
                 ${metricsRow}
 
                 <section id="env-cost-card" aria-label="Environment cost"></section>
+                <div id="env-budget-panel"></div>
                 <div id="env-idle-panel"></div>
 
                 <div class="mb-1">
@@ -932,6 +933,11 @@ const Environments = (function() {
         // Cost card (E18): loads after the page, never blocks it.
         if (typeof EnvCost !== 'undefined') {
             EnvCost.render(env);
+        }
+
+        // Budget bar, freeze banner and owner approvals (E20-T05).
+        if (typeof Budgets !== 'undefined') {
+            Budgets.renderEnvPanel(env);
         }
 
         // Idle auto-stop panel (E16): renders nothing while the feature is off.

@@ -127,6 +127,20 @@ const Config = (function() {
             acknowledge: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}/acknowledge`
         },
 
+        // Budgets (E20)
+        budgets: {
+            config: `${API_BASE_URL}/budgets/config`,
+            list: `${API_BASE_URL}/budgets`,
+            create: `${API_BASE_URL}/budgets`,
+            update: (id) => `${API_BASE_URL}/budgets/${encodeURIComponent(id)}`,
+            delete: (id) => `${API_BASE_URL}/budgets/${encodeURIComponent(id)}`,
+            forEnvironment: (envId) => `${API_BASE_URL}/environments/${encodeURIComponent(envId)}/budget`,
+            actions: (status) => `${API_BASE_URL}/budgets/actions` + (status ? `?status=${status}` : ''),
+            approve: (id) => `${API_BASE_URL}/budgets/actions/${encodeURIComponent(id)}/approve`,
+            reject: (id) => `${API_BASE_URL}/budgets/actions/${encodeURIComponent(id)}/reject`,
+            liftFreeze: (envId) => `${API_BASE_URL}/environments/${encodeURIComponent(envId)}/freeze/lift`
+        },
+
         // Savings ledger and Cost Efficiency (E17)
         savings: {
             summary: `${API_BASE_URL}/savings/summary`,

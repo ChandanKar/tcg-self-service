@@ -41,6 +41,13 @@ public class BudgetController {
         return budgetService.list();
     }
 
+    @GetMapping("/budgets/config")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Whether budget actions are enabled, and the scopes you may budget")
+    public BudgetService.Config config() {
+        return budgetService.config();
+    }
+
     @GetMapping("/budgets/teams")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Teams that environments belong to, for team budgets")

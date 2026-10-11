@@ -1,0 +1,64 @@
+/*
+ * Budgets (E20-T05): the budget bar, the pending-action rows and the threshold chips.
+ */
+.budget-bar {
+    height: 0.5rem;
+    border-radius: 999px;
+    background: var(--border-color, #e2e8f0);
+    overflow: hidden;
+    margin: 0.35rem 0;
+    min-width: 6rem;
+}
+
+.budget-bar span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: #059669;
+}
+
+.budget-warn span {
+    background: #d97706;
+}
+
+.budget-danger span {
+    background: #dc2626;
+}
+
+.budget-over span {
+    background: #991b1b;
+}
+
+.budget-progress-cell {
+    min-width: 9rem;
+}
+
+.budget-action-row {
+    padding: 0.5rem 0;
+    border-top: 1px solid var(--border-color, #e2e8f0);
+}
+
+.budget-action-row:first-of-type {
+    border-top: 0;
+}
+
+.budget-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.6rem;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 999px;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.budget-chip input {
+    margin: 0;
+}
+
+/* Bootstrap's link blue is 4.3:1 on the page background; this one passes AA. */
+.budget-env-empty .btn-link,
+.budget-env-card .btn-link {
+    color: #0a58ca;
+}

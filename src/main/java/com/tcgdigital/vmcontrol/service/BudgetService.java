@@ -57,6 +57,14 @@ public class BudgetService {
     /** Replaceable in tests. */
     private Clock clock = Clock.systemUTC();
 
+    @org.springframework.beans.factory.annotation.Value("${budgets.actions.enabled:false}")
+    private boolean actionsEnabled = false;
+
+    /** What the budget form needs: whether actions run, and which scopes the caller may budget (E20-T05). */
+    public record Config(boolean actionsEnabled, List<ScopeOption> environments, List<String> teams) {}
+
+    public record ScopeOption(String environmentId, String name) {}
+
     public BudgetService(BudgetRepository budgetRepository, EnvironmentRepository environmentRepository,
                          CostDailySnapshotRepository snapshotRepository, TeamResolver teamResolver,
                          SecurityService securityService, AuditService auditService) {
@@ -93,6 +101,17 @@ public class BudgetService {
     public Optional<BudgetDTO> forEnvironment(String environmentId) {
         securityService.assertCanView(environmentId);
         return budgetRepository.findByScopeTypeAndScopeId(BudgetScopeType.ENVIRONMENT, environmentId).map(this::toDto);
+    }
+
+    /** Environments the caller owns (all for admins) and, for admins, the teams. */
+    @Transactional(readOnly = true)
+    public Config config() {
+        boolean admin = securityService.isAdmin();
+        List<ScopeOption> environments = environmentRepository.findByIsActiveTrueOrderByNameAsc().stream()
+                .filter(e -> admin || securityService.effectiveEnvLevel(e.getEnvironmentId()) == AccessLevel.ADMIN)
+                .map(e -> new ScopeOption(e.getEnvironmentId(), e.getDisplayName() != null ? e.getDisplayName() : e.getName()))
+                .toList();
+        return new Config(actionsEnabled, environments, admin ? teams() : List.of());
     }
 
     /** The teams environments belong to, for the budget form (admins). */

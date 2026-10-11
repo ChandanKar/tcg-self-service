@@ -96,6 +96,7 @@ const NotificationBell = (function () {
         const entityType = (n.entityType || '').toUpperCase();
         if (entityType === 'ENVIRONMENT' && n.entityId) return ['environment-detail', { environmentId: n.entityId }];
         if (entityType === 'ACCESS') return ['my-environments'];
+        if (entityType === 'BUDGET_ACTION' || entityType === 'BUDGET') return ['budgets']; // E20
         if (entityType === 'ACCESS_REQUEST') return ['pending-requests'];
         if (entityType === 'VM') return ['vm-registry'];
         if (n.type === 'WEEKLY_COST_REPORT') return ['cost-management'];
@@ -207,7 +208,7 @@ const NotificationBell = (function () {
             LEASE_EXTENSION_DECIDED: 'fa-gavel',
             BUDGET_THRESHOLD:        'fa-wallet',
             BUDGET_FORECAST:         'fa-chart-line',
-            BUDGET_ACTION_PENDING:   'fa-gavel',
+            BUDGET_ACTION_PENDING:   'fa-gavel',  // opens #/budgets (entity BUDGET_ACTION)
             BUDGET_FREEZE:           'fa-snowflake'
         };
         return icons[type] || 'fa-bell';
