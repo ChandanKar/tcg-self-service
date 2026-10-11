@@ -304,10 +304,10 @@
     </main>
 
     <!-- Slide-out Panel for Running VMs -->
-    <div class="slideout-panel" id="runningPanel">
+    <div class="slideout-panel" id="runningPanel" role="dialog" aria-modal="true" aria-labelledby="runningPanelTitle" inert>
         <div class="slideout-panel-header">
-            <h3><i class="fas fa-play-circle text-success"></i> My Running VMs (12)</h3>
-            <button class="close-btn">&times;</button>
+            <h3 id="runningPanelTitle"><i class="fas fa-play-circle text-success"></i> My Running VMs (12)</h3>
+            <button type="button" class="close-btn" aria-label="Close">&times;</button>
         </div>
         <div class="slideout-panel-content">
             <div class="env-card">
@@ -349,10 +349,10 @@
     </div>
 
     <!-- Slide-out Panel for Locked Environments -->
-    <div class="slideout-panel" id="lockedPanel">
+    <div class="slideout-panel" id="lockedPanel" role="dialog" aria-modal="true" aria-labelledby="lockedPanelTitle" inert>
         <div class="slideout-panel-header">
-            <h3><i class="fas fa-lock text-warning"></i> Environments Locked by Me (2)</h3>
-            <button class="close-btn">&times;</button>
+            <h3 id="lockedPanelTitle"><i class="fas fa-lock text-warning"></i> Environments Locked by Me (2)</h3>
+            <button type="button" class="close-btn" aria-label="Close">&times;</button>
         </div>
         <div class="slideout-panel-content">
             <div class="env-card">

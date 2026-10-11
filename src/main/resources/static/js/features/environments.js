@@ -1376,7 +1376,7 @@ const Environments = (function() {
                 const content = buildEnvironmentInsightsPanel(insights);
                 try {
                     if (typeof Slideout !== 'undefined' && Slideout.open) {
-                        Slideout.open(title, content);
+                        Slideout.open(title, content, { html: true });
                     } else {
                         Notifications.info('Environment Insights: ' + (env.displayName || env.name));
                     }
@@ -1611,7 +1611,7 @@ const Environments = (function() {
 
                         try {
                             if (typeof Slideout !== 'undefined' && Slideout.open) {
-                                Slideout.open(title, content);
+                                Slideout.open(title, content, { html: true });
                                 bindMetricWindowInteractions();
                             } else {
                                 Notifications.info('VM Details: ' + vm.name);

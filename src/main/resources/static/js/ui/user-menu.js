@@ -60,6 +60,8 @@ const UserMenu = (function() {
         $(document).on('click', '#my-account-btn', function(e) {
             e.preventDefault();
             closeDropdown();
+            // The panel returns focus to its opener; the menu item is about to be hidden (E13-T03).
+            $('.user-profile-trigger').trigger('focus');
             MyAccount.open();
         });
     }
