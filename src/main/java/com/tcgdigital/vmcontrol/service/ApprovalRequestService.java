@@ -116,13 +116,42 @@ public class ApprovalRequestService {
 
     // ============= Holding a start =============
 
+    /** What the start path does: run (with any quota warnings) or answer 202 with the held request. */
+    public record StartGate(ApprovalRequestDTO.Held held, List<String> warnings) {}
+
+    /**
+     * Evaluates a start against approval policies and team quotas (E25-T07): 409 when a BLOCK
+     * quota would be exceeded; held (202) when it needs approval; otherwise it may run, with the
+     * quota warnings to show.
+     */
+    @Transactional
+    public StartGate gateStart(String environmentId, String requesterId, StartOperationDTO dto) {
+        if (!policyService.isActive() || dto == null || dto.getOperationType() == null
+                || (dto.getOperationType() != OperationType.START && dto.getOperationType() != OperationType.RESTART)) {
+            return new StartGate(null, List.of());
+        }
+        String groupId = dto.getGroupIds() != null && dto.getGroupIds().size() == 1 ? dto.getGroupIds().get(0) : null;
+        String vmId = dto.getVmIds() != null && dto.getVmIds().size() == 1 ? dto.getVmIds().get(0) : null;
+        Integer hours = dto.getLeaseMinutes() == null ? null : (int) Math.ceil(dto.getLeaseMinutes() / 60.0);
+        ApprovalPolicyService.ApprovalContext ctx = policyService.context(environmentId, groupId, vmId, hours, false, requesterId);
+        ApprovalPolicyService.ApprovalDecision decision = policyService.evaluate(ctx);
+        if (decision.blocked()) {
+            throw new ConflictException(String.join("; ", decision.warnings()));
+        }
+        if (!decision.requiresApproval()) {
+            return new StartGate(null, decision.warnings());
+        }
+        String scope = (vmId != null ? "1 VM" : groupId != null ? "a group" : "the whole environment") + ", " + ctx.requestedHours() + " h";
+        return new StartGate(hold(ApprovalRequest.Type.START, ctx, decision, write(dto), scope), decision.warnings());
+    }
+
     /**
      * Evaluates a start against the approval policies; holds it and returns what to answer (202)
      * when it needs approval, or null when it may run now.
      */
     @Transactional
     public ApprovalRequestDTO.Held holdStartIfNeeded(String environmentId, String requesterId, StartOperationDTO dto) {
-        if (!policyService.isEnabled() || dto == null || dto.getOperationType() == null
+        if (!policyService.isActive() || dto == null || dto.getOperationType() == null
                 || (dto.getOperationType() != OperationType.START && dto.getOperationType() != OperationType.RESTART)) {
             return null;
         }
@@ -131,6 +160,9 @@ public class ApprovalRequestService {
         Integer hours = dto.getLeaseMinutes() == null ? null : (int) Math.ceil(dto.getLeaseMinutes() / 60.0);
         ApprovalPolicyService.ApprovalContext ctx = policyService.context(environmentId, groupId, vmId, hours, false, requesterId);
         ApprovalPolicyService.ApprovalDecision decision = policyService.evaluate(ctx);
+        if (decision.blocked()) {
+            throw new ConflictException(String.join("; ", decision.warnings()));
+        }
         if (!decision.requiresApproval()) {
             return null;
         }
@@ -145,7 +177,7 @@ public class ApprovalRequestService {
      */
     @Transactional
     public ApprovalRequestDTO.Held holdExtensionIfNeeded(String environmentId, String requesterId, int minutes, String reason) {
-        if (!policyService.isEnabled() || leaseRepository == null) {
+        if (!policyService.isActive() || leaseRepository == null) {
             return null;
         }
         securityService.assertCanOperate(environmentId);
@@ -161,6 +193,9 @@ public class ApprovalRequestService {
         ApprovalPolicyService.ApprovalContext ctx = new ApprovalPolicyService.ApprovalContext(priced.environmentId(), priced.teamId(),
                 requesterId, "EXTEND", priced.targets(), totalHours, priced.preview());
         ApprovalPolicyService.ApprovalDecision decision = policyService.evaluate(ctx);
+        if (decision.blocked()) {
+            throw new ConflictException(String.join("; ", decision.warnings()));
+        }
         if (!decision.requiresApproval()) {
             return null;
         }
@@ -234,6 +269,18 @@ public class ApprovalRequestService {
         Set<String> ids = new LinkedHashSet<>();
         Timestamp now = new Timestamp(System.currentTimeMillis());
         for (ApprovalPolicyService.PolicyMatch match : decision.matches()) {
+            if (match.policyId().startsWith(ApprovalPolicyService.QUOTA_MATCH_PREFIX)) {
+                // A team quota (E25-T07): its members who administer the environment; admins otherwise.
+                String teamId = match.policyId().substring(ApprovalPolicyService.QUOTA_MATCH_PREFIX.length());
+                Set<String> admins = new HashSet<>();
+                accessRepository.findActiveAccessWithUsersByEnvironment(environmentId).stream()
+                        .filter(EnvironmentAccess::isActive)
+                        .filter(a -> a.getScopeType() == AccessScopeType.ENVIRONMENT && a.getAccessLevel() == AccessLevel.ADMIN)
+                        .forEach(a -> admins.add(a.getUser().getUserId()));
+                accessRepository.findActiveEnvAdminGrantHolders(environmentId, now).forEach(u -> admins.add(u.getUserId()));
+                teamMemberRepository.findByTeamId(teamId).stream().map(TeamMember::getUserId).filter(admins::contains).forEach(ids::add);
+                continue;
+            }
             ApprovalPolicy policy = policyRepository.findById(match.policyId()).orElse(null);
             if (policy == null) {
                 continue;

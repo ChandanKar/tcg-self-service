@@ -504,6 +504,11 @@ public class NotificationService {
         }
     }
 
+    /** A team's quota reached its warning level or ran out this month (E25-T07): its members hear it once. */
+    public void notifyQuotaThreshold(List<String> memberIds, String teamId, String title, String message) {
+        memberIds.forEach(id -> create(id, NotificationType.QUOTA_THRESHOLD, title, message, "TEAM", teamId));
+    }
+
     /** The requester hears how their request ended (approved and running, denied, expired, failed). */
     public void notifyApprovalOutcome(String requesterId, String environmentId, String environmentName, String requestId,
                                       NotificationType type, String title, String message) {

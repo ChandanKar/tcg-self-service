@@ -71,16 +71,21 @@ public class VmOperationsController {
         String effectiveUserId = userService.getCurrentUserId();
 
         // A start that matches an approval policy waits for its approvers (E25-T04).
-        com.tcgdigital.vmcontrol.dto.ApprovalRequestDTO.Held held =
-                approvalRequestService.holdStartIfNeeded(environmentId, effectiveUserId, dto);
-        if (held != null) {
-            return ResponseEntity.status(HttpStatus.ACCEPTED).body(held);
+        // Team quotas (E25-T07) may block it (409) or add a warning.
+        com.tcgdigital.vmcontrol.service.ApprovalRequestService.StartGate gate =
+                approvalRequestService.gateStart(environmentId, effectiveUserId, dto);
+        if (gate.held() != null) {
+            return ResponseEntity.status(HttpStatus.ACCEPTED).body(gate.held());
         }
 
         OperationExecution execution = operationsService.startOperation(environmentId, effectiveUserId, dto);
 
-        return ResponseEntity.status(HttpStatus.ACCEPTED)
-                .body(OperationExecutionDTO.fromEntity(execution));
+        ResponseEntity.BodyBuilder response = ResponseEntity.status(HttpStatus.ACCEPTED);
+        if (!gate.warnings().isEmpty()) {
+            response.header("X-Quota-Warning", java.net.URLEncoder.encode(String.join("; ", gate.warnings()),
+                    java.nio.charset.StandardCharsets.UTF_8));
+        }
+        return response.body(OperationExecutionDTO.fromEntity(execution));
     }
 
     @GetMapping

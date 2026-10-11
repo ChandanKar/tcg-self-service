@@ -33,6 +33,43 @@ public class TeamController {
         this.syncService = syncService;
     }
 
+    // ============= Quotas (E25-T07) =============
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.tcgdigital.vmcontrol.service.QuotaService quotaService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.tcgdigital.vmcontrol.repository.TeamMemberRepository teamMembers;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.tcgdigital.vmcontrol.service.SecurityService securityService;
+
+    @GetMapping("/{teamId}/quotas")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "The team's monthly quotas with this month's usage")
+    public List<com.tcgdigital.vmcontrol.service.QuotaService.QuotaView> quotas(@PathVariable String teamId) {
+        return quotaService.usage(teamId);
+    }
+
+    @PutMapping("/{teamId}/quotas")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Replace the team's quotas (one per metric; a metric left out is removed)")
+    public List<com.tcgdigital.vmcontrol.service.QuotaService.QuotaView> replaceQuotas(@PathVariable String teamId,
+            @RequestBody List<com.tcgdigital.vmcontrol.service.QuotaService.QuotaRequest> quotas) {
+        return quotaService.replace(teamId, quotas, userService.getCurrentUserId());
+    }
+
+    @GetMapping("/{teamId}/quota-usage")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "This month's usage against the team's quotas; for its members and admins")
+    public List<com.tcgdigital.vmcontrol.service.QuotaService.QuotaView> quotaUsage(@PathVariable String teamId) {
+        String userId = userService.getCurrentUserId();
+        if (!securityService.isAdmin() && !teamMembers.existsById(new com.tcgdigital.vmcontrol.model.TeamMember.Key(teamId, userId))) {
+            throw new com.tcgdigital.vmcontrol.exception.UnauthorizedException("Only the team's members see its quota usage");
+        }
+        return quotaService.usage(teamId);
+    }
+
     // ============= Entra groups and members (E23-T02) =============
 
     public record GroupLink(String groupId) {}

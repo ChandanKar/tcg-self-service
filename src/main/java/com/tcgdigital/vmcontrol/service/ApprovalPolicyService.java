@@ -62,6 +62,22 @@ public class ApprovalPolicyService {
         return enabled;
     }
 
+    /** Team quotas (E25-T07); optional so the evaluator works without them. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private QuotaService quotaService;
+
+    void setQuotaService(QuotaService quotaService) {
+        this.quotaService = quotaService;
+    }
+
+    /** Policies or quotas are on, so starts and extensions are worth evaluating. */
+    public boolean isActive() {
+        return enabled || (quotaService != null && quotaService.isEnabled());
+    }
+
+    /** The synthetic match a quota with REQUIRE_APPROVAL adds; approvers come from the team. */
+    public static final String QUOTA_MATCH_PREFIX = "quota:";
+
     // ============= Evaluation =============
 
     /** A VM the operation would start (or keep running): its type and vCPU when known. */
@@ -74,15 +90,22 @@ public class ApprovalPolicyService {
     /** A matched policy and why it matched. */
     public record PolicyMatch(String policyId, String name, String approverMode, List<String> reasons) {}
 
-    /** ALLOW (no matches) or REQUIRE_APPROVAL with the matched policies. */
-    public record ApprovalDecision(boolean requiresApproval, List<PolicyMatch> matches) {
+    /**
+     * ALLOW (no matches) or REQUIRE_APPROVAL with the matched policies; blocked when a team quota
+     * with BLOCK would be exceeded (E25-T07); warnings from quotas that only warn.
+     */
+    public record ApprovalDecision(boolean requiresApproval, List<PolicyMatch> matches, boolean blocked, List<String> warnings) {
+        public ApprovalDecision(boolean requiresApproval, List<PolicyMatch> matches) {
+            this(requiresApproval, matches, false, List.of());
+        }
+
         public static ApprovalDecision allow() {
             return new ApprovalDecision(false, List.of());
         }
 
         @com.fasterxml.jackson.annotation.JsonProperty("outcome")
         public String outcome() {
-            return requiresApproval ? "REQUIRE_APPROVAL" : "ALLOW";
+            return blocked ? "BLOCK" : requiresApproval ? "REQUIRE_APPROVAL" : "ALLOW";
         }
 
         @com.fasterxml.jackson.annotation.JsonProperty("reasons")
@@ -114,7 +137,7 @@ public class ApprovalPolicyService {
 
     @Transactional(readOnly = true)
     public ApprovalDecision evaluate(ApprovalContext ctx) {
-        if (!enabled || ctx == null || "STOP".equalsIgnoreCase(ctx.operationType())) {
+        if (!isActive() || ctx == null || "STOP".equalsIgnoreCase(ctx.operationType())) {
             return ApprovalDecision.allow();
         }
         if (adminBypass && ctx.requesterId() != null
@@ -122,14 +145,33 @@ public class ApprovalPolicyService {
             return ApprovalDecision.allow();
         }
         List<PolicyMatch> matches = new ArrayList<>();
-        for (ApprovalPolicy policy : policyRepository.findActiveForEnvironment(ctx.environmentId(), ctx.teamId())) {
-            List<String> reasons = reasons(policy, ctx);
-            if (!reasons.isEmpty()) {
-                matches.add(new PolicyMatch(policy.getPolicyId(), policy.getName(), policy.getApproverMode().name(), reasons));
+        if (enabled) {
+            for (ApprovalPolicy policy : policyRepository.findActiveForEnvironment(ctx.environmentId(), ctx.teamId())) {
+                List<String> reasons = reasons(policy, ctx);
+                if (!reasons.isEmpty()) {
+                    matches.add(new PolicyMatch(policy.getPolicyId(), policy.getName(), policy.getApproverMode().name(), reasons));
+                }
             }
         }
         matches.sort(Comparator.comparing(PolicyMatch::name, String.CASE_INSENSITIVE_ORDER));
-        return matches.isEmpty() ? ApprovalDecision.allow() : new ApprovalDecision(true, matches);
+        boolean blocked = false;
+        List<String> warnings = new ArrayList<>();
+        if (quotaService != null && quotaService.isEnabled() && ctx.teamId() != null) {
+            // Quotas count what this request adds: the VMs it starts (or keeps running) for its hours (E25-T07).
+            int hours = ctx.preview() != null ? ctx.preview().hours() : ctx.requestedHours();
+            QuotaService.QuotaCheck quota = quotaService.check(ctx.teamId(), ctx.targets().size(), hours,
+                    ctx.preview() == null ? null : ctx.preview().estimatedTotal());
+            switch (quota.outcome()) {
+                case BLOCK -> blocked = true;
+                case REQUIRE_APPROVAL -> matches.add(new PolicyMatch(QUOTA_MATCH_PREFIX + ctx.teamId(), "Team quota", "ANY",
+                        quota.messages()));
+                default -> { }
+            }
+            if (quota.outcome() == QuotaService.Outcome.BLOCK || quota.outcome() == QuotaService.Outcome.WARN) {
+                warnings.addAll(quota.messages());
+            }
+        }
+        return new ApprovalDecision(!matches.isEmpty(), matches, blocked, warnings);
     }
 
     /** Why a policy matches the context; empty when it does not. */

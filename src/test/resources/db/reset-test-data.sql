@@ -55,6 +55,8 @@ DELETE FROM chat_delivery_log;
 DELETE FROM chat_channel;
 DELETE FROM cost_split_share;
 DELETE FROM cost_split_rule;
+DELETE FROM team_quota_alert;
+DELETE FROM team_quota;
 DELETE FROM team_member;
 DELETE FROM team;
 DELETE FROM app_user;

@@ -90,7 +90,12 @@ const VmOperations = (function() {
 
             // Submit operation (errors are shown in the progress modal, with the server's reason)
             ApiClient.post(Config.API.operations.create(envId), operationData, { suppressGlobalError: true })
-                .done(function(execution) {
+                .done(function(execution, _status, xhr) {
+                    // A team quota that only warns (E25-T07): it runs, and the user is told.
+                    const quotaWarning = xhr && xhr.getResponseHeader ? xhr.getResponseHeader('X-Quota-Warning') : null;
+                    if (quotaWarning) {
+                        Notifications.show(decodeURIComponent(quotaWarning.replace(/\+/g, ' ')), 'warning', 8000);
+                    }
                     // Held for approval (E25-T04): nothing runs yet; say who decides and why.
                     if (execution && execution.approvalRequestId) {
                         Modals.hide('operationProgressModal');

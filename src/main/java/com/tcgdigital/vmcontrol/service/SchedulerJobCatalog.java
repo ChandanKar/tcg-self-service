@@ -68,7 +68,9 @@ public class SchedulerJobCatalog {
             cron("chargeback_statement", "Chargeback statement (monthly)", "chargeback.cron", "0 0 6 5 * *",
                     "chargeback.enabled", false),
             cron("approval_expiry", "Approval expiry (every 10 min)", "approvals.expiry-cron", "0 */10 * * * *",
-                    "approvals.enabled", false));
+                    "approvals.enabled", false),
+            cron("quota_warnings", "Team quota warnings (hourly)", "quotas.warning-cron", "0 5 * * * *",
+                    "quotas.enabled", false));
 
     /** A job as the health view needs it. */
     public record Job(String jobName, String label, Duration expectedInterval, boolean enabled) {

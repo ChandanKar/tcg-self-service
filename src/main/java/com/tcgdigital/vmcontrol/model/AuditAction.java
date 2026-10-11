@@ -134,6 +134,8 @@ public enum AuditAction {
     APPROVAL_DENIED,
     APPROVAL_EXPIRED,
     APPROVAL_CANCELLED,
+    /** A team's quotas changed (E25-T07). */
+    TEAM_QUOTA_CHANGED,
 
     // Waste sweeps (E22)
     WASTE_FINDING_DISMISSED,
