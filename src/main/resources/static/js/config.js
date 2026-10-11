@@ -362,6 +362,7 @@ const Config = (function() {
             reconciliationExport: (days = 90) => `${API_BASE_URL}/cost-management/reconciliation/export?days=${days}`,
             actualsBackfill: (days = 30) => `${API_BASE_URL}/cost-management/actuals/backfill?days=${days}`,
             reservationsCoverage: (days = 30) => `${API_BASE_URL}/cost-management/reservations/coverage?days=${days}`,
+            commitmentInsights: `${API_BASE_URL}/cost-management/commitments/insights`,
             forecast: (historyDays = 30, forecastDays = 14) =>
                 `${API_BASE_URL}/cost-management/forecast?historyDays=${historyDays}&forecastDays=${forecastDays}`,
             reservationsUtilization: `${API_BASE_URL}/cost-management/reservations/utilization`,

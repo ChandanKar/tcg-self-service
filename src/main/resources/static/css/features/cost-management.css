@@ -146,3 +146,21 @@
     font-weight: 600;
     cursor: help;
 }
+
+/* Commitments panel (E27-T03) */
+.commitments-panel .commitments-kpis {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    margin-bottom: 0.75rem;
+}
+
+.commitments-panel .commitments-chart {
+    height: 220px;
+}
+
+.commitments-panel .commitments-flags ul {
+    padding-left: 1.25rem;
+}
+
+.commitments-panel .commitments-note {
+    margin-top: 0.5rem;
+}
