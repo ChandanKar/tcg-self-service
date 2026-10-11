@@ -398,6 +398,15 @@ public class EksSyncService {
                 metadata = mergeInstanceTypeIntoMetadata(vm.getMetadata(), instanceType);
             }
         }
+        if (nodegroup != null) {
+            // The Auto Scaling groups (for CloudWatch metrics) and node disk size (for cost), static
+            // configuration from the same DescribeNodegroup call (E26-T01).
+            List<String> asgNames = nodegroup.resources() == null || nodegroup.resources().autoScalingGroups() == null ? List.of()
+                    : nodegroup.resources().autoScalingGroups().stream()
+                            .map(software.amazon.awssdk.services.eks.model.AutoScalingGroup::name)
+                            .filter(n -> n != null && !n.isBlank()).toList();
+            metadata = mergeNodeResourcesIntoMetadata(metadata, asgNames, nodegroup.diskSize());
+        }
 
         VmStatus currentStatus = vm.getStatus();
         if (!vmCreated && transitionalGuard.isFreshTransitional(currentStatus, vm.getUpdatedAt())) {
@@ -485,6 +494,36 @@ public class EksSyncService {
                     ((Number) fields.getOrDefault("minSize", 0)).intValue(),
                     ((Number) fields.getOrDefault("desiredSize", 0)).intValue(),
                     instanceType);
+        }
+    }
+
+    /**
+     * Adds asgNames and diskSizeGib to the metadata JSON, keeping every other field
+     * (minSize/desiredSize/instanceType); a value AWS did not report leaves the old one.
+     */
+    String mergeNodeResourcesIntoMetadata(String metadata, List<String> asgNames, Integer diskSizeGib) {
+        if ((asgNames == null || asgNames.isEmpty()) && diskSizeGib == null) {
+            return metadata;
+        }
+        Map<String, Object> fields = new LinkedHashMap<>();
+        if (metadata != null && !metadata.isBlank()) {
+            try {
+                Map<?, ?> existing = objectMapper.readValue(metadata, Map.class);
+                existing.forEach((key, value) -> fields.put(String.valueOf(key), value));
+            } catch (Exception e) {
+                log.debug("Could not parse Vm metadata while merging node-group resources: {}", e.getMessage());
+            }
+        }
+        if (asgNames != null && !asgNames.isEmpty()) {
+            fields.put("asgNames", asgNames);
+        }
+        if (diskSizeGib != null) {
+            fields.put("diskSizeGib", diskSizeGib);
+        }
+        try {
+            return objectMapper.writeValueAsString(fields);
+        } catch (Exception e) {
+            return metadata;
         }
     }
 

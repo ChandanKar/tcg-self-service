@@ -273,6 +273,39 @@ class EksSyncServiceTest {
     }
 
     @Test
+    void syncEksEnvironment_storesAsgNamesAndDiskSizeWithoutLosingTheRestorePoint() throws Exception {
+        Environment env = buildEnvironment();
+        // Scaled to zero, with ASG and disk size reported (E26-T01).
+        Nodegroup stopped = buildNodegroup(0, 0).toBuilder()
+                .resources(software.amazon.awssdk.services.eks.model.NodegroupResources.builder()
+                        .autoScalingGroups(software.amazon.awssdk.services.eks.model.AutoScalingGroup.builder().name("eks-ng-abc").build(),
+                                software.amazon.awssdk.services.eks.model.AutoScalingGroup.builder().name("eks-ng-def").build())
+                        .build())
+                .diskSize(50)
+                .build();
+        when(eksService.listNodegroups(CLUSTER, REGION)).thenReturn(List.of(NODEGROUP));
+        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, REGION)).thenReturn(stopped);
+        when(groupRepository.findByEnvironmentEnvironmentIdAndName(ENV_ID, NODEGROUP)).thenReturn(Optional.empty());
+        when(groupRepository.findByEnvironmentEnvironmentIdOrderBySequencePositionAsc(ENV_ID)).thenReturn(List.of());
+        when(groupRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        Vm existingVm = new Vm();
+        existingVm.setVmId("vm-existing");
+        existingVm.setStatus(VmStatus.STOPPED);
+        existingVm.setMetadata("{\"minSize\":3,\"desiredSize\":6}");
+        when(vmRepository.findByGroupGroupIdAndName(anyString(), eq(NODEGROUP))).thenReturn(Optional.of(existingVm));
+        ArgumentCaptor<Vm> vmCaptor = ArgumentCaptor.forClass(Vm.class);
+        when(vmRepository.save(vmCaptor.capture())).thenAnswer(i -> i.getArgument(0));
+
+        service.syncEksEnvironment(env);
+
+        var meta = objectMapper.readValue(vmCaptor.getValue().getMetadata(), java.util.Map.class);
+        assertEquals(3, meta.get("minSize"));
+        assertEquals(6, meta.get("desiredSize"));
+        assertEquals(List.of("eks-ng-abc", "eks-ng-def"), meta.get("asgNames"));
+        assertEquals(50, meta.get("diskSizeGib"));
+    }
+
+    @Test
     void syncEksEnvironment_detectsDriftWhenStatusChanges() {
         Environment env = buildEnvironment();
         when(eksService.listNodegroups(CLUSTER, REGION)).thenReturn(List.of(NODEGROUP));
