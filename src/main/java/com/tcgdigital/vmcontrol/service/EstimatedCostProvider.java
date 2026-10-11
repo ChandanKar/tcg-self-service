@@ -136,7 +136,7 @@ public class EstimatedCostProvider implements CostDataProvider {
      * Vm.metadata by EksSyncService directly from the EKS DescribeNodegroup response. Nodes run
      * on plain EC2 hardware, so the standard AWS pricing reference applies per node.
      */
-    private EksNodeInfo resolveEksNodeInfo(Vm vm) {
+    EksNodeInfo resolveEksNodeInfo(Vm vm) {
         String metadata = vm.getMetadata();
         if (metadata == null || metadata.isBlank()) {
             return new EksNodeInfo(null, 1);
@@ -152,7 +152,8 @@ public class EstimatedCostProvider implements CostDataProvider {
         }
     }
 
-    private record EksNodeInfo(String instanceType, int nodeCount) {}
+    /** An EKS node group's node instance type and desired size (also used by the cost preview, E25-T01). */
+    record EksNodeInfo(String instanceType, int nodeCount) {}
 
     /**
      * The first in-window transition already carries its own previousStatus, so only VMs without

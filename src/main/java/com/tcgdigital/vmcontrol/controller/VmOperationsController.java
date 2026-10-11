@@ -137,6 +137,22 @@ public class VmOperationsController {
         return ResponseEntity.ok(OperationExecutionDTO.fromEntityWithDetails(execution, displayName));
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.tcgdigital.vmcontrol.service.OperationCostPreviewService costPreviewService;
+
+    /** What starting the VMs in scope for some hours would cost (E25-T01); read-only, needs view rights. */
+    @GetMapping("/cost-preview")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Estimated cost of starting the environment, a group or a VM for some hours")
+    public com.tcgdigital.vmcontrol.dto.CostPreviewDTO costPreview(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId,
+            @RequestParam(required = false) String groupId,
+            @RequestParam(required = false) String vmId,
+            @RequestParam(required = false) Integer hours) {
+        securityService.assertCanView(environmentId);
+        return costPreviewService.preview(environmentId, groupId, vmId, hours);
+    }
+
     @GetMapping("/time-estimates")
     @PreAuthorize("isAuthenticated()")
     @Operation(
