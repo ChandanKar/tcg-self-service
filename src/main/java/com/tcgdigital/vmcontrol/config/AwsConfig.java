@@ -1,57 +1,42 @@
 package com.tcgdigital.vmcontrol.config;
 
-import org.springframework.beans.factory.annotation.Value;
+import com.tcgdigital.vmcontrol.service.aws.AwsClientFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.ec2.Ec2Client;
+import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.sts.StsClient;
 
+/**
+ * AWS beans, all backed by {@link AwsClientFactory} (E28-T01). Without credentials the context
+ * still starts: the credentials provider throws only when something actually calls AWS. The
+ * clients are the factory's cached ones, so Spring must not close them (destroyMethod = "").
+ */
 @Configuration
 public class AwsConfig {
 
-    @Value("${aws.access-key}")
-    private String accessKey;
-
-    @Value("${aws.secret-key}")
-    private String secretKey;
-
-    @Value("${aws.region}")
-    private String region;
-
     @Bean
-    public AwsCredentialsProvider awsCredentialsProvider() {
-        return StaticCredentialsProvider.create(
-            AwsBasicCredentials.create(accessKey, secretKey)
-        );
+    public AwsCredentialsProvider awsCredentialsProvider(AwsClientFactory factory) {
+        if (factory.isConfigured()) {
+            return factory.baseCredentials();
+        }
+        return () -> {
+            throw new IllegalStateException("AWS credentials not configured");
+        };
     }
 
-    @Bean
-    public StsClient stsClient(AwsCredentialsProvider awsCredentialsProvider) {
-        return StsClient.builder()
-            .region(Region.of(region))
-            .credentialsProvider(awsCredentialsProvider)
-            .build();
+    @Bean(destroyMethod = "")
+    public StsClient stsClient(AwsClientFactory factory) {
+        return factory.isConfigured() ? factory.sts(null)
+                : StsClient.builder().region(software.amazon.awssdk.regions.Region.of(factory.defaultRegion()))
+                        .credentialsProvider(awsCredentialsProvider(factory)).build();
     }
 
     /** IAM is a global service; used only by the Cost Setup pre-flight check (E08-T11). */
-    @Bean
-    public software.amazon.awssdk.services.iam.IamClient iamClient(AwsCredentialsProvider awsCredentialsProvider) {
-        return software.amazon.awssdk.services.iam.IamClient.builder()
-            .region(Region.AWS_GLOBAL)
-            .credentialsProvider(awsCredentialsProvider)
-            .build();
-    }
-
-    @Bean
-    public Ec2Client ec2Client(AwsCredentialsProvider awsCredentialsProvider) {
-        return Ec2Client.builder()
-            .region(Region.of(region))
-            .credentialsProvider(awsCredentialsProvider)
-            .build();
+    @Bean(destroyMethod = "")
+    public IamClient iamClient(AwsClientFactory factory) {
+        return factory.isConfigured() ? factory.iam()
+                : IamClient.builder().region(software.amazon.awssdk.regions.Region.AWS_GLOBAL)
+                        .credentialsProvider(awsCredentialsProvider(factory)).build();
     }
 }
-

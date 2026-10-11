@@ -1,9 +1,8 @@
 package com.tcgdigital.vmcontrol.service;
 
 import com.tcgdigital.vmcontrol.dto.Ec2InstanceInfo;
+import com.tcgdigital.vmcontrol.service.aws.AwsClientFactory;
 import org.springframework.stereotype.Service;
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.ec2.Ec2Client;
 import software.amazon.awssdk.services.ec2.model.*;
 
@@ -16,20 +15,10 @@ import java.util.stream.Collectors;
 @Service
 public class Ec2Service {
 
-    private final AwsCredentialsProvider awsCredentialsProvider;
+    private final AwsClientFactory clientFactory;
 
-    public Ec2Service(AwsCredentialsProvider awsCredentialsProvider) {
-        this.awsCredentialsProvider = awsCredentialsProvider;
-    }
-
-    /**
-     * Creates an EC2 client for the specified region.
-     */
-    private Ec2Client createEc2Client(String region) {
-        return Ec2Client.builder()
-                .region(Region.of(region))
-                .credentialsProvider(awsCredentialsProvider)
-                .build();
+    public Ec2Service(AwsClientFactory clientFactory) {
+        this.clientFactory = clientFactory;
     }
 
     /**
@@ -39,29 +28,28 @@ public class Ec2Service {
      * @return List of EC2 instance information
      */
     public List<Ec2InstanceInfo> listInstances(String region) {
-        try (Ec2Client ec2Client = createEc2Client(region)) {
+        // The factory's cached client: not closed here (E28-T01).
+        Ec2Client ec2Client = clientFactory.ec2(region);
+        List<Ec2InstanceInfo> instances = new ArrayList<>();
+        DescribeInstancesRequest request = DescribeInstancesRequest.builder().build();
 
-            List<Ec2InstanceInfo> instances = new ArrayList<>();
-            DescribeInstancesRequest request = DescribeInstancesRequest.builder().build();
+        DescribeInstancesResponse response;
+        do {
+            response = ec2Client.describeInstances(request);
 
-            DescribeInstancesResponse response;
-            do {
-                response = ec2Client.describeInstances(request);
-
-                for (Reservation reservation : response.reservations()) {
-                    for (Instance instance : reservation.instances()) {
-                        instances.add(mapToEc2InstanceInfo(instance, region));
-                    }
+            for (Reservation reservation : response.reservations()) {
+                for (Instance instance : reservation.instances()) {
+                    instances.add(mapToEc2InstanceInfo(instance, region));
                 }
+            }
 
-                request = DescribeInstancesRequest.builder()
-                        .nextToken(response.nextToken())
-                        .build();
+            request = DescribeInstancesRequest.builder()
+                    .nextToken(response.nextToken())
+                    .build();
 
-            } while (response.nextToken() != null);
+        } while (response.nextToken() != null);
 
-            return instances;
-        }
+        return instances;
     }
 
     private Ec2InstanceInfo mapToEc2InstanceInfo(Instance instance, String region) {
