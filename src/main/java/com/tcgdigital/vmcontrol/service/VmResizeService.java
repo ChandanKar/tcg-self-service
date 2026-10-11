@@ -36,6 +36,14 @@ public class VmResizeService {
     private final OperationExecutionRepository executionRepository;
     private final CostEstimationService costEstimationService;
 
+    /** Resize history for the savings ledger (E17-T04); optional so unit tests can omit it. */
+    private com.tcgdigital.vmcontrol.repository.VmResizeEventRepository resizeEventRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setResizeEventRepository(com.tcgdigital.vmcontrol.repository.VmResizeEventRepository repository) {
+        this.resizeEventRepository = repository;
+    }
+
     public VmResizeService(VmRepository vmRepository,
                             VmInventorySnapshotRepository vmInventorySnapshotRepository,
                             AwsCloudProviderService awsCloudProviderService,
@@ -130,6 +138,15 @@ public class VmResizeService {
         } catch (Exception e) {
             log.warn("Instance type of VM {} changed to {} but the inventory snapshot was not updated: {}",
                     vmId, targetInstanceType, e.getMessage());
+        }
+        if (resizeEventRepository != null && oldInstanceType != null) {
+            try {
+                resizeEventRepository.save(new com.tcgdigital.vmcontrol.model.VmResizeEvent(
+                        java.util.UUID.randomUUID().toString(), vmId, oldInstanceType, targetInstanceType,
+                        com.tcgdigital.vmcontrol.model.VmResizeEvent.Source.APPLY, Timestamp.from(Instant.now()), userId));
+            } catch (Exception e) {
+                log.warn("Resize of VM {} was not recorded for the savings ledger: {}", vmId, e.getMessage());
+            }
         }
         auditService.logChange(userId, AuditAction.VM_RESIZE_COMPLETED, "vm", vmId, vm.getDisplayName(),
                 oldInstanceType, targetInstanceType, null);

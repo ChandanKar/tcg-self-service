@@ -52,8 +52,16 @@ class SavingsLedgerServiceIntegrationTest extends AbstractIntegrationTest {
         group = newGroup(env, "app");
     }
 
+    /** Fixture VMs existed long before the ledger day. */
+    private Vm existing(Vm vm) {
+        jdbcTemplate.update("UPDATE vm SET created_at = ? WHERE vm_id = ?",
+                Timestamp.from(DAY.atStartOfDay(ZoneOffset.UTC).toInstant().minus(java.time.Duration.ofDays(500))),
+                vm.getVmId());
+        return vm;
+    }
+
     private Vm pricedVm(String name, VmStatus status) {
-        Vm vm = newVm(group, name, status);
+        Vm vm = existing(newVm(group, name, status));
         VmInventorySnapshot snapshot = new VmInventorySnapshot();
         snapshot.setInventoryId(UUID.randomUUID().toString());
         snapshot.setVm(vm);
@@ -128,7 +136,7 @@ class SavingsLedgerServiceIntegrationTest extends AbstractIntegrationTest {
     @Test
     void reRunningADayRewritesItAndUnpricedOrEksVmsAreSkipped() {
         Vm vm = pricedVm("db", VmStatus.STOPPED);
-        newVm(group, "no-price", VmStatus.STOPPED); // no inventory: unknown instance type
+        existing(newVm(group, "no-price", VmStatus.STOPPED)); // no inventory: unknown instance type
         Vm eks = newVm(group, "nodes", VmStatus.STOPPED);
         eks.setProvider(CloudProvider.AWS_EKS);
         vmRepository.saveAndFlush(eks);
@@ -156,5 +164,66 @@ class SavingsLedgerServiceIntegrationTest extends AbstractIntegrationTest {
         assertThat(row.getCommitmentCoveragePercent()).isEqualByComparingTo("100");
         assertThat(row.getNetSaving()).isEqualByComparingTo("0");
         assertThat(row.getNote()).contains("Savings Plans");
+    }
+
+    // ---- Rightsizing (E17-T04) ----
+
+    @Autowired private com.tcgdigital.vmcontrol.repository.VmResizeEventRepository resizes;
+
+    private Vm resizedVm(String name, String oldType, String newType, int daysAgo) {
+        Vm vm = newVm(group, name, VmStatus.STOPPED);
+        vm.setRegion("us-east-1");
+        vm = existing(vmRepository.saveAndFlush(vm));
+        VmInventorySnapshot snapshot = new VmInventorySnapshot();
+        snapshot.setInventoryId(UUID.randomUUID().toString());
+        snapshot.setVm(vm);
+        snapshot.setProvider(CloudProvider.AWS);
+        snapshot.setProviderVmId(vm.getProviderVmId());
+        snapshot.setInstanceType(newType);
+        snapshot.setLastRefreshedAt(Timestamp.from(java.time.Instant.now()));
+        inventory.saveAndFlush(snapshot);
+        resizes.saveAndFlush(new com.tcgdigital.vmcontrol.model.VmResizeEvent(UUID.randomUUID().toString(), vm.getVmId(),
+                oldType, newType, com.tcgdigital.vmcontrol.model.VmResizeEvent.Source.APPLY,
+                Timestamp.from(DAY.atStartOfDay(ZoneOffset.UTC).toInstant().minus(java.time.Duration.ofDays(daysAgo))),
+                null));
+        // Ran 08:00-18:00 on DAY.
+        history(vm, VmStatus.STOPPED, VmStatus.RUNNING, DAY, 8, operation(OperationTriggerSource.MANUAL));
+        history(vm, VmStatus.RUNNING, VmStatus.STOPPED, DAY, 18, operation(OperationTriggerSource.MANUAL));
+        return vm;
+    }
+
+    private List<SavingsLedgerEntry> rightsizing() {
+        return ledger.findByLedgerDateBetweenOrderByLedgerDateAsc(DAY, DAY).stream()
+                .filter(r -> r.getCause() == SavingsCause.RIGHTSIZING).toList();
+    }
+
+    @Test
+    void aDownsizeCreditsTheRateDifferenceForEveryHourRun() {
+        resizedVm("api", "m5.xlarge", "m5.large", 10);
+        ledgerService.captureForDate(DAY);
+        List<SavingsLedgerEntry> rows = rightsizing();
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).getAvoidedHours()).isEqualByComparingTo("10");
+        assertThat(rows.get(0).getHourlyRate()).isEqualByComparingTo("0.096");
+        assertThat(rows.get(0).getGrossSaving()).isEqualByComparingTo("0.96");
+        assertThat(rows.get(0).getResidualStorageCost()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void upsizesAndOldResizesEarnNothing() {
+        resizedVm("up", "m5.large", "m5.xlarge", 10);
+        resizedVm("old", "m5.xlarge", "m5.large", 400);
+        ledgerService.captureForDate(DAY);
+        assertThat(rightsizing()).isEmpty();
+    }
+
+    @Test
+    void hoursBeforeTheVmExistedAreNotCredited() {
+        Vm vm = pricedVm("new", VmStatus.STOPPED);
+        jdbcTemplate.update("UPDATE vm SET created_at = ? WHERE vm_id = ?",
+                Timestamp.from(DAY.atStartOfDay(ZoneOffset.UTC).toInstant().plusSeconds(12 * 3600L)), vm.getVmId());
+        ledgerService.captureForDate(DAY);
+        assertThat(ledger.findByLedgerDateBetweenOrderByLedgerDateAsc(DAY, DAY)).singleElement()
+                .satisfies(r -> assertThat(r.getAvoidedHours()).isEqualByComparingTo("12"));
     }
 }

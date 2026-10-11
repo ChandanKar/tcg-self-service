@@ -31,6 +31,14 @@ public class VmInventoryService {
     private final VmVolumeSnapshotRepository volumeRepository;
     private final CloudInventoryProviderFactory providerFactory;
 
+    /** Resize history for the savings ledger (E17-T04); optional so unit tests can omit it. */
+    private com.tcgdigital.vmcontrol.repository.VmResizeEventRepository resizeEventRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setResizeEventRepository(com.tcgdigital.vmcontrol.repository.VmResizeEventRepository repository) {
+        this.resizeEventRepository = repository;
+    }
+
     public VmInventoryService(VmRepository vmRepository,
                               VmInventorySnapshotRepository inventoryRepository,
                               VmVolumeSnapshotRepository volumeRepository,
@@ -121,6 +129,11 @@ public class VmInventoryService {
         if (snapshot.getInstanceType() != null && data.getInstanceType() != null
                 && !snapshot.getInstanceType().equals(data.getInstanceType())) {
             snapshot.setInstanceTypeChangedAt(now);
+            if (resizeEventRepository != null) {
+                resizeEventRepository.save(new com.tcgdigital.vmcontrol.model.VmResizeEvent(
+                        java.util.UUID.randomUUID().toString(), vm.getVmId(), snapshot.getInstanceType(),
+                        data.getInstanceType(), com.tcgdigital.vmcontrol.model.VmResizeEvent.Source.DETECTED, now, null));
+            }
         }
         snapshot.setInstanceType(data.getInstanceType());
         snapshot.setVcpuCount(data.getVcpuCount());

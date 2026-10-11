@@ -194,4 +194,33 @@ class VmResizeServiceTest {
         verify(auditService).logChange(eq("user-1"), eq(AuditAction.VM_RESIZE_COMPLETED), any(), any(), any(),
                 any(), eq("t3.large"), any());
     }
+
+    // ---- Resize events for the savings ledger (E17-T04) ----
+
+    @Test
+    void aSuccessfulResizeIsRecordedAndAFailedOneIsNot() {
+        com.tcgdigital.vmcontrol.repository.VmResizeEventRepository events =
+                org.mockito.Mockito.mock(com.tcgdigital.vmcontrol.repository.VmResizeEventRepository.class);
+        service.setResizeEventRepository(events);
+        com.tcgdigital.vmcontrol.model.VmInventorySnapshot current = new com.tcgdigital.vmcontrol.model.VmInventorySnapshot();
+        current.setInstanceType("t3.xlarge");
+        when(snapshots.findByVmVmId("vm-1")).thenReturn(Optional.of(current));
+        when(aws.getVmStatus("i-123", "ap-south-1")).thenReturn(VmStatus.STOPPED);
+
+        service.applyInstanceTypeChange("vm-1", "t3.large", "user-1");
+        org.mockito.ArgumentCaptor<com.tcgdigital.vmcontrol.model.VmResizeEvent> saved =
+                org.mockito.ArgumentCaptor.forClass(com.tcgdigital.vmcontrol.model.VmResizeEvent.class);
+        verify(events).save(saved.capture());
+        org.assertj.core.api.Assertions.assertThat(saved.getValue().getNewInstanceType()).isEqualTo("t3.large");
+        org.assertj.core.api.Assertions.assertThat(saved.getValue().getSource())
+                .isEqualTo(com.tcgdigital.vmcontrol.model.VmResizeEvent.Source.APPLY);
+
+        org.mockito.Mockito.reset(events);
+        doThrow(new RuntimeException("Unsupported instance type")).when(aws)
+                .changeInstanceType("ap-south-1", "i-123", "t9.huge");
+        when(aws.getInstanceType("ap-south-1", "i-123")).thenReturn("t3.medium");
+        recommended = "t9.huge";
+        assertThatThrownBy(() -> service.applyInstanceTypeChange("vm-1", "t9.huge", "user-1"));
+        verify(events, never()).save(any());
+    }
 }

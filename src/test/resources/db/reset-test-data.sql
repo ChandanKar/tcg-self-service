@@ -12,6 +12,7 @@ DELETE FROM notification;
 DELETE FROM operation_detail;
 DELETE FROM operation_execution;
 DELETE FROM savings_ledger_entry;
+DELETE FROM vm_resize_event;
 DELETE FROM reservation_coverage_snapshot;
 DELETE FROM lease_extension_request;
 DELETE FROM environment_lease_participant;

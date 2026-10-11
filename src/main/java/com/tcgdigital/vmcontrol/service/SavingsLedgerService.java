@@ -60,6 +60,15 @@ public class SavingsLedgerService {
     private final TeamResolver teamResolver;
     private final int recomputeDays;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.tcgdigital.vmcontrol.repository.VmResizeEventRepository resizeEventRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private VmCostCalculator costCalculator;
+
+    @Value("${savings.rightsizing.credit-days:365}")
+    private int rightsizingCreditDays = 365;
+
     public SavingsLedgerService(VmRepository vmRepository, VmStateHistoryRepository historyRepository,
                                 OperationExecutionRepository executionRepository,
                                 VmInventorySnapshotRepository inventoryRepository,
@@ -143,6 +152,11 @@ public class SavingsLedgerService {
         BigDecimal coverage = coverageRepository.findBySnapshotDate(Date.valueOf(date))
                 .map(SavingsLedgerService::coverageOf).orElse(null);
         BigDecimal storageRate = pricing.getStorageGbMonthRate();
+        // Latest resize per VM within the credit window (E17-T04).
+        Map<String, com.tcgdigital.vmcontrol.model.VmResizeEvent> resizes = new HashMap<>();
+        Timestamp creditSince = Timestamp.from(windowStart.toInstant().minus(java.time.Duration.ofDays(rightsizingCreditDays)));
+        resizeEventRepository.findByVmIdInAndChangedAtGreaterThanEqualAndChangedAtLessThanOrderByChangedAtAsc(
+                vmIds, creditSince, windowEnd).forEach(e -> resizes.put(e.getVmId(), e));
 
         int rows = 0;
         int unpriced = 0;
@@ -163,7 +177,11 @@ public class SavingsLedgerService {
                     .map(h -> new SavingsCalculator.TransitionWithCause(h.getChangedAt().toInstant(), h.getNewStatus(),
                             causeOf(h, sources)))
                     .toList();
-            Map<SavingsCause, BigDecimal> hours = calculator.avoidedByCause(windowStart.toInstant(), windowEnd.toInstant(),
+            // Never credit hours before the VM existed.
+            java.time.Instant vmStart = vm.getCreatedAt() != null && vm.getCreatedAt().after(windowStart)
+                    ? vm.getCreatedAt().toInstant() : windowStart.toInstant();
+            if (!vmStart.isBefore(windowEnd.toInstant())) continue;
+            Map<SavingsCause, BigDecimal> hours = calculator.avoidedByCause(vmStart, windowEnd.toInstant(),
                     seed, seedCause, withCause, calculator.defaultBaseline());
             Environment env = vm.getGroup().getEnvironment();
             String team = teamResolver.resolveTeam(env.getMetadata());
@@ -190,9 +208,56 @@ public class SavingsLedgerService {
                 ledgerRepository.save(entry);
                 rows++;
             }
+            if (writeRightsizing(vm, date, env, team, seed, dayTransitions, windowStart, windowEnd,
+                    resizes.get(vm.getVmId()), coverage)) {
+                rows++;
+            }
         }
         log.info("Savings ledger {}: {} row(s) for {} VM(s); {} without a known price skipped", date, rows, vms.size(), unpriced);
         return rows;
+    }
+
+    /**
+     * Rightsizing (E17-T04): after a downsize, every hour the VM ran saves the rate difference. No
+     * residual EBS/IPv4 (the VM was running); commitment coverage applies as for stops. Upsizes and
+     * unknown prices write nothing.
+     */
+    private boolean writeRightsizing(Vm vm, LocalDate date, Environment env, String team, VmStatus seed,
+                                     List<VmStateHistory> dayTransitions, Timestamp windowStart, Timestamp windowEnd,
+                                     com.tcgdigital.vmcontrol.model.VmResizeEvent resize, BigDecimal coverage) {
+        if (resize == null) return false;
+        String provider = vm.getProvider().name();
+        PricingReferenceService.PriceLookupResult oldRate =
+                pricing.lookupHourlyRate(provider, resize.getOldInstanceType(), vm.getRegion());
+        PricingReferenceService.PriceLookupResult newRate =
+                pricing.lookupHourlyRate(provider, resize.getNewInstanceType(), vm.getRegion());
+        if (!oldRate.priceKnown() || !newRate.priceKnown()
+                || oldRate.hourlyRate().compareTo(newRate.hourlyRate()) <= 0) {
+            return false;
+        }
+        BigDecimal delta = oldRate.hourlyRate().subtract(newRate.hourlyRate());
+        // Only hours after the resize count on the day it happened.
+        Timestamp from = resize.getChangedAt().after(windowStart) ? resize.getChangedAt() : windowStart;
+        BigDecimal hours = costCalculator.computeRuntimeHours(vm, seed, dayTransitions, from, windowEnd);
+        if (hours.signum() <= 0) return false;
+        SavingsCalculator.Money money = calculator.money(hours, delta, 0, null, false, coverage);
+        SavingsLedgerEntry entry = new SavingsLedgerEntry();
+        entry.setEntryId(UUID.randomUUID().toString());
+        entry.setLedgerDate(date);
+        entry.setVmId(vm.getVmId());
+        entry.setEnvironmentId(env.getEnvironmentId());
+        entry.setTeam(team);
+        entry.setCause(SavingsCause.RIGHTSIZING);
+        entry.setAvoidedHours(hours);
+        entry.setHourlyRate(delta);
+        entry.setGrossSaving(money.gross());
+        entry.setCommitmentCoveragePercent(coverage);
+        entry.setCommitmentAdjustment(money.commitmentAdjustment());
+        entry.setNetSaving(money.net());
+        entry.setPriceApproximate(oldRate.approximate() || newRate.approximate());
+        entry.setNote("Resized " + resize.getOldInstanceType() + " -> " + resize.getNewInstanceType());
+        ledgerRepository.save(entry);
+        return true;
     }
 
     /** A stop caused by an operation takes its trigger's cause; anything else (state sync) is OTHER. */
