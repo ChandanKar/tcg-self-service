@@ -1003,7 +1003,7 @@ const AccessManagement = (function() {
             const requestId = $(this).data('request-id');
             $('#deny-request-id').val(requestId);
             $('#deny-reason').val('');
-            const modal = new bootstrap.Modal(document.getElementById('denyRequestModal'));
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('denyRequestModal'));
             modal.show();
         });
 
@@ -1123,7 +1123,7 @@ const AccessManagement = (function() {
             $('#grant-notes').val('');
         }
 
-        new bootstrap.Modal(document.getElementById('grantAccessModal')).show();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('grantAccessModal')).show();
     }
 
     /**

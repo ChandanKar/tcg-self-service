@@ -131,7 +131,7 @@ const Modals = (function() {
 
         // Get modal instance
         const modalEl = document.getElementById(id);
-        const modal = new bootstrap.Modal(modalEl);
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
 
         // Bind callbacks
         if (onShow) {
@@ -143,7 +143,10 @@ const Modals = (function() {
         }
 
         // Clean up on hide
+        // Clean up on hide: dispose the instance before the element goes (E13-T08)
         modalEl.addEventListener('hidden.bs.modal', function() {
+            const instance = bootstrap.Modal.getInstance(this);
+            if (instance) instance.dispose();
             $(this).remove();
         });
 
@@ -757,7 +760,7 @@ const DestructiveConfirm = (function() {
 
         // Show modal
         const modalEl = document.getElementById('destructiveConfirmModal');
-        const modal = new bootstrap.Modal(modalEl);
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
         modal.show();
 
         // Focus on input when modal is shown

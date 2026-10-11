@@ -480,7 +480,7 @@ const AutomationRules = (function() {
     function openRuleModal(rule) {
         editingRuleId = rule ? rule.ruleId : null;
         $('#ar-modal-container').html(buildModalHtml(rule));
-        modalInstance = new bootstrap.Modal(document.getElementById('automationRuleModal'));
+        modalInstance = bootstrap.Modal.getOrCreateInstance(document.getElementById('automationRuleModal'));
         bindModalEvents(rule);
         modalInstance.show();
 

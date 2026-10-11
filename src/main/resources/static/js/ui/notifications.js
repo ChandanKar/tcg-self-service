@@ -63,7 +63,9 @@ const Notifications = (function() {
         const kind = normaliseType(type);
         const id = 'notif-' + (++seq);
 
-        const $toast = $('<div class="notification-toast" role="status"></div>')
+        // Errors and warnings interrupt a screen reader; the rest wait politely (E13-T08)
+        const $toast = $('<div class="notification-toast"></div>')
+            .attr('role', kind === 'error' || kind === 'warning' ? 'alert' : 'status')
             .attr('id', id)
             .addClass('toast-' + kind)
             .append($('<i class="fas toast-icon" aria-hidden="true"></i>').addClass(ICONS[kind]))

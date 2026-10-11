@@ -372,7 +372,7 @@ const VmRegistry = (function() {
             window.VmRegistryState.currentGroupsWithVms = groupsWithVms;
             window.VmRegistryState.currentGroups = groupsWithVms.map(gv => gv.group);
             renderGroupsModal(environmentName, groupsWithVms);
-            new bootstrap.Modal(document.getElementById('manageGroupsModal')).show();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('manageGroupsModal')).show();
             Loading.hide();
         } catch (error) {
             console.error('Failed to load groups:', error);
@@ -862,7 +862,7 @@ const VmRegistry = (function() {
             $('#btnSubmitGroup').html('<i class="fas fa-save"></i> Create');
         }
         populateDependencyDropdown(groupId);
-        new bootstrap.Modal(document.getElementById('createGroupModal')).show();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('createGroupModal')).show();
     }
 
     function populateDependencyDropdown(excludeGroupId) {
@@ -991,7 +991,7 @@ const VmRegistry = (function() {
         $('#vmRegion').prop('readonly', false);
         $('#vmProviderVmId').prop('readonly', false);
 
-        new bootstrap.Modal(document.getElementById('registerVmModal')).show();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('registerVmModal')).show();
     }
 
     /**
@@ -1041,7 +1041,7 @@ const VmRegistry = (function() {
         $('#vmRegion').prop('readonly', isEks);
         $('#vmProviderVmId').prop('readonly', isEks);
 
-        new bootstrap.Modal(document.getElementById('registerVmModal')).show();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('registerVmModal')).show();
     }
 
     async function fetchEc2Instances() {
