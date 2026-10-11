@@ -203,4 +203,45 @@ class GraphDirectoryServiceTest {
                 () -> service.fetchByObjectId("oid-1"));
         assertEquals(HttpStatus.CONFLICT, ex.getStatus());
     }
+
+    // ------------------------------------------------------------------ groups (E23-T02)
+
+    @Test
+    void groupSearch_usesSearchWithConsistencyLevel() {
+        server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo(
+                        org.hamcrest.Matchers.startsWith("https://graph.test/v1.0/groups?")))
+                .andExpect(method(GET))
+                .andExpect(header("ConsistencyLevel", "eventual"))
+                .andRespond(withSuccess("{\"value\":[{\"id\":\"g-1\",\"displayName\":\"Platform Team\",\"mail\":\"platform@corp.com\"}]}",
+                        MediaType.APPLICATION_JSON));
+
+        List<GraphDirectoryService.DirectoryGroup> groups = service.searchGroups("plat", null);
+
+        assertEquals(1, groups.size());
+        assertEquals("g-1", groups.get(0).id());
+        server.verify();
+    }
+
+    @Test
+    void groupMembers_followTheNextLink() {
+        server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo(
+                        org.hamcrest.Matchers.startsWith("https://graph.test/v1.0/groups/g-1/transitiveMembers/microsoft.graph.user?")))
+                .andRespond(withSuccess("{\"value\":[{\"id\":\"u-1\"},{\"id\":\"u-2\"}],"
+                        + "\"@odata.nextLink\":\"https://graph.test/v1.0/groups/g-1/transitiveMembers/microsoft.graph.user?$skiptoken=abc\"}",
+                        MediaType.APPLICATION_JSON));
+        server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo(
+                        org.hamcrest.Matchers.containsString("skiptoken=abc")))
+                .andRespond(withSuccess("{\"value\":[{\"id\":\"u-3\"}]}", MediaType.APPLICATION_JSON));
+
+        assertEquals(List.of("u-1", "u-2", "u-3"), service.listGroupMemberObjectIds("g-1"));
+        server.verify();
+    }
+
+    @Test
+    void groupMembers_graphErrorIsUnavailable() {
+        server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo(
+                        org.hamcrest.Matchers.startsWith("https://graph.test/v1.0/groups/g-1/")))
+                .andRespond(withServerError());
+        assertThrows(DirectoryLookupException.class, () -> service.listGroupMemberObjectIds("g-1"));
+    }
 }

@@ -168,6 +168,100 @@ public class GraphDirectoryService {
     }
 
     /** Strip characters that would break out of the {@code $search} token or the request. */
+    // ============= Groups (E23-T02) =============
+
+    /** A directory group for linking a team. */
+    public record DirectoryGroup(String id, String displayName, String mail) {}
+
+    private RestClient requireClient() {
+        if (!directoryEnabled) {
+            throw DirectoryLookupException.disabled();
+        }
+        RestClient client = graphRestClientProvider.getIfAvailable();
+        if (client == null) {
+            throw DirectoryLookupException.disabled();
+        }
+        return client;
+    }
+
+    /** Groups whose display name matches (Graph {@code $search}, needs Group.Read.All). */
+    public List<DirectoryGroup> searchGroups(String rawQuery, Integer topParam) {
+        RestClient client = requireClient();
+        String query = sanitize(rawQuery);
+        if (query.length() < MIN_QUERY_LENGTH) {
+            return List.of();
+        }
+        int top = topParam == null ? DEFAULT_TOP : Math.max(1, Math.min(MAX_TOP, topParam));
+        GraphGroupsResponse response;
+        try {
+            response = client.get()
+                    .uri(uri -> uri.path("/groups")
+                            .queryParam("$search", "\"displayName:" + query + "\"")
+                            .queryParam("$select", "id,displayName,mail")
+                            .queryParam("$top", top)
+                            .build())
+                    .header("ConsistencyLevel", "eventual")
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(GraphGroupsResponse.class);
+        } catch (RestClientException e) {
+            log.warn("Graph group search failed: {}", e.getMessage());
+            throw DirectoryLookupException.unavailable(e.getMessage());
+        }
+        if (response == null || response.value() == null) {
+            return List.of();
+        }
+        return response.value().stream().filter(g -> g.id() != null)
+                .map(g -> new DirectoryGroup(g.id(), g.displayName(), g.mail())).toList();
+    }
+
+    /**
+     * Object ids of a group's users, nested groups included (transitiveMembers), following
+     * {@code @odata.nextLink}. Needs GroupMember.Read.All.
+     */
+    public List<String> listGroupMemberObjectIds(String groupId) {
+        RestClient client = requireClient();
+        List<String> ids = new ArrayList<>();
+        try {
+            GraphIdsResponse page = client.get()
+                    .uri(uri -> uri.path("/groups/{id}/transitiveMembers/microsoft.graph.user")
+                            .queryParam("$select", "id")
+                            .queryParam("$top", 999)
+                            .build(groupId))
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(GraphIdsResponse.class);
+            while (page != null) {
+                if (page.value() != null) {
+                    page.value().stream().map(GraphId::id).filter(java.util.Objects::nonNull).forEach(ids::add);
+                }
+                String next = page.nextLink();
+                if (next == null || next.isBlank()) {
+                    break;
+                }
+                page = client.get().uri(java.net.URI.create(next)).accept(MediaType.APPLICATION_JSON)
+                        .retrieve().body(GraphIdsResponse.class);
+            }
+        } catch (RestClientException e) {
+            log.warn("Graph group member listing failed for {}: {}", groupId, e.getMessage());
+            throw DirectoryLookupException.unavailable(e.getMessage());
+        }
+        return ids;
+    }
+
+    private record GraphGroupsResponse(List<GraphGroup> value) {
+    }
+
+    private record GraphGroup(String id, String displayName, String mail) {
+    }
+
+    private record GraphIdsResponse(List<GraphId> value,
+                                    @com.fasterxml.jackson.annotation.JsonProperty("@odata.nextLink") String nextLink) {
+    }
+
+    private record GraphId(String id) {
+    }
+
     private String sanitize(String raw) {
         if (raw == null) {
             return "";

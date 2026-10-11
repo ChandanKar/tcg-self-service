@@ -131,3 +131,13 @@ One policy per feature (E08-T10). Grant only the ones you use; see
 }
 ```
 
+## Microsoft Graph permissions (not AWS)
+
+Team membership sync from Entra groups (`TEAMS_ENTRA_SYNC_ENABLED`, off by default, E23-T02) uses the
+app's existing Graph client (`GRAPH_DIRECTORY_ENABLED`). It needs these **application** permissions,
+with tenant admin consent:
+
+- `GroupMember.Read.All` — read a linked group's members (transitive, so nested groups count);
+- `Group.Read.All` — search groups by name when linking a team.
+
+Members whose Entra object id has no app user are skipped, not created.

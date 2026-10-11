@@ -21,10 +21,74 @@ public class TeamController {
 
     private final TeamService teamService;
     private final UserService userService;
+    private final com.tcgdigital.vmcontrol.service.GraphDirectoryService graph;
+    private final com.tcgdigital.vmcontrol.service.TeamMembershipSyncService syncService;
 
-    public TeamController(TeamService teamService, UserService userService) {
+    public TeamController(TeamService teamService, UserService userService,
+                          com.tcgdigital.vmcontrol.service.GraphDirectoryService graph,
+                          com.tcgdigital.vmcontrol.service.TeamMembershipSyncService syncService) {
         this.teamService = teamService;
         this.userService = userService;
+        this.graph = graph;
+        this.syncService = syncService;
+    }
+
+    // ============= Entra groups and members (E23-T02) =============
+
+    public record GroupLink(String groupId) {}
+
+    public record MemberRequest(@jakarta.validation.constraints.NotBlank(message = "Choose a user") String userId) {}
+
+    @GetMapping("/entra-groups")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Search Entra groups to link a team (409 when directory lookup is off)")
+    public List<com.tcgdigital.vmcontrol.service.GraphDirectoryService.DirectoryGroup> entraGroups(
+            @RequestParam(defaultValue = "") String query, @RequestParam(required = false) Integer top) {
+        return graph.searchGroups(query, top);
+    }
+
+    @PutMapping("/{teamId}/entra-group")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Link (or with null, unlink) the team's Entra group; syncs its members at once when lookup is on")
+    public TeamDTO linkEntraGroup(@PathVariable String teamId, @RequestBody GroupLink body) {
+        TeamDTO team = teamService.linkEntraGroup(teamId, body == null ? null : body.groupId(), userService.getCurrentUserId());
+        if (team.entraGroupId() != null && syncService.isAvailable()) {
+            syncService.syncTeam(teamId);
+            return teamService.get(teamId);
+        }
+        return team;
+    }
+
+    @PostMapping("/{teamId}/sync")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Sync the team's members from its Entra group now")
+    public com.tcgdigital.vmcontrol.service.TeamMembershipSyncService.Result sync(@PathVariable String teamId) {
+        if (!syncService.isAvailable()) {
+            throw com.tcgdigital.vmcontrol.exception.DirectoryLookupException.disabled();
+        }
+        return syncService.syncTeam(teamId);
+    }
+
+    @GetMapping("/{teamId}/members")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "The team's members and where each came from (ENTRA or MANUAL)")
+    public List<TeamService.MemberView> members(@PathVariable String teamId) {
+        return teamService.members(teamId);
+    }
+
+    @PostMapping("/{teamId}/members")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Add a member by hand")
+    public TeamService.MemberView addMember(@PathVariable String teamId, @Valid @RequestBody MemberRequest body) {
+        return teamService.addMember(teamId, body.userId(), userService.getCurrentUserId());
+    }
+
+    @DeleteMapping("/{teamId}/members/{userId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Remove a member (an Entra member comes back on the next sync while still in the group)")
+    public ResponseEntity<Void> removeMember(@PathVariable String teamId, @PathVariable String userId) {
+        teamService.removeMember(teamId, userId, userService.getCurrentUserId());
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping

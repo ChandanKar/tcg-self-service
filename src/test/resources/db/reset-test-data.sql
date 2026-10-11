@@ -43,6 +43,7 @@ DELETE FROM vm_group;
 DELETE FROM environment_access_request;
 DELETE FROM environment_access;
 DELETE FROM environment;
+DELETE FROM team_member;
 DELETE FROM team;
 DELETE FROM app_user;
 SET FOREIGN_KEY_CHECKS = 1;
