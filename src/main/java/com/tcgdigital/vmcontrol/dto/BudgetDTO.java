@@ -34,5 +34,7 @@ public record BudgetDTO(
         Timestamp createdAt,
         Timestamp updatedAt,
         /** Environment budgets: starts are frozen until then (E20-T03); null when not frozen. */
-        Timestamp startFrozenUntil) {
+        Timestamp startFrozenUntil,
+        /** "AWS sync failed: ..." when mirroring to AWS Budgets last failed (E20-T06); null otherwise. */
+        String awsSyncError) {
 }

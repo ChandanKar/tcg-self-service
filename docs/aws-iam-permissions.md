@@ -51,6 +51,8 @@ Run this (or the AWS Console's "Policy simulator" under IAM) before flipping any
 | **Phase 4 — budgets + anomaly alerts** (not yet built) | `ce:CreateAnomalyMonitor` | ❓ Unverified | Feature doesn't exist yet |
 | Phase 4 | `ce:GetAnomalyMonitors` | ❓ Unverified | Feature doesn't exist yet |
 | Phase 4 | `ce:GetAnomalies` | ❓ Unverified | Feature doesn't exist yet |
+| **Budgets mirror** (`BUDGETS_AWS_SYNC_ENABLED`, off by default, E20-T06) | `budgets:ViewBudget` | ❓ Unverified | Needed only when mirroring app budgets to AWS Budgets |
+| Budgets mirror | `budgets:ModifyBudget` | ❓ Unverified | Create, update and delete of the mirrored budgets (names start with `tcg-`) |
 | Phase 4 | `budgets:CreateBudget` / `budgets:DescribeBudgets` | ❓ Unverified | Only needed if real AWS Budget resources are created (optional sub-feature) |
 
 ## Practical takeaway

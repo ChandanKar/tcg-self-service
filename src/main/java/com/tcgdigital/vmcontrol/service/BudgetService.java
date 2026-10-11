@@ -53,6 +53,8 @@ public class BudgetService {
     private final TeamResolver teamResolver;
     private final SecurityService securityService;
     private final AuditService auditService;
+    private final AwsBudgetSyncService awsBudgetSync;
+    private final com.tcgdigital.vmcontrol.service.support.AfterCommit afterCommit;
 
     /** Replaceable in tests. */
     private Clock clock = Clock.systemUTC();
@@ -67,7 +69,10 @@ public class BudgetService {
 
     public BudgetService(BudgetRepository budgetRepository, EnvironmentRepository environmentRepository,
                          CostDailySnapshotRepository snapshotRepository, TeamResolver teamResolver,
-                         SecurityService securityService, AuditService auditService) {
+                         SecurityService securityService, AuditService auditService,
+                         AwsBudgetSyncService awsBudgetSync, com.tcgdigital.vmcontrol.service.support.AfterCommit afterCommit) {
+        this.awsBudgetSync = awsBudgetSync;
+        this.afterCommit = afterCommit;
         this.budgetRepository = budgetRepository;
         this.environmentRepository = environmentRepository;
         this.snapshotRepository = snapshotRepository;
@@ -140,6 +145,7 @@ public class BudgetService {
         apply(budget, request);
         budget = budgetRepository.save(budget);
         audit(userId, AuditAction.BUDGET_CREATED, budget, scopeName, describe(budget));
+        mirrorAfterCommit(budget.getBudgetId());
         return toDto(budget);
     }
 
@@ -153,6 +159,7 @@ public class BudgetService {
         apply(budget, request);
         budget = budgetRepository.save(budget);
         audit(userId, AuditAction.BUDGET_UPDATED, budget, scopeName(budget.getScopeType(), budget.getScopeId()), describe(budget));
+        mirrorAfterCommit(budget.getBudgetId());
         return toDto(budget);
     }
 
@@ -161,6 +168,11 @@ public class BudgetService {
         Budget budget = budget(budgetId);
         assertCanManage(budget.getScopeType(), budget.getScopeId());
         budgetRepository.delete(budget);
+        if (awsBudgetSync.isEnabled()) {
+            String id = budget.getBudgetId();
+            String awsName = budget.getAwsBudgetName();
+            afterCommit.run(() -> awsBudgetSync.delete(id, awsName));
+        }
         audit(userId, AuditAction.BUDGET_DELETED, budget, scopeName(budget.getScopeType(), budget.getScopeId()), describe(budget));
     }
 
@@ -269,6 +281,24 @@ public class BudgetService {
         return ids;
     }
 
+    // ============= AWS Budgets mirror (E20-T06) =============
+
+    /** After the save commits, mirror the budget to AWS Budgets (when enabled) and record its name. */
+    private void mirrorAfterCommit(String budgetId) {
+        if (!awsBudgetSync.isEnabled()) {
+            return;
+        }
+        afterCommit.run(() -> budgetRepository.findById(budgetId).ifPresent(b -> {
+            String tagValue = b.getScopeType() == BudgetScopeType.TEAM ? b.getScopeId()
+                    : environmentRepository.findById(b.getScopeId()).map(Environment::getName).orElse(b.getScopeId());
+            String name = awsBudgetSync.upsert(b, tagValue);
+            if (name != null && !name.equals(b.getAwsBudgetName())) {
+                b.setAwsBudgetName(name);
+                budgetRepository.save(b);
+            }
+        }));
+    }
+
     // ============= Helpers =============
 
     private Budget budget(String budgetId) {
@@ -305,7 +335,8 @@ public class BudgetService {
                 budget.getActionType(), Boolean.TRUE.equals(budget.getEnabled()), budget.getAwsBudgetName(),
                 spend.month().toString(), spend.asOf(), spend.toDate(), percent(spend.toDate(), budget.getMonthlyAmount()),
                 spend.forecast(), spend.forecast() == null ? null : percent(spend.forecast(), budget.getMonthlyAmount()),
-                budget.getCreatedByUserId(), budget.getCreatedAt(), budget.getUpdatedAt(), frozenUntil);
+                budget.getCreatedByUserId(), budget.getCreatedAt(), budget.getUpdatedAt(), frozenUntil,
+                awsBudgetSync.lastError(budget.getBudgetId()).orElse(null));
     }
 
     private void audit(String userId, AuditAction action, Budget budget, String scopeName, String details) {
