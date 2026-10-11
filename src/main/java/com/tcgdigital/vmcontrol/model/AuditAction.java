@@ -137,6 +137,12 @@ public enum AuditAction {
     /** A team's quotas changed (E25-T07). */
     TEAM_QUOTA_CHANGED,
 
+    // AWS account registry (E28-T07)
+    AWS_ACCOUNT_CREATED,
+    AWS_ACCOUNT_UPDATED,
+    AWS_ACCOUNT_DEACTIVATED,
+    AWS_ACCOUNT_VERIFIED,
+
     // Waste sweeps (E22)
     WASTE_FINDING_DISMISSED,
     WASTE_FINDING_REOPENED,

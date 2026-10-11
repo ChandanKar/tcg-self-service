@@ -79,4 +79,11 @@ public interface EnvironmentRepository extends JpaRepository<Environment, String
     Page<Environment> searchAll(@Param("search") String search, Pageable pageable);
 
     boolean existsByEksClusterName(String eksClusterName);
+
+    /** Active environments in an AWS account (E28-T07: an account in use cannot be deactivated). */
+    long countByAwsAccountRefAndIsActiveTrue(String awsAccountRef);
+
+    /** Active environments per AWS account ref, in one query (E28-T07). */
+    @Query("SELECT e.awsAccountRef, COUNT(e) FROM Environment e WHERE e.isActive = true GROUP BY e.awsAccountRef")
+    List<Object[]> countActiveByAwsAccountRef();
 }
