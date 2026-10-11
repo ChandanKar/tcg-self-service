@@ -120,7 +120,8 @@ tasks.register('buildFrontend') {
 
 	doLast {
 		distDir.mkdirs()
-		def html = indexHtml.text
+		// Always UTF-8: the platform charset (cp1252 on Windows) would corrupt non-ASCII text in the bundle
+		def html = indexHtml.getText('UTF-8')
 
 		// --- CSS ---
 		def cssLinks = []
@@ -132,13 +133,13 @@ tasks.register('buildFrontend') {
 		cssLinks.each { href ->
 			def f = new File(staticDir, href)
 			if (f.exists()) {
-				cssOut << "/* === ${f.name} === */\n${f.text}\n\n"
+				cssOut << "/* === ${f.name} === */\n${f.getText('UTF-8')}\n\n"
 			} else {
 				logger.warn("buildFrontend: CSS file not found: ${f}")
 			}
 		}
 		def cssFile = new File(distDir, 'app.css')
-		cssFile.text = cssOut.toString()
+		cssFile.setText(cssOut.toString(), 'UTF-8')
 		logger.lifecycle("buildFrontend: dist/app.css  — ${cssLinks.size()} files, ${cssFile.length()} bytes")
 
 		// --- JS ---
@@ -151,13 +152,19 @@ tasks.register('buildFrontend') {
 		jsScripts.each { src ->
 			def f = new File(staticDir, src)
 			if (f.exists()) {
-				jsOut << "/* === ${f.name} === */\n${f.text}\n\n"
+				jsOut << "/* === ${f.name} === */\n${f.getText('UTF-8')}\n\n"
 			} else {
 				logger.warn("buildFrontend: JS file not found: ${f}")
 			}
 		}
 		def jsFile = new File(distDir, 'app.js')
-		jsFile.text = jsOut.toString()
+		jsFile.setText(jsOut.toString(), 'UTF-8')
+		// Guard: UTF-8 text decoded with the wrong charset shows up as 'â€' sequences
+		[cssFile, jsFile].each { out ->
+			if (out.getText('UTF-8').contains('\u00e2\u20ac')) {
+				throw new GradleException("buildFrontend: ${out.name} contains mis-decoded UTF-8 text")
+			}
+		}
 		logger.lifecycle("buildFrontend: dist/app.js   — ${jsScripts.size()} files, ${jsFile.length()} bytes")
 	}
 }
@@ -182,7 +189,7 @@ tasks.register('patchIndexHtml') {
 	doLast {
 		patchedFile.parentFile.mkdirs()
 		// Normalize to LF so the regex matches regardless of source line endings
-		def content = sourceFile.text.replaceAll('\r\n', '\n')
+		def content = sourceFile.getText('UTF-8').replaceAll('\r\n', '\n')
 
 		// Replace local CSS <link> tags (not CDN) with single bundle reference
 		def patched = content.replaceAll(
@@ -206,7 +213,7 @@ tasks.register('patchIndexHtml') {
 			patched = patched.replace('href="dist/app.css"', "href=\"dist/app.css?v=${v}\"")
 			                 .replace('src="dist/app.js"', "src=\"dist/app.js?v=${v}\"")
 		}
-		patchedFile.text = patched
+		patchedFile.setText(patched, 'UTF-8')
 		logger.lifecycle("patchIndexHtml: wrote production index.html")
 	}
 }
