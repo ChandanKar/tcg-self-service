@@ -63,8 +63,9 @@ public class BudgetEvaluationService {
         int fired = 0;
         try {
             actionService.expireBefore(YearMonth.from(asOf));
+            actionService.retryPendingStops(); // approved stops that were blocked by a lock (E20-T04)
         } catch (Exception e) {
-            log.error("Could not expire old budget action requests: {}", e.getMessage(), e);
+            log.error("Could not expire or retry budget action requests: {}", e.getMessage(), e);
         }
         for (Budget budget : budgetRepository.findByEnabledTrue()) {
             try {

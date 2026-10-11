@@ -351,6 +351,13 @@ public class NotificationService {
                 NotificationType.BUDGET_ACTION_PENDING, title, message, "BUDGET_ACTION", requestId));
     }
 
+    /** The approver of a budget stop hears why it has not run yet (E20-T04). */
+    public void notifyBudgetStopDeferred(String approverUserId, String environmentId, String environmentName, String why) {
+        create(approverUserId, NotificationType.BUDGET_ACTION_PENDING, "Budget stop waiting: " + environmentName,
+                "The approved budget stop of " + environmentName + " has not run yet: " + why
+                        + ". It is retried at the next daily budget evaluation.", "ENVIRONMENT", environmentId);
+    }
+
     /** Everyone with access hears that starts are frozen (E20-T03). */
     public void notifyBudgetFreeze(String environmentId, String environmentName, java.time.Instant until) {
         String title = "Starts frozen: " + environmentName;

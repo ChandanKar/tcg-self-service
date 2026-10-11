@@ -49,6 +49,12 @@ public class BudgetActionService {
     private final NotificationService notificationService;
     private final AuditService auditService;
     private final CostDayBoundary dayBoundary;
+    private final VmOperationsService vmOperationsService;
+    /** A stop runs in its own transaction, so a refused stop cannot roll back the approval (E20-T04). */
+    private final org.springframework.transaction.support.TransactionTemplate stopTransaction;
+
+    /** Prefix of the decision reason of an approved stop still waiting to run. */
+    static final String STOP_PENDING = "Stop pending: ";
 
     /** Replaceable in tests. */
     private Clock clock = Clock.systemUTC();
@@ -56,7 +62,11 @@ public class BudgetActionService {
     public BudgetActionService(BudgetActionRequestRepository requestRepository, EnvironmentRepository environmentRepository,
                                UserRepository userRepository, SecurityService securityService,
                                NotificationService notificationService, AuditService auditService,
-                               CostDayBoundary dayBoundary) {
+                               CostDayBoundary dayBoundary, VmOperationsService vmOperationsService,
+                               org.springframework.transaction.PlatformTransactionManager transactionManager) {
+        this.vmOperationsService = vmOperationsService;
+        this.stopTransaction = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        this.stopTransaction.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         this.requestRepository = requestRepository;
         this.environmentRepository = environmentRepository;
         this.userRepository = userRepository;
@@ -154,7 +164,83 @@ public class BudgetActionService {
         auditService.logEnvironmentAction(userId, AuditAction.BUDGET_ACTION_APPROVED, environment.getEnvironmentId(),
                 name(environment), "budget_action", requestId, describe(request.getActionType()),
                 "Approved " + describe(request.getActionType()) + reasonSuffix(reason));
+        if (request.getActionType() == BudgetActionType.STOP_ENVIRONMENT) {
+            String stopReason = "Budget exhausted: " + name(environment) + " (approved by " + displayName(user) + ")";
+            try {
+                notificationService.notifyStopEnvironment(environment.getEnvironmentId(), name(environment), userId, stopReason);
+            } catch (Exception e) {
+                log.warn("Could not send the stop notice for {}: {}", environment.getEnvironmentId(), e.getMessage());
+            }
+            runStop(request, environment, userId, stopReason);
+        }
         return toDto(request);
+    }
+
+    /**
+     * Starts the STOP operation of an approved stop action as the approver, trigger BUDGET (E20-T04).
+     * When the environment is locked by someone else or busy, the request stays APPROVED with a
+     * "Stop pending" reason, the approver is told, and the next evaluation retries.
+     */
+    private void runStop(BudgetActionRequest request, Environment environment, String approverId, String stopReason) {
+        com.tcgdigital.vmcontrol.dto.StartOperationDTO dto = new com.tcgdigital.vmcontrol.dto.StartOperationDTO();
+        dto.setOperationType(com.tcgdigital.vmcontrol.model.OperationType.STOP);
+        dto.setReason(stopReason);
+        dto.setSkipAlreadyInTargetState(true);
+        dto.setContinueOnFailure(true);
+        String pending = null;
+        try {
+            Optional<com.tcgdigital.vmcontrol.model.OperationExecution> started = stopTransaction.execute(status ->
+                    vmOperationsService.startOperationIfNeeded(environment.getEnvironmentId(), approverId, dto,
+                            com.tcgdigital.vmcontrol.model.OperationTriggerSource.BUDGET));
+            if (started != null && started.isPresent()) {
+                request.setExecutionId(started.get().getExecutionId());
+                request.setDecisionReason(trimReason(stripPending(request.getDecisionReason())));
+            } else {
+                request.setDecisionReason(trimReason("Nothing to stop: every VM was already stopped"));
+            }
+        } catch (com.tcgdigital.vmcontrol.exception.LockAlreadyHeldException e) {
+            pending = "environment locked by " + userRepository.findById(e.getLockedByUserId())
+                    .map(BudgetActionService::displayName).orElse("another user");
+        } catch (ValidationException e) {
+            pending = e.getMessage();
+        }
+        if (pending != null) {
+            request.setDecisionReason(trimReason(STOP_PENDING + pending));
+            try {
+                notificationService.notifyBudgetStopDeferred(approverId, environment.getEnvironmentId(), name(environment), pending);
+            } catch (Exception e) {
+                log.warn("Could not tell the approver why the stop waits: {}", e.getMessage());
+            }
+        }
+        requestRepository.save(request);
+    }
+
+    /** Approved stops that could not run yet are tried again (from the daily evaluation). */
+    @Transactional
+    public int retryPendingStops() {
+        int started = 0;
+        for (BudgetActionRequest request : requestRepository.findApprovedStopsWaiting(STOP_PENDING + "%")) {
+            Environment environment = environment(request.getBudget().getScopeId());
+            String approverId = request.getDecidedByUserId();
+            String approver = userRepository.findById(approverId).map(BudgetActionService::displayName).orElse(approverId);
+            runStop(request, environment, approverId, "Budget exhausted: " + name(environment) + " (approved by " + approver + ")");
+            if (request.getExecutionId() != null) {
+                started++;
+            }
+        }
+        return started;
+    }
+
+    private static String stripPending(String reason) {
+        return reason != null && reason.startsWith(STOP_PENDING) ? null : reason;
+    }
+
+    private static String trimReason(String reason) {
+        return reason == null ? null : reason.substring(0, Math.min(reason.length(), MAX_REASON));
+    }
+
+    private static String displayName(User user) {
+        return user.getDisplayName() != null ? user.getDisplayName() : user.getEmail();
     }
 
     @Transactional

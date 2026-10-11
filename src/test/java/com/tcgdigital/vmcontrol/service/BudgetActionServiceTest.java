@@ -166,4 +166,61 @@ class BudgetActionServiceTest extends AbstractIntegrationTest {
         assertThatThrownBy(() -> actions.liftFreeze(env.getEnvironmentId(), coOwner.getUserId(), null))
                 .hasMessage("Starts are not frozen in this environment");
     }
+
+    // ------------------------------------------------------------------ stop (E20-T04)
+
+    @Autowired private LockService lockService;
+
+    private String raisedStop() {
+        budget.setActionType(BudgetActionType.STOP_ENVIRONMENT);
+        budgets.saveAndFlush(budget);
+        newVm(newGroup(env, "app"), "app-1", com.tcgdigital.vmcontrol.model.VmStatus.RUNNING);
+        org.mockito.Mockito.when(awsCloudProviderService.stopVm(org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyBoolean(),
+                org.mockito.ArgumentMatchers.any())).thenReturn(java.util.concurrent.CompletableFuture.completedFuture(
+                CloudProviderService.VmOperationResult.success("r", com.tcgdigital.vmcontrol.model.VmStatus.STOPPED)));
+        assertThat(actions.raise(budget, SEPTEMBER)).isTrue();
+        return requests.findByBudgetBudgetIdAndBudgetMonthAndActionType(budget.getBudgetId(), "2026-09",
+                BudgetActionType.STOP_ENVIRONMENT).orElseThrow().getRequestId();
+    }
+
+    @Test
+    void anApprovedStopRunsAsABudgetOperationAndMembersAreTold() {
+        String id = raisedStop();
+
+        String executionId = actions.approve(id, coOwner.getUserId(), null).executionId();
+
+        assertThat(executionId).isNotNull();
+        assertThat(jdbcTemplate.queryForObject("SELECT trigger_source FROM operation_execution WHERE execution_id = ?",
+                String.class, executionId)).isEqualTo("BUDGET");
+        assertThat(jdbcTemplate.queryForObject("SELECT operation_type FROM operation_execution WHERE execution_id = ?",
+                String.class, executionId)).isEqualToIgnoringCase("STOP");
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM notification WHERE user_id = ? AND type = 'ENVIRONMENT_STOP_NOTICE'",
+                Integer.class, member.getUserId())).isEqualTo(1);
+    }
+
+    @Test
+    void aStopBlockedByAnotherUsersLockWaitsAndIsRetried() {
+        String id = raisedStop();
+        lockService.acquireLock(env.getEnvironmentId(), member.getUserId(), "testing", null);
+
+        BudgetActionRequest.Status status = actions.approve(id, coOwner.getUserId(), null).status();
+
+        assertThat(status).isEqualTo(BudgetActionRequest.Status.APPROVED);
+        BudgetActionRequest waiting = requests.findById(id).orElseThrow();
+        assertThat(waiting.getExecutionId()).isNull();
+        assertThat(waiting.getDecisionReason()).startsWith("Stop pending: environment locked by ");
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM operation_execution WHERE environment_id = ?",
+                Integer.class, env.getEnvironmentId())).isZero();
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM notification WHERE user_id = ? AND title LIKE 'Budget stop waiting%'",
+                Integer.class, coOwner.getUserId())).isEqualTo(1);
+
+        assertThat(actions.retryPendingStops()).isZero(); // still locked
+        lockService.releaseLock(env.getEnvironmentId(), member.getUserId());
+        assertThat(actions.retryPendingStops()).isEqualTo(1);
+        BudgetActionRequest done = requests.findById(id).orElseThrow();
+        assertThat(done.getExecutionId()).isNotNull();
+        assertThat(done.getDecisionReason()).isNull();
+        assertThat(actions.retryPendingStops()).isZero();
+    }
 }

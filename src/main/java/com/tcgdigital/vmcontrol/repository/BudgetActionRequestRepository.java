@@ -26,6 +26,11 @@ public interface BudgetActionRequestRepository extends JpaRepository<BudgetActio
     @Query("SELECT r FROM BudgetActionRequest r WHERE r.status = 'PENDING' AND r.budgetMonth < :month")
     List<BudgetActionRequest> findPendingBefore(@Param("month") String month);
 
+    /** Approved stop actions still waiting to run (E20-T04). */
+    @Query("SELECT r FROM BudgetActionRequest r JOIN FETCH r.budget WHERE r.status = 'APPROVED' "
+            + "AND r.actionType = 'STOP_ENVIRONMENT' AND r.executionId IS NULL AND r.decisionReason LIKE :pendingPattern")
+    List<BudgetActionRequest> findApprovedStopsWaiting(@Param("pendingPattern") String pendingPattern);
+
     /** Pending requests of an environment's budget (the environment page). */
     @Query("SELECT r FROM BudgetActionRequest r JOIN FETCH r.budget b WHERE b.scopeType = 'ENVIRONMENT' "
             + "AND b.scopeId = :environmentId AND r.status = 'PENDING'")
