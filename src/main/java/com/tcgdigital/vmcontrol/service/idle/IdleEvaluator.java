@@ -149,7 +149,7 @@ public class IdleEvaluator {
     }
 
     /** The per-day network budget scaled to one sample's period. */
-    static long networkBudget(IdleStopRule rule, long periodSeconds) {
+    public static long networkBudget(IdleStopRule rule, long periodSeconds) {
         return rule.getNetworkMbPerDay().multiply(BigDecimal.valueOf(BYTES_PER_MB))
                 .multiply(BigDecimal.valueOf(periodSeconds))
                 .divide(BigDecimal.valueOf(86_400), 0, java.math.RoundingMode.HALF_UP)

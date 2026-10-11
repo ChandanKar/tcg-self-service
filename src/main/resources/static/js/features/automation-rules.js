@@ -638,9 +638,14 @@ const AutomationRules = (function() {
                                 <div id="ar-schedule-fields" style="display:${isSchedule ? 'block' : 'none'}">
                                     <div class="d-flex justify-content-between align-items-center mb-2">
                                         <span class="form-label mb-0" id="ar-windows-label">Time windows</span>
-                                        <button type="button" class="btn btn-sm btn-ghost" id="ar-add-window">
-                                            <i class="fas fa-plus" aria-hidden="true"></i> Add window</button>
+                                        <div class="d-flex gap-1">
+                                            <button type="button" class="btn btn-sm btn-ghost" id="ar-suggest-btn" aria-controls="ar-suggestion">
+                                                <i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i> Suggest from usage</button>
+                                            <button type="button" class="btn btn-sm btn-ghost" id="ar-add-window">
+                                                <i class="fas fa-plus" aria-hidden="true"></i> Add window</button>
+                                        </div>
                                     </div>
+                                    <div id="ar-suggestion" class="ar-suggestion" aria-live="polite" hidden></div>
                                     <div id="ar-windows" class="ar-windows" role="list" aria-labelledby="ar-windows-label">${windowsHtml(windows)}</div>
                                     <p class="form-text mt-1 mb-3">Each window starts and/or stops the target on its days. Leave a time empty for a stop-only or start-only window. Windows on the same day must not overlap.</p>
                                     <div class="row mb-3">
@@ -860,12 +865,78 @@ const AutomationRules = (function() {
             loadOverrides(rule);
         }
 
+        $('#ar-suggest-btn').on('click', () => loadSuggestion(rule));
+
         // Next runs refresh 400 ms after any change to the schedule (E19-T04).
         $('#ar-form').on('input change', () => schedulePreview(rule));
         $('#ar-windows').on('click', '.ar-day-pill, .ar-remove-window', () => schedulePreview(rule));
         $('#ar-add-window').on('click', () => schedulePreview(rule));
         $('.ar-choice-card').on('click', () => schedulePreview(rule));
         schedulePreview(rule, 0);
+    }
+
+    // ============= Suggest from usage (E19-T05) =============
+
+    const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    function windowText(w) {
+        const days = (w.daysOfWeek || []).map(d => d.charAt(0) + d.slice(1).toLowerCase()).join(', ');
+        if (w.startTime && w.stopTime) return `${days} ${w.startTime}–${w.stopTime}`;
+        return w.startTime ? `${days} start ${w.startTime}` : `${days} stop ${w.stopTime}`;
+    }
+
+    /** 7 x 24 strip of the share of weeks each hour was used (darker is busier). */
+    function heatStripHtml(activity) {
+        const rows = DAY_LABELS.map((day, d) => {
+            const cells = Array.from({ length: 24 }, (_, h) => {
+                const a = activity[d * 24 + h] || 0;
+                return `<span class="ar-heat-cell" style="opacity:${(0.08 + 0.92 * a).toFixed(2)}"
+                    title="${day} ${String(h).padStart(2, '0')}:00 · used in ${Math.round(a * 100)}% of weeks"></span>`;
+            }).join('');
+            return `<div class="ar-heat-row"><span class="ar-heat-day">${day}</span>${cells}</div>`;
+        }).join('');
+        const hours = [0, 6, 12, 18].map(h => `<span style="grid-column:${h + 2}">${String(h).padStart(2, '0')}</span>`).join('');
+        return `<div class="ar-heat" role="img" aria-label="Usage by hour of the week; darker hours were used in more weeks">
+                    ${rows}<div class="ar-heat-hours" aria-hidden="true">${hours}</div></div>`;
+    }
+
+    async function loadSuggestion(rule) {
+        const $panel = $('#ar-suggestion').prop('hidden', false)
+            .html('<div class="text-muted small"><i class="fas fa-spinner fa-spin me-1" aria-hidden="true"></i>Reading the last 4 weeks of usage…</div>');
+        const environmentId = $('#ar-environment').val();
+        const timezone = $('#ar-timezone').val() || 'UTC';
+        let s;
+        try {
+            s = await apiGetQuiet(Config.API.automationRules.suggestion(environmentId, timezone, 4));
+        } catch (error) {
+            $panel.html(Utils.html`<div class="text-muted small"><i class="fas fa-circle-info me-1" aria-hidden="true"></i>${serverMessage(error, 'Could not suggest a schedule.')}</div>`);
+            return;
+        }
+        const proposal = s.windows.length
+            ? Utils.html`<ul class="mb-1">${s.windows.map(w => Utils.raw(Utils.html`<li>${windowText(w)}</li>`))}</ul>`
+            : '<p class="mb-1">No windows: nothing to stop on a schedule.</p>';
+        const alwaysOn = s.alwaysOnDays.length
+            ? Utils.html`<p class="small text-muted mb-1">Used around the clock on ${s.alwaysOnDays.join(', ')}; those days get no window.</p>` : '';
+        const unpriced = s.unpricedVmCount ? ` (${s.unpricedVmCount} VM(s) without a known price not counted)` : '';
+        $panel.html(`
+            ${heatStripHtml(s.activityByHourOfWeek)}
+            <div class="ar-suggestion-body">
+                <strong>Suggested (${Utils.escapeHtml(s.timezone)}, last ${s.weeks} weeks)</strong>
+                ${proposal}${alwaysOn}
+                <p class="small mb-1">${Utils.escapeHtml(`Now ${s.currentRunningHoursPerWeek} VM-hours a week; ${s.suggestedHoursPerWeek} with these windows; about ${Utils.formatCurrency(Number(s.estimatedWeeklySaving))} a week saved${unpriced}.`)}</p>
+                <p class="small text-muted mb-2">${Utils.escapeHtml(`Confidence ${s.confidence.toLowerCase()}: ${s.metricsCoveragePercent}% of the used hours had metrics; the rest come from start/stop history.`)}</p>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-primary" id="ar-use-suggestion" ${s.windows.length ? '' : 'disabled'}>Use these windows</button>
+                    <button type="button" class="btn btn-sm btn-ghost" id="ar-close-suggestion">Close</button>
+                </div>
+            </div>`);
+        $('#ar-use-suggestion').on('click', () => {
+            renderWindows(s.windows);
+            $panel.prop('hidden', true).empty();
+            Notifications.show('Windows filled from usage. Review them, then Save.', 'info');
+            schedulePreview(rule, 0);
+        });
+        $('#ar-close-suggestion').on('click', () => $panel.prop('hidden', true).empty());
     }
 
     let previewTimer = null;

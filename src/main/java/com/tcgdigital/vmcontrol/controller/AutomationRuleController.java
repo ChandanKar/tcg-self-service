@@ -31,9 +31,12 @@ public class AutomationRuleController {
     private final AutomationRuleService automationRuleService;
     private final UserService userService;
     private final SecurityService securityService;
+    private final com.tcgdigital.vmcontrol.service.ScheduleSuggestionService scheduleSuggestionService;
 
     public AutomationRuleController(AutomationRuleService automationRuleService, UserService userService,
-                                    SecurityService securityService) {
+                                    SecurityService securityService,
+                                    com.tcgdigital.vmcontrol.service.ScheduleSuggestionService scheduleSuggestionService) {
+        this.scheduleSuggestionService = scheduleSuggestionService;
         this.automationRuleService = automationRuleService;
         this.userService = userService;
         this.securityService = securityService;
@@ -80,6 +83,23 @@ public class AutomationRuleController {
             assertCanAdministerRule(ruleId);
         }
         return automationRuleService.previewRuns(dto, ruleId, limit);
+    }
+
+    @GetMapping("/suggestion")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(summary = "Suggest schedule windows from an environment's usage",
+            description = "From the last 2-8 weeks of metrics and state history; 400 when there are less than 2 weeks.")
+    public com.tcgdigital.vmcontrol.dto.ScheduleSuggestionDTO suggestion(@RequestParam String environmentId,
+                                                                        @RequestParam(defaultValue = "UTC") String timezone,
+                                                                        @RequestParam(defaultValue = "4") int weeks) {
+        securityService.assertCanView(environmentId);
+        java.time.ZoneId zone;
+        try {
+            zone = java.time.ZoneId.of(timezone);
+        } catch (Exception e) {
+            throw new com.tcgdigital.vmcontrol.exception.ValidationException("Invalid timezone: " + timezone);
+        }
+        return scheduleSuggestionService.suggest(environmentId, zone, weeks);
     }
 
     @GetMapping("/{ruleId}/next-runs")

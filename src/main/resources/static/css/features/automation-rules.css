@@ -351,3 +351,44 @@
 .ar-next-run {
     white-space: nowrap;
 }
+
+/* Suggest from usage (E19-T05) */
+.ar-suggestion {
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin: 0.5rem 0 0.75rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.ar-suggestion[hidden] {
+    display: none;
+}
+
+.ar-suggestion-body {
+    flex: 1 1 14rem;
+    min-width: 0;
+}
+
+.ar-heat {
+    display: grid;
+    gap: 2px;
+    font-size: 0.7rem;
+    color: var(--text-secondary, #64748b);
+}
+
+.ar-heat-row,
+.ar-heat-hours {
+    display: grid;
+    grid-template-columns: 2rem repeat(24, 0.6rem);
+    gap: 2px;
+    align-items: center;
+}
+
+.ar-heat-cell {
+    height: 0.75rem;
+    border-radius: 2px;
+    background: var(--primary-color, #2563eb);
+}

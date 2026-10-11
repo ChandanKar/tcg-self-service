@@ -268,6 +268,9 @@ const Config = (function() {
             update: (ruleId) => `${API_BASE_URL}/automation-rules/${ruleId}`,
             setEnabled: (ruleId) => `${API_BASE_URL}/automation-rules/${ruleId}/enabled`,
             delete: (ruleId) => `${API_BASE_URL}/automation-rules/${ruleId}`,
+            // Schedule suggestion from usage (E19-T05)
+            suggestion: (environmentId, timezone, weeks) => `${API_BASE_URL}/automation-rules/suggestion`
+                + `?environmentId=${encodeURIComponent(environmentId)}&timezone=${encodeURIComponent(timezone)}&weeks=${weeks}`,
             // Next runs (E19-T04)
             preview: (ruleId) => `${API_BASE_URL}/automation-rules/preview` + (ruleId ? `?ruleId=${encodeURIComponent(ruleId)}` : ''),
             nextRuns: (ruleId) => `${API_BASE_URL}/automation-rules/${ruleId}/next-runs`,
