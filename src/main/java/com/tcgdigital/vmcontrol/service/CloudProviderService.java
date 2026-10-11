@@ -19,51 +19,51 @@ public interface CloudProviderService {
     /**
      * Start a VM.
      * @param providerVmId The cloud provider's VM ID
-     * @param region The region where the VM is located
+     * @param target The account and region of the VM (E28-T05)
      * @return CompletableFuture with the operation result
      */
-    CompletableFuture<VmOperationResult> startVm(String providerVmId, String region);
+    CompletableFuture<VmOperationResult> startVm(String providerVmId, CloudTarget target);
 
     /**
      * Start a VM and report intermediate progress where the provider supports it.
      */
-    default CompletableFuture<VmOperationResult> startVm(String providerVmId, String region,
+    default CompletableFuture<VmOperationResult> startVm(String providerVmId, CloudTarget target,
                                                         OperationProgressListener progressListener) {
-        return startVm(providerVmId, region);
+        return startVm(providerVmId, target);
     }
 
     /**
      * Stop a VM.
      * @param providerVmId The cloud provider's VM ID
-     * @param region The region where the VM is located
+     * @param target The account and region of the VM (E28-T05)
      * @param force Whether to force stop (hard shutdown)
      * @return CompletableFuture with the operation result
      */
-    CompletableFuture<VmOperationResult> stopVm(String providerVmId, String region, boolean force);
+    CompletableFuture<VmOperationResult> stopVm(String providerVmId, CloudTarget target, boolean force);
 
     /**
      * Stop a VM and report intermediate progress where the provider supports it.
      */
-    default CompletableFuture<VmOperationResult> stopVm(String providerVmId, String region, boolean force,
+    default CompletableFuture<VmOperationResult> stopVm(String providerVmId, CloudTarget target, boolean force,
                                                        OperationProgressListener progressListener) {
-        return stopVm(providerVmId, region, force);
+        return stopVm(providerVmId, target, force);
     }
 
     /**
      * Get current VM status from the cloud provider.
      * @param providerVmId The cloud provider's VM ID
-     * @param region The region where the VM is located
+     * @param target The account and region of the VM (E28-T05)
      * @return Current VM status
      */
-    VmStatus getVmStatus(String providerVmId, String region);
+    VmStatus getVmStatus(String providerVmId, CloudTarget target);
 
     /**
      * Get the VM name from the cloud provider (e.g., EC2 Name tag).
      * @param providerVmId The cloud provider's VM ID
-     * @param region The region where the VM is located
+     * @param target The account and region of the VM (E28-T05)
      * @return VM name from cloud provider, or null if not found
      */
-    String getVmName(String providerVmId, String region);
+    String getVmName(String providerVmId, CloudTarget target);
 
     /**
      * Check if the service is available/configured.
@@ -76,14 +76,14 @@ public interface CloudProviderService {
      * AWS overrides this with a batched DescribeInstances request (O(1) per region).
      *
      * @param providerVmIds cloud provider instance IDs to query
-     * @param region        region to query
+     * @param target        account and region to query
      * @return map of providerVmId → VmStatus; missing entries mean UNKNOWN
      */
     default java.util.Map<String, VmStatus> getVmStatusBatch(
-            java.util.List<String> providerVmIds, String region) {
+            java.util.List<String> providerVmIds, CloudTarget target) {
         java.util.Map<String, VmStatus> result = new java.util.HashMap<>();
         for (String id : providerVmIds) {
-            result.put(id, getVmStatus(id, region));
+            result.put(id, getVmStatus(id, target));
         }
         return result;
     }

@@ -44,6 +44,9 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
     @Autowired
     private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private com.tcgdigital.vmcontrol.repository.AwsAccountRepository awsAccountRepository;
+
     private Environment testEnvironment;
     private VmGroup testGroup;
     private Vm testVm;
@@ -224,7 +227,7 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
     @Test
     void testSyncVmState_NoDrift() {
         // Given - cloud status matches local status
-        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.RUNNING);
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.RUNNING);
 
         // When
         boolean hasDrift = stateSyncService.syncVmState(testVm);
@@ -244,8 +247,8 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
         testVm.setDisplayName(testVm.getProviderVmId());
         testVm = vmRepository.save(testVm);
         when(awsCloudProviderService.isAvailable()).thenReturn(true);
-        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.RUNNING);
-        when(awsCloudProviderService.getVmName(anyString(), anyString())).thenReturn("<b>web-01</b>");
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.RUNNING);
+        when(awsCloudProviderService.getVmName(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn("<b>web-01</b>");
 
         // When
         stateSyncService.syncVmState(testVm);
@@ -259,7 +262,7 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
     @Test
     void testSyncVmState_WithDrift() {
         // Given - cloud status differs from local status
-        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.STOPPED);
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.STOPPED);
 
         // When
         boolean hasDrift = stateSyncService.syncVmState(testVm);
@@ -280,7 +283,7 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
     @Test
     void testSyncAllVmStates() {
         // Given
-        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.RUNNING);
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.RUNNING);
 
         // When
         StateSyncStatusDTO result = stateSyncService.syncAllVmStates();
@@ -292,9 +295,52 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void vmsOfTwoAccountsInOneRegionAreBatchedPerAccount() {
+        // E28-T05: same region, different accounts -> one batched call through each account's client.
+        com.tcgdigital.vmcontrol.model.AwsAccount member = new com.tcgdigital.vmcontrol.model.AwsAccount();
+        member.setDisplayName("Member");
+        member.setAccountNumber("210987654321");
+        member.setRoleArn("arn:aws:iam::210987654321:role/VmControlAccess");
+        member = awsAccountRepository.saveAndFlush(member);
+        try {
+            Vm other = new Vm();
+            other.setVmId(UUID.randomUUID().toString());
+            other.setGroup(testGroup);
+            other.setName("test-vm-2");
+            other.setDisplayName("Test VM 2");
+            other.setProvider(CloudProvider.AWS);
+            other.setRegion("ap-south-1");
+            other.setProviderVmId("i-0fedcba9876543210");
+            other.setSequencePosition(2);
+            other.setStatus(VmStatus.RUNNING);
+            other.setAwsAccountRef(member.getAwsAccountRef());
+            vmRepository.save(other);
+
+            org.mockito.ArgumentCaptor<com.tcgdigital.vmcontrol.service.CloudTarget> targets =
+                    org.mockito.ArgumentCaptor.forClass(com.tcgdigital.vmcontrol.service.CloudTarget.class);
+            when(awsCloudProviderService.getVmStatusBatch(org.mockito.ArgumentMatchers.anyList(), targets.capture()))
+                    .thenAnswer(inv -> {
+                        java.util.Map<String, VmStatus> statuses = new java.util.HashMap<>();
+                        ((List<String>) inv.getArgument(0)).forEach(id -> statuses.put(id, VmStatus.RUNNING));
+                        return statuses;
+                    });
+
+            stateSyncService.syncAllVmStates();
+
+            assertEquals(2, targets.getAllValues().size());
+            assertEquals(java.util.Set.of(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"),
+                            com.tcgdigital.vmcontrol.service.CloudTarget.of(member.getAwsAccountRef(), "ap-south-1")),
+                    new java.util.HashSet<>(targets.getAllValues()));
+        } finally {
+            vmRepository.deleteAll();
+            awsAccountRepository.deleteById(member.getAwsAccountRef());
+        }
+    }
+
+    @Test
     void testSyncEnvironmentVmStates() {
         // Given
-        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.STOPPED); // Drift
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.STOPPED); // Drift
 
         // When
         int driftCount = stateSyncService.syncEnvironmentVmStates(testEnvironment.getEnvironmentId());
@@ -305,7 +351,7 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
 
     @Test
     void testSyncInProgress_PreventsParallelSync() {
-        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.RUNNING);
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.RUNNING);
 
         StateSyncStatusDTO result = stateSyncService.syncAllVmStates();
 
@@ -321,7 +367,7 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
 
         assertFalse(hasDrift);
         // Cloud provider must not be called — VM is mid-operation
-        verify(awsCloudProviderService, never()).getVmStatus(anyString(), anyString());
+        verify(awsCloudProviderService, never()).getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class));
         // Status must remain STARTING (not overwritten by sync)
         Vm unchanged = vmRepository.findById(testVm.getVmId()).orElseThrow();
         assertEquals(VmStatus.STARTING, unchanged.getStatus());
@@ -335,7 +381,7 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
         boolean hasDrift = stateSyncService.syncVmState(testVm);
 
         assertFalse(hasDrift);
-        verify(awsCloudProviderService, never()).getVmStatus(anyString(), anyString());
+        verify(awsCloudProviderService, never()).getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class));
         Vm unchanged = vmRepository.findById(testVm.getVmId()).orElseThrow();
         assertEquals(VmStatus.STOPPING, unchanged.getStatus());
     }
@@ -347,12 +393,12 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
         ReflectionTestUtils.setField(transitionalGuard, "staleTransitionalMinutes", 0L);
         testVm.setStatus(VmStatus.STARTING);
         testVm = vmRepository.save(testVm);
-        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.RUNNING);
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.RUNNING);
 
         boolean hasDrift = stateSyncService.syncVmState(testVm);
 
         assertTrue(hasDrift);
-        verify(awsCloudProviderService).getVmStatus(anyString(), anyString());
+        verify(awsCloudProviderService).getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class));
         Vm reconciled = vmRepository.findById(testVm.getVmId()).orElseThrow();
         assertEquals(VmStatus.RUNNING, reconciled.getStatus());
     }
@@ -362,7 +408,7 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
         ReflectionTestUtils.setField(transitionalGuard, "staleTransitionalMinutes", 0L);
         testVm.setStatus(VmStatus.STOPPING);
         testVm = vmRepository.save(testVm);
-        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.STOPPED);
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.STOPPED);
 
         boolean hasDrift = stateSyncService.syncVmState(testVm);
 
@@ -381,7 +427,7 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
         boolean hasDrift = stateSyncService.syncVmState(testVm);
 
         assertFalse(hasDrift);
-        verify(awsCloudProviderService, never()).getVmStatus(anyString(), anyString());
+        verify(awsCloudProviderService, never()).getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class));
     }
 
     // ---- E09-T06 (M7): several consecutive NOT_FOUND results before a VM is deactivated ----
@@ -394,7 +440,7 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
 
     @Test
     void notFoundBelowTheThresholdFlagsDriftButKeepsTheVm() {
-        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.NOT_FOUND);
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.NOT_FOUND);
 
         assertFalse(stateSyncService.syncVmState(testVm));
         assertFalse(stateSyncService.syncVmState(testVm));
@@ -409,7 +455,7 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
 
     @Test
     void theThirdConsecutiveNotFoundDeactivates() {
-        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.NOT_FOUND);
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.NOT_FOUND);
 
         stateSyncService.syncVmState(testVm);
         stateSyncService.syncVmState(testVm);
@@ -426,7 +472,7 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
 
     @Test
     void terminatedDeactivatesAtOnce() {
-        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.TERMINATED);
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.TERMINATED);
 
         assertTrue(stateSyncService.syncVmState(testVm));
 
@@ -438,10 +484,10 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
 
     @Test
     void findingTheInstanceAgainEndsTheStreak() {
-        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.NOT_FOUND);
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.NOT_FOUND);
         stateSyncService.syncVmState(testVm);
         stateSyncService.syncVmState(testVm);
-        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.RUNNING);
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.RUNNING);
 
         stateSyncService.syncVmState(testVm);
 

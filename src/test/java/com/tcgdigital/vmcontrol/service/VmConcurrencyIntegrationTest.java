@@ -123,7 +123,7 @@ class VmConcurrencyIntegrationTest extends AbstractIntegrationTest {
         vmRepository.saveAndFlush(nodes);
 
         // Like EksCloudProviderService: save the node-group sizes, then scale to zero.
-        when(eksCloudProviderService.stopVm(anyString(), anyString(), anyBoolean(), any())).thenAnswer(inv -> {
+        when(eksCloudProviderService.stopVm(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), anyBoolean(), any())).thenAnswer(inv -> {
             vmRepository.updateMetadata(nodes.getVmId(), "{\"minSize\":3,\"desiredSize\":5}",
                     new Timestamp(System.currentTimeMillis()));
             return CompletableFuture.completedFuture(
@@ -154,7 +154,7 @@ class VmConcurrencyIntegrationTest extends AbstractIntegrationTest {
         vmRepository.updateStatusIfCurrent(vm.getVmId(), VmStatus.RUNNING, VmStatus.STOPPING,
                 new Timestamp(System.currentTimeMillis()));
         when(awsCloudProviderService.isAvailable()).thenReturn(true);
-        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.STOPPED);
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.STOPPED);
 
         boolean drift = stateSyncService.syncVmState(syncCopy);
 
@@ -168,7 +168,7 @@ class VmConcurrencyIntegrationTest extends AbstractIntegrationTest {
     void aStateSyncWithACurrentCopyStillRecordsRealDrift() {
         Vm vm = newVm(group, "app", VmStatus.RUNNING);
         when(awsCloudProviderService.isAvailable()).thenReturn(true);
-        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.STOPPED);
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.STOPPED);
 
         // The real entry point (one transaction per environment, as the Monitoring sync button uses).
         assertThat(stateSyncService.syncEnvironmentVmStates(env.getEnvironmentId())).isEqualTo(1);

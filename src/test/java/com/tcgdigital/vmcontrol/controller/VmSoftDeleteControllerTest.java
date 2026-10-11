@@ -82,8 +82,8 @@ class VmSoftDeleteControllerTest extends SecuredWebTestBase {
         vmGroupRepository.saveAndFlush(discovered);
         mockMvc.perform(delete(vmUrl()).with(asAdmin())).andExpect(status().isNoContent());
         jdbcTemplate.update("UPDATE vm SET status = 'NOT_FOUND' WHERE vm_id = ?", vm.getVmId());
-        when(awsCloudProviderService.discoverTaggedInstances(eq("ap-south-1"), anyString(), anyString())).thenReturn(List.of());
-        when(awsCloudProviderService.discoverTaggedInstances("ap-south-1", "tcg:environment", env.getName()))
+        when(awsCloudProviderService.discoverTaggedInstances(org.mockito.ArgumentMatchers.eq(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1")), anyString(), anyString())).thenReturn(List.of());
+        when(awsCloudProviderService.discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "tcg:environment", env.getName()))
                 .thenReturn(List.of(Instance.builder().instanceId(vm.getProviderVmId()).build()));
 
         discoveryService.discoverAndRegisterVms();
@@ -97,7 +97,7 @@ class VmSoftDeleteControllerTest extends SecuredWebTestBase {
     @Test
     void reactivatingUndoesTheDelete() throws Exception {
         mockMvc.perform(delete(vmUrl()).with(asAdmin())).andExpect(status().isNoContent());
-        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.RUNNING);
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.RUNNING);
 
         mockMvc.perform(post(vmUrl() + "/reactivate").with(asAdmin())).andExpect(status().isOk());
 

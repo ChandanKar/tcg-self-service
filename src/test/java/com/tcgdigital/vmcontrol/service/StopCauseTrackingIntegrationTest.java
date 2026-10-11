@@ -46,9 +46,9 @@ class StopCauseTrackingIntegrationTest extends AbstractIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        when(awsCloudProviderService.stopVm(anyString(), anyString(), anyBoolean(), any())).thenReturn(
+        when(awsCloudProviderService.stopVm(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), anyBoolean(), any())).thenReturn(
                 CompletableFuture.completedFuture(CloudProviderService.VmOperationResult.success("r", VmStatus.STOPPED)));
-        when(awsCloudProviderService.startVm(anyString(), anyString(), any())).thenReturn(
+        when(awsCloudProviderService.startVm(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), any())).thenReturn(
                 CompletableFuture.completedFuture(CloudProviderService.VmOperationResult.success("r", VmStatus.RUNNING)));
         user = newUser("cause@example.org", false, false);
         env = newEnvironment("Causes");

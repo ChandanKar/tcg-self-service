@@ -871,13 +871,13 @@ public class VmOperationsService {
             if (operationType == OperationType.START) {
                 updateOperationProgress(executionId, detailId,
                         CloudProviderService.VmOperationProgress.of(VmStatus.STARTING, "Start requested", 10));
-                result = providerService.startVm(vm.getProviderVmId(), vm.getRegion(),
+                result = providerService.startVm(vm.getProviderVmId(), CloudTarget.of(vm),
                         progress -> updateOperationProgress(executionId, detailId, progress)).join();
             } else {
                 // Every step is a start or a stop (a RESTART is planned as stop steps then start steps).
                 updateOperationProgress(executionId, detailId,
                         CloudProviderService.VmOperationProgress.of(VmStatus.STOPPING, "Stop requested", 10));
-                result = providerService.stopVm(vm.getProviderVmId(), vm.getRegion(), false,
+                result = providerService.stopVm(vm.getProviderVmId(), CloudTarget.of(vm), false,
                         progress -> updateOperationProgress(executionId, detailId, progress)).join();
             }
 
@@ -1037,7 +1037,7 @@ public class VmOperationsService {
     private VmStatus reconcileCloudStateAfterFailure(CloudProviderService providerService, Vm vm,
                                                      OperationType operationType) {
         try {
-            VmStatus currentStatus = providerService.getVmStatus(vm.getProviderVmId(), vm.getRegion());
+            VmStatus currentStatus = providerService.getVmStatus(vm.getProviderVmId(), CloudTarget.of(vm));
             if (isAcceptablePostFailureState(operationType, currentStatus)) {
                 log.warn("Provider reported failure for VM {}, but cloud state is {}; treating operation as accepted",
                         vm.getName(), currentStatus);

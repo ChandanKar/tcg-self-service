@@ -61,7 +61,7 @@ class LeaseExpiryIntegrationTest extends AbstractIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        when(awsCloudProviderService.stopVm(anyString(), anyString(), anyBoolean(), any())).thenReturn(
+        when(awsCloudProviderService.stopVm(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), anyBoolean(), any())).thenReturn(
                 CompletableFuture.completedFuture(CloudProviderService.VmOperationResult.success("r", VmStatus.STOPPED)));
         alice = newUser("alice-expiry@example.org", false, false);
         bob = newUser("bob-expiry@example.org", false, false);

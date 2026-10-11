@@ -59,9 +59,9 @@ class LeaseStartIntegrationTest extends AbstractIntegrationTest {
 
     @BeforeEach
     void stubCloud() {
-        when(awsCloudProviderService.startVm(anyString(), anyString(), any())).thenReturn(
+        when(awsCloudProviderService.startVm(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), any())).thenReturn(
                 CompletableFuture.completedFuture(CloudProviderService.VmOperationResult.success("r", VmStatus.RUNNING)));
-        when(awsCloudProviderService.stopVm(anyString(), anyString(), anyBoolean(), any())).thenReturn(
+        when(awsCloudProviderService.stopVm(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), anyBoolean(), any())).thenReturn(
                 CompletableFuture.completedFuture(CloudProviderService.VmOperationResult.success("r", VmStatus.STOPPED)));
         alice = newUser("alice-lease@example.org", false, false);
         bob = newUser("bob-lease@example.org", false, false);

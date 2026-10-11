@@ -112,7 +112,7 @@ public class VmDiscoveryService {
 
         List<Instance> allInstances;
         try {
-            allInstances = awsService.discoverInstancesByNamePrefix(defaultRegion, namePrefix);
+            allInstances = awsService.discoverInstancesByNamePrefix(CloudTarget.of(defaultRegion), namePrefix);
         } catch (DiscoveryFailedException e) {
             // Unknown is not "nothing is live": register and flag nothing this run (H24).
             log.warn("VM discovery (name-pattern) skipped — {}", e.getMessage());
@@ -287,7 +287,7 @@ public class VmDiscoveryService {
         DiscoveryFailedException lastFailure = null;
         for (String region : regions) {
             try {
-                List<Instance> found = awsService.discoverTaggedInstances(region, envTagKey, env.getName());
+                List<Instance> found = awsService.discoverTaggedInstances(CloudTarget.of(env.getAwsAccountRef(), region), envTagKey, env.getName());
                 log.info("Environment {}: {} tagged instance(s) in region {}", env.getName(), found.size(), region);
                 found.forEach(i -> liveInstances.put(i, region));
             } catch (DiscoveryFailedException e) {

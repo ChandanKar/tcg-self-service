@@ -65,7 +65,7 @@ class OperationStateMachineIntegrationTest extends AbstractIntegrationTest {
         user = newUser("state-machine@example.com", false, false);
         grant(user, AccessScopeType.ENVIRONMENT, env.getEnvironmentId(), AccessLevel.USER);
         lockService.acquireLock(env.getEnvironmentId(), user.getUserId(), "testing", null);
-        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.STOPPED);
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.STOPPED);
     }
 
     private static CompletableFuture<CloudProviderService.VmOperationResult> ok() {
@@ -77,11 +77,11 @@ class OperationStateMachineIntegrationTest extends AbstractIntegrationTest {
     }
 
     private void startSucceedsFor(Vm vm) {
-        when(awsCloudProviderService.startVm(eq(vm.getProviderVmId()), anyString(), any())).thenReturn(ok());
+        when(awsCloudProviderService.startVm(eq(vm.getProviderVmId()), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), any())).thenReturn(ok());
     }
 
     private void startFailsFor(Vm vm) {
-        when(awsCloudProviderService.startVm(eq(vm.getProviderVmId()), anyString(), any())).thenReturn(fails());
+        when(awsCloudProviderService.startVm(eq(vm.getProviderVmId()), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), any())).thenReturn(fails());
     }
 
     private OperationExecution start() {
@@ -143,7 +143,7 @@ class OperationStateMachineIntegrationTest extends AbstractIntegrationTest {
         assertThat(done.getFailedTargets()).isEqualTo(1);
         assertThat(done.getSkippedTargets()).isEqualTo(2);
         assertThat(done.getErrorMessage()).isEqualTo("No step succeeded (1 failed, 2 skipped)");
-        verify(awsCloudProviderService, never()).startVm(eq(api.getProviderVmId()), anyString(), any());
+        verify(awsCloudProviderService, never()).startVm(eq(api.getProviderVmId()), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), any());
     }
 
     @Test
@@ -204,7 +204,7 @@ class OperationStateMachineIntegrationTest extends AbstractIntegrationTest {
         operationsService.cancelExecution(env.getEnvironmentId(), pending.getExecutionId(), user.getUserId());
         operationsService.executeOperationAsync(pending.getExecutionId(), false); // the worker arrives late
 
-        verify(awsCloudProviderService, after(1500).never()).startVm(anyString(), anyString(), any());
+        verify(awsCloudProviderService, after(1500).never()).startVm(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), any());
         OperationExecution after = executions.findById(pending.getExecutionId()).orElseThrow();
         assertThat(after.getStatus()).isEqualTo(ExecutionStatus.CANCELLED);
         assertThat(details.findByExecutionExecutionIdAndStatusOrderBySequencePositionAsc(pending.getExecutionId(), "cancelled"))
@@ -216,7 +216,7 @@ class OperationStateMachineIntegrationTest extends AbstractIntegrationTest {
         Vm vm = newVm(group, "slow", VmStatus.STOPPED);
         CountDownLatch providerCalled = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
-        when(awsCloudProviderService.startVm(eq(vm.getProviderVmId()), anyString(), any())).thenAnswer(inv -> {
+        when(awsCloudProviderService.startVm(eq(vm.getProviderVmId()), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), any())).thenAnswer(inv -> {
             providerCalled.countDown();
             release.await(20, TimeUnit.SECONDS);
             return ok();
@@ -248,7 +248,7 @@ class OperationStateMachineIntegrationTest extends AbstractIntegrationTest {
     void aTimedOutStopIsAFailureAndKeepsTheVmStopping() throws Exception {
         // E05-T05 (M9): no live "reconcile" turns it into completed, and the VM is not reset to RUNNING.
         Vm vm = newVm(group, "slow-stop", VmStatus.RUNNING);
-        when(awsCloudProviderService.stopVm(eq(vm.getProviderVmId()), anyString(), org.mockito.ArgumentMatchers.anyBoolean(), any()))
+        when(awsCloudProviderService.stopVm(eq(vm.getProviderVmId()), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), org.mockito.ArgumentMatchers.anyBoolean(), any()))
                 .thenReturn(CompletableFuture.completedFuture(
                         CloudProviderService.VmOperationResult.timedOut("Instance still STOPPING after 180s", VmStatus.STOPPING)));
         StartOperationDTO dto = new StartOperationDTO();
@@ -264,16 +264,16 @@ class OperationStateMachineIntegrationTest extends AbstractIntegrationTest {
         assertThat(step.getErrorMessage()).isEqualTo("Instance still STOPPING after 180s");
         assertThat(step.getStageLabel()).isNotEqualTo("Stop completed");
         assertThat(vmRepository.findById(vm.getVmId()).orElseThrow().getStatus()).isEqualTo(VmStatus.STOPPING);
-        verify(awsCloudProviderService, never()).getVmStatus(eq(vm.getProviderVmId()), anyString());
+        verify(awsCloudProviderService, never()).getVmStatus(eq(vm.getProviderVmId()), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class));
     }
 
     @Test
     void aFailedStopIsNotAcceptedJustBecauseTheVmIsStillStopping() throws Exception {
         // STOP is reconciled as done only for a real STOPPED, never STOPPING (M9).
         Vm vm = newVm(group, "stuck", VmStatus.RUNNING);
-        when(awsCloudProviderService.stopVm(eq(vm.getProviderVmId()), anyString(), org.mockito.ArgumentMatchers.anyBoolean(), any()))
+        when(awsCloudProviderService.stopVm(eq(vm.getProviderVmId()), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), org.mockito.ArgumentMatchers.anyBoolean(), any()))
                 .thenReturn(CompletableFuture.completedFuture(CloudProviderService.VmOperationResult.failure("throttled")));
-        when(awsCloudProviderService.getVmStatus(eq(vm.getProviderVmId()), anyString())).thenReturn(VmStatus.STOPPING);
+        when(awsCloudProviderService.getVmStatus(eq(vm.getProviderVmId()), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.STOPPING);
         StartOperationDTO dto = new StartOperationDTO();
         dto.setOperationType(OperationType.STOP);
         dto.setSkipAlreadyInTargetState(false);

@@ -70,7 +70,7 @@ class AutomationRuleWindowTest extends AbstractIntegrationTest {
         newVm(newGroup(env, "app"), "app-1", VmStatus.RUNNING);
         creator = newUser("window-creator-" + UUID.randomUUID() + "@example.com", false, true);
         grant(creator, AccessScopeType.ENVIRONMENT, env.getEnvironmentId(), AccessLevel.USER);
-        when(awsCloudProviderService.stopVm(anyString(), anyString(), anyBoolean(), any())).thenReturn(
+        when(awsCloudProviderService.stopVm(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), anyBoolean(), any())).thenReturn(
                 CompletableFuture.completedFuture(CloudProviderService.VmOperationResult.success("r", VmStatus.STOPPED)));
     }
 

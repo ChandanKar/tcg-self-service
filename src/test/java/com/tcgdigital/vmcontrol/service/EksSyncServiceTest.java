@@ -67,8 +67,8 @@ class EksSyncServiceTest {
     @Test
     void syncEksEnvironment_createsVmGroupAndVmForNewNodeGroup() {
         Environment env = buildEnvironment();
-        when(eksService.listNodegroups(CLUSTER, REGION)).thenReturn(List.of(NODEGROUP));
-        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, REGION)).thenReturn(buildNodegroup(2, 4));
+        when(eksService.listNodegroups(CLUSTER, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(List.of(NODEGROUP));
+        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(buildNodegroup(2, 4));
         when(groupRepository.findByEnvironmentEnvironmentIdAndName(ENV_ID, NODEGROUP)).thenReturn(Optional.empty());
         when(groupRepository.save(any())).thenAnswer(i -> i.getArgument(0));
         when(vmRepository.findByGroupGroupIdAndName(anyString(), eq(NODEGROUP))).thenReturn(Optional.empty());
@@ -86,9 +86,9 @@ class EksSyncServiceTest {
     void syncEksEnvironment_createsEveryReturnedNodeGroup() {
         Environment env = buildEnvironment();
         List<String> nodegroups = List.of("system-workers", "app-workers", "spot-workers");
-        when(eksService.listNodegroups(CLUSTER, REGION)).thenReturn(nodegroups);
+        when(eksService.listNodegroups(CLUSTER, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(nodegroups);
         for (String nodegroup : nodegroups) {
-            when(eksService.describeNodegroup(CLUSTER, nodegroup, REGION)).thenReturn(buildNodegroup(nodegroup, 1, 2));
+            when(eksService.describeNodegroup(CLUSTER, nodegroup, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(buildNodegroup(nodegroup, 1, 2));
             when(groupRepository.findByEnvironmentEnvironmentIdAndName(ENV_ID, nodegroup)).thenReturn(Optional.empty());
             when(vmRepository.findByGroupGroupIdAndName(anyString(), eq(nodegroup))).thenReturn(Optional.empty());
         }
@@ -102,7 +102,7 @@ class EksSyncServiceTest {
         verify(groupRepository, times(3)).save(any(VmGroup.class));
         verify(vmRepository, times(3)).save(any(Vm.class));
         for (String nodegroup : nodegroups) {
-            verify(eksService).describeNodegroup(CLUSTER, nodegroup, REGION);
+            verify(eksService).describeNodegroup(CLUSTER, nodegroup, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION));
         }
     }
 
@@ -128,9 +128,9 @@ class EksSyncServiceTest {
         // whose position in this list (2nd) would collide with apple-workers' real, already-
         // persisted sequencePosition of 2 under a naive list-index-based assignment scheme.
         List<String> nodegroups = List.of("apple-workers", "middle-workers", "zebra-workers");
-        when(eksService.listNodegroups(CLUSTER, REGION)).thenReturn(nodegroups);
+        when(eksService.listNodegroups(CLUSTER, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(nodegroups);
         for (String ng : nodegroups) {
-            when(eksService.describeNodegroup(CLUSTER, ng, REGION)).thenReturn(buildNodegroup(ng, 1, 1));
+            when(eksService.describeNodegroup(CLUSTER, ng, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(buildNodegroup(ng, 1, 1));
             when(vmRepository.findByGroupGroupIdAndName(anyString(), eq(ng))).thenReturn(Optional.empty());
         }
         when(vmRepository.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -173,11 +173,11 @@ class EksSyncServiceTest {
     void syncEksEnvironment_oneFailingNodeGroupDoesNotBlockOthers() {
         Environment env = buildEnvironment();
         List<String> nodegroups = List.of("good-1", "bad", "good-2");
-        when(eksService.listNodegroups(CLUSTER, REGION)).thenReturn(nodegroups);
+        when(eksService.listNodegroups(CLUSTER, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(nodegroups);
         // "bad" fails at groupRepository.save, before describe/vm lookups run — so those stubs
         // are lenient (not reached for "bad").
         for (String ng : nodegroups) {
-            lenient().when(eksService.describeNodegroup(CLUSTER, ng, REGION)).thenReturn(buildNodegroup(ng, 1, 2));
+            lenient().when(eksService.describeNodegroup(CLUSTER, ng, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(buildNodegroup(ng, 1, 2));
             lenient().when(groupRepository.findByEnvironmentEnvironmentIdAndName(ENV_ID, ng)).thenReturn(Optional.empty());
             lenient().when(vmRepository.findByGroupGroupIdAndName(anyString(), eq(ng))).thenReturn(Optional.empty());
         }
@@ -206,8 +206,8 @@ class EksSyncServiceTest {
     @Test
     void syncEksEnvironment_enrichesVmGroupMetadataWithClusterIdentity() throws Exception {
         Environment env = buildEnvironment();
-        when(eksService.listNodegroups(CLUSTER, REGION)).thenReturn(List.of(NODEGROUP));
-        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, REGION)).thenReturn(buildNodegroup(1, 2));
+        when(eksService.listNodegroups(CLUSTER, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(List.of(NODEGROUP));
+        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(buildNodegroup(1, 2));
         when(groupRepository.findByEnvironmentEnvironmentIdAndName(ENV_ID, NODEGROUP)).thenReturn(Optional.empty());
         when(groupRepository.findByEnvironmentEnvironmentIdOrderBySequencePositionAsc(ENV_ID)).thenReturn(List.of());
         ArgumentCaptor<VmGroup> groupCaptor = ArgumentCaptor.forClass(VmGroup.class);
@@ -228,8 +228,8 @@ class EksSyncServiceTest {
     @Test
     void syncEksEnvironment_savesMinSizeAndDesiredSizeToVmMetadataWhenRunning() throws Exception {
         Environment env = buildEnvironment();
-        when(eksService.listNodegroups(CLUSTER, REGION)).thenReturn(List.of(NODEGROUP));
-        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, REGION)).thenReturn(buildNodegroup(2, 5));
+        when(eksService.listNodegroups(CLUSTER, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(List.of(NODEGROUP));
+        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(buildNodegroup(2, 5));
         when(groupRepository.findByEnvironmentEnvironmentIdAndName(ENV_ID, NODEGROUP)).thenReturn(Optional.empty());
         when(groupRepository.findByEnvironmentEnvironmentIdOrderBySequencePositionAsc(ENV_ID)).thenReturn(List.of());
         when(groupRepository.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -250,8 +250,8 @@ class EksSyncServiceTest {
     void syncEksEnvironment_doesNotOverwriteVmMetadataWhenClusterIsStopped() {
         Environment env = buildEnvironment();
         // Live state: desired=0 (stopped)
-        when(eksService.listNodegroups(CLUSTER, REGION)).thenReturn(List.of(NODEGROUP));
-        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, REGION)).thenReturn(buildNodegroup(0, 0));
+        when(eksService.listNodegroups(CLUSTER, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(List.of(NODEGROUP));
+        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(buildNodegroup(0, 0));
         when(groupRepository.findByEnvironmentEnvironmentIdAndName(ENV_ID, NODEGROUP)).thenReturn(Optional.empty());
         when(groupRepository.findByEnvironmentEnvironmentIdOrderBySequencePositionAsc(ENV_ID)).thenReturn(List.of());
         when(groupRepository.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -283,8 +283,8 @@ class EksSyncServiceTest {
                         .build())
                 .diskSize(50)
                 .build();
-        when(eksService.listNodegroups(CLUSTER, REGION)).thenReturn(List.of(NODEGROUP));
-        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, REGION)).thenReturn(stopped);
+        when(eksService.listNodegroups(CLUSTER, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(List.of(NODEGROUP));
+        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(stopped);
         when(groupRepository.findByEnvironmentEnvironmentIdAndName(ENV_ID, NODEGROUP)).thenReturn(Optional.empty());
         when(groupRepository.findByEnvironmentEnvironmentIdOrderBySequencePositionAsc(ENV_ID)).thenReturn(List.of());
         when(groupRepository.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -308,9 +308,9 @@ class EksSyncServiceTest {
     @Test
     void syncEksEnvironment_detectsDriftWhenStatusChanges() {
         Environment env = buildEnvironment();
-        when(eksService.listNodegroups(CLUSTER, REGION)).thenReturn(List.of(NODEGROUP));
+        when(eksService.listNodegroups(CLUSTER, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(List.of(NODEGROUP));
         // Live: ACTIVE + desired=2 → RUNNING
-        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, REGION)).thenReturn(buildNodegroup(1, 2));
+        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(buildNodegroup(1, 2));
         when(groupRepository.findByEnvironmentEnvironmentIdAndName(ENV_ID, NODEGROUP)).thenReturn(Optional.empty());
         when(groupRepository.findByEnvironmentEnvironmentIdOrderBySequencePositionAsc(ENV_ID)).thenReturn(List.of());
         when(groupRepository.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -349,14 +349,14 @@ class EksSyncServiceTest {
         when(groupRepository.save(any())).thenAnswer(i -> i.getArgument(0));
         when(vmRepository.findByGroupGroupIdAndName(anyString(), eq(NODEGROUP))).thenReturn(Optional.of(vm));
         lenient().when(vmRepository.save(any())).thenAnswer(i -> i.getArgument(0));
-        when(eksService.listNodegroups(CLUSTER, REGION)).thenReturn(List.of(NODEGROUP));
+        when(eksService.listNodegroups(CLUSTER, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(List.of(NODEGROUP));
         return vm;
     }
 
     @Test
     void syncEksEnvironment_updatingRunningGroupStaysRunningWithoutDrift() {
         Vm vm = existingVm(VmStatus.RUNNING, null);
-        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, REGION)).thenReturn(updating(3));
+        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(updating(3));
 
         service.syncEksEnvironment(buildEnvironment());
 
@@ -368,7 +368,7 @@ class EksSyncServiceTest {
     @Test
     void syncEksEnvironment_updatingStoppedGroupBeingScaledUpIsStarting() {
         Vm vm = existingVm(VmStatus.STOPPED, null);
-        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, REGION)).thenReturn(updating(2));
+        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(updating(2));
 
         service.syncEksEnvironment(buildEnvironment());
 
@@ -379,7 +379,7 @@ class EksSyncServiceTest {
     void syncEksEnvironment_leavesAFreshlyStartedGroupAlone() {
         java.sql.Timestamp twoMinutesAgo = java.sql.Timestamp.from(java.time.Instant.now().minusSeconds(120));
         Vm vm = existingVm(VmStatus.STARTING, twoMinutesAgo);
-        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, REGION)).thenReturn(buildNodegroup(0, 0)); // ACTIVE, desired 0
+        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(buildNodegroup(0, 0)); // ACTIVE, desired 0
 
         service.syncEksEnvironment(buildEnvironment());
 
@@ -392,16 +392,16 @@ class EksSyncServiceTest {
     @Test
     void syncEksEnvironment_describesTheNodeGroupBeforeItsTransaction() {
         existingVm(VmStatus.RUNNING, null);
-        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, REGION)).thenReturn(buildNodegroup(1, 2));
+        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(buildNodegroup(1, 2));
         EksSyncService spy = org.mockito.Mockito.spy(service);
         ReflectionTestUtils.setField(spy, "self", spy);
 
         spy.syncEksEnvironment(buildEnvironment());
 
         org.mockito.InOrder order = org.mockito.Mockito.inOrder(eksService, spy);
-        order.verify(eksService).describeNodegroup(CLUSTER, NODEGROUP, REGION);
+        order.verify(eksService).describeNodegroup(CLUSTER, NODEGROUP, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION));
         order.verify(spy).upsertNodeGroup(any(), eq(CLUSTER), eq(NODEGROUP), eq(REGION), any(Nodegroup.class), any());
-        verify(eksService, times(1)).describeNodegroup(CLUSTER, NODEGROUP, REGION); // not again inside
+        verify(eksService, times(1)).describeNodegroup(CLUSTER, NODEGROUP, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)); // not again inside
     }
 
     @Test
@@ -410,8 +410,8 @@ class EksSyncServiceTest {
         Environment env = buildEnvironment();
         env.setName("mycluster");
         env.setEksClusterName("MyCluster");
-        when(eksService.listNodegroups("MyCluster", REGION)).thenReturn(List.of(NODEGROUP));
-        when(eksService.describeNodegroup("MyCluster", NODEGROUP, REGION)).thenReturn(buildNodegroup(1, 2));
+        when(eksService.listNodegroups("MyCluster", com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(List.of(NODEGROUP));
+        when(eksService.describeNodegroup("MyCluster", NODEGROUP, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(buildNodegroup(1, 2));
         when(groupRepository.findByEnvironmentEnvironmentIdAndName(ENV_ID, NODEGROUP)).thenReturn(Optional.empty());
         when(groupRepository.findByEnvironmentEnvironmentIdOrderBySequencePositionAsc(ENV_ID)).thenReturn(List.of());
         when(groupRepository.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -421,13 +421,13 @@ class EksSyncServiceTest {
 
         assertEquals(1, service.syncEksEnvironment(env));
 
-        verify(eksService).listNodegroups("MyCluster", REGION);
+        verify(eksService).listNodegroups("MyCluster", com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION));
         assertEquals("MyCluster/" + NODEGROUP, saved.getValue().getProviderVmId());
     }
 
     @Test
     void autoDiscoverClusters_storesTheSlugAsNameAndTheExactClusterName() {
-        when(eksService.listClusters(REGION)).thenReturn(List.of("MyCluster"));
+        when(eksService.listClusters(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(List.of("MyCluster"));
         when(environmentRepository.existsByEksClusterName("MyCluster")).thenReturn(false);
         when(environmentRepository.existsByName("mycluster")).thenReturn(false);
         when(environmentRepository.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -443,7 +443,7 @@ class EksSyncServiceTest {
 
     @Test
     void autoDiscoverClusters_skipsAClusterRegisteredUnderItsExactName() {
-        when(eksService.listClusters(REGION)).thenReturn(List.of("MyCluster"));
+        when(eksService.listClusters(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(List.of("MyCluster"));
         when(environmentRepository.existsByEksClusterName("MyCluster")).thenReturn(true);
 
         service.autoDiscoverClusters();
@@ -455,8 +455,8 @@ class EksSyncServiceTest {
     void syncEksEnvironment_deactivatesNodeGroupRemovedFromCluster() {
         Environment env = buildEnvironment();
         // AWS only has NODEGROUP; staleGroup no longer exists there
-        when(eksService.listNodegroups(CLUSTER, REGION)).thenReturn(List.of(NODEGROUP));
-        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, REGION)).thenReturn(buildNodegroup(1, 1));
+        when(eksService.listNodegroups(CLUSTER, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(List.of(NODEGROUP));
+        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(buildNodegroup(1, 1));
         when(groupRepository.findByEnvironmentEnvironmentIdAndName(ENV_ID, NODEGROUP)).thenReturn(Optional.empty());
         when(groupRepository.save(any())).thenAnswer(i -> i.getArgument(0));
         when(vmRepository.findByGroupGroupIdAndName(anyString(), eq(NODEGROUP))).thenReturn(Optional.empty());
@@ -490,7 +490,7 @@ class EksSyncServiceTest {
     @Test
     void syncEksEnvironment_skipsWhenNoNodeGroupsReturned() {
         Environment env = buildEnvironment();
-        when(eksService.listNodegroups(CLUSTER, REGION)).thenReturn(List.of());
+        when(eksService.listNodegroups(CLUSTER, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(List.of());
 
         int count = service.syncEksEnvironment(env);
 
@@ -511,7 +511,7 @@ class EksSyncServiceTest {
     @Test
     void syncEksEnvironment_doesNotCrashWhenListNodegroupsFails() {
         Environment env = buildEnvironment();
-        when(eksService.listNodegroups(CLUSTER, REGION)).thenThrow(new RuntimeException("EKS throttled"));
+        when(eksService.listNodegroups(CLUSTER, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenThrow(new RuntimeException("EKS throttled"));
 
         int count = service.syncEksEnvironment(env);
 
@@ -522,15 +522,15 @@ class EksSyncServiceTest {
     @Test
     void autoDiscoverClusters_scansEveryConfiguredRegion() {
         ReflectionTestUtils.setField(service, "configuredSyncRegions", "ap-south-1,us-east-1");
-        when(eksService.listClusters("ap-south-1")).thenReturn(List.of("prod-cluster"));
-        when(eksService.listClusters("us-east-1")).thenReturn(List.of("dr-cluster"));
+        when(eksService.listClusters(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"))).thenReturn(List.of("prod-cluster"));
+        when(eksService.listClusters(com.tcgdigital.vmcontrol.service.CloudTarget.of("us-east-1"))).thenReturn(List.of("dr-cluster"));
         when(environmentRepository.existsByName(anyString())).thenReturn(false);
         when(environmentRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         service.autoDiscoverClusters();
 
-        verify(eksService).listClusters("ap-south-1");
-        verify(eksService).listClusters("us-east-1");
+        verify(eksService).listClusters(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"));
+        verify(eksService).listClusters(com.tcgdigital.vmcontrol.service.CloudTarget.of("us-east-1"));
         ArgumentCaptor<Environment> captor = ArgumentCaptor.forClass(Environment.class);
         verify(environmentRepository, times(2)).save(captor.capture());
         assertTrue(captor.getAllValues().stream().anyMatch(e -> "prod-cluster".equals(e.getName())
@@ -542,8 +542,8 @@ class EksSyncServiceTest {
     @Test
     void getUnregisteredEksClusters_scansEveryConfiguredRegionAndTagsEachWithItsRegion() {
         ReflectionTestUtils.setField(service, "configuredSyncRegions", "ap-south-1,us-east-1");
-        when(eksService.listClusters("ap-south-1")).thenReturn(List.of("prod-cluster", "already-registered"));
-        when(eksService.listClusters("us-east-1")).thenReturn(List.of("dr-cluster"));
+        when(eksService.listClusters(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"))).thenReturn(List.of("prod-cluster", "already-registered"));
+        when(eksService.listClusters(com.tcgdigital.vmcontrol.service.CloudTarget.of("us-east-1"))).thenReturn(List.of("dr-cluster"));
         when(environmentRepository.existsByName("prod-cluster")).thenReturn(false);
         when(environmentRepository.existsByName("already-registered")).thenReturn(true);
         when(environmentRepository.existsByName("dr-cluster")).thenReturn(false);
@@ -561,8 +561,8 @@ class EksSyncServiceTest {
     @Test
     void getUnregisteredEksClusters_oneRegionFailingDoesNotBlockOthers() {
         ReflectionTestUtils.setField(service, "configuredSyncRegions", "ap-south-1,us-east-1");
-        when(eksService.listClusters("ap-south-1")).thenThrow(new RuntimeException("region unreachable"));
-        when(eksService.listClusters("us-east-1")).thenReturn(List.of("dr-cluster"));
+        when(eksService.listClusters(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"))).thenThrow(new RuntimeException("region unreachable"));
+        when(eksService.listClusters(com.tcgdigital.vmcontrol.service.CloudTarget.of("us-east-1"))).thenReturn(List.of("dr-cluster"));
         when(environmentRepository.existsByName("dr-cluster")).thenReturn(false);
 
         List<EksClusterInfoDTO> result = service.getUnregisteredEksClusters();
@@ -574,8 +574,8 @@ class EksSyncServiceTest {
     @Test
     void autoDiscoverClusters_oneRegionFailingDoesNotBlockOthers() {
         ReflectionTestUtils.setField(service, "configuredSyncRegions", "ap-south-1,us-east-1");
-        when(eksService.listClusters("ap-south-1")).thenThrow(new RuntimeException("region unreachable"));
-        when(eksService.listClusters("us-east-1")).thenReturn(List.of("dr-cluster"));
+        when(eksService.listClusters(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"))).thenThrow(new RuntimeException("region unreachable"));
+        when(eksService.listClusters(com.tcgdigital.vmcontrol.service.CloudTarget.of("us-east-1"))).thenReturn(List.of("dr-cluster"));
         when(environmentRepository.existsByName("dr-cluster")).thenReturn(false);
         when(environmentRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 

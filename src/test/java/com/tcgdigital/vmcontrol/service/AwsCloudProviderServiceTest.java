@@ -37,7 +37,7 @@ class AwsCloudProviderServiceTest {
         // The factory hands out the mock client, so no real client is created (E28-T02).
         com.tcgdigital.vmcontrol.service.aws.AwsClientFactory factory = org.mockito.Mockito.mock(com.tcgdigital.vmcontrol.service.aws.AwsClientFactory.class);
         org.mockito.Mockito.lenient().when(factory.isConfigured()).thenReturn(true);
-        org.mockito.Mockito.lenient().when(factory.ec2(REGION)).thenReturn(mockEc2Client);
+        org.mockito.Mockito.lenient().when(factory.ec2(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq(REGION))).thenReturn(mockEc2Client);
         service = new AwsCloudProviderService(factory);
         ReflectionTestUtils.setField(service, "defaultRegion", REGION);
         // Disable sleep delays in polling loops
@@ -54,7 +54,7 @@ class AwsCloudProviderServiceTest {
                 .thenThrow(software.amazon.awssdk.core.exception.SdkClientException.create("Rate exceeded"));
 
         assertThrows(com.tcgdigital.vmcontrol.exception.DiscoveryFailedException.class,
-                () -> service.discoverTaggedInstances(REGION, "tcg:environment", "app"));
+                () -> service.discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), "tcg:environment", "app"));
     }
 
     @Test
@@ -63,7 +63,7 @@ class AwsCloudProviderServiceTest {
                 .thenThrow(software.amazon.awssdk.core.exception.SdkClientException.create("Rate exceeded"));
 
         assertThrows(com.tcgdigital.vmcontrol.exception.DiscoveryFailedException.class,
-                () -> service.discoverInstancesByNamePrefix(REGION, "app"));
+                () -> service.discoverInstancesByNamePrefix(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), "app"));
     }
 
     // --- tagging (E09-T04): one bad id does not fail its whole CreateTags chunk ---
@@ -78,7 +78,7 @@ class AwsCloudProviderServiceTest {
             return CreateTagsResponse.builder().build();
         });
 
-        java.util.Set<String> tagged = service.tagInstances(REGION, List.of("i-one", "i-gone", "i-two"),
+        java.util.Set<String> tagged = service.tagInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), List.of("i-one", "i-gone", "i-two"),
                 Map.of("tcg:managed-by", "vmcontrol"));
 
         assertEquals(java.util.Set.of("i-one", "i-two"), tagged);
@@ -90,7 +90,7 @@ class AwsCloudProviderServiceTest {
         when(mockEc2Client.createTags(any(CreateTagsRequest.class))).thenReturn(CreateTagsResponse.builder().build());
 
         assertEquals(java.util.Set.of("i-one", "i-two"),
-                service.tagInstances(REGION, List.of("i-one", "i-two"), Map.of("tcg:managed-by", "vmcontrol")));
+                service.tagInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), List.of("i-one", "i-two"), Map.of("tcg:managed-by", "vmcontrol")));
         verify(mockEc2Client, times(1)).createTags(any(CreateTagsRequest.class));
     }
 
@@ -191,7 +191,7 @@ class AwsCloudProviderServiceTest {
         when(mockEc2Client.describeInstanceStatus(any(DescribeInstanceStatusRequest.class)))
                 .thenReturn(statusChecksOk());
 
-        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, REGION).get();
+        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
 
         assertTrue(result.isSuccess());
         assertEquals(VmStatus.RUNNING, result.getResultStatus());
@@ -209,7 +209,7 @@ class AwsCloudProviderServiceTest {
 
         List<CloudProviderService.VmOperationProgress> progress = new ArrayList<>();
 
-        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, REGION, progress::add).get();
+        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), progress::add).get();
 
         assertTrue(result.isSuccess());
         assertEquals(VmStatus.RUNNING, result.getResultStatus());
@@ -230,7 +230,7 @@ class AwsCloudProviderServiceTest {
         when(mockEc2Client.describeInstances(any(DescribeInstancesRequest.class)))
                 .thenReturn(describeResponse(InstanceStateName.RUNNING));
 
-        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, REGION).get();
+        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
 
         assertTrue(result.isSuccess());
         assertEquals(VmStatus.RUNNING, result.getResultStatus());
@@ -243,7 +243,7 @@ class AwsCloudProviderServiceTest {
         when(mockEc2Client.describeInstanceStatus(any(DescribeInstanceStatusRequest.class)))
                 .thenReturn(statusChecksOkWithAttachedEbs());
 
-        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, REGION).get();
+        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
 
         assertTrue(result.isSuccess());
         assertEquals(VmStatus.RUNNING, result.getResultStatus());
@@ -259,7 +259,7 @@ class AwsCloudProviderServiceTest {
         List<CloudProviderService.VmOperationProgress> progress = new ArrayList<>();
 
         CloudProviderService.VmOperationResult result = service
-                .startVm(INSTANCE_ID, REGION, progress::add)
+                .startVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), progress::add)
                 .get();
 
         assertTrue(result.isSuccess());
@@ -285,7 +285,7 @@ class AwsCloudProviderServiceTest {
         when(mockEc2Client.describeInstanceStatus(any(DescribeInstanceStatusRequest.class)))
                 .thenReturn(statusChecksOk());
 
-        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, REGION).get();
+        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
 
         assertTrue(result.isSuccess());
         assertEquals(VmStatus.RUNNING, result.getResultStatus());
@@ -301,7 +301,7 @@ class AwsCloudProviderServiceTest {
         when(mockEc2Client.describeInstanceStatus(any(DescribeInstanceStatusRequest.class)))
                 .thenReturn(statusChecksOk());
 
-        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, REGION).get();
+        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
 
         assertTrue(result.isSuccess());
     }
@@ -314,7 +314,7 @@ class AwsCloudProviderServiceTest {
         when(mockEc2Client.describeInstances(any(DescribeInstancesRequest.class)))
                 .thenReturn(describeResponse(InstanceStateName.STOPPED));
 
-        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, REGION).get();
+        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
 
         assertFalse(result.isSuccess());
         assertTrue(result.getMessage().contains("No instance state change returned"));
@@ -332,7 +332,7 @@ class AwsCloudProviderServiceTest {
         when(mockEc2Client.describeInstanceStatus(any(DescribeInstanceStatusRequest.class)))
                 .thenReturn(statusChecksOk());
 
-        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, REGION).get();
+        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
 
         assertTrue(result.isSuccess());
         assertEquals(VmStatus.RUNNING, result.getResultStatus());
@@ -348,7 +348,7 @@ class AwsCloudProviderServiceTest {
         when(mockEc2Client.describeInstanceStatus(any(DescribeInstanceStatusRequest.class)))
                 .thenReturn(statusChecksOk());
 
-        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, REGION).get();
+        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
 
         assertTrue(result.isSuccess());
     }
@@ -361,7 +361,7 @@ class AwsCloudProviderServiceTest {
         when(mockEc2Client.describeInstances(any(DescribeInstancesRequest.class)))
                 .thenReturn(describeResponse(InstanceStateName.TERMINATED));
 
-        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, REGION).get();
+        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
 
         assertFalse(result.isSuccess());
         assertTrue(result.getMessage().contains("AWS Error:"));
@@ -376,7 +376,7 @@ class AwsCloudProviderServiceTest {
                 .thenThrow(ec2Exception("UnauthorizedOperation",
                         "You are not authorized to perform this operation"));
 
-        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, REGION).get();
+        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
 
         assertFalse(result.isSuccess());
         assertTrue(result.getMessage().contains("AWS Error:"));
@@ -392,7 +392,7 @@ class AwsCloudProviderServiceTest {
         when(mockEc2Client.describeInstances(any(DescribeInstancesRequest.class)))
                 .thenReturn(describeResponse(InstanceStateName.STOPPED));
 
-        CloudProviderService.VmOperationResult result = service.stopVm(INSTANCE_ID, REGION, false).get();
+        CloudProviderService.VmOperationResult result = service.stopVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), false).get();
 
         assertTrue(result.isSuccess());
         assertEquals(VmStatus.STOPPED, result.getResultStatus());
@@ -407,7 +407,7 @@ class AwsCloudProviderServiceTest {
                 .thenReturn(describeResponse(InstanceStateName.STOPPING))
                 .thenReturn(describeResponse(InstanceStateName.STOPPED));
 
-        CloudProviderService.VmOperationResult result = service.stopVm(INSTANCE_ID, REGION, false).get();
+        CloudProviderService.VmOperationResult result = service.stopVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), false).get();
 
         assertTrue(result.isSuccess());
         assertEquals(VmStatus.STOPPED, result.getResultStatus());
@@ -421,7 +421,7 @@ class AwsCloudProviderServiceTest {
         when(mockEc2Client.describeInstances(any(DescribeInstancesRequest.class)))
                 .thenReturn(describeResponse(InstanceStateName.STOPPED));
 
-        CloudProviderService.VmOperationResult result = service.stopVm(INSTANCE_ID, REGION, false).get();
+        CloudProviderService.VmOperationResult result = service.stopVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), false).get();
 
         assertTrue(result.isSuccess());
         assertEquals(VmStatus.STOPPED, result.getResultStatus());
@@ -436,7 +436,7 @@ class AwsCloudProviderServiceTest {
                 .thenReturn(describeResponse(InstanceStateName.STOPPING))
                 .thenReturn(describeResponse(InstanceStateName.STOPPED));
 
-        CloudProviderService.VmOperationResult result = service.stopVm(INSTANCE_ID, REGION, false).get();
+        CloudProviderService.VmOperationResult result = service.stopVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), false).get();
 
         assertTrue(result.isSuccess());
         assertEquals(VmStatus.STOPPED, result.getResultStatus());
@@ -448,7 +448,7 @@ class AwsCloudProviderServiceTest {
                 .thenThrow(ec2Exception("UnauthorizedOperation",
                         "You are not authorized to perform this operation"));
 
-        CloudProviderService.VmOperationResult result = service.stopVm(INSTANCE_ID, REGION, false).get();
+        CloudProviderService.VmOperationResult result = service.stopVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), false).get();
 
         assertFalse(result.isSuccess());
         assertTrue(result.getMessage().contains("AWS Error:"));
@@ -462,7 +462,7 @@ class AwsCloudProviderServiceTest {
         when(mockEc2Client.describeInstances(any(DescribeInstancesRequest.class)))
                 .thenReturn(describeResponse(InstanceStateName.RUNNING));
 
-        assertEquals(VmStatus.RUNNING, service.getVmStatus(INSTANCE_ID, REGION));
+        assertEquals(VmStatus.RUNNING, service.getVmStatus(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)));
     }
 
     @Test
@@ -470,7 +470,7 @@ class AwsCloudProviderServiceTest {
         when(mockEc2Client.describeInstances(any(DescribeInstancesRequest.class)))
                 .thenThrow(ec2Exception("InvalidInstanceID.NotFound", "Instance not found"));
 
-        assertEquals(VmStatus.NOT_FOUND, service.getVmStatus(INSTANCE_ID, REGION));
+        assertEquals(VmStatus.NOT_FOUND, service.getVmStatus(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)));
     }
 
     // --- M9: timeouts are failures; a start that falls back to stopped fails fast (E05-T05) ---
@@ -483,7 +483,7 @@ class AwsCloudProviderServiceTest {
         when(mockEc2Client.describeInstances(any(DescribeInstancesRequest.class)))
                 .thenReturn(describeResponse(InstanceStateName.STOPPING));
 
-        CloudProviderService.VmOperationResult result = service.stopVm(INSTANCE_ID, REGION, false).get();
+        CloudProviderService.VmOperationResult result = service.stopVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), false).get();
 
         assertFalse(result.isSuccess());
         assertTrue(result.isTimedOut());
@@ -501,7 +501,7 @@ class AwsCloudProviderServiceTest {
         when(mockEc2Client.describeInstances(any(DescribeInstancesRequest.class)))
                 .thenReturn(describeResponse(InstanceStateName.STOPPING));
 
-        assertEquals("Instance still STOPPING after 2s", service.stopVm(INSTANCE_ID, REGION, false).get().getMessage());
+        assertEquals("Instance still STOPPING after 2s", service.stopVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), false).get().getMessage());
     }
 
     @Test
@@ -517,7 +517,7 @@ class AwsCloudProviderServiceTest {
                 .thenReturn(describeResponse(InstanceStateName.PENDING), describeResponse(InstanceStateName.STOPPED));
 
         long started = System.currentTimeMillis();
-        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, REGION).get();
+        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
 
         assertTrue(System.currentTimeMillis() - started < 5_000, "must not wait out the 60 s timeout");
         assertFalse(result.isSuccess());
@@ -537,7 +537,7 @@ class AwsCloudProviderServiceTest {
                 .thenReturn(describeResponse(InstanceStateName.STOPPED));
 
         long started = System.currentTimeMillis();
-        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, REGION).get();
+        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
 
         assertTrue(System.currentTimeMillis() - started < 5_000, "must not wait out the 60 s timeout");
         assertFalse(result.isSuccess());
@@ -556,7 +556,7 @@ class AwsCloudProviderServiceTest {
         when(mockEc2Client.describeInstances(any(DescribeInstancesRequest.class)))
                 .thenReturn(describeResponse(InstanceStateName.STOPPED), describeResponse(InstanceStateName.PENDING));
 
-        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, REGION).get();
+        CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
 
         assertTrue(result.isSuccess());
         assertEquals(VmStatus.RUNNING, result.getResultStatus());

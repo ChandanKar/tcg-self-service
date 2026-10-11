@@ -89,7 +89,7 @@ public class EksSyncService {
         List<EksClusterInfoDTO> result = new ArrayList<>();
         for (String region : resolveSyncRegions()) {
             try {
-                eksService.listClusters(region).stream()
+                eksService.listClusters(CloudTarget.of(region)).stream()
                         .filter(name -> !isRegistered(name))
                         .forEach(name -> result.add(new EksClusterInfoDTO(name, region)));
             } catch (Exception e) {
@@ -161,7 +161,7 @@ public class EksSyncService {
     private void autoDiscoverClustersInRegion(String region) {
         List<String> clusterNames;
         try {
-            clusterNames = eksService.listClusters(region);
+            clusterNames = eksService.listClusters(CloudTarget.of(region));
         } catch (Exception e) {
             log.error("Failed to list EKS clusters in region {} during auto-discovery: {}", region, e.getMessage());
             return;
@@ -234,7 +234,7 @@ public class EksSyncService {
 
         List<String> liveNodeGroups;
         try {
-            liveNodeGroups = eksService.listNodegroups(clusterName, region);
+            liveNodeGroups = eksService.listNodegroups(clusterName, CloudTarget.of(environment.getAwsAccountRef(), region));
         } catch (Exception e) {
             log.error("Failed to list node groups for EKS cluster '{}' in region '{}' — skipping this sync cycle: {}",
                     clusterName, region, e.getMessage());
@@ -261,7 +261,8 @@ public class EksSyncService {
             try {
                 // The AWS call happens here, before the node group's transaction opens: no DB
                 // connection is held while EKS answers.
-                Nodegroup nodegroup = eksService.describeNodegroup(clusterName, nodeGroupName, region);
+                Nodegroup nodegroup = eksService.describeNodegroup(clusterName, nodeGroupName,
+                        CloudTarget.of(environment.getAwsAccountRef(), region));
                 changes.add(self.upsertNodeGroup(environment, clusterName, nodeGroupName, region, nodegroup, nextSequence));
             } catch (Exception e) {
                 log.error("Failed to upsert node group {}/{}: {}", clusterName, nodeGroupName, e.getMessage(), e);

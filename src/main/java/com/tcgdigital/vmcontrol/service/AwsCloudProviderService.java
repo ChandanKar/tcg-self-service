@@ -80,16 +80,16 @@ public class AwsCloudProviderService implements CloudProviderService {
     }
 
     @Override
-    public CompletableFuture<VmOperationResult> startVm(String providerVmId, String region) {
-        return startVm(providerVmId, region, null);
+    public CompletableFuture<VmOperationResult> startVm(String providerVmId, CloudTarget target) {
+        return startVm(providerVmId, target, null);
     }
 
     @Override
-    public CompletableFuture<VmOperationResult> startVm(String providerVmId, String region,
+    public CompletableFuture<VmOperationResult> startVm(String providerVmId, CloudTarget target,
                                                         OperationProgressListener progressListener) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                Ec2Client ec2 = getEc2Client(region);
+                Ec2Client ec2 = getEc2Client(target);
 
                 notifyProgress(progressListener, VmOperationProgress.of(VmStatus.STARTING, "Start requested", 10));
 
@@ -120,7 +120,7 @@ public class AwsCloudProviderService implements CloudProviderService {
                 for (int attempt = 0; attempt < 3; attempt++) {
                     try { Thread.sleep(attempt == 0 ? 2000L : 5000L); }
                     catch (InterruptedException ie) { Thread.currentThread().interrupt(); break; }
-                    VmStatus currentStatus = getVmStatus(providerVmId, region);
+                    VmStatus currentStatus = getVmStatus(providerVmId, target);
                     if (currentStatus == VmStatus.STARTING || currentStatus == VmStatus.RUNNING) {
                         log.info("AWS EC2 instance {} already in state {} (attempt {}), waiting for RUNNING",
                                 providerVmId, currentStatus, attempt + 1);
@@ -136,10 +136,10 @@ public class AwsCloudProviderService implements CloudProviderService {
             } catch (Ec2Exception e) {
                 // Instance already in pending/running state — recover instead of failing
                 if ("IncorrectInstanceState".equals(e.awsErrorDetails().errorCode())) {
-                    VmStatus currentStatus = getVmStatus(providerVmId, region);
+                    VmStatus currentStatus = getVmStatus(providerVmId, target);
                     if (currentStatus == VmStatus.STARTING || currentStatus == VmStatus.RUNNING) {
                         log.info("AWS EC2 instance {} is already {} - waiting for RUNNING", providerVmId, currentStatus);
-                        StartReadiness finalReadiness = waitForStartReadiness(getEc2Client(region), providerVmId, progressListener);
+                        StartReadiness finalReadiness = waitForStartReadiness(getEc2Client(target), providerVmId, progressListener);
                         return toStartResult(e.requestId(), finalReadiness, providerVmId);
                     }
                 }
@@ -150,11 +150,11 @@ public class AwsCloudProviderService implements CloudProviderService {
                 // Check actual instance state before declaring failure.
                 log.error("Failed to start AWS EC2 instance {}: {}", providerVmId, e.getMessage());
                 try {
-                    VmStatus currentStatus = getVmStatus(providerVmId, region);
+                    VmStatus currentStatus = getVmStatus(providerVmId, target);
                     if (currentStatus == VmStatus.STARTING || currentStatus == VmStatus.RUNNING) {
                         log.info("AWS EC2 instance {} is {} despite exception - waiting for RUNNING",
                                 providerVmId, currentStatus);
-                        StartReadiness finalReadiness = waitForStartReadiness(getEc2Client(region), providerVmId, progressListener);
+                        StartReadiness finalReadiness = waitForStartReadiness(getEc2Client(target), providerVmId, progressListener);
                         return toStartResult(null, finalReadiness, providerVmId);
                     }
                 } catch (Exception inner) {
@@ -166,16 +166,16 @@ public class AwsCloudProviderService implements CloudProviderService {
     }
 
     @Override
-    public CompletableFuture<VmOperationResult> stopVm(String providerVmId, String region, boolean force) {
-        return stopVm(providerVmId, region, force, null);
+    public CompletableFuture<VmOperationResult> stopVm(String providerVmId, CloudTarget target, boolean force) {
+        return stopVm(providerVmId, target, force, null);
     }
 
     @Override
-    public CompletableFuture<VmOperationResult> stopVm(String providerVmId, String region, boolean force,
+    public CompletableFuture<VmOperationResult> stopVm(String providerVmId, CloudTarget target, boolean force,
                                                        OperationProgressListener progressListener) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                Ec2Client ec2 = getEc2Client(region);
+                Ec2Client ec2 = getEc2Client(target);
 
                 notifyProgress(progressListener, VmOperationProgress.of(VmStatus.STOPPING, "Stop requested", 10));
 
@@ -210,7 +210,7 @@ public class AwsCloudProviderService implements CloudProviderService {
                 for (int attempt = 0; attempt < 3; attempt++) {
                     try { Thread.sleep(attempt == 0 ? 2000L : 5000L); }
                     catch (InterruptedException ie) { Thread.currentThread().interrupt(); break; }
-                    VmStatus currentStatus = getVmStatus(providerVmId, region);
+                    VmStatus currentStatus = getVmStatus(providerVmId, target);
                     if (currentStatus == VmStatus.STOPPING) {
                         log.info("AWS EC2 instance {} already STOPPING (attempt {}), waiting to complete",
                                 providerVmId, attempt + 1);
@@ -234,11 +234,11 @@ public class AwsCloudProviderService implements CloudProviderService {
                 throw e;
             } catch (Ec2Exception e) {
                 if ("IncorrectInstanceState".equals(e.awsErrorDetails().errorCode())) {
-                    VmStatus currentStatus = getVmStatus(providerVmId, region);
+                    VmStatus currentStatus = getVmStatus(providerVmId, target);
                     if (currentStatus == VmStatus.STOPPING || currentStatus == VmStatus.STOPPED) {
                         log.info("AWS EC2 instance {} is already {} — waiting for it to stop", providerVmId, currentStatus);
                         VmStatus finalStatus = currentStatus == VmStatus.STOPPING
-                                ? waitForStopped(getEc2Client(region), providerVmId, progressListener) : VmStatus.STOPPED;
+                                ? waitForStopped(getEc2Client(target), providerVmId, progressListener) : VmStatus.STOPPED;
                         return stopResult(e.requestId(), finalStatus);
                     }
                 }
@@ -247,11 +247,11 @@ public class AwsCloudProviderService implements CloudProviderService {
             } catch (Exception e) {
                 log.error("Failed to stop AWS EC2 instance {}: {}", providerVmId, e.getMessage());
                 try {
-                    VmStatus currentStatus = getVmStatus(providerVmId, region);
+                    VmStatus currentStatus = getVmStatus(providerVmId, target);
                     if (currentStatus == VmStatus.STOPPING || currentStatus == VmStatus.STOPPED) {
                         log.info("AWS EC2 instance {} is {} despite exception — waiting for it to stop", providerVmId, currentStatus);
                         VmStatus finalStatus = currentStatus == VmStatus.STOPPING
-                                ? waitForStopped(getEc2Client(region), providerVmId, progressListener) : VmStatus.STOPPED;
+                                ? waitForStopped(getEc2Client(target), providerVmId, progressListener) : VmStatus.STOPPED;
                         return stopResult(null, finalStatus);
                     }
                 } catch (OperationCancelledException e2) {
@@ -519,9 +519,9 @@ public class AwsCloudProviderService implements CloudProviderService {
     }
 
     @Override
-    public VmStatus getVmStatus(String providerVmId, String region) {
+    public VmStatus getVmStatus(String providerVmId, CloudTarget target) {
         try {
-            Ec2Client ec2 = getEc2Client(region);
+            Ec2Client ec2 = getEc2Client(target);
 
             DescribeInstancesRequest request = DescribeInstancesRequest.builder()
                     .instanceIds(providerVmId)
@@ -535,7 +535,7 @@ public class AwsCloudProviderService implements CloudProviderService {
             }
 
             // VM not found in cloud - may have been deleted
-            log.warn("AWS EC2 instance {} not found in region {}", providerVmId, region);
+            log.warn("AWS EC2 instance {} not found in region {}", providerVmId, target);
             return VmStatus.NOT_FOUND;
 
         } catch (Ec2Exception e) {
@@ -554,9 +554,9 @@ public class AwsCloudProviderService implements CloudProviderService {
     }
 
     @Override
-    public String getVmName(String providerVmId, String region) {
+    public String getVmName(String providerVmId, CloudTarget target) {
         try {
-            Ec2Client ec2 = getEc2Client(region);
+            Ec2Client ec2 = getEc2Client(target);
 
             DescribeInstancesRequest request = DescribeInstancesRequest.builder()
                     .instanceIds(providerVmId)
@@ -594,12 +594,12 @@ public class AwsCloudProviderService implements CloudProviderService {
      * map and the caller will retry individually.
      */
     @Override
-    public Map<String, VmStatus> getVmStatusBatch(List<String> instanceIds, String region) {
+    public Map<String, VmStatus> getVmStatusBatch(List<String> instanceIds, CloudTarget target) {
         if (instanceIds.isEmpty()) return Collections.emptyMap();
 
         Map<String, VmStatus> result = new HashMap<>();
         try {
-            Ec2Client ec2 = getEc2Client(region);
+            Ec2Client ec2 = getEc2Client(target);
 
             // EC2 accepts up to 1 000 IDs; chunk at 200 to stay well inside the limit
             int chunkSize = 200;
@@ -624,13 +624,13 @@ public class AwsCloudProviderService implements CloudProviderService {
                 result.putIfAbsent(id, VmStatus.NOT_FOUND);
             }
 
-            log.debug("Batch DescribeInstances: {} IDs → {} results in {}", instanceIds.size(), result.size(), region);
+            log.debug("Batch DescribeInstances: {} IDs → {} results in {}", instanceIds.size(), result.size(), target);
 
         } catch (Ec2Exception e) {
-            log.error("Batch DescribeInstances failed for region {}: {}", region, e.getMessage());
+            log.error("Batch DescribeInstances failed for region {}: {}", target, e.getMessage());
             // Return empty — StateSyncService will fall back to per-VM fetch for this group
         } catch (Exception e) {
-            log.error("Batch status fetch error for region {}: {}", region, e.getMessage());
+            log.error("Batch status fetch error for region {}: {}", target, e.getMessage());
         }
 
         return result;
@@ -642,9 +642,9 @@ public class AwsCloudProviderService implements CloudProviderService {
      *
      * @throws com.tcgdigital.vmcontrol.exception.DiscoveryFailedException if the EC2 call fails
      */
-    public java.util.List<Instance> discoverInstancesByNamePrefix(String region, String namePrefix) {
+    public java.util.List<Instance> discoverInstancesByNamePrefix(CloudTarget target, String namePrefix) {
         try {
-            Ec2Client ec2 = getEc2Client(region);
+            Ec2Client ec2 = getEc2Client(target);
             java.util.List<Filter> filters = new java.util.ArrayList<>();
             filters.add(Filter.builder()
                     .name("instance-state-name")
@@ -665,12 +665,12 @@ public class AwsCloudProviderService implements CloudProviderService {
                     result.addAll(r.instances());
                 }
             }
-            log.debug("discoverInstancesByNamePrefix(prefix='{}') found {} instance(s) in {}", namePrefix, result.size(), region);
+            log.debug("discoverInstancesByNamePrefix(prefix='{}') found {} instance(s) in {}", namePrefix, result.size(), target);
             return result;
         } catch (Exception e) {
-            log.error("Failed to discover instances by name prefix '{}' in region {}: {}", namePrefix, region, e.getMessage());
+            log.error("Failed to discover instances by name prefix '{}' in region {}: {}", namePrefix, target, e.getMessage());
             // An empty list would read as "every instance is gone" (H24).
-            throw new com.tcgdigital.vmcontrol.exception.DiscoveryFailedException("EC2 discovery failed in " + region, e);
+            throw new com.tcgdigital.vmcontrol.exception.DiscoveryFailedException("EC2 discovery failed in " + target, e);
         }
     }
 
@@ -680,9 +680,9 @@ public class AwsCloudProviderService implements CloudProviderService {
      *
      * @throws com.tcgdigital.vmcontrol.exception.DiscoveryFailedException if the EC2 call fails
      */
-    public java.util.List<Instance> discoverTaggedInstances(String region, String tagKey, String tagValue) {
+    public java.util.List<Instance> discoverTaggedInstances(CloudTarget target, String tagKey, String tagValue) {
         try {
-            Ec2Client ec2 = getEc2Client(region);
+            Ec2Client ec2 = getEc2Client(target);
 
             Filter tagFilter = Filter.builder()
                     .name("tag:" + tagKey)
@@ -705,13 +705,13 @@ public class AwsCloudProviderService implements CloudProviderService {
                 }
             }
 
-            log.debug("Discovered {} tagged instances in region {} with tag {}={}", result.size(), region, tagKey, tagValue);
+            log.debug("Discovered {} tagged instances in region {} with tag {}={}", result.size(), target, tagKey, tagValue);
             return result;
 
         } catch (Exception e) {
-            log.error("Failed to discover tagged instances in region {} (tag {}={}): {}", region, tagKey, tagValue, e.getMessage());
+            log.error("Failed to discover tagged instances in region {} (tag {}={}): {}", target, tagKey, tagValue, e.getMessage());
             // An empty list would read as "every instance is gone" (H24).
-            throw new com.tcgdigital.vmcontrol.exception.DiscoveryFailedException("EC2 discovery failed in " + region, e);
+            throw new com.tcgdigital.vmcontrol.exception.DiscoveryFailedException("EC2 discovery failed in " + target, e);
         }
     }
 
@@ -720,12 +720,12 @@ public class AwsCloudProviderService implements CloudProviderService {
      * cost-allocation tagging (tcg:managed-by/environment/team), never called during normal
      * start/stop/discovery. Batches at 20 resources per CreateTags call, the actual EC2 API limit.
      */
-    public java.util.Set<String> tagInstances(String region, List<String> instanceIds, Map<String, String> tags) {
+    public java.util.Set<String> tagInstances(CloudTarget target, List<String> instanceIds, Map<String, String> tags) {
         java.util.Set<String> taggedIds = new java.util.LinkedHashSet<>();
         if (instanceIds.isEmpty() || tags.isEmpty()) {
             return taggedIds;
         }
-        Ec2Client ec2 = getEc2Client(region);
+        Ec2Client ec2 = getEc2Client(target);
         List<Tag> ec2Tags = tags.entrySet().stream()
                 .map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
                 .toList();
@@ -739,18 +739,18 @@ public class AwsCloudProviderService implements CloudProviderService {
             } catch (Ec2Exception chunkFailure) {
                 // One bad id (e.g. a terminated instance) fails the whole call: retry one by one.
                 log.warn("CreateTags failed for a chunk of {} in {} ({}); retrying one by one",
-                        chunk.size(), region, chunkFailure.getMessage());
+                        chunk.size(), target, chunkFailure.getMessage());
                 for (String id : chunk) {
                     try {
                         ec2.createTags(CreateTagsRequest.builder().resources(id).tags(ec2Tags).build());
                         taggedIds.add(id);
                     } catch (Ec2Exception e) {
-                        log.warn("Could not tag EC2 instance {} in {}: {}", id, region, e.getMessage());
+                        log.warn("Could not tag EC2 instance {} in {}: {}", id, target, e.getMessage());
                     }
                 }
             }
         }
-        log.info("Tagged {} of {} EC2 instance(s) in region {} with {}", taggedIds.size(), instanceIds.size(), region, tags);
+        log.info("Tagged {} of {} EC2 instance(s) in region {} with {}", taggedIds.size(), instanceIds.size(), target, tags);
         return taggedIds;
     }
 
@@ -762,13 +762,13 @@ public class AwsCloudProviderService implements CloudProviderService {
      * {@link CloudProviderService} interface — same as {@link #tagInstances}, there's no other
      * real cloud-provider implementation this needs to stay compatible with.
      */
-    public void changeInstanceType(String region, String providerVmId, String newInstanceType) {
-        Ec2Client ec2 = getEc2Client(region);
+    public void changeInstanceType(CloudTarget target, String providerVmId, String newInstanceType) {
+        Ec2Client ec2 = getEc2Client(target);
         ec2.modifyInstanceAttribute(ModifyInstanceAttributeRequest.builder()
                 .instanceId(providerVmId)
                 .instanceType(AttributeValue.builder().value(newInstanceType).build())
                 .build());
-        log.info("Changed EC2 instance {} in region {} to instance type {}", providerVmId, region, newInstanceType);
+        log.info("Changed EC2 instance {} in region {} to instance type {}", providerVmId, target, newInstanceType);
     }
 
     /** The instance's current type as AWS reports it, or null if it cannot be read. */
@@ -830,8 +830,13 @@ public class AwsCloudProviderService implements CloudProviderService {
     }
 
     private Ec2Client getEc2Client(String region) {
-        String effectiveRegion = region != null && !region.isEmpty() ? region : defaultRegion;
-        return awsClientFactory.ec2(effectiveRegion);
+        return getEc2Client(CloudTarget.of(region));
+    }
+
+    /** The target account's cached client in the target region (the default region when blank). */
+    private Ec2Client getEc2Client(CloudTarget target) {
+        String region = target.region() != null && !target.region().isEmpty() ? target.region() : defaultRegion;
+        return awsClientFactory.ec2(target.accountRef(), region);
     }
 
     private VmStatus mapAwsStateToVmStatus(InstanceStateName stateName) {

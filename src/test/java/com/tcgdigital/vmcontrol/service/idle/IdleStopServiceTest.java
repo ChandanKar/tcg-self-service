@@ -71,7 +71,7 @@ class IdleStopServiceTest extends AbstractIntegrationTest {
         grant(creator, AccessScopeType.ENVIRONMENT, env.getEnvironmentId(), AccessLevel.ADMIN);
         quietFor(app, 70);
         quietFor(db, 70);
-        when(awsCloudProviderService.stopVm(anyString(), anyString(), anyBoolean(), any())).thenReturn(
+        when(awsCloudProviderService.stopVm(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), anyBoolean(), any())).thenReturn(
                 CompletableFuture.completedFuture(CloudProviderService.VmOperationResult.success("r", VmStatus.STOPPED)));
 
         IdleStopRule r = new IdleStopRule();

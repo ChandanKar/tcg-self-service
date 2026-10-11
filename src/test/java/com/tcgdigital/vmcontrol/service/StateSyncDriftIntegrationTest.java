@@ -49,7 +49,7 @@ class StateSyncDriftIntegrationTest extends AbstractIntegrationTest {
 
     /** AWS reports {@code status} for this test's VM (others stay unknown and are skipped). */
     private void awsReports(VmStatus status, Consumer<String> whileFetching) {
-        when(awsCloudProviderService.getVmStatusBatch(anyList(), anyString())).thenAnswer(inv -> {
+        when(awsCloudProviderService.getVmStatusBatch(anyList(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenAnswer(inv -> {
             whileFetching.accept(vm.getVmId());
             Map<String, VmStatus> result = new HashMap<>();
             for (Object id : (List<?>) inv.getArgument(0)) {
@@ -119,7 +119,7 @@ class StateSyncDriftIntegrationTest extends AbstractIntegrationTest {
         jdbcTemplate.update("UPDATE vm SET name = ?, display_name = ? WHERE vm_id = ?",
                 vm.getProviderVmId(), vm.getProviderVmId(), vm.getVmId());
         // The admin renames the VM while sync is fetching its Name tag.
-        when(awsCloudProviderService.getVmName(anyString(), anyString())).thenAnswer(inv -> {
+        when(awsCloudProviderService.getVmName(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenAnswer(inv -> {
             jdbcTemplate.update("UPDATE vm SET name = 'renamed-by-admin', display_name = 'Renamed' WHERE vm_id = ?",
                     vm.getVmId());
             return "web-01";

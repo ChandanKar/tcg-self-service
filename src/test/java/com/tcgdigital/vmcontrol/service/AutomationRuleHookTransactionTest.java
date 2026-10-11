@@ -59,7 +59,7 @@ class AutomationRuleHookTransactionTest extends AbstractIntegrationTest {
         user = newUser("hook-user@example.com", false, false);
         admin = newUser("hook-admin@example.com", true, false);
         grant(user, AccessScopeType.ENVIRONMENT, env.getEnvironmentId(), AccessLevel.USER);
-        when(awsCloudProviderService.startVm(anyString(), anyString(), any())).thenReturn(CompletableFuture
+        when(awsCloudProviderService.startVm(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), any())).thenReturn(CompletableFuture
                 .completedFuture(CloudProviderService.VmOperationResult.success("r", VmStatus.RUNNING)));
     }
 

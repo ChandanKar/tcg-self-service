@@ -57,7 +57,7 @@ class TagReconciliationServiceTest {
 
         assertEquals(0, result.total());
         verify(vmRepository, never()).findByIsActiveTrueFetchGroupAndEnvironment();
-        verify(awsCloudProviderService, never()).tagInstances(anyString(), any(), any());
+        verify(awsCloudProviderService, never()).tagInstances(org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), any(), any());
     }
 
     @Test
@@ -66,7 +66,7 @@ class TagReconciliationServiceTest {
         Vm vm1 = buildEc2Vm("vm-1", env, "i-aaa", "ap-south-1");
         Vm vm2 = buildEc2Vm("vm-2", env, "i-bbb", "ap-south-1");
         when(vmRepository.findByIsActiveTrueFetchGroupAndEnvironment()).thenReturn(List.of(vm1, vm2));
-        when(awsCloudProviderService.tagInstances(eq("ap-south-1"), any(), any())).thenReturn(Set.of("i-aaa", "i-bbb"));
+        when(awsCloudProviderService.tagInstances(org.mockito.ArgumentMatchers.eq(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1")), any(), any())).thenReturn(Set.of("i-aaa", "i-bbb"));
 
         TagReconciliationService.Result result = service.reconcileAll();
 
@@ -74,7 +74,7 @@ class TagReconciliationServiceTest {
         assertEquals(0, result.failed());
 
         ArgumentCaptor<Map<String, String>> tagsCaptor = ArgumentCaptor.forClass(Map.class);
-        verify(awsCloudProviderService).tagInstances(eq("ap-south-1"), eq(List.of("i-aaa", "i-bbb")), tagsCaptor.capture());
+        verify(awsCloudProviderService).tagInstances(org.mockito.ArgumentMatchers.eq(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1")), eq(List.of("i-aaa", "i-bbb")), tagsCaptor.capture());
         Map<String, String> tags = tagsCaptor.getValue();
         assertEquals("vmcontrol", tags.get("tcg:managed-by"));
         assertEquals("prod-01", tags.get("tcg:environment"));
@@ -95,12 +95,12 @@ class TagReconciliationServiceTest {
         env.setTeam(team);
         Vm vm = buildEc2Vm("vm-1", env, "i-aaa", "ap-south-1");
         when(vmRepository.findByIsActiveTrueFetchGroupAndEnvironment()).thenReturn(List.of(vm));
-        when(awsCloudProviderService.tagInstances(eq("ap-south-1"), any(), any())).thenReturn(Set.of("i-aaa"));
+        when(awsCloudProviderService.tagInstances(org.mockito.ArgumentMatchers.eq(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1")), any(), any())).thenReturn(Set.of("i-aaa"));
 
         service.reconcileAll();
 
         ArgumentCaptor<Map<String, String>> tagsCaptor = ArgumentCaptor.forClass(Map.class);
-        verify(awsCloudProviderService).tagInstances(eq("ap-south-1"), eq(List.of("i-aaa")), tagsCaptor.capture());
+        verify(awsCloudProviderService).tagInstances(org.mockito.ArgumentMatchers.eq(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1")), eq(List.of("i-aaa")), tagsCaptor.capture());
         assertEquals("CC-12", tagsCaptor.getValue().get("tcg:cost-center"));
         assertEquals("Payments", tagsCaptor.getValue().get("tcg:team"));
         verify(tagActivationService).ensureTagKeysActivated(List.of("tcg:managed-by", "tcg:environment", "tcg:team", "tcg:cost-center"));
@@ -115,8 +115,8 @@ class TagReconciliationServiceTest {
         when(vmRepository.findByIsActiveTrueFetchGroupAndEnvironment()).thenReturn(List.of(vmA, vmB));
 
         doThrow(new RuntimeException("AWS throttled"))
-                .when(awsCloudProviderService).tagInstances(eq("ap-south-1"), eq(List.of("i-aaa")), any());
-        when(awsCloudProviderService.tagInstances(eq("ap-south-1"), eq(List.of("i-bbb")), any())).thenReturn(Set.of("i-bbb"));
+                .when(awsCloudProviderService).tagInstances(org.mockito.ArgumentMatchers.eq(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1")), eq(List.of("i-aaa")), any());
+        when(awsCloudProviderService.tagInstances(org.mockito.ArgumentMatchers.eq(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1")), eq(List.of("i-bbb")), any())).thenReturn(Set.of("i-bbb"));
 
         TagReconciliationService.Result result = service.reconcileAll();
 
@@ -136,14 +136,14 @@ class TagReconciliationServiceTest {
                 .nodegroupName("my-nodegroup")
                 .nodegroupArn("arn:aws:eks:ap-south-1:123456789012:nodegroup/my-cluster/my-nodegroup/abc123")
                 .build();
-        when(eksCloudProviderService.describeNodegroup("my-cluster", "my-nodegroup", "ap-south-1")).thenReturn(nodegroup);
+        when(eksCloudProviderService.describeNodegroup("my-cluster", "my-nodegroup", com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"))).thenReturn(nodegroup);
 
         TagReconciliationService.Result result = service.reconcileAll();
 
         assertEquals(1, result.tagged());
         verify(eksCloudProviderService).tagNodeGroup(
                 eq("arn:aws:eks:ap-south-1:123456789012:nodegroup/my-cluster/my-nodegroup/abc123"),
-                eq("ap-south-1"), any());
+                org.mockito.ArgumentMatchers.eq(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1")), any());
     }
 
     @Test
@@ -151,13 +151,13 @@ class TagReconciliationServiceTest {
         Environment env = buildEnvironment("env-eks", "eks-env", null);
         Vm vm = buildEksVm("vm-eks", env, "my-cluster/my-nodegroup", "ap-south-1");
         when(vmRepository.findByIsActiveTrueFetchGroupAndEnvironment()).thenReturn(List.of(vm));
-        when(eksCloudProviderService.describeNodegroup(anyString(), anyString(), anyString())).thenReturn(null);
+        when(eksCloudProviderService.describeNodegroup(anyString(), anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(null);
 
         TagReconciliationService.Result result = service.reconcileAll();
 
         assertEquals(0, result.tagged());
         assertEquals(1, result.failed());
-        verify(eksCloudProviderService, never()).tagNodeGroup(anyString(), anyString(), any());
+        verify(eksCloudProviderService, never()).tagNodeGroup(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), any());
     }
 
     @Test
@@ -171,8 +171,8 @@ class TagReconciliationServiceTest {
         TagReconciliationService.Result result = service.reconcileEnvironment(envA);
 
         assertEquals(1, result.total());
-        verify(awsCloudProviderService).tagInstances(eq("ap-south-1"), eq(List.of("i-aaa")), any());
-        verify(awsCloudProviderService, never()).tagInstances(eq("ap-south-1"), eq(List.of("i-bbb")), any());
+        verify(awsCloudProviderService).tagInstances(org.mockito.ArgumentMatchers.eq(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1")), eq(List.of("i-aaa")), any());
+        verify(awsCloudProviderService, never()).tagInstances(org.mockito.ArgumentMatchers.eq(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1")), eq(List.of("i-bbb")), any());
         verify(vmRepository, never()).findByIsActiveTrueFetchGroupAndEnvironment(); // no fleet-wide load
     }
 
@@ -183,12 +183,12 @@ class TagReconciliationServiceTest {
         Environment env = buildEnvironment("env-a", "env-a-name", null);
         Vm fresh = buildEc2Vm("vm-new", env, "i-new", "ap-south-1");
         when(vmRepository.findActiveByEnvironmentIdFetchGroupAndEnvironment("env-a", true)).thenReturn(List.of(fresh));
-        when(awsCloudProviderService.tagInstances(eq("ap-south-1"), any(), any())).thenReturn(Set.of("i-new"));
+        when(awsCloudProviderService.tagInstances(org.mockito.ArgumentMatchers.eq(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1")), any(), any())).thenReturn(Set.of("i-new"));
 
         TagReconciliationService.Result result = service.reconcileNewInEnvironment(env);
 
         assertEquals(1, result.tagged());
-        verify(awsCloudProviderService).tagInstances(eq("ap-south-1"), eq(List.of("i-new")), any());
+        verify(awsCloudProviderService).tagInstances(org.mockito.ArgumentMatchers.eq(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1")), eq(List.of("i-new")), any());
         verify(vmRepository, never()).findActiveByEnvironmentIdFetchGroupAndEnvironment("env-a", false);
     }
 
@@ -198,7 +198,7 @@ class TagReconciliationServiceTest {
         Vm good = buildEc2Vm("vm-good", env, "i-good", "ap-south-1");
         Vm gone = buildEc2Vm("vm-gone", env, "i-gone", "ap-south-1");
         when(vmRepository.findActiveByEnvironmentIdFetchGroupAndEnvironment("env-a", true)).thenReturn(List.of(good, gone));
-        when(awsCloudProviderService.tagInstances(eq("ap-south-1"), any(), any())).thenReturn(Set.of("i-good"));
+        when(awsCloudProviderService.tagInstances(org.mockito.ArgumentMatchers.eq(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1")), any(), any())).thenReturn(Set.of("i-good"));
 
         TagReconciliationService.Result result = service.reconcileNewInEnvironment(env);
 

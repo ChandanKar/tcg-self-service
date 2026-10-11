@@ -125,8 +125,8 @@ class AuditTrailIntegrationTest extends AbstractIntegrationTest {
         User user = newUser("audit-ops-" + UUID.randomUUID() + "@example.com", false, false);
         grant(user, AccessScopeType.ENVIRONMENT, env.getEnvironmentId(), AccessLevel.USER);
         lockService.acquireLock(env.getEnvironmentId(), user.getUserId(), "testing", null);
-        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.STOPPED);
-        when(awsCloudProviderService.startVm(anyString(), anyString(), any())).thenReturn(CompletableFuture.completedFuture(
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.STOPPED);
+        when(awsCloudProviderService.startVm(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), any())).thenReturn(CompletableFuture.completedFuture(
                 CloudProviderService.VmOperationResult.success("req-1", VmStatus.RUNNING)));
         Timestamp before = Timestamp.from(Instant.now().minusSeconds(5));
 
@@ -150,8 +150,8 @@ class AuditTrailIntegrationTest extends AbstractIntegrationTest {
         User user = newUser("audit-stop-" + UUID.randomUUID() + "@example.com", false, false);
         grant(user, AccessScopeType.ENVIRONMENT, env.getEnvironmentId(), AccessLevel.USER);
         lockService.acquireLock(env.getEnvironmentId(), user.getUserId(), "testing", null);
-        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.RUNNING);
-        when(awsCloudProviderService.stopVm(eq(vm.getProviderVmId()), anyString(), anyBoolean(), any())).thenReturn(
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.RUNNING);
+        when(awsCloudProviderService.stopVm(eq(vm.getProviderVmId()), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), anyBoolean(), any())).thenReturn(
                 CompletableFuture.completedFuture(CloudProviderService.VmOperationResult.failure("throttled")));
 
         StartOperationDTO dto = new StartOperationDTO();

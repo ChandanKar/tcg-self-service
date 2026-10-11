@@ -100,11 +100,11 @@ public class TagReconciliationService {
         int tagged = 0;
         int failed = 0;
 
-        // EC2: batch by (region, environment) so every instance in a batch shares the same tag
+        // EC2: batch by (account, region, environment) so every instance in a batch shares the same tag
         // values and can go out in a single CreateTags call (tagInstances chunks at 20 internally).
         Map<String, List<Vm>> ec2ByRegionAndEnv = vms.stream()
                 .filter(vm -> vm.getProvider() == CloudProvider.AWS)
-                .collect(Collectors.groupingBy(vm -> vm.getRegion() + "|" + vm.getGroup().getEnvironment().getEnvironmentId()));
+                .collect(Collectors.groupingBy(vm -> CloudTarget.of(vm).key() + "|" + vm.getGroup().getEnvironment().getEnvironmentId()));
 
         for (List<Vm> group : ec2ByRegionAndEnv.values()) {
             Vm first = group.get(0);
@@ -113,7 +113,7 @@ public class TagReconciliationService {
             List<String> instanceIds = group.stream().map(Vm::getProviderVmId).toList();
             try {
                 // Only the ids AWS accepted are marked; one bad id no longer fails the batch.
-                java.util.Set<String> taggedIds = awsCloudProviderService.tagInstances(first.getRegion(), instanceIds, tags);
+                java.util.Set<String> taggedIds = awsCloudProviderService.tagInstances(CloudTarget.of(first), instanceIds, tags);
                 List<Vm> done = group.stream().filter(vm -> taggedIds.contains(vm.getProviderVmId())).toList();
                 markTagged(done);
                 tagged += done.size();
@@ -135,14 +135,14 @@ public class TagReconciliationService {
                     failed++;
                     continue;
                 }
-                Nodegroup nodegroup = eksCloudProviderService.describeNodegroup(parts[0], parts[1], vm.getRegion());
+                Nodegroup nodegroup = eksCloudProviderService.describeNodegroup(parts[0], parts[1], CloudTarget.of(vm));
                 if (nodegroup == null || nodegroup.nodegroupArn() == null) {
                     log.warn("Could not resolve ARN for EKS node group {} — skipping tag", vm.getProviderVmId());
                     failed++;
                     continue;
                 }
                 Environment env = vm.getGroup().getEnvironment();
-                eksCloudProviderService.tagNodeGroup(nodegroup.nodegroupArn(), vm.getRegion(), buildTags(env));
+                eksCloudProviderService.tagNodeGroup(nodegroup.nodegroupArn(), CloudTarget.of(vm), buildTags(env));
                 markTagged(List.of(vm));
                 tagged++;
             } catch (Exception e) {

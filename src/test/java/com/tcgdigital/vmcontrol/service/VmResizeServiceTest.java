@@ -84,7 +84,7 @@ class VmResizeServiceTest {
 
     @Test
     void aTypeOtherThanTheCurrentRecommendationIsRejectedBeforeAnyAwsChange() {
-        when(aws.getVmStatus("i-123", "ap-south-1")).thenReturn(VmStatus.STOPPED);
+        when(aws.getVmStatus("i-123", com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"))).thenReturn(VmStatus.STOPPED);
 
         assertThatThrownBy(() -> service.applyInstanceTypeChange("vm-1", "p4d.24xlarge", "user-1"))
                 .isInstanceOf(ValidationException.class)
@@ -96,7 +96,7 @@ class VmResizeServiceTest {
 
     @Test
     void aVmWithNoCurrentRecommendationCannotBeResized() {
-        when(aws.getVmStatus("i-123", "ap-south-1")).thenReturn(VmStatus.STOPPED);
+        when(aws.getVmStatus("i-123", com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"))).thenReturn(VmStatus.STOPPED);
         when(costEstimationService.findCandidate("vm-1")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.applyInstanceTypeChange("vm-1", "t3.large", "user-1"))
@@ -106,24 +106,24 @@ class VmResizeServiceTest {
 
     @Test
     void theRecommendedTypeIsAppliedAndTheCostPageRebuilds() {
-        when(aws.getVmStatus("i-123", "ap-south-1")).thenReturn(VmStatus.STOPPED);
+        when(aws.getVmStatus("i-123", com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"))).thenReturn(VmStatus.STOPPED);
 
         service.applyInstanceTypeChange("vm-1", "t3.large", "user-1");
 
-        verify(aws).changeInstanceType("ap-south-1", "i-123", "t3.large");
+        verify(aws).changeInstanceType(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "i-123", "t3.large");
         verify(costEstimationService).invalidateBundles();
     }
 
     @Test
     void awsSaysRunningWhileTheDatabaseSaysStopped_rejectsAndCorrectsTheDatabase() {
-        when(aws.getVmStatus("i-123", "ap-south-1")).thenReturn(VmStatus.RUNNING);
+        when(aws.getVmStatus("i-123", com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"))).thenReturn(VmStatus.RUNNING);
 
         assertThatThrownBy(() -> service.applyInstanceTypeChange("vm-1", "t3.large", "user-1"))
                 .isInstanceOf(ValidationException.class)
                 .hasMessageStartingWith("VM must be stopped");
 
         verify(vmRepository).updateStatusIfCurrent(eq("vm-1"), eq(VmStatus.STOPPED), eq(VmStatus.RUNNING), any());
-        verify(aws, never()).changeInstanceType(anyString(), anyString(), anyString());
+        verify(aws, never()).changeInstanceType(org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), anyString(), anyString());
     }
 
     @Test
@@ -134,12 +134,12 @@ class VmResizeServiceTest {
                 .isInstanceOf(ValidationException.class)
                 .hasMessage("An operation is running in this environment");
 
-        verify(aws, never()).changeInstanceType(anyString(), anyString(), anyString());
+        verify(aws, never()).changeInstanceType(org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), anyString(), anyString());
     }
 
     @Test
     void aSuccessfulChangeWithoutASnapshotCreatesOneAndIsAudited() {
-        when(aws.getVmStatus("i-123", "ap-south-1")).thenReturn(VmStatus.STOPPED);
+        when(aws.getVmStatus("i-123", com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"))).thenReturn(VmStatus.STOPPED);
 
         service.applyInstanceTypeChange("vm-1", "t3.large", "user-1");
 
@@ -156,8 +156,8 @@ class VmResizeServiceTest {
 
     @Test
     void anErrorAfterAwsAppliedTheTypeIsNotReportedAsFailure() {
-        when(aws.getVmStatus("i-123", "ap-south-1")).thenReturn(VmStatus.STOPPED);
-        doThrow(new RuntimeException("Read timed out")).when(aws).changeInstanceType("ap-south-1", "i-123", "t3.large");
+        when(aws.getVmStatus("i-123", com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"))).thenReturn(VmStatus.STOPPED);
+        doThrow(new RuntimeException("Read timed out")).when(aws).changeInstanceType(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "i-123", "t3.large");
         when(aws.getInstanceType("ap-south-1", "i-123")).thenReturn("t3.large");
 
         assertThatCode(() -> service.applyInstanceTypeChange("vm-1", "t3.large", "user-1")).doesNotThrowAnyException();
@@ -170,9 +170,9 @@ class VmResizeServiceTest {
 
     @Test
     void aRealFailureIsReportedAndAudited() {
-        when(aws.getVmStatus("i-123", "ap-south-1")).thenReturn(VmStatus.STOPPED);
+        when(aws.getVmStatus("i-123", com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"))).thenReturn(VmStatus.STOPPED);
         doThrow(new RuntimeException("Unsupported instance type")).when(aws)
-                .changeInstanceType("ap-south-1", "i-123", "t9.huge");
+                .changeInstanceType(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "i-123", "t9.huge");
         when(aws.getInstanceType("ap-south-1", "i-123")).thenReturn("t3.medium");
 
         recommended = "t9.huge";
@@ -186,7 +186,7 @@ class VmResizeServiceTest {
 
     @Test
     void aSnapshotWriteFailureAfterTheChangeStillSucceeds() {
-        when(aws.getVmStatus("i-123", "ap-south-1")).thenReturn(VmStatus.STOPPED);
+        when(aws.getVmStatus("i-123", com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"))).thenReturn(VmStatus.STOPPED);
         when(snapshots.save(any())).thenThrow(new RuntimeException("deadlock"));
 
         assertThatCode(() -> service.applyInstanceTypeChange("vm-1", "t3.large", "user-1")).doesNotThrowAnyException();
@@ -205,7 +205,7 @@ class VmResizeServiceTest {
         com.tcgdigital.vmcontrol.model.VmInventorySnapshot current = new com.tcgdigital.vmcontrol.model.VmInventorySnapshot();
         current.setInstanceType("t3.xlarge");
         when(snapshots.findByVmVmId("vm-1")).thenReturn(Optional.of(current));
-        when(aws.getVmStatus("i-123", "ap-south-1")).thenReturn(VmStatus.STOPPED);
+        when(aws.getVmStatus("i-123", com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"))).thenReturn(VmStatus.STOPPED);
 
         service.applyInstanceTypeChange("vm-1", "t3.large", "user-1");
         org.mockito.ArgumentCaptor<com.tcgdigital.vmcontrol.model.VmResizeEvent> saved =
@@ -217,7 +217,7 @@ class VmResizeServiceTest {
 
         org.mockito.Mockito.reset(events);
         doThrow(new RuntimeException("Unsupported instance type")).when(aws)
-                .changeInstanceType("ap-south-1", "i-123", "t9.huge");
+                .changeInstanceType(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "i-123", "t9.huge");
         when(aws.getInstanceType("ap-south-1", "i-123")).thenReturn("t3.medium");
         recommended = "t9.huge";
         assertThatThrownBy(() -> service.applyInstanceTypeChange("vm-1", "t9.huge", "user-1"));

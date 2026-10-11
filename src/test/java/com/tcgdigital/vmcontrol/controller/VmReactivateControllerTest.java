@@ -36,7 +36,7 @@ class VmReactivateControllerTest extends SecuredWebTestBase {
                 "state_drift_detected = TRUE WHERE vm_id = ?", vm.getVmId());
         when(cloudProviderFactory.getService(CloudProvider.AWS)).thenReturn(awsCloudProviderService);
         when(awsCloudProviderService.isAvailable()).thenReturn(true);
-        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.STOPPED);
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.STOPPED);
     }
 
     private String url(String environmentId) {
@@ -86,7 +86,7 @@ class VmReactivateControllerTest extends SecuredWebTestBase {
 
     @Test
     void anInstanceThatIsStillMissingIsRefused() throws Exception {
-        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.NOT_FOUND);
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.NOT_FOUND);
 
         expectError(mockMvc.perform(post(url(env.getEnvironmentId())).with(asAdmin())), 400)
                 .andExpect(jsonPath("$.message").value("Instance not found in ap-south-1 - fix the region first"));

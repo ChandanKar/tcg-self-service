@@ -327,7 +327,7 @@ public class VmService {
         try {
             CloudProviderService provider = cloudProviderFactory.getService(vm.getProvider());
             cloudStatus = provider == null || !provider.isAvailable() ? null
-                    : provider.getVmStatus(vm.getProviderVmId(), vm.getRegion());
+                    : provider.getVmStatus(vm.getProviderVmId(), CloudTarget.of(vm));
         } catch (Exception e) {
             log.warn("Could not read cloud status of VM {} for reactivation: {}", vmId, e.getMessage());
             cloudStatus = null;

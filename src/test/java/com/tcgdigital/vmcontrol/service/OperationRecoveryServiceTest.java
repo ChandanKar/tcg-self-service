@@ -69,7 +69,7 @@ class OperationRecoveryServiceTest extends AbstractIntegrationTest {
         user = newUser("recovery@example.com", false, false);
         grant(user, AccessScopeType.ENVIRONMENT, env.getEnvironmentId(), AccessLevel.USER);
         lockService.acquireLock(env.getEnvironmentId(), user.getUserId(), "testing", null);
-        when(awsCloudProviderService.startVm(anyString(), anyString(), any())).thenReturn(CompletableFuture
+        when(awsCloudProviderService.startVm(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), any())).thenReturn(CompletableFuture
                 .completedFuture(CloudProviderService.VmOperationResult.success("r", VmStatus.RUNNING)));
     }
 
@@ -171,7 +171,7 @@ class OperationRecoveryServiceTest extends AbstractIntegrationTest {
     void aRunningExecutionRecordsItsNodeAndHeartbeat() throws Exception {
         CountDownLatch inProvider = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
-        when(awsCloudProviderService.startVm(anyString(), anyString(), any())).thenAnswer(inv -> {
+        when(awsCloudProviderService.startVm(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), any())).thenAnswer(inv -> {
             inProvider.countDown();
             release.await(20, TimeUnit.SECONDS);
             return CompletableFuture.completedFuture(CloudProviderService.VmOperationResult.success("r", VmStatus.RUNNING));

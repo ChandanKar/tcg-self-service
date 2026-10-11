@@ -42,7 +42,7 @@ class VmDiscoveryIntegrationTest extends AbstractIntegrationTest {
 
     private void awsReturnsNothingByDefault() {
         when(awsCloudProviderService.isAvailable()).thenReturn(true);
-        when(awsCloudProviderService.discoverTaggedInstances(eq("ap-south-1"), anyString(), anyString())).thenReturn(List.of());
+        when(awsCloudProviderService.discoverTaggedInstances(org.mockito.ArgumentMatchers.eq(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1")), anyString(), anyString())).thenReturn(List.of());
     }
 
     @Test
@@ -62,7 +62,7 @@ class VmDiscoveryIntegrationTest extends AbstractIntegrationTest {
         Instance live = Instance.builder().instanceId("i-0" + Long.toHexString(System.nanoTime()))
                 .tags(Tag.builder().key("Name").value("fresh").build()).build();
         awsReturnsNothingByDefault();
-        when(awsCloudProviderService.discoverTaggedInstances("ap-south-1", "tcg:environment", env.getName()))
+        when(awsCloudProviderService.discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "tcg:environment", env.getName()))
                 .thenReturn(List.of(live, Instance.builder().instanceId(one.getProviderVmId()).build(),
                         Instance.builder().instanceId(three.getProviderVmId()).build()));
 
@@ -111,7 +111,7 @@ class VmDiscoveryIntegrationTest extends AbstractIntegrationTest {
         Environment env = discoveryEnvironment("Throttled");
         Vm present = newVm(discoveryGroup(env), "present", VmStatus.RUNNING);
         awsReturnsNothingByDefault();
-        when(awsCloudProviderService.discoverTaggedInstances("ap-south-1", "tcg:environment", env.getName()))
+        when(awsCloudProviderService.discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "tcg:environment", env.getName()))
                 .thenThrow(new DiscoveryFailedException("EC2 discovery failed in ap-south-1", new RuntimeException("Throttling")));
 
         discoveryService.discoverAndRegisterVms();

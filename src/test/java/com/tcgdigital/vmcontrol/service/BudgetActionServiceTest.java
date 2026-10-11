@@ -176,7 +176,7 @@ class BudgetActionServiceTest extends AbstractIntegrationTest {
         budgets.saveAndFlush(budget);
         newVm(newGroup(env, "app"), "app-1", com.tcgdigital.vmcontrol.model.VmStatus.RUNNING);
         org.mockito.Mockito.when(awsCloudProviderService.stopVm(org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyBoolean(),
+                org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), org.mockito.ArgumentMatchers.anyBoolean(),
                 org.mockito.ArgumentMatchers.any())).thenReturn(java.util.concurrent.CompletableFuture.completedFuture(
                 CloudProviderService.VmOperationResult.success("r", com.tcgdigital.vmcontrol.model.VmStatus.STOPPED)));
         assertThat(actions.raise(budget, SEPTEMBER)).isTrue();

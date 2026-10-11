@@ -57,7 +57,7 @@ class EksCloudProviderServiceTest {
     private com.tcgdigital.vmcontrol.service.aws.AwsClientFactory eksFactory() {
         com.tcgdigital.vmcontrol.service.aws.AwsClientFactory factory = org.mockito.Mockito.mock(com.tcgdigital.vmcontrol.service.aws.AwsClientFactory.class);
         org.mockito.Mockito.lenient().when(factory.isConfigured()).thenReturn(true);
-        org.mockito.Mockito.lenient().when(factory.eks(REGION)).thenReturn(mockEksClient);
+        org.mockito.Mockito.lenient().when(factory.eks(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq(REGION))).thenReturn(mockEksClient);
         return factory;
     }
 
@@ -79,7 +79,7 @@ class EksCloudProviderServiceTest {
         // Poll returns ACTIVE with desired=3 on first poll
         mockDescribeActive(3);
 
-        VmOperationResult result = service.startVm(PROVIDER_VM_ID, REGION).get();
+        VmOperationResult result = service.startVm(PROVIDER_VM_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
 
         assertTrue(result.isSuccess());
         assertEquals(VmStatus.RUNNING, result.getResultStatus());
@@ -104,7 +104,7 @@ class EksCloudProviderServiceTest {
                         .update(Update.builder().id("upd-002").build()).build());
         mockDescribeActive(1);
 
-        service.startVm(PROVIDER_VM_ID, REGION).get();
+        service.startVm(PROVIDER_VM_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
 
         ArgumentCaptor<UpdateNodegroupConfigRequest> captor =
                 ArgumentCaptor.forClass(UpdateNodegroupConfigRequest.class);
@@ -126,7 +126,7 @@ class EksCloudProviderServiceTest {
                         .update(Update.builder().id("upd-003").build()).build());
         mockDescribeActive(1);
 
-        service.startVm(PROVIDER_VM_ID, REGION).get();
+        service.startVm(PROVIDER_VM_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
 
         ArgumentCaptor<UpdateNodegroupConfigRequest> captor =
                 ArgumentCaptor.forClass(UpdateNodegroupConfigRequest.class);
@@ -136,7 +136,7 @@ class EksCloudProviderServiceTest {
 
     @Test
     void startVm_returnsFailureForInvalidProviderVmId() throws Exception {
-        VmOperationResult result = service.startVm("no-slash-here", REGION).get();
+        VmOperationResult result = service.startVm("no-slash-here", com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
         assertFalse(result.isSuccess());
         assertTrue(result.getMessage().contains("Invalid providerVmId format"));
         verifyNoInteractions(mockEksClient);
@@ -162,7 +162,7 @@ class EksCloudProviderServiceTest {
                 .thenReturn(UpdateNodegroupConfigResponse.builder()
                         .update(Update.builder().id("upd-stop").build()).build());
 
-        VmOperationResult result = service.stopVm(PROVIDER_VM_ID, REGION, false).get();
+        VmOperationResult result = service.stopVm(PROVIDER_VM_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), false).get();
 
         assertTrue(result.isSuccess());
         assertEquals(VmStatus.STOPPED, result.getResultStatus());
@@ -195,7 +195,7 @@ class EksCloudProviderServiceTest {
                 .thenReturn(UpdateNodegroupConfigResponse.builder()
                         .update(Update.builder().id("upd-noop").build()).build());
 
-        service.stopVm(PROVIDER_VM_ID, REGION, false).get();
+        service.stopVm(PROVIDER_VM_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), false).get();
 
         // vmRepository.save must NOT be called (nothing useful to preserve)
         verify(vmRepository, never()).save(any());
@@ -215,7 +215,7 @@ class EksCloudProviderServiceTest {
                         .update(Update.builder().id("upd-cont").build()).build());
 
         // Stop must still succeed even though metadata save was skipped
-        VmOperationResult result = service.stopVm(PROVIDER_VM_ID, REGION, false).get();
+        VmOperationResult result = service.stopVm(PROVIDER_VM_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), false).get();
         assertTrue(result.isSuccess());
     }
 
@@ -226,7 +226,7 @@ class EksCloudProviderServiceTest {
         when(mockEksClient.describeNodegroup(any(DescribeNodegroupRequest.class)))
                 .thenReturn(buildDescribeResponse(NodegroupStatus.ACTIVE, 1, 3));
 
-        assertEquals(VmStatus.RUNNING, service.getVmStatus(PROVIDER_VM_ID, REGION));
+        assertEquals(VmStatus.RUNNING, service.getVmStatus(PROVIDER_VM_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)));
     }
 
     @Test
@@ -234,7 +234,7 @@ class EksCloudProviderServiceTest {
         when(mockEksClient.describeNodegroup(any(DescribeNodegroupRequest.class)))
                 .thenReturn(buildDescribeResponse(NodegroupStatus.ACTIVE, 0, 0));
 
-        assertEquals(VmStatus.STOPPED, service.getVmStatus(PROVIDER_VM_ID, REGION));
+        assertEquals(VmStatus.STOPPED, service.getVmStatus(PROVIDER_VM_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)));
     }
 
     @Test
@@ -283,7 +283,7 @@ class EksCloudProviderServiceTest {
                                 .nodegroups("ng-b", "ng-c")
                                 .build());
 
-        List<String> nodegroups = service.listNodegroups(CLUSTER, REGION);
+        List<String> nodegroups = service.listNodegroups(CLUSTER, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION));
 
         assertEquals(List.of("ng-a", "ng-b", "ng-c"), nodegroups);
         ArgumentCaptor<ListNodegroupsRequest> captor = ArgumentCaptor.forClass(ListNodegroupsRequest.class);
@@ -304,7 +304,7 @@ class EksCloudProviderServiceTest {
                                 .clusters("cluster-b", "cluster-c")
                                 .build());
 
-        List<String> clusters = service.listClusters(REGION);
+        List<String> clusters = service.listClusters(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION));
 
         assertEquals(List.of("cluster-a", "cluster-b", "cluster-c"), clusters);
         ArgumentCaptor<ListClustersRequest> captor = ArgumentCaptor.forClass(ListClustersRequest.class);
@@ -323,7 +323,7 @@ class EksCloudProviderServiceTest {
                                 .build())
                 .thenThrow(EksException.builder().message("throttled").build());
 
-        assertThrows(EksException.class, () -> service.listNodegroups(CLUSTER, REGION));
+        assertThrows(EksException.class, () -> service.listNodegroups(CLUSTER, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)));
     }
 
     @Test
@@ -336,7 +336,7 @@ class EksCloudProviderServiceTest {
                                 .build())
                 .thenThrow(EksException.builder().message("throttled").build());
 
-        assertThrows(EksException.class, () -> service.listClusters(REGION));
+        assertThrows(EksException.class, () -> service.listClusters(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)));
     }
 
     @Test
@@ -348,7 +348,7 @@ class EksCloudProviderServiceTest {
                                 .errorMessage("Cluster not found").build())
                         .build());
 
-        VmOperationResult result = service.startVm(PROVIDER_VM_ID, REGION).get();
+        VmOperationResult result = service.startVm(PROVIDER_VM_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
         assertFalse(result.isSuccess());
         assertTrue(result.getMessage().contains("Cluster not found"));
     }
@@ -364,7 +364,7 @@ class EksCloudProviderServiceTest {
                 .thenReturn(buildDescribeResponse(NodegroupStatus.DEGRADED, 3, 3))
                 .thenReturn(buildDescribeResponse(NodegroupStatus.ACTIVE, 3, 3));
 
-        VmOperationResult result = service.startVm(PROVIDER_VM_ID, REGION).get();
+        VmOperationResult result = service.startVm(PROVIDER_VM_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
 
         assertTrue(result.isSuccess());
         assertEquals(VmStatus.RUNNING, result.getResultStatus());
@@ -380,7 +380,7 @@ class EksCloudProviderServiceTest {
         when(mockEksClient.describeNodegroup(any(DescribeNodegroupRequest.class)))
                 .thenReturn(buildDescribeResponse(NodegroupStatus.DEGRADED, 3, 3));
 
-        VmOperationResult result = service.startVm(PROVIDER_VM_ID, REGION).get();
+        VmOperationResult result = service.startVm(PROVIDER_VM_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
 
         assertTrue(result.isSuccess());
         assertEquals(VmStatus.RUNNING, result.getResultStatus());
@@ -431,7 +431,7 @@ class EksCloudProviderServiceTest {
                 .thenReturn(UpdateNodegroupConfigResponse.builder()
                         .update(Update.builder().id("upd-stop").build()).build());
 
-        assertTrue(service.stopVm(PROVIDER_VM_ID, REGION, false).get().isSuccess());
+        assertTrue(service.stopVm(PROVIDER_VM_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), false).get().isSuccess());
 
         ArgumentCaptor<String> metaCaptor = ArgumentCaptor.forClass(String.class);
         verify(vmRepository).updateMetadata(eq("vm-123"), metaCaptor.capture(), any());
@@ -452,7 +452,7 @@ class EksCloudProviderServiceTest {
                         .update(Update.builder().id("upd-002").build()).build());
         mockDescribeActive(2);
 
-        service.startVm(PROVIDER_VM_ID, REGION).get();
+        service.startVm(PROVIDER_VM_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
 
         ArgumentCaptor<UpdateNodegroupConfigRequest> captor = ArgumentCaptor.forClass(UpdateNodegroupConfigRequest.class);
         verify(mockEksClient).updateNodegroupConfig(captor.capture());
@@ -469,7 +469,7 @@ class EksCloudProviderServiceTest {
         when(mockEksClient.describeNodegroup(any(DescribeNodegroupRequest.class)))
                 .thenReturn(buildDescribeResponse(NodegroupStatus.CREATE_FAILED, 1, 1));
 
-        VmOperationResult result = service.startVm(PROVIDER_VM_ID, REGION).get();
+        VmOperationResult result = service.startVm(PROVIDER_VM_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
 
         assertFalse(result.isSuccess());
         assertEquals("Node group entered error state", result.getMessage());
@@ -486,7 +486,7 @@ class EksCloudProviderServiceTest {
         when(mockEksClient.describeNodegroup(any(DescribeNodegroupRequest.class)))
                 .thenReturn(buildDescribeResponse(NodegroupStatus.UPDATING, 2, 2));
 
-        VmOperationResult result = service.stopVm(PROVIDER_VM_ID, REGION, false).get();
+        VmOperationResult result = service.stopVm(PROVIDER_VM_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), false).get();
 
         assertFalse(result.isSuccess());
         assertTrue(result.isTimedOut());
@@ -512,7 +512,7 @@ class EksCloudProviderServiceTest {
             });
             mockDescribeActive(1);
 
-            onPool.startVm(PROVIDER_VM_ID, REGION).get();
+            onPool.startVm(PROVIDER_VM_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
 
             assertEquals("eks-op-test", thread.get());
         } finally {

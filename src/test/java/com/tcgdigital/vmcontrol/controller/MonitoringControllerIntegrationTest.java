@@ -87,7 +87,7 @@ class MonitoringControllerIntegrationTest extends AbstractIntegrationTest {
         // Setup mock cloud provider
         when(cloudProviderFactory.getService(CloudProvider.AWS)).thenReturn(awsCloudProviderService);
         when(awsCloudProviderService.isAvailable()).thenReturn(true);
-        when(awsCloudProviderService.getVmStatus("i-monitor123", "ap-south-1")).thenReturn(VmStatus.RUNNING);
+        when(awsCloudProviderService.getVmStatus("i-monitor123", com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"))).thenReturn(VmStatus.RUNNING);
 
         // Create some state history - use null for changedByUserId to avoid FK constraint
         stateSyncService.recordStateChange(testVm, VmStatus.STOPPED, VmStatus.RUNNING, "user_action", null, null, "VM started");

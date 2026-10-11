@@ -66,7 +66,7 @@ class AutomationRuleScheduleIntegrationTest extends AbstractIntegrationTest {
         newVm(newGroup(env, "app"), "app-1", VmStatus.RUNNING);
         owner = newUser("schedule-owner@example.com", false, true);
         grant(owner, AccessScopeType.ENVIRONMENT, env.getEnvironmentId(), AccessLevel.USER);
-        when(awsCloudProviderService.stopVm(anyString(), anyString(), anyBoolean(), any())).thenReturn(
+        when(awsCloudProviderService.stopVm(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), anyBoolean(), any())).thenReturn(
                 CompletableFuture.completedFuture(CloudProviderService.VmOperationResult.success("r", VmStatus.STOPPED)));
 
         AutomationRule r = new AutomationRule();

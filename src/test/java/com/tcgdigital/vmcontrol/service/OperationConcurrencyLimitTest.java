@@ -59,7 +59,7 @@ class OperationConcurrencyLimitTest extends AbstractIntegrationTest {
 
     /** startVm sleeps {@code millis} and records concurrency and when each VM's call began. */
     private void slowStarts(long millis) {
-        when(awsCloudProviderService.startVm(anyString(), anyString(), any())).thenAnswer(inv -> {
+        when(awsCloudProviderService.startVm(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), any())).thenAnswer(inv -> {
             callStartedAt.put(inv.getArgument(0), Instant.now());
             int now = inFlight.incrementAndGet();
             maxInFlight.accumulateAndGet(now, Math::max);

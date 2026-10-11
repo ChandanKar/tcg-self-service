@@ -82,7 +82,7 @@ public class VmResizeService {
         }
 
         // Trust AWS, not the database: correct the stored status when they disagree.
-        VmStatus liveStatus = awsCloudProviderService.getVmStatus(vm.getProviderVmId(), vm.getRegion());
+        VmStatus liveStatus = awsCloudProviderService.getVmStatus(vm.getProviderVmId(), CloudTarget.of(vm));
         if (liveStatus != null && liveStatus != VmStatus.UNKNOWN && liveStatus != vm.getStatus()) {
             vmRepository.updateStatusIfCurrent(vmId, vm.getStatus(), liveStatus, Timestamp.from(Instant.now()));
         }
@@ -109,7 +109,7 @@ public class VmResizeService {
                 "Requested change from " + oldInstanceType + " to " + targetInstanceType);
 
         try {
-            awsCloudProviderService.changeInstanceType(vm.getRegion(), vm.getProviderVmId(), targetInstanceType);
+            awsCloudProviderService.changeInstanceType(CloudTarget.of(vm), vm.getProviderVmId(), targetInstanceType);
         } catch (RuntimeException e) {
             // The call can fail after AWS applied it (timeout, throttled retry): check before failing.
             String liveType = liveInstanceType(vm);

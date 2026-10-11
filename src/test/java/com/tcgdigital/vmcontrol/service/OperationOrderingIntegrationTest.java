@@ -61,10 +61,10 @@ class OperationOrderingIntegrationTest extends AbstractIntegrationTest {
         grant(user, AccessScopeType.ENVIRONMENT, env.getEnvironmentId(), AccessLevel.USER);
         lockService.acquireLock(env.getEnvironmentId(), user.getUserId(), "testing", null);
 
-        when(awsCloudProviderService.getVmStatus(anyString(), anyString())).thenReturn(VmStatus.UNKNOWN);
-        when(awsCloudProviderService.startVm(anyString(), anyString(), any())).thenAnswer(inv ->
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.UNKNOWN);
+        when(awsCloudProviderService.startVm(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), any())).thenAnswer(inv ->
                 record("start", inv.getArgument(0), VmStatus.RUNNING));
-        when(awsCloudProviderService.stopVm(anyString(), anyString(), anyBoolean(), any())).thenAnswer(inv ->
+        when(awsCloudProviderService.stopVm(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), anyBoolean(), any())).thenAnswer(inv ->
                 record("stop", inv.getArgument(0), VmStatus.STOPPED));
     }
 

@@ -72,7 +72,7 @@ public class EksCloudProviderService implements CloudProviderService {
     }
 
     @Override
-    public CompletableFuture<VmOperationResult> startVm(String providerVmId, String region) {
+    public CompletableFuture<VmOperationResult> startVm(String providerVmId, CloudTarget target) {
         return CompletableFuture.supplyAsync(() -> {
             String[] parts = parseProviderVmId(providerVmId);
             if (parts == null) {
@@ -85,7 +85,7 @@ public class EksCloudProviderService implements CloudProviderService {
             int minSize = readSavedMinSize(providerVmId);
             int desiredSize = Math.max(readSavedDesiredSize(providerVmId), minSize);
 
-            EksClient eks = getEksClient(region);
+            EksClient eks = getEksClient(target);
             try {
                 UpdateNodegroupConfigRequest request = UpdateNodegroupConfigRequest.builder()
                         .clusterName(clusterName)
@@ -109,7 +109,7 @@ public class EksCloudProviderService implements CloudProviderService {
                 // Node group may already be updating (prior request in flight) — check actual state
                 log.error("EKS error starting node group {}/{}: {}", clusterName, nodeGroupName, e.getMessage());
                 try {
-                    VmStatus currentStatus = getVmStatus(providerVmId, region);
+                    VmStatus currentStatus = getVmStatus(providerVmId, target);
                     if (currentStatus == VmStatus.STARTING || currentStatus == VmStatus.RUNNING) {
                         log.info("EKS node group {}/{} already transitioning ({}) — waiting to complete",
                                 clusterName, nodeGroupName, currentStatus);
@@ -123,7 +123,7 @@ public class EksCloudProviderService implements CloudProviderService {
             } catch (Exception e) {
                 log.error("Error starting EKS node group {}/{}: {}", clusterName, nodeGroupName, e.getMessage());
                 try {
-                    VmStatus currentStatus = getVmStatus(providerVmId, region);
+                    VmStatus currentStatus = getVmStatus(providerVmId, target);
                     if (currentStatus == VmStatus.STARTING || currentStatus == VmStatus.RUNNING) {
                         log.info("EKS node group {}/{} is {} despite exception — waiting to complete",
                                 clusterName, nodeGroupName, currentStatus);
@@ -139,7 +139,7 @@ public class EksCloudProviderService implements CloudProviderService {
     }
 
     @Override
-    public CompletableFuture<VmOperationResult> stopVm(String providerVmId, String region, boolean force) {
+    public CompletableFuture<VmOperationResult> stopVm(String providerVmId, CloudTarget target, boolean force) {
         return CompletableFuture.supplyAsync(() -> {
             String[] parts = parseProviderVmId(providerVmId);
             if (parts == null) {
@@ -148,7 +148,7 @@ public class EksCloudProviderService implements CloudProviderService {
             String clusterName = parts[0];
             String nodeGroupName = parts[1];
 
-            EksClient eks = getEksClient(region);
+            EksClient eks = getEksClient(target);
             try {
                 // Persist current scaling config BEFORE zeroing so startVm can restore it
                 saveScalingConfigToMetadata(providerVmId, eks, clusterName, nodeGroupName);
@@ -175,7 +175,7 @@ public class EksCloudProviderService implements CloudProviderService {
                 // Node group may already be updating — check whether it's scaling down
                 log.error("EKS error stopping node group {}/{}: {}", clusterName, nodeGroupName, e.getMessage());
                 try {
-                    VmStatus currentStatus = getVmStatus(providerVmId, region);
+                    VmStatus currentStatus = getVmStatus(providerVmId, target);
                     if (currentStatus == VmStatus.STOPPING || currentStatus == VmStatus.STOPPED) {
                         log.info("EKS node group {}/{} already transitioning to stopped ({}) — waiting",
                                 clusterName, nodeGroupName, currentStatus);
@@ -189,7 +189,7 @@ public class EksCloudProviderService implements CloudProviderService {
             } catch (Exception e) {
                 log.error("Error stopping EKS node group {}/{}: {}", clusterName, nodeGroupName, e.getMessage());
                 try {
-                    VmStatus currentStatus = getVmStatus(providerVmId, region);
+                    VmStatus currentStatus = getVmStatus(providerVmId, target);
                     if (currentStatus == VmStatus.STOPPING || currentStatus == VmStatus.STOPPED) {
                         log.info("EKS node group {}/{} is {} despite exception — waiting to complete",
                                 clusterName, nodeGroupName, currentStatus);
@@ -205,7 +205,7 @@ public class EksCloudProviderService implements CloudProviderService {
     }
 
     @Override
-    public VmStatus getVmStatus(String providerVmId, String region) {
+    public VmStatus getVmStatus(String providerVmId, CloudTarget target) {
         String[] parts = parseProviderVmId(providerVmId);
         if (parts == null) {
             log.warn("Invalid providerVmId for EKS status check: {}", providerVmId);
@@ -215,7 +215,7 @@ public class EksCloudProviderService implements CloudProviderService {
         String nodeGroupName = parts[1];
 
         try {
-            EksClient eks = getEksClient(region);
+            EksClient eks = getEksClient(target);
             DescribeNodegroupResponse response = eks.describeNodegroup(
                     DescribeNodegroupRequest.builder()
                             .clusterName(clusterName)
@@ -233,7 +233,7 @@ public class EksCloudProviderService implements CloudProviderService {
     }
 
     @Override
-    public String getVmName(String providerVmId, String region) {
+    public String getVmName(String providerVmId, CloudTarget target) {
         String[] parts = parseProviderVmId(providerVmId);
         return parts != null ? parts[1] : providerVmId;
     }
@@ -243,8 +243,8 @@ public class EksCloudProviderService implements CloudProviderService {
      * Propagates failures rather than swallowing them — a mid-pagination error must not
      * silently discard pages already fetched and masquerade as "cluster has no node groups".
      */
-    public List<String> listNodegroups(String clusterName, String region) {
-        EksClient eks = getEksClient(region);
+    public List<String> listNodegroups(String clusterName, CloudTarget target) {
+        EksClient eks = getEksClient(target);
         List<String> nodegroups = new ArrayList<>();
         String nextToken = null;
 
@@ -265,9 +265,9 @@ public class EksCloudProviderService implements CloudProviderService {
     /**
      * Describes a specific node group. Used by EksSyncService.
      */
-    public Nodegroup describeNodegroup(String clusterName, String nodeGroupName, String region) {
+    public Nodegroup describeNodegroup(String clusterName, String nodeGroupName, CloudTarget target) {
         try {
-            EksClient eks = getEksClient(region);
+            EksClient eks = getEksClient(target);
             DescribeNodegroupResponse response = eks.describeNodegroup(
                     DescribeNodegroupRequest.builder()
                             .clusterName(clusterName)
@@ -287,8 +287,8 @@ public class EksCloudProviderService implements CloudProviderService {
      * Propagates failures rather than swallowing them — a mid-pagination error must not
      * silently discard pages already fetched and masquerade as "no clusters in this region".
      */
-    public List<String> listClusters(String region) {
-        EksClient eks = getEksClient(region);
+    public List<String> listClusters(CloudTarget target) {
+        EksClient eks = getEksClient(target);
         List<String> clusters = new ArrayList<>();
         String nextToken = null;
 
@@ -311,11 +311,11 @@ public class EksCloudProviderService implements CloudProviderService {
      * via {@link #describeNodegroup}). Used for cost-allocation tagging, never called during
      * normal start/stop/sync.
      */
-    public void tagNodeGroup(String nodegroupArn, String region, Map<String, String> tags) {
+    public void tagNodeGroup(String nodegroupArn, CloudTarget target, Map<String, String> tags) {
         if (nodegroupArn == null || tags.isEmpty()) {
             return;
         }
-        EksClient eks = getEksClient(region);
+        EksClient eks = getEksClient(target);
         eks.tagResource(TagResourceRequest.builder()
                 .resourceArn(nodegroupArn)
                 .tags(tags)
@@ -545,7 +545,12 @@ public class EksCloudProviderService implements CloudProviderService {
     }
 
     private EksClient getEksClient(String region) {
-        String effectiveRegion = region != null && !region.isEmpty() ? region : defaultRegion;
-        return awsClientFactory.eks(effectiveRegion);
+        return getEksClient(CloudTarget.of(region));
+    }
+
+    /** The target account's cached EKS client in the target region (the default region when blank). */
+    private EksClient getEksClient(CloudTarget target) {
+        String region = target.region() != null && !target.region().isEmpty() ? target.region() : defaultRegion;
+        return awsClientFactory.eks(target.accountRef(), region);
     }
 }

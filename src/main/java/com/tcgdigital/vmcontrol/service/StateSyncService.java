@@ -118,19 +118,19 @@ public class StateSyncService {
                         skipped, transitionalGuard.getStaleTransitionalMinutes());
             }
 
-            // Group by "PROVIDER:region" — one batch API call per group
+            // Group by "PROVIDER:accountRef:region" — one batch API call per account and region (E28-T05)
             Map<String, List<SyncTarget>> groups = vmsToSync.stream()
                     .filter(vm -> vm.providerVmId() != null && !vm.providerVmId().isBlank())
                     .collect(Collectors.groupingBy(
-                            vm -> vm.provider().name() + ":" + vm.region()));
+                            vm -> vm.provider().name() + ":" + vm.target().key()));
 
             // Fetch all statuses in parallel — one call per (provider, region) group
             Map<String, Map<String, VmStatus>> batchResults = new ConcurrentHashMap<>();
             List<CompletableFuture<Void>> fetchFutures = groups.entrySet().stream()
                     .map(entry -> CompletableFuture.runAsync(() -> {
-                        String[] parts = entry.getKey().split(":", 2);
+                        String[] parts = entry.getKey().split(":", 3);
                         CloudProvider provider = CloudProvider.valueOf(parts[0]);
-                        String region = parts[1];
+                        CloudTarget target = CloudTarget.of(parts[1], parts[2]);
                         List<String> ids = entry.getValue().stream()
                                 .map(SyncTarget::providerVmId).toList();
                         try {
@@ -140,15 +140,15 @@ public class StateSyncService {
                                         provider, ids.size());
                                 return;
                             }
-                            Map<String, VmStatus> statuses = svc.getVmStatusBatch(ids, region);
+                            Map<String, VmStatus> statuses = svc.getVmStatusBatch(ids, target);
                             if (!statuses.isEmpty()) {
                                 batchResults.put(entry.getKey(), statuses);
                             } else {
                                 log.warn("Batch fetch returned no results for {}/{} — VMs will fall back to individual fetch",
-                                        provider, region);
+                                        provider, target);
                             }
                         } catch (Exception e) {
-                            log.error("Batch fetch failed for {}/{}: {}", provider, region, e.getMessage());
+                            log.error("Batch fetch failed for {}/{}: {}", provider, target, e.getMessage());
                             errorCount.addAndGet(ids.size());
                         }
                     }, syncExecutor))
@@ -165,7 +165,7 @@ public class StateSyncService {
                                 log.warn("VM {} has no provider ID — skipping", vm.vmId());
                                 return;
                             }
-                            String key = vm.provider().name() + ":" + vm.region();
+                            String key = vm.provider().name() + ":" + vm.target().key();
                             Map<String, VmStatus> regionStatuses = batchResults.get(key);
 
                             VmStatus cloudStatus;
@@ -262,12 +262,19 @@ public class StateSyncService {
      */
     record SyncTarget(String vmId, String name, String displayName, CloudProvider provider, String region,
                       String providerVmId, VmStatus status, Boolean active, Timestamp updatedAt,
-                      int notFoundCount, String envId, String envName) {
+                      int notFoundCount, String envId, String envName, String accountRef) {
         static SyncTarget of(Vm vm) {
             Environment env = vm.getGroup().getEnvironment();
+            String accountRef = vm.getAwsAccountRef() != null ? vm.getAwsAccountRef() : env.getAwsAccountRef();
             return new SyncTarget(vm.getVmId(), vm.getName(), vm.getDisplayName(), vm.getProvider(), vm.getRegion(),
                     vm.getProviderVmId(), vm.getStatus(), vm.getIsActive(), vm.getUpdatedAt(),
-                    vm.getNotFoundCount() == null ? 0 : vm.getNotFoundCount(), env.getEnvironmentId(), env.getName());
+                    vm.getNotFoundCount() == null ? 0 : vm.getNotFoundCount(), env.getEnvironmentId(), env.getName(),
+                    accountRef);
+        }
+
+        /** The VM's account and region (E28-T05). */
+        CloudTarget target() {
+            return CloudTarget.of(accountRef, region);
         }
     }
 
@@ -390,7 +397,7 @@ public class StateSyncService {
             }
 
             // Name tags are free text in AWS; strip markup characters before storing (C3).
-            String cloudVmName = NameSanitizer.clean(providerService.getVmName(providerVmId, vm.region()));
+            String cloudVmName = NameSanitizer.clean(providerService.getVmName(providerVmId, vm.target()));
 
             if (cloudVmName != null && !cloudVmName.isBlank()) {
                 // Update name (lowercase, hyphenated) and displayName
@@ -456,7 +463,7 @@ public class StateSyncService {
                 return null;
             }
 
-            return providerService.getVmStatus(providerVmId, vm.region());
+            return providerService.getVmStatus(providerVmId, vm.target());
 
         } catch (Exception e) {
             log.error("Error fetching cloud status for VM {}: {}", vm.vmId(), e.getMessage());

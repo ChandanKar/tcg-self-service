@@ -62,7 +62,7 @@ class BudgetFreezeIntegrationTest extends AbstractIntegrationTest {
         grant(user, AccessScopeType.ENVIRONMENT, env.getEnvironmentId(), AccessLevel.USER);
         jdbcTemplate.update("UPDATE environment SET start_frozen_until = ? WHERE environment_id = ?",
                 Timestamp.from(Instant.now().plusSeconds(10 * 86_400)), env.getEnvironmentId());
-        when(awsCloudProviderService.stopVm(anyString(), anyString(), anyBoolean(), any())).thenReturn(
+        when(awsCloudProviderService.stopVm(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), anyBoolean(), any())).thenReturn(
                 CompletableFuture.completedFuture(CloudProviderService.VmOperationResult.success("r", VmStatus.STOPPED)));
     }
 

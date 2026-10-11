@@ -100,7 +100,7 @@ class VmDiscoveryServiceTest {
         // Positions 1,2,3 exist and VM 2 is inactive: two active VMs, but the highest is 3.
         when(vmRepository.countByGroupGroupId("group-1")).thenReturn(2L);
         when(vmRepository.findMaxSequencePositionByGroupId("group-1")).thenReturn(3);
-        when(awsService.discoverTaggedInstances("ap-south-1", "tcg:environment", "app"))
+        when(awsService.discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "tcg:environment", "app"))
                 .thenReturn(List.of(instance("i-0000000000000new1", "web")));
 
         int registered = service.discoverAndRegisterVms();
@@ -112,7 +112,7 @@ class VmDiscoveryServiceTest {
     @Test
     void anEmptyGroupStartsAtOne() {
         when(vmRepository.findMaxSequencePositionByGroupId("group-1")).thenReturn(null);
-        when(awsService.discoverTaggedInstances("ap-south-1", "tcg:environment", "app"))
+        when(awsService.discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "tcg:environment", "app"))
                 .thenReturn(List.of(instance("i-0000000000000new1", "web")));
 
         service.discoverAndRegisterVms();
@@ -126,7 +126,7 @@ class VmDiscoveryServiceTest {
         when(vmRepository.save(any(Vm.class)))
                 .thenThrow(new IllegalStateException("duplicate key"))
                 .then(returnsFirstArg());
-        when(awsService.discoverTaggedInstances("ap-south-1", "tcg:environment", "app"))
+        when(awsService.discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "tcg:environment", "app"))
                 .thenReturn(List.of(instance("i-0000000000000bad1", "bad"), instance("i-0000000000000good", "good")));
 
         int registered = service.discoverAndRegisterVms();
@@ -146,7 +146,7 @@ class VmDiscoveryServiceTest {
 
     @Test
     void aFailedAwsCallRegistersFlagsAndRetagsNothing() {
-        when(awsService.discoverTaggedInstances("ap-south-1", "tcg:environment", "app")).thenThrow(throttled());
+        when(awsService.discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "tcg:environment", "app")).thenThrow(throttled());
 
         assertThat(service.discoverAndRegisterVms()).isZero();
 
@@ -167,8 +167,8 @@ class VmDiscoveryServiceTest {
         otherGroup.setEnvironment(other);
         when(environmentRepository.findActiveEc2Environments()).thenReturn(List.of(env, other));
         when(vmGroupRepository.findByEnvironmentEnvironmentIdAndName("env-2", "discovered")).thenReturn(Optional.of(otherGroup));
-        when(awsService.discoverTaggedInstances("ap-south-1", "tcg:environment", "app")).thenThrow(throttled());
-        when(awsService.discoverTaggedInstances("ap-south-1", "tcg:environment", "other"))
+        when(awsService.discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "tcg:environment", "app")).thenThrow(throttled());
+        when(awsService.discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "tcg:environment", "other"))
                 .thenReturn(List.of(instance("i-00000000000other", "web")));
 
         assertThat(service.discoverAndRegisterVms()).isEqualTo(1);
@@ -186,7 +186,7 @@ class VmDiscoveryServiceTest {
         inactive.setProviderVmId("i-000000000000gone2");
         inactive.setIsActive(false);
         when(vmRepository.findByGroupGroupIdOrderBySequencePositionAsc("group-1")).thenReturn(List.of(active, inactive));
-        when(awsService.discoverTaggedInstances("ap-south-1", "tcg:environment", "app")).thenReturn(List.of());
+        when(awsService.discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "tcg:environment", "app")).thenReturn(List.of());
 
         service.discoverAndRegisterVms();
 
@@ -198,7 +198,7 @@ class VmDiscoveryServiceTest {
     @Test
     void aFailedNamePatternCallDoesNothing() {
         ReflectionTestUtils.setField(service, "discoveryStrategy", "name-pattern");
-        when(awsService.discoverInstancesByNamePrefix("ap-south-1", "app")).thenThrow(throttled());
+        when(awsService.discoverInstancesByNamePrefix(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "app")).thenThrow(throttled());
 
         assertThat(service.discoverAndRegisterVms()).isZero();
 
@@ -229,7 +229,7 @@ class VmDiscoveryServiceTest {
     void namePatternRegistersNothingIntoAnInactiveEnvironment() {
         ReflectionTestUtils.setField(service, "discoveryStrategy", "name-pattern");
         env.setIsActive(false);
-        when(awsService.discoverInstancesByNamePrefix("ap-south-1", "app")).thenReturn(List.of(instance("i-00000000000app01", "app-1")));
+        when(awsService.discoverInstancesByNamePrefix(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "app")).thenReturn(List.of(instance("i-00000000000app01", "app-1")));
 
         assertThat(service.discoverAndRegisterVms()).isZero();
 
@@ -241,7 +241,7 @@ class VmDiscoveryServiceTest {
     void aNewNamePatternEnvironmentIsCreatedInactiveForReview() {
         ReflectionTestUtils.setField(service, "discoveryStrategy", "name-pattern");
         when(environmentRepository.findByName("fresh")).thenReturn(Optional.empty());
-        when(awsService.discoverInstancesByNamePrefix("ap-south-1", "app")).thenReturn(List.of(instance("i-0000000000fresh1", "fresh-1")));
+        when(awsService.discoverInstancesByNamePrefix(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "app")).thenReturn(List.of(instance("i-0000000000fresh1", "fresh-1")));
 
         assertThat(service.discoverAndRegisterVms()).isZero();
 
@@ -260,7 +260,7 @@ class VmDiscoveryServiceTest {
         ReflectionTestUtils.setField(service, "autoActivateEnvironments", true);
         when(environmentRepository.findByName("fresh")).thenReturn(Optional.empty());
         when(vmGroupRepository.findByEnvironmentEnvironmentIdAndName(any(), eq("discovered"))).thenReturn(Optional.of(group));
-        when(awsService.discoverInstancesByNamePrefix("ap-south-1", "app")).thenReturn(List.of(instance("i-0000000000fresh1", "fresh-1")));
+        when(awsService.discoverInstancesByNamePrefix(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "app")).thenReturn(List.of(instance("i-0000000000fresh1", "fresh-1")));
 
         assertThat(service.discoverAndRegisterVms()).isEqualTo(1);
     }
@@ -276,11 +276,11 @@ class VmDiscoveryServiceTest {
     void aLegacyEnvironmentIsScannedInItsVmRegions() {
         env.setMetadata(null);
         when(vmRepository.findDistinctRegionsGroupedByEnvironment(List.of("env-1"))).thenReturn(List.of(region("env-1", "ap-south-1")));
-        when(awsService.discoverTaggedInstances("ap-south-1", "tcg:environment", "app")).thenReturn(List.of());
+        when(awsService.discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "tcg:environment", "app")).thenReturn(List.of());
 
         service.discoverAndRegisterVms();
 
-        verify(awsService).discoverTaggedInstances("ap-south-1", "tcg:environment", "app");
+        verify(awsService).discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "tcg:environment", "app");
     }
 
     @Test
@@ -289,11 +289,11 @@ class VmDiscoveryServiceTest {
         env.setMetadata(null);
         when(vmRepository.findDistinctRegionsGroupedByEnvironment(List.of("env-1"))).thenReturn(List.of());
         when(vmGroupRepository.findByEnvironmentEnvironmentIdAndName("env-1", "discovered")).thenReturn(Optional.empty());
-        when(awsService.discoverTaggedInstances("us-east-1", "tcg:environment", "app")).thenReturn(List.of());
+        when(awsService.discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("us-east-1"), "tcg:environment", "app")).thenReturn(List.of());
 
         service.discoverAndRegisterVms();
 
-        verify(awsService).discoverTaggedInstances("us-east-1", "tcg:environment", "app");
+        verify(awsService).discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("us-east-1"), "tcg:environment", "app");
         verify(vmGroupRepository, never()).save(any());
     }
 
@@ -308,9 +308,9 @@ class VmDiscoveryServiceTest {
         elsewhere.setProviderVmId("i-00000000000euvm1");
         elsewhere.setIsActive(true);
         when(vmRepository.findByGroupGroupIdOrderBySequencePositionAsc("group-1")).thenReturn(List.of(elsewhere));
-        when(awsService.discoverTaggedInstances("ap-south-1", "tcg:environment", "app"))
+        when(awsService.discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "tcg:environment", "app"))
                 .thenReturn(List.of(instance("i-0000000000mumbai", "web")));
-        when(awsService.discoverTaggedInstances("eu-west-1", "tcg:environment", "app")).thenThrow(throttled());
+        when(awsService.discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("eu-west-1"), "tcg:environment", "app")).thenThrow(throttled());
 
         assertThat(service.discoverAndRegisterVms()).isEqualTo(1);
 
@@ -337,7 +337,7 @@ class VmDiscoveryServiceTest {
     void aVmDeactivatedAsNotFoundIsReactivatedWhenDiscoveryFindsItAgain() {
         existing("vm-back", "i-00000000000back1", false, VmStatus.NOT_FOUND, group);
         when(vmRepository.reactivateIfInactive(eq("vm-back"), eq(VmStatus.UNKNOWN), eq(true), any())).thenReturn(1);
-        when(awsService.discoverTaggedInstances("ap-south-1", "tcg:environment", "app"))
+        when(awsService.discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "tcg:environment", "app"))
                 .thenReturn(List.of(instance("i-00000000000back1", "back")));
 
         assertThat(service.discoverAndRegisterVms()).isZero(); // reactivated, not registered anew
@@ -352,7 +352,7 @@ class VmDiscoveryServiceTest {
     void aVmAnAdminDeletedIsNeverReactivatedByDiscovery() {
         Vm deleted = existing("vm-deleted", "i-0000000000delet1", false, VmStatus.NOT_FOUND, group);
         deleted.setDiscoveryIgnored(true);
-        when(awsService.discoverTaggedInstances("ap-south-1", "tcg:environment", "app"))
+        when(awsService.discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "tcg:environment", "app"))
                 .thenReturn(List.of(instance("i-0000000000delet1", "deleted")));
 
         assertThat(service.discoverAndRegisterVms()).isZero();
@@ -370,7 +370,7 @@ class VmDiscoveryServiceTest {
         otherGroup.setEnvironment(otherEnv);
         existing("vm-live", "i-00000000000live1", true, VmStatus.RUNNING, group);
         existing("vm-moved", "i-0000000000moved1", false, VmStatus.NOT_FOUND, otherGroup);
-        when(awsService.discoverTaggedInstances("ap-south-1", "tcg:environment", "app"))
+        when(awsService.discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "tcg:environment", "app"))
                 .thenReturn(List.of(instance("i-00000000000live1", "live"), instance("i-0000000000moved1", "moved")));
 
         assertThat(service.discoverAndRegisterVms()).isZero();
@@ -382,7 +382,7 @@ class VmDiscoveryServiceTest {
     @Test
     void aNamePatternInstanceKeepsItsNumberWhenFree() {
         ReflectionTestUtils.setField(service, "discoveryStrategy", "name-pattern");
-        when(awsService.discoverInstancesByNamePrefix("ap-south-1", "app")).thenReturn(List.of(instance("i-00000000000app07", "app-7")));
+        when(awsService.discoverInstancesByNamePrefix(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "app")).thenReturn(List.of(instance("i-00000000000app07", "app-7")));
         when(vmRepository.existsByGroupGroupIdAndSequencePosition("group-1", 7)).thenReturn(false);
 
         int registered = service.discoverAndRegisterVms();
@@ -394,7 +394,7 @@ class VmDiscoveryServiceTest {
     @Test
     void aNamePatternInstanceWhoseNumberIsTakenGoesAboveTheHighest() {
         ReflectionTestUtils.setField(service, "discoveryStrategy", "name-pattern");
-        when(awsService.discoverInstancesByNamePrefix("ap-south-1", "app")).thenReturn(List.of(instance("i-00000000000app07", "app-7")));
+        when(awsService.discoverInstancesByNamePrefix(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "app")).thenReturn(List.of(instance("i-00000000000app07", "app-7")));
         when(vmRepository.existsByGroupGroupIdAndSequencePosition(eq("group-1"), anyInt())).thenReturn(true);
         when(vmRepository.findMaxSequencePositionByGroupId("group-1")).thenReturn(9);
 
@@ -406,7 +406,7 @@ class VmDiscoveryServiceTest {
     @Test
     void oneNamePatternInstanceFailingDoesNotStopTheNext() {
         ReflectionTestUtils.setField(service, "discoveryStrategy", "name-pattern");
-        when(awsService.discoverInstancesByNamePrefix("ap-south-1", "app"))
+        when(awsService.discoverInstancesByNamePrefix(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "app"))
                 .thenReturn(List.of(instance("i-00000000000app01", "app-1"), instance("i-00000000000app02", "app-2")));
         when(vmRepository.save(any(Vm.class)))
                 .thenThrow(new IllegalStateException("duplicate key"))
