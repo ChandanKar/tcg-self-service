@@ -36,5 +36,7 @@ public enum NotificationType {
     /** An exhausted budget's action awaits an owner's approval (E20-T03). */
     BUDGET_ACTION_PENDING,
     /** Starts are frozen in an environment by its budget (E20-T03). */
-    BUDGET_FREEZE
+    BUDGET_FREEZE,
+    /** AWS flagged unexpected spend in an environment (E21-T03). */
+    COST_ANOMALY
 }

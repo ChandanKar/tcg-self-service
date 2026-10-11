@@ -209,7 +209,8 @@ const NotificationBell = (function () {
             BUDGET_THRESHOLD:        'fa-wallet',
             BUDGET_FORECAST:         'fa-chart-line',
             BUDGET_ACTION_PENDING:   'fa-gavel',  // opens #/budgets (entity BUDGET_ACTION)
-            BUDGET_FREEZE:           'fa-snowflake'
+            BUDGET_FREEZE:           'fa-snowflake',
+            COST_ANOMALY:            'fa-chart-area'
         };
         return icons[type] || 'fa-bell';
     }
@@ -221,7 +222,7 @@ const NotificationBell = (function () {
         if (['ACCESS_EXPIRING', 'ACCESS_REQUESTED', 'LOCK_ACQUIRED', 'OPERATION_REQUESTED', 'LOCK_EXPIRING',
              'ENVIRONMENT_STOP_NOTICE', 'AUTOMATION_RULE_SKIPPED', 'LEASE_EXPIRING', 'LEASE_EXPIRED',
              'LEASE_EXTENSION_REQUESTED', 'BUDGET_THRESHOLD', 'BUDGET_FORECAST',
-             'BUDGET_ACTION_PENDING', 'BUDGET_FREEZE'].includes(type)) {
+             'BUDGET_ACTION_PENDING', 'BUDGET_FREEZE', 'COST_ANOMALY'].includes(type)) {
             return 'tone-warning';
         }
         if (['OPERATION_COMPLETED', 'ACCESS_GRANTED', 'ACCESS_REQUEST_APPROVED', 'EKS_SYNC_CHANGED'].includes(type)) {

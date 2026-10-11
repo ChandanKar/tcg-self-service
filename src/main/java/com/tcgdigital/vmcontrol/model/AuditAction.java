@@ -99,6 +99,9 @@ public enum AuditAction {
     BUDGET_FREEZE_LIFTED,
     BUDGET_FREEZE_OVERRIDDEN,
 
+    /** An owner said whether a cost anomaly was real (E21-T03). */
+    COST_ANOMALY_FEEDBACK,
+
     // Idle auto-stop (E16)
     IDLE_STOP_RULE_CHANGED,
     IDLE_STOP_TRIGGERED,

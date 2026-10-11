@@ -37,6 +37,17 @@ class CostAnomalyServiceTest extends AbstractIntegrationTest {
     @Autowired private CostAnomalyRepository anomalies;
     @Autowired private CostAnomalyMonitorRepository monitors;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private NotificationService notificationService;
+    @Autowired private com.tcgdigital.vmcontrol.repository.EnvironmentRepository environments;
+    @Autowired private com.tcgdigital.vmcontrol.repository.UserRepository users;
+    @Autowired private SecurityService securityService;
+    @Autowired private AuditService auditService;
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    private CostAnomalyService service(CostExplorerClientProvider provider) {
+        return new CostAnomalyService(anomalies, monitors, provider, objectMapper, 7, notificationService, environments,
+                users, securityService, auditService);
+    }
 
     private final CostExplorerClient ce = mock(CostExplorerClient.class);
     private CostAnomalyService service;
@@ -50,7 +61,7 @@ class CostAnomalyServiceTest extends AbstractIntegrationTest {
         linked.setMonitorName("tcg-env-prod");
         linked.setEnvironmentId(prod.getEnvironmentId());
         monitors.saveAndFlush(linked);
-        service = new CostAnomalyService(anomalies, monitors, new CostExplorerClientProvider(ce), objectMapper, 7);
+        service = service(new CostExplorerClientProvider(ce));
     }
 
     private static Anomaly anomaly(String id, String monitorArn, double impact) {
@@ -112,8 +123,75 @@ class CostAnomalyServiceTest extends AbstractIntegrationTest {
 
     @Test
     void withoutCredentialsNothingIsCalled() {
-        CostAnomalyService off = new CostAnomalyService(anomalies, monitors, new CostExplorerClientProvider("", ""),
-                objectMapper, 7);
+        CostAnomalyService off = service(new CostExplorerClientProvider("", ""));
         assertThat(off.ingest().seen()).isZero();
+    }
+
+    // ------------------------------------------------------------------ routing and feedback (E21-T03)
+
+    private int notifications(com.tcgdigital.vmcontrol.model.User user) {
+        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM notification WHERE user_id = ? AND type = 'COST_ANOMALY'",
+                Integer.class, user.getUserId());
+    }
+
+    @Test
+    void anAnomalyIsAnnouncedOnceToOwnersAndSmallOnesWait() {
+        com.tcgdigital.vmcontrol.model.User owner = newUser("anomaly-owner@example.com", false, false);
+        grant(owner, com.tcgdigital.vmcontrol.model.AccessScopeType.ENVIRONMENT, prod.getEnvironmentId(),
+                com.tcgdigital.vmcontrol.model.AccessLevel.ADMIN);
+        com.tcgdigital.vmcontrol.model.User admin = newUser("anomaly-admin@example.com", true, false);
+        awsReturns(250.0); // a-1 $250 on prod; a-2 $5 on an unlinked monitor
+        service.ingest();
+
+        assertThat(service.routeNew()).isEqualTo(1);
+        assertThat(service.routeNew()).isZero();
+
+        assertThat(notifications(owner)).isEqualTo(1);
+        assertThat(notifications(admin)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("SELECT message FROM notification WHERE user_id = ? AND type = 'COST_ANOMALY'",
+                String.class, owner.getUserId())).isEqualTo(prod.getDisplayName() + ": unexpected spend of $250.00 since 2026-10-08 "
+                + "(top cause: Amazon Elastic Compute Cloud - Compute / BoxUsage:m5.large).");
+        assertThat(anomalies.findById("a-2").orElseThrow().getNotifiedAt()).isNull(); // below min-impact
+    }
+
+    @Test
+    void anUnlinkedAnomalyGoesToAdminsOnly() {
+        com.tcgdigital.vmcontrol.model.User admin = newUser("unlinked-admin@example.com", true, false);
+        when(ce.getAnomalies(org.mockito.ArgumentMatchers.any(GetAnomaliesRequest.class)))
+                .thenReturn(GetAnomaliesResponse.builder().anomalies(anomaly("a-9", "arn:unlinked", 90.0)).build());
+        service.ingest();
+
+        assertThat(service.routeNew()).isEqualTo(1);
+        assertThat(notifications(admin)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("SELECT title FROM notification WHERE user_id = ? AND type = 'COST_ANOMALY'",
+                String.class, admin.getUserId())).isEqualTo("Cost anomaly: An unlinked AWS anomaly monitor");
+    }
+
+    @Test
+    void ownersGiveFeedbackAndAwsIsNotToldByDefault() {
+        com.tcgdigital.vmcontrol.model.User owner = newUser("feedback-owner@example.com", false, false);
+        grant(owner, com.tcgdigital.vmcontrol.model.AccessScopeType.ENVIRONMENT, prod.getEnvironmentId(),
+                com.tcgdigital.vmcontrol.model.AccessLevel.ADMIN);
+        com.tcgdigital.vmcontrol.model.User member = newUser("feedback-member@example.com", false, false);
+        grant(member, com.tcgdigital.vmcontrol.model.AccessScopeType.ENVIRONMENT, prod.getEnvironmentId(),
+                com.tcgdigital.vmcontrol.model.AccessLevel.USER);
+        awsReturns(250.0);
+        service.ingest();
+
+        assertThat(service.feedback("a-1", owner.getUserId(), "planned_activity").getFeedback()).isEqualTo("PLANNED_ACTIVITY");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.feedback("a-1", member.getUserId(), "NO"))
+                .isInstanceOf(com.tcgdigital.vmcontrol.exception.UnauthorizedException.class);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.feedback("a-2", owner.getUserId(), "NO"))
+                .isInstanceOf(com.tcgdigital.vmcontrol.exception.UnauthorizedException.class); // unlinked: admins only
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.feedback("a-1", owner.getUserId(), "MAYBE"))
+                .hasMessage("Feedback must be YES, NO or PLANNED_ACTIVITY");
+        org.mockito.Mockito.verify(ce, org.mockito.Mockito.never()).provideAnomalyFeedback(
+                org.mockito.ArgumentMatchers.any(software.amazon.awssdk.services.costexplorer.model.ProvideAnomalyFeedbackRequest.class));
+
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "sendFeedbackToAws", true);
+        service.feedback("a-1", owner.getUserId(), "YES");
+        org.mockito.Mockito.verify(ce).provideAnomalyFeedback(org.mockito.ArgumentMatchers.argThat(
+                (software.amazon.awssdk.services.costexplorer.model.ProvideAnomalyFeedbackRequest r) ->
+                        r.anomalyId().equals("a-1") && r.feedbackAsString().equals("YES")));
     }
 }

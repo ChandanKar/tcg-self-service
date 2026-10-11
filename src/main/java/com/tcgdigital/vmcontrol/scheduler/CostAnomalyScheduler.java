@@ -29,6 +29,9 @@ public class CostAnomalyScheduler {
 
     @Scheduled(cron = "${cost.anomalies.cron:0 0 */12 * * *}", zone = "UTC")
     public void run() {
-        jobLockService.runLocked(JOB_NAME, Duration.ofMinutes(10), anomalyService::ingest);
+        jobLockService.runLocked(JOB_NAME, Duration.ofMinutes(10), () -> {
+            anomalyService.ingest();
+            anomalyService.routeNew(); // tell the owners (E21-T03)
+        });
     }
 }

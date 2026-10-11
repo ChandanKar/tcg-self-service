@@ -14,6 +14,6 @@ public interface CostAnomalyRepository extends JpaRepository<CostAnomaly, String
 
     List<CostAnomaly> findByAnomalyStartGreaterThanEqualOrderByAnomalyStartDesc(LocalDate since);
 
-    /** Not yet routed to owners (E21-T03). */
-    List<CostAnomaly> findByNotifiedAtIsNullAndEnvironmentIdIsNotNull();
+    /** Not yet announced (E21-T03). */
+    List<CostAnomaly> findByNotifiedAtIsNull();
 }

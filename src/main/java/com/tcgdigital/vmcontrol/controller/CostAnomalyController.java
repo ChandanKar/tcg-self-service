@@ -17,9 +17,28 @@ import java.util.List;
 public class CostAnomalyController {
 
     private final CostAnomalyMonitorService monitorService;
+    private final com.tcgdigital.vmcontrol.service.CostAnomalyService anomalyService;
+    private final com.tcgdigital.vmcontrol.service.UserService userService;
 
-    public CostAnomalyController(CostAnomalyMonitorService monitorService) {
+    public CostAnomalyController(CostAnomalyMonitorService monitorService,
+                                 com.tcgdigital.vmcontrol.service.CostAnomalyService anomalyService,
+                                 com.tcgdigital.vmcontrol.service.UserService userService) {
         this.monitorService = monitorService;
+        this.anomalyService = anomalyService;
+        this.userService = userService;
+    }
+
+    public record FeedbackRequest(@NotBlank(message = "Feedback is required") String value) {}
+
+    public record FeedbackResult(String anomalyId, String feedback) {}
+
+    @PostMapping("/{anomalyId}/feedback")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Say whether an anomaly was real: YES, NO or PLANNED_ACTIVITY (the environment's owners)")
+    public FeedbackResult feedback(@PathVariable String anomalyId, @Valid @RequestBody FeedbackRequest request) {
+        com.tcgdigital.vmcontrol.model.CostAnomaly anomaly =
+                anomalyService.feedback(anomalyId, userService.getCurrentUserId(), request.value());
+        return new FeedbackResult(anomaly.getAnomalyId(), anomaly.getFeedback());
     }
 
     /** Body of a manual link; environmentId null or blank unlinks. ARNs contain '/', so not in the path. */

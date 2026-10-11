@@ -59,6 +59,9 @@ public class NotificationService {
     @Value("${notification.email.budget-alert.enabled:false}")
     private boolean emailBudgetAlertEnabled;
 
+    @Value("${notification.email.cost-anomaly.enabled:false}")
+    private boolean emailCostAnomalyEnabled;
+
     public NotificationService(NotificationRepository notificationRepository,
                                EnvironmentAccessRepository accessRepository,
                                UserRepository userRepository,
@@ -336,6 +339,31 @@ public class NotificationService {
         recipients.values().forEach(u -> create(u.getUserId(), type, title, message, entityType, entityId));
         if (emailBudgetAlertEnabled) {
             sendEventEmail(List.copyOf(recipients.values()), title, message);
+        }
+    }
+
+    // ============= Cost anomalies (E21-T03) =============
+
+    /**
+     * Unexpected spend in an environment: its owners, the admins and administering env admins.
+     * Without an environment (an unlinked monitor) only the admins hear it.
+     */
+    public void notifyCostAnomaly(String environmentId, String environmentName, java.math.BigDecimal impact,
+                                  java.time.LocalDate since, String topCause, String anomalyId) {
+        String where = environmentName == null ? "An unlinked AWS anomaly monitor" : environmentName;
+        String title = "Cost anomaly: " + where;
+        String message = where + ": unexpected spend of " + dollars(impact)
+                + (since == null ? "" : " since " + since)
+                + (topCause == null ? "" : " (top cause: " + topCause + ")") + ".";
+        List<User> recipients = environmentId == null ? userRepository.findByAdminTrueAndIsActiveTrue()
+                : resolveEnvironmentReviewers(environmentId);
+        recipients.forEach(u -> create(u.getUserId(), NotificationType.COST_ANOMALY, title, message, "COST_ANOMALY", anomalyId));
+        if (emailCostAnomalyEnabled) {
+            try {
+                sendEventEmail(recipients, title, message);
+            } catch (Exception e) {
+                log.warn("Could not email cost anomaly {}: {}", anomalyId, e.getMessage());
+            }
         }
     }
 
