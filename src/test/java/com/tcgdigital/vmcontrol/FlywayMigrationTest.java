@@ -542,4 +542,35 @@ class FlywayMigrationTest extends AbstractIntegrationTest {
         assertEquals(1, column);
         assertEquals(1, index);
     }
+
+    // =====================================================
+    // NO AUTOMATIC REPAIR (E14-T01)
+    // =====================================================
+
+    @Autowired
+    private org.springframework.context.ApplicationContext context;
+
+    @Autowired
+    private org.flywaydb.core.Flyway flyway;
+
+    @Test
+    void noMigrationStrategyRepairsOnStartup() {
+        assertTrue(context.getBeansOfType(org.springframework.boot.autoconfigure.flyway.FlywayMigrationStrategy.class).isEmpty(),
+                "Startup must run Spring Boot's plain migrate, never repair()");
+        assertTrue(flyway.getConfiguration().isValidateOnMigrate(), "migrate() must validate applied migrations");
+    }
+
+    @Test
+    void anEditedAppliedMigrationFailsValidation() {
+        Integer original = jdbcTemplate.queryForObject(
+                "SELECT checksum FROM flyway_schema_history WHERE version = '1'", Integer.class);
+        try {
+            jdbcTemplate.update("UPDATE flyway_schema_history SET checksum = ? WHERE version = '1'",
+                    original == null ? 1 : original + 1);
+            assertThrows(org.flywaydb.core.api.exception.FlywayValidateException.class, flyway::validate);
+        } finally {
+            jdbcTemplate.update("UPDATE flyway_schema_history SET checksum = ? WHERE version = '1'", original);
+        }
+        assertDoesNotThrow(flyway::validate);
+    }
 }
