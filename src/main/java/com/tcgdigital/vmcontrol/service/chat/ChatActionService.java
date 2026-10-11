@@ -49,6 +49,14 @@ public class ChatActionService {
     private final com.tcgdigital.vmcontrol.service.idle.IdleStopSnoozeService snoozeService;
     private final com.tcgdigital.vmcontrol.repository.VmRepository vmRepository;
 
+    /** Jira tickets from chat (E24-T07); optional so the service works without the integration. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.jira.JiraTicketService jiraTickets;
+
+    void setJiraTickets(com.tcgdigital.vmcontrol.service.jira.JiraTicketService jiraTickets) {
+        this.jiraTickets = jiraTickets;
+    }
+
     public ChatActionService(ChatActionTokenService tokenService, EnvironmentAccessService accessService,
                              VmOperationsService operationsService, SecurityService securityService,
                              EnvironmentRepository environmentRepository, AuditService auditService,
@@ -106,6 +114,13 @@ public class ChatActionService {
                         "Keep " + name(environment) + " running longer. It now stops at " + TIME.format(end)
                                 + "; 2 hours more would be " + TIME.format(later(end, DEFAULT_EXTEND_MINUTES)) + ".",
                         "Extend", claims.expiresAt(), EXTEND_MINUTES, DEFAULT_EXTEND_MINUTES, "minutes");
+            }
+            case CREATE_JIRA_TICKET -> {
+                securityService.assertCanAdminister(claims.environmentId());
+                yield new Preview(claims.type().name(), claims.environmentId(), name(environment),
+                        "Create a Jira ticket for the cost anomaly in " + name(environment)
+                                + ". If one exists already, you get that one.",
+                        "Create ticket", claims.expiresAt());
             }
             case SNOOZE_IDLE_STOP -> {
                 securityService.assertCanOperate(claims.environmentId());
@@ -197,6 +212,17 @@ public class ChatActionService {
                         ? envName + " now runs until " + TIME.format(outcome.lease().getEndsAt().toInstant()) + "."
                         : "That is beyond " + envName + "'s maximum, so the owners were asked to approve it.";
                 return new Result(claims.type().name(), claims.environmentId(), message);
+            }
+            case CREATE_JIRA_TICKET -> {
+                securityService.assertCanAdminister(claims.environmentId());
+                if (jiraTickets == null) {
+                    throw new ValidationException("Jira is not available");
+                }
+                tokenService.markUsed(claims.jti(), userId);
+                com.tcgdigital.vmcontrol.service.jira.JiraTicketService.TicketResult ticket = jiraTickets.create(
+                        com.tcgdigital.vmcontrol.model.ExternalTicket.SourceType.ANOMALY, claims.targetId(), userId);
+                return new Result(claims.type().name(), claims.environmentId(), (ticket.created() ? "Created Jira " : "Already tracked as ")
+                        + ticket.issueKey() + ": " + ticket.url());
             }
             case SNOOZE_IDLE_STOP -> {
                 int hours = choice == null ? DEFAULT_SNOOZE_HOURS : choice;

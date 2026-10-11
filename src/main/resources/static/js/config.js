@@ -128,6 +128,13 @@ const Config = (function() {
         },
 
         // Teams (E23)
+        // Jira tickets from recommendations and anomalies (E24-T07)
+        integrations: {
+            jiraStatus: `${API_BASE_URL}/integrations/jira/status`,
+            jiraCreate: `${API_BASE_URL}/integrations/jira/tickets`,
+            jiraTickets: (type, ids) => `${API_BASE_URL}/integrations/jira/tickets?sourceType=${encodeURIComponent(type)}`
+                + `&sourceIds=${encodeURIComponent(ids.join(','))}`
+        },
         // One-click Teams action links (E24-T04)
         chatActions: {
             item: (token) => `${API_BASE_URL}/chat-actions/${encodeURIComponent(token)}`

@@ -1000,7 +1000,8 @@ const CostManagement = (function() {
         }
         return rows.map(row => `
             <tr>
-                <td class="cost-vm-cell" title="${Utils.escapeHtml(row.environmentName || 'Unknown environment')}">${Utils.escapeHtml(row.vmName || row.vmId)}</td>
+                <td class="cost-vm-cell" title="${Utils.escapeHtml(row.environmentName || 'Unknown environment')}">${Utils.escapeHtml(row.vmName || row.vmId)}
+                    ${typeof JiraTickets !== 'undefined' ? '<div>' + JiraTickets.cell('IDLE', row.vmId, row.jiraKey, row.jiraUrl) + '</div>' : ''}</td>
                 <td>${Utils.escapeHtml(row.groupName || '-')}</td>
                 <td class="cost-num">${costCell(row.monthlyCost, row.costKnown)}</td>
                 <td class="cost-num">${row.latestCpuUtilization != null ? Number(row.latestCpuUtilization).toFixed(1) + '%' : '-'}</td>
@@ -1046,7 +1047,8 @@ const CostManagement = (function() {
                 <td class="cost-num">${row.peakCpuUtilization != null ? Number(row.peakCpuUtilization).toFixed(1) + '%' : '-'}</td>
                 <td class="cost-num">${costCell(row.currentMonthlyCost, true, row.priceApproximate)}</td>
                 <td class="cost-num">${row.estimatedMonthlySavings != null ? costCell(row.estimatedMonthlySavings, row.costKnown, row.priceApproximate) : '<span class="text-muted">Unknown</span>'}</td>
-                <td>${buildRightsizingApplyButton(row)}</td>
+                <td>${buildRightsizingApplyButton(row)}
+                    ${typeof JiraTickets !== 'undefined' ? '<div class="mt-1">' + JiraTickets.cell('RIGHTSIZING', row.vmId, row.jiraKey, row.jiraUrl) + '</div>' : ''}</td>
             </tr>
         `).join('');
     }

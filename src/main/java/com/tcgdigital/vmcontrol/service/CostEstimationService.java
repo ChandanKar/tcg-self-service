@@ -180,11 +180,39 @@ public class CostEstimationService {
                 .sorted(Comparator.comparing((VmCostBundle b) -> b.estimate().cost()).reversed())
                 .map(this::toIdleWasteRow)
                 .toList();
-        return paginate(rows, pageable);
+        Page<IdleWasteRowDTO> page = paginate(rows, pageable);
+        Map<String, com.tcgdigital.vmcontrol.model.ExternalTicket> tickets = jiraTickets(
+                com.tcgdigital.vmcontrol.model.ExternalTicket.SourceType.IDLE, page.getContent().stream().map(IdleWasteRowDTO::vmId).toList());
+        return tickets.isEmpty() ? page : page.map(r -> {
+            com.tcgdigital.vmcontrol.model.ExternalTicket t = tickets.get(r.vmId());
+            return t == null ? r : r.withJira(t.getIssueKey(), t.getUrl());
+        });
     }
 
     public Page<RightsizingCandidateDTO> getRightsizingCandidates(Pageable pageable) {
-        return paginate(buildRightsizingCandidates(buildBundles()), pageable);
+        Page<RightsizingCandidateDTO> page = paginate(buildRightsizingCandidates(buildBundles()), pageable);
+        Map<String, com.tcgdigital.vmcontrol.model.ExternalTicket> tickets = jiraTickets(
+                com.tcgdigital.vmcontrol.model.ExternalTicket.SourceType.RIGHTSIZING,
+                page.getContent().stream().map(RightsizingCandidateDTO::vmId).toList());
+        return tickets.isEmpty() ? page : page.map(r -> {
+            com.tcgdigital.vmcontrol.model.ExternalTicket t = tickets.get(r.vmId());
+            return t == null ? r : r.withJira(t.getIssueKey(), t.getUrl());
+        });
+    }
+
+    /** Jira tickets (E24-T07) for one page of sources, in one query; empty without the repository. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.repository.ExternalTicketRepository externalTicketRepository;
+
+    private Map<String, com.tcgdigital.vmcontrol.model.ExternalTicket> jiraTickets(
+            com.tcgdigital.vmcontrol.model.ExternalTicket.SourceType type, List<String> vmIds) {
+        if (externalTicketRepository == null || vmIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, com.tcgdigital.vmcontrol.model.ExternalTicket> out = new java.util.HashMap<>();
+        externalTicketRepository.findBySourceTypeAndSystemAndSourceIdIn(type, "JIRA", vmIds)
+                .forEach(t -> out.put(t.getSourceId(), t));
+        return out;
     }
 
     public Page<VmCostDetailDTO> getVmCostDetail(Pageable pageable) {

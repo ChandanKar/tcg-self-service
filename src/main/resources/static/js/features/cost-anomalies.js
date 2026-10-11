@@ -46,7 +46,8 @@ const CostAnomalies = (function() {
                     ? Utils.html`<div class="small text-muted">expected ${money(a.totalExpected)}</div>` : '')}</td>
                 <td data-label="When">${dates(a)}</td>
                 <td data-label="Top cause">${a.topCause || '—'}</td>
-                <td data-label="Verdict">${Utils.raw(feedbackCell(a))}</td>
+                <td data-label="Verdict">${Utils.raw(feedbackCell(a))}${Utils.raw(typeof JiraTickets !== 'undefined' && a.environmentId
+                    ? '<div class="mt-1">' + JiraTickets.cell('ANOMALY', a.anomalyId) + '</div>' : '')}</td>
             </tr>`).join('')
             : Utils.html`<tr><td colspan="${showEnvironment ? 5 : 4}" class="text-muted text-center py-3">${emptyText}</td></tr>`;
         return `<div class="table-responsive"><table class="table table-sm table-cards mb-0 anomaly-table">

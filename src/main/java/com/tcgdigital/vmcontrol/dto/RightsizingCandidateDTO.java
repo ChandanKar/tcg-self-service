@@ -40,8 +40,28 @@ public record RightsizingCandidateDTO(
         String direction,
         String vmStatus,
         /** The current or the suggested rate is another region's (E08-T07). */
-        Boolean priceApproximate
+        Boolean priceApproximate,
+        /** The Jira issue tracking this recommendation, if any (E24-T07). */
+        String jiraKey,
+        String jiraUrl
 ) {
+    public RightsizingCandidateDTO(String vmId, String vmName, String environmentId, String environmentName,
+                                   String currentInstanceType, String suggestedInstanceType,
+                                   BigDecimal avgCpuUtilization, BigDecimal peakCpuUtilization,
+                                   BigDecimal currentMonthlyCost, BigDecimal estimatedMonthlyCostAfter,
+                                   BigDecimal estimatedMonthlySavings, Boolean costKnown, String source,
+                                   String findingLevel, String direction, String vmStatus, Boolean priceApproximate) {
+        this(vmId, vmName, environmentId, environmentName, currentInstanceType, suggestedInstanceType,
+                avgCpuUtilization, peakCpuUtilization, currentMonthlyCost, estimatedMonthlyCostAfter,
+                estimatedMonthlySavings, costKnown, source, findingLevel, direction, vmStatus, priceApproximate, null, null);
+    }
+
+    public RightsizingCandidateDTO withJira(String key, String url) {
+        return new RightsizingCandidateDTO(vmId, vmName, environmentId, environmentName, currentInstanceType,
+                suggestedInstanceType, avgCpuUtilization, peakCpuUtilization, currentMonthlyCost, estimatedMonthlyCostAfter,
+                estimatedMonthlySavings, costKnown, source, findingLevel, direction, vmStatus, priceApproximate, key, url);
+    }
+
     public RightsizingCandidateDTO(String vmId, String vmName, String environmentId, String environmentName,
                                    String currentInstanceType, String suggestedInstanceType,
                                    BigDecimal avgCpuUtilization, BigDecimal peakCpuUtilization,

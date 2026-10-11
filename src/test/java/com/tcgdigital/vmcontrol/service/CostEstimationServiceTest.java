@@ -210,6 +210,29 @@ class CostEstimationServiceTest {
     }
 
     @Test
+    void idleRowsCarryTheirJiraTicketFromOneBatchedLookup() {
+        com.tcgdigital.vmcontrol.model.VmIdleSummary idle = new com.tcgdigital.vmcontrol.model.VmIdleSummary();
+        Vm vm = buildAwsVm();
+        idle.setVm(vm);
+        idle.setIdle(true);
+        idle.setIdleDurationMinutes(600);
+        when(vmIdleSummaryRepository.findByVmVmIdIn(anyList())).thenReturn(List.of(idle));
+        com.tcgdigital.vmcontrol.repository.ExternalTicketRepository tickets =
+                org.mockito.Mockito.mock(com.tcgdigital.vmcontrol.repository.ExternalTicketRepository.class);
+        when(tickets.findBySourceTypeAndSystemAndSourceIdIn(org.mockito.ArgumentMatchers.eq(
+                com.tcgdigital.vmcontrol.model.ExternalTicket.SourceType.IDLE), org.mockito.ArgumentMatchers.eq("JIRA"), anyList()))
+                .thenReturn(List.of(new com.tcgdigital.vmcontrol.model.ExternalTicket("t-1",
+                        com.tcgdigital.vmcontrol.model.ExternalTicket.SourceType.IDLE, vm.getVmId(), "JIRA", "OPS-9",
+                        "https://acme.atlassian.net/browse/OPS-9", null, null, null)));
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "externalTicketRepository", tickets);
+
+        com.tcgdigital.vmcontrol.dto.IdleWasteRowDTO row = service.getIdleWaste(PageRequest.of(0, 25)).getContent().get(0);
+        assertEquals("OPS-9", row.jiraKey());
+        assertEquals("https://acme.atlassian.net/browse/OPS-9", row.jiraUrl());
+        org.mockito.Mockito.verify(tickets, org.mockito.Mockito.times(1)).findBySourceTypeAndSystemAndSourceIdIn(any(), any(), anyList());
+    }
+
+    @Test
     void idleWasteKpiIsTheSumOfTheTablesMonthlyIdleCost() {
         com.tcgdigital.vmcontrol.model.VmIdleSummary idle = new com.tcgdigital.vmcontrol.model.VmIdleSummary();
         idle.setVm(buildAwsVm());

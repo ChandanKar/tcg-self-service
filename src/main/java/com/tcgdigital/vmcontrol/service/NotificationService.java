@@ -81,6 +81,9 @@ public class NotificationService {
     @Value("${chat.actions.stop-enabled:false}")
     private boolean chatStopActionsEnabled;
 
+    @Value("${jira.enabled:false}")
+    private boolean jiraEnabled;
+
     void setChatDispatch(com.tcgdigital.vmcontrol.service.chat.ChatDispatchService chat) {
         this.chat = chat;
     }
@@ -413,7 +416,21 @@ public class NotificationService {
         List<User> recipients = environmentId == null ? userRepository.findByAdminTrueAndIsActiveTrue()
                 : resolveEnvironmentReviewers(environmentId);
         recipients.forEach(u -> create(u.getUserId(), NotificationType.COST_ANOMALY, title, message, "COST_ANOMALY", anomalyId));
-        toChat(environmentId, NotificationType.COST_ANOMALY, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.WARNING, title, message, "COST_ANOMALY:" + anomalyId);
+        if (chat != null) {
+            try {
+                // Opens the environment; 'Create ticket' (Jira on, environment known) is a one-click link (E24-T07).
+                chat.notifyWithActions(environmentId, NotificationType.COST_ANOMALY,
+                        com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.WARNING, title, message,
+                        environmentId == null ? "#/cost-management" : null,
+                        jiraEnabled && environmentId != null
+                                ? List.of(new com.tcgdigital.vmcontrol.service.chat.ChatDispatchService.ActionSpec(
+                                        com.tcgdigital.vmcontrol.model.ChatActionType.CREATE_JIRA_TICKET, "Create ticket", anomalyId, null))
+                                : List.of(),
+                        "COST_ANOMALY:" + anomalyId);
+            } catch (RuntimeException e) {
+                log.warn("Could not send the cost anomaly to chat: {}", e.getClass().getSimpleName());
+            }
+        }
         if (emailCostAnomalyEnabled) {
             try {
                 sendEventEmail(recipients, title, message);

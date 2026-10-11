@@ -152,4 +152,22 @@ class ChatActionServiceTest {
         verify(snoozes, never()).snooze(anyString(), anyInt(), any(), any());
         verify(tokens, never()).markUsed(anyString(), anyString());
     }
+
+    @Test
+    void createJiraTicketCreatesOnceAndReportsAnExistingOne() {
+        when(tokens.verify("t")).thenReturn(new ChatActionTokenService.Claims("jti-1", ChatActionType.CREATE_JIRA_TICKET, ENV,
+                "an-1", Instant.now().plusSeconds(600)));
+        com.tcgdigital.vmcontrol.service.jira.JiraTicketService jira = mock(com.tcgdigital.vmcontrol.service.jira.JiraTicketService.class);
+        service.setJiraTickets(jira);
+        when(jira.create(com.tcgdigital.vmcontrol.model.ExternalTicket.SourceType.ANOMALY, "an-1", "user-1"))
+                .thenReturn(new com.tcgdigital.vmcontrol.service.jira.JiraTicketService.TicketResult("ANOMALY", "an-1", "PLAT-7",
+                        "https://acme.atlassian.net/browse/PLAT-7", true))
+                .thenReturn(new com.tcgdigital.vmcontrol.service.jira.JiraTicketService.TicketResult("ANOMALY", "an-1", "PLAT-7",
+                        "https://acme.atlassian.net/browse/PLAT-7", false));
+
+        assertThat(service.preview("t").confirmLabel()).isEqualTo("Create ticket");
+        assertThat(service.execute("t", "user-1", null).message()).isEqualTo("Created Jira PLAT-7: https://acme.atlassian.net/browse/PLAT-7");
+        assertThat(service.execute("t", "user-1", null).message()).startsWith("Already tracked as PLAT-7");
+        verify(tokens, times(2)).markUsed("jti-1", "user-1");
+    }
 }
