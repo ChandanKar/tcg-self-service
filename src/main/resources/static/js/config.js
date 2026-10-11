@@ -127,6 +127,16 @@ const Config = (function() {
             acknowledge: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}/acknowledge`
         },
 
+        // Waste sweeps (E22)
+        waste: {
+            summary: `${API_BASE_URL}/waste/summary`,
+            findings: `${API_BASE_URL}/waste/findings`,
+            dismiss: (id) => `${API_BASE_URL}/waste/findings/${encodeURIComponent(id)}/dismiss`,
+            reopen: (id) => `${API_BASE_URL}/waste/findings/${encodeURIComponent(id)}/reopen`,
+            sweep: `${API_BASE_URL}/waste/sweep`,
+            export: `${API_BASE_URL}/waste/findings/export`
+        },
+
         // Cost anomalies (E21)
         costAnomalies: {
             list: (days) => `${API_BASE_URL}/cost-anomalies?days=${days}&size=100`,

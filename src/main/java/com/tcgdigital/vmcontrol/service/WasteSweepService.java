@@ -135,6 +135,101 @@ public class WasteSweepService {
         return new SweepResult(true, found, failures);
     }
 
+    // ============= Findings for the Waste page (E22-T03) =============
+
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<com.tcgdigital.vmcontrol.dto.WasteFindingDTO> findings(
+            WasteFindingType type, String region, WasteFindingStatus status, String environmentId,
+            org.springframework.data.domain.Pageable pageable) {
+        Map<String, String> names = environmentNames();
+        return findingRepository.search(type, blankToNull(region), status, blankToNull(environmentId), pageable)
+                .map(f -> toDto(f, names));
+    }
+
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public com.tcgdigital.vmcontrol.dto.WasteSummaryDTO summary() {
+        List<com.tcgdigital.vmcontrol.dto.WasteSummaryDTO.TypeTotal> byType = new java.util.ArrayList<>();
+        int count = 0;
+        BigDecimal total = BigDecimal.ZERO;
+        for (Object[] row : findingRepository.totalsByType(WasteFindingStatus.OPEN)) {
+            long n = ((Number) row[1]).longValue();
+            BigDecimal monthly = row[2] == null ? BigDecimal.ZERO : (BigDecimal) row[2];
+            byType.add(new com.tcgdigital.vmcontrol.dto.WasteSummaryDTO.TypeTotal((WasteFindingType) row[0], n, monthly));
+            count += (int) n;
+            total = total.add(monthly);
+        }
+        byType.sort(java.util.Comparator.comparing(t -> t.type().ordinal()));
+        return new com.tcgdigital.vmcontrol.dto.WasteSummaryDTO(enabled, count, total, byType);
+    }
+
+    /** An admin decides a finding is not waste; sweeps leave it alone. */
+    @org.springframework.transaction.annotation.Transactional
+    public com.tcgdigital.vmcontrol.dto.WasteFindingDTO dismiss(String findingId, String userId, String reason) {
+        if (reason == null || reason.isBlank()) {
+            throw new com.tcgdigital.vmcontrol.exception.ValidationException("A reason is required to dismiss a finding");
+        }
+        WasteFinding f = finding(findingId);
+        if (f.getStatus() != WasteFindingStatus.OPEN) {
+            throw new com.tcgdigital.vmcontrol.exception.ValidationException("Only an open finding can be dismissed");
+        }
+        f.setStatus(WasteFindingStatus.DISMISSED);
+        f.setDismissedBy(userId);
+        f.setDismissedReason(reason.trim().length() > 500 ? reason.trim().substring(0, 500) : reason.trim());
+        findingRepository.save(f);
+        auditService.logAction(userId, com.tcgdigital.vmcontrol.model.AuditAction.WASTE_FINDING_DISMISSED, "waste_finding",
+                findingId, f.getFindingType() + " " + f.getResourceId(), "Dismissed: " + f.getDismissedReason());
+        return toDto(f, environmentNames());
+    }
+
+    @org.springframework.transaction.annotation.Transactional
+    public com.tcgdigital.vmcontrol.dto.WasteFindingDTO reopen(String findingId, String userId) {
+        WasteFinding f = finding(findingId);
+        if (f.getStatus() != WasteFindingStatus.DISMISSED) {
+            throw new com.tcgdigital.vmcontrol.exception.ValidationException("Only a dismissed finding can be reopened");
+        }
+        f.setStatus(WasteFindingStatus.OPEN);
+        f.setDismissedBy(null);
+        f.setDismissedReason(null);
+        findingRepository.save(f);
+        auditService.logAction(userId, com.tcgdigital.vmcontrol.model.AuditAction.WASTE_FINDING_REOPENED, "waste_finding",
+                findingId, f.getFindingType() + " " + f.getResourceId(), "Reopened");
+        return toDto(f, environmentNames());
+    }
+
+    /** Rows for the Excel export: every finding matching the filters (at most 5,000). */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public List<Object[]> exportRows(WasteFindingType type, String region, WasteFindingStatus status, String environmentId) {
+        return findings(type, region, status, environmentId,
+                org.springframework.data.domain.PageRequest.of(0, 5000, org.springframework.data.domain.Sort.by(
+                        org.springframework.data.domain.Sort.Direction.DESC, "estMonthlyCost"))).stream()
+                .map(f -> new Object[] {f.findingType().name(), f.region(), f.resourceId(), f.resourceName(), f.environmentName(),
+                        f.estMonthlyCost(), f.status().name(), f.eligibleSince() == null ? null : f.eligibleSince().toInstant().toString(),
+                        f.lastSeenAt() == null ? null : f.lastSeenAt().toInstant().toString(), f.dismissedReason()})
+                .toList();
+    }
+
+    private WasteFinding finding(String findingId) {
+        return findingRepository.findById(findingId)
+                .orElseThrow(() -> new com.tcgdigital.vmcontrol.exception.ResourceNotFoundException("WasteFinding", findingId));
+    }
+
+    private Map<String, String> environmentNames() {
+        return environmentRepository.findAll().stream().collect(Collectors.toMap(Environment::getEnvironmentId,
+                e -> e.getDisplayName() != null ? e.getDisplayName() : e.getName()));
+    }
+
+    private static com.tcgdigital.vmcontrol.dto.WasteFindingDTO toDto(WasteFinding f, Map<String, String> names) {
+        return new com.tcgdigital.vmcontrol.dto.WasteFindingDTO(f.getFindingId(), f.getFindingType(), f.getRegion(),
+                f.getResourceId(), f.getResourceName(), f.getEnvironmentId(),
+                f.getEnvironmentId() == null ? null : names.get(f.getEnvironmentId()), f.getVmId(), f.getDetails(),
+                f.getEstMonthlyCost(), f.getStatus(), f.getFirstSeenAt(), f.getLastSeenAt(), f.getEligibleSince(),
+                f.getDismissedBy(), f.getDismissedReason());
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
     List<String> regions() {
         List<String> list = Arrays.stream(regions == null ? new String[0] : regions.split(","))
                 .map(String::trim).filter(s -> !s.isEmpty()).distinct().toList();

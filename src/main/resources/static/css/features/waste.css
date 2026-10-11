@@ -1,0 +1,33 @@
+/*
+ * Waste page (E22-T03): the per-type cards act as filters.
+ */
+.waste-total strong {
+    font-size: 1.4rem;
+}
+
+.waste-cards {
+    margin-bottom: 0.75rem;
+}
+
+.waste-card {
+    text-align: left;
+    border: 1px solid var(--border-color, #e2e8f0);
+    background: var(--card-bg, #fff);
+    cursor: pointer;
+}
+
+.waste-card.active {
+    border-color: var(--primary-color, #2563eb);
+    box-shadow: 0 0 0 1px var(--primary-color, #2563eb) inset;
+}
+
+.waste-card:focus-visible {
+    outline: 2px solid var(--primary-color, #2563eb);
+    outline-offset: 2px;
+}
+
+.waste-filters .form-select,
+.waste-filters .form-control {
+    width: auto;
+    min-width: 10rem;
+}

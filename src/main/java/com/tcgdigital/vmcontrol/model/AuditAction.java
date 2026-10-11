@@ -102,6 +102,10 @@ public enum AuditAction {
     /** An owner said whether a cost anomaly was real (E21-T03). */
     COST_ANOMALY_FEEDBACK,
 
+    // Waste sweeps (E22)
+    WASTE_FINDING_DISMISSED,
+    WASTE_FINDING_REOPENED,
+
     // Idle auto-stop (E16)
     IDLE_STOP_RULE_CHANGED,
     IDLE_STOP_TRIGGERED,
