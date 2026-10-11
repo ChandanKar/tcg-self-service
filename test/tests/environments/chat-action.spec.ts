@@ -46,6 +46,30 @@ test.describe('Teams action confirm page', () => {
     await expect(page.locator('#chat-action-done + a')).toHaveAttribute('href', '#/environments/env-1');
   });
 
+  test('an extend link offers a duration and sends the chosen one (E24-T05)', async ({ page }) => {
+    let sent: any = 'none';
+    await page.route(/\/api\/v1\/chat-actions\/[^/]+$/, route => {
+      if (route.request().method() === 'POST') {
+        sent = route.request().postDataJSON();
+        return route.fulfill({ status: 200, contentType: 'application/json',
+          body: JSON.stringify({ type: 'EXTEND_LEASE', environmentId: 'env-1', message: 'Dev QA now runs until 14:15 UTC.' }) });
+      }
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        type: 'EXTEND_LEASE', environmentId: 'env-1', environmentName: 'Dev QA',
+        description: 'Keep Dev QA running longer. It now stops at 10:15 UTC; 2 hours more would be 12:15 UTC.',
+        confirmLabel: 'Extend', expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+        choices: [60, 120, 240], defaultChoice: 120, choiceUnit: 'minutes' }) });
+    });
+    await open(page);
+    const choice = page.locator('#chat-action-choice');
+    await expect(choice).toHaveValue('120', { timeout: 15_000 });
+    await expect(choice.locator('option')).toHaveText(['1 hour', '2 hours', '4 hours']);
+    await choice.selectOption('240');
+    await page.locator('#chat-action-confirm').click();
+    await expect(page.locator('#chat-action-done')).toContainText('now runs until 14:15 UTC');
+    expect(sent).toEqual({ choice: 240 });
+  });
+
   test('a used link explains itself', async ({ page }) => {
     await page.route(/\/api\/v1\/chat-actions\/[^/]+$/, route => route.fulfill({ status: 409, contentType: 'application/json',
       body: JSON.stringify({ status: 409, message: 'This link was already used' }) }));

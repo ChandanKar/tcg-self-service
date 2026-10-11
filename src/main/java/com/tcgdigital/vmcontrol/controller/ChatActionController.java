@@ -31,9 +31,12 @@ public class ChatActionController {
         return actionService.preview(token);
     }
 
+    /** Optional: minutes (extend lease) or hours (snooze idle stop). */
+    public record ExecuteRequest(Integer choice) {}
+
     @PostMapping("/{token}")
     @Operation(summary = "Run the action as the signed-in user; the link then stops working")
-    public ChatActionService.Result execute(@PathVariable String token) {
-        return actionService.execute(token, userService.getCurrentUserId());
+    public ChatActionService.Result execute(@PathVariable String token, @RequestBody(required = false) ExecuteRequest body) {
+        return actionService.execute(token, userService.getCurrentUserId(), body == null ? null : body.choice());
     }
 }

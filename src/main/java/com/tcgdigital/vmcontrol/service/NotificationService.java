@@ -476,11 +476,27 @@ public class NotificationService {
                 + " min). Extend it from the environment page.";
         boolean created = createIfAbsentSince(userId, NotificationType.LEASE_EXPIRING, title, message,
                 "ENVIRONMENT", environmentId, dedupSince);
-        if (created) {
-            toChat(environmentId, NotificationType.LEASE_EXPIRING, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.WARNING, title,
-                    "\"" + environmentName + "\" stops at " + formatTime(endsAt) + " (in " + minutesLeft
-                            + " min) unless someone extends it from the environment page.",
-                    "LEASE_EXPIRING:" + environmentId + ":" + (endsAt == null ? "" : endsAt.getTime()));
+        if (created && chat != null) {
+            try {
+                // One message per warning window (60/15/5 min) however many participants there are;
+                // 'Extend 2h' is a one-click link valid until the lease ends (at least 5 minutes) (E24-T05).
+                java.time.Duration ttl = endsAt == null ? java.time.Duration.ofMinutes(5)
+                        : java.time.Duration.between(java.time.Instant.now(), endsAt.toInstant());
+                if (ttl.compareTo(java.time.Duration.ofMinutes(5)) < 0) {
+                    ttl = java.time.Duration.ofMinutes(5);
+                }
+                chat.notifyWithActions(environmentId, NotificationType.LEASE_EXPIRING,
+                        com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.WARNING, title,
+                        "\"" + environmentName + "\" stops at " + formatTime(endsAt) + " (in " + minutesLeft
+                                + " min) unless someone extends it.",
+                        null,
+                        List.of(new com.tcgdigital.vmcontrol.service.chat.ChatDispatchService.ActionSpec(
+                                com.tcgdigital.vmcontrol.model.ChatActionType.EXTEND_LEASE, "Extend 2h", null, "primary", ttl)),
+                        "LEASE_EXPIRING:" + environmentId + ":" + (endsAt == null ? "" : endsAt.getTime())
+                                + ":" + (dedupSince == null ? "" : dedupSince.getTime()));
+            } catch (RuntimeException e) {
+                log.warn("Could not send the lease warning to chat: {}", e.getClass().getSimpleName());
+            }
         }
         if (created && emailLeaseExpiringEnabled) {
             sendEventEmailToUser(userId, title, message);

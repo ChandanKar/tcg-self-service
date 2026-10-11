@@ -340,9 +340,15 @@ class NotificationServiceTest {
                 mock(com.tcgdigital.vmcontrol.service.chat.ChatDispatchService.class);
         service.setChatDispatch(chat);
         Timestamp ends = new Timestamp(1_800_000_000_000L);
-        service.notifyLeaseExpiring("user-regular", "env-A", "Env A", ends, 30, new Timestamp(0));
-        verify(chat).notify(eq("env-A"), eq(com.tcgdigital.vmcontrol.model.NotificationType.LEASE_EXPIRING), any(),
-                anyString(), anyString(), eq("LEASE_EXPIRING:env-A:1800000000000"));
+        service.notifyLeaseExpiring("user-regular", "env-A", "Env A", ends, 30, new Timestamp(1_799_999_100_000L));
+        ArgumentCaptor<List<com.tcgdigital.vmcontrol.service.chat.ChatDispatchService.ActionSpec>> actions =
+                ArgumentCaptor.forClass(List.class);
+        // The key carries the warning window, so the 60, 15 and 5-minute warnings each reach chat once.
+        verify(chat).notifyWithActions(eq("env-A"), eq(com.tcgdigital.vmcontrol.model.NotificationType.LEASE_EXPIRING), any(),
+                anyString(), anyString(), eq(null), actions.capture(), eq("LEASE_EXPIRING:env-A:1800000000000:1799999100000"));
+        assertEquals(com.tcgdigital.vmcontrol.model.ChatActionType.EXTEND_LEASE, actions.getValue().get(0).type());
+        assertEquals("Extend 2h", actions.getValue().get(0).label());
+        assertTrue(actions.getValue().get(0).ttl().toMinutes() >= 5);
     }
 
     @Test

@@ -88,8 +88,10 @@ class ChatActionControllerIntegrationTest extends SecuredWebTestBase {
         expectError(mockMvc.perform(post(URL + expired).with(asAdmin())), 400);
         String token = approveLink();
         expectError(mockMvc.perform(post(URL + token.substring(0, token.length() - 2) + "xx").with(asAdmin())), 400);
+        // E24-T05: an extend link for an environment whose lease already ended explains that.
         String lease = tokens.issue(ChatActionType.EXTEND_LEASE, env.getEnvironmentId(), null);
-        expectError(mockMvc.perform(post(URL + lease).with(asAdmin())), 400);
+        expectError(mockMvc.perform(post(URL + lease).with(asAdmin())), 409)
+                .andExpect(jsonPath("$.message").value("The lease on Payments QA already ended, so there is nothing to extend"));
         assertThat(accessService.getAccessRequest(request.getRequestId()).getStatus().name()).isEqualTo("PENDING");
     }
 

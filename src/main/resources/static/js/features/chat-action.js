@@ -9,10 +9,19 @@ const ChatActionPage = (function() {
     const QUIET = { suppressGlobalError: true };
     let pageToken = null;
 
-    function call(method, url) {
+    function call(method, url, data) {
         return new Promise((resolve, reject) => {
-            ApiClient.request(method, url, null, QUIET).done(resolve).fail(reject);
+            ApiClient.request(method, url, data || null, QUIET).done(resolve).fail(reject);
         });
+    }
+
+    /** "2 hours" / "30 minutes" for the duration picker (E24-T05). */
+    function choiceLabel(value, unit) {
+        if (unit === 'minutes' && value % 60 === 0) {
+            const h = value / 60;
+            return h + (h === 1 ? ' hour' : ' hours');
+        }
+        return value + ' ' + (value === 1 ? unit.replace(/s$/, '') : unit);
     }
 
     function failure(e) {
@@ -45,6 +54,11 @@ const ChatActionPage = (function() {
                 $('#chat-action-body').html(Utils.html`
                     <p class="mb-1 text-muted small">${preview.environmentName}</p>
                     <p class="fs-5 mb-3" id="chat-action-description">${preview.description}</p>
+                    ${Utils.raw(preview.choices && preview.choices.length ? Utils.html`<div class="mb-3">
+                        <label class="form-label" for="chat-action-choice">${preview.type === 'EXTEND_LEASE' ? 'Extend by' : 'Snooze for'}</label>
+                        <select class="form-select chat-action-choice" id="chat-action-choice">${Utils.raw(preview.choices.map(c =>
+                            `<option value="${c}" ${c === preview.defaultChoice ? 'selected' : ''}>${Utils.escapeHtml(choiceLabel(c, preview.choiceUnit))}</option>`).join(''))}</select>
+                    </div>` : '')}
                     <p class="small text-muted">You act as yourself: the same checks as in the app apply. The link works once.</p>
                     <div class="d-flex gap-2 flex-wrap">
                         <button type="button" class="btn ${preview.type === 'STOP_ENVIRONMENT' ? 'btn-danger' : 'btn-primary'}"
@@ -66,7 +80,8 @@ const ChatActionPage = (function() {
         const token = $(el).data('token');
         const nav = pageToken;
         $(el).prop('disabled', true);
-        call('POST', Config.API.chatActions.item(token))
+        const $choice = $('#chat-action-choice');
+        call('POST', Config.API.chatActions.item(token), $choice.length ? { choice: Number($choice.val()) } : null)
             .then(result => {
                 if (!ContentRouter.isCurrent(nav)) return;
                 $('#chat-action-body').html(Utils.html`<div class="alert alert-success mb-3" role="status" id="chat-action-done">

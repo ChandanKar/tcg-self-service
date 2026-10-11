@@ -72,7 +72,12 @@ public class ChatDispatchService {
     }
 
     /** A button to add (E24-T04): it becomes a signed one-click link when links can be made. */
-    public record ActionSpec(com.tcgdigital.vmcontrol.model.ChatActionType type, String label, String targetId, String style) {}
+    public record ActionSpec(com.tcgdigital.vmcontrol.model.ChatActionType type, String label, String targetId, String style,
+                             java.time.Duration ttl) {
+        public ActionSpec(com.tcgdigital.vmcontrol.model.ChatActionType type, String label, String targetId, String style) {
+            this(type, label, targetId, style, null);
+        }
+    }
 
     /**
      * Like {@link #notify(String, NotificationType, ChatMessage.Severity, String, String, String)}
@@ -88,7 +93,8 @@ public class ChatDispatchService {
         if (appLink("") != null && actionTokens != null && actionTokens.isConfigured()) {
             for (ActionSpec spec : actions) {
                 try {
-                    String token = actionTokens.issue(spec.type(), environmentId, spec.targetId());
+                    String token = spec.ttl() == null ? actionTokens.issue(spec.type(), environmentId, spec.targetId())
+                            : actionTokens.issue(spec.type(), environmentId, spec.targetId(), spec.ttl());
                     buttons.add(new ChatAction(spec.type(), spec.label(), appLink("#/chat-action/" + token), spec.style()));
                 } catch (RuntimeException e) {
                     log.warn("Could not create a {} chat link: {}", spec.type(), e.getClass().getSimpleName());
