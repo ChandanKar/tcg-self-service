@@ -71,6 +71,27 @@ class AwsClientFactoryTest {
     }
 
     @Test
+    void clientsAreCachedPerAccountAndAnEvictedAccountGetsFreshOnes() {
+        AwsClientFactory f = factory("AKIA-test", "secret", false);
+        AwsAccountCredentialsResolver resolver = org.mockito.Mockito.mock(AwsAccountCredentialsResolver.class);
+        org.mockito.Mockito.when(resolver.forAccount("acct-b")).thenReturn(f.baseCredentials());
+        org.springframework.beans.factory.support.StaticListableBeanFactory beans = new org.springframework.beans.factory.support.StaticListableBeanFactory();
+        beans.addBean("resolver", resolver);
+        ReflectionTestUtils.setField(f, "resolverProvider", beans.getBeanProvider(AwsAccountCredentialsResolver.class));
+
+        Ec2Client a = f.ec2("acct-a", "eu-west-1");
+        Ec2Client b = f.ec2("acct-b", "eu-west-1");
+        assertThat(a).isNotSameAs(b);
+        assertThat(f.ec2("acct-a", "eu-west-1")).isSameAs(a);
+        assertThat(f.ec2(null, "eu-west-1")).isSameAs(f.ec2("eu-west-1")); // null ref = default account
+
+        f.evict("acct-b");
+        assertThat(f.ec2("acct-b", "eu-west-1")).isNotSameAs(b);
+        assertThat(f.ec2("acct-a", "eu-west-1")).isSameAs(a);
+        org.mockito.Mockito.verify(resolver).evict("acct-b");
+    }
+
+    @Test
     void closeAllIsIdempotentAndLaterCallsBuildFreshClients() {
         AwsClientFactory f = factory("AKIA-test", "secret", false);
         Ec2Client before = f.ec2("eu-west-1");
