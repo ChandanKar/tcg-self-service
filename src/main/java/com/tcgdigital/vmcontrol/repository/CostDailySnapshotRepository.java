@@ -34,6 +34,11 @@ public interface CostDailySnapshotRepository extends JpaRepository<CostDailySnap
            "ORDER BY c.snapshotDate ASC")
     List<CostDailySnapshot> findWithEnvironmentSince(@Param("sinceDate") Date sinceDate);
 
+    /** Every snapshot in [start, end] with its environment and team, for the monthly chargeback (E23-T06). */
+    @Query("SELECT c FROM CostDailySnapshot c JOIN FETCH c.environment e LEFT JOIN FETCH e.team "
+            + "WHERE c.snapshotDate BETWEEN :start AND :end")
+    List<CostDailySnapshot> findWithEnvironmentAndTeamBetween(@Param("start") Date start, @Param("end") Date end);
+
     /** Days in [start, end] that have an actual cost (savings estimate-quality check, E17-T06). */
     @Query("SELECT c FROM CostDailySnapshot c JOIN FETCH c.environment WHERE c.snapshotDate BETWEEN :start AND :end "
             + "AND c.actualCost IS NOT NULL")

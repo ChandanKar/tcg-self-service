@@ -290,6 +290,44 @@ public class CostManagementController {
                 .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
+    // ============= Chargeback (E23-T06) =============
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.tcgdigital.vmcontrol.service.ChargebackService chargebackService;
+
+    /** Last month, the usual statement, when no month is given. */
+    private static java.time.YearMonth chargebackMonth(String month) {
+        return month == null || month.isBlank() ? java.time.YearMonth.now().minusMonths(1)
+                : com.tcgdigital.vmcontrol.service.ChargebackService.parseMonth(month);
+    }
+
+    @GetMapping("/chargeback")
+    @PreAuthorize("hasRole('ADMIN')")
+    public com.tcgdigital.vmcontrol.dto.ChargebackDTO chargeback(@RequestParam(required = false) String month) {
+        return chargebackService.compute(chargebackMonth(month));
+    }
+
+    @GetMapping("/chargeback/export")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<byte[]> exportChargeback(@RequestParam(required = false) String month,
+                                                   @RequestParam(defaultValue = "xlsx") String format) {
+        com.tcgdigital.vmcontrol.dto.ChargebackDTO chargeback = chargebackService.compute(chargebackMonth(month));
+        String base = "chargeback-" + chargeback.month();
+        if ("csv".equalsIgnoreCase(format)) {
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + base + ".csv\"")
+                    .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                    .body(chargebackService.toCsv(chargeback));
+        }
+        if (!"xlsx".equalsIgnoreCase(format)) {
+            throw new com.tcgdigital.vmcontrol.exception.ValidationException("format must be xlsx or csv");
+        }
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + base + ".xlsx\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(chargebackService.toXlsx(chargeback));
+    }
+
     @GetMapping("/forecast")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<CostForecastDTO> getForecast(
