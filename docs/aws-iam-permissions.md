@@ -61,6 +61,9 @@ Run this (or the AWS Console's "Policy simulator" under IAM) before flipping any
 | **Budgets mirror** (`BUDGETS_AWS_SYNC_ENABLED`, off by default, E20-T06) | `budgets:ViewBudget` | ❓ Unverified | Needed only when mirroring app budgets to AWS Budgets |
 | Budgets mirror | `budgets:ModifyBudget` | ❓ Unverified | Create, update and delete of the mirrored budgets (names start with `tcg-`) |
 | Phase 4 | `budgets:CreateBudget` / `budgets:DescribeBudgets` | ❓ Unverified | Only needed if real AWS Budget resources are created (optional sub-feature) |
+| **EKS metrics** (`EKS_METRICS_ENABLED`, off by default, E26-T01) | `cloudwatch:GetMetricData` | ✅ Granted (used by metrics sync) | AWS/EC2 metrics by AutoScalingGroupName; with `EKS_METRICS_CONTAINER_INSIGHTS_ENABLED` also ContainerInsights `node_memory_utilization` |
+| **EKS split cost** (`EKS_SCAD_ENABLED`, off by default, E26-T04) | `athena:StartQueryExecution`, `athena:GetQueryExecution`, `athena:GetQueryResults`, `athena:StopQueryExecution` | ❓ Unverified | Daily query of the CUR 2.0 export's Athena table; needs Split Cost Allocation Data turned on in Data Exports |
+| EKS split cost | `glue:GetTable`, `glue:GetDatabase`, `glue:GetPartitions`; `s3:GetObject`, `s3:ListBucket` on the export bucket; `s3:PutObject`, `s3:GetBucketLocation` on the query output location | ❓ Unverified | Athena reads the export through the Glue catalog and writes results to `EKS_SCAD_ATHENA_OUTPUT_LOCATION` (or the workgroup's location) |
 
 ## Practical takeaway
 
@@ -119,6 +122,19 @@ One policy per feature (E08-T10). Grant only the ones you use; see
     "Action": ["ce:GetReservationCoverage", "ce:GetReservationUtilization", "ce:GetSavingsPlansCoverage", "ce:GetSavingsPlansUtilization"],
     "Resource": "*"
   }]
+}
+```
+
+**EKS split cost** (`EKS_SCAD_ENABLED`, off by default; Athena bills per data scanned):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Effect": "Allow", "Action": ["athena:StartQueryExecution", "athena:GetQueryExecution", "athena:GetQueryResults", "athena:StopQueryExecution"], "Resource": "*" },
+    { "Effect": "Allow", "Action": ["glue:GetTable", "glue:GetDatabase", "glue:GetPartitions"], "Resource": "*" },
+    { "Effect": "Allow", "Action": ["s3:GetObject", "s3:ListBucket", "s3:PutObject", "s3:GetBucketLocation"], "Resource": ["arn:aws:s3:::<export-bucket>", "arn:aws:s3:::<export-bucket>/*", "arn:aws:s3:::<athena-results-bucket>", "arn:aws:s3:::<athena-results-bucket>/*"] }
+  ]
 }
 ```
 

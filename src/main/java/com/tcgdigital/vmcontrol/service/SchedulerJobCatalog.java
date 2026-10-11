@@ -70,7 +70,9 @@ public class SchedulerJobCatalog {
             cron("approval_expiry", "Approval expiry (every 10 min)", "approvals.expiry-cron", "0 */10 * * * *",
                     "approvals.enabled", false),
             cron("quota_warnings", "Team quota warnings (hourly)", "quotas.warning-cron", "0 5 * * * *",
-                    "quotas.enabled", false));
+                    "quotas.enabled", false),
+            cron("eks_split_cost", "EKS split cost ingestion (daily)", "eks.scad.cron", "0 30 6 * * *",
+                    "eks.scad.enabled", false));
 
     /** A job as the health view needs it. */
     public record Job(String jobName, String label, Duration expectedInterval, boolean enabled) {

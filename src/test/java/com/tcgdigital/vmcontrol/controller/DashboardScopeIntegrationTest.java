@@ -54,7 +54,7 @@ class DashboardScopeIntegrationTest extends SecuredWebTestBase {
 
         mockMvc.perform(get("/api/v1/dashboard/summary").with(asUser()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.schedulerHealth.length()").value(26))
+                .andExpect(jsonPath("$.schedulerHealth.length()").value(27))
                 .andExpect(jsonPath("$.schedulerHealth[?(@.owner != null)]").isEmpty());
         mockMvc.perform(get("/api/v1/dashboard/summary").with(asAdmin()))
                 .andExpect(jsonPath("$.schedulerHealth[?(@.name == 'Metrics sync')].owner").value(

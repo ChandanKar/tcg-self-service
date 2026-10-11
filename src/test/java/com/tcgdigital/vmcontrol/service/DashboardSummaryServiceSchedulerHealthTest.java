@@ -54,7 +54,7 @@ class DashboardSummaryServiceSchedulerHealthTest {
                 .withProperty("cloudwatch.metric.schedule.interval", "5");
         var jobs = new SchedulerJobCatalog(env).jobs();
 
-        assertThat(jobs).hasSize(26);
+        assertThat(jobs).hasSize(27);
         var archive = jobs.stream().filter(j -> j.jobName().equals("vm_metrics_archive")).findFirst().orElseThrow();
         assertThat(archive.expectedInterval()).isEqualTo(Duration.ofDays(1));
         assertThat(archive.label()).isEqualTo("Metrics archive (daily)");
