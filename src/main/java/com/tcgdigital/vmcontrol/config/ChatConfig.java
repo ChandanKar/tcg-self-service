@@ -8,7 +8,7 @@ import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
 
-/** The HTTP client for Slack/Teams webhooks (E24-T01): short timeouts, no base URL. */
+/** The HTTP client for chat (Microsoft Teams) webhooks (E24-T01): short timeouts, no base URL. */
 @Configuration
 public class ChatConfig {
 
