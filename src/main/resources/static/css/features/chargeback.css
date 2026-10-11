@@ -1,0 +1,47 @@
+/*
+ * Chargeback page (E23-T08): the monthly statement and the split-rule editor.
+ */
+.chargeback-month {
+    width: auto;
+    min-width: 170px;
+}
+
+.chargeback-page .nav-tabs .nav-link {
+    cursor: pointer;
+}
+
+.chargeback-unassigned td {
+    color: var(--text-secondary, #64748b);
+}
+
+.chargeback-detail td {
+    background: var(--surface-muted, #f8fafc);
+    font-size: 0.875rem;
+    padding-left: 2rem;
+}
+
+.chargeback-totals th,
+.chargeback-totals td {
+    border-top: 2px solid var(--border-color, #cbd5e1);
+    font-weight: 600;
+}
+
+.csr-percent-group {
+    width: 9rem;
+    flex: 0 0 auto;
+}
+
+.csr-share .csr-team {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+@media (max-width: 575.98px) {
+    .chargeback-detail td {
+        padding-left: 0.75rem;
+    }
+
+    .csr-percent-group {
+        width: 7rem;
+    }
+}
