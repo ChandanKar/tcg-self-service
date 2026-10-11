@@ -94,6 +94,16 @@ public class CostManagementController {
     @org.springframework.beans.factory.annotation.Autowired
     private com.tcgdigital.vmcontrol.service.EksWorkloadCostService eksWorkloadCostService;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.tcgdigital.vmcontrol.service.CommitmentInsightService commitmentInsightService;
+
+    /** Coverage, the schedule-safe floor, AWS recommendations and risk flags (E27-T02); display only. */
+    @GetMapping("/commitments/insights")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<com.tcgdigital.vmcontrol.dto.CommitmentInsightDTO> getCommitmentInsights() {
+        return ResponseEntity.ok(commitmentInsightService.insights());
+    }
+
     /** Namespace and workload cost of an EKS environment from Split Cost Allocation Data (E26-T05). */
     @GetMapping("/eks-workload-cost")
     @PreAuthorize("hasRole('ADMIN')")
