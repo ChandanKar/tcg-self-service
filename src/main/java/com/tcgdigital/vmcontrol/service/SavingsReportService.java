@@ -91,8 +91,25 @@ public class SavingsReportService {
             optimisable = last == null ? null : last.getOptimisableSpend();
             efficiency = last == null ? null : last.getEfficiencyPercent();
         }
+        int fullyCovered = (int) entries.stream().filter(e -> e.getCommitmentCoveragePercent() != null
+                && e.getCommitmentCoveragePercent().compareTo(BigDecimal.valueOf(100)) >= 0).count();
         return new SavingsSummaryDTO(month.toString(), environmentId, net, gross, storage, ipv4, adjustment,
-                byCause(entries), potential, optimisable, efficiency, offHoursShare, actualsCheck(month, environmentId));
+                byCause(entries), potential, optimisable, efficiency, offHoursShare, actualsCheck(month, environmentId),
+                fullyCovered);
+    }
+
+    /** Net savings per day and cause for the month (E17-T07 chart). */
+    @Transactional(readOnly = true)
+    public List<com.tcgdigital.vmcontrol.dto.SavingsDailyPointDTO> daily(YearMonth month, String environmentId) {
+        Map<LocalDate, Map<SavingsCause, BigDecimal>> byDay = new java.util.TreeMap<>();
+        for (SavingsLedgerEntry e : entries(month, environmentId)) {
+            byDay.computeIfAbsent(e.getLedgerDate(), d -> new EnumMap<>(SavingsCause.class))
+                    .merge(e.getCause(), nz(e.getNetSaving()), BigDecimal::add);
+        }
+        List<com.tcgdigital.vmcontrol.dto.SavingsDailyPointDTO> points = new ArrayList<>();
+        byDay.forEach((day, causes) -> causes.forEach((cause, net) ->
+                points.add(new com.tcgdigital.vmcontrol.dto.SavingsDailyPointDTO(day, cause.name(), label(cause), net))));
+        return points;
     }
 
     @Transactional(readOnly = true)

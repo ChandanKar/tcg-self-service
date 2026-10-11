@@ -21,7 +21,9 @@ public record SavingsSummaryDTO(
         BigDecimal optimisableSpend,
         BigDecimal efficiencyPercent,
         BigDecimal offHoursShare,
-        ActualsCheck actualsCheck
+        ActualsCheck actualsCheck,
+        /** Entries whose compute was fully covered by Savings Plans/RIs (the page explains them). */
+        int fullyCoveredEntries
 ) {
     /**
      * Estimate quality: estimated vs actual cost over the days that have actuals; the target is

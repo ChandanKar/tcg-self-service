@@ -127,6 +127,17 @@ const Config = (function() {
             acknowledge: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}/acknowledge`
         },
 
+        // Savings ledger and Cost Efficiency (E17)
+        savings: {
+            summary: `${API_BASE_URL}/savings/summary`,
+            daily: `${API_BASE_URL}/savings/daily`,
+            byEnvironment: `${API_BASE_URL}/savings/by-environment`,
+            byTeam: `${API_BASE_URL}/savings/by-team`,
+            trend: `${API_BASE_URL}/savings/efficiency/trend`,
+            export: `${API_BASE_URL}/savings/export`,
+            backfill: `${API_BASE_URL}/savings/backfill`
+        },
+
         // Environment leases (E15)
         leases: {
             get: (envId) => `${API_BASE_URL}/environments/${envId}/lease`,

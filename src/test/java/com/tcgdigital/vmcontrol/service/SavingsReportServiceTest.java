@@ -84,6 +84,8 @@ class SavingsReportServiceTest extends AbstractIntegrationTest {
                 .map(r -> (BigDecimal) r[12]).reduce(BigDecimal.ZERO, BigDecimal::add);
         assertThat(causeSum).isEqualByComparingTo("2.95");
         assertThat(reports.exportMonth(MONTH)).isNotEmpty();
+        assertThat(reports.daily(MONTH, null)).hasSize(3)
+                .allSatisfy(p -> assertThat(p.date().getMonthValue()).isEqualTo(9));
     }
 
     @Test

@@ -57,6 +57,12 @@ public class SavingsController {
         return reportService.byCause(month(month), null);
     }
 
+    @GetMapping("/savings/daily")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<com.tcgdigital.vmcontrol.dto.SavingsDailyPointDTO> daily(@RequestParam(required = false) String month) {
+        return reportService.daily(month(month), null);
+    }
+
     @GetMapping("/savings/by-environment")
     @PreAuthorize("hasRole('ADMIN')")
     public List<SavingsBreakdownRowDTO> byEnvironment(@RequestParam(required = false) String month) {
