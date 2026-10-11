@@ -141,6 +141,7 @@ const VmOperations = (function() {
     function showProgressModal(title) {
         const token = ++modalToken;
         modalExecutionId = null;
+        hideBanner();
         Modals.show({
             id: 'operationProgressModal',
             title: title,
@@ -205,7 +206,7 @@ const VmOperations = (function() {
                 // Start elapsed time counter
                 startElapsedTimer();
                 // Shown once the operation exists (see executeOperation), hidden when it ends.
-                $('#btn-cancel-operation').prop('hidden', true).off('click').on('click', function() {
+                $('#btn-cancel-operation').prop('hidden', !modalExecutionId).off('click').on('click', function() {
                     const $btn = $(this);
                     confirmCancel($btn.data('env-id'), $btn.data('execution-id'), $btn);
                 });
@@ -221,9 +222,113 @@ const VmOperations = (function() {
                 if (token === modalToken) {
                     modalExecutionId = null;
                     stopElapsedTimer();
+                    refreshBanner();
                 }
             }
         });
+    }
+
+    // ─── Operation banner (E13-T07) ──────────────────────────────────────────
+
+    /** The most recently started operation that is still running, with its id. */
+    function latestRunningOperation() {
+        let latest = null;
+        activeOperations.forEach((op, executionId) => {
+            if (op.state === 'running' && (!latest || op.startTime > latest.op.startTime)) {
+                latest = { executionId, op };
+            }
+        });
+        return latest;
+    }
+
+    function hasRunningOperation() {
+        return latestRunningOperation() !== null;
+    }
+
+    function hideBanner() {
+        $('#operation-banner').hide();
+    }
+
+    /** Show the banner while an operation runs and its dialog is closed; hide it otherwise. */
+    function refreshBanner() {
+        const running = latestRunningOperation();
+        const dialogOpen = $('#operationProgressModal').hasClass('show') && modalExecutionId !== null;
+        if (!running || dialogOpen) {
+            hideBanner();
+            return;
+        }
+        const summary = summarizeExecution(running.op.execution);
+        $('#operation-description').text(running.op.title || 'Operation in progress');
+        $('#operation-progress-bar').css('width', `${summary.percent}%`).attr('aria-valuenow', summary.percent);
+        $('#operation-count').text(`${summary.completed}/${summary.total}`);
+        $('#view-operation-details').data('execution-id', running.executionId);
+        $('#operation-banner').show();
+    }
+
+    /** Re-open the progress dialog for the running operation shown in the banner. */
+    function reopenProgress() {
+        const running = latestRunningOperation();
+        if (!running) {
+            hideBanner();
+            return;
+        }
+        showProgressModal(running.op.title);
+        modalExecutionId = running.executionId;
+        $('#btn-cancel-operation').prop('hidden', false).prop('disabled', false)
+            .data('env-id', running.op.envId).data('execution-id', running.executionId);
+        if (running.op.execution) updateProgressModal('progress', null, running.op.execution);
+    }
+
+    /**
+     * Counts and overall percent for an execution (steps when present, else the execution's own
+     * totals); terminal states read 100%. Shared by the progress dialog and the banner.
+     */
+    function summarizeExecution(execution) {
+        if (!execution) return { steps: [], total: 0, completed: 0, failed: 0, skipped: 0, pending: 0, percent: 0 };
+        const steps = execution.details || [];
+        const hasSteps = steps.length > 0;
+        const total = hasSteps ? steps.length : (Number(execution.totalTargets) || 0);
+        const completed = hasSteps
+            ? steps.filter(s => (s.status || '').toUpperCase() === 'COMPLETED').length
+            : (Number(execution.completedTargets) || 0);
+        const failed = hasSteps
+            ? steps.filter(s => (s.status || '').toUpperCase() === 'FAILED').length
+            : (Number(execution.failedTargets) || 0);
+        const skipped = hasSteps
+            ? steps.filter(s => (s.status || '').toUpperCase() === 'SKIPPED').length
+            : 0;
+        const inProgress = hasSteps
+            ? steps.filter(s => (s.status || '').toUpperCase() === 'IN_PROGRESS').length
+            : 0;
+        const pending = Math.max(0, total - completed - failed - skipped);
+        const progressValues = hasSteps
+            ? steps.map(step => {
+                const normalizedStatus = (step.status || '').toUpperCase();
+                if (normalizedStatus === 'COMPLETED') return 100;
+                if (normalizedStatus === 'FAILED') return 100;
+                if (normalizedStatus === 'SKIPPED') return 100;
+                return Number(step.progressPercentage) || 0;
+            })
+            : [];
+
+        // Calculate percent — for terminal states force meaningful values
+        let percent;
+        if (execution.status === 'COMPLETED') {
+            percent = 100;
+        } else if (execution.status === 'FAILED' || execution.status === 'PARTIAL_SUCCESS') {
+            percent = 100;
+        } else if (total === 0) {
+            percent = Number(execution.progressPercentage) || 10; // show some progress if no steps yet
+        } else if (progressValues.length > 0 && progressValues.some(value => value > 0)) {
+            percent = Math.round(progressValues.reduce((sum, value) => sum + value, 0) / progressValues.length);
+        } else {
+            const activeCredit = inProgress > 0 ? 0.5 : 0;
+            percent = Math.round(((completed + failed + activeCredit) / total) * 100);
+            percent = Math.max(percent, Number(execution.progressPercentage) || 0);
+            percent = Math.min(percent, 95);
+        }
+        percent = Math.max(0, Math.min(100, percent));
+        return { steps, total, completed, failed, skipped, pending, percent };
     }
 
     /**
@@ -264,49 +369,7 @@ const VmOperations = (function() {
         }
 
         if (execution) {
-            const steps = execution.details || [];
-            const hasSteps = steps.length > 0;
-            const total = hasSteps ? steps.length : (Number(execution.totalTargets) || 0);
-            const completed = hasSteps
-                ? steps.filter(s => (s.status || '').toUpperCase() === 'COMPLETED').length
-                : (Number(execution.completedTargets) || 0);
-            const failed = hasSteps
-                ? steps.filter(s => (s.status || '').toUpperCase() === 'FAILED').length
-                : (Number(execution.failedTargets) || 0);
-            const skipped = hasSteps
-                ? steps.filter(s => (s.status || '').toUpperCase() === 'SKIPPED').length
-                : 0;
-            const inProgress = hasSteps
-                ? steps.filter(s => (s.status || '').toUpperCase() === 'IN_PROGRESS').length
-                : 0;
-            const pending = Math.max(0, total - completed - failed - skipped);
-            const progressValues = hasSteps
-                ? steps.map(step => {
-                    const normalizedStatus = (step.status || '').toUpperCase();
-                    if (normalizedStatus === 'COMPLETED') return 100;
-                    if (normalizedStatus === 'FAILED') return 100;
-                    if (normalizedStatus === 'SKIPPED') return 100;
-                    return Number(step.progressPercentage) || 0;
-                })
-                : [];
-
-            // Calculate percent — for terminal states force meaningful values
-            let percent;
-            if (execution.status === 'COMPLETED') {
-                percent = 100;
-            } else if (execution.status === 'FAILED' || execution.status === 'PARTIAL_SUCCESS') {
-                percent = 100;
-            } else if (total === 0) {
-                percent = Number(execution.progressPercentage) || 10; // show some progress if no steps yet
-            } else if (progressValues.length > 0 && progressValues.some(value => value > 0)) {
-                percent = Math.round(progressValues.reduce((sum, value) => sum + value, 0) / progressValues.length);
-            } else {
-                const activeCredit = inProgress > 0 ? 0.5 : 0;
-                percent = Math.round(((completed + failed + activeCredit) / total) * 100);
-                percent = Math.max(percent, Number(execution.progressPercentage) || 0);
-                percent = Math.min(percent, 95);
-            }
-            percent = Math.max(0, Math.min(100, percent));
+            const { steps, completed, failed, skipped, pending, percent } = summarizeExecution(execution);
             const currentStep = steps.find(s => (s.status || '').toUpperCase() === 'IN_PROGRESS');
             const stageLabel = getProgressStageLabel(execution, steps, currentStep, percent);
 
@@ -480,6 +543,7 @@ const VmOperations = (function() {
             if (operation && (Date.now() - operation.startTime) > OPERATION_TIMEOUT) {
                 stopThis();
                 operation.state = 'timeout';
+                refreshBanner();
                 showInModal('timeout');
                 const timeoutMsg = 'Operation exceeded 30-minute timeout. Please contact support if the operation is still running.';
                 Notifications.error(timeoutMsg);
@@ -493,6 +557,7 @@ const VmOperations = (function() {
                     if (operation) {
                         operation.lastUpdateTime = Date.now();
                         operation.pollFailures = 0;
+                        operation.execution = execution;
                     }
 
                     showInModal('progress', null, execution);
@@ -533,6 +598,7 @@ const VmOperations = (function() {
                         resolve(execution);
                     }
                     // Continue polling if still in progress
+                    refreshBanner();
                 })
                 .fail(function(xhr) {
                     if (operation) {
@@ -552,6 +618,7 @@ const VmOperations = (function() {
                     if (operation) {
                         operation.state = 'error';
                     }
+                    refreshBanner();
                     console.error('Failed to poll operation status:', xhr.status, xhr.statusText);
                     showInModal('error', 'Lost connection to the server while tracking the operation. The operation may still be running — please refresh to check.');
                     reject(new Error('Failed to get operation status'));
@@ -765,7 +832,12 @@ const VmOperations = (function() {
         showHistoryModal,
         getHistory,
         stopAllPolling,
-        trackedExecutionIds
+        trackedExecutionIds,
+        hasRunningOperation,
+        reopenProgress
     };
 })();
+
+// The operation banner's Details button re-opens the progress dialog (E13-T07).
+$(document).on('click', '#view-operation-details', () => VmOperations.reopenProgress());
 

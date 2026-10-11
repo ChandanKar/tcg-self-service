@@ -66,9 +66,10 @@
 
         <div class="nav-right">
             <!-- Sync Indicator (TASK-014) -->
-            <div class="sync-indicator" id="sync-indicator" title="Last synced with cloud" role="status">
+            <!-- Hidden until the first sync-status response (E13-T07) -->
+            <div class="sync-indicator" id="sync-indicator" title="Last synced with cloud" role="status" hidden>
                 <i class="fas fa-sync-alt" aria-hidden="true"></i>
-                <span class="sync-time" id="sync-time">Just now</span>
+                <span class="sync-time" id="sync-time"></span>
             </div>
             <!-- Notification Bell Dropdown -->
             <div class="notification-bell-wrapper" id="notification-bell-wrapper">
@@ -715,7 +716,7 @@
             </div>
             <span class="operation-count" id="operation-count">0/0</span>
         </div>
-        <button class="btn btn-sm btn-outline-light" id="view-operation-details"
+        <button type="button" class="btn btn-sm btn-outline-light" id="view-operation-details"
                 aria-label="View operation details">
             Details
         </button>

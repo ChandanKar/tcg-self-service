@@ -12,8 +12,12 @@ const RealTime = (function() {
         environmentDetail: 15000, // 15 seconds
         operationStatus: 2000,  // 2 seconds
         lockStatus: 10000,      // 10 seconds
-        pendingRequests: 60000  // 1 minute
+        pendingRequests: 60000, // 1 minute
+        syncStatus: 60000       // 1 minute
     };
+
+    // The sync pill turns amber when the last cloud sync is older than this (E13-T07).
+    const SYNC_STALE_MS = 15 * 60 * 1000;
 
     // Active timers: key -> { id, callback, interval, lastRun }
     let timers = {};
@@ -36,6 +40,38 @@ const RealTime = (function() {
         if (typeof NotificationBell !== 'undefined') {
             startPolling('notificationCount', () => NotificationBell.refreshCount(), NOTIFICATION_COUNT_INTERVAL);
         }
+        if ($('#sync-indicator').length) {
+            startPolling('syncStatus', updateSyncIndicator, INTERVALS.syncStatus);
+        }
+    }
+
+    /**
+     * Top-bar sync pill from GET /monitoring/sync-status (E13-T07): relative time of the last
+     * cloud sync, spinning while one runs, amber when stale, red when the last sync had errors.
+     * Hidden when the endpoint is unavailable to this user.
+     */
+    function updateSyncIndicator() {
+        pollGet(Config.API.monitoring.syncStatus)
+            .done(function(status) {
+                renderSyncIndicator(status || {});
+            })
+            .fail(function(xhr) {
+                if (xhr && (xhr.status === 403 || xhr.status === 404)) {
+                    $('#sync-indicator').prop('hidden', true);
+                }
+            });
+    }
+
+    function renderSyncIndicator(status) {
+        const $pill = $('#sync-indicator');
+        const last = status.lastSyncTime ? new Date(status.lastSyncTime) : null;
+        const stale = !last || (Date.now() - last.getTime()) > SYNC_STALE_MS;
+        $('#sync-time').text(last ? Utils.formatRelativeTime(last) : 'Never');
+        $pill.toggleClass('syncing', !!status.syncInProgress)
+            .toggleClass('stale', stale && !status.syncInProgress)
+            .toggleClass('error', Number(status.syncErrors) > 0)
+            .attr('title', last ? `Last synced with cloud: ${last.toLocaleString()}` : 'Not synced with the cloud yet')
+            .prop('hidden', false);
     }
 
     /**
