@@ -702,6 +702,7 @@ const Environments = (function() {
 
                 <section id="env-cost-card" aria-label="Environment cost"></section>
                 <div id="env-budget-panel"></div>
+                <div id="env-anomaly-panel"></div>
                 <div id="env-idle-panel"></div>
 
                 <div class="mb-1">
@@ -933,6 +934,11 @@ const Environments = (function() {
         // Cost card (E18): loads after the page, never blocks it.
         if (typeof EnvCost !== 'undefined') {
             EnvCost.render(env);
+        }
+
+        // Cost anomalies of the last 90 days (E21-T04): nothing when there are none.
+        if (typeof CostAnomalies !== 'undefined') {
+            CostAnomalies.renderEnvPanel(env);
         }
 
         // Budget bar, freeze banner and owner approvals (E20-T05).

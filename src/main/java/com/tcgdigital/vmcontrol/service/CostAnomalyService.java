@@ -123,6 +123,43 @@ public class CostAnomalyService {
         return new IngestResult(seen, added);
     }
 
+    // ============= Reads (E21-T04) =============
+
+    /** All anomalies since {@code days} ago, newest first, optionally of one environment (admins). */
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<com.tcgdigital.vmcontrol.dto.CostAnomalyDTO> list(
+            int days, String environmentId, org.springframework.data.domain.Pageable pageable) {
+        LocalDate since = LocalDate.now(clock).minusDays(days);
+        org.springframework.data.domain.Page<CostAnomaly> page = environmentId == null || environmentId.isBlank()
+                ? anomalyRepository.findByAnomalyStartGreaterThanEqual(since, pageable)
+                : anomalyRepository.findByEnvironmentIdAndAnomalyStartGreaterThanEqual(environmentId, since, pageable);
+        Map<String, String> names = environmentNames();
+        return page.map(a -> toDto(a, names, true));
+    }
+
+    /** One environment's anomalies since {@code days} ago (anyone who can view it). */
+    @Transactional(readOnly = true)
+    public List<com.tcgdigital.vmcontrol.dto.CostAnomalyDTO> forEnvironment(String environmentId, int days) {
+        securityService.assertCanView(environmentId);
+        boolean owner = securityService.isAdmin()
+                || securityService.effectiveEnvLevel(environmentId) == com.tcgdigital.vmcontrol.model.AccessLevel.ADMIN;
+        Map<String, String> names = environmentNames();
+        return anomalyRepository.findByEnvironmentIdAndAnomalyStartGreaterThanEqualOrderByAnomalyStartDesc(environmentId,
+                LocalDate.now(clock).minusDays(days)).stream().map(a -> toDto(a, names, owner)).toList();
+    }
+
+    private Map<String, String> environmentNames() {
+        return environmentRepository.findAll().stream().collect(Collectors.toMap(
+                com.tcgdigital.vmcontrol.model.Environment::getEnvironmentId,
+                e -> e.getDisplayName() != null ? e.getDisplayName() : e.getName()));
+    }
+
+    private com.tcgdigital.vmcontrol.dto.CostAnomalyDTO toDto(CostAnomaly a, Map<String, String> names, boolean canGiveFeedback) {
+        return new com.tcgdigital.vmcontrol.dto.CostAnomalyDTO(a.getAnomalyId(), a.getEnvironmentId(),
+                a.getEnvironmentId() == null ? null : names.get(a.getEnvironmentId()), a.getAnomalyStart(), a.getAnomalyEnd(),
+                a.getTotalImpact(), a.getTotalExpected(), a.getMaxScore(), topCause(a), a.getFeedback(), canGiveFeedback);
+    }
+
     // ============= Routing and feedback (E21-T03) =============
 
     /**

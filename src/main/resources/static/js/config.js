@@ -127,6 +127,14 @@ const Config = (function() {
             acknowledge: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}/acknowledge`
         },
 
+        // Cost anomalies (E21)
+        costAnomalies: {
+            list: (days) => `${API_BASE_URL}/cost-anomalies?days=${days}&size=100`,
+            forEnvironment: (envId, days) => `${API_BASE_URL}/environments/${encodeURIComponent(envId)}/cost-anomalies?days=${days}`,
+            feedback: (id) => `${API_BASE_URL}/cost-anomalies/${encodeURIComponent(id)}/feedback`,
+            monitors: `${API_BASE_URL}/cost-anomalies/monitors`
+        },
+
         // Budgets (E20)
         budgets: {
             config: `${API_BASE_URL}/budgets/config`,

@@ -31,6 +31,8 @@ const CostManagement = (function() {
         idle: emptyPageState(),
         rightsizing: emptyPageState(),
         detail: emptyPageState(),
+        anomalies: [],
+        anomalyMonitors: [],
         // Requests that failed, by key: their panels show an error with Retry (E08-T09).
         errors: {}
     };
@@ -153,8 +155,13 @@ const CostManagement = (function() {
         forecast: { url: () => Config.API.costManagement.forecast(30, 14), apply: d => { state.forecast = d || null; } },
         idle: { url: () => Config.API.costManagement.idleWaste(state.idle.page, PAGE_SIZE), apply: d => { state.idle = mapPage(d); } },
         rightsizing: { url: () => Config.API.costManagement.rightsizing(state.rightsizing.page, PAGE_SIZE), apply: d => { state.rightsizing = mapPage(d); } },
-        detail: { url: () => Config.API.costManagement.vmDetail(state.detail.page, PAGE_SIZE), apply: d => { state.detail = mapPage(d); } }
+        detail: { url: () => Config.API.costManagement.vmDetail(state.detail.page, PAGE_SIZE), apply: d => { state.detail = mapPage(d); } },
+        anomalies: { url: () => Config.API.costAnomalies.list(ANOMALY_DAYS), apply: d => { state.anomalies = (d && d.content) || []; } },
+        anomalyMonitors: { url: () => Config.API.costAnomalies.monitors, apply: d => { state.anomalyMonitors = d || []; } }
     };
+
+    /** Days of anomalies the Anomalies panel lists (E21-T04). */
+    const ANOMALY_DAYS = 30;
 
     /** Fetch the given keys; resolves once all settled, recording failures in state.errors. */
     function fetchKeys(keys) {
@@ -304,6 +311,7 @@ const CostManagement = (function() {
                     </div>
                     ${panelSlot('trend')}
                     ${panelSlot('reservations')}
+                    ${panelSlot('anomalies')}
                     ${panelSlot('reconciliation')}
                     ${panelSlot('idle')}
                     ${panelSlot('rightsizing')}
@@ -345,8 +353,36 @@ const CostManagement = (function() {
         reconciliation: { keys: ['reconciliation'], label: 'estimated vs. actual cost', build: () => buildReconciliationTable() },
         idle: { keys: ['idle'], label: 'idle VMs', build: () => buildIdleWasteTable() },
         rightsizing: { keys: ['rightsizing'], label: 'rightsizing recommendations', build: () => buildRightsizingTable() },
-        detail: { keys: ['detail'], label: 'VM cost detail', build: () => buildVmDetailTable() }
+        detail: { keys: ['detail'], label: 'VM cost detail', build: () => buildVmDetailTable() },
+        anomalies: { keys: ['anomalies', 'anomalyMonitors'], label: 'cost anomalies', build: () => buildAnomaliesPanel() }
     };
+
+    /** AWS cost anomalies across environments, with owners' verdicts and monitor coverage (E21-T04). */
+    function buildAnomaliesPanel() {
+        const linked = state.anomalyMonitors.filter(m => m.environmentId).length;
+        const filter = state.anomalyFilter || '';
+        const envs = [...new Map(state.anomalies.filter(a => a.environmentId)
+            .map(a => [a.environmentId, a.environmentName || a.environmentId])).entries()];
+        const list = filter ? state.anomalies.filter(a => a.environmentId === filter) : state.anomalies;
+        return Utils.html`
+            <section class="cost-table-card" aria-labelledby="cost-anomalies-title">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                    <div>
+                        <h2 class="h6 mb-0" id="cost-anomalies-title">Cost anomalies (last ${ANOMALY_DAYS} days)</h2>
+                        <div class="small text-muted">${linked} monitor${linked === 1 ? '' : 's'} linked to environments ·
+                            <a href="#/cost-setup">Cost Setup</a></div>
+                    </div>
+                    <div>
+                        <label class="visually-hidden" for="cost-anomaly-env">Environment</label>
+                        <select class="form-select form-select-sm" id="cost-anomaly-env">
+                            <option value="">All environments</option>
+                            ${Utils.raw(envs.map(([id, name]) => Utils.html`<option value="${id}" ${id === filter ? 'selected' : ''}>${name}</option>`).join(''))}
+                        </select>
+                    </div>
+                </div>
+                ${Utils.raw(CostAnomalies.tableHtml(list, true, 'No anomalies reported by AWS Cost Anomaly Detection'))}
+            </section>`;
+    }
 
     function panelFailed(name) {
         return PANELS[name].keys.some(key => state.errors[key]);
@@ -1093,6 +1129,10 @@ const CostManagement = (function() {
     // ---- events ----
 
     function bindEvents() {
+        $(document).off('change.costAnomalies').on('change.costAnomalies', '#cost-anomaly-env', function() {
+            state.anomalyFilter = $(this).val();
+            renderPanel('anomalies');
+        });
         $('#cost-backfill-btn').off('click').on('click', triggerBackfill);
         $('#cost-reconcile-tags-btn').off('click').on('click', triggerTagReconciliation);
         $('#cost-ingest-actuals-btn').off('click').on('click', triggerActualsIngestion);

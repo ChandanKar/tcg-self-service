@@ -14,6 +14,12 @@ public interface CostAnomalyRepository extends JpaRepository<CostAnomaly, String
 
     List<CostAnomaly> findByAnomalyStartGreaterThanEqualOrderByAnomalyStartDesc(LocalDate since);
 
+    org.springframework.data.domain.Page<CostAnomaly> findByAnomalyStartGreaterThanEqual(
+            LocalDate since, org.springframework.data.domain.Pageable pageable);
+
+    org.springframework.data.domain.Page<CostAnomaly> findByEnvironmentIdAndAnomalyStartGreaterThanEqual(
+            String environmentId, LocalDate since, org.springframework.data.domain.Pageable pageable);
+
     /** Not yet announced (E21-T03). */
     List<CostAnomaly> findByNotifiedAtIsNull();
 }

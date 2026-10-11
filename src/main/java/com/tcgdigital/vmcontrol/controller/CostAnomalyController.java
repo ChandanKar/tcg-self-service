@@ -28,6 +28,21 @@ public class CostAnomalyController {
         this.userService = userService;
     }
 
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Cost anomalies across environments, newest first")
+    public org.springframework.data.domain.Page<com.tcgdigital.vmcontrol.dto.CostAnomalyDTO> list(
+            @RequestParam(defaultValue = "30") int days,
+            @RequestParam(required = false) String environmentId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        if (days < 1 || days > 365) {
+            throw new com.tcgdigital.vmcontrol.exception.ValidationException("days must be between 1 and 365");
+        }
+        return anomalyService.list(days, environmentId, com.tcgdigital.vmcontrol.controller.support.Paging.of(page, size, 100,
+                org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "anomalyStart")));
+    }
+
     public record FeedbackRequest(@NotBlank(message = "Feedback is required") String value) {}
 
     public record FeedbackResult(String anomalyId, String feedback) {}

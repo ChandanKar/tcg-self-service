@@ -97,6 +97,7 @@ const NotificationBell = (function () {
         if (entityType === 'ENVIRONMENT' && n.entityId) return ['environment-detail', { environmentId: n.entityId }];
         if (entityType === 'ACCESS') return ['my-environments'];
         if (entityType === 'BUDGET_ACTION' || entityType === 'BUDGET') return ['budgets']; // E20
+        if (entityType === 'COST_ANOMALY') return Auth.isAdmin() ? ['cost-management'] : ['my-environments']; // E21
         if (entityType === 'ACCESS_REQUEST') return ['pending-requests'];
         if (entityType === 'VM') return ['vm-registry'];
         if (n.type === 'WEEKLY_COST_REPORT') return ['cost-management'];
