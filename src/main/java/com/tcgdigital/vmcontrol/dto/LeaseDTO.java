@@ -19,6 +19,7 @@ public class LeaseDTO {
 
     private String leaseId;
     private String environmentId;
+    private String environmentName;
     private String status;
     private String source;
     private String startedByUserId;
@@ -34,6 +35,8 @@ public class LeaseDTO {
     public void setLeaseId(String leaseId) { this.leaseId = leaseId; }
     public String getEnvironmentId() { return environmentId; }
     public void setEnvironmentId(String environmentId) { this.environmentId = environmentId; }
+    public String getEnvironmentName() { return environmentName; }
+    public void setEnvironmentName(String environmentName) { this.environmentName = environmentName; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public String getSource() { return source; }

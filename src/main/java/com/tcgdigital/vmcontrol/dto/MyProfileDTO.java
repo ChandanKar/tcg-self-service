@@ -15,6 +15,7 @@ import java.util.List;
  * @param administeredEnvironments environments where the user holds ADMIN-level access
  * @param extensionWindowDays      a grant expiring within this many days can be extended
  * @param requestMaxDurationDays   the longest duration a request or extension may ask for
+ * @param leasesEnabled            environment leases are switched on (E15-T07): My Account loads them
  */
 public record MyProfileDTO(
         String userId,
@@ -31,7 +32,8 @@ public record MyProfileDTO(
         String onboardedByName,
         List<EnvironmentRef> administeredEnvironments,
         int extensionWindowDays,
-        int requestMaxDurationDays
+        int requestMaxDurationDays,
+        boolean leasesEnabled
 ) {
     public record EnvironmentRef(String environmentId, String name) {}
 }

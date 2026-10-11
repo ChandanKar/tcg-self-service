@@ -737,3 +737,29 @@
     margin-left: auto;
 }
 
+/* Running environments (E15-T07) */
+.ma-leases {
+    margin-bottom: 1rem;
+}
+
+.ma-lease-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.ma-lease {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.75rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+.ma-lease-end {
+    flex: 1 1 auto;
+    color: var(--text-caption, #64748b);
+    font-size: 0.85rem;
+}
+

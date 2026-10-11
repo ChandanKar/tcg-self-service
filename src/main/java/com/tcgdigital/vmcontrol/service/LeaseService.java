@@ -664,6 +664,27 @@ public class LeaseService {
                 permissionsFor(environmentId)));
     }
 
+    /**
+     * The running environments the user is keeping alive (E15-T07): active leases where they are
+     * still a participant — once they leave (lock released, access ended) the lease is not listed.
+     */
+    @Transactional(readOnly = true)
+    public List<LeaseDTO> getMyLeases(String userId) {
+        assertFeatureEnabled();
+        User user = userRepository.findById(userId).orElse(null);
+        return leaseRepository.findActiveForParticipant(userId).stream()
+                .map(lease -> {
+                    String envId = lease.getEnvironment().getEnvironmentId();
+                    boolean canExtend = user != null && securityService.canOperateInEnvironment(user, envId);
+                    LeaseDTO dto = toDto(lease, new LeaseDTO.Permissions(canExtend, false));
+                    Environment env = lease.getEnvironment();
+                    dto.setEnvironmentName(env.getDisplayName() != null && !env.getDisplayName().isBlank()
+                            ? env.getDisplayName() : env.getName());
+                    return dto;
+                })
+                .toList();
+    }
+
     LeaseDTO toDto(EnvironmentLease lease, LeaseDTO.Permissions permissions) {
         List<EnvironmentLeaseParticipant> participants =
                 participantRepository.findByLeaseIdAndLeftAtIsNullOrderByJoinedAtAsc(lease.getLeaseId());

@@ -70,6 +70,18 @@ public class MyAccountService {
         this.accessService = accessService;
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    @org.springframework.context.annotation.Lazy
+    private LeaseService leaseService;
+
+    /** Running environments the user keeps alive (E15-T07); 404 while leases are off. */
+    public List<com.tcgdigital.vmcontrol.dto.LeaseDTO> getMyLeases(String userId) {
+        if (leaseService == null) {
+            throw new ResourceNotFoundException("Leases", "feature disabled");
+        }
+        return leaseService.getMyLeases(userId);
+    }
+
     public MyProfileDTO getProfile(String userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
@@ -98,7 +110,8 @@ public class MyAccountService {
                 onboardedByName,
                 administered,
                 accessService.getExtensionWindowDays(),
-                accessService.getRequestMaxDurationDays());
+                accessService.getRequestMaxDurationDays(),
+                leaseService != null && leaseService.isFeatureEnabled());
     }
 
     /**

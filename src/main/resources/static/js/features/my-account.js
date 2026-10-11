@@ -46,6 +46,7 @@ const MyAccount = (function() {
             activity: null,
             cost: null,
             costRequested: false,
+            leases: [],
             errors: {},
             filter: 'all',
             showEnded: false,
@@ -154,11 +155,25 @@ const MyAccount = (function() {
     }
 
     function loadAll() {
-        load('profile', Config.API.users.myProfile);
+        // Leases are fetched only when the profile says they are on, so nothing fails while off.
+        load('profile', Config.API.users.myProfile).done(() => {
+            if (state && state.profile && state.profile.leasesEnabled) loadLeases();
+        });
         load('grants', Config.API.access.myEnvironments);
         loadRequests();
         load('history', Config.API.access.myAccessHistory(30));
         loadActivity();
+    }
+
+    /** Running environments the user keeps alive (E15-T07); an error just hides the section. */
+    function loadLeases() {
+        const owner = state;
+        ApiClient.get(Config.API.users.myLeases, { suppressGlobalError: true })
+            .done(data => {
+                if (state !== owner) return;
+                state.leases = Array.isArray(data) ? data : [];
+                render();
+            });
     }
 
     function loadRequests() {
@@ -409,6 +424,7 @@ const MyAccount = (function() {
 
         return `
             ${roleBannerHtml()}
+            ${leasesSectionHtml()}
             <div class="ma-access-head">
                 <p class="ma-summary">${accessSummary(grants)}</p>
                 <button type="button" class="btn btn-primary btn-sm" data-ma-action="request-access">
@@ -419,6 +435,42 @@ const MyAccount = (function() {
             ${endedSectionHtml()}
             ${levelsLegendHtml()}
         `;
+    }
+
+    function leasesSectionHtml() {
+        const leases = state.leases || [];
+        if (!leases.length) return '';
+        const rows = leases.map(l => {
+            const endsAt = new Date(l.endsAt);
+            const mins = Math.max(0, Math.round((endsAt.getTime() - Date.now()) / 60000));
+            const left = mins >= 60 ? `${Math.floor(mins / 60)} h${mins % 60 ? ' ' + (mins % 60) + ' min' : ''}` : `${mins} min`;
+            const extend = l.permissions && l.permissions.canExtend
+                ? Utils.html`<button type="button" class="btn btn-sm ma-btn-warn" data-ma-action="lease-extend"
+                        data-env-id="${l.environmentId}">Extend</button>`
+                : '';
+            return Utils.html`<li class="ma-lease">
+                    <button type="button" class="ma-env-link" data-ma-action="open-env" data-env-id="${l.environmentId}">
+                        ${l.environmentName || l.environmentId}</button>
+                    <span class="ma-lease-end">stops at ${endsAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (in ${left})</span>
+                    ${Utils.raw(extend)}
+                </li>`;
+        }).join('');
+        return `<section class="ma-leases" aria-labelledby="ma-leases-title">
+                <h3 class="ma-section-title" id="ma-leases-title">Running environments</h3>
+                <ul class="ma-lease-list">${rows}</ul>
+            </section>`;
+    }
+
+    function extendLease(envId) {
+        const lease = (state.leases || []).find(l => l.environmentId === envId);
+        if (!lease || typeof Leases === 'undefined') return;
+        const owner = state;
+        ApiClient.get(Config.API.leases.policy(envId), { suppressGlobalError: true })
+            .always((policy) => {
+                if (state !== owner) return;
+                Leases.showExtendDialog(envId, lease, policy && policy.effectiveMaxMinutes ? policy : null,
+                    () => { if (state === owner) loadLeases(); });
+            });
     }
 
     function roleBannerHtml() {
@@ -745,6 +797,9 @@ const MyAccount = (function() {
         switch ($btn.data('ma-action')) {
             case 'retry':
                 retryFailed();
+                break;
+            case 'lease-extend':
+                extendLease(String($btn.data('env-id')));
                 break;
             case 'request-access':
                 leaveTo('request-access');

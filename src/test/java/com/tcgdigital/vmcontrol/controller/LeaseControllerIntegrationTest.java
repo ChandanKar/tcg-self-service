@@ -123,5 +123,17 @@ class LeaseControllerIntegrationTest extends SecuredWebTestBase {
                 .andExpect(jsonPath("$.participants[0].userId").value(operator.getUserId()))
                 .andExpect(jsonPath("$.permissions.canExtend").value(true))
                 .andExpect(jsonPath("$.permissions.canManagePolicy").value(false));
+
+        // My Account (E15-T07): the participant sees it, with the environment's name.
+        mockMvc.perform(get("/api/v1/users/me/leases").with(asUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].environmentId").value(env.getEnvironmentId()))
+                .andExpect(jsonPath("$[0].environmentName").value("Leases"))
+                .andExpect(jsonPath("$[0].permissions.canExtend").value(true));
+        mockMvc.perform(get("/api/v1/users/me/leases").with(asEnvAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+        mockMvc.perform(get("/api/v1/users/me/profile").with(asUser()))
+                .andExpect(jsonPath("$.leasesEnabled").value(true));
     }
 }

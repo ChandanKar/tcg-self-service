@@ -143,6 +143,16 @@ public class UserController {
         return ResponseEntity.ok(myAccountService.getProfile(userService.getCurrentUserId()));
     }
 
+    @GetMapping("/me/leases")
+    @Operation(
+            summary = "Get my running environments",
+            description = "Active environment leases the current user is a participant of, ending soonest first "
+                    + "(E15-T07). 404 while leases are switched off."
+    )
+    public ResponseEntity<List<com.tcgdigital.vmcontrol.dto.LeaseDTO>> getMyLeases() {
+        return ResponseEntity.ok(myAccountService.getMyLeases(userService.getCurrentUserId()));
+    }
+
     @GetMapping("/me/cost")
     @Operation(
             summary = "Get my environments' cost",

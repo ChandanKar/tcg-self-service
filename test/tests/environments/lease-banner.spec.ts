@@ -84,4 +84,15 @@ test.describe('Lease banner', () => {
     await expect(ownerPage.locator('#env-lease-section .lease-pill')).toHaveCount(0, { timeout: 10_000 });
     await ownerPage.close();
   });
+
+  test('My Account lists the running environment with Extend (E15-T07)', async ({ page }) => {
+    await signIn(page, 'user');
+    await page.waitForFunction(() => typeof (window as any).MyAccount !== 'undefined' || typeof ContentRouter !== 'undefined');
+    await page.evaluate(() => (window as any).eval('MyAccount.open("access")'));
+    const section = page.locator('#dynamicSlideoutPanel .ma-leases');
+    await expect(section).toBeVisible({ timeout: 10_000 });
+    const row = section.locator('.ma-lease', { has: page.locator(`[data-env-id="${envId}"]`) });
+    await expect(row).toContainText('stops at');
+    await expect(row.locator('[data-ma-action="lease-extend"]')).toBeVisible();
+  });
 });

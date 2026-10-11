@@ -24,5 +24,9 @@ class LeaseDisabledIntegrationTest extends SecuredWebTestBase {
         mockMvc.perform(get(base).with(asAdmin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.leaseEnabled").doesNotExist());
+        mockMvc.perform(get("/api/v1/users/me/leases").with(asUser())).andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/users/me/profile").with(asUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.leasesEnabled").value(false));
     }
 }
