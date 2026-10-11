@@ -503,7 +503,8 @@ const AutomationRules = (function() {
         ).join('');
 
         const dayPills = DAY_ORDER.map(day => `
-            <span class="ar-day-pill ${selectedDays.includes(day) ? 'on' : ''}" data-day="${day}">${day.charAt(0) + day.slice(1).toLowerCase()}</span>
+            <button type="button" class="ar-day-pill ${selectedDays.includes(day) ? 'on' : ''}" data-day="${day}"
+                    aria-pressed="${selectedDays.includes(day) ? 'true' : 'false'}">${day.charAt(0) + day.slice(1).toLowerCase()}</button>
         `).join('');
 
         // A new rule defaults to the browser's zone (it used to default to the first in the list).
@@ -532,19 +533,21 @@ const AutomationRules = (function() {
                                 </div>
 
                                 <div class="mb-3">
-                                    <label class="form-label">Trigger type</label>
-                                    <div class="row gap-cards">
+                                    <label class="form-label" id="ar-trigger-label">Trigger type</label>
+                                    <div class="row gap-cards" role="radiogroup" aria-labelledby="ar-trigger-label">
                                         <div class="col-md-6">
-                                            <div class="ar-choice-card ${isSchedule ? 'selected' : ''}" data-trigger-type="SCHEDULE">
-                                                <div class="ar-choice-top"><i class="fas fa-clock"></i> Calendar Schedule</div>
-                                                <p class="mb-0 text-muted" style="font-size:.78rem">Run on a recurring day-of-week and time window.</p>
-                                            </div>
+                                            <button type="button" role="radio" class="ar-choice-card ${isSchedule ? 'selected' : ''}" data-trigger-type="SCHEDULE"
+                                                    aria-checked="${isSchedule ? 'true' : 'false'}" tabindex="${isSchedule ? '0' : '-1'}">
+                                                <span class="ar-choice-top"><i class="fas fa-clock" aria-hidden="true"></i> Calendar Schedule</span>
+                                                <span class="d-block text-muted" style="font-size:.78rem">Run on a recurring day-of-week and time window.</span>
+                                            </button>
                                         </div>
                                         <div class="col-md-6">
-                                            <div class="ar-choice-card ${isAccessGrant ? 'selected' : ''}" data-trigger-type="ACCESS_GRANT">
-                                                <div class="ar-choice-top"><i class="fas fa-key"></i> Access Grant / Lock Acquire</div>
-                                                <p class="mb-0 text-muted" style="font-size:.78rem">Run the moment a user starts a session or is granted access.</p>
-                                            </div>
+                                            <button type="button" role="radio" class="ar-choice-card ${isAccessGrant ? 'selected' : ''}" data-trigger-type="ACCESS_GRANT"
+                                                    aria-checked="${isAccessGrant ? 'true' : 'false'}" tabindex="${isAccessGrant ? '0' : '-1'}">
+                                                <span class="ar-choice-top"><i class="fas fa-key" aria-hidden="true"></i> Access Grant / Lock Acquire</span>
+                                                <span class="d-block text-muted" style="font-size:.78rem">Run the moment a user starts a session or is granted access.</span>
+                                            </button>
                                         </div>
                                     </div>
                                     <input type="hidden" id="ar-trigger-type" value="${rule ? rule.triggerType : 'SCHEDULE'}">
@@ -573,8 +576,8 @@ const AutomationRules = (function() {
 
                                 <div id="ar-schedule-fields" style="display:${isSchedule ? 'block' : 'none'}">
                                     <div class="mb-3">
-                                        <label class="form-label">Days of week</label>
-                                        <div class="d-flex gap-2 flex-wrap">${dayPills}</div>
+                                        <label class="form-label" id="ar-days-label">Days of week</label>
+                                        <div class="d-flex gap-2 flex-wrap" role="group" aria-labelledby="ar-days-label">${dayPills}</div>
                                     </div>
                                     <div class="row mb-3">
                                         <div class="col-md-4">
@@ -643,17 +646,30 @@ const AutomationRules = (function() {
     }
 
     function bindModalEvents(rule) {
-        $('.ar-choice-card').on('click', function() {
-            $('.ar-choice-card').removeClass('selected');
-            $(this).addClass('selected');
-            const triggerType = $(this).data('trigger-type');
+        // Trigger type is a radio group (E13-T09): click selects; arrow keys move and select.
+        const selectTrigger = ($card) => {
+            $('.ar-choice-card').removeClass('selected').attr({ 'aria-checked': 'false', tabindex: '-1' });
+            $card.addClass('selected').attr({ 'aria-checked': 'true', tabindex: '0' });
+            const triggerType = $card.data('trigger-type');
             $('#ar-trigger-type').val(triggerType);
             $('#ar-schedule-fields').toggle(triggerType === 'SCHEDULE');
             $('#ar-access-grant-fields').toggle(triggerType === 'ACCESS_GRANT');
+        };
+        $('.ar-choice-card').on('click', function() {
+            selectTrigger($(this));
+        });
+        $('.ar-choice-card').on('keydown', function(e) {
+            const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+            if (!step) return;
+            e.preventDefault();
+            const $cards = $('.ar-choice-card');
+            const next = $cards.eq(($cards.index(this) + step + $cards.length) % $cards.length);
+            selectTrigger(next);
+            next.trigger('focus');
         });
 
         $('.ar-day-pill').on('click', function() {
-            $(this).toggleClass('on');
+            $(this).toggleClass('on').attr('aria-pressed', $(this).hasClass('on') ? 'true' : 'false');
         });
 
         $('#ar-scope-type').on('change', function() {

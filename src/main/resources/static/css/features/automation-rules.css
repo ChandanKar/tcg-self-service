@@ -32,6 +32,19 @@
     cursor: pointer;
     height: 100%;
     transition: border-color 0.15s, background 0.15s;
+    /* A <button role=radio> (E13-T09) */
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: #fff;
+    font: inherit;
+    color: inherit;
+}
+
+.ar-choice-card:focus-visible,
+.ar-day-pill:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
 }
 
 .ar-choice-card:hover {
@@ -70,6 +83,8 @@
     font-weight: 600;
     color: var(--text-secondary);
     background: #fff;
+    font-family: inherit;
+    padding: 0;
     cursor: pointer;
     user-select: none;
     transition: background 0.15s, color 0.15s, border-color 0.15s;

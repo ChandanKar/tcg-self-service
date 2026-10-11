@@ -833,14 +833,15 @@ const Environments = (function() {
         return `
             <div class="group-card mb-2">
                 <div class="group-card-header d-flex justify-content-between align-items-center">
-                    <div class="group-card-toggle d-flex align-items-center gap-2 flex-grow-1"
-                         data-collapse-target="${collapseId}" role="button" style="min-width:0;overflow:hidden;">
+                    <button type="button" class="group-card-toggle d-flex align-items-center gap-2 flex-grow-1"
+                            data-collapse-target="${collapseId}" aria-expanded="${expanded ? 'true' : 'false'}"
+                            aria-controls="${collapseId}" style="min-width:0;overflow:hidden;">
                         <i class="fas fa-chevron-${expanded ? 'down' : 'right'} group-chevron flex-shrink-0"
                            style="font-size:0.68rem;color:#94a3b8;transition:transform 0.2s;"></i>
                         <strong class="flex-shrink-0" style="font-size:0.875rem;">${Utils.escapeHtml(group.displayName || group.name)}</strong>
                         <span class="badge ${statusClass} flex-shrink-0" style="font-size:0.68rem;padding:0.2em 0.45em;">${runningCount}/${totalCount}</span>
                         <small class="text-muted text-truncate" style="font-size:0.72rem;min-width:0;">Seq: ${group.sequencePosition} | Depends: ${dependsText}</small>
-                    </div>
+                    </button>
                     <div class="flex-shrink-0 ms-2">
                         ${groupBtns}
                     </div>
@@ -1026,11 +1027,12 @@ const Environments = (function() {
                 $('#env-groups-container .group-chevron')
                     .removeClass('fa-chevron-down')
                     .addClass('fa-chevron-right');
+                $('#env-groups-container .group-card-toggle').attr('aria-expanded', 'false');
 
                 // If it was closed → open it; if already open → leave collapsed (toggle off)
                 if (!isNowOpen) {
                     $clicked.removeClass('group-collapsed');
-                    $(this).find('.group-chevron')
+                    $(this).attr('aria-expanded', 'true').find('.group-chevron')
                         .removeClass('fa-chevron-right')
                         .addClass('fa-chevron-down');
                 }
