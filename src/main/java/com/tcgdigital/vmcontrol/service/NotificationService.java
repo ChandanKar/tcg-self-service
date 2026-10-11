@@ -56,6 +56,9 @@ public class NotificationService {
     @Value("${notification.email.lease-expiring.enabled:false}")
     private boolean emailLeaseExpiringEnabled;
 
+    @Value("${notification.email.budget-alert.enabled:false}")
+    private boolean emailBudgetAlertEnabled;
+
     public NotificationService(NotificationRepository notificationRepository,
                                EnvironmentAccessRepository accessRepository,
                                UserRepository userRepository,
@@ -295,6 +298,53 @@ public class NotificationService {
             recipients.addAll(resolveAdministeringEnvAdmins(environmentId));
             sendEventEmail(recipients, title, message);
         }
+    }
+
+    // ============= Budgets (E20-T02) =============
+
+    /** A budget's spend reached a threshold: the owners of its environments and the admins hear it. */
+    public void notifyBudgetThreshold(List<String> environmentIds, String budgetId, boolean team, String scopeName,
+                                      java.time.YearMonth month, int threshold, java.math.BigDecimal spend,
+                                      java.math.BigDecimal amount) {
+        String title = "Budget " + threshold + "% used: " + scopeName;
+        String message = scopeName + " has spent " + dollars(spend) + " of its " + dollars(amount) + " budget for "
+                + monthName(month) + ".";
+        sendBudgetAlert(environmentIds, budgetId, team, NotificationType.BUDGET_THRESHOLD, title, message);
+    }
+
+    /** A budget is forecast to overrun this month. */
+    public void notifyBudgetForecast(List<String> environmentIds, String budgetId, boolean team, String scopeName,
+                                     java.time.YearMonth month, java.math.BigDecimal forecast, java.math.BigDecimal amount) {
+        String title = "Budget forecast overrun: " + scopeName;
+        String message = "At the current rate " + scopeName + " will spend about " + dollars(forecast) + " in "
+                + monthName(month) + ", over its " + dollars(amount) + " budget.";
+        sendBudgetAlert(environmentIds, budgetId, team, NotificationType.BUDGET_FORECAST, title, message);
+    }
+
+    /**
+     * Owners (environment ADMIN-grant holders and administering env admins) of every environment
+     * the budget covers, plus the admins, each once. An environment budget's notification opens
+     * the environment; a team budget's the budget.
+     */
+    private void sendBudgetAlert(List<String> environmentIds, String budgetId, boolean team, NotificationType type,
+                                 String title, String message) {
+        Map<String, User> recipients = new LinkedHashMap<>();
+        userRepository.findByAdminTrueAndIsActiveTrue().forEach(u -> recipients.put(u.getUserId(), u));
+        environmentIds.forEach(id -> resolveEnvironmentReviewers(id).forEach(u -> recipients.put(u.getUserId(), u)));
+        String entityType = team || environmentIds.isEmpty() ? "BUDGET" : "ENVIRONMENT";
+        String entityId = team || environmentIds.isEmpty() ? budgetId : environmentIds.get(0);
+        recipients.values().forEach(u -> create(u.getUserId(), type, title, message, entityType, entityId));
+        if (emailBudgetAlertEnabled) {
+            sendEventEmail(List.copyOf(recipients.values()), title, message);
+        }
+    }
+
+    private static String dollars(java.math.BigDecimal value) {
+        return value == null ? "$0.00" : "$" + String.format(java.util.Locale.US, "%,.2f", value);
+    }
+
+    private static String monthName(java.time.YearMonth month) {
+        return month.getMonth().getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.ENGLISH) + " " + month.getYear();
     }
 
     // ============= Environment leases (E15-T04) =============

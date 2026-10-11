@@ -28,5 +28,9 @@ public enum NotificationType {
     LEASE_EXPIRING,
     LEASE_EXPIRED,
     LEASE_EXTENSION_REQUESTED,
-    LEASE_EXTENSION_DECIDED
+    LEASE_EXTENSION_DECIDED,
+    /** A budget's spend reached one of its thresholds (E20-T02). */
+    BUDGET_THRESHOLD,
+    /** A budget's month-end forecast exceeds it (E20-T02). */
+    BUDGET_FORECAST
 }
