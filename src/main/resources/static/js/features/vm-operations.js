@@ -91,6 +91,16 @@ const VmOperations = (function() {
             // Submit operation (errors are shown in the progress modal, with the server's reason)
             ApiClient.post(Config.API.operations.create(envId), operationData, { suppressGlobalError: true })
                 .done(function(execution) {
+                    // Held for approval (E25-T04): nothing runs yet; say who decides and why.
+                    if (execution && execution.approvalRequestId) {
+                        Modals.hide('operationProgressModal');
+                        const why = (execution.reasons || []).join('; ');
+                        const who = (execution.approvers || []).join(', ');
+                        Notifications.show(`Sent for approval${who ? ' to ' + who : ''}. It starts once approved.`
+                            + (why ? ` Why: ${why}.` : ''), 'info', 8000);
+                        resolve(execution);
+                        return;
+                    }
                     // Store operation info with explicit state tracking
                     activeOperations.set(execution.executionId, {
                         envId,

@@ -66,7 +66,9 @@ public class SchedulerJobCatalog {
             cron("team_membership_sync", "Team membership sync (hourly)", "teams.entra-sync.cron", "0 15 * * * *",
                     "teams.entra-sync.enabled", false),
             cron("chargeback_statement", "Chargeback statement (monthly)", "chargeback.cron", "0 0 6 5 * *",
-                    "chargeback.enabled", false));
+                    "chargeback.enabled", false),
+            cron("approval_expiry", "Approval expiry (every 10 min)", "approvals.expiry-cron", "0 */10 * * * *",
+                    "approvals.enabled", false));
 
     /** A job as the health view needs it. */
     public record Job(String jobName, String label, Duration expectedInterval, boolean enabled) {

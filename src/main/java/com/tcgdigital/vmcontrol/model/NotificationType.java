@@ -38,5 +38,8 @@ public enum NotificationType {
     /** Starts are frozen in an environment by its budget (E20-T03). */
     BUDGET_FREEZE,
     /** AWS flagged unexpected spend in an environment (E21-T03). */
-    COST_ANOMALY
+    COST_ANOMALY,
+    APPROVAL_REQUESTED,
+    APPROVAL_GRANTED,
+    APPROVAL_DENIED
 }

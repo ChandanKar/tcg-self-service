@@ -57,6 +57,26 @@ public class ChatActionService {
         this.jiraTickets = jiraTickets;
     }
 
+    /** Approvals from chat (E25-T04); optional for the same reason. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.ApprovalRequestService approvals;
+
+    void setApprovals(com.tcgdigital.vmcontrol.service.ApprovalRequestService approvals) {
+        this.approvals = approvals;
+    }
+
+    /** The held request behind an APPROVE_OPERATION link; it must belong to the link's environment. */
+    private com.tcgdigital.vmcontrol.model.ApprovalRequest heldRequest(ChatActionTokenService.Claims claims) {
+        if (approvals == null) {
+            throw new ValidationException("Approvals are not available");
+        }
+        com.tcgdigital.vmcontrol.model.ApprovalRequest request = approvals.find(claims.targetId());
+        if (!request.getEnvironmentId().equals(claims.environmentId())) {
+            throw new ValidationException("This link is not valid");
+        }
+        return request;
+    }
+
     public ChatActionService(ChatActionTokenService tokenService, EnvironmentAccessService accessService,
                              VmOperationsService operationsService, SecurityService securityService,
                              EnvironmentRepository environmentRepository, AuditService auditService,
@@ -114,6 +134,15 @@ public class ChatActionService {
                         "Keep " + name(environment) + " running longer. It now stops at " + TIME.format(end)
                                 + "; 2 hours more would be " + TIME.format(later(end, DEFAULT_EXTEND_MINUTES)) + ".",
                         "Extend", claims.expiresAt(), EXTEND_MINUTES, DEFAULT_EXTEND_MINUTES, "minutes");
+            }
+            case APPROVE_OPERATION -> {
+                com.tcgdigital.vmcontrol.model.ApprovalRequest request = heldRequest(claims);
+                yield new Preview(claims.type().name(), claims.environmentId(), name(environment),
+                        "Approve the request to " + (request.getRequestType() == com.tcgdigital.vmcontrol.model.ApprovalRequest.Type.EXTEND
+                                ? "keep " + name(environment) + " running longer" : "start " + name(environment))
+                                + (request.getScopeSummary() == null ? "" : " (" + request.getScopeSummary() + ")")
+                                + (request.getEstimatedCost() == null ? "" : ", about $" + request.getEstimatedCost().toPlainString()) + ".",
+                        "Approve", claims.expiresAt());
             }
             case CREATE_JIRA_TICKET -> {
                 securityService.assertCanAdminister(claims.environmentId());
@@ -212,6 +241,13 @@ public class ChatActionService {
                         ? envName + " now runs until " + TIME.format(outcome.lease().getEndsAt().toInstant()) + "."
                         : "That is beyond " + envName + "'s maximum, so the owners were asked to approve it.";
                 return new Result(claims.type().name(), claims.environmentId(), message);
+            }
+            case APPROVE_OPERATION -> {
+                heldRequest(claims);
+                tokenService.markUsed(claims.jti(), userId);
+                com.tcgdigital.vmcontrol.dto.ApprovalRequestDTO decided = approvals.approve(claims.targetId(), userId, "Approved " + VIA_CHAT);
+                return new Result(claims.type().name(), claims.environmentId(), "APPROVED".equals(decided.status())
+                        || "EXECUTED".equals(decided.status()) ? "Approved: it runs now." : "Approved; waiting for the other approvers.");
             }
             case CREATE_JIRA_TICKET -> {
                 securityService.assertCanAdminister(claims.environmentId());

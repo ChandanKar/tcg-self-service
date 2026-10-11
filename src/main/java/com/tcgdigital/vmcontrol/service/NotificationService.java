@@ -479,6 +479,37 @@ public class NotificationService {
         return month.getMonth().getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.ENGLISH) + " " + month.getYear();
     }
 
+    // ============= Approvals (E25-T04) =============
+
+    /** The approvers hear that a start or extension waits for them; the environment's channels get an Approve button. */
+    public void notifyApprovalRequested(List<String> approverIds, String environmentId, String environmentName, String requestId,
+                                        String requesterName, String type, String scope, java.math.BigDecimal estimatedCost,
+                                        List<String> reasons) {
+        String what = "EXTEND".equals(type) ? "keep " + environmentName + " running longer" : "start " + environmentName;
+        String title = "Approval needed: " + environmentName;
+        String message = requesterName + " asked to " + what + " (" + scope
+                + (estimatedCost == null ? "" : ", about " + dollars(estimatedCost)) + "). "
+                + (reasons.isEmpty() ? "" : "Why approval is needed: " + String.join("; ", reasons) + ".");
+        approverIds.forEach(id -> create(id, NotificationType.APPROVAL_REQUESTED, title, message, "APPROVAL_REQUEST", requestId));
+        if (chat != null) {
+            try {
+                chat.notifyWithActions(environmentId, NotificationType.APPROVAL_REQUESTED,
+                        com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.INFO, title, message, "#/approvals",
+                        List.of(new com.tcgdigital.vmcontrol.service.chat.ChatDispatchService.ActionSpec(
+                                com.tcgdigital.vmcontrol.model.ChatActionType.APPROVE_OPERATION, "Approve", requestId, "primary")),
+                        "APPROVAL_REQUESTED:" + requestId);
+            } catch (RuntimeException e) {
+                log.warn("Could not send the approval request to chat: {}", e.getClass().getSimpleName());
+            }
+        }
+    }
+
+    /** The requester hears how their request ended (approved and running, denied, expired, failed). */
+    public void notifyApprovalOutcome(String requesterId, String environmentId, String environmentName, String requestId,
+                                      NotificationType type, String title, String message) {
+        create(requesterId, type, title, message, "APPROVAL_REQUEST", requestId);
+    }
+
     // ============= Environment leases (E15-T04) =============
 
     /**

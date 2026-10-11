@@ -170,4 +170,27 @@ class ChatActionServiceTest {
         assertThat(service.execute("t", "user-1", null).message()).startsWith("Already tracked as PLAT-7");
         verify(tokens, times(2)).markUsed("jti-1", "user-1");
     }
+
+    @Test
+    void approveOperationApprovesAsTheSignedInUser() {
+        when(tokens.verify("t")).thenReturn(new ChatActionTokenService.Claims("jti-1", ChatActionType.APPROVE_OPERATION, ENV,
+                "req-1", Instant.now().plusSeconds(600)));
+        com.tcgdigital.vmcontrol.service.ApprovalRequestService approvals = mock(com.tcgdigital.vmcontrol.service.ApprovalRequestService.class);
+        service.setApprovals(approvals);
+        com.tcgdigital.vmcontrol.model.ApprovalRequest held = new com.tcgdigital.vmcontrol.model.ApprovalRequest();
+        held.setEnvironmentId(ENV);
+        held.setRequestType(com.tcgdigital.vmcontrol.model.ApprovalRequest.Type.START);
+        held.setScopeSummary("a group, 8 h");
+        when(approvals.find("req-1")).thenReturn(held);
+        com.tcgdigital.vmcontrol.dto.ApprovalRequestDTO pending = mock(com.tcgdigital.vmcontrol.dto.ApprovalRequestDTO.class);
+        when(pending.status()).thenReturn("PENDING");
+        when(approvals.approve("req-1", "user-1", "Approved via chat")).thenReturn(pending);
+
+        assertThat(service.preview("t").description()).isEqualTo("Approve the request to start Dev QA (a group, 8 h).");
+        assertThat(service.execute("t", "user-1", null).message()).isEqualTo("Approved; waiting for the other approvers.");
+        verify(tokens).markUsed("jti-1", "user-1");
+
+        held.setEnvironmentId("other-env");
+        assertThatThrownBy(() -> service.preview("t")).isInstanceOf(ValidationException.class);
+    }
 }

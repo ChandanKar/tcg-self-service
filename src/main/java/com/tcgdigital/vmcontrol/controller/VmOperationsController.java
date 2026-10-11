@@ -62,13 +62,20 @@ public class VmOperationsController {
             @ApiResponse(responseCode = "403", description = "Access denied - requires USER level access"),
             @ApiResponse(responseCode = "409", description = "Operation already in progress or lock conflict")
     })
-    public ResponseEntity<OperationExecutionDTO> startOperation(
+    public ResponseEntity<?> startOperation(
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Valid @RequestBody StartOperationDTO dto) {
 
         securityService.assertCanOperate(environmentId);
 
         String effectiveUserId = userService.getCurrentUserId();
+
+        // A start that matches an approval policy waits for its approvers (E25-T04).
+        com.tcgdigital.vmcontrol.dto.ApprovalRequestDTO.Held held =
+                approvalRequestService.holdStartIfNeeded(environmentId, effectiveUserId, dto);
+        if (held != null) {
+            return ResponseEntity.status(HttpStatus.ACCEPTED).body(held);
+        }
 
         OperationExecution execution = operationsService.startOperation(environmentId, effectiveUserId, dto);
 
@@ -139,6 +146,9 @@ public class VmOperationsController {
 
     @org.springframework.beans.factory.annotation.Autowired
     private com.tcgdigital.vmcontrol.service.OperationCostPreviewService costPreviewService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.tcgdigital.vmcontrol.service.ApprovalRequestService approvalRequestService;
 
     /** What starting the VMs in scope for some hours would cost (E25-T01); read-only, needs view rights. */
     @GetMapping("/cost-preview")

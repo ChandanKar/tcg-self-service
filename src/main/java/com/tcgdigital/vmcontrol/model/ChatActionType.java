@@ -7,5 +7,7 @@ public enum ChatActionType {
     APPROVE_ACCESS_REQUEST,
     STOP_ENVIRONMENT,
     /** Create (or open) the Jira issue for a cost anomaly (E24-T07). */
-    CREATE_JIRA_TICKET
+    CREATE_JIRA_TICKET,
+    /** Approve a start or extension held for approval (E25-T04). */
+    APPROVE_OPERATION
 }
