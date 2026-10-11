@@ -305,7 +305,7 @@ const AutomationRules = (function() {
         if (totalCount === 0) {
             rows = `
                 <tr class="ar-empty-row">
-                    <td colspan="7">
+                    <td colspan="8">
                         <div class="empty-state">
                             <i class="fas fa-bolt fa-2x mb-2 d-block text-muted opacity-50"></i>
                             No automation rules yet. Click "New Rule" to create a calendar schedule or an access-grant trigger.
@@ -316,7 +316,7 @@ const AutomationRules = (function() {
         } else if (pageRows.length === 0) {
             rows = `
                 <tr class="ar-empty-row">
-                    <td colspan="7">
+                    <td colspan="8">
                         <div class="empty-state">
                             <i class="fas fa-filter fa-2x mb-2 d-block text-muted opacity-50"></i>
                             No rules match the current filters.
@@ -336,6 +336,9 @@ const AutomationRules = (function() {
                 <td>${typeBadge(rule)}</td>
                 <td>${Utils.escapeHtml(scopeLabel(rule))}</td>
                 <td>${Utils.escapeHtml(triggerSummary(rule))}</td>
+                <td class="ar-next-run">${rule.nextRunAt
+                    ? `${Utils.escapeHtml(Utils.formatDate(rule.nextRunAt))}<div class="small text-muted">${rule.nextRunAction === 'STOP' ? 'Stop' : 'Start'}</div>`
+                    : '<span class="text-muted">—</span>'}</td>
                 <td class="text-center">
                     <div class="form-check form-switch mb-0 d-inline-block">
                         <input class="form-check-input ar-toggle-enabled" type="checkbox" role="switch"
@@ -364,7 +367,7 @@ const AutomationRules = (function() {
             <table class="table mb-0">
                 <thead>
                     <tr>
-                        <th>Rule</th><th>Type</th><th>Scope</th><th>Trigger</th><th class="text-center">Status</th><th>Last Run</th><th></th>
+                        <th>Rule</th><th>Type</th><th>Scope</th><th>Trigger</th><th>Next run</th><th class="text-center">Status</th><th>Last Run</th><th></th>
                     </tr>
                 </thead>
                 <tbody>${rows}</tbody>
@@ -650,6 +653,10 @@ const AutomationRules = (function() {
                                             <select class="form-select" id="ar-holiday-calendar">${holidayOptions(rule)}</select>
                                         </div>
                                     </div>
+                                    <div class="mb-3">
+                                        <span class="form-label d-block" id="ar-preview-label">Next runs</span>
+                                        <div id="ar-preview" class="ar-preview" aria-labelledby="ar-preview-label" aria-live="polite"></div>
+                                    </div>
                                     ${rule && rule.triggerType === 'SCHEDULE' ? `
                                     <div class="mb-3" id="ar-overrides-section">
                                         <span class="form-label d-block" id="ar-overrides-label">Overrides</span>
@@ -852,6 +859,48 @@ const AutomationRules = (function() {
         if (rule && rule.triggerType === 'SCHEDULE') {
             loadOverrides(rule);
         }
+
+        // Next runs refresh 400 ms after any change to the schedule (E19-T04).
+        $('#ar-form').on('input change', () => schedulePreview(rule));
+        $('#ar-windows').on('click', '.ar-day-pill, .ar-remove-window', () => schedulePreview(rule));
+        $('#ar-add-window').on('click', () => schedulePreview(rule));
+        $('.ar-choice-card').on('click', () => schedulePreview(rule));
+        schedulePreview(rule, 0);
+    }
+
+    let previewTimer = null;
+    let previewSeq = 0;
+
+    function schedulePreview(rule, delay = 400) {
+        clearTimeout(previewTimer);
+        previewTimer = setTimeout(() => refreshPreview(rule), delay);
+    }
+
+    async function refreshPreview(rule) {
+        const $panel = $('#ar-preview');
+        if (!$panel.length || $('#ar-trigger-type').val() !== 'SCHEDULE') return;
+        const seq = ++previewSeq;
+        const dto = buildDto();
+        dto.name = dto.name || 'Preview'; // the name does not change the runs
+        let runs;
+        try {
+            runs = await apiPost(Config.API.automationRules.preview(rule ? rule.ruleId : null), dto);
+        } catch (error) {
+            if (seq !== previewSeq) return;
+            $panel.html(Utils.html`<div class="text-muted small"><i class="fas fa-circle-exclamation me-1" aria-hidden="true"></i>${serverMessage(error, 'Could not preview the schedule.')}</div>`);
+            return;
+        }
+        if (seq !== previewSeq) return; // a newer edit is on its way
+        if (!runs || !runs.length) {
+            $panel.html('<div class="text-muted small">No runs in the next 60 days.</div>');
+            return;
+        }
+        $panel.html(`<ol class="ar-preview-list">${runs.map(r => {
+            const text = `${r.label} — ${r.action === 'STOP' ? 'Stop' : 'Start'}`;
+            return r.skipped
+                ? Utils.html`<li class="ar-run-skipped"><s>${text}</s> <span class="text-muted">(${r.skipReason})</span></li>`
+                : Utils.html`<li>${text}</li>`;
+        }).join('')}</ol>`);
     }
 
     /** The rule's active and upcoming overrides, each removable (E19-T03). */
@@ -919,17 +968,11 @@ const AutomationRules = (function() {
         }
     }
 
-    async function submitForm(rule) {
-        if (saving) return;
+    /** The rule as the form describes it (also the preview's draft). */
+    function buildDto() {
         const triggerType = $('#ar-trigger-type').val();
         const scopeType = $('#ar-scope-type').val();
         const name = $('#ar-name').val().trim();
-
-        if (!name) {
-            Notifications.showError('Name is required.');
-            return;
-        }
-
         const dto = {
             environmentId: $('#ar-environment').val(),
             name: name,
@@ -948,6 +991,16 @@ const AutomationRules = (function() {
             dto.holidayBehavior = $('input[name="ar-holiday-behavior"]:checked').val() || 'SKIP_START';
         } else {
             dto.accessGrantMode = $('input[name="ar-access-grant-mode"]:checked').val();
+        }
+        return dto;
+    }
+
+    async function submitForm(rule) {
+        if (saving) return;
+        const dto = buildDto();
+        if (!dto.name) {
+            Notifications.showError('Name is required.');
+            return;
         }
 
         saving = true;

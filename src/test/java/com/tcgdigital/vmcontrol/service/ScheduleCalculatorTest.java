@@ -86,4 +86,76 @@ class ScheduleCalculatorTest {
         assertThat(calc.parseDays(null)).isEmpty();
         assertThat(calc.parseDays("XX,M")).isEmpty();
     }
+
+    // ------------------------------------------------------------------ nextRuns (E19-T04)
+
+    private static final LocalDate FRIDAY = LocalDate.of(2026, 10, 9);
+    private static final ScheduleCalculator.SkipLookup NO_SKIPS = (action, day, at) -> java.util.Optional.empty();
+
+    private static ScheduleCalculator.WindowSpec window(Set<DayOfWeek> days, String start, String stop) {
+        return new ScheduleCalculator.WindowSpec(days, start == null ? null : LocalTime.parse(start),
+                stop == null ? null : LocalTime.parse(stop));
+    }
+
+    private static String describe(ScheduleCalculator.Run run) {
+        return run.at().getDayOfWeek().name().substring(0, 3) + " " + run.at().toLocalTime() + " " + run.action()
+                + (run.skipped() ? " skipped(" + run.skipReason() + ")" : "");
+    }
+
+    @Test
+    void nextRunsInterleaveWindowsInTimeOrder() {
+        var runs = calc.nextRuns(java.util.List.of(window(WEEKDAYS, "08:00", "20:00"),
+                        window(EnumSet.of(DayOfWeek.SATURDAY), "10:00", "14:00")),
+                KOLKATA, at(FRIDAY, 21, 0, 0, KOLKATA).toInstant(), 5, NO_SKIPS);
+
+        assertThat(runs).extracting(ScheduleCalculatorTest::describe).containsExactly(
+                "SAT 10:00 START", "SAT 14:00 STOP", "MON 08:00 START", "MON 20:00 STOP", "TUE 08:00 START");
+        assertThat(runs.get(0).windowIndex()).isEqualTo(1);
+    }
+
+    @Test
+    void aFridayEveningPreviewOfAWeekdayStopStartsOnMonday() {
+        var runs = calc.nextRuns(java.util.List.of(window(WEEKDAYS, null, "20:00")),
+                KOLKATA, at(FRIDAY, 21, 0, 0, KOLKATA).toInstant(), 10, NO_SKIPS);
+
+        assertThat(runs.get(0).at()).isEqualTo(at(FRIDAY.plusDays(3), 20, 0, 0, KOLKATA));
+        assertThat(runs).hasSize(10).allSatisfy(r -> assertThat(r.action().name()).isEqualTo("STOP"));
+    }
+
+    @Test
+    void skippedRunsAreKeptAndMarked() {
+        LocalDate monday = FRIDAY.plusDays(3);
+        ScheduleCalculator.SkipLookup holidayMonday = (action, day, at) ->
+                day.equals(monday) ? java.util.Optional.of("Holiday: Diwali") : java.util.Optional.empty();
+
+        var runs = calc.nextRuns(java.util.List.of(window(WEEKDAYS, null, "20:00")),
+                KOLKATA, at(FRIDAY, 21, 0, 0, KOLKATA).toInstant(), 2, holidayMonday);
+
+        assertThat(runs).extracting(ScheduleCalculatorTest::describe)
+                .containsExactly("MON 20:00 STOP skipped(Holiday: Diwali)", "TUE 20:00 STOP");
+    }
+
+    @Test
+    void aTimeInTheSpringForwardGapIsShownAnHourLater() {
+        // Europe/London skips 01:00-02:00 local on 2027-03-28 (Europe/Berlin would skip 02:00-03:00).
+        LocalDate springForward = LocalDate.of(2027, 3, 28);
+        var runs = calc.nextRuns(java.util.List.of(window(EnumSet.of(DayOfWeek.SUNDAY), "01:30", null)),
+                LONDON, at(springForward.minusDays(1), 12, 0, 0, LONDON).toInstant(), 1, NO_SKIPS);
+        assertThat(runs).singleElement().satisfies(r -> assertThat(r.at().toLocalTime()).isEqualTo(LocalTime.of(2, 30)));
+
+        var berlin = calc.nextRuns(java.util.List.of(window(EnumSet.of(DayOfWeek.SUNDAY), "02:30", null)),
+                ZoneId.of("Europe/Berlin"), at(springForward.minusDays(1), 12, 0, 0, LONDON).toInstant(), 1, NO_SKIPS);
+        assertThat(berlin).singleElement().satisfies(r -> assertThat(r.at().toLocalTime()).isEqualTo(LocalTime.of(3, 30)));
+    }
+
+    @Test
+    void aStopComesBeforeAStartAtTheSameTimeAndTheLimitHolds() {
+        var runs = calc.nextRuns(java.util.List.of(window(WEEKDAYS, null, "12:00"), window(WEEKDAYS, "12:00", "18:00")),
+                KOLKATA, at(WEDNESDAY, 9, 0, 0, KOLKATA).toInstant(), 3, NO_SKIPS);
+
+        assertThat(runs).extracting(ScheduleCalculatorTest::describe)
+                .containsExactly("WED 12:00 STOP", "WED 12:00 START", "WED 18:00 STOP");
+        assertThat(calc.nextRuns(java.util.List.of(window(EnumSet.noneOf(DayOfWeek.class), "08:00", null)),
+                KOLKATA, at(WEDNESDAY, 9, 0, 0, KOLKATA).toInstant(), 3, NO_SKIPS)).isEmpty();
+    }
 }

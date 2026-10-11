@@ -331,3 +331,23 @@
         grid-template-columns: minmax(0, 1fr);
     }
 }
+
+/* Next runs preview (E19-T04) */
+.ar-preview {
+    max-height: 14rem;
+    overflow-y: auto;
+    font-size: 0.85rem;
+}
+
+.ar-preview-list {
+    margin: 0;
+    padding-left: 1.25rem;
+}
+
+.ar-run-skipped s {
+    color: var(--text-secondary, #64748b);
+}
+
+.ar-next-run {
+    white-space: nowrap;
+}

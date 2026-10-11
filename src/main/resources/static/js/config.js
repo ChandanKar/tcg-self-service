@@ -268,6 +268,9 @@ const Config = (function() {
             update: (ruleId) => `${API_BASE_URL}/automation-rules/${ruleId}`,
             setEnabled: (ruleId) => `${API_BASE_URL}/automation-rules/${ruleId}/enabled`,
             delete: (ruleId) => `${API_BASE_URL}/automation-rules/${ruleId}`,
+            // Next runs (E19-T04)
+            preview: (ruleId) => `${API_BASE_URL}/automation-rules/preview` + (ruleId ? `?ruleId=${encodeURIComponent(ruleId)}` : ''),
+            nextRuns: (ruleId) => `${API_BASE_URL}/automation-rules/${ruleId}/next-runs`,
             // Overrides (E19-T03)
             overrides: (ruleId) => `${API_BASE_URL}/automation-rules/${ruleId}/overrides`,
             deleteOverride: (ruleId, overrideId) => `${API_BASE_URL}/automation-rules/${ruleId}/overrides/${overrideId}`

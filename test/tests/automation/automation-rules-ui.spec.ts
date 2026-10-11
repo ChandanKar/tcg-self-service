@@ -44,6 +44,7 @@ class FakeRules {
     const req = route.request();
     const parts = new URL(req.url()).pathname.split('/'); // ['', 'api','v1','automation-rules', id?, 'enabled'?]
     if (req.method() === 'GET') return this.json(route, this.rules);
+    if (req.method() === 'POST' && parts[4] === 'preview') return this.json(route, []); // next-runs preview (E19-T04)
     if (req.method() === 'POST') {
       this.posts++;
       await new Promise(r => setTimeout(r, 400)); // a slow server: the second click lands mid-request

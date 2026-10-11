@@ -44,6 +44,9 @@ public class AutomationRuleDTO {
     private java.time.Instant nextStartAt;
     /** Active and upcoming overrides (E19-T03). */
     private long overrideCount;
+    /** Schedule only: the first run that is not skipped (E19-T04). */
+    private java.time.OffsetDateTime nextRunAt;
+    private String nextRunAction;
     private com.tcgdigital.vmcontrol.model.HolidayBehavior holidayBehavior;
     private AccessGrantMode accessGrantMode;
     private boolean skipIfAlreadyInTargetState;
@@ -218,6 +221,19 @@ public class AutomationRuleDTO {
 
     public java.time.Instant getNextStartAt() {
         return nextStartAt;
+    }
+
+    public java.time.OffsetDateTime getNextRunAt() {
+        return nextRunAt;
+    }
+
+    public String getNextRunAction() {
+        return nextRunAction;
+    }
+
+    public void setNextRun(java.time.OffsetDateTime nextRunAt, String nextRunAction) {
+        this.nextRunAt = nextRunAt;
+        this.nextRunAction = nextRunAction;
     }
 
     public long getOverrideCount() {

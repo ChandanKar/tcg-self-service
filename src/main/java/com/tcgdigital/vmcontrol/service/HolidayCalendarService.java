@@ -223,6 +223,17 @@ public class HolidayCalendarService {
         return dates.findByCalendarCalendarIdAndHolidayDate(calendarId, day);
     }
 
+    /** Holidays from {@code from} to {@code to} inclusive: day to label ("" when unlabelled). */
+    @Transactional(readOnly = true)
+    public Map<LocalDate, String> holidaysBetween(String calendarId, LocalDate from, LocalDate to) {
+        Map<LocalDate, String> out = new java.util.HashMap<>();
+        if (calendarId != null) {
+            dates.findByCalendarCalendarIdAndHolidayDateBetweenOrderByHolidayDateAsc(calendarId, from, to)
+                    .forEach(d -> out.put(d.getHolidayDate(), d.getLabel() == null ? "" : d.getLabel()));
+        }
+        return out;
+    }
+
     @Transactional(readOnly = true)
     public boolean isHoliday(String calendarId, LocalDate day) {
         return holidayOn(calendarId, day).isPresent();

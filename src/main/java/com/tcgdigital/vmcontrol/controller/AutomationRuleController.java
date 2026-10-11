@@ -67,6 +67,30 @@ public class AutomationRuleController {
         return ResponseEntity.ok(automationRuleService.getRule(ruleId));
     }
 
+    @PostMapping("/preview")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(summary = "Preview the next runs of a draft schedule rule",
+            description = "Validated like a create but not saved. Pass ruleId when editing a saved rule to apply its overrides.")
+    public List<com.tcgdigital.vmcontrol.dto.ScheduleRunPreviewDTO> preview(
+            @Valid @RequestBody AutomationRuleRequestDTO dto,
+            @RequestParam(required = false) String ruleId,
+            @RequestParam(defaultValue = "10") int limit) {
+        securityService.assertCanAdminister(dto.getEnvironmentId());
+        if (ruleId != null && !ruleId.isBlank()) {
+            assertCanAdministerRule(ruleId);
+        }
+        return automationRuleService.previewRuns(dto, ruleId, limit);
+    }
+
+    @GetMapping("/{ruleId}/next-runs")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(summary = "The next runs of a saved schedule rule, with skipped ones marked")
+    public List<com.tcgdigital.vmcontrol.dto.ScheduleRunPreviewDTO> nextRuns(@PathVariable String ruleId,
+                                                                            @RequestParam(defaultValue = "10") int limit) {
+        assertCanAdministerRule(ruleId);
+        return automationRuleService.nextRuns(ruleId, limit);
+    }
+
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(summary = "Create an automation rule")

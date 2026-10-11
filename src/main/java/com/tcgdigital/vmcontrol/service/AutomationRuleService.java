@@ -5,6 +5,7 @@ import com.tcgdigital.vmcontrol.dto.AutomationRuleRequestDTO;
 import com.tcgdigital.vmcontrol.dto.AutomationRuleOverrideDTOs.OverrideDTO;
 import com.tcgdigital.vmcontrol.dto.AutomationRuleOverrideDTOs.OverrideRequest;
 import com.tcgdigital.vmcontrol.dto.AutomationRuleWindowDTO;
+import com.tcgdigital.vmcontrol.dto.ScheduleRunPreviewDTO;
 import com.tcgdigital.vmcontrol.dto.StartOperationDTO;
 import com.tcgdigital.vmcontrol.exception.LockAlreadyHeldException;
 import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
@@ -200,6 +201,96 @@ public class AutomationRuleService {
     private AutomationRule getRuleEntity(String ruleId) {
         return automationRuleRepository.findById(ruleId)
                 .orElseThrow(() -> new ResourceNotFoundException("AutomationRule", ruleId));
+    }
+
+    // ============= Next runs (E19-T04) =============
+
+    static final int DEFAULT_PREVIEW = 10;
+    static final int MAX_PREVIEW = 20;
+    private static final DateTimeFormatter RUN_LABEL = DateTimeFormatter.ofPattern("EEE d MMM, HH:mm z", java.util.Locale.ENGLISH);
+
+    /**
+     * The next runs of a draft rule, validated exactly like a create (a 400 carries the same
+     * message). With {@code ruleId} (editing a saved rule) its overrides are applied too.
+     */
+    @Transactional(readOnly = true)
+    public List<ScheduleRunPreviewDTO> previewRuns(AutomationRuleRequestDTO dto, String ruleId, int limit) {
+        Environment environment = environmentRepository.findById(dto.getEnvironmentId())
+                .orElseThrow(() -> new ResourceNotFoundException("Environment", dto.getEnvironmentId()));
+        validateScope(environment, dto.getScopeType(), dto.getScopeId());
+        validateTriggerFields(dto);
+        if (dto.getTriggerType() != AutomationTriggerType.SCHEDULE) {
+            throw new ValidationException("Only schedule rules have runs to preview");
+        }
+        List<ScheduleCalculator.WindowSpec> windows = requestedWindows(dto).stream()
+                .map(w -> spec(String.join(",", w.getDaysOfWeek()), w.getStartTime(), w.getStopTime())).toList();
+        HolidayBehavior behavior = dto.getHolidayBehavior() == null ? HolidayBehavior.SKIP_START : dto.getHolidayBehavior();
+        return toPreview(computeRuns(windows, ZoneId.of(dto.getTimezone()), blankToNull(dto.getHolidayCalendarId()),
+                behavior, blankToNull(ruleId), clock.instant(), clamp(limit)));
+    }
+
+    /** The next runs of a saved schedule rule, with its holidays and overrides. */
+    @Transactional(readOnly = true)
+    public List<ScheduleRunPreviewDTO> nextRuns(String ruleId, int limit) {
+        AutomationRule rule = getRuleEntity(ruleId);
+        if (!rule.isScheduleRule()) {
+            throw new ValidationException("Only schedule rules have runs to preview");
+        }
+        return toPreview(runsOf(rule, clock.instant(), clamp(limit)));
+    }
+
+    private static int clamp(int limit) {
+        if (limit < 1) {
+            throw new ValidationException("limit must be >= 1");
+        }
+        return Math.min(limit, MAX_PREVIEW);
+    }
+
+    private List<ScheduleCalculator.Run> runsOf(AutomationRule rule, Instant from, int limit) {
+        ZoneId zone;
+        try {
+            zone = ZoneId.of(rule.getTimezone());
+        } catch (Exception e) {
+            return List.of();
+        }
+        List<ScheduleCalculator.WindowSpec> windows = rule.getWindows().stream()
+                .map(w -> spec(w.getDaysOfWeek(), w.getStartTime(), w.getStopTime())).toList();
+        return computeRuns(windows, zone, rule.getHolidayCalendarId(), rule.getHolidayBehavior(), rule.getRuleId(),
+                from, limit);
+    }
+
+    private ScheduleCalculator.WindowSpec spec(String days, String start, String stop) {
+        return new ScheduleCalculator.WindowSpec(scheduleCalculator.parseDays(days),
+                start == null || start.isBlank() ? null : LocalTime.parse(start, HHMM),
+                stop == null || stop.isBlank() ? null : LocalTime.parse(stop, HHMM));
+    }
+
+    /** Runs with the same skip rules as the evaluator: an override covering the time, then a holiday. */
+    private List<ScheduleCalculator.Run> computeRuns(List<ScheduleCalculator.WindowSpec> windows, ZoneId zone,
+                                                     String calendarId, HolidayBehavior behavior, String ruleId,
+                                                     Instant from, int limit) {
+        LocalDate first = from.atZone(zone).toLocalDate();
+        java.util.Map<LocalDate, String> holidays = holidayCalendarService.holidaysBetween(calendarId, first,
+                first.plusDays(ScheduleCalculator.PREVIEW_DAYS));
+        List<AutomationRuleOverride> overrides = ruleId == null ? List.of()
+                : overrideRepository.findUpcoming(ruleId, Timestamp.from(from));
+        return scheduleCalculator.nextRuns(windows, zone, from, limit, (action, day, at) -> {
+            for (AutomationRuleOverride o : overrides) {
+                if (o.skips(action) && !o.getStartsAt().toInstant().isAfter(at) && o.getEndsAt().toInstant().isAfter(at)) {
+                    return Optional.of("Override: " + o.getReason());
+                }
+            }
+            String label = holidays.get(day);
+            if (label != null && (action == OperationType.START || behavior == HolidayBehavior.SKIP_ALL)) {
+                return Optional.of(label.isEmpty() ? "Holiday" : "Holiday: " + label);
+            }
+            return Optional.empty();
+        });
+    }
+
+    private static List<ScheduleRunPreviewDTO> toPreview(List<ScheduleCalculator.Run> runs) {
+        return runs.stream().map(r -> new ScheduleRunPreviewDTO(r.at().toOffsetDateTime(), RUN_LABEL.format(r.at()),
+                r.action().name(), r.windowIndex(), r.skipped(), r.skipReason())).toList();
     }
 
     // ============= Overrides (E19-T03) =============
@@ -821,6 +912,10 @@ public class AutomationRuleService {
             NextFirings next = Boolean.TRUE.equals(rule.getEnabled()) ? firingsOf(List.of(rule), now) : null;
             dto.setSchedule(next == null ? null : next.nextStop(), next == null ? null : next.nextStart(),
                     overrideRepository.countByRuleIdAndEndsAtAfter(rule.getRuleId(), Timestamp.from(now)));
+            if (next != null) {
+                runsOf(rule, now, MAX_PREVIEW).stream().filter(r -> !r.skipped()).findFirst()
+                        .ifPresent(r -> dto.setNextRun(r.at().toOffsetDateTime(), r.action().name()));
+            }
         }
         return dto;
     }

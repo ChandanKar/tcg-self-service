@@ -23,6 +23,68 @@ import java.util.Set;
 @Component
 public class ScheduleCalculator {
 
+    /** One window of a rule: its days and optional start and stop times (E19-T04). */
+    public record WindowSpec(Set<DayOfWeek> days, LocalTime start, LocalTime stop) {}
+
+    /** An upcoming START or STOP; {@code skipReason} is null when it runs. */
+    public record Run(java.time.ZonedDateTime at, com.tcgdigital.vmcontrol.model.OperationType action, int windowIndex,
+                      String skipReason) {
+        public boolean skipped() {
+            return skipReason != null;
+        }
+    }
+
+    /** Why a run would be skipped (an override, a holiday), or empty. */
+    @FunctionalInterface
+    public interface SkipLookup {
+        java.util.Optional<String> reason(com.tcgdigital.vmcontrol.model.OperationType action, LocalDate day,
+                                          java.time.Instant at);
+    }
+
+    /** Days looked ahead by {@link #nextRuns}. */
+    public static final int PREVIEW_DAYS = 60;
+
+    /**
+     * The first {@code limit} runs strictly after {@code from}, in time order (STOP before START at
+     * the same instant), over up to {@link #PREVIEW_DAYS} days in {@code zone}. Each time uses the
+     * same DST handling as {@link #dueInstant}; skipped runs are included and marked.
+     */
+    public java.util.List<Run> nextRuns(java.util.List<WindowSpec> windows, java.time.ZoneId zone, java.time.Instant from,
+                                        int limit, SkipLookup skips) {
+        java.util.List<Run> runs = new java.util.ArrayList<>();
+        LocalDate first = from.atZone(zone).toLocalDate();
+        for (int offset = 0; offset < PREVIEW_DAYS; offset++) {
+            LocalDate day = first.plusDays(offset);
+            for (int i = 0; i < windows.size(); i++) {
+                WindowSpec w = windows.get(i);
+                if (!w.days().contains(day.getDayOfWeek())) {
+                    continue;
+                }
+                addRun(runs, w.stop(), com.tcgdigital.vmcontrol.model.OperationType.STOP, day, i, zone, from, skips);
+                addRun(runs, w.start(), com.tcgdigital.vmcontrol.model.OperationType.START, day, i, zone, from, skips);
+            }
+            // Later days only add later runs.
+            if (runs.size() >= limit) {
+                break;
+            }
+        }
+        runs.sort(java.util.Comparator.comparing((Run r) -> r.at().toInstant())
+                .thenComparing(r -> r.action() == com.tcgdigital.vmcontrol.model.OperationType.STOP ? 0 : 1));
+        return runs.size() > limit ? java.util.List.copyOf(runs.subList(0, limit)) : runs;
+    }
+
+    private void addRun(java.util.List<Run> runs, LocalTime time, com.tcgdigital.vmcontrol.model.OperationType action,
+                        LocalDate day, int window, java.time.ZoneId zone, java.time.Instant from, SkipLookup skips) {
+        if (time == null) {
+            return;
+        }
+        ZonedDateTime at = ZonedDateTime.of(day, time, zone);
+        if (!at.toInstant().isAfter(from)) {
+            return;
+        }
+        runs.add(new Run(at, action, window, skips.reason(action, day, at.toInstant()).orElse(null)));
+    }
+
     /** The instant {@code time} happens on {@code day} in {@code now}'s zone. */
     public ZonedDateTime dueInstant(LocalDate day, LocalTime time, ZonedDateTime now) {
         return ZonedDateTime.of(day, time, now.getZone());
