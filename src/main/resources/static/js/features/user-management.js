@@ -173,7 +173,7 @@ const UserManagement = (function() {
                 <!-- Table Container -->
                 <div class="user-table-card">
                     <div class="user-table-wrapper">
-                        <table class="table table-hover user-table mb-0">
+                        <table class="table table-hover user-table mb-0 table-cards">
                             <thead>
                                 <tr>
                                     <th>User</th>
@@ -268,7 +268,7 @@ const UserManagement = (function() {
                 <td><span class="role-badge ${roleClass}">${roleLabel}</span></td>
                 <td><span class="badge ${statusClass}">${statusLabel}</span></td>
                 <td class="text-muted">${lastLogin}</td>
-                <td class="text-end">
+                <td class="text-end td-actions">
                     <div class="btn-group btn-group-sm">
                         <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"
                                 aria-expanded="false">

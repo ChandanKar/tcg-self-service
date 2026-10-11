@@ -110,7 +110,7 @@ const VmRegistry = (function() {
                                 </button>
                             </div>
                             <div class="table-responsive d-none" id="environmentsTableWrapper">
-                                <table class="table table-hover mb-0" id="environmentsTable">
+                                <table class="table table-hover mb-0 table-cards" id="environmentsTable">
                                     <thead class="table-light sticky-top">
                                         <tr>
                                             <th>Environment</th>
@@ -220,7 +220,7 @@ const VmRegistry = (function() {
                 <td class="text-center"><span class="badge bg-info">${env.vmCount || 0}</span></td>
                 <td class="text-center">${statusBadge}</td>
                 <td>${createdDate}</td>
-                <td class="text-end">
+                <td class="text-end td-actions">
                     <button class="btn btn-sm btn-primary btn-action" title="${tooltip}" data-action="vr-manage-groups" data-env-id="${Utils.escapeHtml(env.environmentId)}">
                         <i class="fas fa-layer-group"></i> Groups
                     </button>
@@ -539,7 +539,7 @@ const VmRegistry = (function() {
             }
             $list.html(Utils.html`
                 <div class="table-responsive mt-2">
-                    <table class="table table-sm table-hover mb-0">
+                    <table class="table table-sm table-hover mb-0 table-cards">
                         <thead class="table-light">
                             <tr>
                                 <th>VM Name</th><th>Purpose</th><th>Provider</th><th>Region</th><th>Instance ID</th>
@@ -718,7 +718,7 @@ const VmRegistry = (function() {
                         ${buildVmMarkers(vm)}
                     </td>
                     <td class="text-center">${vm.sequencePosition || '-'}</td>
-                    <td class="text-end text-nowrap">
+                    <td class="text-end text-nowrap td-actions">
                         ${buildVmActions(vm, isEks)}
                     </td>
                 </tr>
@@ -807,7 +807,7 @@ const VmRegistry = (function() {
                     <div class="card-body p-0">
                         ${vmCount > 0 ? `
                             <div class="table-responsive">
-                            <table class="table table-sm table-hover mb-0">
+                            <table class="table table-sm table-hover mb-0 table-cards">
                                 <thead class="table-light">
                                     <tr>
                                         <th>VM Name</th>
@@ -1153,7 +1153,7 @@ const VmRegistry = (function() {
                     <td>${Utils.escapeHtml(inst.instanceType || '-')}</td>
                     <td><span class="${stateClass}"><i class="fas fa-circle fa-xs me-1"></i>${inst.state}</span></td>
                     <td>${Utils.escapeHtml(inst.privateIpAddress || '-')}</td>
-                    <td>${badge}</td>
+                    <td class="td-actions">${badge}</td>
                 </tr>
             `;
         }).join('');
@@ -1170,7 +1170,7 @@ const VmRegistry = (function() {
                 </div>
             </div>
             <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
-                <table class="table table-sm mb-0">
+                <table class="table table-sm mb-0 table-cards">
                     <thead class="table-light sticky-top">
                         <tr>
                             <th>Name / Instance ID</th>

@@ -219,7 +219,7 @@ const ActivityLogs = (function() {
                 <div class="card activity-logs-table-card">
                     <div class="card-body activity-logs-card-body">
                         <div class="activity-logs-table-wrapper">
-                            <table class="table table-hover mb-0">
+                            <table class="table table-hover mb-0 table-cards">
                                 <thead class="table-light">
                                     <tr>
                                         <th>Timestamp</th>

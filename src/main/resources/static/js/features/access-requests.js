@@ -232,7 +232,7 @@ const AccessRequests = (function() {
 
         return `
             <div class="ra-env-table-wrapper">
-                <table class="table table-hover mb-0" id="env-list-table">
+                <table class="table table-hover mb-0 table-cards" id="env-list-table">
                     <thead class="table-light">
                         <tr>
                             <th>Environment</th>
@@ -295,7 +295,7 @@ const AccessRequests = (function() {
                         ${env.description ? `<br><small class="text-muted">${Utils.escapeHtml(env.description)}</small>` : ''}
                     </td>
                     <td>${env.vmCount || 0} VMs</td>
-                    <td class="text-end">
+                    <td class="text-end td-actions">
                         ${hasPending
                             ? `<span class="badge bg-warning text-dark">Request Pending</span>`
                             : `<button class="btn btn-sm btn-primary" data-env-id="${env.environmentId}"
@@ -368,13 +368,13 @@ const AccessRequests = (function() {
                     <td>${Utils.escapeHtml(req.requestedAccessLevel || 'USER')}</td>
                     <td>${Utils.formatRelativeTime(req.createdAt)}</td>
                     <td>${req.reviewedAt ? Utils.formatRelativeTime(req.reviewedAt) : '-'}</td>
-                    <td>${cancelBtn}</td>
+                    <td class="td-actions">${cancelBtn}</td>
                 </tr>
             `;
         }).join('');
 
         return `
-            <table class="table table-hover mb-0" id="${tableId || 'my-requests-table'}">
+            <table class="table table-hover mb-0 table-cards" id="${tableId || 'my-requests-table'}">
                 <thead class="table-light">
                     <tr>
                         <th>Environment</th>
@@ -437,7 +437,7 @@ const AccessRequests = (function() {
                 <td title="${Utils.escapeHtml(req.businessJustification || '')}">
                     <span class="reason-text">${Utils.escapeHtml(req.businessJustification || '-')}</span>
                 </td>
-                <td class="text-end ra-actions-cell">
+                <td class="text-end ra-actions-cell td-actions">
                     <div class="ra-action-buttons">
                         <button class="btn btn-sm btn-tonal btn-success" data-request-id="${req.requestId}" data-action="approve">
                             <i class="fas fa-check"></i> Approve
@@ -460,7 +460,7 @@ const AccessRequests = (function() {
                 </div>
                 <div class="card">
                     <div class="card-body p-0">
-                        <table class="table table-hover mb-0" id="pending-requests-table">
+                        <table class="table table-hover mb-0 table-cards" id="pending-requests-table">
                             <thead class="table-light">
                                 <tr>
                                     <th>Requester</th>
@@ -971,7 +971,7 @@ const AccessRequests = (function() {
                 </td>
                 <td>${access.grantedAt ? Utils.formatRelativeTime(access.grantedAt) : '-'}</td>
                 <td>${access.expiresAt ? Utils.formatDate(access.expiresAt) : 'Never'}</td>
-                <td>
+                <td class="td-actions">
                     <button class="btn btn-sm btn-outline-danger btn-ghost"
                             data-user-id="${access.userId}" data-action="revoke-access">
                         <i class="fas fa-times"></i> Revoke
@@ -981,7 +981,7 @@ const AccessRequests = (function() {
         `).join('');
 
         return `
-            <table class="table table-sm mb-0">
+            <table class="table table-sm mb-0 table-cards">
                 <thead>
                     <tr>
                         <th>User</th>

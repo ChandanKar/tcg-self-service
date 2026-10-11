@@ -107,3 +107,30 @@ test.describe('Phone layout (admin)', () => {
     expect(await expectInViewport(page, '[data-action="start-vm"], [data-action="stop-vm"]')).toBeGreaterThan(0);
   });
 });
+
+test.describe('Phone layout (admin tables)', () => {
+  test.beforeEach(async ({ page }) => {
+    test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+    await signIn(page, 'admin');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.waitForLoadState('networkidle');
+  });
+
+  // E13-T06: every data table is a card list on a phone, with its row actions on screen.
+  for (const [hash, ready] of [
+    ['#/access-management', '#content-area table'],
+    ['#/request-access', '#content-area table'],
+    ['#/pending-requests', '#content-area h1'],
+    ['#/user-management', '#content-area table'],
+    ['#/activity-logs', '#al-action-type-filter'],
+    ['#/audit-logs-all', '#content-area table'],
+    ['#/vm-registry', '#content-area table'],
+  ] as const) {
+    test(`${hash} fits the screen`, async ({ page }) => {
+      await go(page, hash, ready);
+      await expectNoSideScroll(page);
+      await expectInViewport(page, '#content-area table tbody button, #content-area table tbody a.btn');
+    });
+  }
+});
+

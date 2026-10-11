@@ -305,7 +305,7 @@ const AllLogs = (function() {
                 <div class="card all-logs-table-card">
                     <div class="card-body all-logs-card-body">
                         <div class="all-logs-table-wrapper">
-                            <table class="table table-hover mb-0">
+                            <table class="table table-hover mb-0 table-cards">
                                 <thead class="table-light">
                                     <tr>
                                         <th>Timestamp</th>

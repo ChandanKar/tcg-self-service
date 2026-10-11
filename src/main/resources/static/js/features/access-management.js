@@ -348,7 +348,7 @@ const AccessManagement = (function() {
                             </div>
                             <div class="access-table-shell">
                                 <div class="access-table-wrapper">
-                                    <table class="table table-hover access-table access-grants-table mb-0">
+                                    <table class="table table-hover access-table access-grants-table mb-0 table-cards">
                                         <colgroup>
                                             <col style="width: 19%;"><col style="width: 13%;"><col style="width: 11%;">
                                             <col style="width: 8%;"><col style="width: 10%;"><col style="width: 9%;">
@@ -666,7 +666,7 @@ const AccessManagement = (function() {
                     <div>${grantedAbs}</div>
                     <div class="access-dates-expiry">${expiryLine}</div>
                 </td>
-                <td class="text-end text-nowrap">
+                <td class="text-end text-nowrap td-actions">
                     <button class="btn btn-sm btn-action btn-outline-primary me-1" data-action="edit"
                             data-access-id="${access.accessId}"
                             title="Edit grant" aria-label="Edit grant">
