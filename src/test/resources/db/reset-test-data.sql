@@ -45,6 +45,7 @@ DELETE FROM environment_access;
 DELETE FROM environment;
 DELETE FROM chargeback_statement;
 DELETE FROM chat_action_token;
+DELETE FROM external_ticket;
 DELETE FROM chat_delivery_log;
 DELETE FROM chat_channel;
 DELETE FROM cost_split_share;

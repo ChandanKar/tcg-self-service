@@ -129,6 +129,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ));
     }
 
+    @ExceptionHandler(com.tcgdigital.vmcontrol.exception.IntegrationException.class)
+    public ResponseEntity<Map<String, Object>> handleIntegration(com.tcgdigital.vmcontrol.exception.IntegrationException ex) {
+        log.warn("Integration ({} {}): {}", ex.getStatus(), ex.getErrorCode(), ex.getMessage());
+        return ResponseEntity.status(ex.getStatus()).body(Map.of(
+                "error", ex.getErrorCode(),
+                "message", ex.getMessage(),
+                "timestamp", Instant.now().toString()
+        ));
+    }
+
     @ExceptionHandler(UserAlreadyExistsException.class)
     public ResponseEntity<Map<String, Object>> handleUserAlreadyExists(UserAlreadyExistsException ex) {
         log.warn("Onboard rejected — user already exists: {} (active={})", ex.getUserId(), ex.isActive());

@@ -192,7 +192,7 @@ public class CostAnomalyService {
     }
 
     /** "Amazon Elastic Compute Cloud - Compute / BoxUsage:m5.large" from the first root cause. */
-    String topCause(CostAnomaly anomaly) {
+    public String topCause(CostAnomaly anomaly) {
         if (anomaly.getRootCauses() == null) {
             return null;
         }

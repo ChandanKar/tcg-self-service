@@ -120,6 +120,8 @@ public enum AuditAction {
     CHAT_CHANNEL_DELETED,
     /** A one-click chat action link was used (E24-T04); details say "via chat". */
     CHAT_ACTION_EXECUTED,
+    /** A Jira issue was created for a recommendation or anomaly (E24-T06). */
+    JIRA_TICKET_CREATED,
 
     // Waste sweeps (E22)
     WASTE_FINDING_DISMISSED,
