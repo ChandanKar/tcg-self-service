@@ -105,7 +105,7 @@ function loadModals() {
     const context = vm.createContext({
         $: jq.$,
         document: { readyState: 'complete', querySelectorAll: () => [], getElementById: () => fakeEl, addEventListener() {} },
-        bootstrap: { Modal: class { show() {} static getInstance() { return null; } } }
+        bootstrap: { Modal: class { show() {} static getInstance() { return null; } static getOrCreateInstance() { return new this(); } } }
     });
     vm.runInContext(js('core/utils.js') + '\n' + js('ui/modals.js') + '\nthis.Modals = Modals;', context);
     return { Modals: context.Modals, jq };
