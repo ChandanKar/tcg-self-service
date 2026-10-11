@@ -573,4 +573,39 @@ class FlywayMigrationTest extends AbstractIntegrationTest {
         }
         assertDoesNotThrow(flyway::validate);
     }
+
+    // =====================================================
+    // REDUNDANT INDEXES DROPPED (E14-T05)
+    // =====================================================
+
+    @Test
+    void redundantIndexesAreGoneAndKeyLookupsStillUseAnIndex() {
+        String[][] dropped = {
+                {"app_user", "idx_user_email"}, {"app_user", "idx_user_azure_ad_object_id"},
+                {"environment", "idx_environment_name"}, {"vm_group", "idx_group_env"},
+                {"notification", "idx_notification_user"}, {"vm_volume_snapshot", "idx_vm_volume_vm"},
+                {"vm_metric_sample", "idx_vm_metric_vm_time"},
+                {"vm_metric_sample_archive", "idx_vm_metric_archive_vm_time"},
+                {"automation_rule", "idx_automation_rule_env"}};
+        for (String[] index : dropped) {
+            Integer count = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() "
+                            + "AND table_name = ? AND index_name = ?", Integer.class, index[0], index[1]);
+            assertEquals(0, count, index[0] + "." + index[1] + " should be dropped");
+        }
+
+        // Each lookup column still leads some index (EXPLAIN on an empty const lookup reports no key).
+        String[][] lookups = {
+                {"vm_group", "environment_id"}, {"notification", "user_id"}, {"app_user", "email"},
+                {"app_user", "azure_ad_object_id"}, {"environment", "name"}, {"vm_volume_snapshot", "vm_id"},
+                {"vm_metric_sample", "vm_id"}, {"vm_metric_sample_archive", "vm_id"},
+                {"automation_rule", "environment_id"}};
+        for (String[] lookup : lookups) {
+            Integer leading = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() "
+                            + "AND table_name = ? AND column_name = ? AND seq_in_index = 1",
+                    Integer.class, lookup[0], lookup[1]);
+            assertTrue(leading > 0, lookup[0] + "." + lookup[1] + " must still lead an index");
+        }
+    }
 }
