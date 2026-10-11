@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
+import { seedEnvironment } from '../../fixtures/seed';
 
 /**
  * E13-T04: text on the key pages meets WCAG AA colour contrast (axe 'color-contrast').
@@ -20,6 +21,12 @@ async function open(page: Page, hash: string, ready: string) {
   // Let entrance transitions settle so axe reads final colours.
   await page.waitForTimeout(600);
 }
+
+let seededEnvId = '';
+test.beforeAll(async ({ playwright }) => {
+  // Never depend on environments left by other runs (E13 a11y specs).
+  seededEnvId = await seedEnvironment(playwright, 'Contrast E2E');
+});
 
 test.describe('Colour contrast', () => {
   test.beforeEach(async ({ page }) => {
@@ -42,9 +49,8 @@ test.describe('Colour contrast', () => {
   }
 
   test('Environment Detail has no contrast violations', async ({ page }) => {
-    await open(page, '#/my-environments', '[data-action="view"][data-env-id]');
-    await page.locator('[data-action="view"][data-env-id]').first().click();
-    await expect(page).toHaveURL(/#\/environments\//);
+    await page.evaluate(id => { location.hash = '#/environments/' + id; }, seededEnvId);
+    await expect(page.locator('#env-detail-view')).toBeVisible({ timeout: 15_000 });
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(600);
     expect(await contrastViolations(page)).toEqual([]);

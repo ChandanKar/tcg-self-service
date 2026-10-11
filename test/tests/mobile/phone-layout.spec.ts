@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
+import { seedEnvironment } from '../../fixtures/seed';
 
 /**
  * E13-T05/T06: at 390px nothing scrolls sideways, row actions stay on screen, and the user
@@ -50,6 +51,12 @@ async function expectInViewport(page: Page, selector: string) {
   return boxes.length;
 }
 
+let seededEnvId = '';
+test.beforeAll(async ({ playwright }) => {
+  // Never depend on environments left by other runs (E13 a11y specs).
+  seededEnvId = await seedEnvironment(playwright, 'Phone E2E');
+});
+
 test.describe('Phone layout (user)', () => {
   test.beforeEach(async ({ page }) => {
     test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
@@ -97,9 +104,7 @@ test.describe('Phone layout (admin)', () => {
         vms: [vm('b1', 'STOPPED')] },
     ] }));
 
-    await go(page, '#/my-environments', '#env-list-search');
-    await page.locator('#content-area [data-action="view"]').first().click();
-    await expect(page).toHaveURL(/#\/environments\//);
+    await page.evaluate(id => { location.hash = '#/environments/' + id; }, seededEnvId);
     await expect(page.locator('[data-action="start-vm"], [data-action="stop-vm"]').first()).toBeAttached({ timeout: 15_000 });
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(600);

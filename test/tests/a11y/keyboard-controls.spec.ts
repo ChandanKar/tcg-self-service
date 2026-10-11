@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
+import { seedEnvironment } from '../../fixtures/seed';
 
 /**
  * E13-T09: environment group headers, automation day pills and trigger cards work from the
@@ -7,6 +8,12 @@ import { signIn, canSignIn, devIds } from '../../fixtures/auth';
  */
 
 declare const ContentRouter: any;
+
+let seededEnvId = '';
+test.beforeAll(async ({ playwright }) => {
+  // Never depend on environments left by other runs (E13 a11y specs).
+  seededEnvId = await seedEnvironment(playwright, 'Keys E2E');
+});
 
 test.describe('Keyboard controls', () => {
   test.beforeEach(async ({ page }) => {
@@ -24,8 +31,7 @@ test.describe('Keyboard controls', () => {
       { group: { groupId: 'g1', name: 'web', displayName: 'Web tier', sequencePosition: 1 }, vms: [vm('a1')] },
       { group: { groupId: 'g2', name: 'db', displayName: 'Database tier', sequencePosition: 2 }, vms: [vm('b1')] },
     ] }));
-    await page.evaluate(() => { location.hash = '#/my-environments'; });
-    await page.locator('#content-area [data-action="view"]').first().click();
+    await page.evaluate(id => { location.hash = '#/environments/' + id; }, seededEnvId);
 
     const toggles = page.locator('.group-card-toggle');
     await expect(toggles).toHaveCount(2, { timeout: 15_000 });

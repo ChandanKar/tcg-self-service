@@ -1,6 +1,7 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
+import { seedEnvironment } from '../../fixtures/seed';
 
 /**
  * E13-T10: every button and link has an accessible name, My Account and the bell meet the 44px
@@ -22,6 +23,12 @@ async function settle(page: Page) {
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(500);
 }
+
+let seededEnvId = '';
+test.beforeAll(async ({ playwright }) => {
+  // Never depend on environments left by other runs (E13 a11y specs).
+  seededEnvId = await seedEnvironment(playwright, 'Names E2E');
+});
 
 test.describe('Accessible names (admin)', () => {
   test.beforeEach(async ({ page }) => {
@@ -52,8 +59,7 @@ test.describe('Accessible names (admin)', () => {
       { group: { groupId: 'g1', name: 'web', displayName: 'Web tier', sequencePosition: 1 },
         vms: [vm('a1', 'RUNNING'), vm('a2', 'STOPPED')] },
     ] }));
-    await page.evaluate(() => { location.hash = '#/my-environments'; });
-    await page.locator('#content-area [data-action="view"]').first().click();
+    await page.evaluate(id => { location.hash = '#/environments/' + id; }, seededEnvId);
     await expect(page.locator('[data-action="stop-vm"]').first()).toBeAttached({ timeout: 15_000 });
     await settle(page);
     expect(await nameViolations(page)).toEqual([]);
