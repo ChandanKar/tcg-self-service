@@ -82,6 +82,11 @@ public interface VmStateHistoryRepository extends JpaRepository<VmStateHistory, 
     List<VmStateHistory> findLatestBeforeForVms(@org.springframework.data.repository.query.Param("vmIds") List<String> vmIds,
                                                 @org.springframework.data.repository.query.Param("before") Timestamp before);
 
+    /** When each of many VMs last became STOPPED: [vmId, Timestamp] (waste sweep, E22-T02). */
+    @Query("SELECT h.vm.vmId, MAX(h.changedAt) FROM VmStateHistory h WHERE h.vm.vmId IN :vmIds "
+            + "AND h.newStatus = com.tcgdigital.vmcontrol.model.VmStatus.STOPPED GROUP BY h.vm.vmId")
+    List<Object[]> findLastStoppedAt(@org.springframework.data.repository.query.Param("vmIds") List<String> vmIds);
+
     /**
      * Fallback for a single VM whose seed state (the state it was in immediately before a
      * window) wasn't found in the batched lookback query above.

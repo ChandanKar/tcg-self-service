@@ -54,6 +54,12 @@ public interface VmRepository extends JpaRepository<Vm, String> {
      */
     Optional<Vm> findByProviderAndProviderVmId(com.tcgdigital.vmcontrol.model.CloudProvider provider, String providerVmId);
 
+    /** Registered VMs of many cloud ids, with group and environment loaded (waste sweep, E22-T02). */
+    @Query("SELECT v FROM Vm v JOIN FETCH v.group g JOIN FETCH g.environment WHERE v.provider = :provider "
+            + "AND v.providerVmId IN :providerVmIds")
+    List<Vm> findByProviderVmIdsFetchEnvironment(@Param("provider") com.tcgdigital.vmcontrol.model.CloudProvider provider,
+                                                 @Param("providerVmIds") List<String> providerVmIds);
+
     /**
      * Find all active VMs in an environment (via group).
      */

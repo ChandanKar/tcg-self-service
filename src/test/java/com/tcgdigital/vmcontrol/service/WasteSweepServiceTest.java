@@ -37,6 +37,10 @@ class WasteSweepServiceTest extends AbstractIntegrationTest {
     @Autowired private WastePricing pricing;
     @Autowired private EnvironmentRepository environments;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private com.tcgdigital.vmcontrol.repository.VmRepository vms;
+    @Autowired private com.tcgdigital.vmcontrol.repository.VmStateHistoryRepository history;
+    @Autowired private AuditService auditService;
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     private final AwsWasteScanService scans = mock(AwsWasteScanService.class);
     private WasteSweepService sweep;
@@ -45,7 +49,7 @@ class WasteSweepServiceTest extends AbstractIntegrationTest {
     @BeforeEach
     void setUp() {
         env = newEnvironment("waste");
-        sweep = new WasteSweepService(findings, scans, pricing, environments, objectMapper);
+        sweep = new WasteSweepService(findings, scans, pricing, environments, objectMapper, vms, history, auditService);
         ReflectionTestUtils.setField(sweep, "enabled", true);
         ReflectionTestUtils.setField(sweep, "regions", "ap-south-1");
         at(NOW);
@@ -126,5 +130,68 @@ class WasteSweepServiceTest extends AbstractIntegrationTest {
         assertThat(sweep.regions()).containsExactly("eu-west-1", "us-east-1");
         ReflectionTestUtils.setField(sweep, "regions", "");
         assertThat(sweep.regions()).containsExactly("ap-south-1");
+    }
+
+    // ------------------------------------------------------------------ other sweeps (E22-T02)
+
+    private WasteFinding finding(WasteFindingType type, String id) {
+        return findings.findByFindingTypeAndRegionAndResourceId(type, "ap-south-1", id).orElse(null);
+    }
+
+    @Test
+    void anUnassociatedIpAndAGp2VolumeArePriced() {
+        when(scans.scanUnassociatedAddresses("ap-south-1")).thenReturn(List.of(new AwsWasteScanService.ScannedResource(
+                "eipalloc-1", null, null, 0, null, Map.of(), Map.of("publicIp", "13.0.0.1"))));
+        when(scans.scanGp2Volumes("ap-south-1")).thenReturn(List.of(volume("vol-gp2", 500, NOW.minus(Duration.ofDays(400)), null)));
+
+        sweep.sweep();
+
+        assertThat(finding(WasteFindingType.UNASSOCIATED_IP, "eipalloc-1").getEstMonthlyCost()).isEqualByComparingTo("3.65");
+        WasteFinding gp2 = finding(WasteFindingType.GP2_VOLUME, "vol-gp2");
+        assertThat(gp2.getEstMonthlyCost()).isEqualByComparingTo("10.00"); // 500 x (0.10 - 0.08)
+        assertThat(gp2.getDetails()).contains("\"currentMonthlyCost\":50.00");
+    }
+
+    @Test
+    void aRegisteredVmStoppedFortyFiveDaysAgoIsLinked() {
+        com.tcgdigital.vmcontrol.model.Vm vm = newVm(newGroup(env, "app"), "app-1", com.tcgdigital.vmcontrol.model.VmStatus.STOPPED);
+        jdbcTemplate.update("INSERT INTO vm_state_history (history_id, vm_id, previous_status, new_status, change_source, created_at) "
+                + "VALUES (?, ?, 'RUNNING', 'STOPPED', 'user_action', ?)", java.util.UUID.randomUUID().toString(), vm.getVmId(),
+                java.sql.Timestamp.from(NOW.minus(Duration.ofDays(45))));
+        AwsWasteScanService.ScannedResource registered = new AwsWasteScanService.ScannedResource(vm.getProviderVmId(), "x", null, 0, null,
+                Map.of(), Map.of("volumeIds", List.of("vol-root"), "stateTransitionReason", "User initiated (2026-10-10 00:00:00 GMT)"));
+        AwsWasteScanService.ScannedResource recent = new AwsWasteScanService.ScannedResource("i-recent", "y", null, 0, null,
+                Map.of(), Map.of("volumeIds", List.of(), "stateTransitionReason", "User initiated (2026-10-01 00:00:00 GMT)"));
+        AwsWasteScanService.ScannedResource unregistered = new AwsWasteScanService.ScannedResource("i-old", "z", null, 0, null,
+                Map.of(), Map.of("volumeIds", List.of(), "publicIp", "13.0.0.2", "stateTransitionReason", "User initiated (2026-07-01 00:00:00 GMT)"));
+        when(scans.scanStoppedInstances("ap-south-1")).thenReturn(List.of(registered, recent, unregistered));
+        when(scans.volumesById(org.mockito.ArgumentMatchers.eq("ap-south-1"), org.mockito.ArgumentMatchers.anyList()))
+                .thenReturn(Map.of("vol-root", volume("vol-root", 30, null, null)));
+
+        sweep.sweep();
+
+        WasteFinding stopped = finding(WasteFindingType.LONG_STOPPED_VM, vm.getProviderVmId());
+        assertThat(stopped.getVmId()).isEqualTo(vm.getVmId());
+        assertThat(stopped.getEnvironmentId()).isEqualTo(env.getEnvironmentId());
+        assertThat(stopped.getEstMonthlyCost()).isEqualByComparingTo("3.00"); // 30 GiB gp2
+        assertThat(stopped.getEligibleSince().toInstant()).isEqualTo(NOW.minus(Duration.ofDays(45))); // history beats the reason
+        assertThat(finding(WasteFindingType.LONG_STOPPED_VM, "i-recent")).isNull();
+        assertThat(finding(WasteFindingType.LONG_STOPPED_VM, "i-old").getEstMonthlyCost()).isEqualByComparingTo("3.65"); // its EIP
+    }
+
+    @Test
+    void oldSnapshotsArePricedAsAnUpperBoundAndOneFailingScanDoesNotStopTheOthers() {
+        when(scans.scanUnassociatedAddresses("ap-south-1")).thenThrow(new IllegalStateException("AccessDenied"));
+        when(scans.scanOldSnapshots(org.mockito.ArgumentMatchers.eq("ap-south-1"), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of(new AwsWasteScanService.ScannedResource("snap-1", null, null, 200,
+                        NOW.minus(Duration.ofDays(120)), Map.of(), Map.of("volumeId", "vol-x"))));
+
+        WasteSweepService.SweepResult result = sweep.sweep();
+
+        assertThat(result.failures()).singleElement().satisfies(f -> assertThat(f).startsWith("UNASSOCIATED_IP"));
+        WasteFinding snap = finding(WasteFindingType.OLD_SNAPSHOT, "snap-1");
+        assertThat(snap.getEstMonthlyCost()).isEqualByComparingTo("10.00");
+        assertThat(snap.getDetails()).contains("\"costIsUpperBound\":true");
+        org.mockito.Mockito.verify(scans).scanOldSnapshots("ap-south-1", NOW.minus(Duration.ofDays(90)));
     }
 }

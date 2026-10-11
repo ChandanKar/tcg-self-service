@@ -52,7 +52,10 @@ Run this (or the AWS Console's "Policy simulator" under IAM) before flipping any
 | Phase 4 | `ce:CreateAnomalyMonitor` | ❓ Unverified | Only with `COST_ANOMALIES_MANAGE_MONITORS=true` (off by default): one CUSTOM monitor per environment. AWS limits the number of custom monitors per account (check the current Cost Anomaly Detection quota); the sync stops with a warning when it is reached |
 | Phase 4 | `ce:GetAnomalies` | ❓ Unverified | Anomaly ingestion (E21-T02) |
 | Phase 4 | `ce:ProvideAnomalyFeedback` | ❓ Unverified | Owner feedback on an anomaly (E21-T03) |
-| **Waste sweeps** (`WASTE_SWEEP_ENABLED`, off by default, E22) | `ec2:DescribeVolumes` | ❓ Unverified | Read-only daily scan for unattached volumes |
+| **Waste sweeps** (`WASTE_SWEEP_ENABLED`, off by default, E22) | `ec2:DescribeVolumes` | ❓ Unverified | Read-only daily scan for unattached and gp2 volumes (and the volumes of stopped VMs) |
+| Waste sweeps | `ec2:DescribeAddresses` | ❓ Unverified | Unassociated Elastic IPs |
+| Waste sweeps | `ec2:DescribeInstances` | ✅ Granted (used by state sync) | Long-stopped instances |
+| Waste sweeps | `ec2:DescribeSnapshots`, `ec2:DescribeImages` | ❓ Unverified | Old snapshots, minus those an own AMI uses |
 | **Budgets mirror** (`BUDGETS_AWS_SYNC_ENABLED`, off by default, E20-T06) | `budgets:ViewBudget` | ❓ Unverified | Needed only when mirroring app budgets to AWS Budgets |
 | Budgets mirror | `budgets:ModifyBudget` | ❓ Unverified | Create, update and delete of the mirrored budgets (names start with `tcg-`) |
 | Phase 4 | `budgets:CreateBudget` / `budgets:DescribeBudgets` | ❓ Unverified | Only needed if real AWS Budget resources are created (optional sub-feature) |

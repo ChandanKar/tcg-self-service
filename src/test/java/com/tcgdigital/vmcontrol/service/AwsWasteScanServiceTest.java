@@ -55,4 +55,64 @@ class AwsWasteScanServiceTest {
         when(ec2.describeVolumes(any(DescribeVolumesRequest.class))).thenThrow(new RuntimeException("UnauthorizedOperation"));
         assertThatThrownBy(() -> scans.scanUnattachedVolumes("ap-south-1")).hasMessageContaining("UnauthorizedOperation");
     }
+
+    @Test
+    void onlyUnassociatedAddressesAreWaste() {
+        when(ec2.describeAddresses(any(software.amazon.awssdk.services.ec2.model.DescribeAddressesRequest.class)))
+                .thenReturn(software.amazon.awssdk.services.ec2.model.DescribeAddressesResponse.builder().addresses(
+                        software.amazon.awssdk.services.ec2.model.Address.builder().allocationId("eipalloc-free").publicIp("1.1.1.1").build(),
+                        software.amazon.awssdk.services.ec2.model.Address.builder().allocationId("eipalloc-used").publicIp("2.2.2.2")
+                                .associationId("eipassoc-1").build()).build());
+
+        assertThat(scans.scanUnassociatedAddresses("ap-south-1")).extracting(AwsWasteScanService.ScannedResource::resourceId)
+                .containsExactly("eipalloc-free");
+    }
+
+    @Test
+    void theStopTimeIsReadFromTheTransitionReason() {
+        assertThat(AwsWasteScanService.stoppedAt("User initiated (2026-08-01 10:15:00 GMT)"))
+                .isEqualTo(Instant.parse("2026-08-01T10:15:00Z"));
+        assertThat(AwsWasteScanService.stoppedAt("Server.ScheduledStop: Stopped due to event")).isNull();
+        assertThat(AwsWasteScanService.stoppedAt(null)).isNull();
+    }
+
+    @Test
+    void snapshotsAnAmiUsesAreNotOld() {
+        when(ec2.describeImages(any(software.amazon.awssdk.services.ec2.model.DescribeImagesRequest.class)))
+                .thenReturn(software.amazon.awssdk.services.ec2.model.DescribeImagesResponse.builder().images(
+                        software.amazon.awssdk.services.ec2.model.Image.builder().imageId("ami-1").blockDeviceMappings(
+                                software.amazon.awssdk.services.ec2.model.BlockDeviceMapping.builder().ebs(
+                                        software.amazon.awssdk.services.ec2.model.EbsBlockDevice.builder().snapshotId("snap-ami").build()).build())
+                                .build()).build());
+        Instant old = Instant.parse("2026-05-01T00:00:00Z");
+        when(ec2.describeSnapshots(any(software.amazon.awssdk.services.ec2.model.DescribeSnapshotsRequest.class)))
+                .thenReturn(software.amazon.awssdk.services.ec2.model.DescribeSnapshotsResponse.builder().snapshots(
+                        software.amazon.awssdk.services.ec2.model.Snapshot.builder().snapshotId("snap-ami").startTime(old).volumeSize(8).build(),
+                        software.amazon.awssdk.services.ec2.model.Snapshot.builder().snapshotId("snap-old").startTime(old).volumeSize(8).build(),
+                        software.amazon.awssdk.services.ec2.model.Snapshot.builder().snapshotId("snap-new")
+                                .startTime(Instant.parse("2026-10-01T00:00:00Z")).volumeSize(8).build()).build());
+
+        assertThat(scans.scanOldSnapshots("ap-south-1", Instant.parse("2026-07-01T00:00:00Z")))
+                .extracting(AwsWasteScanService.ScannedResource::resourceId).containsExactly("snap-old");
+    }
+
+    @Test
+    void stoppedInstancesAreFilteredAndCarryTheirVolumes() {
+        when(ec2.describeInstances(any(software.amazon.awssdk.services.ec2.model.DescribeInstancesRequest.class)))
+                .thenReturn(software.amazon.awssdk.services.ec2.model.DescribeInstancesResponse.builder().reservations(
+                        software.amazon.awssdk.services.ec2.model.Reservation.builder().instances(
+                                software.amazon.awssdk.services.ec2.model.Instance.builder().instanceId("i-1")
+                                        .stateTransitionReason("User initiated (2026-08-01 10:15:00 GMT)")
+                                        .blockDeviceMappings(software.amazon.awssdk.services.ec2.model.InstanceBlockDeviceMapping.builder()
+                                                .ebs(software.amazon.awssdk.services.ec2.model.EbsInstanceBlockDevice.builder().volumeId("vol-r").build()).build())
+                                        .build()).build()).build());
+
+        List<AwsWasteScanService.ScannedResource> found = scans.scanStoppedInstances("ap-south-1");
+
+        assertThat(found).singleElement().satisfies(i -> assertThat(i.facts().get("volumeIds")).isEqualTo(List.of("vol-r")));
+        ArgumentCaptor<software.amazon.awssdk.services.ec2.model.DescribeInstancesRequest> sent =
+                ArgumentCaptor.forClass(software.amazon.awssdk.services.ec2.model.DescribeInstancesRequest.class);
+        verify(ec2).describeInstances(sent.capture());
+        assertThat(sent.getValue().filters().get(0).values()).containsExactly("stopped");
+    }
 }

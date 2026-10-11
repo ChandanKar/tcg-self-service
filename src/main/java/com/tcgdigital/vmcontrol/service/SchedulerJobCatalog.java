@@ -61,7 +61,8 @@ public class SchedulerJobCatalog {
             cron("budget_evaluation", "Budget evaluation (daily)", "budgets.evaluation.cron", "0 30 5 * * *",
                     "budgets.evaluation.enabled", true),
             cron("cost_anomaly_ingest", "Cost anomalies (twice daily)", "cost.anomalies.cron", "0 0 */12 * * *",
-                    "cost.anomalies.enabled", false));
+                    "cost.anomalies.enabled", false),
+            cron("waste_sweep", "Waste sweep (daily)", "waste.sweep.cron", "0 0 4 * * *", "waste.sweep.enabled", false));
 
     /** A job as the health view needs it. */
     public record Job(String jobName, String label, Duration expectedInterval, boolean enabled) {
