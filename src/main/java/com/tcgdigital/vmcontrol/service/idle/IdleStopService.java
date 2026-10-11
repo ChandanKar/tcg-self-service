@@ -204,7 +204,8 @@ public class IdleStopService {
         try {
             // Own transaction: a refused start does not roll back the event recorded below.
             started = operationTransaction.execute(status ->
-                    vmOperationsService.startOperationIfNeeded(envId, rule.getCreatedByUserId(), dto));
+                    vmOperationsService.startOperationIfNeeded(envId, rule.getCreatedByUserId(), dto,
+                            com.tcgdigital.vmcontrol.model.OperationTriggerSource.IDLE_STOP));
         } catch (Exception e) {
             log.warn("Idle-stop rule {} could not stop environment {}: {}", rule.getRuleId(), env.getName(), e.getMessage());
             return skip(rule, now, IdleStopOutcome.SKIPPED, truncate("Stop not started: " + e.getMessage()));

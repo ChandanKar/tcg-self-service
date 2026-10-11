@@ -115,6 +115,7 @@ class LeaseExpiryIntegrationTest extends AbstractIntegrationTest {
         assertThat(expired.getEndReason()).isEqualTo("Lease expired");
         assertThat(stops()).hasSize(1);
         assertThat(expired.getStopExecutionId()).isEqualTo(stops().get(0).getExecutionId());
+        assertThat(stops().get(0).getTriggerSource()).isEqualTo(com.tcgdigital.vmcontrol.model.OperationTriggerSource.LEASE);
         List<String> order = jdbcTemplate.queryForList("SELECT target_id FROM operation_detail WHERE execution_id = ? "
                 + "ORDER BY sequence_position", String.class, expired.getStopExecutionId());
         assertThat(order).containsExactly(app.getVmId(), db.getVmId());

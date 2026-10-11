@@ -125,7 +125,8 @@ public class LeaseExpiryProcessor {
             stop.setOperationType(OperationType.STOP);
             stop.setSkipAlreadyInTargetState(true);
             stop.setContinueOnFailure(true);
-            executionId = operationsService.startSystemOperation(envId, lease.getStartedByUserId(), stop, TRIGGER)
+            executionId = operationsService.startSystemOperation(envId, lease.getStartedByUserId(), stop, TRIGGER,
+                            com.tcgdigital.vmcontrol.model.OperationTriggerSource.LEASE)
                     .map(OperationExecution::getExecutionId).orElse(null);
         }
         finish(lease, now, TRIGGER, executionId);

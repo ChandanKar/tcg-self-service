@@ -42,8 +42,8 @@ public class VmStateHistory {
     @CreationTimestamp
     private Timestamp changedAt; // Maps to created_at in V1 schema
 
-    // Transient field for operation tracking (not in V1 schema)
-    @Transient
+    /** The operation that caused this change, if any (V44, E17-T01). */
+    @Column(name = "operation_id", length = 36)
     private String operationId;
 
     public VmStateHistory() {

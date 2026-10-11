@@ -131,7 +131,22 @@ public class VmOperationsService {
     @Transactional
     public Optional<OperationExecution> startOperationIfNeeded(String environmentId, String userId,
                                                                StartOperationDTO dto) {
-        return startOperationInternal(environmentId, userId, dto, null);
+        return startOperationIfNeeded(environmentId, userId, dto, OperationTriggerSource.MANUAL);
+    }
+
+    /** {@link #startOperation} recording what started it (E17-T01); the 3-arg form is MANUAL. */
+    @Transactional
+    public OperationExecution startOperation(String environmentId, String userId, StartOperationDTO dto,
+                                             OperationTriggerSource source) {
+        return startOperationIfNeeded(environmentId, userId, dto, source)
+                .orElseThrow(() -> new ValidationException("No VMs to operate on"));
+    }
+
+    /** {@link #startOperationIfNeeded} recording what started it (E17-T01). */
+    @Transactional
+    public Optional<OperationExecution> startOperationIfNeeded(String environmentId, String userId,
+                                                               StartOperationDTO dto, OperationTriggerSource source) {
+        return startOperationInternal(environmentId, userId, dto, null, source);
     }
 
     /**
@@ -141,12 +156,14 @@ public class VmOperationsService {
      */
     @Transactional
     public Optional<OperationExecution> startSystemOperation(String environmentId, String attributedUserId,
-                                                             StartOperationDTO dto, String trigger) {
-        return startOperationInternal(environmentId, attributedUserId, dto, trigger);
+                                                             StartOperationDTO dto, String trigger,
+                                                             OperationTriggerSource source) {
+        return startOperationInternal(environmentId, attributedUserId, dto, trigger, source);
     }
 
     private Optional<OperationExecution> startOperationInternal(String environmentId, String userId,
-                                                                StartOperationDTO dto, String systemTrigger) {
+                                                                StartOperationDTO dto, String systemTrigger,
+                                                                OperationTriggerSource source) {
         boolean system = systemTrigger != null;
         // Verify environment exists
         Environment environment = environmentRepository.findById(environmentId)
@@ -202,6 +219,7 @@ public class VmOperationsService {
         execution.setOperationType(dto.getOperationType());
         execution.setStatus(ExecutionStatus.PENDING);
         execution.setInitiatedByUserId(userId);
+        execution.setTriggerSource(source);
         execution.setTotalTargets(plan.size());
 
         execution = executionRepository.save(execution);

@@ -334,7 +334,8 @@ public class AutomationRuleService {
         String lockedByDisplayName = null;
         try {
             Optional<?> started = operationTransaction.execute(status ->
-                    vmOperationsService.startOperationIfNeeded(environmentId, actingUserId, dto));
+                    vmOperationsService.startOperationIfNeeded(environmentId, actingUserId, dto,
+                            triggerSourceFor(rule)));
             if (started != null && started.isPresent()) {
                 outcome = FireOutcome.STARTED;
                 detail = "Triggered " + operationType + " (" + triggerLabel + ")";
@@ -658,5 +659,12 @@ public class AutomationRuleService {
         if (a == null) return b;
         if (b == null) return a;
         return a.isBefore(b) ? a : b;
+    }
+
+    /** Calendar rules are SCHEDULE; access-grant / lock-acquire rules are ACCESS_AUTOMATION (E17-T01). */
+    static com.tcgdigital.vmcontrol.model.OperationTriggerSource triggerSourceFor(AutomationRule rule) {
+        return rule.getTriggerType() == AutomationTriggerType.SCHEDULE
+                ? com.tcgdigital.vmcontrol.model.OperationTriggerSource.SCHEDULE
+                : com.tcgdigital.vmcontrol.model.OperationTriggerSource.ACCESS_AUTOMATION;
     }
 }

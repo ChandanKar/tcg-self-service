@@ -69,6 +69,19 @@ public class OperationExecution {
     @Column(name = "version", nullable = false)
     private Long version;
 
+    /** What started this operation (V44, E17-T01). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "trigger_source", nullable = false, length = 20)
+    private OperationTriggerSource triggerSource = OperationTriggerSource.MANUAL;
+
+    public OperationTriggerSource getTriggerSource() {
+        return triggerSource;
+    }
+
+    public void setTriggerSource(OperationTriggerSource triggerSource) {
+        this.triggerSource = triggerSource == null ? OperationTriggerSource.MANUAL : triggerSource;
+    }
+
     @Column(name = "execution_plan", columnDefinition = "TEXT")
     private String executionPlan;
 

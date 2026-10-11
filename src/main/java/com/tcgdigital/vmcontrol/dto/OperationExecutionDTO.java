@@ -19,6 +19,16 @@ public class OperationExecutionDTO {
     private OperationType operationType;
     private ExecutionStatus status;
     private String initiatedByUserId;
+    /** What started the operation (E17-T01): MANUAL, SCHEDULE, LEASE, IDLE_STOP, ... */
+    private com.tcgdigital.vmcontrol.model.OperationTriggerSource triggerSource;
+
+    public com.tcgdigital.vmcontrol.model.OperationTriggerSource getTriggerSource() {
+        return triggerSource;
+    }
+
+    public void setTriggerSource(com.tcgdigital.vmcontrol.model.OperationTriggerSource triggerSource) {
+        this.triggerSource = triggerSource;
+    }
     private String initiatedByDisplayName;
     private Timestamp startedAt;
     private Timestamp completedAt;
@@ -41,6 +51,7 @@ public class OperationExecutionDTO {
         dto.setOperationType(execution.getOperationType());
         dto.setStatus(execution.getStatus());
         dto.setInitiatedByUserId(execution.getInitiatedByUserId());
+        dto.setTriggerSource(execution.getTriggerSource());
         dto.setStartedAt(execution.getStartedAt());
         dto.setCompletedAt(execution.getCompletedAt());
         dto.setErrorMessage(execution.getErrorMessage());
