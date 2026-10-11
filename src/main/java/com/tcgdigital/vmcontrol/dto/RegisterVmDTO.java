@@ -163,5 +163,15 @@ public class RegisterVmDTO {
     public void setMetadata(String metadata) {
         this.metadata = metadata;
     }
-}
 
+    /** The VM's AWS account (E28-T10): optional, the environment's account when not given. */
+    private String awsAccountRef;
+
+    public String getAwsAccountRef() {
+        return awsAccountRef;
+    }
+
+    public void setAwsAccountRef(String awsAccountRef) {
+        this.awsAccountRef = awsAccountRef;
+    }
+}

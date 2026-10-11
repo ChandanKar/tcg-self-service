@@ -689,6 +689,12 @@ const VmRegistry = (function() {
                 : '<span class="status-badge unknown ms-1" title="Deactivated by state sync"><i class="fas fa-ban"></i> Inactive</span>') : ''}`;
     }
 
+    /** The VM's account under its region, only when there is more than one account (E28-T10). */
+    function accountNote(vm) {
+        if (typeof AwsAccountOptions === 'undefined' || !AwsAccountOptions.isMulti(AwsAccountOptions.cached()) || !vm.awsAccountRef) return '';
+        return Utils.html`<div class="small text-muted vm-account">${AwsAccountOptions.nameOf(vm.awsAccountRef) || vm.awsAccountRef}</div>`;
+    }
+
     function buildVmRows(vms, group, opts = {}) {
         const isEks = (window.VmRegistryState.currentEnvironment?.serviceType || 'EC2') === 'EKS';
         const providerLabels = { AWS: 'AWS', AZURE: 'Azure', GCP: 'GCP', OCI: 'OCI', AWS_EKS: 'EKS' };
@@ -708,7 +714,7 @@ const VmRegistry = (function() {
                     </td>
                     <td>${purposeCell}</td>
                     <td><i class="${providerIcons[vm.provider] || 'fas fa-cloud'}"></i> ${providerLabels[vm.provider] || vm.provider}</td>
-                    <td>${Utils.escapeHtml(vm.region)}</td>
+                    <td>${Utils.escapeHtml(vm.region)}${accountNote(vm)}</td>
                     <td><code class="small">${Utils.escapeHtml(vm.providerVmId)}</code></td>
                     <td><code class="small">${Utils.escapeHtml(vm.privateIp || '-')}</code></td>
                     <td>
@@ -980,11 +986,14 @@ const VmRegistry = (function() {
         `);
         $('#ec2SearchFilter').val('').hide();
 
-        const regionSelect = $('#ec2Region');
-        regionSelect.empty();
-        Config.AWS_REGIONS.forEach(r => {
-            regionSelect.append(`<option value="${r.value}">${r.label} (${r.value})</option>`);
-        });
+        fillEc2Regions(null);
+        // Another account to browse and register into, when there is more than one (E28-T10).
+        if (typeof AwsAccountOptions !== 'undefined') {
+            const env = window.VmRegistryState.currentEnvironment || {};
+            AwsAccountOptions.fill($('#ec2AccountCol'), $('#ec2Account'), env.awsAccountRef).then(shown => {
+                if (shown) fillEc2Regions($('#ec2Account').val());
+            });
+        }
 
         $('#vmName').prop('readonly', false);
         $('#vmProvider').prop('disabled', false);
@@ -1044,6 +1053,24 @@ const VmRegistry = (function() {
         bootstrap.Modal.getOrCreateInstance(document.getElementById('registerVmModal')).show();
     }
 
+    /** The region list: the account's own regions when it has some, else every known region. */
+    function fillEc2Regions(accountRef) {
+        const account = accountRef && typeof AwsAccountOptions !== 'undefined'
+            ? AwsAccountOptions.cached().find(a => a.ref === accountRef) : null;
+        const regions = account && account.regions && account.regions.length
+            ? account.regions.map(value => ({ value, label: value }))
+            : Config.AWS_REGIONS;
+        const regionSelect = $('#ec2Region');
+        regionSelect.empty();
+        regions.forEach(r => {
+            regionSelect.append(Utils.html`<option value="${r.value}">${r.label} (${r.value})</option>`);
+        });
+    }
+
+    function selectedAccountRef() {
+        return $('#ec2AccountCol').prop('hidden') ? null : ($('#ec2Account').val() || null);
+    }
+
     async function fetchEc2Instances() {
         const region = $('#ec2Region').val();
         if (!region) {
@@ -1060,7 +1087,7 @@ const VmRegistry = (function() {
             `);
 
             const [instances, registeredIdsArray] = await Promise.all([
-                ApiClient.get(Config.API.ec2.listInstances(region)),
+                ApiClient.get(Config.API.ec2.listInstances(region, selectedAccountRef())),
                 ApiClient.get(Config.API.ec2.registeredIds)
             ]);
 
@@ -1252,6 +1279,7 @@ const VmRegistry = (function() {
             provider: $('#vmProvider').val(),
             region: $('#vmRegion').val().trim(),
             providerVmId: $('#vmProviderVmId').val().trim(),
+            awsAccountRef: isEdit ? null : selectedAccountRef(),
             sequencePosition: parseInt($('#vmSequencePosition').val()) || 1
         };
         try {
@@ -1332,6 +1360,7 @@ const VmRegistry = (function() {
 
     return {
         load,
+        fillEc2Regions,
         loadEnvironmentsData,
         renderEnvironmentsList,
         buildEnvironmentRow,
@@ -1404,3 +1433,5 @@ Actions.registerAll({
     'vr-filter-ec2': el => Features.filterEc2Instances(el.value)
 }, 'input');
 Actions.register('vr-reload', () => VmRegistry.loadEnvironmentsData(), 'change');
+
+Actions.register('vr-ec2-account', el => VmRegistry.fillEc2Regions(el.value), 'change');

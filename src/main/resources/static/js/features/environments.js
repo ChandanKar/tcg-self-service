@@ -381,6 +381,7 @@ const Environments = (function() {
                                 <th>Environment</th>
                                 <th class="col-type text-center">Type</th>
                                 <th class="col-cloud text-center">Cloud</th>
+                                <th class="col-account" hidden>Account</th>
                                 <th class="col-region">Region</th>
                                 <th class="col-groups text-center">Groups</th>
                                 <th class="col-vms text-center">Total VMs</th>
@@ -406,6 +407,10 @@ const Environments = (function() {
      * of items, so no client-side slicing needed here anymore.
      */
     function buildEnvRows(envList) {
+        // The Account column only when the listed environments span more than one AWS account (E28-T10);
+        // toggled once the caller has inserted the rows.
+        const multiAccount = new Set(envList.map(e => e.awsAccountRef).filter(Boolean)).size > 1;
+        queueMicrotask(() => $('#env-list-view .col-account, .env-list-table-wrapper .col-account').prop('hidden', !multiAccount));
         const dataRows = envList.map(env => {
             const runningVms = env.runningVms || 0;
             const totalVms = env.vmCount || env.totalVms || 0;
@@ -467,6 +472,7 @@ const Environments = (function() {
                     </td>
                     <td class="text-center" data-label="Type">${typeCell}</td>
                     <td class="text-center" data-label="Cloud"><i class="${cloudCfg.icon} env-cloud-icon" style="color:${cloudCfg.color}" data-bs-toggle="tooltip" title="${Utils.escapeHtml(cloudCfg.label || cloudProv)}"></i></td>
+                    <td class="col-account" data-label="Account" hidden>${Utils.escapeHtml(env.awsAccountName || '')}</td>
                     <td class="col-region" data-label="Region">${regionCell}</td>
                     <td class="col-groups text-center" data-label="Groups">${env.groupCount || 0}</td>
                     <td class="col-vms text-center" data-label="Total VMs">${totalVms}</td>

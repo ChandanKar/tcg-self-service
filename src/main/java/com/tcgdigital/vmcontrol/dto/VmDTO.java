@@ -53,6 +53,7 @@ public class VmDTO {
         dto.setRemarks(vm.getRemarks());
         dto.setProvider(vm.getProvider());
         dto.setRegion(vm.getRegion());
+        dto.setAwsAccountRef(vm.getAwsAccountRef());
         dto.setProviderVmId(vm.getProviderVmId());
         dto.setVmType(vm.getVmType());
         dto.setSequencePosition(vm.getSequencePosition());
@@ -262,5 +263,24 @@ public class VmDTO {
     public void setUpdatedAt(Timestamp updatedAt) {
         this.updatedAt = updatedAt;
     }
-}
 
+    /** The AWS account and its display name (E28-T10). */
+    private String awsAccountRef;
+    private String awsAccountName;
+
+    public String getAwsAccountRef() {
+        return awsAccountRef;
+    }
+
+    public void setAwsAccountRef(String awsAccountRef) {
+        this.awsAccountRef = awsAccountRef;
+    }
+
+    public String getAwsAccountName() {
+        return awsAccountName;
+    }
+
+    public void setAwsAccountName(String awsAccountName) {
+        this.awsAccountName = awsAccountName;
+    }
+}

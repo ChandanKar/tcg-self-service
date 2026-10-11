@@ -302,6 +302,12 @@ const Modals = (function() {
                         </button>
                     </div>
 
+                    <!-- AWS account (E28-T10): only with more than one active account -->
+                    <div class="mb-3" id="cem-account-row" hidden>
+                        <label class="form-label" for="cem-account">AWS account</label>
+                        <select class="form-select" id="cem-account"></select>
+                    </div>
+
                     <!-- EC2 section -->
                     <div id="cem-ec2-section">
                         <div class="row">
@@ -392,6 +398,9 @@ const Modals = (function() {
                 { text: 'Create Environment', class: 'btn-primary', id: 'cem-submitBtn' }
             ],
             onShow: function() {
+                if (typeof AwsAccountOptions !== 'undefined') {
+                    AwsAccountOptions.fill($('#cem-account-row'), $('#cem-account'), null);
+                }
                 let eksPickerLoaded = false;
 
                 // Toggle between EC2 and EKS
@@ -537,6 +546,9 @@ const Modals = (function() {
                         // The exact cluster name (AWS names are case-sensitive; name is stored lower-cased).
                         data.eksClusterName = envName;
                     }
+                    if (!document.getElementById('cem-account-row').hidden) {
+                        data.awsAccountRef = document.getElementById('cem-account').value || null;
+                    }
 
                     this.disabled = true;
                     this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
@@ -603,6 +615,10 @@ const Modals = (function() {
                                 <option value="OCI" ${meta.defaultCloudProvider === 'OCI' ? 'selected' : ''}>Oracle Cloud</option>
                             </select>
                         </div>
+                        <div class="col-md-4 mb-3" id="editEnvAccountRow" hidden>
+                            <label class="form-label" for="editEnvAccount">AWS account</label>
+                            <select class="form-select" id="editEnvAccount"></select>
+                        </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Service Type</label>
                             <select class="form-select" id="editEnvServiceType">
@@ -623,6 +639,9 @@ const Modals = (function() {
                     Teams.options(env.teamId).then(html => $modal.find('#editEnvTeam').html(html));
                     Teams.markRequired(['#editEnvTeam']);
                 }
+                if (typeof AwsAccountOptions !== 'undefined') {
+                    AwsAccountOptions.fill($modal.find('#editEnvAccountRow'), $modal.find('#editEnvAccount'), env.awsAccountRef);
+                }
                 $modal.find('#saveEnvBtn').off('click').on('click', function() {
                     const data = {
                         displayName: ($modal.find('#editEnvDisplayName').val() || '').trim() || env.displayName,
@@ -635,6 +654,9 @@ const Modals = (function() {
                         // '' unassigns the team (E23-T03)
                         teamId: $modal.find('#editEnvTeam').val() || ''
                     };
+                    if (!$modal.find('#editEnvAccountRow').prop('hidden')) {
+                        data.awsAccountRef = $modal.find('#editEnvAccount').val() || null; // E28-T10
+                    }
 
                     $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Saving...');
 

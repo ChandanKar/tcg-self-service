@@ -83,9 +83,11 @@ public class Ec2Controller {
                     required = true,
                     example = "us-east-1"
             )
-            @RequestParam String region
+            @RequestParam String region,
+            @Parameter(description = "AWS account ref (E28-T10); the default account when omitted")
+            @RequestParam(required = false) String accountRef
     ) {
-        List<Ec2InstanceInfo> instances = ec2Service.listInstances(region);
+        List<Ec2InstanceInfo> instances = ec2Service.listInstances(accountRef, region);
         return ResponseEntity.ok(instances);
     }
 }

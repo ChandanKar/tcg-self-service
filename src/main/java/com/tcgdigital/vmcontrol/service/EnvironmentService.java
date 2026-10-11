@@ -36,6 +36,20 @@ public class EnvironmentService {
     private static final Logger log = LoggerFactory.getLogger(EnvironmentService.class);
 
     private final EnvironmentRepository environmentRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.repository.AwsAccountRepository awsAccountRepository;
+
+    /** An account an environment may be put in (E28-T10): it must exist and be active. */
+    private String activeAwsAccount(String ref) {
+        boolean active = awsAccountRepository == null
+                ? com.tcgdigital.vmcontrol.model.AwsAccount.DEFAULT_REF.equals(ref)
+                : awsAccountRepository.findById(ref).map(com.tcgdigital.vmcontrol.model.AwsAccount::isActive).orElse(false);
+        if (!active) {
+            throw new ValidationException("AWS account " + ref + " is unknown or inactive");
+        }
+        return ref;
+    }
     private final EnvironmentAccessRepository accessRepository;
     private final VmGroupRepository groupRepository;
     private final VmRepository vmRepository;
@@ -242,6 +256,9 @@ public class EnvironmentService {
         if (dto.getTeamId() != null && !dto.getTeamId().isBlank()) {
             environment.setTeam(activeTeam(dto.getTeamId()));
         }
+        if (dto.getAwsAccountRef() != null && !dto.getAwsAccountRef().isBlank()) {
+            environment.setAwsAccountRef(activeAwsAccount(dto.getAwsAccountRef()));
+        }
         allocationValidator.validate(environment); // E23-T04 (off by default)
 
         Environment saved = environmentRepository.save(environment);
@@ -279,6 +296,9 @@ public class EnvironmentService {
         String oldTeam = environment.getTeam() == null ? null : environment.getTeam().getDisplayName();
         if (dto.getTeamId() != null) {
             environment.setTeam(dto.getTeamId().isBlank() ? null : activeTeam(dto.getTeamId()));
+        }
+        if (dto.getAwsAccountRef() != null && !dto.getAwsAccountRef().isBlank()) {
+            environment.setAwsAccountRef(activeAwsAccount(dto.getAwsAccountRef()));
         }
 
         if (dto.getDisplayName() != null) {

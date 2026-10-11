@@ -58,6 +58,7 @@ public class EnvironmentDTO {
         dto.setServiceType(environment.getServiceType());
         dto.setEksClusterName(environment.getEksClusterName());
         dto.setProduction(Boolean.TRUE.equals(environment.getIsProduction()));
+        dto.setAwsAccountRef(environment.getAwsAccountRef());
         if (environment.getTeam() != null) {
             dto.teamId = environment.getTeam().getTeamId();
             dto.teamName = environment.getTeam().getDisplayName();
@@ -240,5 +241,25 @@ public class EnvironmentDTO {
 
     public void setProduction(boolean production) {
         this.production = production;
+    }
+
+    /** The AWS account and its display name (E28-T10). */
+    private String awsAccountRef;
+    private String awsAccountName;
+
+    public String getAwsAccountRef() {
+        return awsAccountRef;
+    }
+
+    public void setAwsAccountRef(String awsAccountRef) {
+        this.awsAccountRef = awsAccountRef;
+    }
+
+    public String getAwsAccountName() {
+        return awsAccountName;
+    }
+
+    public void setAwsAccountName(String awsAccountName) {
+        this.awsAccountName = awsAccountName;
     }
 }

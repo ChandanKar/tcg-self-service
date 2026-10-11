@@ -28,8 +28,13 @@ public class Ec2Service {
      * @return List of EC2 instance information
      */
     public List<Ec2InstanceInfo> listInstances(String region) {
+        return listInstances(null, region);
+    }
+
+    /** The instances of an account (E28-T10; null = the default account) in a region. */
+    public List<Ec2InstanceInfo> listInstances(String accountRef, String region) {
         // The factory's cached client: not closed here (E28-T01).
-        Ec2Client ec2Client = clientFactory.ec2(region);
+        Ec2Client ec2Client = clientFactory.ec2(accountRef, region);
         List<Ec2InstanceInfo> instances = new ArrayList<>();
         DescribeInstancesRequest request = DescribeInstancesRequest.builder().build();
 

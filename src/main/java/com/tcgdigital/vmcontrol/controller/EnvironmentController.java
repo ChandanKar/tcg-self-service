@@ -155,7 +155,8 @@ public class EnvironmentController {
         Map<String, EnvironmentService.EnvironmentCounts> counts = environmentService.getBatchCounts(environmentIds);
         Map<String, EnvironmentService.LockSummary> locks = environmentService.getLockSummaries(environmentIds);
 
-        Page<EnvironmentDTO> dtos = environments.map(env -> toDtoWithCounts(env, counts, locks));
+        Map<String, String> accountNames = accountNames();
+        Page<EnvironmentDTO> dtos = environments.map(env -> withAccountName(toDtoWithCounts(env, counts, locks), accountNames));
 
         return ResponseEntity.ok(dtos);
     }
@@ -195,9 +196,25 @@ public class EnvironmentController {
         var counts = environmentService.getBatchCounts(environmentIds);
         var locks = environmentService.getLockSummaries(environmentIds);
 
+        Map<String, String> accountNames = accountNames();
         return environments.stream()
-                .map(env -> toDtoWithCounts(env, counts, locks))
+                .map(env -> withAccountName(toDtoWithCounts(env, counts, locks), accountNames))
                 .toList();
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.aws.AwsAccountService awsAccountService;
+
+    private Map<String, String> accountNames() {
+        return awsAccountService == null ? Map.of() : awsAccountService.namesByRef();
+    }
+
+    /** The account's display name (E28-T10), from one lookup per request. */
+    private static EnvironmentDTO withAccountName(EnvironmentDTO dto, Map<String, String> names) {
+        if (dto.getAwsAccountRef() != null) {
+            dto.setAwsAccountName(names.get(dto.getAwsAccountRef()));
+        }
+        return dto;
     }
 
     private EnvironmentDTO toDtoWithCounts(Environment env, Map<String, EnvironmentService.EnvironmentCounts> counts,

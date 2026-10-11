@@ -36,6 +36,9 @@ import static org.junit.jupiter.api.Assertions.*;
 class EnvironmentServiceTest extends AbstractIntegrationTest {
 
     @Autowired
+    private com.tcgdigital.vmcontrol.repository.AwsAccountRepository awsAccountRepository;
+
+    @Autowired
     private EnvironmentService environmentService;
 
     @Autowired
@@ -84,6 +87,40 @@ class EnvironmentServiceTest extends AbstractIntegrationTest {
         assertEquals("A test environment", created.getDescription());
         assertTrue(created.getIsActive());
         // Note: createdAt may be null until flush in transactional test
+    }
+
+    @Test
+    void anEnvironmentGoesToTheChosenActiveAccountAndAnUnknownOrInactiveOneIsRefused() {
+        // E28-T10
+        CreateEnvironmentDTO dto = new CreateEnvironmentDTO();
+        dto.setName("acct-env");
+        dto.setDisplayName("Account env");
+        assertEquals(com.tcgdigital.vmcontrol.model.AwsAccount.DEFAULT_REF, environmentService.createEnvironment(dto).getAwsAccountRef());
+
+        CreateEnvironmentDTO unknown = new CreateEnvironmentDTO();
+        unknown.setName("acct-env-2");
+        unknown.setDisplayName("Account env 2");
+        unknown.setAwsAccountRef("no-such-account");
+        org.junit.jupiter.api.Assertions.assertThrows(com.tcgdigital.vmcontrol.exception.ValidationException.class,
+                () -> environmentService.createEnvironment(unknown));
+
+        com.tcgdigital.vmcontrol.model.AwsAccount inactive = new com.tcgdigital.vmcontrol.model.AwsAccount();
+        inactive.setDisplayName("Closed");
+        inactive.setActive(false);
+        inactive = awsAccountRepository.saveAndFlush(inactive);
+        try {
+            unknown.setAwsAccountRef(inactive.getAwsAccountRef());
+            org.junit.jupiter.api.Assertions.assertThrows(com.tcgdigital.vmcontrol.exception.ValidationException.class,
+                    () -> environmentService.createEnvironment(unknown));
+
+            inactive.setActive(true);
+            awsAccountRepository.saveAndFlush(inactive);
+            assertEquals(inactive.getAwsAccountRef(), environmentService.createEnvironment(unknown).getAwsAccountRef());
+        } finally {
+            environmentRepository.findByName("acct-env-2").ifPresent(environmentRepository::delete);
+            environmentRepository.flush();
+            awsAccountRepository.deleteById(inactive.getAwsAccountRef());
+        }
     }
 
     @Test

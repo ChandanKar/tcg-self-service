@@ -85,6 +85,16 @@ class AwsAccountControllerTest extends SecuredWebTestBase {
     }
 
     @Test
+    void environmentAdminsGetTheActiveAccountOptions() throws Exception {
+        create("Payments", ARN);
+        mockMvc.perform(get(URL + "/options").with(asEnvAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[?(@.name == 'Payments')].regions[0]").value("eu-west-1"));
+        mockMvc.perform(get(URL + "/options").with(asUser())).andExpect(status().isForbidden());
+    }
+
+    @Test
     void nonAdminsAreRefused() throws Exception {
         for (var who : new org.springframework.test.web.servlet.request.RequestPostProcessor[]{asEnvAdmin(), asUser(), asViewer()}) {
             mockMvc.perform(get(URL).with(who)).andExpect(status().isForbidden());

@@ -21,16 +21,29 @@ public class AwsAccountController {
 
     private final AwsAccountAdminService adminService;
     private final UserService userService;
+    private final com.tcgdigital.vmcontrol.service.aws.AwsAccountService awsAccountService;
 
-    public AwsAccountController(AwsAccountAdminService adminService, UserService userService) {
+    public AwsAccountController(AwsAccountAdminService adminService, UserService userService,
+                                com.tcgdigital.vmcontrol.service.aws.AwsAccountService awsAccountService) {
         this.adminService = adminService;
         this.userService = userService;
+        this.awsAccountService = awsAccountService;
     }
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     public List<AwsAccountDTO> list() {
         return adminService.list();
+    }
+
+    /** Active accounts to choose from in environment and VM forms (E28-T10). */
+    @GetMapping("/options")
+    @PreAuthorize("hasAnyRole('ADMIN','ENV_ADMIN')")
+    public List<java.util.Map<String, Object>> options() {
+        return awsAccountService.listActive().stream()
+                .map(a -> java.util.Map.<String, Object>of("ref", a.getAwsAccountRef(), "name", a.getDisplayName(),
+                        "regions", a.getRegionList(), "isDefault", a.isDefault()))
+                .toList();
     }
 
     @PostMapping

@@ -338,7 +338,8 @@ const Config = (function() {
 
         // EC2 (AWS)
         ec2: {
-            listInstances: (region) => `/api/ec2/instances?region=${region}`,
+            listInstances: (region, accountRef) => `/api/ec2/instances?region=${region}`
+                + (accountRef ? `&accountRef=${encodeURIComponent(accountRef)}` : ''),
             registeredIds: `/api/ec2/registered-ids`
         },
 

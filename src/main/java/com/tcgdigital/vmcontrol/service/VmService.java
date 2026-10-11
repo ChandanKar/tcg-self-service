@@ -34,6 +34,19 @@ public class VmService {
     private static final Logger log = LoggerFactory.getLogger(VmService.class);
 
     private final VmRepository vmRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.repository.AwsAccountRepository awsAccountRepository;
+
+    private String activeAwsAccount(String ref) {
+        boolean active = awsAccountRepository == null
+                ? com.tcgdigital.vmcontrol.model.AwsAccount.DEFAULT_REF.equals(ref)
+                : awsAccountRepository.findById(ref).map(com.tcgdigital.vmcontrol.model.AwsAccount::isActive).orElse(false);
+        if (!active) {
+            throw new ValidationException("AWS account " + ref + " is unknown or inactive");
+        }
+        return ref;
+    }
     private final VmGroupRepository groupRepository;
     private final DependencyValidator dependencyValidator;
     private final AuditService auditService;
@@ -152,7 +165,9 @@ public class VmService {
         vm.setRemarks(dto.getRemarks());
         vm.setProvider(dto.getProvider());
         if (dto.getProvider() == CloudProvider.AWS || dto.getProvider() == CloudProvider.AWS_EKS) {
-            vm.setAwsAccountRef(group.getEnvironment().getAwsAccountRef()); // the environment's account (E28-T03)
+            // The environment's account (E28-T03), or another active one, e.g. a shared-services VM (E28-T10).
+            vm.setAwsAccountRef(dto.getAwsAccountRef() != null && !dto.getAwsAccountRef().isBlank()
+                    ? activeAwsAccount(dto.getAwsAccountRef()) : group.getEnvironment().getAwsAccountRef());
         }
         vm.setRegion(dto.getRegion());
         vm.setProviderVmId(dto.getProviderVmId());

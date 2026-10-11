@@ -54,7 +54,7 @@ class Ec2ControllerTest {
     void listInstances_WithValidRegion_ReturnsInstanceList() throws Exception {
         // Arrange
         List<Ec2InstanceInfo> mockInstances = createMockEc2Instances();
-        when(ec2Service.listInstances(eq(REGION))).thenReturn(mockInstances);
+        when(ec2Service.listInstances(org.mockito.ArgumentMatchers.isNull(), eq(REGION))).thenReturn(mockInstances);
 
         // Act & Assert
         mockMvc.perform(get(API_ENDPOINT)
@@ -74,14 +74,14 @@ class Ec2ControllerTest {
                 .andExpect(jsonPath("$[1].instanceType", is("t3.medium")))
                 .andExpect(jsonPath("$[1].state", is("stopped")));
 
-        verify(ec2Service, times(1)).listInstances(eq(REGION));
+        verify(ec2Service, times(1)).listInstances(org.mockito.ArgumentMatchers.isNull(), eq(REGION));
     }
 
     @Test
     @DisplayName("Should return empty list when no instances exist in ap-south-1 region")
     void listInstances_NoInstances_ReturnsEmptyList() throws Exception {
         // Arrange
-        when(ec2Service.listInstances(eq(REGION))).thenReturn(Collections.emptyList());
+        when(ec2Service.listInstances(org.mockito.ArgumentMatchers.isNull(), eq(REGION))).thenReturn(Collections.emptyList());
 
         // Act & Assert
         mockMvc.perform(get(API_ENDPOINT)
@@ -91,7 +91,7 @@ class Ec2ControllerTest {
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$", hasSize(0)));
 
-        verify(ec2Service, times(1)).listInstances(eq(REGION));
+        verify(ec2Service, times(1)).listInstances(org.mockito.ArgumentMatchers.isNull(), eq(REGION));
     }
 
     @Test
@@ -99,7 +99,7 @@ class Ec2ControllerTest {
     void listInstances_SingleInstance_ReturnsCorrectDetails() throws Exception {
         // Arrange
         Ec2InstanceInfo singleInstance = createSingleMockInstance();
-        when(ec2Service.listInstances(eq(REGION))).thenReturn(List.of(singleInstance));
+        when(ec2Service.listInstances(org.mockito.ArgumentMatchers.isNull(), eq(REGION))).thenReturn(List.of(singleInstance));
 
         // Act & Assert
         mockMvc.perform(get(API_ENDPOINT)
@@ -121,7 +121,7 @@ class Ec2ControllerTest {
                 .andExpect(jsonPath("$[0].coreCount", is(2)))
                 .andExpect(jsonPath("$[0].threadsPerCore", is(2)));
 
-        verify(ec2Service).listInstances(REGION);
+        verify(ec2Service).listInstances(null, REGION);
     }
 
     @Test
@@ -132,14 +132,14 @@ class Ec2ControllerTest {
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest());
 
-        verify(ec2Service, never()).listInstances(anyString());
+        verify(ec2Service, never()).listInstances(org.mockito.ArgumentMatchers.any(), anyString());
     }
 
     @Test
     @DisplayName("Should handle service exception gracefully")
     void listInstances_ServiceThrowsException_ReturnsServerError() throws Exception {
         // Arrange
-        when(ec2Service.listInstances(eq(REGION)))
+        when(ec2Service.listInstances(org.mockito.ArgumentMatchers.isNull(), eq(REGION)))
                 .thenThrow(new RuntimeException("AWS connection failed"));
 
         // Act & Assert
@@ -148,14 +148,14 @@ class Ec2ControllerTest {
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isInternalServerError());
 
-        verify(ec2Service, times(1)).listInstances(eq(REGION));
+        verify(ec2Service, times(1)).listInstances(org.mockito.ArgumentMatchers.isNull(), eq(REGION));
     }
 
     @Test
     @DisplayName("Should verify service is called with correct region parameter")
     void listInstances_VerifyServiceCalledWithCorrectRegion() throws Exception {
         // Arrange
-        when(ec2Service.listInstances(anyString())).thenReturn(Collections.emptyList());
+        when(ec2Service.listInstances(org.mockito.ArgumentMatchers.isNull(), anyString())).thenReturn(Collections.emptyList());
 
         // Act
         mockMvc.perform(get(API_ENDPOINT)
@@ -164,11 +164,22 @@ class Ec2ControllerTest {
                 .andExpect(status().isOk());
 
         // Assert - verify exact region parameter
-        verify(ec2Service).listInstances(REGION);
+        verify(ec2Service).listInstances(null, REGION);
         verifyNoMoreInteractions(ec2Service);
     }
 
     // Helper methods to create mock data
+
+    @Test
+    @DisplayName("Passes the chosen AWS account through (E28-T10)")
+    void listInstances_WithAnAccount_UsesThatAccount() throws Exception {
+        when(ec2Service.listInstances("acct-b", REGION)).thenReturn(Collections.emptyList());
+
+        mockMvc.perform(get(API_ENDPOINT).param("region", REGION).param("accountRef", "acct-b"))
+                .andExpect(status().isOk());
+
+        verify(ec2Service).listInstances("acct-b", REGION);
+    }
 
     private List<Ec2InstanceInfo> createMockEc2Instances() {
         Ec2InstanceInfo instance1 = new Ec2InstanceInfo(

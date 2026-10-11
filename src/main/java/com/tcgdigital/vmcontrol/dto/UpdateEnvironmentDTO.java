@@ -82,4 +82,15 @@ public class UpdateEnvironmentDTO {
     public void setTeamId(String teamId) {
         this.teamId = teamId;
     }
+
+    /** The AWS account (E28-T10): null leaves it unchanged. */
+    private String awsAccountRef;
+
+    public String getAwsAccountRef() {
+        return awsAccountRef;
+    }
+
+    public void setAwsAccountRef(String awsAccountRef) {
+        this.awsAccountRef = awsAccountRef;
+    }
 }
