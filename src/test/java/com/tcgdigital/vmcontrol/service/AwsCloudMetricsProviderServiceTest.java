@@ -42,10 +42,10 @@ class AwsCloudMetricsProviderServiceTest {
     @BeforeEach
     @SuppressWarnings("unchecked")
     void setUp() {
-        service = new AwsCloudMetricsProviderService();
-        ReflectionTestUtils.setField(service, "accessKey", "k");
-        ReflectionTestUtils.setField(service, "secretKey", "s");
-        ((Map<String, CloudWatchClient>) ReflectionTestUtils.getField(service, "clientCache")).put(REGION, cloudWatch);
+        com.tcgdigital.vmcontrol.service.aws.AwsClientFactory factory = org.mockito.Mockito.mock(com.tcgdigital.vmcontrol.service.aws.AwsClientFactory.class);
+        org.mockito.Mockito.lenient().when(factory.isConfigured()).thenReturn(true);
+        org.mockito.Mockito.lenient().when(factory.cloudWatch(REGION)).thenReturn(cloudWatch);
+        service = new AwsCloudMetricsProviderService(factory);
     }
 
     private static MetricDataResult result(String id, Instant at, double value) {

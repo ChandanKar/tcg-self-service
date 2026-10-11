@@ -132,7 +132,7 @@ class CostAnomalyMonitorServiceTest extends AbstractIntegrationTest {
     @Test
     void withoutCredentialsNothingIsCalled() {
         CostAnomalyMonitorService.SyncResult result = new CostAnomalyMonitorService(monitors, environments,
-                new CostExplorerClientProvider("", ""), true, "tcg:").sync();
+                CostExplorerClientProvider.unconfigured(), true, "tcg:").sync();
         assertThat(result.warning()).isEqualTo("AWS credentials are not configured");
         assertThat(List.of(result.monitors(), result.created())).containsOnly(0);
     }

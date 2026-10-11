@@ -47,10 +47,7 @@ class EksMetricsSyncIntegrationTest extends AbstractIntegrationTest {
     void restore() {
         if (target != null) {
             ReflectionTestUtils.setField(target, "enabled", false);
-            ReflectionTestUtils.setField(target, "accessKey", "");
-            ReflectionTestUtils.setField(target, "secretKey", "");
             ReflectionTestUtils.setField(target, "clientFactory", realFactory);
-            ((java.util.Map<?, ?>) ReflectionTestUtils.getField(target, "clientCache")).clear();
         }
     }
 
@@ -84,8 +81,6 @@ class EksMetricsSyncIntegrationTest extends AbstractIntegrationTest {
         Function<String, CloudWatchClient> fake = region -> cloudWatch;
         ReflectionTestUtils.setField(target, "clientFactory", fake);
         ReflectionTestUtils.setField(target, "enabled", true);
-        ReflectionTestUtils.setField(target, "accessKey", "AKIA-test");
-        ReflectionTestUtils.setField(target, "secretKey", "secret");
 
         int saved = metricsService.syncRunningVmMetrics();
 

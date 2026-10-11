@@ -34,19 +34,16 @@ class AwsCloudProviderServiceTest {
     @BeforeEach
     @SuppressWarnings("unchecked")
     void setUp() {
-        service = new AwsCloudProviderService();
-        ReflectionTestUtils.setField(service, "accessKey", "test-key");
-        ReflectionTestUtils.setField(service, "secretKey", "test-secret");
+        // The factory hands out the mock client, so no real client is created (E28-T02).
+        com.tcgdigital.vmcontrol.service.aws.AwsClientFactory factory = org.mockito.Mockito.mock(com.tcgdigital.vmcontrol.service.aws.AwsClientFactory.class);
+        org.mockito.Mockito.lenient().when(factory.isConfigured()).thenReturn(true);
+        org.mockito.Mockito.lenient().when(factory.ec2(REGION)).thenReturn(mockEc2Client);
+        service = new AwsCloudProviderService(factory);
         ReflectionTestUtils.setField(service, "defaultRegion", REGION);
         // Disable sleep delays in polling loops
         ReflectionTestUtils.setField(service, "statusCheckTimeoutMs", 50);
         ReflectionTestUtils.setField(service, "statusCheckPollIntervalMs", 1);
         ReflectionTestUtils.setField(service, "stopPollIntervalMs", 0);
-
-        // Inject mock client directly into the cache so no real client is created
-        Map<String, Ec2Client> clientCache =
-                (Map<String, Ec2Client>) ReflectionTestUtils.getField(service, "clientCache");
-        clientCache.put(REGION, mockEc2Client);
     }
 
     // --- discovery (E09-T02, H24): a failed call is reported, never an empty list ---

@@ -1,21 +1,16 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.service.aws.AwsClientFactory;
 import com.tcgdigital.vmcontrol.model.CloudProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.ec2.Ec2Client;
 import software.amazon.awssdk.services.ec2.model.*;
 
 import java.sql.Timestamp;
-import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -23,16 +18,14 @@ public class AwsCloudInventoryProviderService implements CloudInventoryProviderS
 
     private static final Logger log = LoggerFactory.getLogger(AwsCloudInventoryProviderService.class);
 
-    @Value("${aws.access-key:}")
-    private String accessKey;
-
-    @Value("${aws.secret-key:}")
-    private String secretKey;
-
     @Value("${aws.region:ap-south-1}")
     private String defaultRegion;
 
-    private final Map<String, Ec2Client> clientCache = new ConcurrentHashMap<>();
+    private final AwsClientFactory awsClientFactory;
+
+    public AwsCloudInventoryProviderService(AwsClientFactory awsClientFactory) {
+        this.awsClientFactory = awsClientFactory;
+    }
 
     @Override
     public CloudProvider getProvider() {
@@ -41,8 +34,7 @@ public class AwsCloudInventoryProviderService implements CloudInventoryProviderS
 
     @Override
     public boolean isAvailable() {
-        return accessKey != null && !accessKey.isBlank()
-                && secretKey != null && !secretKey.isBlank();
+        return awsClientFactory.isConfigured();
     }
 
     @Override
@@ -157,13 +149,6 @@ public class AwsCloudInventoryProviderService implements CloudInventoryProviderS
 
     private Ec2Client getEc2Client(String region) {
         String effectiveRegion = region != null && !region.isBlank() ? region : defaultRegion;
-        return clientCache.computeIfAbsent(effectiveRegion, r -> Ec2Client.builder()
-                .region(Region.of(r))
-                .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
-                .overrideConfiguration(ClientOverrideConfiguration.builder()
-                        .apiCallTimeout(Duration.ofSeconds(30))
-                        .apiCallAttemptTimeout(Duration.ofSeconds(25))
-                        .build())
-                .build());
+        return awsClientFactory.ec2(effectiveRegion);
     }
 }

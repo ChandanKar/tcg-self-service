@@ -1,12 +1,8 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.service.aws.AwsClientFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.ec2.Ec2Client;
 import software.amazon.awssdk.services.ec2.model.DescribeVolumesRequest;
 import software.amazon.awssdk.services.ec2.model.DescribeVolumesResponse;
@@ -20,7 +16,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 /**
@@ -37,16 +32,8 @@ public class AwsWasteScanService {
     private final Function<String, Ec2Client> clients;
 
     @Autowired
-    public AwsWasteScanService(@Value("${aws.access-key:}") String accessKey, @Value("${aws.secret-key:}") String secretKey) {
-        Map<String, Ec2Client> cache = new ConcurrentHashMap<>();
-        this.clients = region -> cache.computeIfAbsent(region, r -> Ec2Client.builder()
-                .region(Region.of(r))
-                .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
-                .overrideConfiguration(ClientOverrideConfiguration.builder()
-                        .apiCallTimeout(Duration.ofSeconds(60))
-                        .apiCallAttemptTimeout(Duration.ofSeconds(30))
-                        .build())
-                .build());
+    public AwsWasteScanService(AwsClientFactory awsClientFactory) {
+        this.clients = awsClientFactory::ec2;
     }
 
     /** With given clients (tests). */

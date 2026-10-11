@@ -1,24 +1,19 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.service.aws.AwsClientFactory;
 import com.tcgdigital.vmcontrol.model.CloudProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.cloudwatch.CloudWatchClient;
 import software.amazon.awssdk.services.cloudwatch.model.*;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Timestamp;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class AwsCloudMetricsProviderService implements CloudMetricsProviderService {
@@ -34,16 +29,14 @@ public class AwsCloudMetricsProviderService implements CloudMetricsProviderServi
      */
     private static final String CWAGENT_NAMESPACE = "CWAgent";
 
-    @Value("${aws.access-key:}")
-    private String accessKey;
-
-    @Value("${aws.secret-key:}")
-    private String secretKey;
-
     @Value("${aws.region:ap-south-1}")
     private String defaultRegion;
 
-    private final Map<String, CloudWatchClient> clientCache = new ConcurrentHashMap<>();
+    private final AwsClientFactory awsClientFactory;
+
+    public AwsCloudMetricsProviderService(AwsClientFactory awsClientFactory) {
+        this.awsClientFactory = awsClientFactory;
+    }
 
     @Override
     public CloudProvider getProvider() {
@@ -52,8 +45,7 @@ public class AwsCloudMetricsProviderService implements CloudMetricsProviderServi
 
     @Override
     public boolean isAvailable() {
-        return accessKey != null && !accessKey.isBlank()
-                && secretKey != null && !secretKey.isBlank();
+        return awsClientFactory.isConfigured();
     }
 
     /** The newest datapoint of each VM's series (kept for callers that want only the latest). */
@@ -163,14 +155,7 @@ public class AwsCloudMetricsProviderService implements CloudMetricsProviderServi
 
     private CloudWatchClient getCloudWatchClient(String region) {
         String effectiveRegion = region != null && !region.isBlank() ? region : defaultRegion;
-        return clientCache.computeIfAbsent(effectiveRegion, r -> CloudWatchClient.builder()
-                .region(Region.of(r))
-                .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
-                .overrideConfiguration(ClientOverrideConfiguration.builder()
-                        .apiCallTimeout(Duration.ofSeconds(30))
-                        .apiCallAttemptTimeout(Duration.ofSeconds(25))
-                        .build())
-                .build());
+        return awsClientFactory.cloudWatch(effectiveRegion);
     }
 
     private enum MetricSpec {

@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.service.aws.AwsClientFactory;
 import com.tcgdigital.vmcontrol.model.Budget;
 import com.tcgdigital.vmcontrol.model.BudgetScopeType;
 import org.slf4j.Logger;
@@ -7,9 +8,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.budgets.BudgetsClient;
 import software.amazon.awssdk.services.budgets.model.BudgetType;
 import software.amazon.awssdk.services.budgets.model.CreateBudgetRequest;
@@ -44,8 +42,7 @@ public class AwsBudgetSyncService {
     private final boolean enabled;
     private final String accountId;
     private final String tagKeyPrefix;
-    private final String accessKey;
-    private final String secretKey;
+    private final AwsClientFactory awsClientFactory;
     private volatile BudgetsClient client;
     private final Map<String, String> lastErrors = new ConcurrentHashMap<>();
 
@@ -53,18 +50,16 @@ public class AwsBudgetSyncService {
     public AwsBudgetSyncService(@Value("${budgets.aws-sync.enabled:false}") boolean enabled,
                                 @Value("${budgets.aws-sync.account-id:}") String accountId,
                                 @Value("${cost.tagging.key-prefix:tcg:}") String tagKeyPrefix,
-                                @Value("${aws.access-key:}") String accessKey,
-                                @Value("${aws.secret-key:}") String secretKey) {
+                                AwsClientFactory awsClientFactory) {
         this.enabled = enabled;
         this.accountId = accountId;
         this.tagKeyPrefix = tagKeyPrefix;
-        this.accessKey = accessKey;
-        this.secretKey = secretKey;
+        this.awsClientFactory = awsClientFactory;
     }
 
     /** With a ready (mock) client (tests). */
     AwsBudgetSyncService(boolean enabled, String accountId, BudgetsClient client) {
-        this(enabled, accountId, "tcg:", "test", "test");
+        this(enabled, accountId, "tcg:", null);
         this.client = client;
     }
 
@@ -153,15 +148,7 @@ public class AwsBudgetSyncService {
         if (existing != null) {
             return existing;
         }
-        synchronized (this) {
-            if (client == null) {
-                // AWS Budgets has one global endpoint, in us-east-1.
-                client = BudgetsClient.builder()
-                        .region(Region.US_EAST_1)
-                        .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
-                        .build();
-            }
-            return client;
-        }
+        // AWS Budgets has one global endpoint, in us-east-1; the factory caches it (E28-T02).
+        return awsClientFactory.budgets();
     }
 }

@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ComputeOptimizerServiceTest {
 
-    private final ComputeOptimizerService service = new ComputeOptimizerService();
+    private final ComputeOptimizerService service = new ComputeOptimizerService(org.mockito.Mockito.mock(com.tcgdigital.vmcontrol.service.aws.AwsClientFactory.class));
 
     @Test
     void parseRecommendations_extractsInstanceIdFromArnAndTopRankedOption() {
@@ -83,8 +83,6 @@ class ComputeOptimizerServiceTest {
                                             MutableClock clock) {
         ComputeOptimizerService s = new ComputeOptimizerService(region -> client, clock);
         org.springframework.test.util.ReflectionTestUtils.setField(s, "enabled", true);
-        org.springframework.test.util.ReflectionTestUtils.setField(s, "accessKey", "k");
-        org.springframework.test.util.ReflectionTestUtils.setField(s, "secretKey", "s");
         return s;
     }
 

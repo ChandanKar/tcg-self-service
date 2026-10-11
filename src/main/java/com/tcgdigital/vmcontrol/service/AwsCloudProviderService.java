@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.service.aws.AwsClientFactory;
 import com.tcgdigital.vmcontrol.exception.OperationCancelledException;
 import com.tcgdigital.vmcontrol.model.CloudProvider;
 import com.tcgdigital.vmcontrol.model.VmStatus;
@@ -7,20 +8,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.ec2.Ec2Client;
 import software.amazon.awssdk.services.ec2.model.*;
 
-import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -59,16 +54,10 @@ public class AwsCloudProviderService implements CloudProviderService {
     @Value("${aws.stop.poll-interval-ms:10000}")
     private int stopPollIntervalMs;
 
-    @Value("${aws.access-key:}")
-    private String accessKey;
-
-    @Value("${aws.secret-key:}")
-    private String secretKey;
-
     @Value("${aws.region:us-east-1}")
     private String defaultRegion;
 
-    private final Map<String, Ec2Client> clientCache = new ConcurrentHashMap<>();
+    private final AwsClientFactory awsClientFactory;
 
     // Runs the start/stop bodies (each of which blocks in a status-check poll loop for up to
     // statusCheckTimeoutMs). A dedicated pool rather than the common ForkJoinPool so that a
@@ -80,6 +69,10 @@ public class AwsCloudProviderService implements CloudProviderService {
         thread.setDaemon(true);
         return thread;
     });
+
+    public AwsCloudProviderService(AwsClientFactory awsClientFactory) {
+        this.awsClientFactory = awsClientFactory;
+    }
 
     @Override
     public CloudProvider getProvider() {
@@ -592,8 +585,7 @@ public class AwsCloudProviderService implements CloudProviderService {
 
     @Override
     public boolean isAvailable() {
-        return accessKey != null && !accessKey.isEmpty()
-                && secretKey != null && !secretKey.isEmpty();
+        return awsClientFactory.isConfigured();
     }
 
     /**
@@ -839,15 +831,7 @@ public class AwsCloudProviderService implements CloudProviderService {
 
     private Ec2Client getEc2Client(String region) {
         String effectiveRegion = region != null && !region.isEmpty() ? region : defaultRegion;
-        return clientCache.computeIfAbsent(effectiveRegion, r -> Ec2Client.builder()
-                .region(Region.of(r))
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(accessKey, secretKey)))
-                .overrideConfiguration(ClientOverrideConfiguration.builder()
-                        .apiCallTimeout(Duration.ofSeconds(30))
-                        .apiCallAttemptTimeout(Duration.ofSeconds(25))
-                        .build())
-                .build());
+        return awsClientFactory.ec2(effectiveRegion);
     }
 
     private VmStatus mapAwsStateToVmStatus(InstanceStateName stateName) {

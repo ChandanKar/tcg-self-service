@@ -179,7 +179,7 @@ class CommitmentRecommendationServiceTest {
     @Test
     void withoutCredentialsNothingIsCalled() {
         CommitmentRecommendationService off = new CommitmentRecommendationService(repository,
-                new CostExplorerClientProvider("", ""), new CostDayBoundary("UTC", Clock.fixed(MONDAY, ZoneOffset.UTC)));
+                CostExplorerClientProvider.unconfigured(), new CostDayBoundary("UTC", Clock.fixed(MONDAY, ZoneOffset.UTC)));
         assertThat(off.capture()).isZero();
         verifyNoInteractions(ce);
         verify(repository, never()).save(any());

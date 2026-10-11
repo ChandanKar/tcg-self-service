@@ -102,7 +102,7 @@ class CostExplorerTagActivationServiceTest {
 
     @Test
     void anUnconfiguredServiceCallsNothing() {
-        new CostExplorerTagActivationService(new CostExplorerClientProvider("", ""), 360, clock).ensureTagKeysActivated(KEYS);
+        new CostExplorerTagActivationService(CostExplorerClientProvider.unconfigured(), 360, clock).ensureTagKeysActivated(KEYS);
 
         verify(ce, never()).listCostAllocationTags(any(ListCostAllocationTagsRequest.class));
     }

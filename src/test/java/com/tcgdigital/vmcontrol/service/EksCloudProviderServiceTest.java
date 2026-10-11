@@ -46,17 +46,19 @@ class EksCloudProviderServiceTest {
     @BeforeEach
     @SuppressWarnings("unchecked")
     void setUp() {
-        service = new EksCloudProviderService(vmRepository, objectMapper, Runnable::run);
-        ReflectionTestUtils.setField(service, "accessKey", "test-key");
-        ReflectionTestUtils.setField(service, "secretKey", "test-secret");
+        service = new EksCloudProviderService(vmRepository, objectMapper, Runnable::run, eksFactory());
         ReflectionTestUtils.setField(service, "defaultRegion", REGION);
         ReflectionTestUtils.setField(service, "defaultMinSize", 1);
         ReflectionTestUtils.setField(service, "pollIntervalMs", 0L);
         ReflectionTestUtils.setField(service, "operationTimeoutMs", 500L);
+    }
 
-        Map<String, EksClient> clientCache =
-                (Map<String, EksClient>) ReflectionTestUtils.getField(service, "clientCache");
-        clientCache.put(REGION, mockEksClient);
+    /** A configured factory whose EKS client is the mock (E28-T02). */
+    private com.tcgdigital.vmcontrol.service.aws.AwsClientFactory eksFactory() {
+        com.tcgdigital.vmcontrol.service.aws.AwsClientFactory factory = org.mockito.Mockito.mock(com.tcgdigital.vmcontrol.service.aws.AwsClientFactory.class);
+        org.mockito.Mockito.lenient().when(factory.isConfigured()).thenReturn(true);
+        org.mockito.Mockito.lenient().when(factory.eks(REGION)).thenReturn(mockEksClient);
+        return factory;
     }
 
     // ---- startVm tests ----
@@ -497,14 +499,11 @@ class EksCloudProviderServiceTest {
         java.util.concurrent.ExecutorService eksPool = java.util.concurrent.Executors.newSingleThreadExecutor(
                 r -> new Thread(r, "eks-op-test"));
         try {
-            EksCloudProviderService onPool = new EksCloudProviderService(vmRepository, objectMapper, eksPool);
+            EksCloudProviderService onPool = new EksCloudProviderService(vmRepository, objectMapper, eksPool, eksFactory());
             ReflectionTestUtils.setField(onPool, "defaultRegion", REGION);
             ReflectionTestUtils.setField(onPool, "defaultMinSize", 1);
             ReflectionTestUtils.setField(onPool, "pollIntervalMs", 0L);
             ReflectionTestUtils.setField(onPool, "operationTimeoutMs", 500L);
-            @SuppressWarnings("unchecked")
-            Map<String, EksClient> cache = (Map<String, EksClient>) ReflectionTestUtils.getField(onPool, "clientCache");
-            cache.put(REGION, mockEksClient);
             when(vmRepository.findByProviderAndProviderVmId(CloudProvider.AWS_EKS, PROVIDER_VM_ID)).thenReturn(Optional.empty());
             java.util.concurrent.atomic.AtomicReference<String> thread = new java.util.concurrent.atomic.AtomicReference<>();
             when(mockEksClient.updateNodegroupConfig(any(UpdateNodegroupConfigRequest.class))).thenAnswer(inv -> {

@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.service.aws.AwsClientFactory;
 import com.tcgdigital.vmcontrol.model.AuditAction;
 import com.tcgdigital.vmcontrol.model.EksWorkloadCostDaily;
 import com.tcgdigital.vmcontrol.model.Environment;
@@ -12,9 +13,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.athena.AthenaClient;
 import software.amazon.awssdk.services.athena.model.*;
@@ -68,9 +66,10 @@ public class EksSplitCostIngestionService {
     private final EksWorkloadCostDailyRepository costRepository;
     private final AuditService auditService;
     private final TransactionTemplate dayTransaction;
+    private final AwsClientFactory awsClientFactory;
 
-    /** Builds the client for a region; replaced in tests. */
-    Function<String, AthenaClient> clientFactory = this::buildClient;
+    /** The client for a region (the factory's cached one); replaced in tests. */
+    Function<String, AthenaClient> clientFactory;
     /** Pause between query-state polls; shortened in tests. */
     long pollMillis = 2000;
     Clock clock = Clock.systemUTC();
@@ -102,19 +101,16 @@ public class EksSplitCostIngestionService {
     @Value("${eks.scad.lookback-days:3}")
     private int lookbackDays = 3;
 
-    @Value("${aws.access-key:}")
-    private String accessKey = "";
-
-    @Value("${aws.secret-key:}")
-    private String secretKey = "";
-
     @Value("${aws.region:ap-south-1}")
     private String defaultRegion = "ap-south-1";
 
     public EksSplitCostIngestionService(EnvironmentRepository environmentRepository,
                                         EksWorkloadCostDailyRepository costRepository,
                                         AuditService auditService,
-                                        PlatformTransactionManager transactionManager) {
+                                        PlatformTransactionManager transactionManager,
+                                        AwsClientFactory awsClientFactory) {
+        this.awsClientFactory = awsClientFactory;
+        this.clientFactory = awsClientFactory::athena;
         this.environmentRepository = environmentRepository;
         this.costRepository = costRepository;
         this.auditService = auditService;
@@ -125,6 +121,9 @@ public class EksSplitCostIngestionService {
     public IngestResult ingest() {
         if (!enabled) {
             return IngestResult.of(Status.DISABLED, "eks.scad.enabled is false");
+        }
+        if (!awsClientFactory.isConfigured()) {
+            return IngestResult.of(Status.DISABLED, "AWS credentials not configured");
         }
         if (!IDENTIFIER.matcher(nullToEmpty(database)).matches() || !IDENTIFIER.matcher(nullToEmpty(table)).matches()) {
             log.warn("EKS split cost: eks.scad.athena.database and eks.scad.athena.table must be plain identifiers; skipped");
@@ -148,9 +147,7 @@ public class EksSplitCostIngestionService {
     }
 
     private IngestResult run(LocalDate from, LocalDate toExclusive) {
-        try (AthenaClient athena = clientFactory.apply(effectiveRegion())) {
-            return run(athena, from, toExclusive);
-        }
+        return run(clientFactory.apply(effectiveRegion()), from, toExclusive);
     }
 
     private IngestResult run(AthenaClient athena, LocalDate from, LocalDate toExclusive) {
@@ -328,16 +325,5 @@ public class EksSplitCostIngestionService {
 
     private String effectiveRegion() {
         return athenaRegion != null && !athenaRegion.isBlank() ? athenaRegion : defaultRegion;
-    }
-
-    private AthenaClient buildClient(String region) {
-        return AthenaClient.builder()
-                .region(Region.of(region))
-                .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
-                .overrideConfiguration(ClientOverrideConfiguration.builder()
-                        .apiCallTimeout(Duration.ofSeconds(60))
-                        .apiCallAttemptTimeout(Duration.ofSeconds(30))
-                        .build())
-                .build();
     }
 }

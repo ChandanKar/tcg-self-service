@@ -50,7 +50,9 @@ class EksSplitCostIngestionServiceTest {
         env.setEksClusterName("MyCluster");
         when(environments.findActiveEksEnvironments()).thenReturn(List.of(env));
 
-        service = new EksSplitCostIngestionService(environments, costs, audit, mock(PlatformTransactionManager.class));
+        com.tcgdigital.vmcontrol.service.aws.AwsClientFactory factory = mock(com.tcgdigital.vmcontrol.service.aws.AwsClientFactory.class);
+        when(factory.isConfigured()).thenReturn(true);
+        service = new EksSplitCostIngestionService(environments, costs, audit, mock(PlatformTransactionManager.class), factory);
         service.clientFactory = region -> {
             clientsBuilt.incrementAndGet();
             return athena;

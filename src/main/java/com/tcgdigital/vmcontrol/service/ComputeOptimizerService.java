@@ -1,13 +1,10 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.service.aws.AwsClientFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.computeoptimizer.ComputeOptimizerClient;
 import software.amazon.awssdk.services.computeoptimizer.model.ComputeOptimizerException;
 import software.amazon.awssdk.services.computeoptimizer.model.GetEc2InstanceRecommendationsRequest;
@@ -39,16 +36,8 @@ public class ComputeOptimizerService {
 
     private static final Logger log = LoggerFactory.getLogger(ComputeOptimizerService.class);
 
-    @Value("${aws.access-key:}")
-    private String accessKey;
-
-    @Value("${aws.secret-key:}")
-    private String secretKey;
-
     @Value("${cost.optimizer.enabled:true}")
     private boolean enabled;
-
-    private final Map<String, ComputeOptimizerClient> clientCache = new ConcurrentHashMap<>();
 
     /** How long a region's recommendations are reused (E08-T04); failures are never cached. */
     @Value("${cost.optimizer.cache-minutes:60}")
@@ -58,16 +47,21 @@ public class ComputeOptimizerService {
     }
 
     private final Map<String, CachedRecs> recommendationCache = new ConcurrentHashMap<>();
-    /** Builds a region's client; replaceable in tests. */
-    private java.util.function.Function<String, ComputeOptimizerClient> clientFactory = this::buildClient;
+    /** A region's client: the factory's cached one, or a fixed one in tests. */
+    private final java.util.function.Function<String, ComputeOptimizerClient> clientFactory;
+    private final java.util.function.BooleanSupplier configured;
     private java.time.Clock clock = java.time.Clock.systemUTC();
 
-    public ComputeOptimizerService() {
+    @org.springframework.beans.factory.annotation.Autowired
+    public ComputeOptimizerService(AwsClientFactory awsClientFactory) {
+        this.clientFactory = awsClientFactory::computeOptimizer;
+        this.configured = awsClientFactory::isConfigured;
     }
 
-    /** Test seam: fixed clients and clock. */
+    /** Test seam: fixed clients and clock, credentials configured. */
     ComputeOptimizerService(java.util.function.Function<String, ComputeOptimizerClient> clientFactory, java.time.Clock clock) {
         this.clientFactory = clientFactory;
+        this.configured = () -> true;
         this.clock = clock;
     }
 
@@ -83,8 +77,7 @@ public class ComputeOptimizerService {
     }
 
     public boolean isAvailable() {
-        return enabled && accessKey != null && !accessKey.isEmpty()
-                && secretKey != null && !secretKey.isEmpty();
+        return enabled && configured.getAsBoolean();
     }
 
     /**
@@ -176,18 +169,6 @@ public class ComputeOptimizerService {
     }
 
     private ComputeOptimizerClient getClient(String region) {
-        return clientCache.computeIfAbsent(region, clientFactory);
-    }
-
-    private ComputeOptimizerClient buildClient(String r) {
-        return ComputeOptimizerClient.builder()
-                .region(Region.of(r))
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(accessKey, secretKey)))
-                .overrideConfiguration(ClientOverrideConfiguration.builder()
-                        .apiCallTimeout(Duration.ofSeconds(30))
-                        .apiCallAttemptTimeout(Duration.ofSeconds(25))
-                        .build())
-                .build();
+        return clientFactory.apply(region);
     }
 }

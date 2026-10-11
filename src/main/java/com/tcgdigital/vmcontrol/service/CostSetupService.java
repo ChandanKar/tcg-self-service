@@ -138,7 +138,7 @@ public class CostSetupService {
     private CostSetupStatusDTO notConfigured() {
         Map<String, CostSetupStatusDTO.Check> checks = new LinkedHashMap<>();
         allActions().forEach(a -> checks.put(a, new CostSetupStatusDTO.Check(a, UNKNOWN,
-                "AWS credentials are not configured (aws.access-key / aws.secret-key)")));
+                "AWS credentials are not configured (aws.access-key / aws.secret-key, or aws.credentials.use-default-chain on an IAM role)")));
         return new CostSetupStatusDTO(false, null, Timestamp.from(clock.instant()), features(checks), List.of());
     }
 

@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.service.aws.AwsClientFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tcgdigital.vmcontrol.model.CloudProvider;
@@ -9,20 +10,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.cloudwatch.CloudWatchClient;
 import software.amazon.awssdk.services.cloudwatch.model.*;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Timestamp;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 /**
@@ -43,15 +38,9 @@ public class AwsEksMetricsProviderService implements CloudMetricsProviderService
 
     private final VmRepository vmRepository;
     private final ObjectMapper objectMapper;
-    private final Map<String, CloudWatchClient> clientCache = new ConcurrentHashMap<>();
-    /** Builds the client for a region; replaced in tests. */
-    Function<String, CloudWatchClient> clientFactory = this::buildClient;
-
-    @Value("${aws.access-key:}")
-    private String accessKey = "";
-
-    @Value("${aws.secret-key:}")
-    private String secretKey = "";
+    private final AwsClientFactory awsClientFactory;
+    /** The client for a region (the factory's cached one); replaced in tests. */
+    Function<String, CloudWatchClient> clientFactory;
 
     @Value("${aws.region:ap-south-1}")
     private String defaultRegion = "ap-south-1";
@@ -62,9 +51,11 @@ public class AwsEksMetricsProviderService implements CloudMetricsProviderService
     @Value("${eks.metrics.container-insights.enabled:false}")
     private boolean containerInsights;
 
-    public AwsEksMetricsProviderService(VmRepository vmRepository, ObjectMapper objectMapper) {
+    public AwsEksMetricsProviderService(VmRepository vmRepository, ObjectMapper objectMapper, AwsClientFactory awsClientFactory) {
         this.vmRepository = vmRepository;
         this.objectMapper = objectMapper;
+        this.awsClientFactory = awsClientFactory;
+        this.clientFactory = awsClientFactory::cloudWatch;
     }
 
     @Override
@@ -74,7 +65,7 @@ public class AwsEksMetricsProviderService implements CloudMetricsProviderService
 
     @Override
     public boolean isAvailable() {
-        return enabled && accessKey != null && !accessKey.isBlank() && secretKey != null && !secretKey.isBlank();
+        return enabled && awsClientFactory.isConfigured();
     }
 
     @Override
@@ -163,7 +154,7 @@ public class AwsEksMetricsProviderService implements CloudMetricsProviderService
 
         Map<String, TreeMap<Instant, Point>> points = new HashMap<>();
         Map<String, TreeMap<Instant, Double>> memoryByCluster = new HashMap<>();
-        CloudWatchClient cloudWatch = clientCache.computeIfAbsent(effectiveRegion(region), clientFactory);
+        CloudWatchClient cloudWatch = clientFactory.apply(effectiveRegion(region));
         for (int offset = 0; offset < queries.size(); offset += MAX_QUERIES) {
             List<MetricDataQuery> chunk = queries.subList(offset, Math.min(offset + MAX_QUERIES, queries.size()));
             try {
@@ -268,16 +259,5 @@ public class AwsEksMetricsProviderService implements CloudMetricsProviderService
 
     private String effectiveRegion(String region) {
         return region != null && !region.isBlank() ? region : defaultRegion;
-    }
-
-    private CloudWatchClient buildClient(String region) {
-        return CloudWatchClient.builder()
-                .region(Region.of(region))
-                .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
-                .overrideConfiguration(ClientOverrideConfiguration.builder()
-                        .apiCallTimeout(Duration.ofSeconds(30))
-                        .apiCallAttemptTimeout(Duration.ofSeconds(25))
-                        .build())
-                .build();
     }
 }

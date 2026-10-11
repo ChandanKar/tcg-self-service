@@ -37,9 +37,9 @@ class AwsEksMetricsProviderServiceTest {
     void setUp() {
         vms = mock(VmRepository.class);
         cloudWatch = mock(CloudWatchClient.class);
-        service = new AwsEksMetricsProviderService(vms, new ObjectMapper());
-        ReflectionTestUtils.setField(service, "accessKey", "AKIA-test");
-        ReflectionTestUtils.setField(service, "secretKey", "secret");
+        com.tcgdigital.vmcontrol.service.aws.AwsClientFactory factory = mock(com.tcgdigital.vmcontrol.service.aws.AwsClientFactory.class);
+        when(factory.isConfigured()).thenReturn(true);
+        service = new AwsEksMetricsProviderService(vms, new ObjectMapper(), factory);
         ReflectionTestUtils.setField(service, "enabled", true);
         service.clientFactory = region -> {
             clientsBuilt.incrementAndGet();

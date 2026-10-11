@@ -128,7 +128,7 @@ class CostExplorerBillingServiceTest {
         service.ingestTrailingWindow(3);
 
         CostExplorerBillingService unconfigured = new CostExplorerBillingService(environmentRepository,
-                costDailySnapshotRepository, new CostExplorerClientProvider("", ""),
+                costDailySnapshotRepository, CostExplorerClientProvider.unconfigured(),
                 new CostDayBoundary("UTC", java.time.Clock.fixed(NOW, java.time.ZoneOffset.UTC)));
         org.springframework.test.util.ReflectionTestUtils.setField(unconfigured, "actualsEnabled", true);
         unconfigured.ingestTrailingWindow(3);

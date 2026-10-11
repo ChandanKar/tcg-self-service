@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.service.aws.AwsClientFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tcgdigital.vmcontrol.model.CloudProvider;
 import com.tcgdigital.vmcontrol.model.Vm;
@@ -11,20 +12,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Qualifier;
 import java.util.concurrent.Executor;
 import org.springframework.stereotype.Service;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.eks.EksClient;
 import software.amazon.awssdk.services.eks.model.*;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * AWS EKS implementation of CloudProviderService.
@@ -40,12 +35,6 @@ public class EksCloudProviderService implements CloudProviderService {
 
     private static final Logger log = LoggerFactory.getLogger(EksCloudProviderService.class);
 
-    @Value("${aws.access-key:}")
-    private String accessKey;
-
-    @Value("${aws.secret-key:}")
-    private String secretKey;
-
     @Value("${aws.region:ap-south-1}")
     private String defaultRegion;
 
@@ -58,15 +47,16 @@ public class EksCloudProviderService implements CloudProviderService {
     @Value("${eks.nodegroup.operation-timeout-ms:900000}")
     private long operationTimeoutMs;
 
-    private final Map<String, EksClient> clientCache = new ConcurrentHashMap<>();
-
     private final VmRepository vmRepository;
     private final ObjectMapper objectMapper;
     private final Executor eksOperationExecutor;
+    private final AwsClientFactory awsClientFactory;
 
     public EksCloudProviderService(VmRepository vmRepository, ObjectMapper objectMapper,
-                                   @Qualifier("eksOperationExecutor") Executor eksOperationExecutor) {
+                                   @Qualifier("eksOperationExecutor") Executor eksOperationExecutor,
+                                   AwsClientFactory awsClientFactory) {
         this.eksOperationExecutor = eksOperationExecutor;
+        this.awsClientFactory = awsClientFactory;
         this.vmRepository = vmRepository;
         this.objectMapper = objectMapper;
     }
@@ -78,8 +68,7 @@ public class EksCloudProviderService implements CloudProviderService {
 
     @Override
     public boolean isAvailable() {
-        return accessKey != null && !accessKey.isEmpty()
-                && secretKey != null && !secretKey.isEmpty();
+        return awsClientFactory.isConfigured();
     }
 
     @Override
@@ -557,14 +546,6 @@ public class EksCloudProviderService implements CloudProviderService {
 
     private EksClient getEksClient(String region) {
         String effectiveRegion = region != null && !region.isEmpty() ? region : defaultRegion;
-        return clientCache.computeIfAbsent(effectiveRegion, r -> EksClient.builder()
-                .region(Region.of(r))
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(accessKey, secretKey)))
-                .overrideConfiguration(ClientOverrideConfiguration.builder()
-                        .apiCallTimeout(Duration.ofSeconds(30))
-                        .apiCallAttemptTimeout(Duration.ofSeconds(25))
-                        .build())
-                .build());
+        return awsClientFactory.eks(effectiveRegion);
     }
 }

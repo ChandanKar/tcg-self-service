@@ -123,7 +123,7 @@ class CostAnomalyServiceTest extends AbstractIntegrationTest {
 
     @Test
     void withoutCredentialsNothingIsCalled() {
-        CostAnomalyService off = service(new CostExplorerClientProvider("", ""));
+        CostAnomalyService off = service(CostExplorerClientProvider.unconfigured());
         assertThat(off.ingest().seen()).isZero();
     }
 

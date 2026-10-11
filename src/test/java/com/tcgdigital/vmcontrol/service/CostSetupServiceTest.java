@@ -65,7 +65,7 @@ class CostSetupServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new CostSetupService(jobLocks, vmRepository, new CostExplorerClientProvider("k", "s"), computeOptimizer,
+        service = new CostSetupService(jobLocks, vmRepository, new CostExplorerClientProvider(org.mockito.Mockito.mock(software.amazon.awssdk.services.costexplorer.CostExplorerClient.class)), computeOptimizer,
                 aws, tagActivation, sts, iam,
                 Map.of("snapshot", true, "actuals", true, "tagging", false, "optimizer", true,
                         "reservations", true, "weeklyReports", true),
