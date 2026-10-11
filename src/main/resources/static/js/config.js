@@ -348,6 +348,7 @@ const Config = (function() {
             summary: `${API_BASE_URL}/cost-management/summary`,
             spendByEnvironment: `${API_BASE_URL}/cost-management/spend-by-environment`,
             spendByVmType: `${API_BASE_URL}/cost-management/spend-by-vm-type`,
+            spendByAccount: `${API_BASE_URL}/cost-management/spend-by-account`,
             eksWorkloadCost: (environmentId, days = 7) =>
                 `${API_BASE_URL}/cost-management/eks-workload-cost?environmentId=${encodeURIComponent(environmentId)}&days=${days}`,
             spendTrend: (days = 90) => `${API_BASE_URL}/cost-management/spend-trend?days=${days}`,

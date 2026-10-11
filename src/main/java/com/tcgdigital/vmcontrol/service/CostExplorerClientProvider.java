@@ -39,8 +39,22 @@ public class CostExplorerClientProvider {
         return awsClientFactory != null ? awsClientFactory.isConfigured() : fixedClient != null;
     }
 
-    /** The factory's cached client (E28-T02); callers must not close it. */
+    /** Resolves the billing account (E28-T11); absent outside the full application. */
+    private com.tcgdigital.vmcontrol.service.aws.AwsAccountService accounts;
+
+    @Autowired(required = false)
+    void setAccounts(com.tcgdigital.vmcontrol.service.aws.AwsAccountService accounts) {
+        this.accounts = accounts;
+    }
+
+    /**
+     * The factory's cached client for the billing account (E28-T02, E28-T11): linked accounts'
+     * costs are read from the payer/management account. Callers must not close it.
+     */
     public CostExplorerClient client() {
-        return awsClientFactory != null ? awsClientFactory.costExplorer() : fixedClient;
+        if (awsClientFactory == null) {
+            return fixedClient;
+        }
+        return awsClientFactory.costExplorer(accounts == null ? null : accounts.getBillingAccountRef());
     }
 }

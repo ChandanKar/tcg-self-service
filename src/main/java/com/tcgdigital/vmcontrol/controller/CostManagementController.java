@@ -124,6 +124,12 @@ public class CostManagementController {
         return ResponseEntity.ok(costEstimationService.getSpendByEnvironment());
     }
 
+    @GetMapping("/spend-by-account")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<SpendByDimensionDTO>> getSpendByAccount() {
+        return ResponseEntity.ok(costEstimationService.getSpendByAccount());
+    }
+
     @GetMapping("/spend-by-vm-type")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<SpendByDimensionDTO>> getSpendByVmType() {

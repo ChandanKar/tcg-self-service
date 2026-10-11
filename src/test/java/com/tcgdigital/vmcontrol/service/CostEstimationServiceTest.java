@@ -160,6 +160,28 @@ class CostEstimationServiceTest {
     }
 
     @Test
+    void spendByAccountSplitsTheEstimateAcrossAccounts() {
+        // E28-T11
+        Vm other = buildAwsVm();
+        other.setVmId("vm-2");
+        other.setAwsAccountRef("acct-b");
+        when(vmRepository.findByIsActiveTrueFetchGroupAndEnvironment()).thenReturn(List.of(buildAwsVm(), other));
+        CostDataProvider.VmCostEstimate estimate = new CostDataProvider.VmCostEstimate(
+                true, BigDecimal.valueOf(0.1664), BigDecimal.valueOf(720), 0, BigDecimal.valueOf(119.81));
+        when(costDataProvider.estimateCosts(anyList(), any(), any())).thenReturn(Map.of(VM_ID, estimate, "vm-2", estimate));
+        org.mockito.Mockito.lenient().when(computeOptimizerService.getEc2Recommendations(
+                org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(Map.of());
+
+        List<com.tcgdigital.vmcontrol.dto.SpendByDimensionDTO> rows = service.getSpendByAccount();
+
+        assertEquals(2, rows.size());
+        assertEquals(java.util.Set.of(com.tcgdigital.vmcontrol.model.AwsAccount.DEFAULT_REF, "acct-b"),
+                rows.stream().map(com.tcgdigital.vmcontrol.dto.SpendByDimensionDTO::dimensionKey).collect(java.util.stream.Collectors.toSet()));
+        assertEquals(0, new BigDecimal("239.62").compareTo(rows.stream().map(com.tcgdigital.vmcontrol.dto.SpendByDimensionDTO::cost)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)));
+    }
+
+    @Test
     void callsComputeOptimizerOncePerAccountAndRegion() {
         // E28-T06: two VMs in one region but different accounts -> two calls, each with its own account.
         Vm other = buildAwsVm();

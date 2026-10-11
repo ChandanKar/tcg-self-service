@@ -21,6 +21,7 @@ const CostManagement = (function() {
     let state = {
         summary: null,
         spendByEnvironment: [],
+        spendByAccount: [],
         eksEnvironments: [],
         commitments: null,
         spendByVmType: [],
@@ -144,6 +145,7 @@ const CostManagement = (function() {
         summary: { url: () => Config.API.costManagement.summary, apply: d => { state.summary = d; } },
         spendByEnvironment: { url: () => Config.API.costManagement.spendByEnvironment, apply: d => { state.spendByEnvironment = d || []; } },
         spendByVmType: { url: () => Config.API.costManagement.spendByVmType, apply: d => { state.spendByVmType = d || []; } },
+        spendByAccount: { url: () => Config.API.costManagement.spendByAccount, apply: d => { state.spendByAccount = d || []; } },
         teamTrend: { url: () => Config.API.costManagement.spendTrendByTeam(TREND_DAYS), apply: d => { state.teamTrend = d || []; } },
         trend: { url: () => Config.API.costManagement.spendTrend(TREND_DAYS), apply: d => { state.trend = d || []; } },
         reconciliation: {
@@ -321,6 +323,7 @@ const CostManagement = (function() {
                         ${panelSlot('env')}
                         ${panelSlot('type')}
                         ${panelSlot('team')}
+                        ${panelSlot('account')}
                     </div>
                     ${panelSlot('trend')}
                     ${panelSlot('reservations')}
@@ -349,6 +352,13 @@ const CostManagement = (function() {
             keys: ['spendByVmType'], label: 'spend by VM type', chartPanel: true,
             build: () => buildChartPanel('Spend by VM Type', `${state.spendByVmType.length} type(s)`, 'cost-chart-type'),
             charts: () => [['cost-chart-type', buildVmTypePolarBarOption(state.spendByVmType)]]
+        },
+        account: {
+            // Only when spend spans more than one AWS account (E28-T11).
+            keys: ['spendByAccount'], label: 'spend by account', chartPanel: true,
+            build: () => state.spendByAccount.length > 1
+                ? buildChartPanel('Spend by Account', `${state.spendByAccount.length} AWS account(s)`, 'cost-chart-account') : '',
+            charts: () => state.spendByAccount.length > 1 ? [['cost-chart-account', buildEnvironmentPieOption(state.spendByAccount)]] : []
         },
         team: {
             keys: ['teamTrend'], label: 'spend by team', chartPanel: true,
@@ -1480,7 +1490,7 @@ const CostManagement = (function() {
 
             // html2canvas cannot reliably snapshot live SVG-rendered ECharts, so swap each
             // chart <div> for a static <img> taken from the chart's own dataURL first.
-            ['cost-chart-env', 'cost-chart-type', 'cost-chart-team', 'cost-chart-trend', 'cost-chart-reservations', 'cost-chart-commitments'].forEach(id => {
+            ['cost-chart-env', 'cost-chart-type', 'cost-chart-team', 'cost-chart-trend', 'cost-chart-reservations', 'cost-chart-commitments', 'cost-chart-account'].forEach(id => {
                 const liveEl = document.getElementById(id);
                 const cloneEl = clone.querySelector('#' + id);
                 const instance = chartRegistry.get(id);

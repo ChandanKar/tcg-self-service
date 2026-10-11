@@ -60,6 +60,12 @@ public class AwsAccountService {
                 ? environment.getAwsAccountRef() : AwsAccount.DEFAULT_REF;
     }
 
+    /** The account Cost Explorer and Organizations are read from (E28-T11): the billing one, else the default. */
+    public String getBillingAccountRef() {
+        return repository.findFirstByIsBillingAccountTrue().filter(AwsAccount::isActive)
+                .map(AwsAccount::getAwsAccountRef).orElse(AwsAccount.DEFAULT_REF);
+    }
+
     public List<AwsAccount> listActive() {
         return repository.findByIsActiveTrueOrderByDisplayNameAsc();
     }

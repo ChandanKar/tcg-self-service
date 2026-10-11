@@ -116,7 +116,9 @@ public class CostExplorerBillingService {
 
         Map<LocalDate, Map<String, BigDecimal>> costsByDate;
         try {
-            costsByDate = parseCostByDateAndEnvironmentTag(fetchCostByEnvironment(startInclusive, endExclusive));
+            List<ResultByTime> results = fetchCostByEnvironment(startInclusive, endExclusive);
+            costsByDate = parseCostByDateAndEnvironmentTag(results);
+            warnOnAccountMismatch(accountsByEnvironment(results));
         } catch (Exception e) {
             log.error("Failed to fetch actual costs from Cost Explorer for {}..{}: {}",
                     startInclusive, endExclusive, e.getMessage(), e);
@@ -230,6 +232,45 @@ public class CostExplorerBillingService {
         }
     }
 
+    /** environment name -> the linked account numbers its cost came from (E28-T11). */
+    Map<String, java.util.Set<String>> accountsByEnvironment(List<ResultByTime> results) {
+        Map<String, java.util.Set<String>> accounts = new LinkedHashMap<>();
+        for (ResultByTime resultByTime : results) {
+            for (Group group : resultByTime.groups()) {
+                if (group.keys().size() < 2) {
+                    continue;
+                }
+                String rawKey = group.keys().get(0);
+                int sep = rawKey.indexOf('$');
+                String tagValue = sep >= 0 ? rawKey.substring(sep + 1) : rawKey;
+                if (!tagValue.isBlank()) {
+                    accounts.computeIfAbsent(tagValue, k -> new java.util.TreeSet<>()).add(group.keys().get(1));
+                }
+            }
+        }
+        return accounts;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.repository.AwsAccountRepository awsAccountRepository;
+
+    /** Cost tagged with an environment but billed to another account than the environment's is logged (E28-T11). */
+    void warnOnAccountMismatch(Map<String, java.util.Set<String>> accountsByEnvironment) {
+        if (awsAccountRepository == null) {
+            return;
+        }
+        accountsByEnvironment.forEach((envName, numbers) -> environmentRepository.findByName(envName).ifPresent(env -> {
+            String expected = env.getAwsAccountRef() == null ? null
+                    : awsAccountRepository.findById(env.getAwsAccountRef()).map(com.tcgdigital.vmcontrol.model.AwsAccount::getAccountNumber).orElse(null);
+            if (expected == null) {
+                return;
+            }
+            numbers.stream().filter(n -> !n.equals(expected)).forEach(other ->
+                    log.warn("Cost tagged with environment '{}' was billed to account {}, but the environment is registered in account {}",
+                            envName, other, expected));
+        }));
+    }
+
     /** Every page of one DAILY, tag-grouped request for [start, end) (CE's end is exclusive). */
     private List<ResultByTime> fetchCostByEnvironment(LocalDate startInclusive, LocalDate endExclusive) {
         List<ResultByTime> results = new java.util.ArrayList<>();
@@ -239,10 +280,15 @@ public class CostExplorerBillingService {
                     .timePeriod(DateInterval.builder().start(startInclusive.toString()).end(endExclusive.toString()).build())
                     .granularity(Granularity.DAILY)
                     .metrics(UNBLENDED_COST_METRIC)
+                    // Tag and linked account (E28-T11): still one billed call, Cost Explorer allows two GroupBys.
                     .groupBy(GroupDefinition.builder()
-                            .type(GroupDefinitionType.TAG)
-                            .key(tagKeyPrefix + "environment")
-                            .build())
+                                    .type(GroupDefinitionType.TAG)
+                                    .key(tagKeyPrefix + "environment")
+                                    .build(),
+                            GroupDefinition.builder()
+                                    .type(GroupDefinitionType.DIMENSION)
+                                    .key("LINKED_ACCOUNT")
+                                    .build())
                     .nextPageToken(token)
                     .build());
             results.addAll(page.resultsByTime());

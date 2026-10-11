@@ -192,6 +192,17 @@ public class CostEstimationService {
                 .toList();
     }
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.aws.AwsAccountService awsAccountService;
+
+    /** Estimated spend per AWS account (E28-T11), the same totals as spend by environment. */
+    public List<SpendByDimensionDTO> getSpendByAccount() {
+        Map<String, String> names = awsAccountService == null ? Map.of() : awsAccountService.namesByRef();
+        return groupSpend(buildBundles(),
+                b -> CloudTarget.of(b.vm()).accountRef(),
+                b -> names.getOrDefault(CloudTarget.of(b.vm()).accountRef(), CloudTarget.of(b.vm()).accountRef()));
+    }
+
     public List<SpendByDimensionDTO> getSpendByVmType() {
         return groupSpend(buildBundles(), b -> b.vm().getVmType().name(), b -> b.vm().getVmType().name());
     }

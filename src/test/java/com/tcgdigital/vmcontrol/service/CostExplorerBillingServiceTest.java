@@ -195,6 +195,45 @@ class CostExplorerBillingServiceTest {
         assertEquals(0, result.size());
     }
 
+    private Group groupOf(String key, String account, String amount) {
+        return Group.builder()
+                .keys(key, account)
+                .metrics(Map.of("UnblendedCost", MetricValue.builder().amount(amount).unit("USD").build()))
+                .build();
+    }
+
+    @Test
+    void costFromSeveralLinkedAccountsIsSummedPerEnvironmentAndTheAccountsAreKnown() {
+        // E28-T11: tag + LINKED_ACCOUNT groups.
+        List<ResultByTime> results = List.of(day("2026-10-05",
+                groupOf("tcg:environment$prod", "111111111111", "20"),
+                groupOf("tcg:environment$prod", "222222222222", "5"),
+                groupOf("tcg:environment$qa", "111111111111", "1")));
+
+        Map<LocalDate, Map<String, BigDecimal>> byDate = service.parseCostByDateAndEnvironmentTag(results);
+        assertEquals(0, new BigDecimal("25").compareTo(byDate.get(LocalDate.parse("2026-10-05")).get("prod")));
+        assertEquals(0, new BigDecimal("1").compareTo(byDate.get(LocalDate.parse("2026-10-05")).get("qa")));
+
+        Map<String, java.util.Set<String>> accounts = service.accountsByEnvironment(results);
+        assertEquals(java.util.Set.of("111111111111", "222222222222"), accounts.get("prod"));
+        assertEquals(java.util.Set.of("111111111111"), accounts.get("qa"));
+    }
+
+    @Test
+    void theRequestGroupsByTheTagAndTheLinkedAccount() {
+        when(ceClient.getCostAndUsage(any(software.amazon.awssdk.services.costexplorer.model.GetCostAndUsageRequest.class)))
+                .thenReturn(GetCostAndUsageResponse.builder().build());
+
+        service.backfillActualCosts(3);
+
+        ArgumentCaptor<software.amazon.awssdk.services.costexplorer.model.GetCostAndUsageRequest> request =
+                ArgumentCaptor.forClass(software.amazon.awssdk.services.costexplorer.model.GetCostAndUsageRequest.class);
+        org.mockito.Mockito.verify(ceClient).getCostAndUsage(request.capture());
+        assertEquals(2, request.getValue().groupBy().size());
+        assertEquals("tcg:environment", request.getValue().groupBy().get(0).key());
+        assertEquals("LINKED_ACCOUNT", request.getValue().groupBy().get(1).key());
+    }
+
     private Group groupOf(String key, String amount) {
         return Group.builder()
                 .keys(key)
