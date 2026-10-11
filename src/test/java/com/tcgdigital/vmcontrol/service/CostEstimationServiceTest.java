@@ -95,8 +95,8 @@ class CostEstimationServiceTest {
 
         when(vmIdleSummaryRepository.findByVmVmIdIn(anyList())).thenReturn(List.of());
 
-        when(instanceTypeProjection.getVmId()).thenReturn(VM_ID);
-        when(instanceTypeProjection.getInstanceType()).thenReturn("t3.xlarge");
+        org.mockito.Mockito.lenient().when(instanceTypeProjection.getVmId()).thenReturn(VM_ID);
+        org.mockito.Mockito.lenient().when(instanceTypeProjection.getInstanceType()).thenReturn("t3.xlarge");
         when(vmInventorySnapshotRepository.findInstanceTypesByVmIds(anyList())).thenReturn(List.of(instanceTypeProjection));
 
         CostDataProvider.VmCostEstimate estimate = new CostDataProvider.VmCostEstimate(
@@ -157,6 +157,51 @@ class CostEstimationServiceTest {
         onlyCandidate();
 
         org.mockito.Mockito.verify(computeOptimizerService, org.mockito.Mockito.times(1)).getEc2Recommendations(REGION);
+    }
+
+    /** A 3-node t3.xlarge EKS node group in place of the EC2 VM (E26-T02). */
+    private Vm eksNodeGroup() {
+        Vm vm = buildAwsVm();
+        vm.setProvider(CloudProvider.AWS_EKS);
+        vm.setProviderVmId("prod/workers");
+        vm.setMetadata("{\"minSize\":1,\"desiredSize\":3,\"instanceType\":\"t3.xlarge\"}");
+        when(vmRepository.findByIsActiveTrueFetchGroupAndEnvironment()).thenReturn(List.of(vm));
+        org.mockito.Mockito.lenient().when(vmInventorySnapshotRepository.findInstanceTypesByVmIds(anyList())).thenReturn(List.of());
+        // EstimatedCostProvider prices the group as 3 nodes.
+        CostDataProvider.VmCostEstimate estimate = new CostDataProvider.VmCostEstimate(
+                true, BigDecimal.valueOf(0.1664 * 3), BigDecimal.valueOf(720), 0, BigDecimal.valueOf(359.42));
+        when(costDataProvider.estimateCosts(anyList(), any(), any())).thenReturn(Map.of(VM_ID, estimate));
+        return vm;
+    }
+
+    @Test
+    void anEksNodeGroupIsARightsizingCandidateWithSavingsForEveryNode() {
+        eksNodeGroup();
+        RightsizingCandidateDTO row = onlyCandidate();
+        assertEquals("t3.xlarge", row.currentInstanceType());
+        assertEquals("t3.large", row.suggestedInstanceType());
+        assertEquals(Integer.valueOf(3), row.nodeCount());
+        BigDecimal oneNodeAfter = new PricingReferenceService() {{ loadPricing(); }}
+                .lookupHourlyRate("AWS", "t3.large", REGION).hourlyRate().multiply(BigDecimal.valueOf(720));
+        assertEquals(0, oneNodeAfter.multiply(BigDecimal.valueOf(3)).setScale(2, java.math.RoundingMode.HALF_UP)
+                .compareTo(row.estimatedMonthlyCostAfter()), "the after cost covers all 3 nodes");
+        assertEquals(0, BigDecimal.valueOf(359.42).subtract(row.estimatedMonthlyCostAfter()).compareTo(row.estimatedMonthlySavings()));
+    }
+
+    @Test
+    void anIdleEksNodeGroupIsOneRowWithItsNodeCountAndEveryNodesIdleCost() {
+        Vm vm = eksNodeGroup();
+        com.tcgdigital.vmcontrol.model.VmIdleSummary idle = new com.tcgdigital.vmcontrol.model.VmIdleSummary();
+        idle.setVm(vm);
+        idle.setIdle(true);
+        idle.setIdleDurationMinutes(600);
+        when(vmIdleSummaryRepository.findByVmVmIdIn(anyList())).thenReturn(List.of(idle));
+
+        List<com.tcgdigital.vmcontrol.dto.IdleWasteRowDTO> rows = service.getIdleWaste(PageRequest.of(0, 25)).getContent();
+        assertEquals(1, rows.size());
+        assertEquals(Integer.valueOf(3), rows.get(0).nodeCount());
+        // 3 nodes x $0.1664/h x 10 h idle
+        assertEquals(0, new BigDecimal("4.99").compareTo(rows.get(0).monthlyIdleCost()));
     }
 
     private RightsizingCandidateDTO onlyCandidate() {

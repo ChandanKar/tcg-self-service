@@ -43,7 +43,9 @@ public record RightsizingCandidateDTO(
         Boolean priceApproximate,
         /** The Jira issue tracking this recommendation, if any (E24-T07). */
         String jiraKey,
-        String jiraUrl
+        String jiraUrl,
+        /** Nodes of an EKS node group (savings already cover them all); null for a single VM (E26-T02). */
+        Integer nodeCount
 ) {
     public RightsizingCandidateDTO(String vmId, String vmName, String environmentId, String environmentName,
                                    String currentInstanceType, String suggestedInstanceType,
@@ -53,13 +55,19 @@ public record RightsizingCandidateDTO(
                                    String findingLevel, String direction, String vmStatus, Boolean priceApproximate) {
         this(vmId, vmName, environmentId, environmentName, currentInstanceType, suggestedInstanceType,
                 avgCpuUtilization, peakCpuUtilization, currentMonthlyCost, estimatedMonthlyCostAfter,
-                estimatedMonthlySavings, costKnown, source, findingLevel, direction, vmStatus, priceApproximate, null, null);
+                estimatedMonthlySavings, costKnown, source, findingLevel, direction, vmStatus, priceApproximate, null, null, null);
     }
 
     public RightsizingCandidateDTO withJira(String key, String url) {
         return new RightsizingCandidateDTO(vmId, vmName, environmentId, environmentName, currentInstanceType,
                 suggestedInstanceType, avgCpuUtilization, peakCpuUtilization, currentMonthlyCost, estimatedMonthlyCostAfter,
-                estimatedMonthlySavings, costKnown, source, findingLevel, direction, vmStatus, priceApproximate, key, url);
+                estimatedMonthlySavings, costKnown, source, findingLevel, direction, vmStatus, priceApproximate, key, url, nodeCount);
+    }
+
+    public RightsizingCandidateDTO withNodeCount(Integer nodes) {
+        return new RightsizingCandidateDTO(vmId, vmName, environmentId, environmentName, currentInstanceType,
+                suggestedInstanceType, avgCpuUtilization, peakCpuUtilization, currentMonthlyCost, estimatedMonthlyCostAfter,
+                estimatedMonthlySavings, costKnown, source, findingLevel, direction, vmStatus, priceApproximate, jiraKey, jiraUrl, nodes);
     }
 
     public RightsizingCandidateDTO(String vmId, String vmName, String environmentId, String environmentName,

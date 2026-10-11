@@ -183,6 +183,20 @@ class IdleEvaluatorTest {
     }
 
     @Test
+    void withTheEksOptInAQuietNodeGroupCountsAsIdle() {
+        org.springframework.test.util.ReflectionTestUtils.setField(evaluator, "includeEks", true);
+        Vm eks = vm("cluster/workers", VmStatus.RUNNING);
+        eks.setProvider(CloudProvider.AWS_EKS);
+        samples(eks, 70, 300, "1", 100);
+        Vm quiet = vm("q", VmStatus.RUNNING);
+        samples(quiet, 70, 300, "1", 100);
+
+        EnvironmentIdleResult result = evaluator.evaluate(List.of(eks, quiet), rule, NOW);
+
+        assertThat(result.allIdle()).isTrue();
+    }
+
+    @Test
     void idleSinceIsTheStartOfTheTrailingIdleRunAndTheLatestAcrossVms() {
         Vm a = vm("a", VmStatus.RUNNING);
         Vm b = vm("b", VmStatus.RUNNING);

@@ -1000,7 +1000,7 @@ const CostManagement = (function() {
         }
         return rows.map(row => `
             <tr>
-                <td class="cost-vm-cell" title="${Utils.escapeHtml(row.environmentName || 'Unknown environment')}">${Utils.escapeHtml(row.vmName || row.vmId)}
+                <td class="cost-vm-cell" title="${Utils.escapeHtml(row.environmentName || 'Unknown environment')}">${Utils.escapeHtml(row.vmName || row.vmId)}${eksNodes(row)}
                     ${typeof JiraTickets !== 'undefined' ? '<div>' + JiraTickets.cell('IDLE', row.vmId, row.jiraKey, row.jiraUrl) + '</div>' : ''}</td>
                 <td>${Utils.escapeHtml(row.groupName || '-')}</td>
                 <td class="cost-num">${costCell(row.monthlyCost, row.costKnown)}</td>
@@ -1033,13 +1033,18 @@ const CostManagement = (function() {
         });
     }
 
+    /** "EKS · 3 nodes" for a node-group row (E26-T02). */
+    function eksNodes(row) {
+        return row.nodeCount ? ` <span class="badge text-bg-light border eks-nodes">EKS · ${Number(row.nodeCount)} node${row.nodeCount === 1 ? '' : 's'}</span>` : '';
+    }
+
     function buildRightsizingRows(rows) {
         if (!rows.length) {
             return `<tr><td colspan="9" class="text-center text-muted py-4">No rightsizing candidates found.</td></tr>`;
         }
         return rows.map(row => `
             <tr>
-                <td class="cost-vm-cell" title="${Utils.escapeHtml(row.environmentName || 'Unknown environment')}">${Utils.escapeHtml(row.vmName || row.vmId)}</td>
+                <td class="cost-vm-cell" title="${Utils.escapeHtml(row.environmentName || 'Unknown environment')}">${Utils.escapeHtml(row.vmName || row.vmId)}${eksNodes(row)}</td>
                 <td>${buildRightsizingDirectionBadge(row)}</td>
                 <td>${Utils.escapeHtml(row.currentInstanceType || '-')} &rarr; ${Utils.escapeHtml(row.suggestedInstanceType || 'n/a')}</td>
                 <td>${buildRightsizingSourceBadge(row)}</td>
@@ -1062,6 +1067,10 @@ const CostManagement = (function() {
     function buildRightsizingApplyButton(row) {
         if (!row.suggestedInstanceType) {
             return '<span class="text-muted small">No suggestion</span>';
+        }
+        if (row.nodeCount) {
+            // EKS node groups change their instance type in EKS (node group / launch template), E26-T02.
+            return '<span class="text-muted small">Change the node group in EKS</span>';
         }
         const isStopped = row.vmStatus === 'STOPPED';
         return `

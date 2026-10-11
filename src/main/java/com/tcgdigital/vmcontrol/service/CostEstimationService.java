@@ -409,10 +409,13 @@ public class CostEstimationService {
             VmMetricDailyRepository.CpuStats cpuStats = cpuStatsByVmId.get(vmId);
             VmIdleSummary idleSummary = idleByVmId.get(vmId);
 
+            // An EKS node group has no inventory snapshot: its node type comes from its metadata (E26-T02).
+            String instanceType = vm.getProvider() == CloudProvider.AWS_EKS
+                    ? EstimatedCostProvider.eksNodeInfo(vm.getMetadata()).instanceType() : instanceTypeByVmId.get(vmId);
             bundles.add(new VmCostBundle(
                     vm,
                     estimate,
-                    instanceTypeByVmId.get(vmId),
+                    instanceType,
                     cpuStats == null ? null : cpuStats.getAvgCpu(),
                     cpuStats == null ? null : cpuStats.getMaxCpu(),
                     idleSummary != null && Boolean.TRUE.equals(idleSummary.getIdle()),
@@ -492,10 +495,10 @@ public class CostEstimationService {
 
     /**
      * Candidacy rule: {@link #computeScaleDownCandidates} OR {@link #computeScaleUpCandidates}
-     * (never both — scale-down is checked first). Only plain {@code CloudProvider.AWS} VMs are
-     * eligible for either direction: {@code AWS_EKS} node-group VMs are resized via
-     * launch-template/node-group updates, not a per-instance API call, and that's out of scope
-     * here — such VMs never appear in this table regardless of their CPU pattern.
+     * (never both — scale-down is checked first). Plain {@code CloudProvider.AWS} VMs and, since
+     * E26-T02, {@code AWS_EKS} node groups (priced as N EC2 nodes) are eligible. A node group is
+     * resized through its node-group/launch-template update in EKS, not the per-instance resize
+     * here, so its row is advice only (the UI offers no Apply for it).
      *
      * Where AWS Compute Optimizer has a real recommendation for a scale-down candidate, its
      * suggested instance type is used (source={@code compute-optimizer}) instead of the local
@@ -509,7 +512,7 @@ public class CostEstimationService {
                 fetchComputeOptimizerRecommendations(bundles);
 
         for (VmCostBundle b : bundles) {
-            if (b.vm().getProvider() != CloudProvider.AWS) {
+            if (b.vm().getProvider() != CloudProvider.AWS && b.vm().getProvider() != CloudProvider.AWS_EKS) {
                 continue;
             }
 
@@ -522,7 +525,10 @@ public class CostEstimationService {
                 continue;
             }
 
-            String provider = b.vm().getProvider().name();
+            // EKS nodes are plain EC2 instances: price them as AWS, times the node count (E26-T02).
+            boolean eks = b.vm().getProvider() == CloudProvider.AWS_EKS;
+            String provider = eks ? CloudProvider.AWS.name() : b.vm().getProvider().name();
+            int nodes = eks ? EstimatedCostProvider.eksNodeInfo(b.vm().getMetadata()).nodeCount() : 1;
             boolean isScaleDown = "SCALE_DOWN".equals(direction);
             // Compute Optimizer needs ~14 days on the new size: ignore it right after a resize (E08-T06).
             boolean inCooldown = b.instanceTypeChangedAt() != null && b.instanceTypeChangedAt().toInstant()
@@ -559,7 +565,8 @@ public class CostEstimationService {
                         pricingReferenceService.lookupHourlyRate(provider, suggestedType, b.vm().getRegion());
                 if (afterRate.priceKnown()) {
                     approximate = approximate || afterRate.approximate();
-                    afterCost = vmCostCalculator.estimateCost(afterRate.hourlyRate(), b.estimate().runtimeHours(),
+                    afterCost = vmCostCalculator.estimateCost(afterRate.hourlyRate().multiply(BigDecimal.valueOf(nodes)),
+                            b.estimate().runtimeHours(),
                             b.estimate().storageGib(), pricingReferenceService.getStorageGbMonthRate(),
                             // Intentionally the full window: the "after" cost is a 30-day projection.
                             BigDecimal.valueOf(COST_WINDOW_DAYS));
@@ -592,7 +599,7 @@ public class CostEstimationService {
                     direction,
                     b.vm().getStatus().name(),
                     approximate
-            ));
+            ).withNodeCount(eks ? nodes : null));
         }
 
         candidates.sort(Comparator.comparing(
@@ -617,6 +624,8 @@ public class CostEstimationService {
     }
 
     private IdleWasteRowDTO toIdleWasteRow(VmCostBundle b) {
+        Integer nodes = b.vm().getProvider() == CloudProvider.AWS_EKS
+                ? EstimatedCostProvider.eksNodeInfo(b.vm().getMetadata()).nodeCount() : null;
         return new IdleWasteRowDTO(
                 b.vm().getVmId(),
                 b.vm().getDisplayName(),
@@ -629,7 +638,7 @@ public class CostEstimationService {
                 b.idleSince(),
                 b.latestCpuUtilization(),
                 monthlyIdleCost(b)
-        );
+        ).withNodeCount(nodes);
     }
 
     /**

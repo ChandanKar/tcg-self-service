@@ -36,6 +36,9 @@ public class IdleEvaluator {
 
     private final VmMetricSampleRepository sampleRepository;
 
+    @org.springframework.beans.factory.annotation.Value("${idle.auto-stop.include-eks:false}")
+    private boolean includeEks;
+
     public IdleEvaluator(VmMetricSampleRepository sampleRepository) {
         this.sampleRepository = sampleRepository;
     }
@@ -73,8 +76,8 @@ public class IdleEvaluator {
     private VmIdleEvidence evaluateVm(Vm vm, List<VmMetricSample> lookbackSamples, IdleStopRule rule,
                                       Instant now, Duration window) {
         String name = vm.getDisplayName() != null ? vm.getDisplayName() : vm.getName();
-        if (vm.getProvider() == CloudProvider.AWS_EKS) {
-            // Node groups have no per-instance metrics (G15): never treated as idle.
+        if (vm.getProvider() == CloudProvider.AWS_EKS && !includeEks) {
+            // Node groups count only with idle.auto-stop.include-eks, once their metrics are collected (E26-T02).
             return new VmIdleEvidence(vm.getVmId(), name, false, null, null, 0, 0, 0, 0, "No metrics");
         }
         Instant windowStart = now.minus(window);
