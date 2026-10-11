@@ -94,6 +94,10 @@
 }
 
 .ma-link {
+    /* Text-sized link with a 44px hit area (E13-T10) */
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
     padding: 0;
     border: none;
     background: none;
@@ -625,7 +629,7 @@
 }
 
 .ma-filter {
-    min-height: 36px;
+    min-height: 44px; /* touch target (E13-T10) */
     padding: 0.35rem 0.9rem;
     border: 1px solid var(--border-color);
     border-radius: 9999px;

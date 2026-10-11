@@ -118,8 +118,8 @@ const UserManagement = (function() {
                             <button class="btn btn-primary btn-sm" id="btn-onboard-user">
                                 <i class="fas fa-user-plus me-1"></i> Onboard User
                             </button>
-                            <button class="btn btn-ghost btn-sm" id="btn-refresh-users" title="Refresh">
-                                <i class="fas fa-sync-alt"></i>
+                            <button type="button" class="btn btn-ghost btn-sm" id="btn-refresh-users" title="Refresh" aria-label="Refresh">
+                                <i class="fas fa-sync-alt" aria-hidden="true"></i>
                             </button>
                         </div>
                     </div>
@@ -132,8 +132,8 @@ const UserManagement = (function() {
                             <span class="input-group-text"><i class="fas fa-search"></i></span>
                             <input type="text" class="form-control" id="user-search"
                                    placeholder="Search by name or email..." value="${Utils.escapeHtml(currentSearch)}">
-                            <button class="btn btn-primary" type="button" id="btn-search-users" title="Search">
-                                <i class="fas fa-arrow-right"></i>
+                            <button class="btn btn-primary" type="button" id="btn-search-users" title="Search" aria-label="Search">
+                                <i class="fas fa-arrow-right" aria-hidden="true"></i>
                             </button>
                         </div>
                     </div>

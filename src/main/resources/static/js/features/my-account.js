@@ -262,8 +262,16 @@ const MyAccount = (function() {
 
         const $body = $root.find('.ma-body');
         const scrollTop = options.resetScroll ? 0 : $body.scrollTop();
-        const focusedId = document.activeElement && $root[0].contains(document.activeElement)
-            ? document.activeElement.id : null;
+        const focused = document.activeElement && $root[0].contains(document.activeElement)
+            ? document.activeElement : null;
+        const focusedId = focused ? focused.id : null;
+        // Keep the caret where the user was typing (E13-T10)
+        let selection = null;
+        try {
+            if (focused && typeof focused.selectionStart === 'number') {
+                selection = [focused.selectionStart, focused.selectionEnd];
+            }
+        } catch (e) { selection = null; }
 
         $root.find('.ma-tabs').html(tabsHtml());
         $body.attr('aria-labelledby', `ma-tab-${state.tab}`).html(bodyHtml());
@@ -271,8 +279,18 @@ const MyAccount = (function() {
 
         if (focusedId) {
             const el = document.getElementById(focusedId);
-            if (el) el.focus();
+            if (el) {
+                el.focus();
+                if (selection && typeof el.setSelectionRange === 'function') {
+                    try { el.setSelectionRange(selection[0], selection[1]); } catch (e) { /* not a text field */ }
+                }
+            }
         }
+    }
+
+    /** Reload the open panel's data in place (keeps the tab, drafts and focus). */
+    function refresh() {
+        if (state && $(ROOT).length) loadAll();
     }
 
     function tabsHtml() {
@@ -880,6 +898,7 @@ const MyAccount = (function() {
 
     return {
         init,
-        open
+        open,
+        refresh
     };
 })();

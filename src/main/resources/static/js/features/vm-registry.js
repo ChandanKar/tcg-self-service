@@ -224,15 +224,15 @@ const VmRegistry = (function() {
                     <button class="btn btn-sm btn-primary btn-action" title="${tooltip}" data-action="vr-manage-groups" data-env-id="${Utils.escapeHtml(env.environmentId)}">
                         <i class="fas fa-layer-group"></i> Groups
                     </button>
-                    <button class="btn btn-sm btn-warning btn-action" data-action="vr-edit-environment" data-env-id="${Utils.escapeHtml(env.environmentId)}" title="Edit ${tooltip}">
-                        <i class="fas fa-edit"></i>
+                    <button type="button" class="btn btn-sm btn-warning btn-action" data-action="vr-edit-environment" data-env-id="${Utils.escapeHtml(env.environmentId)}" title="Edit ${tooltip}" aria-label="Edit ${tooltip}">
+                        <i class="fas fa-edit" aria-hidden="true"></i>
                     </button>
                     ${env.isActive
-                        ? `<button class="btn btn-sm btn-danger btn-action" data-action="vr-delete-environment" data-env-id="${Utils.escapeHtml(env.environmentId)}" title="Deactivate ${tooltip}">
-                        <i class="fas fa-trash"></i>
+                        ? `<button type="button" class="btn btn-sm btn-danger btn-action" data-action="vr-delete-environment" data-env-id="${Utils.escapeHtml(env.environmentId)}" title="Deactivate ${tooltip}" aria-label="Deactivate ${tooltip}">
+                        <i class="fas fa-trash" aria-hidden="true"></i>
                     </button>`
-                        : `<button class="btn btn-sm btn-success btn-action" data-action="vr-reactivate-environment" data-env-id="${Utils.escapeHtml(env.environmentId)}" title="Reactivate ${tooltip}">
-                        <i class="fas fa-rotate-left"></i>
+                        : `<button type="button" class="btn btn-sm btn-success btn-action" data-action="vr-reactivate-environment" data-env-id="${Utils.escapeHtml(env.environmentId)}" title="Reactivate ${tooltip}" aria-label="Reactivate ${tooltip}">
+                        <i class="fas fa-rotate-left" aria-hidden="true"></i>
                     </button>`}
                 </td>
             </tr>
@@ -658,19 +658,19 @@ const VmRegistry = (function() {
         }
         return Utils.html`
             ${vm.discoveryPending ? Utils.raw(Utils.html`
-            <button class="btn btn-sm btn-outline-success btn-action" data-action="vr-ack-vm" data-vm-id="${vm.vmId}" title="Mark as reviewed">
-                <i class="fas fa-check"></i>
+            <button type="button" class="btn btn-sm btn-outline-success btn-action" data-action="vr-ack-vm" data-vm-id="${vm.vmId}" title="Mark as reviewed" aria-label="Mark as reviewed">
+                <i class="fas fa-check" aria-hidden="true"></i>
             </button>`) : ''}
             ${vm.provider !== 'AWS_EKS' ? Utils.raw(Utils.html`
-            <button class="btn btn-sm btn-outline-primary btn-action" data-action="vr-move-vm" data-vm-id="${vm.vmId}" title="Move to another group">
-                <i class="fas fa-arrow-right"></i>
+            <button type="button" class="btn btn-sm btn-outline-primary btn-action" data-action="vr-move-vm" data-vm-id="${vm.vmId}" title="Move to another group" aria-label="Move to another group">
+                <i class="fas fa-arrow-right" aria-hidden="true"></i>
             </button>`) : ''}
-            <button class="btn btn-sm btn-outline-warning btn-action" data-action="vr-edit-vm" data-vm-id="${vm.vmId}" title="Edit VM">
-                <i class="fas fa-edit"></i>
+            <button type="button" class="btn btn-sm btn-outline-warning btn-action" data-action="vr-edit-vm" data-vm-id="${vm.vmId}" title="Edit VM" aria-label="Edit VM">
+                <i class="fas fa-edit" aria-hidden="true"></i>
             </button>
             ${!isEks ? Utils.raw(Utils.html`
-            <button class="btn btn-sm btn-outline-danger btn-action" data-action="vr-delete-vm" data-vm-id="${vm.vmId}" title="Remove VM">
-                <i class="fas fa-trash"></i>
+            <button type="button" class="btn btn-sm btn-outline-danger btn-action" data-action="vr-delete-vm" data-vm-id="${vm.vmId}" title="Remove VM" aria-label="Remove VM">
+                <i class="fas fa-trash" aria-hidden="true"></i>
             </button>`) : Utils.raw(`
             <span class="text-muted small ms-1" title="EKS node groups are managed by sync">
                 <i class="fas fa-sync-alt"></i>
@@ -771,14 +771,14 @@ const VmRegistry = (function() {
         const collapseId = `collapse-${group.groupId}`;
 
         const actionBtns = isEks
-            ? `<button class="btn btn-sm btn-warning btn-action" data-action="vr-edit-group" data-group-id="${Utils.escapeHtml(group.groupId)}" title="Edit sequence / display name">
-                   <i class="fas fa-edit"></i>
+            ? `<button type="button" class="btn btn-sm btn-warning btn-action" data-action="vr-edit-group" data-group-id="${Utils.escapeHtml(group.groupId)}" title="Edit sequence / display name" aria-label="Edit sequence / display name">
+                   <i class="fas fa-edit" aria-hidden="true"></i>
                </button>`
             : `<button class="btn btn-sm btn-success btn-action me-1" data-action="vr-open-vm-form" data-group-id="${Utils.escapeHtml(group.groupId)}" title="Register VM">
                    <i class="fas fa-plus"></i> VM
                </button>
-               <button class="btn btn-sm btn-warning btn-action me-1" data-action="vr-edit-group" data-group-id="${Utils.escapeHtml(group.groupId)}" title="Edit Group">
-                   <i class="fas fa-edit"></i>
+               <button type="button" class="btn btn-sm btn-warning btn-action me-1" data-action="vr-edit-group" data-group-id="${Utils.escapeHtml(group.groupId)}" title="Edit Group" aria-label="Edit Group">
+                   <i class="fas fa-edit" aria-hidden="true"></i>
                </button>
                <button class="btn btn-sm btn-danger btn-action" data-action="vr-delete-group" data-group-id="${Utils.escapeHtml(group.groupId)}" title="Delete Group"
                        ${vmCount > 0 ? 'disabled' : ''}>

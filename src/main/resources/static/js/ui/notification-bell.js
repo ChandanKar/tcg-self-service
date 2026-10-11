@@ -128,7 +128,7 @@ const NotificationBell = (function () {
                     <div class="notification-item-msg">${n.message}</div>
                     <div class="notification-item-time">${ago}</div>
                 </div>
-                ${unread ? Utils.raw('<button class="notification-read-btn" title="Mark as read" aria-label="Mark as read"><i class="fas fa-check"></i></button>') : ''}
+                ${unread ? Utils.raw('<button type="button" class="notification-read-btn" title="Mark as read" aria-label="Mark as read"><i class="fas fa-check" aria-hidden="true"></i></button>') : ''}
             </div>
         `);
 

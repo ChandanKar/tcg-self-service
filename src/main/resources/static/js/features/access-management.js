@@ -270,8 +270,8 @@ const AccessManagement = (function() {
                             <p>Grant or revoke user access to environments</p>
                         </div>
                         <div class="header-actions">
-                            <button class="btn btn-ghost btn-sm" id="btn-refresh-access" title="Refresh">
-                                <i class="fas fa-sync-alt"></i>
+                            <button type="button" class="btn btn-ghost btn-sm" id="btn-refresh-access" title="Refresh" aria-label="Refresh">
+                                <i class="fas fa-sync-alt" aria-hidden="true"></i>
                             </button>
                         </div>
                     </div>
@@ -284,8 +284,8 @@ const AccessManagement = (function() {
                             <span class="input-group-text"><i class="fas fa-search"></i></span>
                             <input type="text" class="form-control" id="access-search"
                                    placeholder="Search by name or email..." value="${Utils.escapeHtml(currentSearch)}">
-                            <button class="btn btn-primary" type="button" id="btn-access-search" title="Search">
-                                <i class="fas fa-arrow-right"></i>
+                            <button class="btn btn-primary" type="button" id="btn-access-search" title="Search" aria-label="Search">
+                                <i class="fas fa-arrow-right" aria-hidden="true"></i>
                             </button>
                         </div>
                     </div>
@@ -667,17 +667,17 @@ const AccessManagement = (function() {
                     <div class="access-dates-expiry">${expiryLine}</div>
                 </td>
                 <td class="text-end text-nowrap td-actions">
-                    <button class="btn btn-sm btn-action btn-outline-primary me-1" data-action="edit"
+                    <button type="button" class="btn btn-sm btn-action btn-outline-primary me-1" data-action="edit"
                             data-access-id="${access.accessId}"
                             title="Edit grant" aria-label="Edit grant">
-                        <i class="fas fa-pen"></i>
+                        <i class="fas fa-pen" aria-hidden="true"></i>
                     </button>
-                    <button class="btn btn-sm btn-action btn-outline-danger" data-action="revoke"
+                    <button type="button" class="btn btn-sm btn-action btn-outline-danger" data-action="revoke"
                             data-access-id="${access.accessId}"
                             data-user-name="${Utils.escapeHtml(access.userDisplayName || access.userEmail)}"
                             data-scope-name="${Utils.escapeHtml(isGroup ? (access.scopeName || 'this group') : 'the environment')}"
                             title="Revoke access" aria-label="Revoke access">
-                        <i class="fas fa-user-minus"></i>
+                        <i class="fas fa-user-minus" aria-hidden="true"></i>
                     </button>
                 </td>
             </tr>
@@ -758,8 +758,8 @@ const AccessManagement = (function() {
                         <button class="btn btn-sm btn-tonal btn-success" data-action="approve" data-request-id="${request.requestId}">
                             <i class="fas fa-check"></i> Approve
                         </button>
-                        <button class="btn btn-sm btn-outline-danger" data-action="deny" data-request-id="${request.requestId}" title="Deny">
-                            <i class="fas fa-times"></i>
+                        <button type="button" class="btn btn-sm btn-outline-danger" data-action="deny" data-request-id="${request.requestId}" title="Deny" aria-label="Deny">
+                            <i class="fas fa-times" aria-hidden="true"></i>
                         </button>
                     </div>
                 </div>

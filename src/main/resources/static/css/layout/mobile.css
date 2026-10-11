@@ -199,6 +199,19 @@ button.mobile-nav-item {
         padding: 0.625rem 1rem;
     }
 
+    /* Small icon and text controls (E13-T10) */
+    .btn-link,
+    .ma-link,
+    .notification-read-btn,
+    .toast-close,
+    .close-btn {
+        min-height: 44px;
+        min-width: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
     .btn-sm {
         min-height: 44px;
         padding: 0.5rem 0.75rem;

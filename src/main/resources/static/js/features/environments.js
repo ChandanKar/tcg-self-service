@@ -424,15 +424,15 @@ const Environments = (function() {
             }
 
             const adminBtns = Auth.isEnvAdmin() ? `
-                <button class="btn btn-sm btn-outline-secondary btn-action ms-1"
+                <button type="button" class="btn btn-sm btn-outline-secondary btn-action ms-1"
                         data-env-id="${env.environmentId}" data-action="edit-env"
-                        data-bs-toggle="tooltip" title="Edit">
-                    <i class="fas fa-edit"></i>
+                        data-bs-toggle="tooltip" title="Edit" aria-label="Edit">
+                    <i class="fas fa-edit" aria-hidden="true"></i>
                 </button>
-                <button class="btn btn-sm btn-outline-danger btn-action ms-1"
+                <button type="button" class="btn btn-sm btn-outline-danger btn-action ms-1"
                         data-env-id="${env.environmentId}" data-env-name="${Utils.escapeHtml(env.displayName || env.name)}" data-action="delete-env"
-                        data-bs-toggle="tooltip" title="Delete">
-                    <i class="fas fa-trash"></i>
+                        data-bs-toggle="tooltip" title="Delete" aria-label="Delete">
+                    <i class="fas fa-trash" aria-hidden="true"></i>
                 </button>
             ` : '';
 
@@ -477,10 +477,10 @@ const Environments = (function() {
                     </td>
                     <td class="col-lock" data-label="Lock Status">${lockDisplay}</td>
                     <td class="col-actions td-actions">
-                        <button class="btn btn-sm btn-primary btn-action"
+                        <button type="button" class="btn btn-sm btn-primary btn-action"
                                 data-env-id="${env.environmentId}" data-env-name="${Utils.escapeHtml(env.displayName || env.name)}" data-action="view"
-                                data-bs-toggle="tooltip" title="View">
-                            <i class="fas fa-eye"></i>
+                                data-bs-toggle="tooltip" title="View" aria-label="View">
+                            <i class="fas fa-eye" aria-hidden="true"></i>
                         </button>
                         ${adminBtns}
                     </td>
@@ -654,9 +654,9 @@ const Environments = (function() {
                         <div style="font-size:0.78rem;color:#64748b;">${Utils.escapeHtml(env.description || '')}</div>
                     </div>
                     <div class="d-flex gap-2 align-items-center">
-                        <button class="btn btn-sm btn-ghost" id="btn-env-insights"
-                                data-bs-toggle="tooltip" title="Environment insights">
-                            <i class="fas fa-info-circle"></i>
+                        <button type="button" class="btn btn-sm btn-ghost" id="btn-env-insights"
+                                data-bs-toggle="tooltip" title="Environment insights" aria-label="Environment insights">
+                            <i class="fas fa-info-circle" aria-hidden="true"></i>
                         </button>
                         <button class="btn btn-sm btn-ghost" id="btn-operation-history">
                             <i class="fas fa-history"></i> History
@@ -765,26 +765,26 @@ const Environments = (function() {
                     </td>
                     <td data-label="Seq">${vm.sequencePosition || '-'}</td>
                     <td class="td-actions">
-                        <button class="btn btn-sm btn-outline-primary btn-action"
+                        <button type="button" class="btn btn-sm btn-outline-primary btn-action"
                                 data-vm-id="${vm.vmId}" data-action="vm-details"
-                                data-bs-toggle="tooltip" title="Details">
-                            <i class="fas fa-info-circle"></i>
+                                data-bs-toggle="tooltip" title="Details" aria-label="Details">
+                            <i class="fas fa-info-circle" aria-hidden="true"></i>
                         </button>
                         ${isTransitionalStatus(vm.status) ?
-                            `<button class="btn btn-sm btn-outline-secondary btn-action ms-1" disabled
-                                     data-bs-toggle="tooltip" title="Operation in progress">
-                                <i class="fas fa-spinner fa-spin"></i>
+                            `<button type="button" class="btn btn-sm btn-outline-secondary btn-action ms-1" disabled
+                                     data-bs-toggle="tooltip" title="Operation in progress" aria-label="Operation in progress">
+                                <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
                             </button>` :
                         vm.status === 'RUNNING' ?
-                            `<button class="btn btn-sm btn-outline-danger btn-action ms-1"
+                            `<button type="button" class="btn btn-sm btn-outline-danger btn-action ms-1"
                                      data-vm-id="${vm.vmId}" data-action="stop-vm"
-                                     data-bs-toggle="tooltip" title="Stop VM">
-                                <i class="fas fa-stop-circle"></i>
+                                     data-bs-toggle="tooltip" title="Stop VM" aria-label="Stop VM">
+                                <i class="fas fa-stop-circle" aria-hidden="true"></i>
                             </button>` :
-                            `<button class="btn btn-sm btn-outline-success btn-action ms-1"
+                            `<button type="button" class="btn btn-sm btn-outline-success btn-action ms-1"
                                      data-vm-id="${vm.vmId}" data-action="start-vm"
-                                     data-bs-toggle="tooltip" title="Start VM">
-                                <i class="fas fa-play-circle"></i>
+                                     data-bs-toggle="tooltip" title="Start VM" aria-label="Start VM">
+                                <i class="fas fa-play-circle" aria-hidden="true"></i>
                             </button>`
                         }
                     </td>
