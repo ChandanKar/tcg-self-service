@@ -123,6 +123,11 @@ public enum AuditAction {
     /** A Jira issue was created for a recommendation or anomaly (E24-T06). */
     JIRA_TICKET_CREATED,
 
+    // Approval policies (E25-T03)
+    APPROVAL_POLICY_CREATED,
+    APPROVAL_POLICY_UPDATED,
+    APPROVAL_POLICY_DELETED,
+
     // Waste sweeps (E22)
     WASTE_FINDING_DISMISSED,
     WASTE_FINDING_REOPENED,
