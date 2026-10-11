@@ -89,8 +89,10 @@ const ContentRouter = (function() {
             'request-access':     () => AccessRequests.loadRequestAccessPage(),
             'pending-requests':   () => AccessRequests.loadPendingRequestsPage(),
             'activity-logs':      () => ActivityLogs.loadMyActivityLogs(),
-            'user-management':    () => window.UserManagement?.load?.() || window.Features?.loadUserManagement?.(),
-            'access-management':  () => window.AccessManagement?.load?.() || window.Features?.loadAccessManagement?.(),
+            // load() returns nothing, so `load() || fallback()` loaded these pages twice (two
+            // fetches, two renders); use the fallback only when the module is missing.
+            'user-management':    () => window.UserManagement ? window.UserManagement.load() : window.Features?.loadUserManagement?.(),
+            'access-management':  () => window.AccessManagement ? window.AccessManagement.load() : window.Features?.loadAccessManagement?.(),
             'vm-registry':        () => window.VmRegistry?.load?.(),
             'automation-rules':   () => window.Features?.loadAutomationRules?.(),
             'audit-logs-all':     () => AllLogs.loadAllAuditLogs(),

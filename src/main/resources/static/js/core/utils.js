@@ -79,9 +79,12 @@ const Utils = (function() {
     function debounce(func, wait) {
         let timeout;
         return function executedFunction(...args) {
+            // Keep `this`: jQuery handlers read the element with $(this) (the user search did not
+            // filter at all without it).
+            const context = this;
             const later = () => {
                 clearTimeout(timeout);
-                func(...args);
+                func.apply(context, args);
             };
             clearTimeout(timeout);
             timeout = setTimeout(later, wait);
