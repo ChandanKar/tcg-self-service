@@ -1,0 +1,88 @@
+/*
+ * Environment leases (E15-T06): the banner on the environment page.
+ */
+.lease-banner {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.75rem;
+    padding: 0.6rem 0.9rem;
+    margin-bottom: 0.75rem;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-left: 4px solid var(--primary-color, #2563eb);
+    border-radius: 8px;
+    background: #f8fafc;
+    font-size: 0.875rem;
+    color: var(--text-primary, #1e293b);
+}
+
+.lease-banner > .fas {
+    color: var(--primary-color, #2563eb);
+}
+
+.lease-banner.lease-idle {
+    border-left-color: var(--text-caption, #64748b);
+}
+
+.lease-banner.lease-idle > .fas {
+    color: var(--text-caption, #64748b);
+}
+
+.lease-banner.lease-ending-soon {
+    border-left-color: #b45309;
+    background: #fffbeb;
+}
+
+.lease-banner.lease-ending-soon > .fas {
+    color: #b45309;
+}
+
+.lease-text {
+    flex: 1 1 220px;
+    min-width: 0;
+}
+
+.lease-participants {
+    font-size: 0.78rem;
+    color: var(--text-caption, #64748b);
+}
+
+.lease-actions {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+
+.lease-pill {
+    display: inline-block;
+    margin-left: 0.4rem;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    background: #fef3c7;
+    color: #92400e;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.lease-requests {
+    list-style: none;
+    margin: -0.4rem 0 0.75rem;
+    padding: 0;
+}
+
+.lease-request {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.4rem 0.9rem;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-top: 0;
+    font-size: 0.82rem;
+}
+
+.lease-request-actions {
+    display: flex;
+    gap: 0.4rem;
+}

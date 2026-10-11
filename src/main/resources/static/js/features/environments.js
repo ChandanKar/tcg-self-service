@@ -697,6 +697,7 @@ const Environments = (function() {
                 </div>
 
                 ${lockSection}
+                <div id="env-lease-section"></div>
                 ${metricsRow}
 
                 <section id="env-cost-card" aria-label="Environment cost"></section>
@@ -938,6 +939,11 @@ const Environments = (function() {
             IdleStop.renderPanel(env);
         }
 
+        // Lease banner (E15-T06): renders nothing while leases are off.
+        if (typeof Leases !== 'undefined') {
+            Leases.render(env);
+        }
+
         // Lock events - delegate to Locks module if available
         try {
             if (typeof Locks !== 'undefined' && Locks.bindLockEvents) {
@@ -1091,11 +1097,20 @@ const Environments = (function() {
 
     // Operation functions - delegate to VmOperations module for progress tracking
     function startEnvironment(envId, envName) {
+        // Lease-enabled environments ask how long to run (E15-T06); the server applies the owner's limits.
+        const runFor = typeof Leases !== 'undefined' ? Leases.runForOptions(envId) : null;
+        const note = runFor ? `<label class="form-label small mb-1 mt-2" for="lease-run-for">Run for</label>
+                <select class="form-select form-select-sm" id="lease-run-for">${runFor.values.map(m =>
+                    `<option value="${m}" ${m === runFor.defaultValue ? 'selected' : ''}>${runFor.label(m)}</option>`).join('')}</select>` : '';
         showOperationConfirm({
             envId, opType: 'START',
             scope: { level: 'environment', label: `all VMs in <strong>${Utils.escapeHtml(envName)}</strong>` },
-            onConfirm: () => VmOperations.startEnvironment(envId, envName)
-                                .then(() => reloadDetailIfCurrent(envId))
+            note,
+            onConfirm: () => {
+                const minutes = runFor ? Number($('#lease-run-for').val()) || null : null;
+                return VmOperations.startEnvironment(envId, envName, minutes)
+                    .then(() => reloadDetailIfCurrent(envId));
+            }
         });
     }
 
@@ -1239,7 +1254,7 @@ const Environments = (function() {
         // Use div instead of p to avoid double-<p> wrap from Modals.confirm
         const bodyFor = (estimateHtml) => `
             <div class="mb-2">${verb} ${scope.label}?
-            ${note ? `<br><small class="text-muted">${note}</small>` : ''}
+            ${note ? (note.startsWith('<label') ? note : `<br><small class="text-muted">${note}</small>`) : ''}
             </div>
             ${estimateHtml}
         `;

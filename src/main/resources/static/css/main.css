@@ -325,3 +325,9 @@ kbd + kbd {
         margin-left: 0 !important;
     }
 }
+
+/* Bootstrap's .text-warning (#ffc107) is about 1.6:1 on white; text and icons in warning colour
+   use a dark amber that reads at 4.5:1 or better (E13-T04 follow-up, found with E15-T06 data). */
+.text-warning {
+    color: #b45309 !important;
+}

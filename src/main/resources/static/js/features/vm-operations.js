@@ -19,10 +19,10 @@ const VmOperations = (function() {
      * Start an environment (all VMs)
      * Backend: operationType=START, no vmIds/groupIds → operates on all VMs
      */
-    function startEnvironment(envId, envName) {
-        return executeOperation(envId, {
-            operationType: 'START'
-        }, `Starting ${envName}`);
+    function startEnvironment(envId, envName, leaseMinutes) {
+        const body = { operationType: 'START' };
+        if (leaseMinutes) body.leaseMinutes = leaseMinutes; // E15-T06: how long a lease-enabled environment runs
+        return executeOperation(envId, body, `Starting ${envName}`);
     }
 
     /**

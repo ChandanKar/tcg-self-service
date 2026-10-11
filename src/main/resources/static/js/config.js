@@ -126,6 +126,16 @@ const Config = (function() {
             acknowledge: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}/acknowledge`
         },
 
+        // Environment leases (E15)
+        leases: {
+            get: (envId) => `${API_BASE_URL}/environments/${envId}/lease`,
+            policy: (envId) => `${API_BASE_URL}/environments/${envId}/lease-policy`,
+            extend: (envId) => `${API_BASE_URL}/environments/${envId}/lease/extend`,
+            extensionRequests: (envId) => `${API_BASE_URL}/environments/${envId}/lease/extension-requests`,
+            approve: (requestId) => `${API_BASE_URL}/lease-extension-requests/${requestId}/approve`,
+            deny: (requestId) => `${API_BASE_URL}/lease-extension-requests/${requestId}/deny`
+        },
+
         // Idle auto-stop (E16)
         idleStop: {
             status: (envId) => `${API_BASE_URL}/environments/${envId}/idle-stop/status`,
