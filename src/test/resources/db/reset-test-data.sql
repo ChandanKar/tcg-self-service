@@ -19,6 +19,7 @@ DELETE FROM reservation_coverage_snapshot;
 DELETE FROM lease_extension_request;
 DELETE FROM environment_lease_participant;
 DELETE FROM environment_lease;
+DELETE FROM waste_finding;
 DELETE FROM cost_anomaly;
 DELETE FROM cost_anomaly_monitor;
 DELETE FROM budget_action_request;

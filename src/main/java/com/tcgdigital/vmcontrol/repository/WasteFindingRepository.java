@@ -1,0 +1,25 @@
+package com.tcgdigital.vmcontrol.repository;
+
+import com.tcgdigital.vmcontrol.model.WasteFinding;
+import com.tcgdigital.vmcontrol.model.WasteFindingStatus;
+import com.tcgdigital.vmcontrol.model.WasteFindingType;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.sql.Timestamp;
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+public interface WasteFindingRepository extends JpaRepository<WasteFinding, String> {
+
+    Optional<WasteFinding> findByFindingTypeAndRegionAndResourceId(WasteFindingType type, String region, String resourceId);
+
+    /** OPEN findings of a type in a region that the run starting at {@code since} did not see. */
+    @Query("SELECT f FROM WasteFinding f WHERE f.findingType = :type AND f.region = :region "
+            + "AND f.status = :status AND f.lastSeenAt < :since")
+    List<WasteFinding> findNotSeenSince(@Param("type") WasteFindingType type, @Param("region") String region,
+                                        @Param("status") WasteFindingStatus status, @Param("since") Timestamp since);
+}
