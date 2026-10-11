@@ -59,6 +59,13 @@ public class TeamController {
         return quotaService.replace(teamId, quotas, userService.getCurrentUserId());
     }
 
+    @GetMapping("/mine/quota-usage")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "The signed-in user's teams that have quotas, with this month's usage")
+    public List<com.tcgdigital.vmcontrol.service.QuotaService.TeamUsage> myQuotaUsage() {
+        return quotaService.mine(userService.getCurrentUserId());
+    }
+
     @GetMapping("/{teamId}/quota-usage")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "This month's usage against the team's quotas; for its members and admins")

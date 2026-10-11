@@ -104,6 +104,7 @@ const Teams = (function() {
             state.members = members.status === 'fulfilled' ? (members.value || []) : [];
             if (users.status === 'fulfilled') state.users = users.value || [];
             drawDetail(team, members.status === 'rejected');
+            drawQuotas(teamId);
         });
     }
 
@@ -138,6 +139,8 @@ const Teams = (function() {
                     <button type="button" class="btn btn-sm btn-ghost" data-action="team-group-search">Search</button>
                 </div>
                 <ul class="list-unstyled small" id="team-group-results" aria-live="polite"></ul>
+                <h3 class="h6 mt-3">Monthly quotas</h3>
+                <div id="team-quotas" class="mb-2"><div class="text-muted small">Loading quotas…</div></div>
                 <h3 class="h6 mt-3">Members</h3>
                 ${Utils.raw(membersFailed ? '<div class="text-danger small">Could not load the members.</div>' : '')}
                 <ul class="list-unstyled team-members">${Utils.raw(memberRows)}</ul>
@@ -150,6 +153,53 @@ const Teams = (function() {
                     <button type="button" class="btn btn-sm btn-primary" data-action="team-add-member">Add</button>
                 </div>
             </div></section>`);
+    }
+
+    // ============= Quotas (E25-T08) =============
+
+    const QUOTA_METRICS = [['VM_HOURS', 'Running VM-hours'], ['COST', 'Spend ($)']];
+
+    function drawQuotas(teamId) {
+        call('GET', Config.API.teams.quotas(teamId)).then(quotas => {
+            if (state.selectedId !== teamId) return;
+            const byMetric = {};
+            (quotas || []).forEach(q => { byMetric[q.metric] = q; });
+            const bars = (quotas || []).length && typeof CostPreview !== 'undefined'
+                ? quotas.map(q => CostPreview.quotaBar(q)).join('') : '<div class="small text-muted mb-2">No quotas: the team can run without a monthly limit.</div>';
+            const rows = QUOTA_METRICS.map(([metric, label]) => {
+                const q = byMetric[metric];
+                return Utils.html`<div class="row g-2 align-items-end mb-2 quota-row" data-metric="${metric}">
+                    <div class="col-12 col-sm-3"><div class="form-check mt-sm-4">
+                        <input class="form-check-input quota-on" type="checkbox" id="quota-on-${metric}" ${q ? 'checked' : ''}>
+                        <label class="form-check-label" for="quota-on-${metric}">${label}</label></div></div>
+                    <div class="col-4 col-sm-3"><label class="form-label small" for="quota-limit-${metric}">Limit</label>
+                        <input class="form-control form-control-sm quota-limit" type="number" min="1" step="${metric === 'COST' ? '0.01' : '1'}"
+                            id="quota-limit-${metric}" value="${q ? Number(q.limit) : ''}"></div>
+                    <div class="col-5 col-sm-4"><label class="form-label small" for="quota-enf-${metric}">When over</label>
+                        <select class="form-select form-select-sm quota-enforcement" id="quota-enf-${metric}">
+                            <option value="WARN" ${q && q.enforcement === 'WARN' ? 'selected' : ''}>Warn</option>
+                            <option value="REQUIRE_APPROVAL" ${q && q.enforcement === 'REQUIRE_APPROVAL' ? 'selected' : ''}>Needs approval</option>
+                            <option value="BLOCK" ${q && q.enforcement === 'BLOCK' ? 'selected' : ''}>Block</option></select></div>
+                    <div class="col-3 col-sm-2"><label class="form-label small" for="quota-warn-${metric}">Warn at %</label>
+                        <input class="form-control form-control-sm quota-warn" type="number" min="1" max="100" id="quota-warn-${metric}"
+                            value="${q ? q.warnPercent : 80}"></div></div>`;
+            }).join('');
+            $('#team-quotas').html(`${bars}${rows}<button type="button" class="btn btn-sm btn-primary" data-action="team-save-quotas">Save quotas</button>`);
+        }).catch(() => $('#team-quotas').html('<div class="text-danger small">Could not load the quotas.</div>'));
+    }
+
+    function saveQuotas() {
+        const team = selectedTeam();
+        if (!team) return;
+        const body = $('#team-quotas .quota-row').map(function() {
+            const $r = $(this);
+            if (!$r.find('.quota-on').is(':checked')) return null;
+            return { metric: $r.data('metric'), limit: Number($r.find('.quota-limit').val()),
+                enforcement: $r.find('.quota-enforcement').val(), warnPercent: Number($r.find('.quota-warn').val()) || 80 };
+        }).get();
+        call('PUT', Config.API.teams.quotas(team.teamId), body)
+            .then(() => { Notifications.show('Quotas saved.', 'success'); drawQuotas(team.teamId); })
+            .catch(e => Notifications.showError(serverMessage(e, 'Could not save the quotas.')));
     }
 
     function selectedTeam() {
@@ -264,7 +314,7 @@ const Teams = (function() {
     }
 
     return {
-        load, refresh, select, openForm, deactivate, searchGroups, link, sync, addMember, removeMember, options, markRequired,
+        load, refresh, select, openForm, deactivate, searchGroups, link, sync, addMember, removeMember, options, markRequired, saveQuotas,
         edit: () => openForm(selectedTeam())
     };
 })();
@@ -282,5 +332,6 @@ Actions.registerAll({
     'team-unlink': () => Teams.link(null),
     'team-sync': () => Teams.sync(),
     'team-add-member': () => Teams.addMember(),
-    'team-remove-member': el => Teams.removeMember(el.dataset.user)
+    'team-remove-member': el => Teams.removeMember(el.dataset.user),
+    'team-save-quotas': () => Teams.saveQuotas()
 });

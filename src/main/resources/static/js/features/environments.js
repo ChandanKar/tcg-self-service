@@ -1288,7 +1288,8 @@ const Environments = (function() {
             `${verb} ${scope.level === 'environment' ? 'Environment' : scope.level === 'group' ? (scope.noun || 'Group') : 'VM'}`,
             bodyFor(`<div id="estimate-placeholder" class="text-muted small mt-2">
                 <i class="fas fa-spinner fa-spin me-1"></i> Loading time estimate…
-            </div>${isStart ? '<div id="cost-preview-line" class="small mt-2 fw-semibold" aria-live="polite" hidden></div>' : ''}`),
+            </div>${isStart ? '<div id="cost-preview-line" class="small mt-2 fw-semibold" aria-live="polite" hidden></div>'
+                + '<div id="quota-preview-line" class="small mt-1" aria-live="polite" hidden></div>' : ''}`),
             function() {
                 onConfirm().catch(err => console.error(`${actionLabel} failed:`, err));
             },
@@ -1306,7 +1307,13 @@ const Environments = (function() {
             const previewCost = () => {
                 const minutes = Number($('#lease-run-for').val()) || null;
                 CostPreview.render($('#cost-preview-line'), envId, scopeParam, minutes ? Math.ceil(minutes / 60) : null, false,
-                    () => ContentRouter.isCurrent(navToken) && $('#cost-preview-line').length > 0);
+                    () => ContentRouter.isCurrent(navToken) && $('#cost-preview-line').length > 0)
+                    .then(preview => {
+                        // The team's quota with this start added (E25-T08).
+                        const teamId = currentEnvironment && currentEnvironment.environmentId === envId ? currentEnvironment.teamId : null;
+                        $('#confirmBtn').prop('disabled', false).removeAttr('title');
+                        return CostPreview.renderQuota($('#quota-preview-line'), teamId, preview, $('#confirmBtn'));
+                    });
             };
             $('#confirmModal').on('change', '#lease-run-for', previewCost);
             previewCost();

@@ -161,6 +161,15 @@ const Modals = (function() {
             modalEl.addEventListener('hidden.bs.modal', onHide);
         }
 
+        // Close (x, Cancel) and Escape also work while the dialog is still fading in: Bootstrap
+        // ignores hide() during the show transition. The element is removed once hidden.
+        modalEl.addEventListener('click', function(e) {
+            if (e.target.closest('[data-bs-dismiss="modal"]')) hideWhenReady(modalEl);
+        });
+        modalEl.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') hideWhenReady(modalEl);
+        });
+
         // Clean up on hide
         // Clean up on hide: dispose the instance before the element goes (E13-T08)
         modalEl.addEventListener('hidden.bs.modal', function() {

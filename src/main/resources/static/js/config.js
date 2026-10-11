@@ -170,6 +170,10 @@ const Config = (function() {
             sync: (id) => `${API_BASE_URL}/teams/${encodeURIComponent(id)}/sync`,
             members: (id) => `${API_BASE_URL}/teams/${encodeURIComponent(id)}/members`,
             member: (id, userId) => `${API_BASE_URL}/teams/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}`,
+            // Monthly quotas (E25-T07/T08)
+            quotas: (id) => `${API_BASE_URL}/teams/${encodeURIComponent(id)}/quotas`,
+            quotaUsage: (id) => `${API_BASE_URL}/teams/${encodeURIComponent(id)}/quota-usage`,
+            myQuotaUsage: `${API_BASE_URL}/teams/mine/quota-usage`,
             // Required allocation fields (E23-T04)
             allocationRules: `${API_BASE_URL}/environments/allocation-rules`,
             allocationGaps: `${API_BASE_URL}/environments/allocation-gaps`

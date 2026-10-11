@@ -71,6 +71,7 @@ const MyAccount = (function() {
         if (!state || state.costRequested) return;
         state.costRequested = true;
         load('cost', Config.API.users.myCost);
+        load('quotas', Config.API.teams.myQuotaUsage); // E25-T08
     }
 
     // ============= Cost (E18-T04) =============
@@ -121,6 +122,15 @@ const MyAccount = (function() {
             </article>`;
     }
 
+    /** My teams' monthly quotas (E25-T08); nothing when none of my teams has one. */
+    function quotaCardsHtml() {
+        const teams = Array.isArray(state.quotas) ? state.quotas : [];
+        if (!teams.length || typeof CostPreview === 'undefined') return '';
+        return teams.map(t => Utils.html`<article class="ma-card ma-quota-card" data-team="${t.teamId}">
+                <div class="ma-card-top"><strong>${t.teamName}</strong><span class="small text-muted">team quota this month</span></div>
+                ${Utils.raw(t.quotas.map(q => CostPreview.quotaBar(q)).join(''))}</article>`).join('');
+    }
+
     function costHtml() {
         if (state.errors.cost) return errorHtml("your environments' cost");
         if (!state.cost) return loadingHtml();
@@ -132,7 +142,7 @@ const MyAccount = (function() {
         const capped = state.cost.capped
             ? Utils.html`<div class="ma-card-meta text-muted mb-2">Showing the ${state.cost.limit} highest of ${state.cost.totalEnvironments} environments.</div>`
             : '';
-        return `<div class="ma-cost-intro text-muted small mb-2">Month to date, estimated from daily snapshots.</div>
+        return `${quotaCardsHtml()}<div class="ma-cost-intro text-muted small mb-2">Month to date, estimated from daily snapshots.</div>
                 ${capped}${list.map(costRowHtml).join('')}`;
     }
 

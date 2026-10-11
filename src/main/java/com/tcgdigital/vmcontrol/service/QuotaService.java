@@ -115,6 +115,23 @@ public class QuotaService {
         return usage(teamId);
     }
 
+    /** A team the user belongs to, with its quotas and this month's usage (E25-T08). */
+    public record TeamUsage(String teamId, String teamName, List<QuotaView> quotas) {}
+
+    /** The user's teams that have quotas. */
+    @Transactional(readOnly = true)
+    public List<TeamUsage> mine(String userId) {
+        List<TeamUsage> out = new ArrayList<>();
+        for (String teamId : memberRepository.findTeamIdsByUserId(userId)) {
+            List<QuotaView> quotas = usage(teamId);
+            if (!quotas.isEmpty()) {
+                out.add(new TeamUsage(teamId, team(teamId).getDisplayName(), quotas));
+            }
+        }
+        out.sort(Comparator.comparing(TeamUsage::teamName, String.CASE_INSENSITIVE_ORDER));
+        return out;
+    }
+
     // ============= Checking a start =============
 
     public enum Outcome { OK, WARN, REQUIRE_APPROVAL, BLOCK }
