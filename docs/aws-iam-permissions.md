@@ -67,6 +67,18 @@ Run this (or the AWS Console's "Policy simulator" under IAM) before flipping any
 | **EKS split cost** (`EKS_SCAD_ENABLED`, off by default, E26-T04) | `athena:StartQueryExecution`, `athena:GetQueryExecution`, `athena:GetQueryResults`, `athena:StopQueryExecution` | ❓ Unverified | Daily query of the CUR 2.0 export's Athena table; needs Split Cost Allocation Data turned on in Data Exports |
 | EKS split cost | `glue:GetTable`, `glue:GetDatabase`, `glue:GetPartitions`; `s3:GetObject`, `s3:ListBucket` on the export bucket; `s3:PutObject`, `s3:GetBucketLocation` on the query output location | ❓ Unverified | Athena reads the export through the Glue catalog and writes results to `EKS_SCAD_ATHENA_OUTPUT_LOCATION` (or the workgroup's location) |
 
+## Multi-account (E28)
+
+See [aws-multi-account.md](aws-multi-account.md) for the full setup. The base identity (the platform's key or instance role) needs:
+
+| Action | When |
+|---|---|
+| `sts:GetCallerIdentity` | Always: resolves the default account's number at startup and verifies accounts |
+| `sts:AssumeRole` on `arn:aws:iam::*:role/VmControlAccess` (or your member role name) | `AWS_MULTI_ACCOUNT_ENABLED=true`: reaching member accounts |
+| `organizations:ListAccounts` (on the billing account's identity) | `AWS_ORGANIZATIONS_ENABLED=true`: importing member accounts |
+
+Each member account's role needs the EC2, EKS, CloudWatch, tagging and Compute Optimizer actions of the features you use (the member permission set in aws-multi-account.md). Cost Explorer actions are only needed by the billing account.
+
 ## Practical takeaway
 
 - **EC2, EKS, CloudWatch: solid** — this is the app's original functionality and it's been exercised continuously and successfully all session.
