@@ -40,9 +40,12 @@ public class WasteController {
     private final ScheduledJobLockService jobLockService;
     private final ExcelExportService excelExportService;
     private final UserService userService;
+    private final com.tcgdigital.vmcontrol.service.WasteActionService actionService;
 
     public WasteController(WasteSweepService sweepService, ScheduledJobLockService jobLockService,
-                           ExcelExportService excelExportService, UserService userService) {
+                           ExcelExportService excelExportService, UserService userService,
+                           com.tcgdigital.vmcontrol.service.WasteActionService actionService) {
+        this.actionService = actionService;
         this.sweepService = sweepService;
         this.jobLockService = jobLockService;
         this.excelExportService = excelExportService;
@@ -92,6 +95,48 @@ public class WasteController {
                 .<ResponseEntity<?>>map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.CONFLICT)
                         .body(Map.of("status", "busy", "message", "A waste sweep is already running")));
+    }
+
+    // ============= Fix actions (E22-T04) =============
+
+    public record ProposeRequest(@jakarta.validation.constraints.NotNull(message = "Choose an action")
+                                 com.tcgdigital.vmcontrol.model.WasteAction.Type type) {}
+
+    @GetMapping("/actions")
+    @Operation(summary = "Fix actions, newest first")
+    public List<com.tcgdigital.vmcontrol.dto.WasteActionDTO> actions(
+            @RequestParam(required = false) com.tcgdigital.vmcontrol.model.WasteAction.Status status) {
+        return actionService.list(status);
+    }
+
+    @GetMapping("/actions/config")
+    @Operation(summary = "Whether fix actions are enabled")
+    public Map<String, Object> actionsConfig() {
+        return Map.of("enabled", actionService.isEnabled());
+    }
+
+    @PostMapping("/findings/{findingId}/actions")
+    @Operation(summary = "Propose a fix (another admin must approve it)")
+    public com.tcgdigital.vmcontrol.dto.WasteActionDTO propose(@PathVariable String findingId, @Valid @RequestBody ProposeRequest request) {
+        return actionService.propose(findingId, request.type(), userService.getCurrentUserId());
+    }
+
+    @PostMapping("/actions/{actionId}/approve")
+    @Operation(summary = "Approve a proposed fix (not your own); it then runs in the background")
+    public com.tcgdigital.vmcontrol.dto.WasteActionDTO approve(@PathVariable String actionId) {
+        return actionService.approve(actionId, userService.getCurrentUserId());
+    }
+
+    @PostMapping("/actions/{actionId}/reject")
+    @Operation(summary = "Reject a proposed fix")
+    public com.tcgdigital.vmcontrol.dto.WasteActionDTO reject(@PathVariable String actionId) {
+        return actionService.reject(actionId, userService.getCurrentUserId());
+    }
+
+    @PostMapping("/actions/{actionId}/rollback")
+    @Operation(summary = "Undo an executed fix where AWS allows it")
+    public com.tcgdigital.vmcontrol.dto.WasteActionDTO rollback(@PathVariable String actionId) {
+        return actionService.rollback(actionId, userService.getCurrentUserId());
     }
 
     @GetMapping("/findings/export")

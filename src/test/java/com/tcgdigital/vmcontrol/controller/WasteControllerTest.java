@@ -96,4 +96,14 @@ class WasteControllerTest extends SecuredWebTestBase {
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString("waste-findings.xlsx")));
     }
+
+    @Test
+    void fixActionsAreRefusedWhileTurnedOffAndAdminOnly() throws Exception {
+        expectError(mockMvc.perform(post("/api/v1/waste/findings/" + volumeId + "/actions").with(asAdmin())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"type\":\"DELETE_VOLUME\"}")), 400)
+                .andExpect(jsonPath("$.message").value("Waste fix actions are turned off: set waste.actions.enabled"));
+        mockMvc.perform(get("/api/v1/waste/actions/config").with(asAdmin())).andExpect(jsonPath("$.enabled").value(false));
+        mockMvc.perform(get("/api/v1/waste/actions").with(asAdmin())).andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/waste/actions").with(asEnvAdmin())).andExpect(status().isForbidden());
+    }
 }

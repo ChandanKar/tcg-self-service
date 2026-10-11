@@ -191,6 +191,90 @@ public class AwsWasteScanService {
         return out;
     }
 
+    // ============= Fix actions (E22-T04); these change AWS state =============
+
+    /** How often and how long to wait for a snapshot to complete (tests shorten it). */
+    private long snapshotPollMs = 15_000;
+    private Duration snapshotTimeout = Duration.ofMinutes(30);
+
+    void setSnapshotPolling(long pollMs, Duration timeout) {
+        this.snapshotPollMs = pollMs;
+        this.snapshotTimeout = timeout;
+    }
+
+    /** The volume now, or null when it no longer exists. */
+    public software.amazon.awssdk.services.ec2.model.Volume describeVolume(String region, String volumeId) {
+        try {
+            List<software.amazon.awssdk.services.ec2.model.Volume> volumes = client(region).describeVolumes(
+                    DescribeVolumesRequest.builder().volumeIds(volumeId).build()).volumes();
+            return volumes.isEmpty() ? null : volumes.get(0);
+        } catch (software.amazon.awssdk.services.ec2.model.Ec2Exception e) {
+            if (e.awsErrorDetails() != null && "InvalidVolume.NotFound".equals(e.awsErrorDetails().errorCode())) {
+                return null;
+            }
+            throw e;
+        }
+    }
+
+    /** Snapshots a volume with the given tags and waits until the snapshot is completed. */
+    public String createSnapshotAndWait(String region, String volumeId, Map<String, String> tags) {
+        Ec2Client ec2 = client(region);
+        String snapshotId = ec2.createSnapshot(software.amazon.awssdk.services.ec2.model.CreateSnapshotRequest.builder()
+                .volumeId(volumeId)
+                .description("Before deleting unattached volume " + volumeId + " (waste action)")
+                .tagSpecifications(software.amazon.awssdk.services.ec2.model.TagSpecification.builder()
+                        .resourceType(software.amazon.awssdk.services.ec2.model.ResourceType.SNAPSHOT)
+                        .tags(toTags(tags)).build())
+                .build()).snapshotId();
+        Instant deadline = Instant.now().plus(snapshotTimeout);
+        while (true) {
+            List<software.amazon.awssdk.services.ec2.model.Snapshot> found = ec2.describeSnapshots(
+                    software.amazon.awssdk.services.ec2.model.DescribeSnapshotsRequest.builder().snapshotIds(snapshotId).build()).snapshots();
+            String state = found.isEmpty() ? null : found.get(0).stateAsString();
+            if ("completed".equals(state)) {
+                return snapshotId;
+            }
+            if ("error".equals(state)) {
+                throw new IllegalStateException("Snapshot " + snapshotId + " failed");
+            }
+            if (Instant.now().isAfter(deadline)) {
+                throw new IllegalStateException("Snapshot " + snapshotId + " did not complete within " + snapshotTimeout.toMinutes() + " minutes");
+            }
+            try {
+                Thread.sleep(snapshotPollMs);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted while waiting for snapshot " + snapshotId, e);
+            }
+        }
+    }
+
+    public void deleteVolume(String region, String volumeId) {
+        client(region).deleteVolume(software.amazon.awssdk.services.ec2.model.DeleteVolumeRequest.builder().volumeId(volumeId).build());
+    }
+
+    /** Recreates a volume from a snapshot; returns the new volume id. */
+    public String createVolumeFromSnapshot(String region, String snapshotId, String availabilityZone, String volumeType,
+                                           Integer sizeGib, Integer iops, Integer throughput, Map<String, String> tags) {
+        software.amazon.awssdk.services.ec2.model.CreateVolumeRequest.Builder request =
+                software.amazon.awssdk.services.ec2.model.CreateVolumeRequest.builder()
+                        .snapshotId(snapshotId).availabilityZone(availabilityZone).volumeType(volumeType).size(sizeGib)
+                        .tagSpecifications(software.amazon.awssdk.services.ec2.model.TagSpecification.builder()
+                                .resourceType(software.amazon.awssdk.services.ec2.model.ResourceType.VOLUME).tags(toTags(tags)).build());
+        if (iops != null && ("io1".equals(volumeType) || "io2".equals(volumeType) || "gp3".equals(volumeType))) {
+            request.iops(iops);
+        }
+        if (throughput != null && "gp3".equals(volumeType)) {
+            request.throughput(throughput);
+        }
+        return client(region).createVolume(request.build()).volumeId();
+    }
+
+    private static List<Tag> toTags(Map<String, String> tags) {
+        return tags.entrySet().stream().filter(e -> !e.getKey().startsWith("aws:"))
+                .map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build()).toList();
+    }
+
     Ec2Client client(String region) {
         return clients.apply(region);
     }
