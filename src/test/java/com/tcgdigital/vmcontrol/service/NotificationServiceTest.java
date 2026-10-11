@@ -281,4 +281,63 @@ class NotificationServiceTest {
         verify(notificationRepository, never()).save(any());
         verifyNoInteractions(emailService);
     }
+
+    // ============= Chat (E24-T03) =============
+
+    @Test
+    void environmentEventsGoToChatInTheThirdPerson() {
+        com.tcgdigital.vmcontrol.service.chat.ChatDispatchService chat =
+                mock(com.tcgdigital.vmcontrol.service.chat.ChatDispatchService.class);
+        service.setChatDispatch(chat);
+        when(userRepository.findById("user-regular")).thenReturn(Optional.of(regularUser));
+
+        service.notifyOperationFailedForEnvironment("env-A", "Env A", "user-regular", "STOP", "boom");
+        service.notifyLockBrokenForEnvironment("env-A", "Env A", "user-regular", "user-regular", "stuck");
+        service.notifyStopEnvironment("env-A", "Env A", "user-regular", "maintenance");
+        service.notifyIdleStopForEnvironment("env-A", "Env A", 90, 2);
+        service.notifyStateDriftDetected("env-A", "Env A", "web-1", "RUNNING", "STOPPED", "vm-1");
+        service.notifyAccessRequestedForReviewers("env-A", "Env A", "user-regular", "req-1", "user");
+        service.notifyCostAnomaly("env-A", "Env A", new java.math.BigDecimal("12.50"), null, "EC2", "an-1");
+
+        ArgumentCaptor<com.tcgdigital.vmcontrol.model.NotificationType> types =
+                ArgumentCaptor.forClass(com.tcgdigital.vmcontrol.model.NotificationType.class);
+        ArgumentCaptor<String> titles = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> texts = ArgumentCaptor.forClass(String.class);
+        verify(chat, times(7)).notify(eq("env-A"), types.capture(), any(), titles.capture(), texts.capture(), any());
+        assertEquals(List.of(com.tcgdigital.vmcontrol.model.NotificationType.OPERATION_FAILED,
+                com.tcgdigital.vmcontrol.model.NotificationType.LOCK_BROKEN,
+                com.tcgdigital.vmcontrol.model.NotificationType.ENVIRONMENT_STOP_NOTICE,
+                com.tcgdigital.vmcontrol.model.NotificationType.IDLE_AUTO_STOPPED,
+                com.tcgdigital.vmcontrol.model.NotificationType.STATE_DRIFT_DETECTED,
+                com.tcgdigital.vmcontrol.model.NotificationType.ACCESS_REQUESTED,
+                com.tcgdigital.vmcontrol.model.NotificationType.COST_ANOMALY), types.getAllValues());
+        for (String text : titles.getAllValues()) {
+            assertFalse(text.matches("(?i)^(you|your)\b.*"), text);
+        }
+        for (String text : texts.getAllValues()) {
+            assertFalse(text.matches("(?is).*\b(you|your|you're)\b.*"), text);
+        }
+        assertTrue(texts.getAllValues().get(0).contains("Reason: boom"));
+    }
+
+    @Test
+    void aLeaseWarningGoesToChatOncePerLeaseEnd() {
+        com.tcgdigital.vmcontrol.service.chat.ChatDispatchService chat =
+                mock(com.tcgdigital.vmcontrol.service.chat.ChatDispatchService.class);
+        service.setChatDispatch(chat);
+        Timestamp ends = new Timestamp(1_800_000_000_000L);
+        service.notifyLeaseExpiring("user-regular", "env-A", "Env A", ends, 30, new Timestamp(0));
+        verify(chat).notify(eq("env-A"), eq(com.tcgdigital.vmcontrol.model.NotificationType.LEASE_EXPIRING), any(),
+                anyString(), anyString(), eq("LEASE_EXPIRING:env-A:1800000000000"));
+    }
+
+    @Test
+    void chatFailuresNeverBreakNotifications() {
+        com.tcgdigital.vmcontrol.service.chat.ChatDispatchService chat =
+                mock(com.tcgdigital.vmcontrol.service.chat.ChatDispatchService.class);
+        doThrow(new IllegalStateException("down")).when(chat).notify(any(), any(), any(), any(), any(), any());
+        service.setChatDispatch(chat);
+        assertDoesNotThrow(() -> service.notifyIdleStopForEnvironment("env-A", "Env A", 90, 2));
+        verify(notificationRepository).saveAll(any());
+    }
 }

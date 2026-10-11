@@ -72,6 +72,34 @@ public class NotificationService {
         this.emailService = emailService;
     }
 
+    // ============= Chat (E24-T03) =============
+
+    /** Teams channels for environment events; set by Spring, null in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.chat.ChatDispatchService chat;
+
+    void setChatDispatch(com.tcgdigital.vmcontrol.service.chat.ChatDispatchService chat) {
+        this.chat = chat;
+    }
+
+    /** Sends the third-person wording to the environment's chat channels after commit; never throws. */
+    private void toChat(String environmentId, NotificationType type, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity severity,
+                        String title, String text) {
+        toChat(environmentId, type, severity, title, text, null);
+    }
+
+    private void toChat(String environmentId, NotificationType type, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity severity,
+                        String title, String text, String dedupKey) {
+        if (chat == null) {
+            return;
+        }
+        try {
+            chat.notify(environmentId, type, severity, title, text, dedupKey);
+        } catch (RuntimeException e) {
+            log.warn("Could not send {} to chat: {}", type, e.getClass().getSimpleName());
+        }
+    }
+
     public Page<NotificationDTO> getNotifications(String userId, int page, int size) {
         return notificationRepository
                 .findByUserIdOrderByCreatedAtDesc(userId, PageRequest.of(page, size))
@@ -194,6 +222,7 @@ public class NotificationService {
                 actorTitle, actorMessage, otherTitle, otherMessage,
                 "ENVIRONMENT",
                 environmentId);
+        toChat(environmentId, NotificationType.LOCK_BROKEN, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.WARNING, otherTitle, otherMessage);
 
         if (emailLockBrokenEnabled) {
             emailBroadcastSplitByActor(resolveEnvironmentRecipients(environmentId), adminUserId,
@@ -276,6 +305,7 @@ public class NotificationService {
 
         resolveEnvironmentReviewers(environmentId).forEach(user -> create(user.getUserId(),
                 NotificationType.ACCESS_REQUESTED, title, message, "ACCESS_REQUEST", requestId));
+        toChat(environmentId, NotificationType.ACCESS_REQUESTED, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.INFO, title, message);
 
         if (emailAccessRequestedEnabled) {
             // Email is intentionally narrower than the bell's reviewer set — All Admin only,
@@ -313,6 +343,8 @@ public class NotificationService {
         String message = scopeName + " has spent " + dollars(spend) + " of its " + dollars(amount) + " budget for "
                 + monthName(month) + ".";
         sendBudgetAlert(environmentIds, budgetId, team, NotificationType.BUDGET_THRESHOLD, title, message);
+        budgetToChat(environmentIds, NotificationType.BUDGET_THRESHOLD, title, message,
+                "BUDGET_THRESHOLD:" + budgetId + ":" + month + ":" + threshold);
     }
 
     /** A budget is forecast to overrun this month. */
@@ -322,6 +354,16 @@ public class NotificationService {
         String message = "At the current rate " + scopeName + " will spend about " + dollars(forecast) + " in "
                 + monthName(month) + ", over its " + dollars(amount) + " budget.";
         sendBudgetAlert(environmentIds, budgetId, team, NotificationType.BUDGET_FORECAST, title, message);
+        budgetToChat(environmentIds, NotificationType.BUDGET_FORECAST, title, message, "BUDGET_FORECAST:" + budgetId + ":" + month);
+    }
+
+    /** Each covered environment's channels (a shared default channel hears it once); no environment: the defaults. */
+    private void budgetToChat(List<String> environmentIds, NotificationType type, String title, String message, String dedupKey) {
+        if (environmentIds.isEmpty()) {
+            toChat(null, type, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.WARNING, title, message, dedupKey);
+        } else {
+            environmentIds.forEach(id -> toChat(id, type, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.WARNING, title, message, dedupKey));
+        }
     }
 
     /**
@@ -358,6 +400,7 @@ public class NotificationService {
         List<User> recipients = environmentId == null ? userRepository.findByAdminTrueAndIsActiveTrue()
                 : resolveEnvironmentReviewers(environmentId);
         recipients.forEach(u -> create(u.getUserId(), NotificationType.COST_ANOMALY, title, message, "COST_ANOMALY", anomalyId));
+        toChat(environmentId, NotificationType.COST_ANOMALY, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.WARNING, title, message, "COST_ANOMALY:" + anomalyId);
         if (emailCostAnomalyEnabled) {
             try {
                 sendEventEmail(recipients, title, message);
@@ -377,6 +420,7 @@ public class NotificationService {
                 + what + "; nothing happens until an owner approves it.";
         resolveEnvironmentReviewers(environmentId).forEach(u -> create(u.getUserId(),
                 NotificationType.BUDGET_ACTION_PENDING, title, message, "BUDGET_ACTION", requestId));
+        toChat(environmentId, NotificationType.BUDGET_ACTION_PENDING, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.WARNING, title, message);
     }
 
     /** The approver of a budget stop hears why it has not run yet (E20-T04). */
@@ -394,6 +438,7 @@ public class NotificationService {
                 + "Stops still work; an owner can lift the freeze.";
         resolveEnvironmentRecipients(environmentId).forEach(u -> create(u.getUserId(),
                 NotificationType.BUDGET_FREEZE, title, message, "ENVIRONMENT", environmentId));
+        toChat(environmentId, NotificationType.BUDGET_FREEZE, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.WARNING, title, message);
     }
 
     private static String dollars(java.math.BigDecimal value) {
@@ -418,6 +463,12 @@ public class NotificationService {
                 + " min). Extend it from the environment page.";
         boolean created = createIfAbsentSince(userId, NotificationType.LEASE_EXPIRING, title, message,
                 "ENVIRONMENT", environmentId, dedupSince);
+        if (created) {
+            toChat(environmentId, NotificationType.LEASE_EXPIRING, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.WARNING, title,
+                    "\"" + environmentName + "\" stops at " + formatTime(endsAt) + " (in " + minutesLeft
+                            + " min) unless someone extends it from the environment page.",
+                    "LEASE_EXPIRING:" + environmentId + ":" + (endsAt == null ? "" : endsAt.getTime()));
+        }
         if (created && emailLeaseExpiringEnabled) {
             sendEventEmailToUser(userId, title, message);
         }
@@ -436,6 +487,7 @@ public class NotificationService {
                 .filter(u -> Boolean.TRUE.equals(u.getIsActive()))
                 .forEach(u -> create(u.getUserId(), NotificationType.LEASE_EXPIRED, title, message,
                         "ENVIRONMENT", environmentId));
+        toChat(environmentId, NotificationType.LEASE_EXPIRED, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.WARNING, title, message);
     }
 
     /** Tell the environment's owners that someone asked to run past the maximum. */
@@ -447,6 +499,7 @@ public class NotificationService {
                 + (isBlank(reason) ? "." : ": " + reason);
         resolveEnvironmentReviewers(environmentId).forEach(user -> create(user.getUserId(),
                 NotificationType.LEASE_EXTENSION_REQUESTED, title, message, "ENVIRONMENT", environmentId));
+        toChat(environmentId, NotificationType.LEASE_EXTENSION_REQUESTED, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.INFO, title, message);
     }
 
     /** Tell the requester what the owner decided. */
@@ -544,6 +597,7 @@ public class NotificationService {
                 actorTitle, actorMessage, otherTitle, otherMessage,
                 "ENVIRONMENT",
                 environmentId);
+        toChat(environmentId, NotificationType.OPERATION_FAILED, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.CRITICAL, otherTitle, otherMessage);
 
         if (emailOperationFailedEnabled) {
             // Env admin explicitly excluded from this email per spec, unlike the bell broadcast.
@@ -559,6 +613,8 @@ public class NotificationService {
                 + "Start it again from the environment page when you need it.";
         broadcastToEnvironment(environmentId, null, NotificationType.IDLE_AUTO_STOPPED,
                 title, message, title, message, "ENVIRONMENT", environmentId);
+        toChat(environmentId, NotificationType.IDLE_AUTO_STOPPED, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.INFO, title,
+                "Stopped " + vmCount + " VM(s) after " + idleMinutes + " minutes idle. It can be started again from the environment page.");
     }
 
     public void notifyStateDriftDetected(String environmentId, String environmentName,
@@ -572,6 +628,9 @@ public class NotificationService {
                 "State drift detected for \"" + vmName + "\": " + previousStatus + " -> " + currentStatus + ".",
                 "VM",
                 vmId);
+        toChat(environmentId, NotificationType.STATE_DRIFT_DETECTED, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.WARNING,
+                "State drift detected: " + environmentName,
+                "State drift detected for \"" + vmName + "\": " + previousStatus + " -> " + currentStatus + ".");
     }
 
     public void notifyEksSyncChanged(String environmentId, String environmentName,
@@ -798,6 +857,7 @@ public class NotificationService {
                             "ENVIRONMENT", environmentId);
                 })
                 .toList());
+        toChat(environmentId, NotificationType.ENVIRONMENT_STOP_NOTICE, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.WARNING, otherTitle, otherMessage);
 
         List<String> addresses = recipients.stream()
                 .filter(user -> user != null && Boolean.TRUE.equals(user.getIsActive()) && !isBlank(user.getEmail()))

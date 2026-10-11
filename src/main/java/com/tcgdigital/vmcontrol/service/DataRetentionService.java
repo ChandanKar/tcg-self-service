@@ -54,6 +54,9 @@ public class DataRetentionService {
     @Value("${retention.email-log.days:180}")
     private int emailLogDays = 180;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.repository.ChatDeliveryLogRepository chatDeliveryLogRepository;
+
     @Value("${retention.batch-size:5000}")
     private int batchSize = 5000;
 
@@ -81,6 +84,10 @@ public class DataRetentionService {
         deleted.put("notification", purge(cutoff(now, unreadNotificationDays), notificationRepository::deleteOlderThan));
         deleted.put("vm_state_history", purge(cutoff(now, stateHistoryDays), stateHistoryRepository::deleteOlderThan));
         deleted.put("email_log", purge(cutoff(now, emailLogDays), emailLogRepository::deleteOlderThan));
+        if (chatDeliveryLogRepository != null) {
+            // Chat deliveries (E24-T03) follow the email log's period.
+            deleted.put("chat_delivery_log", purge(cutoff(now, emailLogDays), chatDeliveryLogRepository::deleteOlderThan));
+        }
         log.info("Data retention removed {}", deleted);
         auditService.logAction(null, AuditAction.SCHEDULED_JOB_EXECUTED, "job", "data_retention", "Data retention",
                 "Deleted rows: " + deleted);
