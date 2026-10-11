@@ -365,6 +365,7 @@ public class EksSyncService {
                     v.setName(nodeGroupName);
                     v.setDisplayName(nodeGroupName);
                     v.setProvider(CloudProvider.AWS_EKS);
+                    v.setAwsAccountRef(environment.getAwsAccountRef()); // E28-T03
                     v.setProviderVmId(providerVmId);
                     v.setRegion(region);
                     v.setSequencePosition(1);

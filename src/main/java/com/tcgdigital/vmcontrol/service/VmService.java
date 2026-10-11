@@ -151,6 +151,9 @@ public class VmService {
         vm.setPurpose(dto.getPurpose());
         vm.setRemarks(dto.getRemarks());
         vm.setProvider(dto.getProvider());
+        if (dto.getProvider() == CloudProvider.AWS || dto.getProvider() == CloudProvider.AWS_EKS) {
+            vm.setAwsAccountRef(group.getEnvironment().getAwsAccountRef()); // the environment's account (E28-T03)
+        }
         vm.setRegion(dto.getRegion());
         vm.setProviderVmId(dto.getProviderVmId());
         vm.setVmType(dto.getVmType());
@@ -234,6 +237,9 @@ public class VmService {
         vm.setPurpose(dto.getPurpose());
         vm.setRemarks(dto.getRemarks());
         vm.setProvider(dto.getProvider());
+        if (vm.getAwsAccountRef() == null && (dto.getProvider() == CloudProvider.AWS || dto.getProvider() == CloudProvider.AWS_EKS)) {
+            vm.setAwsAccountRef(vm.getGroup().getEnvironment().getAwsAccountRef()); // E28-T03
+        }
         vm.setRegion(dto.getRegion());
         vm.setProviderVmId(dto.getProviderVmId());
         vm.setVmType(dto.getVmType());

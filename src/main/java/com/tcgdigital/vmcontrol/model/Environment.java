@@ -66,6 +66,17 @@ public class Environment {
     @Column(name = "eks_cluster_name", length = 255)
     private String eksClusterName;
 
+    /** The AWS account the environment lives in (E28-T03, V70); the default account when not chosen. */
+    @Column(name = "aws_account_ref", length = 36)
+    private String awsAccountRef;
+
+    @PrePersist
+    void defaultAwsAccount() {
+        if (awsAccountRef == null) {
+            awsAccountRef = AwsAccount.DEFAULT_REF;
+        }
+    }
+
     /** Environment leases (E15, V42): opted in per environment, on top of lease.enabled. */
     @Column(name = "lease_enabled", nullable = false)
     private Boolean leaseEnabled = false;
@@ -191,6 +202,14 @@ public class Environment {
 
     public void setLeaseMaxMinutes(Integer leaseMaxMinutes) {
         this.leaseMaxMinutes = leaseMaxMinutes;
+    }
+
+    public String getAwsAccountRef() {
+        return awsAccountRef;
+    }
+
+    public void setAwsAccountRef(String awsAccountRef) {
+        this.awsAccountRef = awsAccountRef;
     }
 
     public String getEksClusterName() {

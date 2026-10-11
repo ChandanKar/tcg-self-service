@@ -28,6 +28,32 @@ public class Vm {
     @JoinColumn(name = "group_id", nullable = false)
     private VmGroup group;
 
+    /**
+     * The AWS account of an AWS/AWS_EKS VM (E28-T03, V70): its environment's account unless set,
+     * else the default account. Null for other providers.
+     */
+    @Column(name = "aws_account_ref", length = 36)
+    private String awsAccountRef;
+
+    @PrePersist
+    void defaultAwsAccount() {
+        if (awsAccountRef != null || (provider != CloudProvider.AWS && provider != CloudProvider.AWS_EKS)) {
+            return;
+        }
+        // Only an already-loaded environment is read: a lazy proxy may have no session here.
+        Environment env = group != null && org.hibernate.Hibernate.isInitialized(group) ? group.getEnvironment() : null;
+        String environmentRef = env != null && org.hibernate.Hibernate.isInitialized(env) ? env.getAwsAccountRef() : null;
+        awsAccountRef = environmentRef != null ? environmentRef : AwsAccount.DEFAULT_REF;
+    }
+
+    public String getAwsAccountRef() {
+        return awsAccountRef;
+    }
+
+    public void setAwsAccountRef(String awsAccountRef) {
+        this.awsAccountRef = awsAccountRef;
+    }
+
     @Column(nullable = false)
     private String name;
 
