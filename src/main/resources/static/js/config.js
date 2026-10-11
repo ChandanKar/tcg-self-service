@@ -268,6 +268,18 @@ const Config = (function() {
             update: (ruleId) => `${API_BASE_URL}/automation-rules/${ruleId}`,
             setEnabled: (ruleId) => `${API_BASE_URL}/automation-rules/${ruleId}/enabled`,
             delete: (ruleId) => `${API_BASE_URL}/automation-rules/${ruleId}`
+        },
+
+        // Holiday calendars (E19-T02)
+        holidayCalendars: {
+            list: `${API_BASE_URL}/holiday-calendars`,
+            create: `${API_BASE_URL}/holiday-calendars`,
+            update: (id) => `${API_BASE_URL}/holiday-calendars/${encodeURIComponent(id)}`,
+            delete: (id) => `${API_BASE_URL}/holiday-calendars/${encodeURIComponent(id)}`,
+            dates: (id) => `${API_BASE_URL}/holiday-calendars/${encodeURIComponent(id)}/dates?size=500`,
+            addDate: (id) => `${API_BASE_URL}/holiday-calendars/${encodeURIComponent(id)}/dates`,
+            removeDate: (id, holidayId) => `${API_BASE_URL}/holiday-calendars/${encodeURIComponent(id)}/dates/${encodeURIComponent(holidayId)}`,
+            import: (id) => `${API_BASE_URL}/holiday-calendars/${encodeURIComponent(id)}/import`
         }
     };
 

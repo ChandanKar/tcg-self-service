@@ -21,6 +21,8 @@ DELETE FROM environment_lease_participant;
 DELETE FROM environment_lease;
 DELETE FROM automation_rule_window;
 DELETE FROM automation_rule;
+DELETE FROM holiday_date;
+DELETE FROM holiday_calendar;
 DELETE FROM lock_history;
 DELETE FROM environment_lock;
 DELETE FROM vm_provider_details;

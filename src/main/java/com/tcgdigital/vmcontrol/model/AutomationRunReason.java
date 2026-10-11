@@ -22,5 +22,7 @@ public enum AutomationRunReason {
     /** The operation could not be started. */
     ERROR,
     /** The schedule window passed without a successful run. */
-    MISSED_WINDOW
+    MISSED_WINDOW,
+    /** The day is on the rule's holiday calendar (E19-T02). */
+    HOLIDAY
 }

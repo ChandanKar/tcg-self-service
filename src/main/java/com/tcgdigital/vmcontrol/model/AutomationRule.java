@@ -53,6 +53,14 @@ public class AutomationRule {
     @Column(name = "timezone", length = 64)
     private String timezone;
 
+    /** Schedule only: the holiday calendar whose dates the rule skips (E19-T02); null for none. */
+    @Column(name = "holiday_calendar_id", length = 36)
+    private String holidayCalendarId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "holiday_behavior", nullable = false, length = 20)
+    private HolidayBehavior holidayBehavior = HolidayBehavior.SKIP_START;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "access_grant_mode", length = 20)
     private AccessGrantMode accessGrantMode;
@@ -185,6 +193,22 @@ public class AutomationRule {
 
     public void setTimezone(String timezone) {
         this.timezone = timezone;
+    }
+
+    public String getHolidayCalendarId() {
+        return holidayCalendarId;
+    }
+
+    public void setHolidayCalendarId(String holidayCalendarId) {
+        this.holidayCalendarId = holidayCalendarId;
+    }
+
+    public HolidayBehavior getHolidayBehavior() {
+        return holidayBehavior;
+    }
+
+    public void setHolidayBehavior(HolidayBehavior holidayBehavior) {
+        this.holidayBehavior = holidayBehavior;
     }
 
     public AccessGrantMode getAccessGrantMode() {

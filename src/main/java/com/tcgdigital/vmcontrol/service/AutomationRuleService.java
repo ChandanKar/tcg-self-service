@@ -70,6 +70,7 @@ public class AutomationRuleService {
     /** Evaluates one schedule rule per transaction. */
     private final TransactionTemplate ruleTransaction;
     private final ScheduleCalculator scheduleCalculator;
+    private final HolidayCalendarService holidayCalendarService;
 
     /** How late a scheduler tick may still fire a schedule time (catch-up window). */
     @Value("${automation.rules.catch-up-minutes:15}")
@@ -91,8 +92,10 @@ public class AutomationRuleService {
                                   UserService userService,
                                   PlatformTransactionManager transactionManager,
                                   ScheduleCalculator scheduleCalculator,
-                                  UserRepository userRepository) {
+                                  UserRepository userRepository,
+                                  HolidayCalendarService holidayCalendarService) {
         this.userRepository = userRepository;
+        this.holidayCalendarService = holidayCalendarService;
         this.scheduleCalculator = scheduleCalculator;
         this.ruleTransaction = new TransactionTemplate(transactionManager);
         this.ruleTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -276,14 +279,30 @@ public class AutomationRuleService {
         }
         LocalTime time = LocalTime.parse(hhmm, HHMM);
         LocalDate today = now.toLocalDate();
-        if (scheduleCalculator.isDue(now, time, days, lastFiredOn, catchUp)) {
+        boolean due = scheduleCalculator.isDue(now, time, days, lastFiredOn, catchUp);
+        boolean missed = !due && scheduleCalculator.isMissed(now, time, days, lastFiredOn, catchUp)
+                && existedBefore(rule, scheduleCalculator.dueInstant(today, time, now));
+        if (due || missed) {
+            // A holiday on the rule's local date skips the time and marks it fired for the day (E19-T02).
+            Optional<HolidayDate> holiday = holidaySkip(rule, type, today);
+            if (holiday.isPresent()) {
+                String label = holiday.get().getLabel();
+                String reason = "holiday" + (label == null ? "" : " (" + label + ")");
+                recordRun(rule, AutomationRunStatus.SKIPPED, AutomationRunReason.HOLIDAY, "Skipped: " + reason);
+                auditService.logAutomationRuleSkipped(rule.getCreatedByUserId(), rule.getRuleId(), rule.getName(),
+                        rule.getEnvironment().getEnvironmentId(), rule.getEnvironment().getName(), reason);
+                markFired.accept(today);
+                automationRuleRepository.save(rule);
+                return;
+            }
+        }
+        if (due) {
             FireOutcome outcome = fireOperation(rule, type, rule.getCreatedByUserId(), "schedule");
             if (outcome == FireOutcome.STARTED || outcome == FireOutcome.NOTHING_TO_DO) {
                 markFired.accept(today);
                 automationRuleRepository.save(rule);
             }
-        } else if (scheduleCalculator.isMissed(now, time, days, lastFiredOn, catchUp)
-                && existedBefore(rule, scheduleCalculator.dueInstant(today, time, now))) {
+        } else if (missed) {
             boolean triedToday = rule.getLastRunAt() != null
                     && rule.getLastRunAt().toInstant().isAfter(scheduleCalculator.dueInstant(today, time, now).toInstant());
             String reason = triedToday ? rule.getLastRunDetail() : "the scheduler did not run at " + hhmm;
@@ -293,6 +312,15 @@ public class AutomationRuleService {
             markFired.accept(today);
             automationRuleRepository.save(rule);
         }
+    }
+
+    /** The holiday that skips this action today: starts on any holiday, stops only with SKIP_ALL. */
+    private Optional<HolidayDate> holidaySkip(AutomationRule rule, OperationType type, LocalDate today) {
+        if (rule.getHolidayCalendarId() == null
+                || (type == OperationType.STOP && rule.getHolidayBehavior() != HolidayBehavior.SKIP_ALL)) {
+            return Optional.empty();
+        }
+        return holidayCalendarService.holidayOn(rule.getHolidayCalendarId(), today);
     }
 
     /**
@@ -600,6 +628,10 @@ public class AutomationRuleService {
                 validateWindow(windows.get(i), windows.size() > 1 ? "Window " + (i + 1) + ": " : "");
             }
             checkOverlap(windows);
+            if (dto.getHolidayCalendarId() != null && !dto.getHolidayCalendarId().isBlank()
+                    && !holidayCalendarService.exists(dto.getHolidayCalendarId())) {
+                throw new ValidationException("Holiday calendar not found: " + dto.getHolidayCalendarId());
+            }
             if (dto.getTimezone() == null || dto.getTimezone().isBlank()) {
                 throw new ValidationException("Timezone is required for a schedule rule");
             }
@@ -639,10 +671,14 @@ public class AutomationRuleService {
         if (dto.getTriggerType() == AutomationTriggerType.SCHEDULE) {
             applyWindows(rule, requestedWindows(dto));
             rule.setTimezone(dto.getTimezone());
+            rule.setHolidayCalendarId(blankToNull(dto.getHolidayCalendarId()));
+            rule.setHolidayBehavior(dto.getHolidayBehavior() == null ? HolidayBehavior.SKIP_START : dto.getHolidayBehavior());
             rule.setAccessGrantMode(null);
         } else {
             rule.getWindows().clear();
             rule.setTimezone(null);
+            rule.setHolidayCalendarId(null);
+            rule.setHolidayBehavior(HolidayBehavior.SKIP_START);
             rule.setAccessGrantMode(dto.getAccessGrantMode());
         }
 
@@ -685,7 +721,9 @@ public class AutomationRuleService {
         Environment environment = rule.getEnvironment();
         String scopeName = resolveScopeName(rule);
         String createdByDisplayName = resolveDisplayName(rule.getCreatedByUserId());
-        return AutomationRuleDTO.fromEntity(rule, environment.getName(), scopeName, createdByDisplayName);
+        AutomationRuleDTO dto = AutomationRuleDTO.fromEntity(rule, environment.getName(), scopeName, createdByDisplayName);
+        dto.setHolidayCalendarName(holidayCalendarService.nameOf(rule.getHolidayCalendarId()));
+        return dto;
     }
 
     private String resolveScopeName(AutomationRule rule) {

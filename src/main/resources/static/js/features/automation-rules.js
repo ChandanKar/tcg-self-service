@@ -11,6 +11,7 @@ const AutomationRules = (function() {
     // State
     let rules = [];
     let environments = [];
+    let holidayCalendars = []; // for the rule modal's calendar select (E19-T02)
     let scopeOptionsCache = {}; // environmentId -> { groups: [...], vms: [...] }
     let modalInstance = null;
     let editingRuleId = null;
@@ -26,7 +27,8 @@ const AutomationRules = (function() {
         CREATOR_INACTIVE: 'Creator inactive',
         SCOPE_MISSING: 'Target missing',
         ERROR: 'Error',
-        MISSED_WINDOW: 'Missed window'
+        MISSED_WINDOW: 'Missed window',
+        HOLIDAY: 'Holiday'
     };
     const filters = { search: '', environmentId: '', triggerType: '', status: '' };
     let currentPage = 1;
@@ -76,6 +78,9 @@ const AutomationRules = (function() {
             if (!isActive()) return;
             environments = envList || [];
             rules = ruleList || [];
+            // Calendars only fill the rule modal's select; a failure leaves it at "None".
+            holidayCalendars = await apiGetQuiet(Config.API.holidayCalendars.list).catch(() => []) || [];
+            if (!isActive()) return;
             render();
         } catch (error) {
             if (!isActive()) return;
@@ -101,6 +106,12 @@ const AutomationRules = (function() {
         });
     }
 
+    function apiGetQuiet(url) {
+        return new Promise((resolve, reject) => {
+            ApiClient.get(url, { suppressGlobalError: true }).done(resolve).fail(reject);
+        });
+    }
+
     // ============= Render =============
 
     function render() {
@@ -115,12 +126,32 @@ const AutomationRules = (function() {
                         <i class="fas fa-plus"></i> New Rule
                     </button>
                 </div>
-                <div id="ar-content"></div>
+                ${Auth.isAdmin() ? `
+                <ul class="nav nav-tabs ar-tabs mb-3" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="ar-rules-tab" data-bs-toggle="tab" data-bs-target="#ar-rules-pane"
+                                type="button" role="tab" aria-controls="ar-rules-pane" aria-selected="true">Rules</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="ar-holidays-tab" data-bs-toggle="tab" data-bs-target="#ar-holidays-pane"
+                                type="button" role="tab" aria-controls="ar-holidays-pane" aria-selected="false">Holiday calendars</button>
+                    </li>
+                </ul>` : ''}
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="ar-rules-pane" role="tabpanel" aria-labelledby="ar-rules-tab">
+                        <div id="ar-content"></div>
+                    </div>
+                    <div class="tab-pane fade" id="ar-holidays-pane" role="tabpanel" aria-labelledby="ar-holidays-tab"></div>
+                </div>
             </div>
             <div id="ar-modal-container"></div>
         `);
 
         $('#ar-new-rule-btn').on('click', () => openRuleModal(null));
+        // Holiday calendars load when their tab is first opened (admins only, E19-T02).
+        $('#ar-holidays-tab').one('shown.bs.tab', () => {
+            HolidayCalendars.render($('#ar-holidays-pane'), list => { holidayCalendars = list; });
+        });
         renderContent();
     }
 
@@ -393,7 +424,9 @@ const AutomationRules = (function() {
     function triggerSummary(rule) {
         if (rule.triggerType === 'SCHEDULE') {
             if (rule.scheduleSummary) {
-                return `${rule.scheduleSummary} · ${rule.timezone}`;
+                const holidays = rule.holidayCalendarName
+                    ? ` · ${rule.holidayBehavior === 'SKIP_ALL' ? 'off' : 'no starts'} on ${rule.holidayCalendarName} holidays` : '';
+                return `${rule.scheduleSummary} · ${rule.timezone}${holidays}`;
             }
             const days = (rule.daysOfWeek || []).join(', ');
             const times = [
@@ -585,7 +618,24 @@ const AutomationRules = (function() {
                                             <label class="form-label" for="ar-timezone">Timezone</label>
                                             <select class="form-select" id="ar-timezone">${tzOptions}</select>
                                         </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" for="ar-holiday-calendar">Holiday calendar</label>
+                                            <select class="form-select" id="ar-holiday-calendar">${holidayOptions(rule)}</select>
+                                        </div>
                                     </div>
+                                    <fieldset class="mb-3" id="ar-holiday-behavior" ${rule && rule.holidayCalendarId ? '' : 'hidden'}>
+                                        <legend class="form-label fs-6">On holidays</legend>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="ar-holiday-behavior" id="ar-holiday-skip-start" value="SKIP_START"
+                                                   ${!rule || rule.holidayBehavior !== 'SKIP_ALL' ? 'checked' : ''}>
+                                            <label class="form-check-label" for="ar-holiday-skip-start">Don't start on holidays (stops still run)</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="ar-holiday-behavior" id="ar-holiday-skip-all" value="SKIP_ALL"
+                                                   ${rule && rule.holidayBehavior === 'SKIP_ALL' ? 'checked' : ''}>
+                                            <label class="form-check-label" for="ar-holiday-skip-all">Skip all actions on holidays</label>
+                                        </div>
+                                    </fieldset>
                                 </div>
 
                                 <div id="ar-access-grant-fields" style="display:${isAccessGrant ? 'block' : 'none'}">
@@ -627,6 +677,17 @@ const AutomationRules = (function() {
                 </div>
             </div>
         `;
+    }
+
+    /** "None" plus the calendars; a linked calendar that no longer lists still shows by name. */
+    function holidayOptions(rule) {
+        const selected = rule ? rule.holidayCalendarId : null;
+        const options = holidayCalendars.map(c =>
+            Utils.html`<option value="${c.calendarId}" ${c.calendarId === selected ? 'selected' : ''}>${c.name}</option>`);
+        if (selected && !holidayCalendars.some(c => c.calendarId === selected)) {
+            options.push(Utils.html`<option value="${selected}" selected>${rule.holidayCalendarName || selected}</option>`);
+        }
+        return `<option value="">None</option>${options.join('')}`;
     }
 
     // ============= Schedule windows (E19-T01) =============
@@ -740,6 +801,10 @@ const AutomationRules = (function() {
             renderWindows(windows, windows.length - 1);
         });
 
+        $('#ar-holiday-calendar').on('change', function() {
+            $('#ar-holiday-behavior').prop('hidden', !$(this).val());
+        });
+
         $('#ar-scope-type').on('change', function() {
             const scopeType = $(this).val();
             $('#ar-scope-id-wrap').toggle(scopeType !== 'ENVIRONMENT');
@@ -810,6 +875,8 @@ const AutomationRules = (function() {
         if (triggerType === 'SCHEDULE') {
             dto.windows = collectWindows();
             dto.timezone = $('#ar-timezone').val();
+            dto.holidayCalendarId = $('#ar-holiday-calendar').val() || null;
+            dto.holidayBehavior = $('input[name="ar-holiday-behavior"]:checked').val() || 'SKIP_START';
         } else {
             dto.accessGrantMode = $('input[name="ar-access-grant-mode"]:checked').val();
         }

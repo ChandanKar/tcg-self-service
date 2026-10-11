@@ -86,6 +86,8 @@ public enum AuditAction {
     AUTOMATION_RULE_TRIGGERED,
     AUTOMATION_RULE_SKIPPED,
     AUTOMATION_RULE_FAILED,
+    /** A holiday calendar or its dates changed (E19-T02). */
+    HOLIDAY_CALENDAR_CHANGED,
 
     // Idle auto-stop (E16)
     IDLE_STOP_RULE_CHANGED,

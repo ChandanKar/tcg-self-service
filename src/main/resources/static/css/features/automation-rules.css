@@ -293,3 +293,41 @@
 .ar-window-time input {
     width: 7.5rem;
 }
+
+/* Holiday calendars tab (E19-T02) */
+.hc-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: start;
+}
+
+.hc-add-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.hc-add-form input[type="date"] {
+    width: 11rem;
+}
+
+.hc-add-form input[type="text"] {
+    flex: 1 1 10rem;
+}
+
+.hc-import {
+    margin-bottom: 0.75rem;
+}
+
+.hc-file {
+    flex: 1 1 14rem;
+    width: auto;
+}
+
+@media (max-width: 991.98px) {
+    .hc-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

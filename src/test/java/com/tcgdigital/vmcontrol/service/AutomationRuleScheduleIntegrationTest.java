@@ -54,6 +54,7 @@ class AutomationRuleScheduleIntegrationTest extends AbstractIntegrationTest {
     @Autowired private LockService lockService;
     @Autowired private AuditLogRepository auditLogs;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private HolidayCalendarService holidayCalendars;
 
     private Environment env;
     private User owner;
@@ -168,6 +169,56 @@ class AutomationRuleScheduleIntegrationTest extends AbstractIntegrationTest {
         assertThat(stopRuns()).isEqualTo(1);
         assertThat(lastStopFiredOn()).isEqualTo(Date.valueOf(WEDNESDAY));
         assertThat(reload().getLastRunStatus()).isEqualTo(AutomationRunStatus.SUCCESS);
+    }
+
+    /** Links the rule to a calendar holding Wednesday, and gives its window an 08:00 start (E19-T02). */
+    private void holidayOnWednesday(String behavior) {
+        String calendarId = holidayCalendars.create(owner.getUserId(),
+                new com.tcgdigital.vmcontrol.dto.HolidayCalendarDTOs.CalendarRequest("India " + UUID.randomUUID(), null)).calendarId();
+        holidayCalendars.addDate(calendarId, owner.getUserId(),
+                new com.tcgdigital.vmcontrol.dto.HolidayCalendarDTOs.DateRequest(WEDNESDAY, "Gandhi Jayanti"));
+        jdbcTemplate.update("UPDATE automation_rule SET holiday_calendar_id = ?, holiday_behavior = ? WHERE rule_id = ?",
+                calendarId, behavior, rule.getRuleId());
+        jdbcTemplate.update("UPDATE automation_rule_window SET start_time = '08:00' WHERE rule_id = ?", rule.getRuleId());
+    }
+
+    private long startRuns() {
+        return executions.findTop20ByEnvironmentEnvironmentIdOrderByStartedAtDesc(env.getEnvironmentId()).stream()
+                .filter(e -> e.getOperationType() == OperationType.START).count();
+    }
+
+    @Test
+    void aHolidaySkipsTheStartButTheStopStillRuns() {
+        holidayOnWednesday("SKIP_START");
+
+        tickAt(8, 0, 10);
+        AutomationRule skipped = reload();
+        assertThat(startRuns()).isZero();
+        assertThat(skipped.getLastRunStatus()).isEqualTo(AutomationRunStatus.SKIPPED);
+        assertThat(skipped.getLastRunReason()).isEqualTo(com.tcgdigital.vmcontrol.model.AutomationRunReason.HOLIDAY);
+        assertThat(skipped.getLastRunDetail()).isEqualTo("Skipped: holiday (Gandhi Jayanti)");
+        assertThat(jdbcTemplate.queryForObject("SELECT last_start_fired_on FROM automation_rule_window WHERE rule_id = ?",
+                Date.class, rule.getRuleId())).isEqualTo(Date.valueOf(WEDNESDAY));
+
+        tickAt(20, 0, 10);
+        assertThat(stopRuns()).isEqualTo(1);
+        assertThat(reload().getLastRunStatus()).isEqualTo(AutomationRunStatus.SUCCESS);
+    }
+
+    @Test
+    void skipAllSkipsTheStopTooAndIsNotReportedAsMissed() {
+        holidayOnWednesday("SKIP_ALL");
+
+        tickAt(20, 0, 10);
+        assertThat(stopRuns()).isZero();
+        assertThat(reload().getLastRunDetail()).isEqualTo("Skipped: holiday (Gandhi Jayanti)");
+        assertThat(lastStopFiredOn()).isEqualTo(Date.valueOf(WEDNESDAY));
+
+        // A tick after the window (the scheduler was down at 20:00) is a holiday skip too, not a miss.
+        jdbcTemplate.update("UPDATE automation_rule_window SET last_stop_fired_on = NULL WHERE rule_id = ?", rule.getRuleId());
+        tickAt(21, 0, 0);
+        assertThat(reload().getLastRunReason()).isEqualTo(com.tcgdigital.vmcontrol.model.AutomationRunReason.HOLIDAY);
+        assertThat(stopRuns()).isZero();
     }
 
     @Test

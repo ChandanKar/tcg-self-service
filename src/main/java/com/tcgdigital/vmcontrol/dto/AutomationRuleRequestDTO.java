@@ -45,6 +45,12 @@ public class AutomationRuleRequestDTO {
     /** Schedule only: IANA zone id, e.g. "Asia/Kolkata". */
     private String timezone;
 
+    /** Schedule only: a holiday calendar to skip (E19-T02); null or blank for none. */
+    private String holidayCalendarId;
+
+    /** Schedule only: SKIP_START (default) or SKIP_ALL. */
+    private com.tcgdigital.vmcontrol.model.HolidayBehavior holidayBehavior;
+
     /** Access-grant only. */
     private AccessGrantMode accessGrantMode;
 
@@ -141,6 +147,22 @@ public class AutomationRuleRequestDTO {
 
     public void setTimezone(String timezone) {
         this.timezone = timezone;
+    }
+
+    public String getHolidayCalendarId() {
+        return holidayCalendarId;
+    }
+
+    public void setHolidayCalendarId(String holidayCalendarId) {
+        this.holidayCalendarId = holidayCalendarId;
+    }
+
+    public com.tcgdigital.vmcontrol.model.HolidayBehavior getHolidayBehavior() {
+        return holidayBehavior;
+    }
+
+    public void setHolidayBehavior(com.tcgdigital.vmcontrol.model.HolidayBehavior holidayBehavior) {
+        this.holidayBehavior = holidayBehavior;
     }
 
     public AccessGrantMode getAccessGrantMode() {

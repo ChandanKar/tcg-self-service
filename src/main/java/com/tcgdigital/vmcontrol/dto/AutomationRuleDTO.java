@@ -36,6 +36,10 @@ public class AutomationRuleDTO {
     private String stopTime;
     private String startTime;
     private String timezone;
+    /** Schedule only: the linked holiday calendar (E19-T02). */
+    private String holidayCalendarId;
+    private String holidayCalendarName;
+    private com.tcgdigital.vmcontrol.model.HolidayBehavior holidayBehavior;
     private AccessGrantMode accessGrantMode;
     private boolean skipIfAlreadyInTargetState;
     private boolean enabled;
@@ -71,6 +75,8 @@ public class AutomationRuleDTO {
         dto.stopTime = first == null ? null : first.getStopTime();
         dto.startTime = first == null ? null : first.getStartTime();
         dto.timezone = rule.getTimezone();
+        dto.holidayCalendarId = rule.getHolidayCalendarId();
+        dto.holidayBehavior = rule.getHolidayBehavior();
         dto.accessGrantMode = rule.getAccessGrantMode();
         dto.skipIfAlreadyInTargetState = Boolean.TRUE.equals(rule.getSkipIfAlreadyInTargetState());
         dto.enabled = Boolean.TRUE.equals(rule.getEnabled());
@@ -195,6 +201,22 @@ public class AutomationRuleDTO {
 
     public String getTimezone() {
         return timezone;
+    }
+
+    public String getHolidayCalendarId() {
+        return holidayCalendarId;
+    }
+
+    public String getHolidayCalendarName() {
+        return holidayCalendarName;
+    }
+
+    public void setHolidayCalendarName(String holidayCalendarName) {
+        this.holidayCalendarName = holidayCalendarName;
+    }
+
+    public com.tcgdigital.vmcontrol.model.HolidayBehavior getHolidayBehavior() {
+        return holidayBehavior;
     }
 
     public AccessGrantMode getAccessGrantMode() {
