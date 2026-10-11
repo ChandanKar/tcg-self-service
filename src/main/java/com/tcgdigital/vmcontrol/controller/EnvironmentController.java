@@ -49,6 +49,8 @@ public class EnvironmentController {
     private final com.tcgdigital.vmcontrol.service.EnvironmentCostService environmentCostService;
     private final EnvironmentAccessService environmentAccessService;
 
+    private final com.tcgdigital.vmcontrol.service.LeaseService leaseService;
+
     public EnvironmentController(EnvironmentService environmentService,
                                  SecurityService securityService,
                                  EksSyncService eksSyncService,
@@ -56,7 +58,9 @@ public class EnvironmentController {
                                  NotificationService notificationService,
                                  UserService userService,
                                  EnvironmentAccessService environmentAccessService,
-                                 com.tcgdigital.vmcontrol.service.EnvironmentCostService environmentCostService) {
+                                 com.tcgdigital.vmcontrol.service.EnvironmentCostService environmentCostService,
+                                 com.tcgdigital.vmcontrol.service.LeaseService leaseService) {
+        this.leaseService = leaseService;
         this.environmentAccessService = environmentAccessService;
         this.environmentCostService = environmentCostService;
         this.environmentService = environmentService;
@@ -231,6 +235,9 @@ public class EnvironmentController {
 
         Environment environment = environmentService.getEnvironmentById(environmentId);
         EnvironmentDTO dto = toDtosWithBatchedCounts(List.of(environment)).get(0);
+        if (leaseService.isFeatureEnabled()) {
+            dto.setLeaseEnabled(Boolean.TRUE.equals(environment.getLeaseEnabled()));
+        }
 
         return ResponseEntity.ok(dto);
     }

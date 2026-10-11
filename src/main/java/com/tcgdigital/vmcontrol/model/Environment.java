@@ -54,6 +54,18 @@ public class Environment {
     @Column(name = "eks_cluster_name", length = 255)
     private String eksClusterName;
 
+    /** Environment leases (E15, V42): opted in per environment, on top of lease.enabled. */
+    @Column(name = "lease_enabled", nullable = false)
+    private Boolean leaseEnabled = false;
+
+    /** Owner's default lease length in minutes; null = the platform default. */
+    @Column(name = "lease_default_minutes")
+    private Integer leaseDefaultMinutes;
+
+    /** Owner's maximum lease length in minutes; null = the platform maximum. */
+    @Column(name = "lease_max_minutes")
+    private Integer leaseMaxMinutes;
+
     @OneToMany(mappedBy = "environment", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<VmGroup> groups = new ArrayList<>();
 
@@ -143,6 +155,30 @@ public class Environment {
 
     public void setGroups(List<VmGroup> groups) {
         this.groups = groups;
+    }
+
+    public Boolean getLeaseEnabled() {
+        return leaseEnabled;
+    }
+
+    public void setLeaseEnabled(Boolean leaseEnabled) {
+        this.leaseEnabled = leaseEnabled;
+    }
+
+    public Integer getLeaseDefaultMinutes() {
+        return leaseDefaultMinutes;
+    }
+
+    public void setLeaseDefaultMinutes(Integer leaseDefaultMinutes) {
+        this.leaseDefaultMinutes = leaseDefaultMinutes;
+    }
+
+    public Integer getLeaseMaxMinutes() {
+        return leaseMaxMinutes;
+    }
+
+    public void setLeaseMaxMinutes(Integer leaseMaxMinutes) {
+        this.leaseMaxMinutes = leaseMaxMinutes;
     }
 
     public String getEksClusterName() {

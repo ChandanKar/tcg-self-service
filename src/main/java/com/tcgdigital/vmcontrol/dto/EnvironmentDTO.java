@@ -31,6 +31,17 @@ public class EnvironmentDTO {
     private Timestamp lockedAt;
     private List<String> regions = List.of();
 
+    /** The environment opted in to leases; null while lease.enabled is false (E15-T01). */
+    private Boolean leaseEnabled;
+
+    public Boolean getLeaseEnabled() {
+        return leaseEnabled;
+    }
+
+    public void setLeaseEnabled(Boolean leaseEnabled) {
+        this.leaseEnabled = leaseEnabled;
+    }
+
     public EnvironmentDTO() {
     }
 

@@ -608,4 +608,25 @@ class FlywayMigrationTest extends AbstractIntegrationTest {
             assertTrue(leading > 0, lookup[0] + "." + lookup[1] + " must still lead an index");
         }
     }
+
+    // =====================================================
+    // ENVIRONMENT LEASES (E15-T01)
+    // =====================================================
+
+    @Test
+    void anEnvironmentHasAtMostOneActiveLease() {
+        com.tcgdigital.vmcontrol.model.Environment env = newEnvironment("lease-unique");
+        com.tcgdigital.vmcontrol.model.User user = newUser("lease-unique@example.org", false, false);
+        String insert = "INSERT INTO environment_lease (lease_id, environment_id, status, source, started_by_user_id, "
+                + "started_at, ends_at) VALUES (?, ?, ?, 'START', ?, NOW(), NOW() + INTERVAL 1 HOUR)";
+        jdbcTemplate.update(insert, UUID.randomUUID().toString(), env.getEnvironmentId(), "ACTIVE", user.getUserId());
+        jdbcTemplate.update(insert, UUID.randomUUID().toString(), env.getEnvironmentId(), "ENDED", user.getUserId());
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class, () -> jdbcTemplate.update(insert,
+                UUID.randomUUID().toString(), env.getEnvironmentId(), "ACTIVE", user.getUserId()));
+
+        Integer columns = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE "
+                + "table_schema = DATABASE() AND table_name = 'environment' AND column_name IN "
+                + "('lease_enabled', 'lease_default_minutes', 'lease_max_minutes')", Integer.class);
+        assertEquals(3, columns);
+    }
 }

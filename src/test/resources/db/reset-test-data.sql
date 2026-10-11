@@ -11,6 +11,8 @@ DELETE FROM user_notification_preference;
 DELETE FROM notification;
 DELETE FROM operation_detail;
 DELETE FROM operation_execution;
+DELETE FROM environment_lease_participant;
+DELETE FROM environment_lease;
 DELETE FROM lock_history;
 DELETE FROM environment_lock;
 DELETE FROM vm_provider_details;
