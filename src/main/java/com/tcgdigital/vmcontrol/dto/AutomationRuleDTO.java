@@ -8,6 +8,7 @@ import com.tcgdigital.vmcontrol.model.AutomationScopeType;
 import com.tcgdigital.vmcontrol.model.AutomationTriggerType;
 
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -26,6 +27,11 @@ public class AutomationRuleDTO {
     private String scopeId;
     private String scopeName;
     private AutomationTriggerType triggerType;
+    /** Schedule only: the rule's windows (E19-T01). */
+    private List<AutomationRuleWindowDTO> windows;
+    /** Schedule only: e.g. "Mon-Fri 08:00-20:00; Sat 10:00-14:00". */
+    private String scheduleSummary;
+    /** Legacy single-window fields, from the first window (older clients). */
     private List<String> daysOfWeek;
     private String stopTime;
     private String startTime;
@@ -55,10 +61,15 @@ public class AutomationRuleDTO {
         dto.scopeId = rule.getScopeId();
         dto.scopeName = scopeName;
         dto.triggerType = rule.getTriggerType();
-        dto.daysOfWeek = rule.getDaysOfWeek() == null || rule.getDaysOfWeek().isBlank()
-                ? List.of() : Arrays.asList(rule.getDaysOfWeek().split(","));
-        dto.stopTime = rule.getStopTime();
-        dto.startTime = rule.getStartTime();
+        dto.windows = new ArrayList<>();
+        for (com.tcgdigital.vmcontrol.model.AutomationRuleWindow w : rule.getWindows()) {
+            dto.windows.add(new AutomationRuleWindowDTO(days(w.getDaysOfWeek()), w.getStartTime(), w.getStopTime()));
+        }
+        dto.scheduleSummary = dto.windows.isEmpty() ? null : summarize(dto.windows);
+        AutomationRuleWindowDTO first = dto.windows.isEmpty() ? null : dto.windows.get(0);
+        dto.daysOfWeek = first == null ? List.of() : first.getDaysOfWeek();
+        dto.stopTime = first == null ? null : first.getStopTime();
+        dto.startTime = first == null ? null : first.getStartTime();
         dto.timezone = rule.getTimezone();
         dto.accessGrantMode = rule.getAccessGrantMode();
         dto.skipIfAlreadyInTargetState = Boolean.TRUE.equals(rule.getSkipIfAlreadyInTargetState());
@@ -73,6 +84,57 @@ public class AutomationRuleDTO {
         dto.lastRunReason = rule.getLastRunReason();
         dto.disabledReason = rule.getDisabledReason();
         return dto;
+    }
+
+    private static List<String> days(String csv) {
+        return csv == null || csv.isBlank() ? List.of() : Arrays.asList(csv.split(","));
+    }
+
+    private static final List<String> WEEK = List.of("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN");
+
+    /** "Mon-Fri 08:00-20:00; Sat 10:00-14:00"; a start-only window reads "start 08:00", a stop-only one "stop 20:00". */
+    public static String summarize(List<AutomationRuleWindowDTO> windows) {
+        List<String> parts = new ArrayList<>();
+        for (AutomationRuleWindowDTO w : windows) {
+            String times;
+            if (w.getStartTime() != null && w.getStopTime() != null) {
+                times = w.getStartTime() + "-" + w.getStopTime();
+            } else if (w.getStartTime() != null) {
+                times = "start " + w.getStartTime();
+            } else {
+                times = "stop " + w.getStopTime();
+            }
+            parts.add(dayRanges(w.getDaysOfWeek()) + " " + times);
+        }
+        return String.join("; ", parts);
+    }
+
+    /** MON,TUE,WED,THU,FRI -> "Mon-Fri"; MON,WED,FRI -> "Mon, Wed, Fri"; runs of three or more collapse. */
+    static String dayRanges(List<String> days) {
+        List<Integer> idx = days == null ? List.of() : days.stream().map(d -> WEEK.indexOf(d.trim().toUpperCase(java.util.Locale.ROOT)))
+                .filter(i -> i >= 0).distinct().sorted().toList();
+        List<String> out = new ArrayList<>();
+        int i = 0;
+        while (i < idx.size()) {
+            int j = i;
+            while (j + 1 < idx.size() && idx.get(j + 1) == idx.get(j) + 1) {
+                j++;
+            }
+            if (j - i >= 2) {
+                out.add(label(idx.get(i)) + "-" + label(idx.get(j)));
+            } else {
+                for (int k = i; k <= j; k++) {
+                    out.add(label(idx.get(k)));
+                }
+            }
+            i = j + 1;
+        }
+        return String.join(", ", out);
+    }
+
+    private static String label(int index) {
+        String d = WEEK.get(index);
+        return d.charAt(0) + d.substring(1).toLowerCase(java.util.Locale.ROOT);
     }
 
     public String getRuleId() {
@@ -109,6 +171,14 @@ public class AutomationRuleDTO {
 
     public AutomationTriggerType getTriggerType() {
         return triggerType;
+    }
+
+    public List<AutomationRuleWindowDTO> getWindows() {
+        return windows;
+    }
+
+    public String getScheduleSummary() {
+        return scheduleSummary;
     }
 
     public List<String> getDaysOfWeek() {

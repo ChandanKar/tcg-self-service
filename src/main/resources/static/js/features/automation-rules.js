@@ -392,6 +392,9 @@ const AutomationRules = (function() {
 
     function triggerSummary(rule) {
         if (rule.triggerType === 'SCHEDULE') {
+            if (rule.scheduleSummary) {
+                return `${rule.scheduleSummary} · ${rule.timezone}`;
+            }
             const days = (rule.daysOfWeek || []).join(', ');
             const times = [
                 rule.stopTime ? `Stop ${rule.stopTime}` : null,
@@ -495,17 +498,12 @@ const AutomationRules = (function() {
         const isSchedule = !rule || rule.triggerType === 'SCHEDULE';
         const isAccessGrant = rule && rule.triggerType === 'ACCESS_GRANT';
         const scopeType = rule ? rule.scopeType : 'ENVIRONMENT';
-        const selectedDays = rule ? (rule.daysOfWeek || []) : ['MON', 'TUE', 'WED', 'THU', 'FRI'];
+        const windows = initialWindows(rule);
         const accessGrantMode = rule ? rule.accessGrantMode : 'LOCK_ACQUIRE';
 
         const envOptions = environments.map(e =>
             `<option value="${e.environmentId}" ${rule && rule.environmentId === e.environmentId ? 'selected' : ''}>${Utils.escapeHtml(e.name)}</option>`
         ).join('');
-
-        const dayPills = DAY_ORDER.map(day => `
-            <button type="button" class="ar-day-pill ${selectedDays.includes(day) ? 'on' : ''}" data-day="${day}"
-                    aria-pressed="${selectedDays.includes(day) ? 'true' : 'false'}">${day.charAt(0) + day.slice(1).toLowerCase()}</button>
-        `).join('');
 
         // A new rule defaults to the browser's zone (it used to default to the first in the list).
         const timezone = rule ? rule.timezone : browserTimezone();
@@ -575,21 +573,16 @@ const AutomationRules = (function() {
                                 </div>
 
                                 <div id="ar-schedule-fields" style="display:${isSchedule ? 'block' : 'none'}">
-                                    <div class="mb-3">
-                                        <label class="form-label" id="ar-days-label">Days of week</label>
-                                        <div class="d-flex gap-2 flex-wrap" role="group" aria-labelledby="ar-days-label">${dayPills}</div>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="form-label mb-0" id="ar-windows-label">Time windows</span>
+                                        <button type="button" class="btn btn-sm btn-ghost" id="ar-add-window">
+                                            <i class="fas fa-plus" aria-hidden="true"></i> Add window</button>
                                     </div>
+                                    <div id="ar-windows" class="ar-windows" role="list" aria-labelledby="ar-windows-label">${windowsHtml(windows)}</div>
+                                    <p class="form-text mt-1 mb-3">Each window starts and/or stops the target on its days. Leave a time empty for a stop-only or start-only window. Windows on the same day must not overlap.</p>
                                     <div class="row mb-3">
-                                        <div class="col-md-4">
-                                            <label class="form-label">Stop at</label>
-                                            <input type="time" class="form-control" id="ar-stop-time" value="${rule ? (rule.stopTime || '') : '20:00'}">
-                                        </div>
-                                        <div class="col-md-4">
-                                            <label class="form-label">Start at</label>
-                                            <input type="time" class="form-control" id="ar-start-time" value="${rule ? (rule.startTime || '') : '08:00'}">
-                                        </div>
-                                        <div class="col-md-4">
-                                            <label class="form-label">Timezone</label>
+                                        <div class="col-md-6">
+                                            <label class="form-label" for="ar-timezone">Timezone</label>
                                             <select class="form-select" id="ar-timezone">${tzOptions}</select>
                                         </div>
                                     </div>
@@ -636,6 +629,68 @@ const AutomationRules = (function() {
         `;
     }
 
+    // ============= Schedule windows (E19-T01) =============
+
+    const MAX_WINDOWS = 7;
+
+    /** A rule's windows; older payloads carry only the single-window fields. */
+    function initialWindows(rule) {
+        if (!rule) {
+            return [{ daysOfWeek: ['MON', 'TUE', 'WED', 'THU', 'FRI'], startTime: '08:00', stopTime: '20:00' }];
+        }
+        if (Array.isArray(rule.windows) && rule.windows.length) {
+            return rule.windows;
+        }
+        return [{ daysOfWeek: rule.daysOfWeek || [], startTime: rule.startTime || '', stopTime: rule.stopTime || '' }];
+    }
+
+    function windowsHtml(windows) {
+        const removable = windows.length > 1;
+        return windows.map((w, i) => {
+            const days = w.daysOfWeek || [];
+            const pills = DAY_ORDER.map(day => {
+                const on = days.includes(day);
+                return `<button type="button" class="ar-day-pill ${on ? 'on' : ''}" data-day="${day}"
+                        aria-pressed="${on ? 'true' : 'false'}">${day.charAt(0) + day.slice(1).toLowerCase()}</button>`;
+            }).join('');
+            const n = i + 1;
+            return `
+                <div class="ar-window" role="listitem" data-index="${i}">
+                    <div class="d-flex gap-2 flex-wrap" role="group" aria-label="Days for window ${n}">${pills}</div>
+                    <div class="ar-window-times">
+                        <label class="ar-window-time">Start at
+                            <input type="time" class="form-control form-control-sm ar-start-time" aria-label="Start time for window ${n}"
+                                   value="${Utils.escapeHtml(w.startTime || '')}">
+                        </label>
+                        <label class="ar-window-time">Stop at
+                            <input type="time" class="form-control form-control-sm ar-stop-time" aria-label="Stop time for window ${n}"
+                                   value="${Utils.escapeHtml(w.stopTime || '')}">
+                        </label>
+                        ${removable ? `<button type="button" class="btn btn-sm btn-ghost ar-remove-window" aria-label="Remove window ${n}">
+                            <i class="fas fa-trash" aria-hidden="true"></i></button>` : ''}
+                    </div>
+                </div>`;
+        }).join('');
+    }
+
+    function collectWindows() {
+        return $('#ar-windows .ar-window').map(function() {
+            return {
+                daysOfWeek: $(this).find('.ar-day-pill.on').map(function() { return $(this).data('day'); }).get(),
+                startTime: $(this).find('.ar-start-time').val() || null,
+                stopTime: $(this).find('.ar-stop-time').val() || null
+            };
+        }).get();
+    }
+
+    function renderWindows(windows, focusIndex) {
+        $('#ar-windows').html(windowsHtml(windows));
+        $('#ar-add-window').prop('disabled', windows.length >= MAX_WINDOWS);
+        if (focusIndex !== undefined) {
+            $('#ar-windows .ar-window').eq(focusIndex).find('.ar-day-pill').first().trigger('focus');
+        }
+    }
+
     function browserTimezone() {
         try {
             const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -668,8 +723,21 @@ const AutomationRules = (function() {
             next.trigger('focus');
         });
 
-        $('.ar-day-pill').on('click', function() {
+        // Window rows are re-rendered on add/remove, so their events are delegated.
+        $('#ar-windows').on('click', '.ar-day-pill', function() {
             $(this).toggleClass('on').attr('aria-pressed', $(this).hasClass('on') ? 'true' : 'false');
+        });
+        $('#ar-windows').on('click', '.ar-remove-window', function() {
+            const windows = collectWindows();
+            const index = $(this).closest('.ar-window').data('index');
+            windows.splice(index, 1);
+            renderWindows(windows, Math.max(0, index - 1));
+        });
+        $('#ar-add-window').prop('disabled', $('#ar-windows .ar-window').length >= MAX_WINDOWS).on('click', () => {
+            const windows = collectWindows();
+            if (windows.length >= MAX_WINDOWS) return;
+            windows.push({ daysOfWeek: [], startTime: null, stopTime: null });
+            renderWindows(windows, windows.length - 1);
         });
 
         $('#ar-scope-type').on('change', function() {
@@ -740,9 +808,7 @@ const AutomationRules = (function() {
         };
 
         if (triggerType === 'SCHEDULE') {
-            dto.daysOfWeek = $('.ar-day-pill.on').map(function() { return $(this).data('day'); }).get();
-            dto.stopTime = $('#ar-stop-time').val() || null;
-            dto.startTime = $('#ar-start-time').val() || null;
+            dto.windows = collectWindows();
             dto.timezone = $('#ar-timezone').val();
         } else {
             dto.accessGrantMode = $('input[name="ar-access-grant-mode"]:checked').val();

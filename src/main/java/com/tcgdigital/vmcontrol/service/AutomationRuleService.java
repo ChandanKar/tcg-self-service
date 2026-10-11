@@ -2,6 +2,7 @@ package com.tcgdigital.vmcontrol.service;
 
 import com.tcgdigital.vmcontrol.dto.AutomationRuleDTO;
 import com.tcgdigital.vmcontrol.dto.AutomationRuleRequestDTO;
+import com.tcgdigital.vmcontrol.dto.AutomationRuleWindowDTO;
 import com.tcgdigital.vmcontrol.dto.StartOperationDTO;
 import com.tcgdigital.vmcontrol.exception.LockAlreadyHeldException;
 import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
@@ -250,13 +251,16 @@ public class AutomationRuleService {
                     rule.getRuleId(), rule.getTimezone());
             return;
         }
-        Set<DayOfWeek> days = scheduleCalculator.parseDays(rule.getDaysOfWeek());
         Duration catchUp = Duration.ofMinutes(catchUpMinutes);
-
-        evaluateTime(rule, OperationType.STOP, rule.getStopTime(), toLocalDate(rule.getLastStopFiredOn()),
-                now, days, catchUp, day -> rule.setLastStopFiredOn(Date.valueOf(day)));
-        evaluateTime(rule, OperationType.START, rule.getStartTime(), toLocalDate(rule.getLastStartFiredOn()),
-                now, days, catchUp, day -> rule.setLastStartFiredOn(Date.valueOf(day)));
+        // Each window fires on its own days and times and remembers its own fired-on dates (E19-T01).
+        // A copy: saving the rule while firing merges (rewrites) the windows collection.
+        for (AutomationRuleWindow window : List.copyOf(rule.getWindows())) {
+            Set<DayOfWeek> days = scheduleCalculator.parseDays(window.getDaysOfWeek());
+            evaluateTime(rule, OperationType.STOP, window.getStopTime(), toLocalDate(window.getLastStopFiredOn()),
+                    now, days, catchUp, day -> window.setLastStopFiredOn(Date.valueOf(day)));
+            evaluateTime(rule, OperationType.START, window.getStartTime(), toLocalDate(window.getLastStartFiredOn()),
+                    now, days, catchUp, day -> window.setLastStartFiredOn(Date.valueOf(day)));
+        }
     }
 
     /**
@@ -494,30 +498,108 @@ public class AutomationRuleService {
         }
     }
 
-    private void validateTriggerFields(AutomationRuleRequestDTO dto) {
-        if (dto.getTriggerType() == AutomationTriggerType.SCHEDULE) {
-            if (dto.getDaysOfWeek() == null || dto.getDaysOfWeek().isEmpty()) {
-                throw new ValidationException("At least one day of week is required for a schedule rule");
+    /** Most windows a schedule rule may have (E19-T01). */
+    static final int MAX_WINDOWS = 7;
+
+    /**
+     * The request's windows, or one window built from the legacy daysOfWeek/startTime/stopTime
+     * fields, so API clients written before E19-T01 keep working.
+     */
+    static List<AutomationRuleWindowDTO> requestedWindows(AutomationRuleRequestDTO dto) {
+        if (dto.getWindows() != null && !dto.getWindows().isEmpty()) {
+            return dto.getWindows();
+        }
+        boolean legacy = dto.getDaysOfWeek() != null || dto.getStartTime() != null || dto.getStopTime() != null;
+        return legacy ? List.of(new AutomationRuleWindowDTO(dto.getDaysOfWeek(), dto.getStartTime(), dto.getStopTime()))
+                : List.of();
+    }
+
+    private void validateWindow(AutomationRuleWindowDTO window, String prefix) {
+        if (window == null || window.getDaysOfWeek() == null || window.getDaysOfWeek().isEmpty()) {
+            throw new ValidationException(prefix + "At least one day of week is required for a schedule rule");
+        }
+        for (String day : window.getDaysOfWeek()) {
+            if (day == null || !WEEK.contains(day.trim().toUpperCase(java.util.Locale.ROOT))) {
+                throw new ValidationException(prefix + "Unknown day: " + day);
             }
-            for (String day : dto.getDaysOfWeek()) {
-                if (day == null || !WEEK.contains(day.trim().toUpperCase(java.util.Locale.ROOT))) {
-                    throw new ValidationException("Unknown day: " + day);
+        }
+        boolean hasStop = isValidTime(window.getStopTime());
+        boolean hasStart = isValidTime(window.getStartTime());
+        if (!hasStop && !hasStart) {
+            throw new ValidationException(prefix + "At least one of stop time or start time is required for a schedule rule");
+        }
+        if (window.getStopTime() != null && !window.getStopTime().isBlank() && !hasStop) {
+            throw new ValidationException(prefix + "Stop time must be in HH:mm format");
+        }
+        if (window.getStartTime() != null && !window.getStartTime().isBlank() && !hasStart) {
+            throw new ValidationException(prefix + "Start time must be in HH:mm format");
+        }
+        if (hasStop && hasStart && window.getStopTime().equals(window.getStartTime())) {
+            throw new ValidationException(prefix + "Start and stop times must differ");
+        }
+    }
+
+    /**
+     * Minutes of the day a window covers: start..stop, an evening start to a morning stop wraps
+     * (start..24:00 and 00:00..stop, on the same selected day, as the rule fires), and a window
+     * with one time is that minute.
+     */
+    static List<int[]> spans(AutomationRuleWindowDTO window) {
+        Integer start = minutes(window.getStartTime());
+        Integer stop = minutes(window.getStopTime());
+        if (start != null && stop != null) {
+            return start < stop ? List.of(new int[] {start, stop})
+                    : List.of(new int[] {start, 24 * 60}, new int[] {0, stop});
+        }
+        int at = start != null ? start : stop;
+        return List.of(new int[] {at, at + 1});
+    }
+
+    private static Integer minutes(String hhmm) {
+        if (hhmm == null || hhmm.isBlank()) {
+            return null;
+        }
+        LocalTime t = LocalTime.parse(hhmm, HHMM);
+        return t.getHour() * 60 + t.getMinute();
+    }
+
+    /** Two windows sharing a day must not cover the same minutes: "Windows overlap on MON". */
+    static void checkOverlap(List<AutomationRuleWindowDTO> windows) {
+        for (int a = 0; a < windows.size(); a++) {
+            for (int b = a + 1; b < windows.size(); b++) {
+                for (String day : WEEK) {
+                    if (!onDay(windows.get(a), day) || !onDay(windows.get(b), day)) {
+                        continue;
+                    }
+                    for (int[] x : spans(windows.get(a))) {
+                        for (int[] y : spans(windows.get(b))) {
+                            if (x[0] < y[1] && y[0] < x[1]) {
+                                throw new ValidationException("Windows overlap on " + day);
+                            }
+                        }
+                    }
                 }
             }
-            boolean hasStop = isValidTime(dto.getStopTime());
-            boolean hasStart = isValidTime(dto.getStartTime());
-            if (!hasStop && !hasStart) {
-                throw new ValidationException("At least one of stop time or start time is required for a schedule rule");
+        }
+    }
+
+    private static boolean onDay(AutomationRuleWindowDTO window, String day) {
+        return window.getDaysOfWeek().stream().anyMatch(d -> day.equals(d.trim().toUpperCase(java.util.Locale.ROOT)));
+    }
+
+    private void validateTriggerFields(AutomationRuleRequestDTO dto) {
+        if (dto.getTriggerType() == AutomationTriggerType.SCHEDULE) {
+            List<AutomationRuleWindowDTO> windows = requestedWindows(dto);
+            if (windows.isEmpty()) {
+                throw new ValidationException("At least one time window is required for a schedule rule");
             }
-            if (dto.getStopTime() != null && !dto.getStopTime().isBlank() && !hasStop) {
-                throw new ValidationException("Stop time must be in HH:mm format");
+            if (windows.size() > MAX_WINDOWS) {
+                throw new ValidationException("A schedule rule can have at most " + MAX_WINDOWS + " windows");
             }
-            if (dto.getStartTime() != null && !dto.getStartTime().isBlank() && !hasStart) {
-                throw new ValidationException("Start time must be in HH:mm format");
+            for (int i = 0; i < windows.size(); i++) {
+                validateWindow(windows.get(i), windows.size() > 1 ? "Window " + (i + 1) + ": " : "");
             }
-            if (hasStop && hasStart && dto.getStopTime().equals(dto.getStartTime())) {
-                throw new ValidationException("Start and stop times must differ");
-            }
+            checkOverlap(windows);
             if (dto.getTimezone() == null || dto.getTimezone().isBlank()) {
                 throw new ValidationException("Timezone is required for a schedule rule");
             }
@@ -555,25 +637,44 @@ public class AutomationRuleService {
         rule.setTriggerType(dto.getTriggerType());
 
         if (dto.getTriggerType() == AutomationTriggerType.SCHEDULE) {
-            // Deduplicated, in week order.
-            java.util.Set<String> chosen = dto.getDaysOfWeek().stream()
-                    .map(d -> d.trim().toUpperCase(java.util.Locale.ROOT))
-                    .collect(Collectors.toSet());
-            rule.setDaysOfWeek(WEEK.stream().filter(chosen::contains).collect(Collectors.joining(",")));
-            rule.setStopTime(blankToNull(dto.getStopTime()));
-            rule.setStartTime(blankToNull(dto.getStartTime()));
+            applyWindows(rule, requestedWindows(dto));
             rule.setTimezone(dto.getTimezone());
             rule.setAccessGrantMode(null);
         } else {
-            rule.setDaysOfWeek(null);
-            rule.setStopTime(null);
-            rule.setStartTime(null);
+            rule.getWindows().clear();
             rule.setTimezone(null);
             rule.setAccessGrantMode(dto.getAccessGrantMode());
         }
 
         rule.setSkipIfAlreadyInTargetState(dto.isSkipIfAlreadyInTargetState());
         rule.setEnabled(dto.isEnabled());
+    }
+
+    /**
+     * Updates the rule's windows in place by position, adding or removing at the end. Fired-on
+     * dates stay with their window, so saving a rule just after it fired does not fire it again.
+     */
+    private void applyWindows(AutomationRule rule, List<AutomationRuleWindowDTO> requested) {
+        List<AutomationRuleWindow> windows = rule.getWindows();
+        while (windows.size() > requested.size()) {
+            windows.remove(windows.size() - 1);
+        }
+        for (int i = 0; i < requested.size(); i++) {
+            AutomationRuleWindowDTO w = requested.get(i);
+            // Deduplicated, in week order.
+            Set<String> chosen = w.getDaysOfWeek().stream()
+                    .map(d -> d.trim().toUpperCase(java.util.Locale.ROOT))
+                    .collect(Collectors.toSet());
+            String days = WEEK.stream().filter(chosen::contains).collect(Collectors.joining(","));
+            if (i < windows.size()) {
+                AutomationRuleWindow existing = windows.get(i);
+                existing.setDaysOfWeek(days);
+                existing.setStartTime(blankToNull(w.getStartTime()));
+                existing.setStopTime(blankToNull(w.getStopTime()));
+            } else {
+                rule.addWindow(days, blankToNull(w.getStartTime()), blankToNull(w.getStopTime()));
+            }
+        }
     }
 
     private String blankToNull(String value) {
@@ -637,9 +738,11 @@ public class AutomationRuleService {
             } catch (Exception e) {
                 continue;
             }
-            Set<DayOfWeek> days = scheduleCalculator.parseDays(rule.getDaysOfWeek());
-            nextStop = earlier(nextStop, nextAt(days, rule.getStopTime(), zone, from));
-            nextStart = earlier(nextStart, nextAt(days, rule.getStartTime(), zone, from));
+            for (AutomationRuleWindow window : rule.getWindows()) {
+                Set<DayOfWeek> days = scheduleCalculator.parseDays(window.getDaysOfWeek());
+                nextStop = earlier(nextStop, nextAt(days, window.getStopTime(), zone, from));
+                nextStart = earlier(nextStart, nextAt(days, window.getStartTime(), zone, from));
+            }
         }
         return new NextFirings(schedules.size(), nextStop, nextStart);
     }

@@ -31,7 +31,10 @@ public class AutomationRuleRequestDTO {
     @NotNull(message = "Trigger type is required")
     private AutomationTriggerType triggerType;
 
-    /** Schedule only: three-letter day abbreviations, e.g. ["MON","TUE","WED"]. */
+    /** Schedule only: 1..7 time windows (E19-T01). When absent, the legacy single fields below make one. */
+    private List<AutomationRuleWindowDTO> windows;
+
+    /** Schedule only, legacy single window: three-letter day abbreviations, e.g. ["MON","TUE","WED"]. */
     private List<String> daysOfWeek;
 
     /** Schedule only: "HH:mm". At least one of stopTime/startTime is required. */
@@ -98,6 +101,14 @@ public class AutomationRuleRequestDTO {
 
     public void setTriggerType(AutomationTriggerType triggerType) {
         this.triggerType = triggerType;
+    }
+
+    public List<AutomationRuleWindowDTO> getWindows() {
+        return windows;
+    }
+
+    public void setWindows(List<AutomationRuleWindowDTO> windows) {
+        this.windows = windows;
     }
 
     public List<String> getDaysOfWeek() {

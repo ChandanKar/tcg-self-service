@@ -4,8 +4,9 @@ import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
-import java.sql.Date;
 import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * AutomationRule — a calendar-schedule or access-grant/lock-acquire trigger that
@@ -40,14 +41,14 @@ public class AutomationRule {
     @Column(name = "trigger_type", nullable = false, length = 20)
     private AutomationTriggerType triggerType;
 
-    @Column(name = "days_of_week", length = 30)
-    private String daysOfWeek;
-
-    @Column(name = "stop_time", length = 5)
-    private String stopTime;
-
-    @Column(name = "start_time", length = 5)
-    private String startTime;
+    /**
+     * Schedule only: the rule's time windows in order (E19-T01). The old single-window columns on
+     * automation_rule are no longer mapped.
+     */
+    @OneToMany(mappedBy = "rule", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("position ASC")
+    @org.hibernate.annotations.BatchSize(size = 50)
+    private List<AutomationRuleWindow> windows = new ArrayList<>();
 
     @Column(name = "timezone", length = 64)
     private String timezone;
@@ -92,12 +93,6 @@ public class AutomationRule {
     @Column(name = "disabled_reason", length = 255)
     private String disabledReason;
 
-    @Column(name = "last_stop_fired_on")
-    private Date lastStopFiredOn;
-
-    @Column(name = "last_start_fired_on")
-    private Date lastStartFiredOn;
-
     public AutomationRule() {
     }
 
@@ -107,6 +102,19 @@ public class AutomationRule {
 
     public boolean isAccessGrantRule() {
         return triggerType == AutomationTriggerType.ACCESS_GRANT;
+    }
+
+    /** Appends a window ("MON,TUE", "08:00" or null, "20:00" or null) and returns it. */
+    public AutomationRuleWindow addWindow(String daysOfWeek, String startTime, String stopTime) {
+        AutomationRuleWindow window = new AutomationRuleWindow();
+        window.setWindowId(java.util.UUID.randomUUID().toString());
+        window.setRule(this);
+        window.setPosition(windows.size());
+        window.setDaysOfWeek(daysOfWeek);
+        window.setStartTime(startTime);
+        window.setStopTime(stopTime);
+        windows.add(window);
+        return window;
     }
 
     // Getters and Setters
@@ -167,28 +175,8 @@ public class AutomationRule {
         this.triggerType = triggerType;
     }
 
-    public String getDaysOfWeek() {
-        return daysOfWeek;
-    }
-
-    public void setDaysOfWeek(String daysOfWeek) {
-        this.daysOfWeek = daysOfWeek;
-    }
-
-    public String getStopTime() {
-        return stopTime;
-    }
-
-    public void setStopTime(String stopTime) {
-        this.stopTime = stopTime;
-    }
-
-    public String getStartTime() {
-        return startTime;
-    }
-
-    public void setStartTime(String startTime) {
-        this.startTime = startTime;
+    public List<AutomationRuleWindow> getWindows() {
+        return windows;
     }
 
     public String getTimezone() {
@@ -269,22 +257,6 @@ public class AutomationRule {
 
     public void setLastRunDetail(String lastRunDetail) {
         this.lastRunDetail = lastRunDetail;
-    }
-
-    public Date getLastStopFiredOn() {
-        return lastStopFiredOn;
-    }
-
-    public void setLastStopFiredOn(Date lastStopFiredOn) {
-        this.lastStopFiredOn = lastStopFiredOn;
-    }
-
-    public Date getLastStartFiredOn() {
-        return lastStartFiredOn;
-    }
-
-    public void setLastStartFiredOn(Date lastStartFiredOn) {
-        this.lastStartFiredOn = lastStartFiredOn;
     }
 
     public AutomationRunReason getLastRunReason() {

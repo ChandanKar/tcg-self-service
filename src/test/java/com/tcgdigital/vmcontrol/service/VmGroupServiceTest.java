@@ -116,8 +116,7 @@ class VmGroupServiceTest extends AbstractIntegrationTest {
         rule.setScopeType(AutomationScopeType.GROUP);
         rule.setScopeId(db.getGroupId());
         rule.setTriggerType(AutomationTriggerType.SCHEDULE);
-        rule.setDaysOfWeek("MON");
-        rule.setStopTime("20:00");
+        rule.addWindow("MON", null, "20:00");
         rule.setTimezone("Asia/Kolkata");
         rule.setEnabled(true);
         rule.setCreatedByUserId(admin.getUserId());

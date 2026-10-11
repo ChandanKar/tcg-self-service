@@ -255,3 +255,41 @@
         flex: 1 1 calc(50% - 0.5rem);
     }
 }
+
+/* Schedule windows (E19-T01) */
+.ar-windows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.ar-window {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 8px;
+}
+
+.ar-window-times {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.ar-window-time {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary, #64748b);
+    margin: 0;
+    white-space: nowrap;
+}
+
+.ar-window-time input {
+    width: 7.5rem;
+}

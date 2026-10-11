@@ -93,9 +93,7 @@ class EnvironmentCostControllerSecurityTest extends SecuredWebTestBase {
         rule.setEnvironment(envA);
         rule.setScopeType(AutomationScopeType.ENVIRONMENT);
         rule.setTriggerType(AutomationTriggerType.SCHEDULE);
-        rule.setDaysOfWeek("MON,TUE,WED,THU,FRI");
-        rule.setStopTime("19:00");
-        rule.setStartTime("08:00");
+        rule.addWindow("MON,TUE,WED,THU,FRI", "08:00", "19:00");
         rule.setTimezone("Asia/Kolkata");
         rule.setEnabled(true);
         rule.setCreatedByUserId(admin.getUserId());

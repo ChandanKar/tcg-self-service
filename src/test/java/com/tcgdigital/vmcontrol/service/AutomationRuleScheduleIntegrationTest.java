@@ -74,8 +74,7 @@ class AutomationRuleScheduleIntegrationTest extends AbstractIntegrationTest {
         r.setEnvironment(env);
         r.setScopeType(AutomationScopeType.ENVIRONMENT);
         r.setTriggerType(AutomationTriggerType.SCHEDULE);
-        r.setDaysOfWeek("MON,TUE,WED,THU,FRI");
-        r.setStopTime("20:00");
+        r.addWindow("MON,TUE,WED,THU,FRI", null, "20:00");
         r.setTimezone("Asia/Kolkata");
         r.setSkipIfAlreadyInTargetState(true);
         r.setEnabled(true);
@@ -106,6 +105,12 @@ class AutomationRuleScheduleIntegrationTest extends AbstractIntegrationTest {
         return rules.findById(rule.getRuleId()).orElseThrow();
     }
 
+    /** The rule's (only) window's stop fired-on date; windows are lazy outside a transaction. */
+    private Date lastStopFiredOn() {
+        return jdbcTemplate.queryForObject("SELECT last_stop_fired_on FROM automation_rule_window WHERE rule_id = ?",
+                Date.class, rule.getRuleId());
+    }
+
     private long stopRuns() {
         return executions.findTop20ByEnvironmentEnvironmentIdOrderByStartedAtDesc(env.getEnvironmentId()).stream()
                 .filter(e -> e.getOperationType() == OperationType.STOP).count();
@@ -118,7 +123,7 @@ class AutomationRuleScheduleIntegrationTest extends AbstractIntegrationTest {
         assertThat(stopRuns()).isEqualTo(1);
         AutomationRule after = reload();
         assertThat(after.getLastRunStatus()).isEqualTo(AutomationRunStatus.SUCCESS);
-        assertThat(after.getLastStopFiredOn()).isEqualTo(Date.valueOf(WEDNESDAY));
+        assertThat(lastStopFiredOn()).isEqualTo(Date.valueOf(WEDNESDAY));
 
         tickAt(20, 1, 40); // the next tick does not fire again
         assertThat(stopRuns()).isEqualTo(1);
@@ -139,7 +144,7 @@ class AutomationRuleScheduleIntegrationTest extends AbstractIntegrationTest {
         AutomationRule after = reload();
         assertThat(after.getLastRunStatus()).isEqualTo(AutomationRunStatus.SKIPPED);
         assertThat(after.getLastRunDetail()).isEqualTo("Missed window: the scheduler did not run at 20:00");
-        assertThat(after.getLastStopFiredOn()).isEqualTo(Date.valueOf(WEDNESDAY));
+        assertThat(lastStopFiredOn()).isEqualTo(Date.valueOf(WEDNESDAY));
     }
 
     @Test
@@ -152,7 +157,7 @@ class AutomationRuleScheduleIntegrationTest extends AbstractIntegrationTest {
         AutomationRule locked = reload();
         assertThat(locked.getLastRunStatus()).isEqualTo(AutomationRunStatus.SKIPPED);
         assertThat(locked.getLastRunDetail()).startsWith("Environment locked by");
-        assertThat(locked.getLastStopFiredOn()).isNull(); // retried on the next tick
+        assertThat(lastStopFiredOn()).isNull(); // retried on the next tick
         tickAt(20, 1, 10); // still locked: the same skip is not audited again
         assertThat(auditLogs.findByActionOrderByCreatedAtDesc("AUTOMATION_RULE_SKIPPED", PageRequest.of(0, 20))
                 .getContent()).filteredOn(a -> rule.getRuleId().equals(a.getTargetId())).hasSize(1);
@@ -161,7 +166,7 @@ class AutomationRuleScheduleIntegrationTest extends AbstractIntegrationTest {
         tickAt(20, 5, 10);
 
         assertThat(stopRuns()).isEqualTo(1);
-        assertThat(reload().getLastStopFiredOn()).isEqualTo(Date.valueOf(WEDNESDAY));
+        assertThat(lastStopFiredOn()).isEqualTo(Date.valueOf(WEDNESDAY));
         assertThat(reload().getLastRunStatus()).isEqualTo(AutomationRunStatus.SUCCESS);
     }
 
@@ -176,7 +181,7 @@ class AutomationRuleScheduleIntegrationTest extends AbstractIntegrationTest {
 
         AutomationRule after = reload();
         assertThat(after.getLastRunDetail()).startsWith("Missed window: Environment locked by");
-        assertThat(after.getLastStopFiredOn()).isEqualTo(Date.valueOf(WEDNESDAY));
+        assertThat(lastStopFiredOn()).isEqualTo(Date.valueOf(WEDNESDAY));
         assertThat(stopRuns()).isZero();
     }
 }

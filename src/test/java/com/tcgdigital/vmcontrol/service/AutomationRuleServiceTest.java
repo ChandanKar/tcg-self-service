@@ -90,8 +90,7 @@ class AutomationRuleServiceTest extends AbstractIntegrationTest {
         r.setScopeType(scope);
         r.setScopeId(scopeId);
         r.setTriggerType(AutomationTriggerType.SCHEDULE);
-        r.setDaysOfWeek("MON,TUE,WED,THU,FRI");
-        r.setStopTime("20:00");
+        r.addWindow("MON,TUE,WED,THU,FRI", null, "20:00");
         r.setTimezone("Asia/Kolkata");
         r.setSkipIfAlreadyInTargetState(true);
         r.setEnabled(true);
@@ -117,10 +116,10 @@ class AutomationRuleServiceTest extends AbstractIntegrationTest {
         assertThat(after.getDisabledReason()).isEqualTo(message);
         assertThat(after.getLastRunReason()).isEqualTo(reason);
         assertThat(after.getLastRunStatus()).isEqualTo(AutomationRunStatus.SKIPPED);
-        Integer audits = jdbcTemplate.queryForObject(
+        // The audit row is written after commit on the notification executor.
+        awaitAsync(() -> assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM audit_log WHERE target_id = ? AND action_type = 'AUTOMATION_RULE_UPDATED'",
-                Integer.class, rule.getRuleId());
-        assertThat(audits).isEqualTo(1);
+                Integer.class, rule.getRuleId())).isEqualTo(1));
         assertThat(stopRuns()).isZero();
     }
 
@@ -257,7 +256,8 @@ class AutomationRuleServiceTest extends AbstractIntegrationTest {
         AutomationRuleDTO dto = automationRuleService.createRule(creator.getUserId(),
                 request(List.of("fri", "MON", " wed", "Mon"), "20:00", "08:00"));
 
-        assertThat(rules.findById(dto.getRuleId()).orElseThrow().getDaysOfWeek()).isEqualTo("MON,WED,FRI");
+        assertThat(jdbcTemplate.queryForObject("SELECT days_of_week FROM automation_rule_window WHERE rule_id = ?",
+                String.class, dto.getRuleId())).isEqualTo("MON,WED,FRI");
     }
 
     // ------------------------------------------------------------------ run detail and list
