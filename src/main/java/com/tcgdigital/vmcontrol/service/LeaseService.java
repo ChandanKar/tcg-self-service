@@ -64,6 +64,15 @@ public class LeaseService {
     private final int platformMaxMinutes;
     private final int platformAbsoluteMaxMinutes;
 
+    @Value("${lease.lock-release-grace-minutes:30}")
+    private int lockReleaseGraceMinutes = 30;
+
+    @Value("${lease.participant-end-grace-minutes:15}")
+    private int participantEndGraceMinutes = 15;
+
+    @Autowired
+    private com.tcgdigital.vmcontrol.repository.EnvironmentLockRepository lockRepository;
+
     /** Opening a lease runs in its own transaction so a lost race on the unique index can join instead. */
     private TransactionTemplate newTransaction;
 
@@ -286,6 +295,131 @@ public class LeaseService {
             auditService.logLeaseEnded(userId, environmentId, env.getName(), lease.getLeaseId(),
                     "Lease ended: environment stopped by " + who + ".");
         });
+    }
+
+    // ---------------------------------------------------------------- lock and access hooks (E15-T03)
+
+    /**
+     * After a lock with an expiry is taken or extended: the lock's duration becomes (or lengthens)
+     * the lease. No active lease: open one (source LOCK) ending at the lock's expiry, capped at
+     * now + effective maximum. Active lease: link the lock and move the end to the lock's expiry
+     * if later, capped at startedAt + effective maximum. The holder becomes a participant. A lock
+     * "until manually released" (no expiry) changes nothing.
+     */
+    public void onLockAcquiredOrExtended(String lockId) {
+        try {
+            newTransaction.executeWithoutResult(status -> applyLock(lockId));
+        } catch (DataIntegrityViolationException e) {
+            log.info("Lease for lock {} was opened concurrently; joining it", lockId);
+            newTransaction.executeWithoutResult(status -> applyLock(lockId));
+        }
+    }
+
+    private void applyLock(String lockId) {
+        com.tcgdigital.vmcontrol.model.EnvironmentLock lock = lockRepository.findById(lockId).orElse(null);
+        if (lock == null || !Boolean.TRUE.equals(lock.getIsActive()) || lock.getExpiresAt() == null) return;
+        Environment env = lock.getEnvironment();
+        if (!isEnabledFor(env)) return;
+        String envId = env.getEnvironmentId();
+        String holderId = lock.getLockedByUserId();
+        Instant now = Instant.now();
+        Instant lockEnd = lock.getExpiresAt().toInstant();
+
+        Optional<EnvironmentLease> active = leaseRepository.findActiveByEnvironmentId(envId);
+        if (active.isEmpty()) {
+            Instant cap = now.plus(Duration.ofMinutes(effectiveMax(env)));
+            EnvironmentLease lease = new EnvironmentLease();
+            lease.setLeaseId(UUID.randomUUID().toString());
+            lease.setEnvironment(env);
+            lease.setStatus(com.tcgdigital.vmcontrol.model.LeaseStatus.ACTIVE);
+            lease.setSource(com.tcgdigital.vmcontrol.model.LeaseSource.LOCK);
+            lease.setLockId(lockId);
+            lease.setStartedByUserId(holderId);
+            lease.setStartedAt(Timestamp.from(now));
+            lease.setEndsAt(Timestamp.from(lockEnd.isAfter(cap) ? cap : lockEnd));
+            leaseRepository.saveAndFlush(lease);
+            participantRepository.save(new EnvironmentLeaseParticipant(lease.getLeaseId(), holderId, Timestamp.from(now)));
+            auditService.logLeaseStarted(holderId, envId, env.getName(), lease.getLeaseId(),
+                    "Follows the lock until " + lease.getEndsAt().toInstant() + ".");
+            return;
+        }
+        EnvironmentLease lease = active.get();
+        lease.setLockId(lockId);
+        join(lease, holderId, now);
+        Instant cap = lease.getStartedAt().toInstant().plus(Duration.ofMinutes(effectiveMax(env)));
+        Instant wanted = lockEnd.isAfter(cap) ? cap : lockEnd;
+        if (wanted.isAfter(lease.getEndsAt().toInstant())) {
+            Instant oldEnd = lease.getEndsAt().toInstant();
+            lease.setEndsAt(Timestamp.from(wanted));
+            auditService.logLeaseExtended(holderId, envId, env.getName(), lease.getLeaseId(),
+                    "End moved from " + oldEnd + " to " + wanted + " with the lock.");
+        }
+        leaseRepository.save(lease);
+    }
+
+    /**
+     * After a lock ends (released, broken, expired or auto-released): if the active lease follows
+     * that lock, it now ends within lease.lock-release-grace-minutes unless someone extends it, and
+     * the holder leaves the lease.
+     */
+    @Transactional
+    public void onLockEnded(String lockId, String environmentId, String holderId, String reason) {
+        Environment env = environmentRepository.findById(environmentId).orElse(null);
+        if (!isEnabledFor(env)) return;
+        leaseRepository.findActiveByEnvironmentId(environmentId)
+                .filter(lease -> lockId.equals(lease.getLockId()))
+                .ifPresent(lease -> {
+                    Instant now = Instant.now();
+                    lease.setLockId(null);
+                    Instant graceEnd = now.plus(Duration.ofMinutes(lockReleaseGraceMinutes));
+                    if (graceEnd.isBefore(lease.getEndsAt().toInstant())) {
+                        lease.setEndsAt(Timestamp.from(graceEnd));
+                    }
+                    leaseRepository.save(lease);
+                    leave(lease.getLeaseId(), holderId, now, reason);
+                });
+    }
+
+    /**
+     * After a user's access to the environment ends (expired, revoked or lowered): if they can
+     * no longer operate there they leave the lease; when nobody is left it ends within
+     * lease.participant-end-grace-minutes.
+     */
+    @Transactional
+    public void onUserAccessEnded(String environmentId, String userId, String reason) {
+        Environment env = environmentRepository.findById(environmentId).orElse(null);
+        if (!isEnabledFor(env)) return;
+        Optional<EnvironmentLease> active = leaseRepository.findActiveByEnvironmentId(environmentId);
+        if (active.isEmpty()) return;
+        User user = userRepository.findById(userId).orElse(null);
+        if (user != null && Boolean.TRUE.equals(user.getIsActive())
+                && securityService.canOperateInEnvironment(user, environmentId)) {
+            return;
+        }
+        EnvironmentLease lease = active.get();
+        Instant now = Instant.now();
+        if (!leave(lease.getLeaseId(), userId, now, reason)) return;
+        if (participantRepository.findByLeaseIdAndLeftAtIsNullOrderByJoinedAtAsc(lease.getLeaseId()).isEmpty()) {
+            Instant graceEnd = now.plus(Duration.ofMinutes(participantEndGraceMinutes));
+            if (graceEnd.isBefore(lease.getEndsAt().toInstant())) {
+                lease.setEndsAt(Timestamp.from(graceEnd));
+                leaseRepository.save(lease);
+            }
+        }
+    }
+
+    /** Mark an active participant as left; false when they were not one. */
+    private boolean leave(String leaseId, String userId, Instant now, String reason) {
+        return participantRepository
+                .findById(new com.tcgdigital.vmcontrol.model.EnvironmentLeaseParticipantId(leaseId, userId))
+                .filter(p -> p.getLeftAt() == null)
+                .map(p -> {
+                    p.setLeftAt(Timestamp.from(now));
+                    p.setLeftReason(reason == null ? null : reason.length() > 100 ? reason.substring(0, 100) : reason);
+                    participantRepository.save(p);
+                    return true;
+                })
+                .orElse(false);
     }
 
     // ---------------------------------------------------------------- leases

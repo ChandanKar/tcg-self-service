@@ -54,6 +54,11 @@ public class LockService {
     @org.springframework.beans.factory.annotation.Value("${locks.expiry.warning-minutes:15,5}")
     private List<Integer> warningMinutes = List.of(15, 5);
 
+    // Environment leases follow locks with an expiry (E15-T03); every hook runs after commit.
+    @org.springframework.beans.factory.annotation.Autowired
+    @Lazy
+    private LeaseService leaseService;
+
     /** One expiry, committed on its own: one failing lock does not stop the sweep. */
     private final org.springframework.transaction.support.TransactionTemplate expiryTransaction;
 
@@ -174,6 +179,10 @@ public class LockService {
         afterCommit.run(() -> runNotificationSideEffect("trigger lock-acquire automation rules", environmentId, () ->
                 automationRuleService.handleLockAcquired(environmentId, userId)));
 
+        final String acquiredLockId = lock.getLockId();
+        afterCommit.run(() -> runNotificationSideEffect("open lease from lock", environmentId, () ->
+                leaseService.onLockAcquiredOrExtended(acquiredLockId)));
+
         log.info("Lock acquired on environment {} by user {}", environmentId, userId);
 
         return lock;
@@ -220,6 +229,9 @@ public class LockService {
                         environmentId,
                         environmentName,
                         userId)));
+        final String releasedLockId = lock.getLockId();
+        afterCommit.run(() -> runNotificationSideEffect("end lease lock", environmentId, () ->
+                leaseService.onLockEnded(releasedLockId, environmentId, userId, "lock released")));
 
         log.info("Lock released on environment {} by user {}", environmentId, userId);
     }
@@ -253,6 +265,9 @@ public class LockService {
         log.warn("Lock on environment {} broken by admin {} (was held by {}). Reason: {}",
                 environmentId, adminUserId, originalLockHolder, breakReason);
 
+        final String brokenLockId = lock.getLockId();
+        afterCommit.run(() -> runNotificationSideEffect("end lease lock", environmentId, () ->
+                leaseService.onLockEnded(brokenLockId, environmentId, originalLockHolder, "lock broken")));
         afterCommit.run(() -> runNotificationSideEffect("notify lock broken", environmentId, () ->
                 notificationService.notifyLockBrokenForEnvironment(
                         environmentId,
@@ -285,6 +300,10 @@ public class LockService {
      */
     @Transactional
     public boolean releaseIfHolderLostAccess(String environmentId, String userId, String reason) {
+        // Every grant expiry, revocation and lowering calls this, so it is also where the user's part
+        // of the environment's lease ends if they can no longer operate there (E15-T03).
+        afterCommit.run(() -> runNotificationSideEffect("lease participant access ended", environmentId, () ->
+                leaseService.onUserAccessEnded(environmentId, userId, reason)));
         EnvironmentLock lock = lockRepository.findByEnvironmentIdWithEnvironment(environmentId).orElse(null);
         if (lock == null || !lock.getLockedByUserId().equals(userId)) {
             return false;
@@ -311,6 +330,9 @@ public class LockService {
         auditService.logLockAutoReleased(holderId, environmentId, environmentName, reason);
         afterCommit.run(() -> runNotificationSideEffect("notify lock released", environmentId, () ->
                 notificationService.notifyLockReleasedForEnvironment(environmentId, environmentName, holderId)));
+        final String autoLockId = lock.getLockId();
+        afterCommit.run(() -> runNotificationSideEffect("end lease lock", environmentId, () ->
+                leaseService.onLockEnded(autoLockId, environmentId, holderId, reason)));
         log.info("Lock on environment {} held by {} auto-released: {}", environmentId, holderId, reason);
     }
 
@@ -343,6 +365,9 @@ public class LockService {
                         .withZone(java.time.ZoneOffset.UTC).format(newExpiry);
         recordLockHistory(lock, LockAction.EXTENDED, userId, notes);
         auditService.logLockExtended(userId, environmentId, lock.getEnvironment().getName(), notes);
+        final String extendedLockId = lock.getLockId();
+        afterCommit.run(() -> runNotificationSideEffect("extend lease with lock", environmentId, () ->
+                leaseService.onLockAcquiredOrExtended(extendedLockId)));
         log.info("Lock on environment {} extended by {} to {}", environmentId, userId, newExpiry);
         return lock;
     }
@@ -423,6 +448,8 @@ public class LockService {
             auditService.logLockExpired(holderId, environmentId, environmentName, "Expired after " + minutes + " minutes");
             afterCommit.run(() -> runNotificationSideEffect("notify lock expired", environmentId, () ->
                     notificationService.notifyLockExpiredForEnvironment(environmentId, environmentName, holderId)));
+            afterCommit.run(() -> runNotificationSideEffect("end lease lock", environmentId, () ->
+                    leaseService.onLockEnded(lockId, environmentId, holderId, "lock expired")));
             log.info("Lock on environment {} held by {} expired after {} minutes", environmentId, holderId, minutes);
             return true;
         });
