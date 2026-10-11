@@ -59,11 +59,49 @@ public class ChatDispatchService {
 
     /** The app link for an environment, or null when chat.public-base-url is not set. */
     public String environmentLink(String environmentId) {
-        if (publicBaseUrl == null || publicBaseUrl.isBlank() || environmentId == null) {
+        return environmentId == null ? null : appLink("#/environments/" + environmentId);
+    }
+
+    /** An app page ("#/pending-requests"), or null when chat.public-base-url is not set. */
+    public String appLink(String hash) {
+        if (publicBaseUrl == null || publicBaseUrl.isBlank()) {
             return null;
         }
-        return publicBaseUrl.replaceAll("/+$", "") + "/#/environments/" + environmentId;
+        // /home serves the app; signed-out users are sent to /login, which keeps the hash (E24-T04).
+        return publicBaseUrl.replaceAll("/+$", "") + "/home" + hash;
     }
+
+    /** A button to add (E24-T04): it becomes a signed one-click link when links can be made. */
+    public record ActionSpec(com.tcgdigital.vmcontrol.model.ChatActionType type, String label, String targetId, String style) {}
+
+    /**
+     * Like {@link #notify(String, NotificationType, ChatMessage.Severity, String, String, String)}
+     * with buttons. Each button is a single-use signed link to the confirm page; without
+     * chat.public-base-url or a signing key the message goes out without them.
+     */
+    public void notifyWithActions(String environmentId, NotificationType type, ChatMessage.Severity severity, String title,
+                                  String text, String linkHash, List<ActionSpec> actions, String dedupKey) {
+        if (!enabled) {
+            return;
+        }
+        java.util.List<ChatAction> buttons = new java.util.ArrayList<>();
+        if (appLink("") != null && actionTokens != null && actionTokens.isConfigured()) {
+            for (ActionSpec spec : actions) {
+                try {
+                    String token = actionTokens.issue(spec.type(), environmentId, spec.targetId());
+                    buttons.add(new ChatAction(spec.type(), spec.label(), appLink("#/chat-action/" + token), spec.style()));
+                } catch (RuntimeException e) {
+                    log.warn("Could not create a {} chat link: {}", spec.type(), e.getClass().getSimpleName());
+                }
+            }
+        }
+        String link = linkHash != null ? appLink(linkHash) : environmentLink(environmentId);
+        dispatch(environmentId, type, new ChatMessage(title, text, severity, List.of(), buttons, link), dedupKey);
+    }
+
+    /** Signs the one-click links (E24-T04); optional so the dispatcher works without it. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ChatActionTokenService actionTokens;
 
     /** Builds the usual message (text plus an Open link) and dispatches it. */
     public void notify(String environmentId, NotificationType type, ChatMessage.Severity severity, String title, String text) {

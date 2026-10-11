@@ -68,7 +68,7 @@ class ChatDispatchServiceTest {
         ArgumentCaptor<ChatMessage> message = ArgumentCaptor.forClass(ChatMessage.class);
         verify(sender).send(eq("https://x.logic.azure.com/hook-a"), message.capture(), eq("Channel a"));
         verifyNoMoreInteractions(ignoreStubs(sender));
-        assertThat(message.getValue().linkUrl()).isEqualTo("https://vmc.example.com/#/environments/env-1");
+        assertThat(message.getValue().linkUrl()).isEqualTo("https://vmc.example.com/home#/environments/env-1");
         assertThat(message.getValue().severity()).isEqualTo(ChatMessage.Severity.CRITICAL);
         ArgumentCaptor<ChatDeliveryLog> row = ArgumentCaptor.forClass(ChatDeliveryLog.class);
         verify(logs).save(row.capture());
@@ -130,7 +130,7 @@ class ChatDispatchServiceTest {
         service.notify("env-1", NotificationType.OPERATION_FAILED, ChatMessage.Severity.CRITICAL, "t", "x");
         verifyNoInteractions(channels, logs, afterCommit);
         verify(sender, never()).send(anyString(), any(), anyString());
-        assertThat(service.environmentLink("e")).isEqualTo("https://vmc.example.com/#/environments/e");
+        assertThat(service.environmentLink("e")).isEqualTo("https://vmc.example.com/home#/environments/e");
         ReflectionTestUtils.setField(service, "publicBaseUrl", "");
         assertThat(service.environmentLink("e")).isNull();
     }

@@ -128,6 +128,10 @@ const Config = (function() {
         },
 
         // Teams (E23)
+        // One-click Teams action links (E24-T04)
+        chatActions: {
+            item: (token) => `${API_BASE_URL}/chat-actions/${encodeURIComponent(token)}`
+        },
         // Microsoft Teams channels per environment (E24-T02)
         chatChannels: {
             options: `${API_BASE_URL}/chat-channels/options`,

@@ -123,6 +123,14 @@
         }
     }
 
+    // A deep link opened while signed out (e.g. a Teams action button) arrives here with its hash:
+    // keep it so the app opens it after sign-in (E24-T04).
+    if (/^#\/[A-Za-z]/.test(window.location.hash || '')) {
+        try {
+            sessionStorage.setItem('vmcontrol.intendedRoute', window.location.hash);
+        } catch (e) { /* storage blocked: the user lands on the dashboard */ }
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         showLogoutMessage();
         showSignInError();

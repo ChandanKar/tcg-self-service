@@ -296,21 +296,21 @@ class NotificationServiceTest {
         service.notifyStopEnvironment("env-A", "Env A", "user-regular", "maintenance");
         service.notifyIdleStopForEnvironment("env-A", "Env A", 90, 2);
         service.notifyStateDriftDetected("env-A", "Env A", "web-1", "RUNNING", "STOPPED", "vm-1");
-        service.notifyAccessRequestedForReviewers("env-A", "Env A", "user-regular", "req-1", "user");
         service.notifyCostAnomaly("env-A", "Env A", new java.math.BigDecimal("12.50"), null, "EC2", "an-1");
 
         ArgumentCaptor<com.tcgdigital.vmcontrol.model.NotificationType> types =
                 ArgumentCaptor.forClass(com.tcgdigital.vmcontrol.model.NotificationType.class);
         ArgumentCaptor<String> titles = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> texts = ArgumentCaptor.forClass(String.class);
-        verify(chat, times(7)).notify(eq("env-A"), types.capture(), any(), titles.capture(), texts.capture(), any());
+        verify(chat, times(5)).notify(eq("env-A"), types.capture(), any(), titles.capture(), texts.capture(), any());
         assertEquals(List.of(com.tcgdigital.vmcontrol.model.NotificationType.OPERATION_FAILED,
                 com.tcgdigital.vmcontrol.model.NotificationType.LOCK_BROKEN,
-                com.tcgdigital.vmcontrol.model.NotificationType.ENVIRONMENT_STOP_NOTICE,
                 com.tcgdigital.vmcontrol.model.NotificationType.IDLE_AUTO_STOPPED,
                 com.tcgdigital.vmcontrol.model.NotificationType.STATE_DRIFT_DETECTED,
-                com.tcgdigital.vmcontrol.model.NotificationType.ACCESS_REQUESTED,
                 com.tcgdigital.vmcontrol.model.NotificationType.COST_ANOMALY), types.getAllValues());
+        // Stop notices carry no Stop-now button by default (chat.actions.stop-enabled=false).
+        verify(chat).notifyWithActions(eq("env-A"), eq(com.tcgdigital.vmcontrol.model.NotificationType.ENVIRONMENT_STOP_NOTICE),
+                any(), argThat(t -> !t.startsWith("You")), anyString(), eq(null), eq(List.of()), eq(null));
         for (String text : titles.getAllValues()) {
             assertFalse(text.matches("(?i)^(you|your)\b.*"), text);
         }
@@ -318,6 +318,20 @@ class NotificationServiceTest {
             assertFalse(text.matches("(?is).*\b(you|your|you're)\b.*"), text);
         }
         assertTrue(texts.getAllValues().get(0).contains("Reason: boom"));
+    }
+
+    @Test
+    void anAccessRequestGoesToChatWithAnApproveButton() {
+        com.tcgdigital.vmcontrol.service.chat.ChatDispatchService chat =
+                mock(com.tcgdigital.vmcontrol.service.chat.ChatDispatchService.class);
+        service.setChatDispatch(chat);
+        service.notifyAccessRequestedForReviewers("env-A", "Env A", "user-regular", "req-1", "user");
+        ArgumentCaptor<List<com.tcgdigital.vmcontrol.service.chat.ChatDispatchService.ActionSpec>> actions =
+                ArgumentCaptor.forClass(List.class);
+        verify(chat).notifyWithActions(eq("env-A"), eq(com.tcgdigital.vmcontrol.model.NotificationType.ACCESS_REQUESTED),
+                any(), anyString(), anyString(), eq("#/pending-requests"), actions.capture(), eq(null));
+        assertEquals(com.tcgdigital.vmcontrol.model.ChatActionType.APPROVE_ACCESS_REQUEST, actions.getValue().get(0).type());
+        assertEquals("req-1", actions.getValue().get(0).targetId());
     }
 
     @Test

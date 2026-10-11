@@ -57,6 +57,13 @@ const ContentRouter = (function() {
             pattern: /^#\/environments\/([^/?]+)$/,
             build: p => (p && p.environmentId) ? '#/environments/' + encodeURIComponent(p.environmentId) : null,
             params: m => ({ environmentId: decodeURIComponent(m[1]) })
+        },
+        {
+            // One-click Teams action confirm page (E24-T04); the token is a signed, single-use link.
+            contentType: 'chat-action',
+            pattern: /^#\/chat-action\/([A-Za-z0-9_\-.]+)$/,
+            build: p => (p && p.token) ? '#/chat-action/' + p.token : null,
+            params: m => ({ token: m[1] })
         }
     ];
 
@@ -93,6 +100,7 @@ const ContentRouter = (function() {
             'waste':              () => window.Waste?.load?.(),
             'teams':              () => window.Teams?.load?.(),
             'chargeback':         () => window.Chargeback?.load?.(),
+            'chat-action':        (params) => window.ChatActionPage?.load?.(params),
             'cost-setup':         () => window.CostSetup?.load?.(),
             'system-health':      () => SystemHealth.load(),
             'settings':           () => showPlaceholder('settings'),

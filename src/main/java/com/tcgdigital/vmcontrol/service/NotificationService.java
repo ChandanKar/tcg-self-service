@@ -78,6 +78,9 @@ public class NotificationService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.tcgdigital.vmcontrol.service.chat.ChatDispatchService chat;
 
+    @Value("${chat.actions.stop-enabled:false}")
+    private boolean chatStopActionsEnabled;
+
     void setChatDispatch(com.tcgdigital.vmcontrol.service.chat.ChatDispatchService chat) {
         this.chat = chat;
     }
@@ -305,7 +308,17 @@ public class NotificationService {
 
         resolveEnvironmentReviewers(environmentId).forEach(user -> create(user.getUserId(),
                 NotificationType.ACCESS_REQUESTED, title, message, "ACCESS_REQUEST", requestId));
-        toChat(environmentId, NotificationType.ACCESS_REQUESTED, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.INFO, title, message);
+        if (chat != null) {
+            try {
+                // Approve opens a signed one-click confirm page; the message links to Pending Requests (E24-T04).
+                chat.notifyWithActions(environmentId, NotificationType.ACCESS_REQUESTED, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.INFO, title, message,
+                        "#/pending-requests", List.of(new com.tcgdigital.vmcontrol.service.chat.ChatDispatchService.ActionSpec(
+                                com.tcgdigital.vmcontrol.model.ChatActionType.APPROVE_ACCESS_REQUEST, "Approve", requestId, "primary")),
+                        null);
+            } catch (RuntimeException e) {
+                log.warn("Could not send the access request to chat: {}", e.getClass().getSimpleName());
+            }
+        }
 
         if (emailAccessRequestedEnabled) {
             // Email is intentionally narrower than the bell's reviewer set — All Admin only,
@@ -857,7 +870,18 @@ public class NotificationService {
                             "ENVIRONMENT", environmentId);
                 })
                 .toList());
-        toChat(environmentId, NotificationType.ENVIRONMENT_STOP_NOTICE, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.WARNING, otherTitle, otherMessage);
+        if (chat != null) {
+            try {
+                // "Stop now" only with chat.actions.stop-enabled (off until the flow is security-reviewed).
+                chat.notifyWithActions(environmentId, NotificationType.ENVIRONMENT_STOP_NOTICE, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.WARNING,
+                        otherTitle, otherMessage, null,
+                        chatStopActionsEnabled ? List.of(new com.tcgdigital.vmcontrol.service.chat.ChatDispatchService.ActionSpec(
+                                com.tcgdigital.vmcontrol.model.ChatActionType.STOP_ENVIRONMENT, "Stop now", null, "danger")) : List.of(),
+                        null);
+            } catch (RuntimeException e) {
+                log.warn("Could not send the stop notice to chat: {}", e.getClass().getSimpleName());
+            }
+        }
 
         List<String> addresses = recipients.stream()
                 .filter(user -> user != null && Boolean.TRUE.equals(user.getIsActive()) && !isBlank(user.getEmail()))

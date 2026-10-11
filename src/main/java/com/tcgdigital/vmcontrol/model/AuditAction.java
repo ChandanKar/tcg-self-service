@@ -118,6 +118,8 @@ public enum AuditAction {
     CHAT_CHANNEL_CREATED,
     CHAT_CHANNEL_UPDATED,
     CHAT_CHANNEL_DELETED,
+    /** A one-click chat action link was used (E24-T04); details say "via chat". */
+    CHAT_ACTION_EXECUTED,
 
     // Waste sweeps (E22)
     WASTE_FINDING_DISMISSED,
