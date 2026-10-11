@@ -11,6 +11,7 @@ DELETE FROM user_notification_preference;
 DELETE FROM notification;
 DELETE FROM operation_detail;
 DELETE FROM operation_execution;
+DELETE FROM lease_extension_request;
 DELETE FROM environment_lease_participant;
 DELETE FROM environment_lease;
 DELETE FROM lock_history;

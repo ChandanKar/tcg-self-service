@@ -200,7 +200,11 @@ const NotificationBell = (function () {
             WEEKLY_IDLE_WASTE_REPORT: 'fa-bed',
             WEEKLY_RIGHTSIZING_REPORT: 'fa-compress-arrows-alt',
             ENVIRONMENT_STOP_NOTICE: 'fa-stop-circle',
-            IDLE_AUTO_STOPPED:       'fa-moon'
+            IDLE_AUTO_STOPPED:       'fa-moon',
+            LEASE_EXPIRING:          'fa-hourglass-half',
+            LEASE_EXPIRED:           'fa-power-off',
+            LEASE_EXTENSION_REQUESTED: 'fa-user-clock',
+            LEASE_EXTENSION_DECIDED: 'fa-gavel'
         };
         return icons[type] || 'fa-bell';
     }
@@ -210,7 +214,8 @@ const NotificationBell = (function () {
             return 'tone-danger';
         }
         if (['ACCESS_EXPIRING', 'ACCESS_REQUESTED', 'LOCK_ACQUIRED', 'OPERATION_REQUESTED', 'LOCK_EXPIRING',
-             'ENVIRONMENT_STOP_NOTICE', 'AUTOMATION_RULE_SKIPPED'].includes(type)) {
+             'ENVIRONMENT_STOP_NOTICE', 'AUTOMATION_RULE_SKIPPED', 'LEASE_EXPIRING', 'LEASE_EXPIRED',
+             'LEASE_EXTENSION_REQUESTED'].includes(type)) {
             return 'tone-warning';
         }
         if (['OPERATION_COMPLETED', 'ACCESS_GRANTED', 'ACCESS_REQUEST_APPROVED', 'EKS_SYNC_CHANGED'].includes(type)) {

@@ -53,6 +53,8 @@ public class NotificationService {
     private boolean emailOperationFailedEnabled;
     @Value("${notification.email.lock-broken.enabled:false}")
     private boolean emailLockBrokenEnabled;
+    @Value("${notification.email.lease-expiring.enabled:false}")
+    private boolean emailLeaseExpiringEnabled;
 
     public NotificationService(NotificationRepository notificationRepository,
                                EnvironmentAccessRepository accessRepository,
@@ -293,6 +295,51 @@ public class NotificationService {
             recipients.addAll(resolveAdministeringEnvAdmins(environmentId));
             sendEventEmail(recipients, title, message);
         }
+    }
+
+    // ============= Environment leases (E15-T04) =============
+
+    /**
+     * Warn a lease participant that the environment stops soon. One per user and warning window
+     * ({@code dedupSince} = end - threshold), so an extension re-arms the warnings. The bell
+     * opens the environment page, where Extend is offered.
+     */
+    public boolean notifyLeaseExpiring(String userId, String environmentId, String environmentName,
+                                       Timestamp endsAt, long minutesLeft, Timestamp dedupSince) {
+        String title = "Environment stopping soon: " + environmentName;
+        String message = "\"" + environmentName + "\" stops at " + formatTime(endsAt) + " (in " + minutesLeft
+                + " min). Extend it from the environment page.";
+        boolean created = createIfAbsentSince(userId, NotificationType.LEASE_EXPIRING, title, message,
+                "ENVIRONMENT", environmentId, dedupSince);
+        if (created && emailLeaseExpiringEnabled) {
+            sendEventEmailToUser(userId, title, message);
+        }
+        return created;
+    }
+
+    /** Tell the environment's owners that someone asked to run past the maximum. */
+    public void notifyLeaseExtensionRequested(String environmentId, String environmentName, String requesterUserId,
+                                              int minutes, String reason) {
+        String title = "Lease extension requested: " + environmentName;
+        String message = resolveUserDisplayName(requesterUserId) + " asked to keep \"" + environmentName
+                + "\" running " + minutes + " more minutes, beyond its maximum"
+                + (isBlank(reason) ? "." : ": " + reason);
+        resolveEnvironmentReviewers(environmentId).forEach(user -> create(user.getUserId(),
+                NotificationType.LEASE_EXTENSION_REQUESTED, title, message, "ENVIRONMENT", environmentId));
+    }
+
+    /** Tell the requester what the owner decided. */
+    public void notifyLeaseExtensionDecided(String requesterUserId, String environmentId, String environmentName,
+                                            boolean approved, int minutes, String notes) {
+        String title = (approved ? "Extension approved: " : "Extension denied: ") + environmentName;
+        String message = "Your request to keep \"" + environmentName + "\" running " + minutes + " more minutes was "
+                + (approved ? "approved" : "denied") + (isBlank(notes) ? "." : ": " + notes);
+        create(requesterUserId, NotificationType.LEASE_EXTENSION_DECIDED, title, message, "ENVIRONMENT", environmentId);
+    }
+
+    private static String formatTime(Timestamp ts) {
+        return ts == null ? "-" : java.time.format.DateTimeFormatter.ofPattern("HH:mm 'UTC'")
+                .withZone(java.time.ZoneOffset.UTC).format(ts.toInstant());
     }
 
     public void notifyAccessExpired(String userId, String scopeLabel, String environmentId,

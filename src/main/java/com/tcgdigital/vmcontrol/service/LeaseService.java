@@ -73,6 +73,22 @@ public class LeaseService {
     @Autowired
     private com.tcgdigital.vmcontrol.repository.EnvironmentLockRepository lockRepository;
 
+    @Autowired
+    private com.tcgdigital.vmcontrol.repository.LeaseExtensionRequestRepository extensionRepository;
+
+    @Autowired
+    private com.tcgdigital.vmcontrol.repository.OperationExecutionRepository executionRepository;
+
+    @Autowired
+    @Lazy
+    private NotificationService notificationService;
+
+    @Autowired
+    private com.tcgdigital.vmcontrol.service.support.AfterCommit afterCommit;
+
+    @Value("${lease.warning-minutes:60,15,5}")
+    private List<Integer> warningMinutes = List.of(60, 15, 5);
+
     /** Opening a lease runs in its own transaction so a lost race on the unique index can join instead. */
     private TransactionTemplate newTransaction;
 
@@ -422,6 +438,215 @@ public class LeaseService {
                 .orElse(false);
     }
 
+    // ---------------------------------------------------------------- extend and approve (E15-T04)
+
+    /** What an extend call did: applied (200, the lease) or sent to the owners (202, the request). */
+    public record ExtendOutcome(LeaseDTO lease, com.tcgdigital.vmcontrol.dto.LeaseExtensionRequestDTO request) {
+        public boolean applied() {
+            return lease != null;
+        }
+    }
+
+    /**
+     * Extend the running lease by {@code minutes} from its end (or from now if it already passed).
+     * Within the owner's maximum it applies at once; beyond it (up to the platform's absolute
+     * maximum) it becomes one pending request for the owners; beyond that it is a 400.
+     */
+    public ExtendOutcome extend(String environmentId, int minutes, String reason) {
+        assertFeatureEnabled();
+        securityService.assertCanOperate(environmentId);
+        String userId = userService.getCurrentUserId();
+        try {
+            return newTransaction.execute(status -> extendOnce(environmentId, userId, minutes, reason));
+        } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
+            // Someone else changed the lease at the same moment: decide again on the fresh row.
+            return newTransaction.execute(status -> extendOnce(environmentId, userId, minutes, reason));
+        }
+    }
+
+    private ExtendOutcome extendOnce(String environmentId, String userId, int minutes, String reason) {
+        EnvironmentLease lease = leaseRepository.findActiveByEnvironmentId(environmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Lease", "no active lease on " + environmentId));
+        Environment env = lease.getEnvironment();
+        Instant now = Instant.now();
+        Instant base = lease.getEndsAt().toInstant().isAfter(now) ? lease.getEndsAt().toInstant() : now;
+        Instant newEnd = base.plus(Duration.ofMinutes(minutes));
+        long total = Duration.between(lease.getStartedAt().toInstant(), newEnd).toMinutes();
+
+        if (total <= effectiveMax(env)) {
+            Instant oldEnd = lease.getEndsAt().toInstant();
+            lease.setEndsAt(Timestamp.from(newEnd));
+            lease.setExtendedMinutesTotal(lease.getExtendedMinutesTotal() + minutes);
+            leaseRepository.saveAndFlush(lease);
+            join(lease, userId, now);
+            auditService.logLeaseExtended(userId, environmentId, env.getName(), lease.getLeaseId(),
+                    "Extended by " + minutes + " minutes: " + oldEnd + " -> " + newEnd + ".");
+            return new ExtendOutcome(toDto(lease, permissionsFor(environmentId)), null);
+        }
+        if (total > platformAbsoluteMaxMinutes) {
+            throw new ValidationException("An environment can run at most " + platformAbsoluteMaxMinutes
+                    + " minutes in one lease, even with approval");
+        }
+        if (extensionRepository.findFirstByLeaseIdAndStatus(lease.getLeaseId(),
+                com.tcgdigital.vmcontrol.model.LeaseExtensionStatus.PENDING).isPresent()) {
+            throw new com.tcgdigital.vmcontrol.exception.ConflictException(
+                    "An extension request is already waiting for the owner's decision");
+        }
+        com.tcgdigital.vmcontrol.model.LeaseExtensionRequest request = new com.tcgdigital.vmcontrol.model.LeaseExtensionRequest();
+        request.setRequestId(UUID.randomUUID().toString());
+        request.setLeaseId(lease.getLeaseId());
+        request.setRequesterUserId(userId);
+        request.setMinutes(minutes);
+        request.setReason(reason);
+        request.setStatus(com.tcgdigital.vmcontrol.model.LeaseExtensionStatus.PENDING);
+        request.setCreatedAt(Timestamp.from(now));
+        try {
+            extensionRepository.saveAndFlush(request);
+        } catch (DataIntegrityViolationException e) {
+            throw new com.tcgdigital.vmcontrol.exception.ConflictException(
+                    "An extension request is already waiting for the owner's decision");
+        }
+        auditService.logEnvironmentAction(userId, com.tcgdigital.vmcontrol.model.AuditAction.LEASE_EXTENSION_REQUESTED,
+                environmentId, env.getName(), "lease", lease.getLeaseId(), env.getName(),
+                "Asked to extend by " + minutes + " minutes, beyond the " + effectiveMax(env) + "-minute maximum"
+                        + (reason == null || reason.isBlank() ? "." : ": " + reason));
+        String envName = env.getName();
+        afterCommit.run(() -> notificationService.notifyLeaseExtensionRequested(environmentId, envName, userId,
+                minutes, reason));
+        return new ExtendOutcome(null, toRequestDto(request, environmentId));
+    }
+
+    /**
+     * An owner approves or denies a pending request. Only the first decision wins (409 for the
+     * other); an approval adds the minutes from the lease's end (or now), ignoring the owner
+     * maximum but never the platform's absolute maximum.
+     */
+    @Transactional
+    public com.tcgdigital.vmcontrol.dto.LeaseExtensionRequestDTO decideExtension(String requestId, boolean approve,
+                                                                              String notes) {
+        assertFeatureEnabled();
+        com.tcgdigital.vmcontrol.model.LeaseExtensionRequest request = extensionRepository.findById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Lease extension request", requestId));
+        EnvironmentLease lease = leaseRepository.findById(request.getLeaseId())
+                .orElseThrow(() -> new ResourceNotFoundException("Lease", request.getLeaseId()));
+        Environment env = lease.getEnvironment();
+        String environmentId = env.getEnvironmentId();
+        String envName = env.getName(); // read now: the decision's update clears the persistence context
+        securityService.assertCanView(environmentId);
+        if (!securityService.canManageEnvironmentAccess(environmentId)) {
+            throw new com.tcgdigital.vmcontrol.exception.UnauthorizedException(
+                    "Only the environment's owners can decide lease extensions");
+        }
+        String reviewerId = userService.getCurrentUserId();
+        Instant now = Instant.now();
+        com.tcgdigital.vmcontrol.model.LeaseExtensionStatus decided = approve
+                ? com.tcgdigital.vmcontrol.model.LeaseExtensionStatus.APPROVED
+                : com.tcgdigital.vmcontrol.model.LeaseExtensionStatus.DENIED;
+        if (extensionRepository.transitionFromPending(requestId, decided, reviewerId, Timestamp.from(now), notes) == 0) {
+            throw new com.tcgdigital.vmcontrol.exception.ConflictException("This request was already decided");
+        }
+        // The modifying query cleared the persistence context: reload the lease.
+        lease = leaseRepository.findById(request.getLeaseId()).orElseThrow();
+        if (approve && lease.getStatus() == com.tcgdigital.vmcontrol.model.LeaseStatus.ACTIVE) {
+            Instant base = lease.getEndsAt().toInstant().isAfter(now) ? lease.getEndsAt().toInstant() : now;
+            Instant newEnd = base.plus(Duration.ofMinutes(request.getMinutes()));
+            Instant absoluteCap = lease.getStartedAt().toInstant().plus(Duration.ofMinutes(platformAbsoluteMaxMinutes));
+            if (newEnd.isAfter(absoluteCap)) newEnd = absoluteCap;
+            lease.setEndsAt(Timestamp.from(newEnd));
+            lease.setExtendedMinutesTotal(lease.getExtendedMinutesTotal() + request.getMinutes());
+            leaseRepository.save(lease);
+            join(lease, request.getRequesterUserId(), now);
+        }
+        auditService.logEnvironmentAction(reviewerId, com.tcgdigital.vmcontrol.model.AuditAction.LEASE_EXTENSION_DECIDED,
+                environmentId, envName, "lease", lease.getLeaseId(), envName,
+                (approve ? "Approved" : "Denied") + " a " + request.getMinutes() + "-minute extension"
+                        + (notes == null || notes.isBlank() ? "." : ": " + notes));
+        String requesterId = request.getRequesterUserId();
+        int minutes = request.getMinutes();
+        afterCommit.run(() -> notificationService.notifyLeaseExtensionDecided(requesterId, environmentId, envName,
+                approve, minutes, notes));
+        com.tcgdigital.vmcontrol.model.LeaseExtensionRequest fresh = extensionRepository.findById(requestId).orElseThrow();
+        return toRequestDto(fresh, environmentId);
+    }
+
+    /** Pending requests on the environment's active lease, for its owners. */
+    @Transactional(readOnly = true)
+    public List<com.tcgdigital.vmcontrol.dto.LeaseExtensionRequestDTO> pendingExtensions(String environmentId) {
+        assertFeatureEnabled();
+        securityService.assertCanView(environmentId);
+        if (!securityService.canManageEnvironmentAccess(environmentId)) {
+            throw new com.tcgdigital.vmcontrol.exception.UnauthorizedException(
+                    "Only the environment's owners can see extension requests");
+        }
+        return leaseRepository.findActiveByEnvironmentId(environmentId)
+                .map(lease -> extensionRepository.findByLeaseIdAndStatusOrderByCreatedAtAsc(lease.getLeaseId(),
+                                com.tcgdigital.vmcontrol.model.LeaseExtensionStatus.PENDING).stream()
+                        .map(r -> toRequestDto(r, environmentId)).toList())
+                .orElse(List.of());
+    }
+
+    // ---------------------------------------------------------------- warnings (E15-T04)
+
+    /**
+     * Warn the people keeping each lease-enabled environment running at every lease.warning-minutes
+     * threshold before its end: active participants, the lock holder and anyone who started an
+     * operation there during the lease, if they can still operate. Each threshold fires once per
+     * user (de-duplicated per warning window, so an extension re-arms them).
+     *
+     * @return how many warnings were created
+     */
+    @Transactional
+    public int processLeaseWarnings() {
+        if (!featureEnabled) return 0;
+        Instant now = Instant.now();
+        int sent = 0;
+        for (int threshold : warningMinutes.stream().sorted(java.util.Comparator.reverseOrder()).toList()) {
+            for (EnvironmentLease lease : leaseRepository.findActiveEndingBetween(Timestamp.from(now),
+                    Timestamp.from(now.plus(Duration.ofMinutes(threshold))))) {
+                Environment env = lease.getEnvironment();
+                if (!isEnabledFor(env)) continue;
+                Timestamp windowStart = Timestamp.from(lease.getEndsAt().toInstant().minus(Duration.ofMinutes(threshold)));
+                long minutesLeft = Math.max(1, Duration.between(now, lease.getEndsAt().toInstant()).toMinutes());
+                for (String userId : warningRecipients(lease)) {
+                    if (notificationService.notifyLeaseExpiring(userId, env.getEnvironmentId(), env.getName(),
+                            lease.getEndsAt(), minutesLeft, windowStart)) {
+                        sent++;
+                    }
+                }
+            }
+        }
+        return sent;
+    }
+
+    private java.util.Set<String> warningRecipients(EnvironmentLease lease) {
+        String envId = lease.getEnvironment().getEnvironmentId();
+        java.util.Set<String> ids = new java.util.LinkedHashSet<>();
+        participantRepository.findByLeaseIdAndLeftAtIsNullOrderByJoinedAtAsc(lease.getLeaseId())
+                .forEach(p -> ids.add(p.getUserId()));
+        lockRepository.findByEnvironmentEnvironmentIdAndIsActiveTrue(envId).ifPresent(l -> ids.add(l.getLockedByUserId()));
+        ids.addAll(executionRepository.findInitiatorIdsSince(envId, lease.getStartedAt()));
+        java.util.Set<String> recipients = new java.util.LinkedHashSet<>();
+        userRepository.findAllById(ids).forEach(user -> {
+            if (Boolean.TRUE.equals(user.getIsActive()) && securityService.canOperateInEnvironment(user, envId)) {
+                recipients.add(user.getUserId());
+            }
+        });
+        return recipients;
+    }
+
+    private LeaseDTO.Permissions permissionsFor(String environmentId) {
+        return new LeaseDTO.Permissions(securityService.canOperateInEnvironment(environmentId),
+                securityService.canManageEnvironmentAccess(environmentId));
+    }
+
+    private com.tcgdigital.vmcontrol.dto.LeaseExtensionRequestDTO toRequestDto(
+            com.tcgdigital.vmcontrol.model.LeaseExtensionRequest r, String environmentId) {
+        String requesterName = userRepository.findById(r.getRequesterUserId()).map(LeaseService::displayName).orElse(null);
+        return new com.tcgdigital.vmcontrol.dto.LeaseExtensionRequestDTO(r.getRequestId(), r.getLeaseId(), environmentId,
+                r.getRequesterUserId(), requesterName, r.getMinutes(), r.getReason(), r.getStatus().name(),
+                r.getCreatedAt(), r.getReviewedByUserId(), r.getReviewedAt(), r.getReviewNotes());
+    }
+
     // ---------------------------------------------------------------- leases
 
     /** The environment's active lease, or empty. */
@@ -436,8 +661,7 @@ public class LeaseService {
         assertFeatureEnabled();
         securityService.assertCanView(environmentId);
         return leaseRepository.findActiveByEnvironmentId(environmentId).map(lease -> toDto(lease,
-                new LeaseDTO.Permissions(securityService.canOperateInEnvironment(environmentId),
-                        securityService.canManageEnvironmentAccess(environmentId))));
+                permissionsFor(environmentId)));
     }
 
     LeaseDTO toDto(EnvironmentLease lease, LeaseDTO.Permissions permissions) {
@@ -462,6 +686,11 @@ public class LeaseService {
                 .map(p -> new LeaseDTO.Participant(p.getUserId(), displayName(users.get(p.getUserId())), p.getJoinedAt()))
                 .toList());
         dto.setPermissions(permissions);
+        if (extensionRepository != null) {
+            extensionRepository.findFirstByLeaseIdAndStatus(lease.getLeaseId(),
+                            com.tcgdigital.vmcontrol.model.LeaseExtensionStatus.PENDING)
+                    .ifPresent(r -> dto.setPendingExtension(toRequestDto(r, dto.getEnvironmentId())));
+        }
         return dto;
     }
 
