@@ -54,7 +54,7 @@ async function expectInViewport(page: Page, selector: string) {
 let seededEnvId = '';
 test.beforeAll(async ({ playwright }) => {
   // Never depend on environments left by other runs (E13 a11y specs).
-  seededEnvId = await seedEnvironment(playwright, 'Phone E2E');
+  seededEnvId = await seedEnvironment(playwright, 'Phone E2E', { grantUser: true });
 });
 
 test.describe('Phone layout (user)', () => {

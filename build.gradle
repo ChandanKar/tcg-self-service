@@ -111,16 +111,18 @@ tasks.register('unitTest', Test) {
 }
 
 // ---------------------------------------------------------------------------
-// Frontend build: reads index.html to derive file order, bundles into dist/
+// Frontend build: reads index.html to derive file order, bundles into
+// build/generated/frontend/static/dist/. processResources packages the bundle and the patched
+// index.html (E14-T02); pass -PskipBundle to serve the individual source files instead.
 // Never needs updating when new CSS/JS files are added — just add to index.html
 // ---------------------------------------------------------------------------
 tasks.register('buildFrontend') {
 	group = 'build'
-	description = 'Bundles CSS and JS (order derived from index.html) into static/dist/'
+	description = 'Bundles CSS and JS (order derived from index.html) into build/generated/frontend/static/dist/'
 
 	def staticDir = file('src/main/resources/static')
 	def indexHtml = file("${staticDir}/index.html")
-	def distDir   = file("${staticDir}/dist")
+	def distDir   = layout.buildDirectory.dir('generated/frontend/static/dist').get().asFile
 
 	inputs.file   indexHtml
 	inputs.dir    "${staticDir}/css"
@@ -208,8 +210,29 @@ tasks.register('patchIndexHtml') {
 		if (!patched.contains('dist/app.css') || !patched.contains('dist/app.js')) {
 			throw new GradleException("patchIndexHtml: regex did not match — verify comment markers in index.html")
 		}
+		// Carry the source's asset stamp onto the bundle references so browsers fetch a new bundle.
+		def stamp = (content =~ /\?v=([A-Za-z0-9._-]+)/)
+		if (stamp.find()) {
+			def v = stamp.group(1)
+			patched = patched.replace('href="dist/app.css"', "href=\"dist/app.css?v=${v}\"")
+			                 .replace('src="dist/app.js"', "src=\"dist/app.js?v=${v}\"")
+		}
 		patchedFile.text = patched
 		logger.lifecycle("patchIndexHtml: wrote production index.html")
+	}
+}
+
+// Package the bundle and the patched index.html (E14-T02). A stale local static/dist from the old
+// script is never packaged. -PskipBundle keeps the one-file-per-module index.html for debugging.
+sourceSets.main.resources.exclude 'static/dist/**'
+
+tasks.named('processResources') {
+	if (!project.hasProperty('skipBundle')) {
+		dependsOn tasks.named('patchIndexHtml')
+		// Declared after the source resources, so with INCLUDE the patched index.html wins.
+		from(layout.buildDirectory.dir('generated/frontend')) { into '.' }
+		from(layout.buildDirectory.dir('generated/patched-static')) { into 'static' }
+		duplicatesStrategy = DuplicatesStrategy.INCLUDE
 	}
 }
 
