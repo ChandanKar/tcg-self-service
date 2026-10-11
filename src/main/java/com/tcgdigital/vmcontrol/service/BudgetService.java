@@ -123,7 +123,7 @@ public class BudgetService {
     @Transactional(readOnly = true)
     public List<String> teams() {
         return environmentRepository.findByIsActiveTrue().stream()
-                .map(e -> teamResolver.resolveTeam(e.getMetadata())).distinct().sorted().toList();
+                .map(teamResolver::resolveTeam).distinct().sorted().toList();
     }
 
     // ============= Writes =============
@@ -274,7 +274,7 @@ public class BudgetService {
         }
         List<String> ids = new ArrayList<>();
         for (Environment e : environmentRepository.findByIsActiveTrue()) {
-            if (budget.getScopeId().equals(teamResolver.resolveTeam(e.getMetadata()))) {
+            if (budget.getScopeId().equals(teamResolver.resolveTeam(e))) {
                 ids.add(e.getEnvironmentId());
             }
         }

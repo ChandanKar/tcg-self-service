@@ -47,6 +47,14 @@ public class Environment {
     @Column(columnDefinition = "TEXT")
     private String metadata;
 
+    /**
+     * The team that owns the environment (E23-T01); null when unassigned. Eager: the team is
+     * read by scheduled jobs outside a transaction, and the team table is small.
+     */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "team_id")
+    private Team team;
+
     @Column(name = "service_type", length = 20, nullable = false)
     private String serviceType = "EC2";
 
@@ -213,5 +221,18 @@ public class Environment {
 
     public void setStartFrozenUntil(java.sql.Timestamp startFrozenUntil) {
         this.startFrozenUntil = startFrozenUntil;
+    }
+
+    public Team getTeam() {
+        return team;
+    }
+
+    public void setTeam(Team team) {
+        this.team = team;
+    }
+
+    /** The owning team's id, or null. */
+    public String getTeamId() {
+        return team == null ? null : team.getTeamId();
     }
 }

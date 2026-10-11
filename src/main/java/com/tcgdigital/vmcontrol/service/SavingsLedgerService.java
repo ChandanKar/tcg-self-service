@@ -184,7 +184,7 @@ public class SavingsLedgerService {
             Map<SavingsCause, BigDecimal> hours = calculator.avoidedByCause(vmStart, windowEnd.toInstant(),
                     seed, seedCause, withCause, calculator.defaultBaseline());
             Environment env = vm.getGroup().getEnvironment();
-            String team = teamResolver.resolveTeam(env.getMetadata());
+            String team = teamResolver.resolveTeam(env);
             for (Map.Entry<SavingsCause, BigDecimal> e : hours.entrySet()) {
                 SavingsCalculator.Money money = calculator.money(e.getValue(), rate.hourlyRate(),
                         storage.getOrDefault(vm.getVmId(), 0L), storageRate, withPublicIp.contains(vm.getVmId()), coverage);

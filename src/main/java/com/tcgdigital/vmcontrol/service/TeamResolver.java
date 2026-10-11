@@ -23,6 +23,20 @@ public class TeamResolver {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * The environment's team (E23-T01): its linked team's display name, else the legacy
+     * metadata ownerTeam, else "Unassigned".
+     */
+    public String resolveTeam(com.tcgdigital.vmcontrol.model.Environment environment) {
+        if (environment == null) {
+            return UNASSIGNED;
+        }
+        if (environment.getTeam() != null) {
+            return environment.getTeam().getDisplayName();
+        }
+        return resolveTeam(environment.getMetadata());
+    }
+
     public String resolveTeam(String environmentMetadata) {
         if (environmentMetadata == null || environmentMetadata.isBlank()) {
             return UNASSIGNED;

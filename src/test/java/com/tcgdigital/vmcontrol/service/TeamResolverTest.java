@@ -16,7 +16,7 @@ class TeamResolverTest {
 
     @Test
     void returnsUnassignedWhenMetadataIsNull() {
-        assertEquals("Unassigned", resolver.resolveTeam(null));
+        assertEquals("Unassigned", resolver.resolveTeam((String) null));
     }
 
     @Test

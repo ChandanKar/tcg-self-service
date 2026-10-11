@@ -102,6 +102,11 @@ public enum AuditAction {
     /** An owner said whether a cost anomaly was real (E21-T03). */
     COST_ANOMALY_FEEDBACK,
 
+    // Teams (E23)
+    TEAM_CREATED,
+    TEAM_UPDATED,
+    TEAM_DEACTIVATED,
+
     // Waste sweeps (E22)
     WASTE_FINDING_DISMISSED,
     WASTE_FINDING_REOPENED,

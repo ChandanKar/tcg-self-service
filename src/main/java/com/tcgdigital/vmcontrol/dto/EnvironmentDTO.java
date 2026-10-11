@@ -58,7 +58,23 @@ public class EnvironmentDTO {
         dto.setServiceType(environment.getServiceType());
         dto.setEksClusterName(environment.getEksClusterName());
         dto.setProduction(Boolean.TRUE.equals(environment.getIsProduction()));
+        if (environment.getTeam() != null) {
+            dto.teamId = environment.getTeam().getTeamId();
+            dto.teamName = environment.getTeam().getDisplayName();
+        }
         return dto;
+    }
+
+    /** The owning team (E23-T01); null when unassigned. */
+    private String teamId;
+    private String teamName;
+
+    public String getTeamId() {
+        return teamId;
+    }
+
+    public String getTeamName() {
+        return teamName;
     }
 
     public static EnvironmentDTO fromEntityWithCounts(Environment environment, int groupCount, int vmCount,

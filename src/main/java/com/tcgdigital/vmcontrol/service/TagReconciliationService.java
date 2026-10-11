@@ -164,7 +164,7 @@ public class TagReconciliationService {
         Map<String, String> tags = new LinkedHashMap<>();
         tags.put(tagKeyPrefix + "managed-by", "vmcontrol");
         tags.put(tagKeyPrefix + "environment", environment.getName());
-        tags.put(tagKeyPrefix + "team", teamResolver.resolveTeam(environment.getMetadata()));
+        tags.put(tagKeyPrefix + "team", teamResolver.resolveTeam(environment));
         return tags;
     }
 

@@ -237,7 +237,7 @@ public class CostEstimationService {
 
         Map<String, Map<Date, BigDecimal>> costByTeamAndDate = new LinkedHashMap<>();
         for (CostDailySnapshot snapshot : snapshots) {
-            String team = teamResolver.resolveTeam(snapshot.getEnvironment().getMetadata());
+            String team = teamResolver.resolveTeam(snapshot.getEnvironment());
             costByTeamAndDate
                     .computeIfAbsent(team, k -> new LinkedHashMap<>())
                     .merge(snapshot.getSnapshotDate(), nullToZero(snapshot.getEstimatedCost()), BigDecimal::add);
@@ -280,7 +280,7 @@ public class CostEstimationService {
         return bundles.stream().map(b -> {
             com.tcgdigital.vmcontrol.model.Environment env = b.vm().getGroup().getEnvironment();
             return new VmOpportunity(b.vm().getVmId(), env.getEnvironmentId(), b.vm().getGroup().getGroupId(),
-                    teamResolver.resolveTeam(env.getMetadata()), b.estimate().cost(), b.estimate().costKnown(),
+                    teamResolver.resolveTeam(env), b.estimate().cost(), b.estimate().costKnown(),
                     b.idle(), b.idle() ? monthlyIdleCost(b) : BigDecimal.ZERO,
                     downsizeSaving.getOrDefault(b.vm().getVmId(), BigDecimal.ZERO),
                     Boolean.TRUE.equals(env.getIsProduction()), Boolean.TRUE.equals(env.getLeaseEnabled()));

@@ -135,7 +135,7 @@ public class PotentialSavingsService {
         Map<String, List<VmOpportunity>> byEnvironment = new LinkedHashMap<>();
         all.forEach(o -> byEnvironment.computeIfAbsent(o.environmentId(), k -> new java.util.ArrayList<>()).add(o));
         byEnvironment.forEach((envId, list) -> save(today, envId,
-                environmentRepository.findById(envId).map(e -> teamResolver.resolveTeam(e.getMetadata())).orElse(null),
+                environmentRepository.findById(envId).map(teamResolver::resolveTeam).orElse(null),
                 summarize(list, scheduled, offHoursShare)));
         log.info("Efficiency snapshot {}: fleet + {} environment(s)", today, byEnvironment.size());
         return 1 + byEnvironment.size();
