@@ -23,7 +23,10 @@ The main domain is environment-scoped VM operations: users can access environmen
 # Run with production profile
 $env:SPRING_PROFILES_ACTIVE="prod"; .\gradlew bootRun
 
-# Run all tests
+# Tests that need no database
+.\gradlew unitTest
+
+# Run all tests (integration tests need MySQL: TEST_DB_URL in .env or Docker for Testcontainers)
 .\gradlew test
 
 # Run one test class
@@ -32,8 +35,11 @@ $env:SPRING_PROFILES_ACTIVE="prod"; .\gradlew bootRun
 # Run one test method
 .\gradlew test --tests "*.EnvironmentServiceTest.methodName"
 
-# Bundle frontend assets after CSS/JS changes
-.\build-frontend.ps1
+# Front-end helper tests
+node --test "src/test/js/**/*.test.mjs"
+
+# Serve individual JS/CSS files instead of the bundle (debugging)
+.\gradlew bootRun -PskipBundle
 ```
 
 A root `.env` file based on `.env.example` is required before running the app. It supplies database credentials, AWS keys, and Azure Entra ID configuration.
@@ -43,9 +49,9 @@ A root `.env` file based on `.env.example` is required before running the app. I
 Backend flow:
 
 ```text
-HTTP -> Controllers (/api/v1/**) -> Services -> Repositories (Spring Data JPA) -> DB
+HTTP -> Controllers (/api/v1/**) -> Services -> Repositories (Spring Data JPA) -> MySQL
                                            -> AWS SDK / cloud provider operations
-                                           -> scheduled jobs for state sync and access expiry
+                                           -> scheduled jobs (state sync, metrics, cost, access/lock expiry, ...)
 ```
 
 Package root: `com.tcgdigital.vmcontrol`
@@ -54,13 +60,14 @@ Important packages:
 
 | Package | Purpose |
 | --- | --- |
-| `controller` | REST controllers and `GlobalExceptionHandler` |
+| `controller` | 19 REST controllers and `GlobalExceptionHandler` |
 | `service` | Business logic, orchestration, cloud integration |
 | `repository` | Spring Data JPA repositories |
 | `model` | JPA entities |
 | `dto` | Request/response API contracts; do not expose entities directly |
-| `config` | Spring Security, AWS, OAuth2, async configuration |
-| `security` | OAuth2 user loading and environment-scoped access checks |
+| `config` | AWS clients, async executors, app configuration |
+| `security` | Security chains, `CustomOAuth2UserService`, CSRF/CSP/header filters |
+| `scheduler` | Scheduled job entry points (each takes a DB job lock) |
 
 ## Key Domain Concepts
 
@@ -78,27 +85,23 @@ Security is selected by `entraid.enabled`:
 | `entraid.enabled` | Config | Behavior |
 | --- | --- | --- |
 | `true` | `EntraidSecurityConfig` | Microsoft Entra ID OAuth2 PKCE; `CustomOAuth2UserService` upserts users on first login |
-| `false` | `DefaultSecurityConfig` | Dev mode; permits all HTTP access while dev username/password validation is handled by `AuthenticationService` |
+| `false` | `DefaultSecurityConfig` | Dev mode (only with the `dev`/`test` profile, enforced by `SecurityModeGuard`); permits all, the dev user is chosen with the `X-User-Id` header |
 
 Roles are ordered as `ADMIN` > `ENV_ADMIN` > `USER` > `VIEWER`.
 
-Method-level security uses `@PreAuthorize`. Use `SecurityService` for environment-scoped access checks in the service layer.
+Method-level security uses `@PreAuthorize`. Use `SecurityService` (in `service`) for environment-scoped access checks in the service layer.
 
 ## Database
 
-- Development uses file-based H2 at `./data/vmcontrol.mv.db`.
-- The H2 console is available at `/h2-console`.
-- Production uses MySQL configured through `.env`.
-- Flyway runs automatically on startup.
-- Migrations live in `src/main/resources/db/migration/`.
+- MySQL 8 only (no H2), configured through `.env`.
+- Flyway runs `migrate` on startup with validation and no automatic repair; an edited applied migration stops startup (see `docs/runbook-flyway.md`).
+- Migrations live in `src/main/resources/db/migration/` (V1-V41, plus the Java `V24__secure_legacy_passwords`).
 - Do not edit existing migrations. Add a new versioned migration instead.
-- Tests use isolated in-memory H2 and seed data from `src/test/resources/db/reset-test-data.sql`.
+- Integration tests (`AbstractIntegrationTest`) use a local MySQL schema from `TEST_DB_URL` (name must end in `_test`; it is wiped) or a Testcontainers MySQL (Docker). `reset-test-data.sql` reseeds before each test; tests run with `ddl-auto=validate`.
 
 ## Cloud Provider Pattern
 
-`CloudProviderFactory` resolves implementations of `CloudProviderService` by `VmCloudProvider` enum values: `AWS`, `GCP`, `AZURE`, and `OCI`.
-
-Only `AwsCloudProviderService` is fully implemented currently. Other providers are stubs. When adding a provider, implement `CloudProviderService` and register the implementation in the factory.
+`CloudProviderFactory` resolves implementations of `CloudProviderService` by the `CloudProvider` enum. Implemented: `AwsCloudProviderService` (`AWS`, EC2) and `EksCloudProviderService` (`AWS_EKS`, EKS node groups). `AZURE`, `GCP` and `OCI` have no implementation and are rejected by the factory. A new provider implements `CloudProviderService`; its `getProvider()` registers it.
 
 ## VM Operation Orchestration
 
@@ -116,15 +119,15 @@ Relevant paths:
 
 - Source JavaScript: `src/main/resources/static/js/`
 - Source CSS: `src/main/resources/static/css/`
-- Bundled assets: `src/main/resources/static/dist/`
+- Bundled assets: built by Gradle into `build/generated/frontend/static/dist/` and packaged by `processResources`
 - Main HTML: `src/main/resources/static/index.html`
 - API base URL and feature flags: `src/main/resources/static/js/config.js`
 
-Edit source JS/CSS files, not `dist/` outputs. After frontend source changes, run `.\build-frontend.ps1` or the Gradle frontend bundling task so `dist/app.js` and `dist/app.css` are refreshed.
+Edit source JS/CSS files. The bundle order comes from `index.html`, and `bootRun`, `bootJar` and tests rebuild `dist/app.js` / `dist/app.css` automatically (`.\build-frontend.ps1` is only a wrapper). Bump the `?v=` asset stamp in `index.html` on UI changes. Feature switches are listed in `CLAUDE.md`.
 
 ## Internal Docs
 
-The `.ai/` directory contains more detailed design and engineering guidance:
+The `.ai/` directory (local, currently gitignored) contains more detailed design and engineering guidance:
 
 - `.ai/brain/architecture.md`: data flows and auth flows
 - `.ai/brain/domain-model.md`: entity relationships

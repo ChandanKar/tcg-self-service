@@ -6,6 +6,8 @@ Spring Boot 3.5 API with a vanilla-JS single-page frontend for self-service cont
 
 `./gradlew bootRun` starts the app with the `dev` profile unless `SPRING_PROFILES_ACTIVE` is set. Setting `ENTRAID_ENABLED=false` swaps in the permit-all dev security (a dev user is chosen with the `X-User-Id` header), so the app refuses to start that way unless the `dev` or `test` profile is active.
 
+The frontend is served as one bundle (`dist/app.js`, `dist/app.css`) that Gradle builds from the files listed in `src/main/resources/static/index.html`; `bootRun`, `bootJar` and the tests rebuild it automatically. Run `./gradlew bootRun -PskipBundle` to load the individual source files instead. The database is MySQL 8 in every environment; Flyway validates migrations on startup and never repairs them automatically (see `docs/runbook-flyway.md`).
+
 With Entra ID on, every POST, PUT, PATCH and DELETE needs the `X-XSRF-TOKEN` header, matching the `XSRF-TOKEN` cookie the server sets. `ApiClient` and the login page send it automatically, so API scripts must send it too.
 
 ## Running tests
