@@ -107,6 +107,11 @@ public enum AuditAction {
     TEAM_UPDATED,
     TEAM_DEACTIVATED,
 
+    // Shared-cost split rules (E23-T05)
+    COST_SPLIT_RULE_CREATED,
+    COST_SPLIT_RULE_UPDATED,
+    COST_SPLIT_RULE_DELETED,
+
     // Waste sweeps (E22)
     WASTE_FINDING_DISMISSED,
     WASTE_FINDING_REOPENED,
