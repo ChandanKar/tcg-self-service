@@ -134,7 +134,14 @@ const Config = (function() {
             dismiss: (id) => `${API_BASE_URL}/waste/findings/${encodeURIComponent(id)}/dismiss`,
             reopen: (id) => `${API_BASE_URL}/waste/findings/${encodeURIComponent(id)}/reopen`,
             sweep: `${API_BASE_URL}/waste/sweep`,
-            export: `${API_BASE_URL}/waste/findings/export`
+            export: `${API_BASE_URL}/waste/findings/export`,
+            // Fix actions (E22-T04/T05)
+            actions: `${API_BASE_URL}/waste/actions`,
+            actionsConfig: `${API_BASE_URL}/waste/actions/config`,
+            propose: (findingId) => `${API_BASE_URL}/waste/findings/${encodeURIComponent(findingId)}/actions`,
+            approve: (id) => `${API_BASE_URL}/waste/actions/${encodeURIComponent(id)}/approve`,
+            reject: (id) => `${API_BASE_URL}/waste/actions/${encodeURIComponent(id)}/reject`,
+            rollback: (id) => `${API_BASE_URL}/waste/actions/${encodeURIComponent(id)}/rollback`
         },
 
         // Cost anomalies (E21)

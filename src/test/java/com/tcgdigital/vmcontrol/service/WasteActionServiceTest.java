@@ -182,4 +182,88 @@ class WasteActionServiceTest extends AbstractIntegrationTest {
         assertThat(actions.findById(actionId).orElseThrow().getStatus()).isEqualTo(WasteAction.Status.REJECTED);
         verify(ec2, never()).deleteVolume(any(DeleteVolumeRequest.class));
     }
+
+    // ------------------------------------------------------------------ other actions (E22-T05)
+
+    private String findingOf(WasteFindingType type, String resourceId) {
+        WasteFinding f = new WasteFinding();
+        f.setFindingId(UUID.randomUUID().toString());
+        f.setFindingType(type);
+        f.setRegion("ap-south-1");
+        f.setResourceId(resourceId);
+        f.setFirstSeenAt(new Timestamp(System.currentTimeMillis()));
+        f.setLastSeenAt(new Timestamp(System.currentTimeMillis()));
+        return findings.saveAndFlush(f).getFindingId();
+    }
+
+    private String approved(String findingId, WasteAction.Type type) {
+        String actionId = service.propose(findingId, type, "admin-a").actionId();
+        service.approve(actionId, "admin-b");
+        return actionId;
+    }
+
+    @Test
+    void aGp2VolumeMovesToGp3AtItsBaselineAndBack() {
+        when(ec2.describeVolumes(any(DescribeVolumesRequest.class))).thenReturn(DescribeVolumesResponse.builder().volumes(
+                Volume.builder().volumeId("vol-gp2").state(VolumeState.IN_USE).volumeType(VolumeType.GP2).size(2000).build()).build());
+        String actionId = approved(findingOf(WasteFindingType.GP2_VOLUME, "vol-gp2"), WasteAction.Type.MIGRATE_GP3);
+
+        ArgumentCaptor<software.amazon.awssdk.services.ec2.model.ModifyVolumeRequest> modified =
+                ArgumentCaptor.forClass(software.amazon.awssdk.services.ec2.model.ModifyVolumeRequest.class);
+        verify(ec2).modifyVolume(modified.capture());
+        assertThat(modified.getValue().volumeTypeAsString()).isEqualTo("gp3");
+        assertThat(modified.getValue().iops()).isEqualTo(6000); // 3 x 2000 GiB, above the gp3 3000 floor
+        assertThat(modified.getValue().throughput()).isEqualTo(125);
+        assertThat(actions.findById(actionId).orElseThrow().getStatus()).isEqualTo(WasteAction.Status.EXECUTED);
+
+        service.rollback(actionId, "admin-a");
+        verify(ec2, org.mockito.Mockito.times(2)).modifyVolume(modified.capture());
+        assertThat(modified.getValue().volumeTypeAsString()).isEqualTo("gp2");
+    }
+
+    @Test
+    void aSnapshotIsArchivedAndRestoredOnRollback() {
+        String actionId = approved(findingOf(WasteFindingType.OLD_SNAPSHOT, "snap-old"), WasteAction.Type.ARCHIVE_SNAPSHOT);
+
+        verify(ec2).modifySnapshotTier(org.mockito.ArgumentMatchers.argThat(
+                (software.amazon.awssdk.services.ec2.model.ModifySnapshotTierRequest r) ->
+                        r.snapshotId().equals("snap-old") && r.storageTierAsString().equals("archive")));
+        service.rollback(actionId, "admin-a");
+        verify(ec2).restoreSnapshotTier(org.mockito.ArgumentMatchers.argThat(
+                (software.amazon.awssdk.services.ec2.model.RestoreSnapshotTierRequest r) ->
+                        r.snapshotId().equals("snap-old") && Boolean.TRUE.equals(r.permanentRestore())));
+        assertThat(actions.findById(actionId).orElseThrow().getStatus()).isEqualTo(WasteAction.Status.ROLLED_BACK);
+    }
+
+    @Test
+    void anIpIsReleasedOnlyWhileUnassociatedAndCannotBeRolledBack() {
+        when(ec2.describeAddresses(any(software.amazon.awssdk.services.ec2.model.DescribeAddressesRequest.class)))
+                .thenReturn(software.amazon.awssdk.services.ec2.model.DescribeAddressesResponse.builder().addresses(
+                        software.amazon.awssdk.services.ec2.model.Address.builder().allocationId("eipalloc-1").publicIp("13.0.0.1").build()).build());
+        String actionId = approved(findingOf(WasteFindingType.UNASSOCIATED_IP, "eipalloc-1"), WasteAction.Type.RELEASE_IP);
+
+        verify(ec2).releaseAddress(org.mockito.ArgumentMatchers.argThat(
+                (software.amazon.awssdk.services.ec2.model.ReleaseAddressRequest r) -> r.allocationId().equals("eipalloc-1")));
+        assertThat(actions.findById(actionId).orElseThrow().getRollbackData()).contains("13.0.0.1");
+        assertThat(service.list(null)).filteredOn(a -> a.actionId().equals(actionId)).singleElement()
+                .satisfies(a -> assertThat(a.rollbackSupported()).isFalse());
+        assertThatThrownBy(() -> service.rollback(actionId, "admin-a"))
+                .hasMessageStartingWith("A released IP cannot be rolled back");
+
+        when(ec2.describeAddresses(any(software.amazon.awssdk.services.ec2.model.DescribeAddressesRequest.class)))
+                .thenReturn(software.amazon.awssdk.services.ec2.model.DescribeAddressesResponse.builder().addresses(
+                        software.amazon.awssdk.services.ec2.model.Address.builder().allocationId("eipalloc-2").publicIp("13.0.0.2")
+                                .associationId("eipassoc-9").build()).build());
+        String reused = approved(findingOf(WasteFindingType.UNASSOCIATED_IP, "eipalloc-2"), WasteAction.Type.RELEASE_IP);
+        assertThat(actions.findById(reused).orElseThrow().getStatus()).isEqualTo(WasteAction.Status.FAILED);
+        verify(ec2, never()).releaseAddress(org.mockito.ArgumentMatchers.argThat(
+                (software.amazon.awssdk.services.ec2.model.ReleaseAddressRequest r) -> r.allocationId().equals("eipalloc-2")));
+    }
+
+    @Test
+    void aLongStoppedVmGetsNoFixAction() {
+        String stopped = findingOf(WasteFindingType.LONG_STOPPED_VM, "i-1");
+        assertThatThrownBy(() -> service.propose(stopped, WasteAction.Type.DELETE_VOLUME, "admin-a"))
+                .hasMessage("DELETE_VOLUME is not available for a LONG_STOPPED_VM finding");
+    }
 }

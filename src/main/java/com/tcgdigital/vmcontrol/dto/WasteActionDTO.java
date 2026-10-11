@@ -22,5 +22,7 @@ public record WasteActionDTO(
         Timestamp rolledBackAt,
         String errorMessage,
         /** Whether an EXECUTED action of this type can be rolled back. */
-        boolean rollbackSupported) {
+        boolean rollbackSupported,
+        /** The finding's details JSON (e.g. the public IP to type before releasing it). */
+        String findingDetails) {
 }

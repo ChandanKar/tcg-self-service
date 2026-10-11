@@ -270,6 +270,49 @@ public class AwsWasteScanService {
         return client(region).createVolume(request.build()).volumeId();
     }
 
+    /** Changes a volume's type (AWS allows one modification per volume every 6 hours). */
+    public void modifyVolumeType(String region, String volumeId, String volumeType, Integer iops, Integer throughput) {
+        software.amazon.awssdk.services.ec2.model.ModifyVolumeRequest.Builder request =
+                software.amazon.awssdk.services.ec2.model.ModifyVolumeRequest.builder().volumeId(volumeId).volumeType(volumeType);
+        if (iops != null) {
+            request.iops(iops);
+        }
+        if (throughput != null) {
+            request.throughput(throughput);
+        }
+        client(region).modifyVolume(request.build());
+    }
+
+    public void archiveSnapshot(String region, String snapshotId) {
+        client(region).modifySnapshotTier(software.amazon.awssdk.services.ec2.model.ModifySnapshotTierRequest.builder()
+                .snapshotId(snapshotId).storageTier(software.amazon.awssdk.services.ec2.model.TargetStorageTier.ARCHIVE).build());
+    }
+
+    /** Brings an archived snapshot back to the standard tier for good. */
+    public void restoreSnapshot(String region, String snapshotId) {
+        client(region).restoreSnapshotTier(software.amazon.awssdk.services.ec2.model.RestoreSnapshotTierRequest.builder()
+                .snapshotId(snapshotId).permanentRestore(true).build());
+    }
+
+    /** The address now (by allocation id), or null when it is gone. */
+    public software.amazon.awssdk.services.ec2.model.Address describeAddress(String region, String allocationId) {
+        try {
+            List<software.amazon.awssdk.services.ec2.model.Address> found = client(region).describeAddresses(
+                    software.amazon.awssdk.services.ec2.model.DescribeAddressesRequest.builder().allocationIds(allocationId).build()).addresses();
+            return found.isEmpty() ? null : found.get(0);
+        } catch (software.amazon.awssdk.services.ec2.model.Ec2Exception e) {
+            if (e.awsErrorDetails() != null && "InvalidAllocationID.NotFound".equals(e.awsErrorDetails().errorCode())) {
+                return null;
+            }
+            throw e;
+        }
+    }
+
+    public void releaseAddress(String region, String allocationId) {
+        client(region).releaseAddress(software.amazon.awssdk.services.ec2.model.ReleaseAddressRequest.builder()
+                .allocationId(allocationId).build());
+    }
+
     private static List<Tag> toTags(Map<String, String> tags) {
         return tags.entrySet().stream().filter(e -> !e.getKey().startsWith("aws:"))
                 .map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build()).toList();

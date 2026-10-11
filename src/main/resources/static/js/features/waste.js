@@ -16,6 +16,15 @@ const Waste = (function() {
         OLD_SNAPSHOT: { label: 'Old snapshots', icon: 'fa-camera' }
     };
 
+    /** The fix each finding type may get (E22-T05); long-stopped VMs get none. */
+    const FIXES = {
+        UNATTACHED_VOLUME: { type: 'DELETE_VOLUME', label: 'Delete (snapshot first)' },
+        GP2_VOLUME: { type: 'MIGRATE_GP3', label: 'Migrate to gp3' },
+        OLD_SNAPSHOT: { type: 'ARCHIVE_SNAPSHOT', label: 'Archive snapshot' },
+        UNASSOCIATED_IP: { type: 'RELEASE_IP', label: 'Release IP' }
+    };
+    const FIX_LABEL = Object.fromEntries(Object.values(FIXES).map(f => [f.type, f.label]));
+
     let pageToken = null;
     let state = null;
 
@@ -59,6 +68,7 @@ const Waste = (function() {
                     </div>
                 </div>
                 <div id="waste-summary"></div>
+                <div id="waste-actions"></div>
                 <div id="waste-filters"></div>
                 <div id="waste-table"></div>
             </div>`);
@@ -67,9 +77,12 @@ const Waste = (function() {
 
     function refresh() {
         const token = pageToken;
-        Promise.allSettled([call('GET', Config.API.waste.summary), call('GET', findingsUrl())]).then(([summary, findings]) => {
+        Promise.allSettled([call('GET', Config.API.waste.summary), call('GET', findingsUrl()),
+            call('GET', Config.API.waste.actionsConfig), call('GET', Config.API.waste.actions)]).then(([summary, findings, config, actions]) => {
             if (!ContentRouter.isCurrent(token)) return;
             state.errors = {};
+            state.actionsEnabled = config.status === 'fulfilled' && config.value && config.value.enabled;
+            state.actions = actions.status === 'fulfilled' ? (actions.value || []) : [];
             if (summary.status === 'fulfilled') state.summary = summary.value; else state.errors.summary = true;
             if (findings.status === 'fulfilled') state.findings = findings.value; else state.errors.findings = true;
             draw();
@@ -111,8 +124,42 @@ const Waste = (function() {
                 <div class="dashboard-kpi-grid waste-cards">${cards}</div>`);
             $('#waste-sweep-btn').prop('disabled', !s.sweepEnabled);
         }
+        drawActions();
         drawFilters();
         drawTable();
+    }
+
+    /** Pending fixes (Approve for admins other than the proposer) and recent history with Rollback. */
+    function drawActions() {
+        const actions = state.actions || [];
+        if (!state.actionsEnabled && !actions.length) {
+            $('#waste-actions').html('');
+            return;
+        }
+        const me = Auth.getUserId ? Auth.getUserId() : null;
+        const pending = actions.filter(a => a.status === 'PROPOSED');
+        const history = actions.filter(a => a.status !== 'PROPOSED').slice(0, 10);
+        const pendingRows = pending.length ? pending.map(a => Utils.html`
+            <li class="d-flex justify-content-between align-items-center flex-wrap gap-2 waste-action-row" data-action-id="${a.actionId}">
+                <span><strong>${FIX_LABEL[a.actionType] || a.actionType}</strong> · ${a.resourceId} (${a.region})</span>
+                <span class="d-flex gap-1">
+                    ${Utils.raw(a.proposedBy === me ? '<span class="small text-muted">Waiting for another admin</span>'
+                        : Utils.html`<button type="button" class="btn btn-sm btn-primary" data-action="waste-approve" data-id="${a.actionId}">Approve</button>`)}
+                    <button type="button" class="btn btn-sm btn-ghost" data-action="waste-reject" data-id="${a.actionId}">Reject</button>
+                </span></li>`).join('') : '<li class="text-muted small">Nothing waiting for approval.</li>';
+        const historyRows = history.map(a => Utils.html`
+            <li class="d-flex justify-content-between align-items-center flex-wrap gap-2 small">
+                <span>${FIX_LABEL[a.actionType] || a.actionType} · ${a.resourceId} — <strong>${a.status.toLowerCase().replace('_', ' ')}</strong>${a.errorMessage ? ': ' + a.errorMessage : ''}</span>
+                ${Utils.raw(a.status === 'EXECUTED' && a.rollbackSupported
+                    ? Utils.html`<button type="button" class="btn btn-sm btn-ghost" data-action="waste-rollback" data-id="${a.actionId}">Rollback</button>`
+                    : a.status === 'EXECUTED' ? '<span class="text-muted">not reversible</span>' : '')}
+            </li>`).join('');
+        $('#waste-actions').html(`<section class="card mb-3 waste-actions-card" aria-labelledby="waste-actions-title"><div class="card-body">
+            <h2 class="h6" id="waste-actions-title"><i class="fas fa-tools me-1" aria-hidden="true"></i>Fix actions
+                ${state.actionsEnabled ? '' : '<span class="badge text-bg-light border ms-1">turned off</span>'}</h2>
+            <ul class="list-unstyled mb-2">${pendingRows}</ul>
+            ${history.length ? `<details><summary class="small">Recent actions</summary><ul class="list-unstyled mt-2 mb-0">${historyRows}</ul></details>` : ''}
+        </div></section>`);
     }
 
     function drawFilters() {
@@ -158,8 +205,13 @@ const Waste = (function() {
                 <td data-label="Est. monthly">${money(f.estMonthlyCost)}</td>
                 <td data-label="Status">${f.status.charAt(0) + f.status.slice(1).toLowerCase().replace('_', ' ')}${Utils.raw(f.dismissedReason
                     ? Utils.html`<div class="small text-muted">${f.dismissedReason}</div>` : '')}</td>
-                <td data-label="" class="text-end">${Utils.raw(f.status === 'OPEN'
-                    ? Utils.html`<button type="button" class="btn btn-sm btn-ghost" data-action="waste-dismiss" data-id="${f.findingId}"
+                <td data-label="" class="text-end text-nowrap">${Utils.raw(f.status === 'OPEN'
+                    ? Utils.html`${Utils.raw(state.actionsEnabled && FIXES[f.findingType]
+                        ? Utils.html`<button type="button" class="btn btn-sm btn-tonal btn-primary" data-action="waste-propose" data-id="${f.findingId}"
+                            data-fix="${FIXES[f.findingType].type}" aria-label="${FIXES[f.findingType].label}: ${f.resourceId}">${FIXES[f.findingType].label}</button>` : '')}
+                        ${Utils.raw(f.findingType === 'LONG_STOPPED_VM' && f.environmentId
+                        ? Utils.html`<a class="btn btn-sm btn-ghost" href="#/environments/${f.environmentId}">Open VM</a>` : '')}
+                        <button type="button" class="btn btn-sm btn-ghost" data-action="waste-dismiss" data-id="${f.findingId}"
                         aria-label="Dismiss ${f.resourceId}">Dismiss</button>`
                     : f.status === 'DISMISSED' ? Utils.html`<button type="button" class="btn btn-sm btn-ghost" data-action="waste-reopen"
                         data-id="${f.findingId}" aria-label="Reopen ${f.resourceId}">Reopen</button>` : '')}</td>
@@ -192,6 +244,60 @@ const Waste = (function() {
             .catch(e => Notifications.showError(serverMessage(e, 'Could not reopen the finding.')));
     }
 
+    // ============= Fix actions (E22-T04/T05) =============
+
+    function propose(findingId, fixType) {
+        const f = ((state.findings && state.findings.content) || []).find(x => x.findingId === findingId);
+        if (!f) return;
+        Modals.confirm('Propose a fix', `${FIX_LABEL[fixType]} for ${f.resourceId}? Another admin must approve it before anything changes in AWS.`, () => {
+            call('POST', Config.API.waste.propose(findingId), { type: fixType })
+                .then(() => { Notifications.show('Fix proposed; another admin must approve it.', 'success'); refresh(); })
+                .catch(e => Notifications.showError(serverMessage(e, 'Could not propose the fix.')));
+        }, { confirmText: 'Propose' });
+    }
+
+    function approve(actionId) {
+        const a = (state.actions || []).find(x => x.actionId === actionId);
+        if (!a) return;
+        const send = () => call('POST', Config.API.waste.approve(actionId))
+            .then(() => { Notifications.show('Approved; the fix runs in the background.', 'success'); refresh(); })
+            .catch(e => Notifications.showError(serverMessage(e, 'Could not approve the fix.')));
+        if (a.actionType === 'RELEASE_IP' || a.actionType === 'DELETE_VOLUME') {
+            let details = {};
+            try { details = JSON.parse(a.findingDetails || '{}'); } catch (e) { details = {}; }
+            const confirmText = a.actionType === 'RELEASE_IP' ? (details.publicIp || a.resourceId) : a.resourceId;
+            DestructiveConfirm.show({
+                title: a.actionType === 'RELEASE_IP' ? 'Release Elastic IP' : 'Delete unattached volume',
+                message: a.actionType === 'RELEASE_IP'
+                    ? `This releases ${confirmText}. AWS will not give the same address back: this cannot be undone.`
+                    : `This snapshots ${a.resourceId}, waits for the snapshot, then deletes the volume. Rollback recreates it from the snapshot.`,
+                impact: a.actionType === 'RELEASE_IP' ? ['The public IP is lost for good', 'Anything using it by address stops reaching it']
+                    : ['The volume is deleted after its snapshot completes', 'The snapshot is kept (and billed) for rollback'],
+                confirmText,
+                actionText: 'Approve',
+                onConfirm: send
+            });
+        } else {
+            const note = a.actionType === 'MIGRATE_GP3' ? ' AWS allows one change per volume every 6 hours, so a rollback may have to wait.'
+                : ' The archive tier bills at least 90 days.';
+            Modals.confirm('Approve fix', `${FIX_LABEL[a.actionType]} for ${a.resourceId}?${note}`, send, { confirmText: 'Approve' });
+        }
+    }
+
+    function reject(actionId) {
+        call('POST', Config.API.waste.reject(actionId))
+            .then(() => { Notifications.show('Fix rejected.', 'success'); refresh(); })
+            .catch(e => Notifications.showError(serverMessage(e, 'Could not reject the fix.')));
+    }
+
+    function rollback(actionId) {
+        Modals.confirm('Roll back fix', 'Undo this fix in AWS?', () => {
+            call('POST', Config.API.waste.rollback(actionId))
+                .then(() => { Notifications.show('Rolled back.', 'success'); refresh(); })
+                .catch(e => Notifications.showError(serverMessage(e, 'Could not roll back the fix.')));
+        }, { confirmText: 'Roll back' });
+    }
+
     function sweep() {
         const $btn = $('#waste-sweep-btn').prop('disabled', true);
         call('POST', Config.API.waste.sweep)
@@ -216,6 +322,10 @@ const Waste = (function() {
         reopen,
         sweep,
         exportFindings,
+        propose,
+        approve,
+        reject,
+        rollback,
         filterType: type => { state.filters.type = state.filters.type === type ? '' : type; state.page = 0; refresh(); },
         page: p => { state.page = Math.max(0, p); refresh(); }
     };
@@ -230,5 +340,9 @@ Actions.registerAll({
     'waste-sweep': () => Waste.sweep(),
     'waste-export': () => Waste.exportFindings(),
     'waste-type': el => Waste.filterType(el.dataset.type),
-    'waste-page': el => Waste.page(Number(el.dataset.page))
+    'waste-page': el => Waste.page(Number(el.dataset.page)),
+    'waste-propose': el => Waste.propose(el.dataset.id, el.dataset.fix),
+    'waste-approve': el => Waste.approve(el.dataset.id),
+    'waste-reject': el => Waste.reject(el.dataset.id),
+    'waste-rollback': el => Waste.rollback(el.dataset.id)
 });

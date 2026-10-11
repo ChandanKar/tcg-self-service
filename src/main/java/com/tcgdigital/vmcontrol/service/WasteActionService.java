@@ -47,7 +47,10 @@ public class WasteActionService {
 
     /** The action each finding type may get; a type without one gets none (e.g. long-stopped VMs). */
     static final Map<WasteFindingType, WasteAction.Type> ACTION_FOR = new EnumMap<>(Map.of(
-            WasteFindingType.UNATTACHED_VOLUME, WasteAction.Type.DELETE_VOLUME));
+            WasteFindingType.UNATTACHED_VOLUME, WasteAction.Type.DELETE_VOLUME,
+            WasteFindingType.GP2_VOLUME, WasteAction.Type.MIGRATE_GP3,
+            WasteFindingType.OLD_SNAPSHOT, WasteAction.Type.ARCHIVE_SNAPSHOT,
+            WasteFindingType.UNASSOCIATED_IP, WasteAction.Type.RELEASE_IP));
 
     private final WasteActionRepository actionRepository;
     private final WasteFindingRepository findingRepository;
@@ -179,7 +182,9 @@ public class WasteActionService {
         try {
             Map<String, Object> rollback = switch (action.getActionType()) {
                 case DELETE_VOLUME -> deleteVolume(action, finding);
-                default -> throw new IllegalStateException(action.getActionType() + " is not available yet");
+                case MIGRATE_GP3 -> migrateGp3(finding);
+                case ARCHIVE_SNAPSHOT -> archiveSnapshot(finding);
+                case RELEASE_IP -> releaseIp(finding);
             };
             action.setRollbackData(objectMapper.writeValueAsString(rollback));
             action.setStatus(WasteAction.Status.EXECUTED);
@@ -225,6 +230,48 @@ public class WasteActionService {
         return rollback;
     }
 
+    /** gp3 with at least the gp2 baseline IOPS (3 per GiB, 100..16000) and 125 MiB/s. */
+    private Map<String, Object> migrateGp3(WasteFinding finding) {
+        Volume volume = aws.describeVolume(finding.getRegion(), finding.getResourceId());
+        if (volume == null) {
+            throw new IllegalStateException("The volume no longer exists");
+        }
+        if (!"gp2".equals(volume.volumeTypeAsString())) {
+            throw new IllegalStateException("The volume is no longer gp2 (now " + volume.volumeTypeAsString() + ")");
+        }
+        int size = volume.size() == null ? 0 : volume.size();
+        int gp2Baseline = Math.min(16_000, Math.max(100, size * 3));
+        int iops = Math.min(16_000, Math.max(3_000, gp2Baseline));
+        aws.modifyVolumeType(finding.getRegion(), volume.volumeId(), "gp3", iops, 125);
+        Map<String, Object> rollback = new LinkedHashMap<>();
+        rollback.put("previousType", "gp2");
+        rollback.put("gp3Iops", iops);
+        return rollback;
+    }
+
+    /** Archive instead of delete, so it stays reversible (the archive tier bills at least 90 days). */
+    private Map<String, Object> archiveSnapshot(WasteFinding finding) {
+        aws.archiveSnapshot(finding.getRegion(), finding.getResourceId());
+        return new LinkedHashMap<>(Map.of("snapshotId", finding.getResourceId()));
+    }
+
+    /** Not reversible: the public IP is gone for good. Re-checks it is still unassociated. */
+    private Map<String, Object> releaseIp(WasteFinding finding) {
+        software.amazon.awssdk.services.ec2.model.Address address = aws.describeAddress(finding.getRegion(), finding.getResourceId());
+        if (address == null) {
+            throw new IllegalStateException("The address no longer exists");
+        }
+        if (address.associationId() != null) {
+            throw new IllegalStateException("The address is associated again (" + address.associationId() + "); nothing was released");
+        }
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("publicIp", address.publicIp());
+        data.put("allocationId", address.allocationId());
+        data.put("tags", AwsWasteScanService.tags(address.tags()));
+        aws.releaseAddress(finding.getRegion(), address.allocationId());
+        return data;
+    }
+
     // ============= Rollback =============
 
     @Transactional
@@ -234,17 +281,37 @@ public class WasteActionService {
         if (action.getStatus() != WasteAction.Status.EXECUTED) {
             throw new ValidationException("Only an executed action can be rolled back");
         }
-        if (action.getActionType() != WasteAction.Type.DELETE_VOLUME) {
-            throw new ValidationException(action.getActionType() + " cannot be rolled back");
+        if (action.getActionType() == WasteAction.Type.RELEASE_IP) {
+            throw new ValidationException("A released IP cannot be rolled back: AWS does not give the same address back");
         }
         WasteFinding finding = finding(action.getFindingId());
         Map<String, Object> data = rollbackData(action);
-        @SuppressWarnings("unchecked")
-        Map<String, String> tags = (Map<String, String>) data.getOrDefault("tags", Map.of());
-        String restored = aws.createVolumeFromSnapshot(finding.getRegion(), (String) data.get("snapshotId"),
-                (String) data.get("availabilityZone"), (String) data.get("volumeType"), number(data.get("size")),
-                number(data.get("iops")), number(data.get("throughput")), tags);
-        data.put("restoredVolumeId", restored);
+        String detail;
+        switch (action.getActionType()) {
+            case DELETE_VOLUME -> {
+                @SuppressWarnings("unchecked")
+                Map<String, String> tags = (Map<String, String>) data.getOrDefault("tags", Map.of());
+                String restored = aws.createVolumeFromSnapshot(finding.getRegion(), (String) data.get("snapshotId"),
+                        (String) data.get("availabilityZone"), (String) data.get("volumeType"), number(data.get("size")),
+                        number(data.get("iops")), number(data.get("throughput")), tags);
+                data.put("restoredVolumeId", restored);
+                detail = "recreated volume " + restored;
+            }
+            case MIGRATE_GP3 -> {
+                try {
+                    aws.modifyVolumeType(finding.getRegion(), finding.getResourceId(), "gp2", null, null);
+                } catch (Exception e) {
+                    throw new ValidationException("AWS refused to change the volume back to gp2 (it allows one change per volume "
+                            + "every 6 hours): " + e.getMessage());
+                }
+                detail = "changed the volume back to gp2";
+            }
+            case ARCHIVE_SNAPSHOT -> {
+                aws.restoreSnapshot(finding.getRegion(), finding.getResourceId());
+                detail = "restored the snapshot to the standard tier";
+            }
+            default -> throw new ValidationException(action.getActionType() + " cannot be rolled back");
+        }
         try {
             action.setRollbackData(objectMapper.writeValueAsString(data));
         } catch (Exception e) {
@@ -253,7 +320,7 @@ public class WasteActionService {
         action.setStatus(WasteAction.Status.ROLLED_BACK);
         action.setRolledBackAt(now());
         actionRepository.save(action);
-        audit(userId, AuditAction.WASTE_ACTION_ROLLED_BACK, action, finding, "Rolled back: recreated volume " + restored);
+        audit(userId, AuditAction.WASTE_ACTION_ROLLED_BACK, action, finding, "Rolled back: " + detail);
         return toDto(action);
     }
 
@@ -298,6 +365,6 @@ public class WasteActionService {
         return new WasteActionDTO(a.getActionId(), a.getFindingId(), f == null ? null : f.getFindingType(),
                 f == null ? null : f.getRegion(), f == null ? null : f.getResourceId(), a.getActionType(), a.getStatus(),
                 a.getProposedBy(), a.getProposedAt(), a.getApprovedBy(), a.getApprovedAt(), a.getExecutedAt(), a.getRolledBackAt(),
-                a.getErrorMessage(), a.getActionType() != WasteAction.Type.RELEASE_IP);
+                a.getErrorMessage(), a.getActionType() != WasteAction.Type.RELEASE_IP, f == null ? null : f.getDetails());
     }
 }
