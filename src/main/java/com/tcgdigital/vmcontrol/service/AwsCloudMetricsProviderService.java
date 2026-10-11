@@ -50,10 +50,10 @@ public class AwsCloudMetricsProviderService implements CloudMetricsProviderServi
 
     /** The newest datapoint of each VM's series (kept for callers that want only the latest). */
     @Override
-    public Map<String, VmMetricData> fetchLatestMetrics(List<String> providerVmIds, String region,
+    public Map<String, VmMetricData> fetchLatestMetrics(List<String> providerVmIds, CloudTarget cloudTarget,
                                                         Instant start, Instant end, int periodSeconds) {
         Map<String, VmMetricData> latest = new HashMap<>();
-        fetchMetricSeries(providerVmIds, region, start, end, periodSeconds).forEach((id, series) -> {
+        fetchMetricSeries(providerVmIds, cloudTarget, start, end, periodSeconds).forEach((id, series) -> {
             if (!series.isEmpty()) {
                 latest.put(id, series.get(series.size() - 1));
             }
@@ -67,12 +67,13 @@ public class AwsCloudMetricsProviderService implements CloudMetricsProviderServi
      * without losing the other chunks.
      */
     @Override
-    public Map<String, List<VmMetricData>> fetchMetricSeries(List<String> providerVmIds, String region,
+    public Map<String, List<VmMetricData>> fetchMetricSeries(List<String> providerVmIds, CloudTarget cloudTarget,
                                                              Instant start, Instant end, int periodSeconds) {
+        String region = cloudTarget.region();
         if (!isAvailable() || providerVmIds == null || providerVmIds.isEmpty()) {
             return Collections.emptyMap();
         }
-        CloudWatchClient cloudWatch = getCloudWatchClient(region);
+        CloudWatchClient cloudWatch = getCloudWatchClient(cloudTarget);
         Map<String, java.util.TreeMap<Instant, VmMetricData>> byInstance = new HashMap<>();
         int queryCounter = 0;
         for (int offset = 0; offset < providerVmIds.size(); offset += 80) {
@@ -153,9 +154,9 @@ public class AwsCloudMetricsProviderService implements CloudMetricsProviderServi
         }
     }
 
-    private CloudWatchClient getCloudWatchClient(String region) {
-        String effectiveRegion = region != null && !region.isBlank() ? region : defaultRegion;
-        return awsClientFactory.cloudWatch(effectiveRegion);
+    private CloudWatchClient getCloudWatchClient(CloudTarget target) {
+        String effectiveRegion = target.region() != null && !target.region().isBlank() ? target.region() : defaultRegion;
+        return awsClientFactory.cloudWatch(target.accountRef(), effectiveRegion);
     }
 
     private enum MetricSpec {

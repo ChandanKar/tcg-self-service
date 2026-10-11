@@ -77,6 +77,26 @@ class VmMetricsServiceTest {
         lenient().when(sampleRepository.findByVmVmIdOrderBySampleTimeDesc(anyString(), any())).thenReturn(List.of());
     }
 
+    @Test
+    void vmsOfTwoAccountsInOneRegionAreFetchedPerAccount() {
+        // E28-T06: one CloudWatch query per account and region.
+        Vm other = new Vm();
+        other.setVmId("vm-2");
+        other.setProvider(CloudProvider.AWS);
+        other.setProviderVmId("i-2");
+        other.setRegion("us-east-1");
+        other.setStatus(VmStatus.RUNNING);
+        other.setAwsAccountRef("acct-b");
+        when(vmRepository.findByStatus(VmStatus.RUNNING)).thenReturn(List.of(vm, other));
+        org.mockito.ArgumentCaptor<com.tcgdigital.vmcontrol.service.CloudTarget> targets = org.mockito.ArgumentCaptor.forClass(com.tcgdigital.vmcontrol.service.CloudTarget.class);
+        when(provider.fetchMetricSeries(anyList(), targets.capture(), any(), any(), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(java.util.Map.of());
+
+        service.syncRunningVmMetrics();
+
+        assertThat(targets.getAllValues()).containsExactlyInAnyOrder(com.tcgdigital.vmcontrol.service.CloudTarget.of("us-east-1"), com.tcgdigital.vmcontrol.service.CloudTarget.of("acct-b", "us-east-1"));
+    }
+
     private void latestStored(Instant at) {
         VmMetricSample latest = new VmMetricSample();
         latest.setVm(vm);
@@ -99,7 +119,7 @@ class VmMetricsServiceTest {
 
     private Instant requestedStart() {
         ArgumentCaptor<Instant> start = ArgumentCaptor.forClass(Instant.class);
-        verify(provider).fetchMetricSeries(anyList(), eq("us-east-1"), start.capture(), any(), anyInt());
+        verify(provider).fetchMetricSeries(anyList(), org.mockito.ArgumentMatchers.eq(com.tcgdigital.vmcontrol.service.CloudTarget.of("us-east-1")), start.capture(), any(), anyInt());
         return start.getValue();
     }
 
@@ -107,7 +127,7 @@ class VmMetricsServiceTest {
     void aMissedHalfHourIsBackfilledFromTheLatestStoredSample() {
         Instant latest = Instant.now().minus(Duration.ofMinutes(35));
         latestStored(latest);
-        when(provider.fetchMetricSeries(anyList(), anyString(), any(), any(), anyInt()))
+        when(provider.fetchMetricSeries(anyList(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), any(), any(), anyInt()))
                 .thenReturn(Map.of("i-1", points(latest.plus(Duration.ofMinutes(5)), 6)));
         VmMetricSample recent = new VmMetricSample();
         recent.setVm(vm);
@@ -125,7 +145,7 @@ class VmMetricsServiceTest {
     @Test
     void theBackfillIsCapped() {
         latestStored(Instant.now().minus(Duration.ofHours(10)));
-        when(provider.fetchMetricSeries(anyList(), anyString(), any(), any(), anyInt())).thenReturn(Map.of());
+        when(provider.fetchMetricSeries(anyList(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), any(), any(), anyInt())).thenReturn(Map.of());
 
         service.syncRunningVmMetrics();
 
@@ -137,7 +157,7 @@ class VmMetricsServiceTest {
         Instant latest = Instant.now().minus(Duration.ofMinutes(20));
         latestStored(latest);
         List<CloudMetricsProviderService.VmMetricData> pts = points(latest, 3); // the first is the latest stored one
-        when(provider.fetchMetricSeries(anyList(), anyString(), any(), any(), anyInt())).thenReturn(Map.of("i-1", pts));
+        when(provider.fetchMetricSeries(anyList(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), any(), any(), anyInt())).thenReturn(Map.of("i-1", pts));
         when(sampleRepository.existsByVmVmIdAndSampleTimeAndPeriodSeconds(eq("vm-1"), any(), eq(300)))
                 .thenAnswer(inv -> ((Timestamp) inv.getArgument(1)).toInstant().equals(latest));
 

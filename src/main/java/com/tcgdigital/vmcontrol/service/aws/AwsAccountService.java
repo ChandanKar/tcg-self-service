@@ -31,6 +31,9 @@ public class AwsAccountService {
     @Value("${aws.accounts.resolve-default-number:true}")
     private boolean resolveDefaultNumber = true;
 
+    @Value("${aws.multi-account.enabled:false}")
+    private boolean multiAccountEnabled;
+
     public AwsAccountService(AwsAccountRepository repository, AwsClientFactory clientFactory) {
         this.repository = repository;
         this.clientFactory = clientFactory;
@@ -59,6 +62,32 @@ public class AwsAccountService {
 
     public List<AwsAccount> listActive() {
         return repository.findByIsActiveTrueOrderByDisplayNameAsc();
+    }
+
+    /**
+     * Where to scan (E28-T06): every active account with its own regions, else the fallback
+     * regions. With multi-account off only the default account is scanned (members would
+     * otherwise be read with the base credentials, i.e. the same account again).
+     */
+    public List<com.tcgdigital.vmcontrol.service.CloudTarget> scanTargets(List<String> fallbackRegions) {
+        List<AwsAccount> accounts = multiAccountEnabled ? listActive()
+                : repository.findByIsDefaultTrue().map(List::of).orElse(List.of());
+        List<com.tcgdigital.vmcontrol.service.CloudTarget> targets = new java.util.ArrayList<>();
+        for (AwsAccount account : accounts) {
+            List<String> regions = account.getRegionList().isEmpty() ? fallbackRegions : account.getRegionList();
+            regions.forEach(r -> targets.add(com.tcgdigital.vmcontrol.service.CloudTarget.of(account.getAwsAccountRef(), r)));
+        }
+        if (targets.isEmpty()) {
+            fallbackRegions.forEach(r -> targets.add(com.tcgdigital.vmcontrol.service.CloudTarget.of(r)));
+        }
+        return targets;
+    }
+
+    /** Display names by account ref, in one query. */
+    public java.util.Map<String, String> namesByRef() {
+        java.util.Map<String, String> names = new java.util.HashMap<>();
+        repository.findAll().forEach(a -> names.put(a.getAwsAccountRef(), a.getDisplayName()));
+        return names;
     }
 
     @EventListener(ApplicationReadyEvent.class)

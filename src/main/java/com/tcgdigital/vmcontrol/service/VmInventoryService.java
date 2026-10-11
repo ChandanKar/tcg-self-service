@@ -91,13 +91,14 @@ public class VmInventoryService {
     private int syncInventory(List<Vm> vms) {
         Map<String, List<Vm>> groups = vms.stream()
                 .filter(vm -> vm.getProviderVmId() != null && !vm.getProviderVmId().isBlank())
-                .collect(Collectors.groupingBy(vm -> vm.getProvider().name() + ":" + vm.getRegion()));
+                .collect(Collectors.groupingBy(vm -> vm.getProvider().name() + ":" + CloudTarget.of(vm).key()));
 
         int updated = 0;
         for (Map.Entry<String, List<Vm>> entry : groups.entrySet()) {
-            String[] parts = entry.getKey().split(":", 2);
+            // provider:accountRef:region - one call per account and region (E28-T06)
+            String[] parts = entry.getKey().split(":", 3);
             CloudProvider provider = CloudProvider.valueOf(parts[0]);
-            String region = parts.length > 1 ? parts[1] : null;
+            CloudTarget target = CloudTarget.of(parts[1], "null".equals(parts[2]) ? null : parts[2]);
 
             CloudInventoryProviderService service = providerFactory.getService(provider).orElse(null);
             if (service == null || !service.isAvailable()) {
@@ -106,7 +107,7 @@ public class VmInventoryService {
             }
 
             List<String> ids = entry.getValue().stream().map(Vm::getProviderVmId).toList();
-            Map<String, CloudInventoryProviderService.VmInventoryData> inventory = service.fetchInventory(ids, region);
+            Map<String, CloudInventoryProviderService.VmInventoryData> inventory = service.fetchInventory(ids, target);
             for (Vm vm : entry.getValue()) {
                 CloudInventoryProviderService.VmInventoryData data = inventory.get(vm.getProviderVmId());
                 if (data == null) continue;

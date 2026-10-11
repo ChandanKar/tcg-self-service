@@ -79,15 +79,16 @@ public class VmMetricsService {
         List<Vm> runningVms = vmRepository.findByStatus(VmStatus.RUNNING);
         Map<String, List<Vm>> groups = runningVms.stream()
                 .filter(vm -> vm.getProviderVmId() != null && !vm.getProviderVmId().isBlank())
-                .collect(Collectors.groupingBy(vm -> vm.getProvider().name() + ":" + vm.getRegion()));
+                .collect(Collectors.groupingBy(vm -> vm.getProvider().name() + ":" + CloudTarget.of(vm).key()));
 
         Instant end = Instant.now();
         int saved = 0;
 
         for (Map.Entry<String, List<Vm>> entry : groups.entrySet()) {
-            String[] parts = entry.getKey().split(":", 2);
+            // provider:accountRef:region - one call per account and region (E28-T06)
+            String[] parts = entry.getKey().split(":", 3);
             CloudProvider provider = CloudProvider.valueOf(parts[0]);
-            String region = parts.length > 1 ? parts[1] : null;
+            CloudTarget target = CloudTarget.of(parts[1], "null".equals(parts[2]) ? null : parts[2]);
             CloudMetricsProviderService service = providerFactory.getService(provider).orElse(null);
             if (service == null || !service.isAvailable()) {
                 log.debug("Metrics provider {} is unavailable; skipping {} VM(s)", provider, entry.getValue().size());
@@ -97,7 +98,7 @@ public class VmMetricsService {
             List<String> ids = entry.getValue().stream().map(Vm::getProviderVmId).toList();
             Instant start = windowStart(entry.getValue(), end);
             Map<String, List<CloudMetricsProviderService.VmMetricData>> series =
-                    service.fetchMetricSeries(ids, region, start, end, periodSeconds);
+                    service.fetchMetricSeries(ids, target, start, end, periodSeconds);
             for (Vm vm : entry.getValue()) {
                 List<CloudMetricsProviderService.VmMetricData> points = series.getOrDefault(vm.getProviderVmId(), List.of());
                 if (points.isEmpty()) continue;

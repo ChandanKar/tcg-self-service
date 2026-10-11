@@ -14,14 +14,14 @@ public interface CloudMetricsProviderService {
 
     boolean isAvailable();
 
-    Map<String, VmMetricData> fetchLatestMetrics(List<String> providerVmIds, String region,
+    Map<String, VmMetricData> fetchLatestMetrics(List<String> providerVmIds, CloudTarget target,
                                                  Instant start, Instant end, int periodSeconds);
 
     /**
      * Every datapoint in [start, end) per VM, oldest first, one VmMetricData per timestamp with
      * all metrics of that timestamp (E12-T03): never one sample mixing timestamps.
      */
-    Map<String, List<VmMetricData>> fetchMetricSeries(List<String> providerVmIds, String region,
+    Map<String, List<VmMetricData>> fetchMetricSeries(List<String> providerVmIds, CloudTarget target,
                                                       Instant start, Instant end, int periodSeconds);
 
     class VmMetricData {

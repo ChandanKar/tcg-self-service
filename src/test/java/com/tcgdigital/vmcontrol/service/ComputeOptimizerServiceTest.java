@@ -96,9 +96,9 @@ class ComputeOptimizerServiceTest {
         MutableClock clock = new MutableClock();
         ComputeOptimizerService s = enabled(client, clock);
 
-        assertEquals(2, s.getEc2Recommendations("us-east-1").size());
+        assertEquals(2, s.getEc2Recommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of("us-east-1")).size());
         clock.now = clock.now.plusSeconds(30 * 60);
-        assertEquals(2, s.getEc2Recommendations("us-east-1").size());
+        assertEquals(2, s.getEc2Recommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of("us-east-1")).size());
 
         var requests = org.mockito.ArgumentCaptor.forClass(
                 software.amazon.awssdk.services.computeoptimizer.model.GetEc2InstanceRecommendationsRequest.class);
@@ -115,8 +115,8 @@ class ComputeOptimizerServiceTest {
                 .thenReturn(GetEc2InstanceRecommendationsResponse.builder().instanceRecommendations(rec("i-1")).build());
         ComputeOptimizerService s = enabled(client, new MutableClock());
 
-        assertTrue(s.getEc2Recommendations("us-east-1").isEmpty());
-        assertEquals(1, s.getEc2Recommendations("us-east-1").size());
+        assertTrue(s.getEc2Recommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of("us-east-1")).isEmpty());
+        assertEquals(1, s.getEc2Recommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of("us-east-1")).size());
     }
 
     // ---- Only OVERPROVISIONED findings, every option in rank order (E08-T05, M11) ----

@@ -79,6 +79,22 @@ public class EksSyncService {
         this.transitionalGuard = transitionalGuard;
     }
 
+    private com.tcgdigital.vmcontrol.service.aws.AwsAccountService awsAccountService;
+
+    /** Optional so the service also runs without the registry (tests); then only the default account is scanned. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setAwsAccountService(com.tcgdigital.vmcontrol.service.aws.AwsAccountService awsAccountService) {
+        this.awsAccountService = awsAccountService;
+    }
+
+    private List<CloudTarget> scanTargets(List<String> regions) {
+        return awsAccountService == null ? regions.stream().map(CloudTarget::of).toList() : awsAccountService.scanTargets(regions);
+    }
+
+    private Map<String, String> accountNames() {
+        return awsAccountService == null ? Map.of() : awsAccountService.namesByRef();
+    }
+
     /**
      * Returns EKS clusters that exist in AWS but are not yet registered in the DB, scanning
      * every region in {@code eks.sync.regions} (or the {@code aws.region} default) — the same
@@ -87,13 +103,16 @@ public class EksSyncService {
      */
     public List<EksClusterInfoDTO> getUnregisteredEksClusters() {
         List<EksClusterInfoDTO> result = new ArrayList<>();
-        for (String region : resolveSyncRegions()) {
+        Map<String, String> names = accountNames();
+        // Every account and region (E28-T06); one account's failure does not hide the others.
+        for (CloudTarget target : scanTargets(resolveSyncRegions())) {
             try {
-                eksService.listClusters(CloudTarget.of(region)).stream()
+                eksService.listClusters(target).stream()
                         .filter(name -> !isRegistered(name))
-                        .forEach(name -> result.add(new EksClusterInfoDTO(name, region)));
+                        .forEach(name -> result.add(new EksClusterInfoDTO(name, target.region(), target.accountRef(),
+                                names.getOrDefault(target.accountRef(), target.accountRef()))));
             } catch (Exception e) {
-                log.error("Failed to list EKS clusters in region {}: {}", region, e.getMessage());
+                log.error("Failed to list EKS clusters in {}: {}", target, e.getMessage());
             }
         }
         return result;
@@ -153,15 +172,16 @@ public class EksSyncService {
      * Not {@code @Transactional}: listClusters is an AWS call, and each save commits on its own.
      */
     public void autoDiscoverClusters() {
-        for (String region : resolveSyncRegions()) {
-            autoDiscoverClustersInRegion(region);
+        for (CloudTarget target : scanTargets(resolveSyncRegions())) {
+            autoDiscoverClustersInRegion(target);
         }
     }
 
-    private void autoDiscoverClustersInRegion(String region) {
+    private void autoDiscoverClustersInRegion(CloudTarget target) {
+        String region = target.region();
         List<String> clusterNames;
         try {
-            clusterNames = eksService.listClusters(CloudTarget.of(region));
+            clusterNames = eksService.listClusters(target);
         } catch (Exception e) {
             log.error("Failed to list EKS clusters in region {} during auto-discovery: {}", region, e.getMessage());
             return;
@@ -186,6 +206,7 @@ public class EksSyncService {
                 env.setDisplayName(clusterName);
                 env.setDescription("Auto-discovered EKS cluster");
                 env.setServiceType("EKS");
+                env.setAwsAccountRef(target.accountRef()); // the account it was found in (E28-T06)
                 env.setIsActive(true);
                 env.setMetadata("{\"region\":\"" + region + "\"}");
                 environmentRepository.save(env);

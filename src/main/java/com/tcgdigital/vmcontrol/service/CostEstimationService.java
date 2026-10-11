@@ -639,9 +639,9 @@ public class CostEstimationService {
         Map<String, ComputeOptimizerService.Recommendation> result = new LinkedHashMap<>();
         bundles.stream()
                 .filter(b -> b.vm().getProvider() == CloudProvider.AWS)
-                .map(b -> b.vm().getRegion())
+                .map(b -> CloudTarget.of(b.vm()))
                 .distinct()
-                .forEach(region -> result.putAll(computeOptimizerService.getEc2Recommendations(region)));
+                .forEach(target -> result.putAll(computeOptimizerService.getEc2Recommendations(target)));
         return result;
     }
 

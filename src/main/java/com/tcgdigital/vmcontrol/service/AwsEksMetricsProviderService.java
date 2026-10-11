@@ -39,8 +39,8 @@ public class AwsEksMetricsProviderService implements CloudMetricsProviderService
     private final VmRepository vmRepository;
     private final ObjectMapper objectMapper;
     private final AwsClientFactory awsClientFactory;
-    /** The client for a region (the factory's cached one); replaced in tests. */
-    Function<String, CloudWatchClient> clientFactory;
+    /** The client for an account and region (the factory's cached one); replaced in tests. */
+    java.util.function.BiFunction<String, String, CloudWatchClient> clientFactory;
 
     @Value("${aws.region:ap-south-1}")
     private String defaultRegion = "ap-south-1";
@@ -55,7 +55,7 @@ public class AwsEksMetricsProviderService implements CloudMetricsProviderService
         this.vmRepository = vmRepository;
         this.objectMapper = objectMapper;
         this.awsClientFactory = awsClientFactory;
-        this.clientFactory = awsClientFactory::cloudWatch;
+        this.clientFactory = (accountRef, region) -> awsClientFactory.cloudWatch(accountRef, region);
     }
 
     @Override
@@ -69,10 +69,10 @@ public class AwsEksMetricsProviderService implements CloudMetricsProviderService
     }
 
     @Override
-    public Map<String, VmMetricData> fetchLatestMetrics(List<String> providerVmIds, String region,
+    public Map<String, VmMetricData> fetchLatestMetrics(List<String> providerVmIds, CloudTarget cloudTarget,
                                                         Instant start, Instant end, int periodSeconds) {
         Map<String, VmMetricData> latest = new HashMap<>();
-        fetchMetricSeries(providerVmIds, region, start, end, periodSeconds).forEach((id, series) -> {
+        fetchMetricSeries(providerVmIds, cloudTarget, start, end, periodSeconds).forEach((id, series) -> {
             if (!series.isEmpty()) {
                 latest.put(id, series.get(series.size() - 1));
             }
@@ -107,8 +107,9 @@ public class AwsEksMetricsProviderService implements CloudMetricsProviderService
     }
 
     @Override
-    public Map<String, List<VmMetricData>> fetchMetricSeries(List<String> providerVmIds, String region,
+    public Map<String, List<VmMetricData>> fetchMetricSeries(List<String> providerVmIds, CloudTarget cloudTarget,
                                                              Instant start, Instant end, int periodSeconds) {
+        String region = cloudTarget.region();
         if (!isAvailable() || providerVmIds == null || providerVmIds.isEmpty()) {
             return Collections.emptyMap();
         }
@@ -154,7 +155,7 @@ public class AwsEksMetricsProviderService implements CloudMetricsProviderService
 
         Map<String, TreeMap<Instant, Point>> points = new HashMap<>();
         Map<String, TreeMap<Instant, Double>> memoryByCluster = new HashMap<>();
-        CloudWatchClient cloudWatch = clientFactory.apply(effectiveRegion(region));
+        CloudWatchClient cloudWatch = clientFactory.apply(cloudTarget.accountRef(), effectiveRegion(region));
         for (int offset = 0; offset < queries.size(); offset += MAX_QUERIES) {
             List<MetricDataQuery> chunk = queries.subList(offset, Math.min(offset + MAX_QUERIES, queries.size()));
             try {

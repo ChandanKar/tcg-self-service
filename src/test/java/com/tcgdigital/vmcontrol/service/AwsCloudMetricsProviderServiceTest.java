@@ -44,7 +44,7 @@ class AwsCloudMetricsProviderServiceTest {
     void setUp() {
         com.tcgdigital.vmcontrol.service.aws.AwsClientFactory factory = org.mockito.Mockito.mock(com.tcgdigital.vmcontrol.service.aws.AwsClientFactory.class);
         org.mockito.Mockito.lenient().when(factory.isConfigured()).thenReturn(true);
-        org.mockito.Mockito.lenient().when(factory.cloudWatch(REGION)).thenReturn(cloudWatch);
+        org.mockito.Mockito.lenient().when(factory.cloudWatch(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq(REGION))).thenReturn(cloudWatch);
         service = new AwsCloudMetricsProviderService(factory);
     }
 
@@ -53,7 +53,7 @@ class AwsCloudMetricsProviderServiceTest {
     }
 
     private Map<String, List<CloudMetricsProviderService.VmMetricData>> fetch(List<String> ids) {
-        return service.fetchMetricSeries(ids, REGION, T0955.minusSeconds(600), T1000.plusSeconds(60), 300);
+        return service.fetchMetricSeries(ids, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), T0955.minusSeconds(600), T1000.plusSeconds(60), 300);
     }
 
     @Test

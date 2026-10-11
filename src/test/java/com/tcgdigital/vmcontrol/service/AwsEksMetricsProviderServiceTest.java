@@ -41,7 +41,7 @@ class AwsEksMetricsProviderServiceTest {
         when(factory.isConfigured()).thenReturn(true);
         service = new AwsEksMetricsProviderService(vms, new ObjectMapper(), factory);
         ReflectionTestUtils.setField(service, "enabled", true);
-        service.clientFactory = region -> {
+        service.clientFactory = (accountRef, region) -> {
             clientsBuilt.incrementAndGet();
             return cloudWatch;
         };
@@ -80,7 +80,7 @@ class AwsEksMetricsProviderServiceTest {
         answer();
 
         Map<String, List<CloudMetricsProviderService.VmMetricData>> series =
-                service.fetchMetricSeries(List.of(NG), "ap-south-1", T.minusSeconds(300), T.plusSeconds(300), 300);
+                service.fetchMetricSeries(List.of(NG), com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), T.minusSeconds(300), T.plusSeconds(300), 300);
 
         assertThat(series).containsKey(NG);
         CloudMetricsProviderService.VmMetricData sample = series.get(NG).get(0);
@@ -100,7 +100,7 @@ class AwsEksMetricsProviderServiceTest {
         ReflectionTestUtils.setField(service, "containerInsights", true);
         nodeGroup("{\"asgNames\":[\"asg-a\"]}");
         answer();
-        CloudMetricsProviderService.VmMetricData sample = service.fetchLatestMetrics(List.of(NG), "ap-south-1",
+        CloudMetricsProviderService.VmMetricData sample = service.fetchLatestMetrics(List.of(NG), com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"),
                 T.minusSeconds(300), T.plusSeconds(300), 300).get(NG);
         assertThat(sample.getMemoryUtilization()).isEqualByComparingTo("55.5");
         assertThat(sample.getCpuUtilization()).isEqualByComparingTo("10");
@@ -109,12 +109,12 @@ class AwsEksMetricsProviderServiceTest {
     @Test
     void offOrWithoutAsgNamesNothingIsCalled() {
         nodeGroup("{\"minSize\":1,\"desiredSize\":2}");
-        assertThat(service.fetchMetricSeries(List.of(NG), "ap-south-1", T.minusSeconds(300), T, 300)).isEmpty();
+        assertThat(service.fetchMetricSeries(List.of(NG), com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), T.minusSeconds(300), T, 300)).isEmpty();
 
         nodeGroup("{\"asgNames\":[\"asg-a\"]}");
         ReflectionTestUtils.setField(service, "enabled", false);
         assertThat(service.isAvailable()).isFalse();
-        assertThat(service.fetchMetricSeries(List.of(NG), "ap-south-1", T.minusSeconds(300), T, 300)).isEmpty();
+        assertThat(service.fetchMetricSeries(List.of(NG), com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), T.minusSeconds(300), T, 300)).isEmpty();
 
         verifyNoInteractions(cloudWatch);
         assertThat(clientsBuilt.get()).isZero();

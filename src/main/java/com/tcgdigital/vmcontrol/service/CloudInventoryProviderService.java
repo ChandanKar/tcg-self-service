@@ -12,7 +12,8 @@ public interface CloudInventoryProviderService {
 
     boolean isAvailable();
 
-    Map<String, VmInventoryData> fetchInventory(List<String> providerVmIds, String region);
+    /** The VMs' inventory, read through the target account's client (E28-T06). */
+    Map<String, VmInventoryData> fetchInventory(List<String> providerVmIds, CloudTarget target);
 
     class VmInventoryData {
         private String providerVmId;

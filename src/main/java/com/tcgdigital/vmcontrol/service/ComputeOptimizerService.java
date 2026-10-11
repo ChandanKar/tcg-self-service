@@ -47,20 +47,20 @@ public class ComputeOptimizerService {
     }
 
     private final Map<String, CachedRecs> recommendationCache = new ConcurrentHashMap<>();
-    /** A region's client: the factory's cached one, or a fixed one in tests. */
-    private final java.util.function.Function<String, ComputeOptimizerClient> clientFactory;
+    /** An account's client in a region: the factory's cached one, or a fixed one in tests. */
+    private final java.util.function.BiFunction<String, String, ComputeOptimizerClient> clientFactory;
     private final java.util.function.BooleanSupplier configured;
     private java.time.Clock clock = java.time.Clock.systemUTC();
 
     @org.springframework.beans.factory.annotation.Autowired
     public ComputeOptimizerService(AwsClientFactory awsClientFactory) {
-        this.clientFactory = awsClientFactory::computeOptimizer;
+        this.clientFactory = (accountRef, region) -> awsClientFactory.computeOptimizer(accountRef, region);
         this.configured = awsClientFactory::isConfigured;
     }
 
     /** Test seam: fixed clients and clock, credentials configured. */
     ComputeOptimizerService(java.util.function.Function<String, ComputeOptimizerClient> clientFactory, java.time.Clock clock) {
-        this.clientFactory = clientFactory;
+        this.clientFactory = (accountRef, region) -> clientFactory.apply(region);
         this.configured = () -> true;
         this.clock = clock;
     }
@@ -86,10 +86,16 @@ public class ComputeOptimizerService {
      *         account's whole recommendation set for the region.
      */
     public Map<String, Recommendation> getEc2Recommendations(String region) {
+        return getEc2Recommendations(CloudTarget.of(region));
+    }
+
+    /** One account's recommendations in one region (E28-T06), cached per account and region. */
+    public Map<String, Recommendation> getEc2Recommendations(CloudTarget target) {
         if (!isAvailable()) {
             return Map.of();
         }
-        CachedRecs cached = recommendationCache.get(region);
+        String region = target.region();
+        CachedRecs cached = recommendationCache.get(target.key());
         if (cached != null && cached.fetchedAt().plus(java.time.Duration.ofMinutes(cacheMinutes)).isAfter(clock.instant())) {
             return cached.recommendations();
         }
@@ -98,13 +104,13 @@ public class ComputeOptimizerService {
             Map<String, Recommendation> all = new LinkedHashMap<>();
             String token = null;
             do {
-                GetEc2InstanceRecommendationsResponse response = getClient(region)
+                GetEc2InstanceRecommendationsResponse response = clientFactory.apply(target.accountRef(), region)
                         .getEC2InstanceRecommendations(GetEc2InstanceRecommendationsRequest.builder().nextToken(token).build());
                 all.putAll(parseRecommendations(response));
                 token = response.nextToken();
             } while (token != null && !token.isEmpty());
             Map<String, Recommendation> result = java.util.Collections.unmodifiableMap(all);
-            recommendationCache.put(region, new CachedRecs(clock.instant(), result));
+            recommendationCache.put(target.key(), new CachedRecs(clock.instant(), result));
             return result;
         } catch (OptInRequiredException e) {
             log.warn("Compute Optimizer is not enrolled for this account (region {}) — enable it in the " +
@@ -169,6 +175,6 @@ public class ComputeOptimizerService {
     }
 
     private ComputeOptimizerClient getClient(String region) {
-        return clientFactory.apply(region);
+        return clientFactory.apply(null, region);
     }
 }

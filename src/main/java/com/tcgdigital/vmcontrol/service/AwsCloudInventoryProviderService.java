@@ -38,14 +38,14 @@ public class AwsCloudInventoryProviderService implements CloudInventoryProviderS
     }
 
     @Override
-    public Map<String, VmInventoryData> fetchInventory(List<String> providerVmIds, String region) {
+    public Map<String, VmInventoryData> fetchInventory(List<String> providerVmIds, CloudTarget target) {
         if (!isAvailable() || providerVmIds == null || providerVmIds.isEmpty()) {
             return Collections.emptyMap();
         }
 
         Map<String, VmInventoryData> result = new HashMap<>();
         try {
-            Ec2Client ec2 = getEc2Client(region);
+            Ec2Client ec2 = getEc2Client(target);
             List<Instance> instances = describeInstances(ec2, providerVmIds);
             Set<String> volumeIds = instances.stream()
                     .flatMap(instance -> instance.blockDeviceMappings().stream())
@@ -92,7 +92,7 @@ public class AwsCloudInventoryProviderService implements CloudInventoryProviderS
                 result.put(instance.instanceId(), data);
             }
         } catch (Exception e) {
-            log.error("Failed to fetch AWS inventory for {} VM(s) in {}: {}", providerVmIds.size(), region, e.getMessage());
+            log.error("Failed to fetch AWS inventory for {} VM(s) in {}: {}", providerVmIds.size(), target, e.getMessage());
         }
         return result;
     }
@@ -147,8 +147,8 @@ public class AwsCloudInventoryProviderService implements CloudInventoryProviderS
         return result;
     }
 
-    private Ec2Client getEc2Client(String region) {
-        String effectiveRegion = region != null && !region.isBlank() ? region : defaultRegion;
-        return awsClientFactory.ec2(effectiveRegion);
+    private Ec2Client getEc2Client(CloudTarget target) {
+        String effectiveRegion = target.region() != null && !target.region().isBlank() ? target.region() : defaultRegion;
+        return awsClientFactory.ec2(target.accountRef(), effectiveRegion);
     }
 }

@@ -78,7 +78,7 @@ class EksMetricsSyncIntegrationTest extends AbstractIntegrationTest {
 
         target = AopTestUtils.getTargetObject(eksMetrics);
         realFactory = ReflectionTestUtils.getField(target, "clientFactory");
-        Function<String, CloudWatchClient> fake = region -> cloudWatch;
+        java.util.function.BiFunction<String, String, CloudWatchClient> fake = (accountRef, region) -> cloudWatch;
         ReflectionTestUtils.setField(target, "clientFactory", fake);
         ReflectionTestUtils.setField(target, "enabled", true);
 

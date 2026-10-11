@@ -559,6 +559,29 @@ class EksSyncServiceTest {
     }
 
     @Test
+    void getUnregisteredEksClusters_listsEachAccountsClustersLabelledWithTheAccount() {
+        // E28-T06: account B scans its own region; account A's failure does not hide B.
+        com.tcgdigital.vmcontrol.service.aws.AwsAccountService accounts =
+                org.mockito.Mockito.mock(com.tcgdigital.vmcontrol.service.aws.AwsAccountService.class);
+        com.tcgdigital.vmcontrol.service.CloudTarget a = com.tcgdigital.vmcontrol.service.CloudTarget.of("acct-a", "ap-south-1");
+        com.tcgdigital.vmcontrol.service.CloudTarget b = com.tcgdigital.vmcontrol.service.CloudTarget.of("acct-b", "eu-west-1");
+        when(accounts.scanTargets(org.mockito.ArgumentMatchers.anyList())).thenReturn(List.of(a, b));
+        when(accounts.namesByRef()).thenReturn(java.util.Map.of("acct-a", "Shared", "acct-b", "Payments"));
+        service.setAwsAccountService(accounts);
+        when(eksService.listClusters(a)).thenThrow(new RuntimeException("AccessDenied: sts:AssumeRole"));
+        when(eksService.listClusters(b)).thenReturn(List.of("pay-cluster"));
+        when(environmentRepository.existsByName("pay-cluster")).thenReturn(false);
+
+        List<EksClusterInfoDTO> result = service.getUnregisteredEksClusters();
+
+        assertEquals(1, result.size());
+        assertEquals("pay-cluster", result.get(0).getClusterName());
+        assertEquals("eu-west-1", result.get(0).getRegion());
+        assertEquals("acct-b", result.get(0).getAccountRef());
+        assertEquals("Payments", result.get(0).getAccountName());
+    }
+
+    @Test
     void getUnregisteredEksClusters_oneRegionFailingDoesNotBlockOthers() {
         ReflectionTestUtils.setField(service, "configuredSyncRegions", "ap-south-1,us-east-1");
         when(eksService.listClusters(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"))).thenThrow(new RuntimeException("region unreachable"));

@@ -106,7 +106,7 @@ class CostEstimationServiceTest {
 
     @Test
     void fallsBackToCpuThresholdRuleWhenComputeOptimizerHasNoOpinion() {
-        when(computeOptimizerService.getEc2Recommendations(REGION)).thenReturn(Map.of());
+        when(computeOptimizerService.getEc2Recommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of());
 
         RightsizingCandidateDTO row = onlyCandidate();
 
@@ -119,7 +119,7 @@ class CostEstimationServiceTest {
     void prefersComputeOptimizerRecommendationWhenOneExists() {
         ComputeOptimizerService.Recommendation recommendation =
                 new ComputeOptimizerService.Recommendation(INSTANCE_ID, "OVER_PROVISIONED", List.of("m6a.large"));
-        when(computeOptimizerService.getEc2Recommendations(REGION)).thenReturn(Map.of(INSTANCE_ID, recommendation));
+        when(computeOptimizerService.getEc2Recommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of(INSTANCE_ID, recommendation));
 
         RightsizingCandidateDTO row = onlyCandidate();
 
@@ -141,7 +141,7 @@ class CostEstimationServiceTest {
         when(vmMetricSampleRepository.findByVmVmIdInAndSampleTimeBetweenOrderBySampleTimeAsc(anyList(), any(), any()))
                 .thenReturn(List.of(sample, sample));
 
-        when(computeOptimizerService.getEc2Recommendations(REGION)).thenReturn(Map.of());
+        when(computeOptimizerService.getEc2Recommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of());
 
         RightsizingCandidateDTO row = onlyCandidate();
 
@@ -152,11 +152,30 @@ class CostEstimationServiceTest {
 
     @Test
     void callsComputeOptimizerOncePerDistinctRegionNotPerVm() {
-        when(computeOptimizerService.getEc2Recommendations(REGION)).thenReturn(Map.of());
+        when(computeOptimizerService.getEc2Recommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of());
 
         onlyCandidate();
 
-        org.mockito.Mockito.verify(computeOptimizerService, org.mockito.Mockito.times(1)).getEc2Recommendations(REGION);
+        org.mockito.Mockito.verify(computeOptimizerService, org.mockito.Mockito.times(1)).getEc2Recommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION));
+    }
+
+    @Test
+    void callsComputeOptimizerOncePerAccountAndRegion() {
+        // E28-T06: two VMs in one region but different accounts -> two calls, each with its own account.
+        Vm other = buildAwsVm();
+        other.setVmId("vm-2");
+        other.setAwsAccountRef("acct-b");
+        when(vmRepository.findByIsActiveTrueFetchGroupAndEnvironment()).thenReturn(List.of(buildAwsVm(), other));
+        CostDataProvider.VmCostEstimate estimate = new CostDataProvider.VmCostEstimate(
+                true, BigDecimal.valueOf(0.1664), BigDecimal.valueOf(720), 0, BigDecimal.valueOf(119.81));
+        when(costDataProvider.estimateCosts(anyList(), any(), any())).thenReturn(Map.of(VM_ID, estimate, "vm-2", estimate));
+        when(computeOptimizerService.getEc2Recommendations(org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class)))
+                .thenReturn(Map.of());
+
+        service.getRightsizingCandidates(PageRequest.of(0, 25));
+
+        org.mockito.Mockito.verify(computeOptimizerService).getEc2Recommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION));
+        org.mockito.Mockito.verify(computeOptimizerService).getEc2Recommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of("acct-b", REGION));
     }
 
     /** A 3-node t3.xlarge EKS node group in place of the EC2 VM (E26-T02). */
@@ -343,7 +362,7 @@ class CostEstimationServiceTest {
         // t3.xlarge now; the top option (t3.2xlarge) costs more, the next (m6a.large) is cheaper.
         ComputeOptimizerService.Recommendation recommendation = new ComputeOptimizerService.Recommendation(
                 INSTANCE_ID, "OVERPROVISIONED", List.of("t3.2xlarge", "m6a.large"));
-        when(computeOptimizerService.getEc2Recommendations(REGION)).thenReturn(Map.of(INSTANCE_ID, recommendation));
+        when(computeOptimizerService.getEc2Recommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of(INSTANCE_ID, recommendation));
 
         RightsizingCandidateDTO row = onlyCandidate();
 
@@ -356,7 +375,7 @@ class CostEstimationServiceTest {
     void withOnlyDearerOptionsTheRuleBasedSuggestionIsUsed() {
         ComputeOptimizerService.Recommendation recommendation = new ComputeOptimizerService.Recommendation(
                 INSTANCE_ID, "OVERPROVISIONED", List.of("t3.2xlarge"));
-        when(computeOptimizerService.getEc2Recommendations(REGION)).thenReturn(Map.of(INSTANCE_ID, recommendation));
+        when(computeOptimizerService.getEc2Recommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of(INSTANCE_ID, recommendation));
 
         RightsizingCandidateDTO row = onlyCandidate();
 
@@ -409,7 +428,7 @@ class CostEstimationServiceTest {
         List<VmMetricDaily> days = List.of(quietDay(0), quietDay(1), quietDay(2));
         when(vmMetricDailyRepository.findByVmVmIdInAndBucketDateGreaterThanEqualOrderByVmVmIdAscBucketDateDesc(anyList(), any()))
                 .thenReturn(days);
-        org.mockito.Mockito.lenient().when(computeOptimizerService.getEc2Recommendations(REGION)).thenReturn(Map.of(INSTANCE_ID,
+        org.mockito.Mockito.lenient().when(computeOptimizerService.getEc2Recommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of(INSTANCE_ID,
                 new ComputeOptimizerService.Recommendation(INSTANCE_ID, "OVERPROVISIONED", List.of("m6a.large"))));
 
         RightsizingCandidateDTO row = onlyCandidate();

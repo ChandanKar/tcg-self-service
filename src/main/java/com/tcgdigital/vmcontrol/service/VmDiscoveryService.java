@@ -101,6 +101,18 @@ public class VmDiscoveryService {
     // e.g. tcg-backend-1, tcg-backend-2, tcg-backend-3 → env "tcg-backend"
     // -------------------------------------------------------------------------
 
+    private com.tcgdigital.vmcontrol.service.aws.AwsAccountService awsAccountService;
+
+    /** Optional so the service also runs without the registry (tests); then only the default account is scanned. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setAwsAccountService(com.tcgdigital.vmcontrol.service.aws.AwsAccountService awsAccountService) {
+        this.awsAccountService = awsAccountService;
+    }
+
+    private List<CloudTarget> scanTargets(List<String> regions) {
+        return awsAccountService == null ? regions.stream().map(CloudTarget::of).toList() : awsAccountService.scanTargets(regions);
+    }
+
     private int discoverByNamePattern() {
         // An empty prefix scanned (and grouped into environments) every instance in the account.
         if (namePrefix == null || namePrefix.isBlank()) {
@@ -110,16 +122,26 @@ public class VmDiscoveryService {
         log.info("VM discovery (name-pattern) starting — prefix='{}', region={}",
                 namePrefix.isBlank() ? "(all)" : namePrefix, defaultRegion);
 
+        int total = 0;
+        // Every account (E28-T06): a broken account is logged and the others still scanned.
+        for (CloudTarget target : scanTargets(List.of(defaultRegion))) {
+            total += discoverByNamePattern(target);
+        }
+        log.info("VM discovery (name-pattern) complete — {} new VM(s) registered", total);
+        return total;
+    }
+
+    private int discoverByNamePattern(CloudTarget target) {
         List<Instance> allInstances;
         try {
-            allInstances = awsService.discoverInstancesByNamePrefix(CloudTarget.of(defaultRegion), namePrefix);
+            allInstances = awsService.discoverInstancesByNamePrefix(target, namePrefix);
         } catch (DiscoveryFailedException e) {
             // Unknown is not "nothing is live": register and flag nothing this run (H24).
-            log.warn("VM discovery (name-pattern) skipped — {}", e.getMessage());
+            log.warn("VM discovery (name-pattern) skipped for {} — {}", target, e.getMessage());
             return 0;
         }
         if (allInstances.isEmpty()) {
-            log.info("No instances found matching prefix '{}' in region {}", namePrefix, defaultRegion);
+            log.info("No instances found matching prefix '{}' in {}", namePrefix, target);
             return 0;
         }
 
@@ -146,17 +168,17 @@ public class VmDiscoveryService {
         int total = 0;
         for (Map.Entry<String, List<Instance>> entry : byEnv.entrySet()) {
             try {
-                total += registerInstanceGroup(entry.getKey(), entry.getValue(), defaultRegion);
+                total += registerInstanceGroup(entry.getKey(), entry.getValue(), target);
             } catch (Exception e) {
                 log.error("Failed to register instance group '{}': {}", entry.getKey(), e.getMessage(), e);
             }
         }
 
-        log.info("VM discovery (name-pattern) complete — {} new VM(s) registered", total);
         return total;
     }
 
-    private int registerInstanceGroup(String envName, List<Instance> instances, String region) {
+    private int registerInstanceGroup(String envName, List<Instance> instances, CloudTarget target) {
+        String region = target.region();
         // Find or create Environment
         Environment env = environmentRepository.findByName(envName).orElseGet(() -> {
             Environment e = new Environment();
@@ -165,6 +187,7 @@ public class VmDiscoveryService {
             e.setDisplayName(envName);
             e.setDescription("Auto-discovered via naming pattern - pending admin review");
             e.setServiceType("EC2");
+            e.setAwsAccountRef(target.accountRef()); // the account it was found in (E28-T06)
             e.setIsActive(autoActivateEnvironments);
             e.setMetadata("{\"region\":\"" + region + "\"}");
             environmentRepository.save(e);
@@ -192,7 +215,7 @@ public class VmDiscoveryService {
             }
             // One bad instance must not stop the rest of the environment (H8).
             try {
-                registerInstanceByName(instance, env, group, region);
+                registerInstanceByName(instance, env, group, target);
                 registered++;
             } catch (Exception e) {
                 failed++;
@@ -212,7 +235,8 @@ public class VmDiscoveryService {
         return registered;
     }
 
-    private void registerInstanceByName(Instance instance, Environment env, VmGroup group, String region) {
+    private void registerInstanceByName(Instance instance, Environment env, VmGroup group, CloudTarget target) {
+        String region = target.region();
         String nameTag = getNameTag(instance);
         String displayName = nameTag != null ? nameTag : instance.instanceId();
         String slug = toSlug(displayName);
@@ -233,6 +257,7 @@ public class VmDiscoveryService {
         vm.setName(slug);
         vm.setDisplayName(displayName);
         vm.setProvider(CloudProvider.AWS);
+        vm.setAwsAccountRef(target.accountRef());
         vm.setProviderVmId(instance.instanceId());
         vm.setRegion(region);
         vm.setStatus(VmStatus.UNKNOWN);
@@ -356,6 +381,7 @@ public class VmDiscoveryService {
         vm.setName(slug);
         vm.setDisplayName(displayName);
         vm.setProvider(CloudProvider.AWS);
+        vm.setAwsAccountRef(env.getAwsAccountRef());
         vm.setProviderVmId(instance.instanceId());
         vm.setRegion(region);
         vm.setStatus(VmStatus.UNKNOWN);
