@@ -20,21 +20,9 @@ import java.util.List;
 public interface EnvironmentAccessRequestRepository extends JpaRepository<EnvironmentAccessRequest, String> {
 
     /**
-     * Find all pending requests for an environment.
-     */
-    List<EnvironmentAccessRequest> findByEnvironment_EnvironmentIdAndStatusOrderByCreatedAtDesc(
-            String environmentId, AccessRequestStatus status);
-
-    /**
      * Find all requests by requester.
      */
     List<EnvironmentAccessRequest> findByRequester_UserIdOrderByCreatedAtDesc(String userId);
-
-    /**
-     * Find all requests by requester with specific status.
-     */
-    List<EnvironmentAccessRequest> findByRequester_UserIdAndStatusOrderByCreatedAtDesc(
-            String userId, AccessRequestStatus status);
 
     /**
      * Find all pending requests (for admins to review).
@@ -57,17 +45,6 @@ public interface EnvironmentAccessRequestRepository extends JpaRepository<Enviro
            "                AND (u.admin = true OR u.envAdmin = true))) " +
            "ORDER BY ear.createdAt ASC")
     List<EnvironmentAccessRequest> findPendingRequestsForReviewer(@Param("reviewerUserId") String reviewerUserId);
-
-    /**
-     * Check if user has a pending request for an environment.
-     */
-    @Query("SELECT COUNT(ear) > 0 FROM EnvironmentAccessRequest ear " +
-           "WHERE ear.environment.environmentId = :environmentId " +
-           "AND ear.requester.userId = :userId " +
-           "AND ear.status = 'PENDING'")
-    boolean hasPendingRequest(
-            @Param("environmentId") String environmentId,
-            @Param("userId") String userId);
 
     /**
      * Check if the user has a pending request for one specific scope (ENVIRONMENT or GROUP).
@@ -97,11 +74,6 @@ public interface EnvironmentAccessRequestRepository extends JpaRepository<Enviro
      * Count pending requests.
      */
     long countByStatus(AccessRequestStatus status);
-
-    /**
-     * Count pending requests for a specific environment.
-     */
-    long countByEnvironment_EnvironmentIdAndStatus(String environmentId, AccessRequestStatus status);
 
     /**
      * Decide a request only if it is still PENDING; returns 0 when another reviewer (or the

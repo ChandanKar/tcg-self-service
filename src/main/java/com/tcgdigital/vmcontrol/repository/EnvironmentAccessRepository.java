@@ -40,11 +40,6 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
             @Param("now") Timestamp now);
 
     /**
-     * Find all access grants for an environment.
-     */
-    List<EnvironmentAccess> findByEnvironment_EnvironmentIdAndStatus(String environmentId, AccessStatus status);
-
-    /**
      * Find all active access grants for an environment.
      */
     @Query("SELECT ea FROM EnvironmentAccess ea " +
@@ -62,11 +57,6 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
            "AND ea.status = 'ACTIVE' " +
            "ORDER BY ea.user.displayName")
     List<EnvironmentAccess> findActiveAccessWithUsersByEnvironment(@Param("environmentId") String environmentId);
-
-    /**
-     * Find all access grants for a user.
-     */
-    List<EnvironmentAccess> findByUser_UserIdAndStatus(String userId, AccessStatus status);
 
     /**
      * Find all active access grants for a user.
@@ -180,22 +170,6 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
             @Param("now") Timestamp now);
 
     /**
-     * All active grants on one specific scope, users loaded — "who has access to this group"
-     * and recipient resolution.
-     */
-    @Query("SELECT ea FROM EnvironmentAccess ea " +
-           "JOIN FETCH ea.user " +
-           "WHERE ea.scopeType = :scopeType " +
-           "AND ea.scopeId = :scopeId " +
-           "AND ea.status = 'ACTIVE' " +
-           "AND (ea.expiresAt IS NULL OR ea.expiresAt > :now) " +
-           "ORDER BY ea.user.displayName")
-    List<EnvironmentAccess> findActiveByScopeTypeAndScopeId(
-            @Param("scopeType") AccessScopeType scopeType,
-            @Param("scopeId") String scopeId,
-            @Param("now") Timestamp now);
-
-    /**
      * A user's active GROUP-scoped grants across a set of group ids — resolves the user's
      * effective level over an environment's groups in one query.
      */
@@ -279,15 +253,6 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
     List<EnvironmentAccess> findRecentlyModifiedGrantsByUser(@Param("userId") String userId, Pageable pageable);
 
     /**
-     * Find expired access grants that need to be marked as expired.
-     */
-    @Query("SELECT ea FROM EnvironmentAccess ea " +
-           "WHERE ea.status = 'ACTIVE' " +
-           "AND ea.expiresAt IS NOT NULL " +
-           "AND ea.expiresAt <= :now")
-    List<EnvironmentAccess> findExpiredAccess(@Param("now") Timestamp now);
-
-    /**
      * Ids of active grants past their expiry; each is expired in its own transaction.
      */
     @Query("SELECT ea.accessId FROM EnvironmentAccess ea " +
@@ -309,14 +274,6 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
     List<EnvironmentAccess> findAccessExpiringBetweenWithDetails(
             @Param("start") Timestamp start,
             @Param("end") Timestamp end);
-
-    /**
-     * Count active users with access to an environment.
-     */
-    @Query("SELECT COUNT(ea) FROM EnvironmentAccess ea " +
-           "WHERE ea.environment.environmentId = :environmentId " +
-           "AND ea.status = 'ACTIVE'")
-    long countActiveAccessByEnvironment(@Param("environmentId") String environmentId);
 
     /** Grants on one scope in a status, expired or not (group delete revokes every ACTIVE one, M2). */
     List<EnvironmentAccess> findByScopeTypeAndScopeIdAndStatus(AccessScopeType scopeType, String scopeId,

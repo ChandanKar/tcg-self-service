@@ -33,11 +33,6 @@ public interface UserRepository extends JpaRepository<User, String> {
     Optional<User> findByUsername(String username);
 
     /**
-     * Find user by legacy user ID (maps to external_user_master.id).
-     */
-    Optional<User> findByLegacyUserId(Integer legacyUserId);
-
-    /**
      * Find all active users.
      */
     List<User> findByIsActiveTrue();
@@ -58,24 +53,9 @@ public interface UserRepository extends JpaRepository<User, String> {
     List<User> findByEnvAdminTrueAndIsActiveTrue();
 
     /**
-     * Check if user with email exists.
-     */
-    boolean existsByEmail(String email);
-
-    /**
-     * Check if user with Azure AD object ID exists.
-     */
-    boolean existsByAzureAdObjectId(String azureAdObjectId);
-
-    /**
      * Check if user with username exists.
      */
     boolean existsByUsername(String username);
-
-    /**
-     * Check if user with legacy user ID exists.
-     */
-    boolean existsByLegacyUserId(Integer legacyUserId);
 
     /**
      * Update last login timestamp for a user.

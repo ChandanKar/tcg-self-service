@@ -13,16 +13,6 @@ import java.util.List;
 public interface LockHistoryRepository extends JpaRepository<LockHistory, String> {
 
     /**
-     * Find history for a specific lock.
-     */
-    List<LockHistory> findByLockLockIdOrderByPerformedAtDesc(String lockId);
-
-    /**
-     * Find history for an environment.
-     */
-    List<LockHistory> findByEnvironmentIdOrderByPerformedAtDesc(String environmentId);
-
-    /**
      * Find recent history for an environment (limited).
      */
     List<LockHistory> findTop20ByEnvironmentIdOrderByPerformedAtDesc(String environmentId);

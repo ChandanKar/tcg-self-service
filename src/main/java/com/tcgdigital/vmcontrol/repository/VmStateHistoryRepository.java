@@ -35,11 +35,6 @@ public interface VmStateHistoryRepository extends JpaRepository<VmStateHistory, 
     List<VmStateHistory> findTop50ByOrderByChangedAtDesc();
 
     /**
-     * Find recent state changes with pagination.
-     */
-    Page<VmStateHistory> findAllByOrderByChangedAtDesc(Pageable pageable);
-
-    /**
      * Find drift events (state_sync source indicates external change).
      */
     @Query("SELECT h FROM VmStateHistory h WHERE h.changeSource = 'state_sync' AND h.changedAt BETWEEN :startTime AND :endTime ORDER BY h.changedAt DESC")
@@ -69,12 +64,6 @@ public interface VmStateHistoryRepository extends JpaRepository<VmStateHistory, 
      */
     @Query("SELECT COUNT(h) FROM VmStateHistory h WHERE h.changeSource = 'state_sync' AND h.changedAt BETWEEN :startTime AND :endTime")
     long countDriftEventsInRange(Timestamp startTime, Timestamp endTime);
-
-    /**
-     * Find last state change for a VM.
-     */
-    @Query("SELECT h FROM VmStateHistory h WHERE h.vm.vmId = :vmId ORDER BY h.changedAt DESC")
-    List<VmStateHistory> findLastStateChangeByVmId(String vmId, Pageable pageable);
 
     /**
      * Transitions for a batch of VMs within a time window, in one query — used to derive

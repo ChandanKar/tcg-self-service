@@ -25,22 +25,6 @@ public interface OperationDetailRepository extends JpaRepository<OperationDetail
     List<OperationDetail> findByExecutionExecutionIdAndStatusOrderBySequencePositionAsc(String executionId, String status);
 
     /**
-     * Count details by status for an execution.
-     */
-    long countByExecutionExecutionIdAndStatus(String executionId, String status);
-
-    /**
-     * Find all details for a target (VM or group).
-     */
-    List<OperationDetail> findByTargetIdOrderBySequencePositionAsc(String targetId);
-
-    /**
-     * Get max sequence position for an execution.
-     */
-    @Query("SELECT MAX(d.sequencePosition) FROM OperationDetail d WHERE d.execution.executionId = :executionId")
-    Integer findMaxSequencePosition(String executionId);
-
-    /**
      * Fetch all completed details (with timing) for a given set of execution IDs.
      * Per-VM avg/min/max is computed in the service layer to avoid HQL dialect issues.
      */

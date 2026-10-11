@@ -19,7 +19,6 @@ repositories {
 }
 
 ext {
-	set('springCloudAzureVersion', "7.0.0")
 	set('awsSdkVersion', "2.29.51")
 }
 
@@ -50,10 +49,6 @@ dependencies {
 	implementation 'org.flywaydb:flyway-mysql'
 	// Excel export (Cost Management)
 	implementation 'org.apache.poi:poi-ooxml:5.3.0'
-	//implementation 'org.springframework.boot:spring-boot-starter-data-redis'
-	//implementation 'com.github.kstyrc:embedded-redis:0.6'
-	// removed Azure starter because it brings Spring Boot 4 autoconfiguration that conflicts with the project's Spring Boot 3.5.x
-	//implementation 'com.azure.spring:spring-cloud-azure-starter-active-directory'
 	runtimeOnly 'com.mysql:mysql-connector-j'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
@@ -61,12 +56,6 @@ dependencies {
 	testImplementation 'org.testcontainers:mysql'
 	testImplementation 'org.awaitility:awaitility'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-}
-
-dependencyManagement {
-	imports {
-		mavenBom "com.azure.spring:spring-cloud-azure-dependencies:${springCloudAzureVersion}"
-	}
 }
 
 // Integration tests use a local MySQL schema when TEST_DB_URL is set (environment or .env),

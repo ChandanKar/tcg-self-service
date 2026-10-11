@@ -29,13 +29,6 @@ public interface VmRepository extends JpaRepository<Vm, String> {
     List<Vm> findByGroupGroupIdOrderBySequencePositionAsc(String groupId);
 
     /**
-     * Find all VMs in a group (including inactive) ordered by sequence position.
-     * Use for admin/reporting purposes.
-     */
-    @Query("SELECT v FROM Vm v WHERE v.group.groupId = :groupId ORDER BY v.sequencePosition ASC")
-    List<Vm> findAllByGroupGroupIdOrderBySequencePositionAsc(String groupId);
-
-    /**
      * Find VM by name within a group.
      */
     Optional<Vm> findByGroupGroupIdAndName(String groupId, String name);
@@ -80,12 +73,6 @@ public interface VmRepository extends JpaRepository<Vm, String> {
     List<Vm> findByEnvironmentIdIn(@Param("environmentIds") List<String> environmentIds);
 
     /**
-     * Find all VMs in an environment including inactive (for admin/reporting).
-     */
-    @Query("SELECT v FROM Vm v WHERE v.group.environment.environmentId = :environmentId ORDER BY v.group.sequencePosition, v.sequencePosition")
-    List<Vm> findAllByEnvironmentId(String environmentId);
-
-    /**
      * Find all active VMs in a group.
      */
     @Query("SELECT v FROM Vm v WHERE v.group.groupId = :groupId AND v.isActive = true")
@@ -102,12 +89,6 @@ public interface VmRepository extends JpaRepository<Vm, String> {
      */
     @Query("SELECT v FROM Vm v WHERE v.stateDriftDetected = true AND v.isActive = true")
     List<Vm> findByStateDriftDetectedTrue();
-
-    /**
-     * Find inactive VMs (for admin review).
-     */
-    @Query("SELECT v FROM Vm v WHERE v.isActive = false ORDER BY v.updatedAt DESC")
-    List<Vm> findInactiveVms();
 
     /**
      * Count active VMs in a group.
@@ -270,13 +251,6 @@ public interface VmRepository extends JpaRepository<Vm, String> {
                                    @Param("active") Boolean active,
                                    @Param("drift") Boolean drift,
                                    @Param("syncedAt") Timestamp syncedAt);
-
-    /** A state sync that found no drift: record the sync time and clear the drift flag. */
-    @Modifying(flushAutomatically = true)
-    @Transactional
-    @Query("UPDATE Vm v SET v.stateDriftDetected = false, v.lastStateSyncAt = :syncedAt, " +
-           "v.version = v.version + 1 WHERE v.vmId = :vmId")
-    int markSyncedWithoutDrift(@Param("vmId") String vmId, @Param("syncedAt") Timestamp syncedAt);
 
     @Modifying(flushAutomatically = true)
     @Transactional

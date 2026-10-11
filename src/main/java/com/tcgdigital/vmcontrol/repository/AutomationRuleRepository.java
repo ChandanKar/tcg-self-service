@@ -17,28 +17,6 @@ import java.util.Optional;
 @Repository
 public interface AutomationRuleRepository extends JpaRepository<AutomationRule, String> {
 
-    /**
-     * All rules for an environment (list/manage view).
-     */
-    List<AutomationRule> findByEnvironment_EnvironmentIdOrderByCreatedAtDesc(String environmentId);
-
-    /**
-     * All rules across every environment (list/manage view, no filter).
-     */
-    List<AutomationRule> findAllByOrderByCreatedAtDesc();
-
-    /**
-     * Enabled SCHEDULE rules — evaluated every tick by the scheduler.
-     */
-    List<AutomationRule> findByEnabledTrueAndTriggerType(AutomationTriggerType triggerType);
-
-    /**
-     * Enabled ACCESS_GRANT rules for a specific environment and sub-mode —
-     * used by both the lock-acquire and access-approved hooks.
-     */
-    List<AutomationRule> findByEnabledTrueAndTriggerTypeAndAccessGrantModeAndEnvironment_EnvironmentId(
-            AutomationTriggerType triggerType, AccessGrantMode accessGrantMode, String environmentId);
-
     /** One rule with its environment, for evaluation outside a web request (C6). */
     @Query("SELECT r FROM AutomationRule r JOIN FETCH r.environment WHERE r.ruleId = :id")
     Optional<AutomationRule> findByIdFetchEnvironment(@Param("id") String id);
