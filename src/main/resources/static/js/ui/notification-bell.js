@@ -99,6 +99,7 @@ const NotificationBell = (function () {
         if (entityType === 'BUDGET_ACTION' || entityType === 'BUDGET') return ['budgets']; // E20
         if (entityType === 'COST_ANOMALY') return Auth.isAdmin() ? ['cost-management'] : ['my-environments']; // E21
         if (entityType === 'ACCESS_REQUEST') return ['pending-requests'];
+        if (entityType === 'APPROVAL_REQUEST') return ['approvals']; // E25
         if (entityType === 'VM') return ['vm-registry'];
         if (n.type === 'WEEKLY_COST_REPORT') return ['cost-management'];
         return null;
@@ -211,7 +212,10 @@ const NotificationBell = (function () {
             BUDGET_FORECAST:         'fa-chart-line',
             BUDGET_ACTION_PENDING:   'fa-gavel',  // opens #/budgets (entity BUDGET_ACTION)
             BUDGET_FREEZE:           'fa-snowflake',
-            COST_ANOMALY:            'fa-chart-area'
+            COST_ANOMALY:            'fa-chart-area',
+            APPROVAL_REQUESTED:      'fa-stamp',
+            APPROVAL_GRANTED:        'fa-check-circle',
+            APPROVAL_DENIED:         'fa-times-circle'
         };
         return icons[type] || 'fa-bell';
     }
@@ -223,10 +227,10 @@ const NotificationBell = (function () {
         if (['ACCESS_EXPIRING', 'ACCESS_REQUESTED', 'LOCK_ACQUIRED', 'OPERATION_REQUESTED', 'LOCK_EXPIRING',
              'ENVIRONMENT_STOP_NOTICE', 'AUTOMATION_RULE_SKIPPED', 'LEASE_EXPIRING', 'LEASE_EXPIRED',
              'LEASE_EXTENSION_REQUESTED', 'BUDGET_THRESHOLD', 'BUDGET_FORECAST',
-             'BUDGET_ACTION_PENDING', 'BUDGET_FREEZE', 'COST_ANOMALY'].includes(type)) {
+             'BUDGET_ACTION_PENDING', 'BUDGET_FREEZE', 'COST_ANOMALY', 'APPROVAL_REQUESTED'].includes(type)) {
             return 'tone-warning';
         }
-        if (['OPERATION_COMPLETED', 'ACCESS_GRANTED', 'ACCESS_REQUEST_APPROVED', 'EKS_SYNC_CHANGED'].includes(type)) {
+        if (['OPERATION_COMPLETED', 'ACCESS_GRANTED', 'ACCESS_REQUEST_APPROVED', 'EKS_SYNC_CHANGED', 'APPROVAL_GRANTED'].includes(type)) {
             return 'tone-success';
         }
         return 'tone-info';

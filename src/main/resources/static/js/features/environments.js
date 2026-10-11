@@ -697,6 +697,7 @@ const Environments = (function() {
                 </div>
 
                 ${lockSection}
+                <div id="env-approval-banner"></div>
                 <div id="env-lease-section"></div>
                 ${metricsRow}
 
@@ -950,6 +951,11 @@ const Environments = (function() {
         // Idle auto-stop panel (E16): renders nothing while the feature is off.
         if (typeof IdleStop !== 'undefined') {
             IdleStop.renderPanel(env);
+        }
+
+        // A start or extension of mine waiting for approval (E25-T06).
+        if (typeof Approvals !== 'undefined') {
+            Approvals.renderEnvBanner(env);
         }
 
         // Teams channels (E24-T02): only for those who administer the environment.

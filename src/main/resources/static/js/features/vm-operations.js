@@ -99,6 +99,7 @@ const VmOperations = (function() {
                         Notifications.show(`Sent for approval${who ? ' to ' + who : ''}. It starts once approved.`
                             + (why ? ` Why: ${why}.` : ''), 'info', 8000);
                         resolve(execution);
+                        if (typeof Approvals !== 'undefined') setTimeout(() => Approvals.refreshBanner(), 300);
                         return;
                     }
                     // Store operation info with explicit state tracking

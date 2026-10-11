@@ -456,6 +456,7 @@ const AccessRequests = (function() {
                     <h1><i class="fas fa-user-check"></i> Pending Access Requests</h1>
                     <p class="text-muted">Review and approve user access requests
                         <span class="badge bg-warning text-dark ms-2">${requests.length} pending</span>
+                        <a class="ms-2" href="#/approvals"><i class="fas fa-stamp me-1" aria-hidden="true"></i>Operation approvals</a>
                     </p>
                 </div>
                 <div class="card">

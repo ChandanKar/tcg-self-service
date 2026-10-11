@@ -128,6 +128,19 @@ const Config = (function() {
         },
 
         // Teams (E23)
+        // Operation approvals and their policies (E25)
+        approvals: {
+            list: (view) => `${API_BASE_URL}/approval-requests?view=${encodeURIComponent(view)}`,
+            approve: (id) => `${API_BASE_URL}/approval-requests/${encodeURIComponent(id)}/approve`,
+            deny: (id) => `${API_BASE_URL}/approval-requests/${encodeURIComponent(id)}/deny`,
+            cancel: (id) => `${API_BASE_URL}/approval-requests/${encodeURIComponent(id)}/cancel`
+        },
+        approvalPolicies: {
+            list: (envId) => `${API_BASE_URL}/approval-policies` + (envId ? `?environmentId=${encodeURIComponent(envId)}` : ''),
+            create: `${API_BASE_URL}/approval-policies`,
+            item: (id) => `${API_BASE_URL}/approval-policies/${encodeURIComponent(id)}`,
+            evaluate: `${API_BASE_URL}/approval-policies/evaluate`
+        },
         // Jira tickets from recommendations and anomalies (E24-T07)
         integrations: {
             jiraStatus: `${API_BASE_URL}/integrations/jira/status`,
