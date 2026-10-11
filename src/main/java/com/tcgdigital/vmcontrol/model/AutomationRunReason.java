@@ -24,5 +24,7 @@ public enum AutomationRunReason {
     /** The schedule window passed without a successful run. */
     MISSED_WINDOW,
     /** The day is on the rule's holiday calendar (E19-T02). */
-    HOLIDAY
+    HOLIDAY,
+    /** An override skipped the action (E19-T03). */
+    OVERRIDE
 }

@@ -19,6 +19,7 @@ DELETE FROM reservation_coverage_snapshot;
 DELETE FROM lease_extension_request;
 DELETE FROM environment_lease_participant;
 DELETE FROM environment_lease;
+DELETE FROM automation_rule_override;
 DELETE FROM automation_rule_window;
 DELETE FROM automation_rule;
 DELETE FROM holiday_date;

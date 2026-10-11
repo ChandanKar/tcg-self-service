@@ -28,7 +28,8 @@ const AutomationRules = (function() {
         SCOPE_MISSING: 'Target missing',
         ERROR: 'Error',
         MISSED_WINDOW: 'Missed window',
-        HOLIDAY: 'Holiday'
+        HOLIDAY: 'Holiday',
+        OVERRIDE: 'Overridden'
     };
     const filters = { search: '', environmentId: '', triggerType: '', status: '' };
     let currentPage = 1;
@@ -327,7 +328,9 @@ const AutomationRules = (function() {
             rows = pageRows.map(rule => `
             <tr data-rule-id="${rule.ruleId}" class="${rule.enabled ? '' : 'text-muted'}">
                 <td>
-                    <div class="fw-semibold">${Utils.escapeHtml(rule.name)}</div>
+                    <div class="fw-semibold">${Utils.escapeHtml(rule.name)}
+                        ${rule.overrideCount ? `<span class="badge text-bg-light border ms-1 ar-override-badge"
+                            title="Active or upcoming overrides">${rule.overrideCount} override${rule.overrideCount === 1 ? '' : 's'}</span>` : ''}</div>
                     ${rule.description ? `<div class="ar-row-desc">${Utils.escapeHtml(rule.description)}</div>` : ''}
                 </td>
                 <td>${typeBadge(rule)}</td>
@@ -347,6 +350,9 @@ const AutomationRules = (function() {
                         : ''}
                 </td>
                 <td class="text-end text-nowrap">
+                    ${rule.triggerType === 'SCHEDULE' && rule.nextStopAt ? `<button class="btn btn-action ar-skip-stop-btn" data-rule-id="${rule.ruleId}"
+                        title="Skip next stop (${Utils.escapeHtml(Utils.formatDate(rule.nextStopAt))})"
+                        aria-label="Skip next stop of ${Utils.escapeHtml(rule.name)}"><i class="fas fa-forward" aria-hidden="true"></i></button>` : ''}
                     <button class="btn btn-action ar-edit-btn" data-rule-id="${rule.ruleId}" title="Edit"><i class="fas fa-pencil-alt"></i></button>
                     <button class="btn btn-action btn-danger ar-delete-btn" data-rule-id="${rule.ruleId}" title="Delete"><i class="fas fa-trash"></i></button>
                 </td>
@@ -449,6 +455,27 @@ const AutomationRules = (function() {
         $wrapper.off('click.arEdit', '.ar-edit-btn').on('click.arEdit', '.ar-edit-btn', function() {
             const rule = rules.find(r => r.ruleId === $(this).data('rule-id'));
             if (rule) openRuleModal(rule);
+        });
+
+        // 'Skip next stop' (E19-T03): a STOP override around the next stop time, with a reason.
+        $wrapper.off('click.arSkip', '.ar-skip-stop-btn').on('click.arSkip', '.ar-skip-stop-btn', function() {
+            const rule = rules.find(r => r.ruleId === $(this).data('rule-id'));
+            if (!rule || !rule.nextStopAt) return;
+            const at = new Date(rule.nextStopAt).getTime();
+            Modals.prompt('Skip next stop', `Why skip the stop at ${Utils.formatDate(rule.nextStopAt)}?`, async (reason) => {
+                try {
+                    await apiPost(Config.API.automationRules.overrides(rule.ruleId), {
+                        startsAt: new Date(at - 60000).toISOString(),
+                        endsAt: new Date(at + 60000).toISOString(),
+                        skipAction: 'STOP',
+                        reason: reason.trim()
+                    });
+                    Notifications.show('The next stop will be skipped.', 'success');
+                    await refreshRules();
+                } catch (error) {
+                    Notifications.showError(serverMessage(error, 'Failed to skip the next stop.'));
+                }
+            }, { required: true, placeholder: 'e.g. release tonight', submitText: 'Skip stop' });
         });
 
         $wrapper.off('click.arDelete', '.ar-delete-btn').on('click.arDelete', '.ar-delete-btn', function() {
@@ -623,6 +650,12 @@ const AutomationRules = (function() {
                                             <select class="form-select" id="ar-holiday-calendar">${holidayOptions(rule)}</select>
                                         </div>
                                     </div>
+                                    ${rule && rule.triggerType === 'SCHEDULE' ? `
+                                    <div class="mb-3" id="ar-overrides-section">
+                                        <span class="form-label d-block" id="ar-overrides-label">Overrides</span>
+                                        <div id="ar-overrides" aria-labelledby="ar-overrides-label" aria-live="polite">
+                                            <span class="text-muted small">Loading…</span></div>
+                                    </div>` : ''}
                                     <fieldset class="mb-3" id="ar-holiday-behavior" ${rule && rule.holidayCalendarId ? '' : 'hidden'}>
                                         <legend class="form-label fs-6">On holidays</legend>
                                         <div class="form-check">
@@ -816,6 +849,42 @@ const AutomationRules = (function() {
         });
 
         $('#ar-save-btn').on('click', () => submitForm(rule));
+        if (rule && rule.triggerType === 'SCHEDULE') {
+            loadOverrides(rule);
+        }
+    }
+
+    /** The rule's active and upcoming overrides, each removable (E19-T03). */
+    async function loadOverrides(rule) {
+        const $list = $('#ar-overrides');
+        let overrides;
+        try {
+            overrides = await apiGetQuiet(Config.API.automationRules.overrides(rule.ruleId)) || [];
+        } catch (error) {
+            $list.html('<span class="text-danger small">Could not load overrides.</span>');
+            return;
+        }
+        if (!overrides.length) {
+            $list.html('<span class="text-muted small">None. Use "Skip next stop" in the rules table to skip one stop.</span>');
+            return;
+        }
+        $list.html(`<ul class="list-unstyled mb-0 ar-override-list">${overrides.map(o => Utils.html`
+            <li class="d-flex justify-content-between align-items-center gap-2">
+                <span><strong>Skip ${o.skipAction === 'ALL' ? 'all actions' : o.skipAction.toLowerCase()}</strong>
+                    ${Utils.formatDate(o.startsAt)} – ${Utils.formatDate(o.endsAt)}${o.active ? ' (active)' : ''}
+                    <span class="text-muted">· ${o.reason} (${o.createdByDisplayName})</span></span>
+                <button type="button" class="btn btn-sm btn-ghost ar-remove-override" data-id="${o.overrideId}"
+                        aria-label="Remove override: ${o.reason}"><i class="fas fa-times" aria-hidden="true"></i></button>
+            </li>`).join('')}</ul>`);
+        $list.find('.ar-remove-override').on('click', async function() {
+            try {
+                await apiDelete(Config.API.automationRules.deleteOverride(rule.ruleId, $(this).data('id')));
+                loadOverrides(rule);
+                refreshRules();
+            } catch (error) {
+                Notifications.showError(serverMessage(error, 'Failed to remove the override.'));
+            }
+        });
     }
 
     async function loadScopeOptions(environmentId) {

@@ -1,7 +1,10 @@
 package com.tcgdigital.vmcontrol.controller;
 
 import com.tcgdigital.vmcontrol.dto.AutomationRuleDTO;
+import com.tcgdigital.vmcontrol.dto.AutomationRuleOverrideDTOs.OverrideDTO;
+import com.tcgdigital.vmcontrol.dto.AutomationRuleOverrideDTOs.OverrideRequest;
 import com.tcgdigital.vmcontrol.dto.AutomationRuleRequestDTO;
+import com.tcgdigital.vmcontrol.exception.UnauthorizedException;
 import com.tcgdigital.vmcontrol.service.AutomationRuleService;
 import com.tcgdigital.vmcontrol.service.SecurityService;
 import com.tcgdigital.vmcontrol.service.UserService;
@@ -95,6 +98,55 @@ public class AutomationRuleController {
         String userId = userService.getCurrentUserId();
         boolean enabled = Boolean.TRUE.equals(body.get("enabled"));
         return ResponseEntity.ok(automationRuleService.setEnabled(ruleId, enabled, userId));
+    }
+
+    // ============= Overrides (E19-T03) =============
+
+    /** Longest override a non-admin may set (a 'snooze'). */
+    private static final java.time.Duration MAX_SNOOZE = java.time.Duration.ofHours(24);
+
+    /** Admins of the rule's environment, or anyone who can operate in it. */
+    private String assertCanSeeOverrides(String ruleId) {
+        String environmentId = automationRuleService.getRule(ruleId).getEnvironmentId();
+        if (!securityService.canAdministerEnvironment(environmentId) && !securityService.canOperateInEnvironment(environmentId)) {
+            throw new UnauthorizedException("You cannot override rules in this environment");
+        }
+        return environmentId;
+    }
+
+    @GetMapping("/{ruleId}/overrides")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "List a rule's active and upcoming overrides")
+    public List<OverrideDTO> overrides(@PathVariable String ruleId) {
+        assertCanSeeOverrides(ruleId);
+        return automationRuleService.listOverrides(ruleId);
+    }
+
+    @PostMapping("/{ruleId}/overrides")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Skip a rule's START, STOP or ALL actions for a time range",
+            description = "Admins may override for up to 30 days; anyone who can operate in the environment for up to 24 hours (a snooze).")
+    public OverrideDTO createOverride(@PathVariable String ruleId, @Valid @RequestBody OverrideRequest request) {
+        String environmentId = assertCanSeeOverrides(ruleId);
+        if (!securityService.canAdministerEnvironment(environmentId)
+                && request.endsAt().isAfter(java.time.Instant.now().plus(MAX_SNOOZE))) {
+            throw new UnauthorizedException("Overrides ending more than 24 hours from now need an admin");
+        }
+        return automationRuleService.createOverride(ruleId, userService.getCurrentUserId(), request);
+    }
+
+    @DeleteMapping("/{ruleId}/overrides/{overrideId}")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Remove an override (admins, or the person who set it)")
+    public ResponseEntity<Void> deleteOverride(@PathVariable String ruleId, @PathVariable String overrideId) {
+        String environmentId = assertCanSeeOverrides(ruleId);
+        String userId = userService.getCurrentUserId();
+        if (!securityService.canAdministerEnvironment(environmentId)
+                && !userId.equals(automationRuleService.overrideCreator(ruleId, overrideId))) {
+            throw new UnauthorizedException("Only an admin or the person who set it can remove an override");
+        }
+        automationRuleService.deleteOverride(ruleId, overrideId, userId);
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{ruleId}")

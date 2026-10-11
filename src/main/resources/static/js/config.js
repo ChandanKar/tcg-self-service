@@ -267,7 +267,10 @@ const Config = (function() {
             create: `${API_BASE_URL}/automation-rules`,
             update: (ruleId) => `${API_BASE_URL}/automation-rules/${ruleId}`,
             setEnabled: (ruleId) => `${API_BASE_URL}/automation-rules/${ruleId}/enabled`,
-            delete: (ruleId) => `${API_BASE_URL}/automation-rules/${ruleId}`
+            delete: (ruleId) => `${API_BASE_URL}/automation-rules/${ruleId}`,
+            // Overrides (E19-T03)
+            overrides: (ruleId) => `${API_BASE_URL}/automation-rules/${ruleId}/overrides`,
+            deleteOverride: (ruleId, overrideId) => `${API_BASE_URL}/automation-rules/${ruleId}/overrides/${overrideId}`
         },
 
         // Holiday calendars (E19-T02)

@@ -2,6 +2,8 @@ package com.tcgdigital.vmcontrol.service;
 
 import com.tcgdigital.vmcontrol.dto.AutomationRuleDTO;
 import com.tcgdigital.vmcontrol.dto.AutomationRuleRequestDTO;
+import com.tcgdigital.vmcontrol.dto.AutomationRuleOverrideDTOs.OverrideDTO;
+import com.tcgdigital.vmcontrol.dto.AutomationRuleOverrideDTOs.OverrideRequest;
 import com.tcgdigital.vmcontrol.dto.AutomationRuleWindowDTO;
 import com.tcgdigital.vmcontrol.dto.StartOperationDTO;
 import com.tcgdigital.vmcontrol.exception.LockAlreadyHeldException;
@@ -71,6 +73,7 @@ public class AutomationRuleService {
     private final TransactionTemplate ruleTransaction;
     private final ScheduleCalculator scheduleCalculator;
     private final HolidayCalendarService holidayCalendarService;
+    private final com.tcgdigital.vmcontrol.repository.AutomationRuleOverrideRepository overrideRepository;
 
     /** How late a scheduler tick may still fire a schedule time (catch-up window). */
     @Value("${automation.rules.catch-up-minutes:15}")
@@ -93,7 +96,9 @@ public class AutomationRuleService {
                                   PlatformTransactionManager transactionManager,
                                   ScheduleCalculator scheduleCalculator,
                                   UserRepository userRepository,
-                                  HolidayCalendarService holidayCalendarService) {
+                                  HolidayCalendarService holidayCalendarService,
+                                  com.tcgdigital.vmcontrol.repository.AutomationRuleOverrideRepository overrideRepository) {
+        this.overrideRepository = overrideRepository;
         this.userRepository = userRepository;
         this.holidayCalendarService = holidayCalendarService;
         this.scheduleCalculator = scheduleCalculator;
@@ -197,6 +202,79 @@ public class AutomationRuleService {
                 .orElseThrow(() -> new ResourceNotFoundException("AutomationRule", ruleId));
     }
 
+    // ============= Overrides (E19-T03) =============
+
+    /** Longest an override may last. */
+    static final Duration MAX_OVERRIDE = Duration.ofDays(30);
+
+    @Transactional(readOnly = true)
+    public List<OverrideDTO> listOverrides(String ruleId) {
+        getRuleEntity(ruleId);
+        Instant now = clock.instant();
+        return overrideRepository.findUpcoming(ruleId, Timestamp.from(now)).stream()
+                .map(o -> toOverrideDto(o, now)).toList();
+    }
+
+    @Transactional
+    public OverrideDTO createOverride(String ruleId, String userId, OverrideRequest request) {
+        AutomationRule rule = getRuleEntity(ruleId);
+        if (!rule.isScheduleRule()) {
+            throw new ValidationException("Only schedule rules can be overridden");
+        }
+        Instant now = clock.instant();
+        if (!request.endsAt().isAfter(request.startsAt())) {
+            throw new ValidationException("The override must end after it starts");
+        }
+        if (Duration.between(request.startsAt(), request.endsAt()).compareTo(MAX_OVERRIDE) > 0) {
+            throw new ValidationException("An override can last at most 30 days");
+        }
+        if (!request.endsAt().isAfter(now)) {
+            throw new ValidationException("The override has already ended");
+        }
+        AutomationRuleOverride override = new AutomationRuleOverride();
+        override.setOverrideId(UUID.randomUUID().toString());
+        override.setRuleId(ruleId);
+        override.setStartsAt(Timestamp.from(request.startsAt()));
+        override.setEndsAt(Timestamp.from(request.endsAt()));
+        override.setSkipAction(request.skipAction());
+        override.setReason(request.reason().trim());
+        override.setCreatedByUserId(userId);
+        override = overrideRepository.save(override);
+        auditOverride(userId, rule, "Override added: skip " + override.getSkipAction() + " from "
+                + request.startsAt() + " to " + request.endsAt() + " (" + override.getReason() + ")");
+        return toOverrideDto(override, now);
+    }
+
+    /** The override's creator, or null when it does not belong to the rule. */
+    @Transactional(readOnly = true)
+    public String overrideCreator(String ruleId, String overrideId) {
+        return overrideRepository.findById(overrideId).filter(o -> o.getRuleId().equals(ruleId))
+                .map(AutomationRuleOverride::getCreatedByUserId).orElse(null);
+    }
+
+    @Transactional
+    public void deleteOverride(String ruleId, String overrideId, String userId) {
+        AutomationRule rule = getRuleEntity(ruleId);
+        AutomationRuleOverride override = overrideRepository.findById(overrideId)
+                .filter(o -> o.getRuleId().equals(ruleId))
+                .orElseThrow(() -> new ResourceNotFoundException("AutomationRuleOverride", overrideId));
+        overrideRepository.delete(override);
+        auditOverride(userId, rule, "Override removed: skip " + override.getSkipAction() + " ("
+                + override.getReason() + ")");
+    }
+
+    private void auditOverride(String userId, AutomationRule rule, String details) {
+        auditService.logEnvironmentAction(userId, AuditAction.AUTOMATION_RULE_UPDATED,
+                rule.getEnvironment().getEnvironmentId(), rule.getEnvironment().getName(),
+                "automation_rule", rule.getRuleId(), rule.getName(), details);
+    }
+
+    private OverrideDTO toOverrideDto(AutomationRuleOverride o, Instant now) {
+        boolean active = !o.getStartsAt().toInstant().isAfter(now) && o.getEndsAt().toInstant().isAfter(now);
+        return new OverrideDTO(o.getOverrideId(), o.getRuleId(), o.getStartsAt().toInstant(), o.getEndsAt().toInstant(),
+                o.getSkipAction(), o.getReason(), o.getCreatedByUserId(), resolveDisplayName(o.getCreatedByUserId()), active);
+    }
+
     // ============= Access-grant / lock-acquire hooks =============
     // Best-effort: called from LockService/EnvironmentAccessService wrapped in their own
     // try/catch side-effect helpers, so a failure here never blocks the caller's transaction.
@@ -283,14 +361,13 @@ public class AutomationRuleService {
         boolean missed = !due && scheduleCalculator.isMissed(now, time, days, lastFiredOn, catchUp)
                 && existedBefore(rule, scheduleCalculator.dueInstant(today, time, now));
         if (due || missed) {
-            // A holiday on the rule's local date skips the time and marks it fired for the day (E19-T02).
-            Optional<HolidayDate> holiday = holidaySkip(rule, type, today);
-            if (holiday.isPresent()) {
-                String label = holiday.get().getLabel();
-                String reason = "holiday" + (label == null ? "" : " (" + label + ")");
-                recordRun(rule, AutomationRunStatus.SKIPPED, AutomationRunReason.HOLIDAY, "Skipped: " + reason);
+            // An override covering the due time (E19-T03) or a holiday on the rule's local date
+            // (E19-T02) skips the time and marks it fired for the day.
+            Optional<Skip> skip = skipFor(rule, type, today, scheduleCalculator.dueInstant(today, time, now).toInstant());
+            if (skip.isPresent()) {
+                recordRun(rule, AutomationRunStatus.SKIPPED, skip.get().reason(), skip.get().detail());
                 auditService.logAutomationRuleSkipped(rule.getCreatedByUserId(), rule.getRuleId(), rule.getName(),
-                        rule.getEnvironment().getEnvironmentId(), rule.getEnvironment().getName(), reason);
+                        rule.getEnvironment().getEnvironmentId(), rule.getEnvironment().getName(), skip.get().auditReason());
                 markFired.accept(today);
                 automationRuleRepository.save(rule);
                 return;
@@ -312,6 +389,22 @@ public class AutomationRuleService {
             markFired.accept(today);
             automationRuleRepository.save(rule);
         }
+    }
+
+    /** Why a due time is skipped: the run reason, the rule's run detail and the audit text. */
+    record Skip(AutomationRunReason reason, String detail, String auditReason) {}
+
+    private Optional<Skip> skipFor(AutomationRule rule, OperationType type, LocalDate today, Instant dueAt) {
+        Optional<AutomationRuleOverride> override = overrideRepository.findActive(rule.getRuleId(), Timestamp.from(dueAt))
+                .stream().filter(o -> o.skips(type)).findFirst();
+        if (override.isPresent()) {
+            String why = override.get().getReason() + " (" + resolveDisplayName(override.get().getCreatedByUserId()) + ")";
+            return Optional.of(new Skip(AutomationRunReason.OVERRIDE, "Skipped by override: " + why, "by override: " + why));
+        }
+        return holidaySkip(rule, type, today).map(holiday -> {
+            String reason = "holiday" + (holiday.getLabel() == null ? "" : " (" + holiday.getLabel() + ")");
+            return new Skip(AutomationRunReason.HOLIDAY, "Skipped: " + reason, reason);
+        });
     }
 
     /** The holiday that skips this action today: starts on any holiday, stops only with SKIP_ALL. */
@@ -723,6 +816,12 @@ public class AutomationRuleService {
         String createdByDisplayName = resolveDisplayName(rule.getCreatedByUserId());
         AutomationRuleDTO dto = AutomationRuleDTO.fromEntity(rule, environment.getName(), scopeName, createdByDisplayName);
         dto.setHolidayCalendarName(holidayCalendarService.nameOf(rule.getHolidayCalendarId()));
+        if (rule.isScheduleRule()) {
+            Instant now = clock.instant();
+            NextFirings next = Boolean.TRUE.equals(rule.getEnabled()) ? firingsOf(List.of(rule), now) : null;
+            dto.setSchedule(next == null ? null : next.nextStop(), next == null ? null : next.nextStart(),
+                    overrideRepository.countByRuleIdAndEndsAtAfter(rule.getRuleId(), Timestamp.from(now)));
+        }
         return dto;
     }
 

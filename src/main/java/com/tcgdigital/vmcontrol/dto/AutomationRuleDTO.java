@@ -39,6 +39,11 @@ public class AutomationRuleDTO {
     /** Schedule only: the linked holiday calendar (E19-T02). */
     private String holidayCalendarId;
     private String holidayCalendarName;
+    /** Schedule only: the next stop and start of an enabled rule (E19-T03 'Skip next stop'). */
+    private java.time.Instant nextStopAt;
+    private java.time.Instant nextStartAt;
+    /** Active and upcoming overrides (E19-T03). */
+    private long overrideCount;
     private com.tcgdigital.vmcontrol.model.HolidayBehavior holidayBehavior;
     private AccessGrantMode accessGrantMode;
     private boolean skipIfAlreadyInTargetState;
@@ -205,6 +210,25 @@ public class AutomationRuleDTO {
 
     public String getHolidayCalendarId() {
         return holidayCalendarId;
+    }
+
+    public java.time.Instant getNextStopAt() {
+        return nextStopAt;
+    }
+
+    public java.time.Instant getNextStartAt() {
+        return nextStartAt;
+    }
+
+    public long getOverrideCount() {
+        return overrideCount;
+    }
+
+    /** Set by the service, which knows the clock and the overrides. */
+    public void setSchedule(java.time.Instant nextStopAt, java.time.Instant nextStartAt, long overrideCount) {
+        this.nextStopAt = nextStopAt;
+        this.nextStartAt = nextStartAt;
+        this.overrideCount = overrideCount;
     }
 
     public String getHolidayCalendarName() {
