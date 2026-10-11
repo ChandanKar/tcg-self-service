@@ -61,6 +61,15 @@ public class OperationCostPreviewService {
 
     @Transactional(readOnly = true)
     public CostPreviewDTO preview(String environmentId, String groupId, String vmId, Integer hours) {
+        return preview(environmentId, groupId, vmId, hours, false);
+    }
+
+    /**
+     * extension = true prices keeping the RUNNING VMs running for the extra hours (a lease
+     * extension, E25-T02); otherwise it prices starting the ones that are not running.
+     */
+    @Transactional(readOnly = true)
+    public CostPreviewDTO preview(String environmentId, String groupId, String vmId, Integer hours, boolean extension) {
         Environment environment = environmentRepository.findById(environmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Environment", environmentId));
         int effectiveHours = hours(environment, hours);
@@ -72,6 +81,10 @@ public class OperationCostPreviewService {
                 .toList();
         if (vmId != null && !vmId.isBlank() && inScope.isEmpty()) {
             throw new ResourceNotFoundException("Vm", vmId);
+        }
+        if (extension) {
+            List<Vm> running = inScope.stream().filter(vm -> vm.getStatus() == VmStatus.RUNNING).toList();
+            return price(running, effectiveHours, running.size());
         }
         List<Vm> toStart = inScope.stream().filter(vm -> vm.getStatus() != VmStatus.RUNNING).toList();
         int running = inScope.size() - toStart.size();

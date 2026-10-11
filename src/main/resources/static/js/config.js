@@ -241,6 +241,16 @@ const Config = (function() {
                 if (scope && scope.groupId) url += `&groupId=${scope.groupId}`;
                 if (scope && scope.vmId)    url += `&vmId=${scope.vmId}`;
                 return url;
+            },
+            // Cost of a start, or with extension=true of keeping running VMs up (E25-T01/T02)
+            costPreview: (envId, scope, hours, extension) => {
+                const params = new URLSearchParams();
+                if (scope && scope.groupId) params.set('groupId', scope.groupId);
+                if (scope && scope.vmId) params.set('vmId', scope.vmId);
+                if (hours) params.set('hours', String(hours));
+                if (extension) params.set('extension', 'true');
+                const q = params.toString();
+                return `${API_BASE_URL}/environments/${encodeURIComponent(envId)}/operations/cost-preview${q ? '?' + q : ''}`;
             }
         },
 

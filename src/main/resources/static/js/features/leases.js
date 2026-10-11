@@ -160,6 +160,7 @@ const Leases = (function() {
                 <label class="form-label" for="lease-extend-minutes">Extend by</label>
                 <select class="form-select" id="lease-extend-minutes">${options}</select>
                 <p class="small text-muted mt-2 mb-2" id="lease-extend-preview" aria-live="polite"></p>
+                <p class="small fw-semibold mb-2" id="lease-extend-cost" aria-live="polite" hidden></p>
                 <div id="lease-extend-reason-wrap" hidden>
                     <label class="form-label" for="lease-extend-reason">Reason for the owner</label>
                     <textarea class="form-control" id="lease-extend-reason" rows="2" maxlength="500"></textarea>
@@ -182,8 +183,16 @@ const Leases = (function() {
                     $('#lease-extend-submit').text(needsApproval ? 'Ask the owner' : 'Extend');
                     return needsApproval;
                 };
-                $('#lease-extend-minutes').on('change', update);
+                // The extra cost of keeping the running VMs up that long (E25-T02).
+                const updateCost = () => {
+                    if (typeof CostPreview === 'undefined') return;
+                    const minutes = Number($('#lease-extend-minutes').val());
+                    CostPreview.render($('#lease-extend-cost'), envId, null, Math.ceil(minutes / 60), true,
+                        () => $('#lease-extend-cost').length > 0 && Number($('#lease-extend-minutes').val()) === minutes);
+                };
+                $('#lease-extend-minutes').on('change', () => { update(); updateCost(); });
                 update();
+                updateCost();
                 $('#lease-extend-submit').on('click', function() {
                     const needsApproval = update();
                     const reason = ($('#lease-extend-reason').val() || '').trim();

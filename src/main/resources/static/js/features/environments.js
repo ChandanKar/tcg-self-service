@@ -1282,7 +1282,7 @@ const Environments = (function() {
             `${verb} ${scope.level === 'environment' ? 'Environment' : scope.level === 'group' ? (scope.noun || 'Group') : 'VM'}`,
             bodyFor(`<div id="estimate-placeholder" class="text-muted small mt-2">
                 <i class="fas fa-spinner fa-spin me-1"></i> Loading time estimate…
-            </div>`),
+            </div>${isStart ? '<div id="cost-preview-line" class="small mt-2 fw-semibold" aria-live="polite" hidden></div>' : ''}`),
             function() {
                 onConfirm().catch(err => console.error(`${actionLabel} failed:`, err));
             },
@@ -1293,6 +1293,18 @@ const Environments = (function() {
         const scopeParam = scope.level === 'group' ? { groupId: scope.groupId }
                          : scope.level === 'vm'    ? { vmId: scope.vmId }
                          : null;
+
+        // What the start will cost (E25-T02); follows the lease "Run for" choice when there is one.
+        if (isStart && typeof CostPreview !== 'undefined') {
+            const navToken = ContentRouter.token();
+            const previewCost = () => {
+                const minutes = Number($('#lease-run-for').val()) || null;
+                CostPreview.render($('#cost-preview-line'), envId, scopeParam, minutes ? Math.ceil(minutes / 60) : null, false,
+                    () => ContentRouter.isCurrent(navToken) && $('#cost-preview-line').length > 0);
+            };
+            $('#confirmModal').on('change', '#lease-run-for', previewCost);
+            previewCost();
+        }
 
         ApiClient.get(Config.API.operations.estimates(envId, opType, scopeParam))
             .done(function(estimate) {

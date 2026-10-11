@@ -148,9 +148,11 @@ public class VmOperationsController {
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @RequestParam(required = false) String groupId,
             @RequestParam(required = false) String vmId,
-            @RequestParam(required = false) Integer hours) {
+            @RequestParam(required = false) Integer hours,
+            @Parameter(description = "true: the cost of keeping the running VMs running (a lease extension)")
+            @RequestParam(defaultValue = "false") boolean extension) {
         securityService.assertCanView(environmentId);
-        return costPreviewService.preview(environmentId, groupId, vmId, hours);
+        return costPreviewService.preview(environmentId, groupId, vmId, hours, extension);
     }
 
     @GetMapping("/time-estimates")

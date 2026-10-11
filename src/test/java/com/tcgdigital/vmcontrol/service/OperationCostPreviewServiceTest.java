@@ -149,4 +149,13 @@ class OperationCostPreviewServiceTest {
         assertThat(preview.hourlyTotal()).isEqualByComparingTo("0.29");
         assertThat(preview.estimatedTotal()).isEqualByComparingTo("0.29");
     }
+
+    @Test
+    void anExtensionPricesTheRunningVms() {
+        inGroup(vm("a", VmStatus.RUNNING, CloudProvider.AWS), vm("b", VmStatus.STOPPED, CloudProvider.AWS));
+        types("a", "m5.large", "b", "m5.large");
+        CostPreviewDTO preview = service.preview(ENV, GROUP, null, 2, true);
+        assertThat(preview.vms()).extracting(CostPreviewDTO.VmLine::vmId).containsExactly("a");
+        assertThat(preview.estimatedTotal()).isEqualByComparingTo("0.19");
+    }
 }
