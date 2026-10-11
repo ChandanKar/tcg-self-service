@@ -62,6 +62,25 @@ const Modals = (function() {
         document.querySelectorAll('.modal').forEach(modal => trapFocus(modal));
     }
 
+    /**
+     * Hide a modal even while it is still fading in. Bootstrap ignores hide() during the show
+     * transition, so a quick Confirm (or a slow machine) left the dialog open after its action
+     * ran; when that happens, hide it as soon as it has finished showing.
+     */
+    function hideWhenReady(modalEl) {
+        if (!modalEl) return;
+        const instance = bootstrap.Modal.getInstance(modalEl);
+        if (!instance) return;
+        let hiding = false;
+        const onHide = () => { hiding = true; };
+        modalEl.addEventListener('hide.bs.modal', onHide, { once: true });
+        instance.hide();
+        modalEl.removeEventListener('hide.bs.modal', onHide);
+        if (!hiding) {
+            modalEl.addEventListener('shown.bs.modal', () => instance.hide(), { once: true });
+        }
+    }
+
     // Initialize focus traps when DOM is ready
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initFocusTraps);
@@ -185,8 +204,7 @@ const Modals = (function() {
         // Bound as soon as the dialog exists, not on 'shown' (after the fade-in), so an early
         // click or Enter is never lost.
         $('#confirmBtn').off('click').on('click', function() {
-            const instance = bootstrap.Modal.getInstance(document.getElementById('confirmModal'));
-            if (instance) instance.hide();
+            hideWhenReady(document.getElementById('confirmModal'));
             if (onConfirm) onConfirm();
         });
     }
@@ -234,7 +252,7 @@ const Modals = (function() {
                         $('#promptInput').addClass('is-invalid');
                         return;
                     }
-                    bootstrap.Modal.getInstance(document.getElementById('promptModal')).hide();
+                    hideWhenReady(document.getElementById('promptModal'));
                     if (onSubmit) onSubmit(value);
                 });
 
@@ -250,13 +268,7 @@ const Modals = (function() {
      * Hide a modal by ID
      */
     function hide(id) {
-        const modalEl = document.getElementById(id);
-        if (modalEl) {
-            const modal = bootstrap.Modal.getInstance(modalEl);
-            if (modal) {
-                modal.hide();
-            }
-        }
+        hideWhenReady(document.getElementById(id));
     }
 
     /**
@@ -684,6 +696,7 @@ const Modals = (function() {
     return {
         show,
         hide,
+        hideWhenReady,
         confirm,
         prompt,
         showCreateEnvironment,
@@ -760,10 +773,8 @@ const DestructiveConfirm = (function() {
         confirmBtn.onclick = function() {
             const inputVal = document.getElementById('confirm-text-input').value;
             if (inputVal === confirmText && currentCallback) {
-                // Hide modal
-                const modalEl = document.getElementById('destructiveConfirmModal');
-                const modal = bootstrap.Modal.getInstance(modalEl);
-                if (modal) modal.hide();
+                // Hide modal (also when the click came during its fade-in)
+                Modals.hideWhenReady(document.getElementById('destructiveConfirmModal'));
 
                 // Execute callback
                 currentCallback();

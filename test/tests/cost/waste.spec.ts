@@ -105,12 +105,15 @@ test.describe('Waste page', () => {
     await page.locator('#confirm-text-input').fill('13.0.0.1');
     await page.locator('#btn-destructive-confirm').click();
     await expect.poll(() => posted).toContain('/api/v1/waste/actions/a-ip/approve');
+    // Under load the dialog can still be fading over the panel: wait until it is gone.
+    await expect(page.locator('.modal.show')).toHaveCount(0);
 
     // History: rollback offered for the executed gp3 migration.
     await panel.locator('summary').click();
     await panel.locator('[data-action="waste-rollback"]').click();
     await page.locator('#confirmBtn').click();
     await expect.poll(() => posted).toContain('/api/v1/waste/actions/a-done/rollback');
+    await expect(page.locator('.modal.show')).toHaveCount(0);
 
     // Propose from the table.
     await page.getByRole('button', { name: 'Delete (snapshot first): vol-0abc' }).click();
