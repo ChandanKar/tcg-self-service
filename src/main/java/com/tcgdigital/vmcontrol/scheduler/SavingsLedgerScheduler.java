@@ -19,15 +19,22 @@ public class SavingsLedgerScheduler {
     static final String JOB_NAME = "savings_ledger";
 
     private final SavingsLedgerService ledgerService;
+    private final com.tcgdigital.vmcontrol.service.PotentialSavingsService potentialSavingsService;
     private final ScheduledJobLockService jobLockService;
 
-    public SavingsLedgerScheduler(SavingsLedgerService ledgerService, ScheduledJobLockService jobLockService) {
+    public SavingsLedgerScheduler(SavingsLedgerService ledgerService,
+                                  com.tcgdigital.vmcontrol.service.PotentialSavingsService potentialSavingsService,
+                                  ScheduledJobLockService jobLockService) {
         this.ledgerService = ledgerService;
+        this.potentialSavingsService = potentialSavingsService;
         this.jobLockService = jobLockService;
     }
 
     @Scheduled(cron = "${savings.ledger.cron:0 30 3 * * *}", zone = "UTC")
     public void run() {
-        jobLockService.runLocked(JOB_NAME, Duration.ofMinutes(30), ledgerService::captureTrailing);
+        jobLockService.runLocked(JOB_NAME, Duration.ofMinutes(30), () -> {
+            ledgerService.captureTrailing();
+            potentialSavingsService.captureSnapshot(); // today's Cost Efficiency % (E17-T05)
+        });
     }
 }

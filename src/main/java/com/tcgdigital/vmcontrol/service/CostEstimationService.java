@@ -258,6 +258,35 @@ public class CostEstimationService {
      * The current rightsizing candidate for one VM, from the cached bundles (E08-T05): what an
      * Apply must match.
      */
+    /**
+     * What each VM could still save (E17-T05), from the cached bundles: its monthly cost, its idle
+     * cost if idle, and the saving of a SCALE_DOWN recommendation. Potential savings take the
+     * largest of these per VM so nothing is counted twice.
+     */
+    public record VmOpportunity(String vmId, String environmentId, String groupId, String team,
+                                BigDecimal monthlyCost, boolean costKnown, boolean idle, BigDecimal monthlyIdleCost,
+                                BigDecimal rightsizingSaving, boolean production, boolean leaseEnabled) {
+    }
+
+    public List<VmOpportunity> listVmOpportunities() {
+        List<VmCostBundle> bundles = buildBundles();
+        Map<String, BigDecimal> downsizeSaving = new java.util.HashMap<>();
+        for (RightsizingCandidateDTO c : buildRightsizingCandidates(bundles)) {
+            if ("SCALE_DOWN".equals(c.direction()) && c.estimatedMonthlySavings() != null
+                    && c.estimatedMonthlySavings().signum() > 0) {
+                downsizeSaving.merge(c.vmId(), c.estimatedMonthlySavings(), BigDecimal::max);
+            }
+        }
+        return bundles.stream().map(b -> {
+            com.tcgdigital.vmcontrol.model.Environment env = b.vm().getGroup().getEnvironment();
+            return new VmOpportunity(b.vm().getVmId(), env.getEnvironmentId(), b.vm().getGroup().getGroupId(),
+                    teamResolver.resolveTeam(env.getMetadata()), b.estimate().cost(), b.estimate().costKnown(),
+                    b.idle(), b.idle() ? monthlyIdleCost(b) : BigDecimal.ZERO,
+                    downsizeSaving.getOrDefault(b.vm().getVmId(), BigDecimal.ZERO),
+                    Boolean.TRUE.equals(env.getIsProduction()), Boolean.TRUE.equals(env.getLeaseEnabled()));
+        }).toList();
+    }
+
     public Optional<RightsizingCandidateDTO> findCandidate(String vmId) {
         return buildRightsizingCandidates(buildBundles()).stream()
                 .filter(c -> c.vmId().equals(vmId))
