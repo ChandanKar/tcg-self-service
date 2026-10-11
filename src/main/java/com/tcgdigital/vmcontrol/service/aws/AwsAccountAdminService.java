@@ -1,6 +1,8 @@
 package com.tcgdigital.vmcontrol.service.aws;
 
 import com.tcgdigital.vmcontrol.dto.AwsAccountDTO;
+import com.tcgdigital.vmcontrol.dto.ImportAwsAccountsDTO;
+import com.tcgdigital.vmcontrol.dto.OrganizationAccountCandidateDTO;
 import com.tcgdigital.vmcontrol.dto.UpsertAwsAccountDTO;
 import com.tcgdigital.vmcontrol.exception.ConflictException;
 import com.tcgdigital.vmcontrol.exception.ResourceNotFoundException;
@@ -16,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +44,12 @@ public class AwsAccountAdminService {
 
     @Value("${aws.multi-account.enabled:false}")
     private boolean multiAccountEnabled;
+
+    @Value("${aws.organizations.enabled:false}")
+    private boolean organizationsEnabled;
+
+    @Value("${aws.organizations.member-role-name:VmControlAccess}")
+    private String memberRoleName = "VmControlAccess";
 
     public AwsAccountAdminService(AwsAccountRepository repository, EnvironmentRepository environmentRepository,
                                   AwsClientFactory clientFactory, AuditService auditService) {
@@ -149,6 +158,62 @@ public class AwsAccountAdminService {
         AwsAccount saved = repository.save(account);
         auditService.logAction(actorId, AuditAction.AWS_ACCOUNT_VERIFIED, "aws_account", ref, saved.getDisplayName(), outcome);
         return toDto(saved);
+    }
+
+    /**
+     * The organization's ACTIVE member accounts (E28-T08), read with the billing account's
+     * credentials, each with a proposed role ARN and whether it is registered already.
+     */
+    @Transactional(readOnly = true)
+    public List<OrganizationAccountCandidateDTO> listOrganizationCandidates() {
+        if (!organizationsEnabled) {
+            throw new ValidationException("Organizations discovery is disabled (aws.organizations.enabled)");
+        }
+        String billingRef = repository.findFirstByIsBillingAccountTrue().map(AwsAccount::getAwsAccountRef).orElse(AwsAccount.DEFAULT_REF);
+        List<OrganizationAccountCandidateDTO> candidates = new ArrayList<>();
+        try {
+            var organizations = clientFactory.organizations(billingRef);
+            String token = null;
+            do {
+                var page = organizations.listAccounts(software.amazon.awssdk.services.organizations.model.ListAccountsRequest.builder()
+                        .nextToken(token).build());
+                for (var account : page.accounts()) {
+                    if (account.status() != software.amazon.awssdk.services.organizations.model.AccountStatus.ACTIVE) {
+                        continue;
+                    }
+                    candidates.add(new OrganizationAccountCandidateDTO(account.id(), account.name(), account.email(),
+                            "arn:aws:iam::" + account.id() + ":role/" + memberRoleName,
+                            repository.findByAccountNumber(account.id()).isPresent()));
+                }
+                token = page.nextToken();
+            } while (token != null && !token.isEmpty());
+        } catch (software.amazon.awssdk.services.organizations.model.AwsOrganizationsNotInUseException e) {
+            throw new ValidationException("The billing account is not part of an AWS organization; add member accounts by role ARN instead");
+        } catch (software.amazon.awssdk.services.organizations.model.AccessDeniedException e) {
+            throw new ValidationException("The billing account may not list the organization's accounts: it must be the management "
+                    + "or a delegated administrator account with organizations:ListAccounts");
+        }
+        return candidates;
+    }
+
+    /** Registers the chosen organization accounts (source ORGANIZATIONS); registered numbers are skipped. */
+    @Transactional
+    public ImportAwsAccountsDTO.Result importAccounts(String actorId, ImportAwsAccountsDTO.Request request) {
+        List<AwsAccountDTO> created = new ArrayList<>();
+        List<ImportAwsAccountsDTO.Skipped> skipped = new ArrayList<>();
+        for (ImportAwsAccountsDTO.Item item : request.accounts()) {
+            if (repository.findByAccountNumber(item.accountNumber()).isPresent()) {
+                skipped.add(new ImportAwsAccountsDTO.Skipped(item.accountNumber(), "already registered"));
+                continue;
+            }
+            if (!item.roleArn().contains(":iam::" + item.accountNumber() + ":")) {
+                skipped.add(new ImportAwsAccountsDTO.Skipped(item.accountNumber(), "the role ARN is in another account"));
+                continue;
+            }
+            created.add(createImported(actorId, new UpsertAwsAccountDTO(item.displayName(), item.roleArn(), item.externalId(),
+                    item.regions(), false)));
+        }
+        return new ImportAwsAccountsDTO.Result(created, skipped);
     }
 
     private void apply(AwsAccount account, UpsertAwsAccountDTO request) {

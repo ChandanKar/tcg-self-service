@@ -23,6 +23,7 @@ import software.amazon.awssdk.services.costexplorer.CostExplorerClient;
 import software.amazon.awssdk.services.ec2.Ec2Client;
 import software.amazon.awssdk.services.eks.EksClient;
 import software.amazon.awssdk.services.iam.IamClient;
+import software.amazon.awssdk.services.organizations.OrganizationsClient;
 import software.amazon.awssdk.services.sts.StsClient;
 
 import java.time.Duration;
@@ -188,6 +189,12 @@ public class AwsClientFactory {
     public BudgetsClient budgets() {
         return cached("budgets", AwsAccount.DEFAULT_REF, Region.US_EAST_1, () -> BudgetsClient.builder().region(Region.US_EAST_1)
                 .credentialsProvider(baseCredentials()).overrideConfiguration(DEFAULT_OVERRIDES).build());
+    }
+
+    /** AWS Organizations, read with the billing (management or delegated-admin) account (E28-T08). */
+    public OrganizationsClient organizations(String accountRef) {
+        return cached("organizations", accountRef, Region.US_EAST_1, () -> OrganizationsClient.builder().region(Region.US_EAST_1)
+                .credentialsProvider(credentials(accountRef)).overrideConfiguration(DEFAULT_OVERRIDES).build());
     }
 
     /** IAM is a global service. */

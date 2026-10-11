@@ -133,6 +133,25 @@ class AwsAccountControllerTest extends SecuredWebTestBase {
     }
 
     @Test
+    void importedAccountsAreCreatedWithTheirSourceAndRegisteredOnesSkipped() throws Exception {
+        create("Payments", ARN);
+        String json = mockMvc.perform(post(URL + "/import").with(asAdmin()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accounts\":["
+                                + "{\"accountNumber\":\"111111111111\",\"displayName\":\"Shared\",\"roleArn\":\"arn:aws:iam::111111111111:role/VmControlAccess\"},"
+                                + "{\"accountNumber\":\"210987654321\",\"displayName\":\"Again\",\"roleArn\":\"" + ARN + "\"},"
+                                + "{\"accountNumber\":\"333333333333\",\"displayName\":\"Wrong\",\"roleArn\":\"arn:aws:iam::444444444444:role/X\"}]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.created.length()").value(1))
+                .andExpect(jsonPath("$.created[0].source").value("ORGANIZATIONS"))
+                .andExpect(jsonPath("$.skipped.length()").value(2))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(json).contains("already registered").contains("another account");
+
+        expectError(mockMvc.perform(get(URL + "/organization-candidates").with(asAdmin())), 400); // discovery off
+        mockMvc.perform(get(URL + "/organization-candidates").with(asEnvAdmin())).andExpect(status().isForbidden());
+    }
+
+    @Test
     void verifyRecordsSuccessOrTheMismatchedAccount() throws Exception {
         String ref = create("Payments", ARN);
         AwsClientFactory factory = Mockito.mock(AwsClientFactory.class);
