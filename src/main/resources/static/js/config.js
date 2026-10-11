@@ -136,6 +136,16 @@ const Config = (function() {
             deny: (id) => `${API_BASE_URL}/approval-requests/${encodeURIComponent(id)}/deny`,
             cancel: (id) => `${API_BASE_URL}/approval-requests/${encodeURIComponent(id)}/cancel`
         },
+        // AWS account registry (E28-T07..T09), admin only
+        awsAccounts: {
+            list: `${API_BASE_URL}/aws-accounts`,
+            item: (ref) => `${API_BASE_URL}/aws-accounts/${encodeURIComponent(ref)}`,
+            verify: (ref) => `${API_BASE_URL}/aws-accounts/${encodeURIComponent(ref)}/verify`,
+            candidates: `${API_BASE_URL}/aws-accounts/organization-candidates`,
+            import: `${API_BASE_URL}/aws-accounts/import`,
+            options: `${API_BASE_URL}/aws-accounts/options`
+        },
+
         approvalPolicies: {
             list: (envId) => `${API_BASE_URL}/approval-policies` + (envId ? `?environmentId=${encodeURIComponent(envId)}` : ''),
             create: `${API_BASE_URL}/approval-policies`,
