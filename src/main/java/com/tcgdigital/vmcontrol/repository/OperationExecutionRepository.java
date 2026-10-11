@@ -39,6 +39,11 @@ public interface OperationExecutionRepository extends JpaRepository<OperationExe
     @Query("SELECT COUNT(e) > 0 FROM OperationExecution e WHERE e.environment.environmentId = :environmentId AND (e.status = 'pending' OR e.status = 'in_progress')")
     boolean hasActiveOperations(String environmentId);
 
+    /** [executionId, triggerSource] for the given executions (savings attribution, E17-T03). */
+    @Query("SELECT e.executionId, e.triggerSource FROM OperationExecution e WHERE e.executionId IN :ids")
+    java.util.List<Object[]> findTriggerSourcesByIds(
+            @org.springframework.data.repository.query.Param("ids") java.util.Collection<String> ids);
+
     /** Users who started an operation on the environment since {@code since} (lease warnings, E15-T04). */
     @org.springframework.data.jpa.repository.Query("SELECT DISTINCT e.initiatedByUserId FROM OperationExecution e "
             + "WHERE e.environment.environmentId = :environmentId AND e.startedAt >= :since")

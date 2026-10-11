@@ -55,7 +55,9 @@ public class SchedulerJobCatalog {
             cron("weekly_notification_reports", "Weekly reports", "notification.weekly-reports.cron", "0 0 9 * * MON",
                     "notification.weekly-reports.enabled", true),
             cron("data_retention", "Data retention (daily)", "retention.cron", "0 0 3 * * *", "retention.enabled", false),
-            rate("lease-sweep", "Lease sweep", "lease.sweep.interval-ms", 60_000, "lease.enabled", false));
+            rate("lease-sweep", "Lease sweep", "lease.sweep.interval-ms", 60_000, "lease.enabled", false),
+            cron("savings_ledger", "Savings ledger (daily)", "savings.ledger.cron", "0 30 3 * * *",
+                    "savings.ledger.enabled", true));
 
     /** A job as the health view needs it. */
     public record Job(String jobName, String label, Duration expectedInterval, boolean enabled) {

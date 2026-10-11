@@ -22,6 +22,11 @@ public interface VmInventorySnapshotRepository extends JpaRepository<VmInventory
            "FROM VmInventorySnapshot s WHERE s.vm.vmId IN :vmIds")
     List<InstanceTypeProjection> findInstanceTypesByVmIds(@Param("vmIds") List<String> vmIds);
 
+    /** VMs whose latest inventory shows a public IP (they keep paying for it while stopped, E17-T03). */
+    @org.springframework.data.jpa.repository.Query("SELECT s.vm.vmId FROM VmInventorySnapshot s WHERE s.vm.vmId IN :vmIds "
+            + "AND s.publicIp IS NOT NULL AND s.publicIp <> ''")
+    List<String> findVmIdsWithPublicIp(@Param("vmIds") List<String> vmIds);
+
     interface InstanceTypeProjection {
         String getVmId();
         String getInstanceType();
