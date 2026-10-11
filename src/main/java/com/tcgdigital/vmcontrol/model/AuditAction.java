@@ -111,6 +111,8 @@ public enum AuditAction {
     COST_SPLIT_RULE_CREATED,
     COST_SPLIT_RULE_UPDATED,
     COST_SPLIT_RULE_DELETED,
+    /** A month's chargeback statement was frozen (E23-T07). */
+    CHARGEBACK_FINALIZED,
 
     // Waste sweeps (E22)
     WASTE_FINDING_DISMISSED,

@@ -64,7 +64,9 @@ public class SchedulerJobCatalog {
                     "cost.anomalies.enabled", false),
             cron("waste_sweep", "Waste sweep (daily)", "waste.sweep.cron", "0 0 4 * * *", "waste.sweep.enabled", false),
             cron("team_membership_sync", "Team membership sync (hourly)", "teams.entra-sync.cron", "0 15 * * * *",
-                    "teams.entra-sync.enabled", false));
+                    "teams.entra-sync.enabled", false),
+            cron("chargeback_statement", "Chargeback statement (monthly)", "chargeback.cron", "0 0 6 5 * *",
+                    "chargeback.enabled", false));
 
     /** A job as the health view needs it. */
     public record Job(String jobName, String label, Duration expectedInterval, boolean enabled) {

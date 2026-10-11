@@ -304,14 +304,23 @@ public class CostManagementController {
     @GetMapping("/chargeback")
     @PreAuthorize("hasRole('ADMIN')")
     public com.tcgdigital.vmcontrol.dto.ChargebackDTO chargeback(@RequestParam(required = false) String month) {
-        return chargebackService.compute(chargebackMonth(month));
+        return chargebackService.get(chargebackMonth(month));
+    }
+
+    /** Freezes a finished month's statement (E23-T07); 409 when it is already final. */
+    @PostMapping("/chargeback/{month}/finalize")
+    @PreAuthorize("hasRole('ADMIN')")
+    public com.tcgdigital.vmcontrol.dto.ChargebackDTO finalizeChargeback(
+            @org.springframework.web.bind.annotation.PathVariable String month) {
+        return chargebackService.finalize(com.tcgdigital.vmcontrol.service.ChargebackService.parseMonth(month),
+                userService.getCurrentUserId());
     }
 
     @GetMapping("/chargeback/export")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<byte[]> exportChargeback(@RequestParam(required = false) String month,
                                                    @RequestParam(defaultValue = "xlsx") String format) {
-        com.tcgdigital.vmcontrol.dto.ChargebackDTO chargeback = chargebackService.compute(chargebackMonth(month));
+        com.tcgdigital.vmcontrol.dto.ChargebackDTO chargeback = chargebackService.get(chargebackMonth(month));
         String base = "chargeback-" + chargeback.month();
         if ("csv".equalsIgnoreCase(format)) {
             return ResponseEntity.ok()

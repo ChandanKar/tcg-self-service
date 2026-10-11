@@ -3,14 +3,21 @@ package com.tcgdigital.vmcontrol.service;
 import com.tcgdigital.vmcontrol.dto.ChargebackDTO;
 import com.tcgdigital.vmcontrol.dto.ChargebackRowDTO;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tcgdigital.vmcontrol.exception.ConflictException;
+import com.tcgdigital.vmcontrol.model.AuditAction;
+import com.tcgdigital.vmcontrol.model.ChargebackStatement;
 import com.tcgdigital.vmcontrol.model.CostDailySnapshot;
 import com.tcgdigital.vmcontrol.model.CostSplitRule;
 import com.tcgdigital.vmcontrol.model.Environment;
 import com.tcgdigital.vmcontrol.model.Team;
+import com.tcgdigital.vmcontrol.repository.ChargebackStatementRepository;
 import com.tcgdigital.vmcontrol.repository.CostDailySnapshotRepository;
 import com.tcgdigital.vmcontrol.repository.TeamRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +39,7 @@ import java.util.stream.Collectors;
  * with a split rule in effect is shared between the rule's teams ({@link CostSplitService#split},
  * PROPORTIONAL_DIRECT weighing by this month's direct totals); any other environment is charged to
  * its own team, or to "Unassigned". The grand total always equals the sum of environment costs.
+ * A finished month can be frozen as a FINAL statement (E23-T07), which is then served as stored.
  */
 @Service
 public class ChargebackService {
@@ -47,13 +55,109 @@ public class ChargebackService {
     private final CostSplitService splitService;
     private final TeamRepository teamRepository;
     private final ExcelExportService excelExportService;
+    private final ChargebackStatementRepository statementRepository;
+    private final ObjectMapper objectMapper;
+    private final AuditService auditService;
+    private final EmailService emailService;
+
+    @Value("${chargeback.recipients:}")
+    private String recipients = "";
 
     public ChargebackService(CostDailySnapshotRepository snapshotRepository, CostSplitService splitService,
-                             TeamRepository teamRepository, ExcelExportService excelExportService) {
+                             TeamRepository teamRepository, ExcelExportService excelExportService,
+                             ChargebackStatementRepository statementRepository, ObjectMapper objectMapper,
+                             AuditService auditService, EmailService emailService) {
         this.snapshotRepository = snapshotRepository;
         this.splitService = splitService;
         this.teamRepository = teamRepository;
         this.excelExportService = excelExportService;
+        this.statementRepository = statementRepository;
+        this.objectMapper = objectMapper;
+        this.auditService = auditService;
+        this.emailService = emailService;
+    }
+
+    // ============= Statements (E23-T07) =============
+
+    /** The frozen statement when the month is FINAL, else a live DRAFT computation. */
+    @Transactional(readOnly = true)
+    public ChargebackDTO get(YearMonth month) {
+        return statementRepository.findByMonth(month.toString())
+                .filter(s -> s.getStatus() == ChargebackStatement.Status.FINAL)
+                .map(this::read)
+                .orElseGet(() -> compute(month));
+    }
+
+    /** Freezes a finished month: 400 for the current month, 409 when it is already FINAL. */
+    @Transactional
+    public ChargebackDTO finalize(YearMonth month, String actorId) {
+        if (!month.isBefore(YearMonth.now())) {
+            throw new ValidationException("Only a finished month can be finalized");
+        }
+        if (statementRepository.findByMonth(month.toString()).isPresent()) {
+            throw new ConflictException("The " + month + " chargeback is already final");
+        }
+        ChargebackDTO statement = compute(month).withStatus(ChargebackStatement.Status.FINAL.name());
+        ChargebackStatement row = new ChargebackStatement();
+        row.setStatementId(UUID.randomUUID().toString());
+        row.setMonth(month.toString());
+        row.setGeneratedAt(java.sql.Timestamp.from(statement.generatedAt()));
+        row.setGeneratedBy(actorId);
+        row.setPayload(write(statement));
+        row.setTotal(statement.totals().total());
+        row.setStatus(ChargebackStatement.Status.FINAL);
+        statementRepository.save(row);
+        auditService.logAction(actorId, AuditAction.CHARGEBACK_FINALIZED, "chargeback", month.toString(), month.toString(),
+                "Finalized the " + month + " chargeback: total " + statement.totals().total().toPlainString()
+                        + " across " + statement.rows().size() + " row(s)");
+        return statement;
+    }
+
+    /**
+     * The monthly job (E23-T07): finalizes last month and emails the workbook to
+     * chargeback.recipients. A month that is already FINAL is left alone, so a rerun sends nothing.
+     */
+    @Transactional
+    public void finalizeAndSendPreviousMonth() {
+        YearMonth month = YearMonth.now().minusMonths(1);
+        if (statementRepository.findByMonth(month.toString()).isPresent()) {
+            log.info("Chargeback {} is already final; nothing to send", month);
+            return;
+        }
+        ChargebackDTO statement = finalize(month, null);
+        List<String> to = Arrays.stream(recipients == null ? new String[0] : recipients.split(","))
+                .map(String::trim).filter(s -> !s.isEmpty()).distinct().toList();
+        if (to.isEmpty()) {
+            log.warn("Chargeback {} finalized but chargeback.recipients is empty; no email sent", month);
+            return;
+        }
+        String html = "<p>The chargeback statement for <strong>" + month + "</strong> is final.</p>"
+                + "<p>Total: <strong>" + statement.totals().total().toPlainString() + "</strong> across "
+                + statement.rows().size() + " team row(s). " + escape(statement.dataSource()) + ".</p>"
+                + "<p>The per-team breakdown is attached.</p>";
+        emailService.sendHtml(to, "Chargeback statement " + month, html, "chargeback-" + month + ".xlsx",
+                toXlsx(statement), "CHARGEBACK_STATEMENT", null, null);
+    }
+
+    private static String escape(String s) {
+        return s == null ? "" : s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    private String write(ChargebackDTO statement) {
+        try {
+            return objectMapper.writeValueAsString(statement);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Could not store the chargeback statement", e);
+        }
+    }
+
+    private ChargebackDTO read(ChargebackStatement statement) {
+        try {
+            return objectMapper.readValue(statement.getPayload(), ChargebackDTO.class)
+                    .withStatus(statement.getStatus().name());
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Stored chargeback statement " + statement.getMonth() + " is unreadable", e);
+        }
     }
 
     /** "2026-09" -> YearMonth; 400 when malformed or in the future. */
@@ -191,7 +295,8 @@ public class ChargebackService {
             log.error("Chargeback {} total {} does not match the environment costs {}", month, totals.total(), expected);
         }
 
-        return new ChargebackDTO(month.toString(), rows, totals, dataSource(actualDays, days), Instant.now());
+        return new ChargebackDTO(month.toString(), rows, totals, dataSource(actualDays, days), Instant.now(),
+                ChargebackStatement.Status.DRAFT.name());
     }
 
     private static ChargebackRowDTO row(Bucket b) {

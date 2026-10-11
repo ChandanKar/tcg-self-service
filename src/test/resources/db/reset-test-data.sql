@@ -43,6 +43,7 @@ DELETE FROM vm_group;
 DELETE FROM environment_access_request;
 DELETE FROM environment_access;
 DELETE FROM environment;
+DELETE FROM chargeback_statement;
 DELETE FROM cost_split_share;
 DELETE FROM cost_split_rule;
 DELETE FROM team_member;
