@@ -54,7 +54,8 @@ public class SchedulerJobCatalog {
             cron("tag_reconciliation", "Cost tagging (daily)", "cost.tagging.cron", "0 30 2 * * *", "cost.tagging.enabled", false),
             cron("weekly_notification_reports", "Weekly reports", "notification.weekly-reports.cron", "0 0 9 * * MON",
                     "notification.weekly-reports.enabled", true),
-            cron("data_retention", "Data retention (daily)", "retention.cron", "0 0 3 * * *", "retention.enabled", false));
+            cron("data_retention", "Data retention (daily)", "retention.cron", "0 0 3 * * *", "retention.enabled", false),
+            rate("lease-sweep", "Lease sweep", "lease.sweep.interval-ms", 60_000, "lease.enabled", false));
 
     /** A job as the health view needs it. */
     public record Job(String jobName, String label, Duration expectedInterval, boolean enabled) {

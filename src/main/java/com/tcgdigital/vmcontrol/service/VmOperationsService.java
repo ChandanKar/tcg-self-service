@@ -131,16 +131,35 @@ public class VmOperationsService {
     @Transactional
     public Optional<OperationExecution> startOperationIfNeeded(String environmentId, String userId,
                                                                StartOperationDTO dto) {
+        return startOperationInternal(environmentId, userId, dto, null);
+    }
+
+    /**
+     * An operation the platform starts on its own (E15-T05, e.g. a lease expiring): no lock or
+     * group-scope check, attributed to {@code attributedUserId} (initiated_by_user_id is NOT NULL)
+     * and audited with {@code trigger} as the reason. Empty when no VM needs the operation.
+     */
+    @Transactional
+    public Optional<OperationExecution> startSystemOperation(String environmentId, String attributedUserId,
+                                                             StartOperationDTO dto, String trigger) {
+        return startOperationInternal(environmentId, attributedUserId, dto, trigger);
+    }
+
+    private Optional<OperationExecution> startOperationInternal(String environmentId, String userId,
+                                                                StartOperationDTO dto, String systemTrigger) {
+        boolean system = systemTrigger != null;
         // Verify environment exists
         Environment environment = environmentRepository.findById(environmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Environment", environmentId));
 
-        // Verify user has lock on environment
-        lockService.verifyLockPermission(environmentId, userId);
+        // Verify user has lock on environment (a system operation acts regardless of locks)
+        if (!system) {
+            lockService.verifyLockPermission(environmentId, userId);
+        }
 
         // A requested lease longer than the environment allows fails before anything is created.
         boolean starting = dto.getOperationType() == OperationType.START || dto.getOperationType() == OperationType.RESTART;
-        if (starting) {
+        if (starting && !system) {
             leaseService.validateRequestedMinutes(environment, dto.getLeaseMinutes());
         }
 
@@ -163,7 +182,9 @@ public class VmOperationsService {
         // Group-scoped access: a user without environment-wide USER can only operate the groups
         // they hold a grant on. An explicit group/VM target they can't touch fails the request;
         // a whole-environment request is narrowed to the groups they can operate.
-        targetVms = enforceGroupScopeAccess(targetVms, dto, userId);
+        if (!system) {
+            targetVms = enforceGroupScopeAccess(targetVms, dto, userId);
+        }
 
         // A dependency outside this run's scope is never started here, so nothing will ever
         // wait on it — verify it's actually running now rather than assuming it based on order.
@@ -218,8 +239,13 @@ public class VmOperationsService {
                 execution.getExecutionId(), environmentId, vmCount, plan.size());
 
         // Audit logging
-        auditService.logOperationStarted(userId, environmentId, environment.getName(),
-                execution.getExecutionId(), dto.getOperationType().name());
+        if (system) {
+            auditService.logOperationStarted(userId, environmentId, environment.getName(),
+                    execution.getExecutionId(), dto.getOperationType().name(), systemTrigger);
+        } else {
+            auditService.logOperationStarted(userId, environmentId, environment.getName(),
+                    execution.getExecutionId(), dto.getOperationType().name());
+        }
 
         runSideEffect("notify requested operation", execution.getExecutionId(), () ->
                 notificationService.notifyOperationRequestedForEnvironment(
@@ -232,7 +258,9 @@ public class VmOperationsService {
                 ));
 
         // Leases (E15-T02): a lease error never affects the operation (AfterCommit logs and swallows).
-        if (starting) {
+        if (system) {
+            // The caller (e.g. the lease expiry) owns the lease change.
+        } else if (starting) {
             final Integer leaseMinutes = dto.getLeaseMinutes();
             afterCommit.run(() -> leaseService.openOrJoinOnStart(environmentId, userId, leaseMinutes));
         } else if (dto.getOperationType() == OperationType.STOP && isWholeEnvironment(dto)) {

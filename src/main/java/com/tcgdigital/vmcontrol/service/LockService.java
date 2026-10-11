@@ -337,6 +337,23 @@ public class LockService {
     }
 
     /**
+     * Release the environment's active lock, whoever holds it, for a platform action such as a
+     * lease expiring (E15-T05); recorded in the lock history with {@code reason}. Joins the
+     * caller's transaction.
+     *
+     * @return true if a lock was released
+     */
+    @Transactional
+    public boolean releaseForSystem(String environmentId, String reason) {
+        return lockRepository.findByEnvironmentIdWithEnvironment(environmentId)
+                .map(lock -> {
+                    autoRelease(lock, reason);
+                    return true;
+                })
+                .orElse(false);
+    }
+
+    /**
      * Extend the caller's own lock by {@code minutes} (E07-T03): from its current expiry, or from
      * now if that has already passed. Only the holder may extend; a lock without an expiry cannot
      * be extended; the total since acquisition may not exceed locks.max-duration-minutes.

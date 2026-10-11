@@ -670,6 +670,21 @@ public class AuditService {
                 "Operation started by user: " + resolveUsername(userId) + ". Environment: " + environmentName);
     }
 
+    /** A system-initiated operation (E15-T05): attributed to {@code userId}, with the trigger as reason. */
+    public void logOperationStarted(String userId, String environmentId, String environmentName,
+                                    String executionId, String operationType, String trigger) {
+        logEnvironmentAction(auditUserId(userId), AuditAction.OPERATION_STARTED, environmentId, environmentName,
+                "operation", executionId, operationType,
+                "Operation started by the platform: " + trigger + " (on behalf of " + resolveUsername(userId)
+                        + "). Environment: " + environmentName);
+    }
+
+    /** A lease reached its end and the platform stopped (or tried to stop) the environment (E15-T05). */
+    public void logLeaseExpired(String environmentId, String environmentName, String leaseId, String details) {
+        logEnvironmentAction(auditUserId(null), AuditAction.LEASE_EXPIRED, environmentId, environmentName,
+                "lease", leaseId, environmentName, details);
+    }
+
     public void logOperationCompleted(String userId, String environmentId, String environmentName,
                                       String executionId, String operationType, int totalVms, int failed) {
         String details = String.format("Operation completed by user: %s. Environment: %s. Total VMs: %d, Failed: %d",

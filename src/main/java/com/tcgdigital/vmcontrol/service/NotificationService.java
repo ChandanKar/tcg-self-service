@@ -317,6 +317,20 @@ public class NotificationService {
         return created;
     }
 
+    /** A lease ended and the platform is stopping the environment: participants and owners hear it. */
+    public void notifyLeaseExpiredForEnvironment(String environmentId, String environmentName,
+                                                 java.util.Collection<String> participantIds, String detail) {
+        String title = "Lease expired: " + environmentName;
+        String message = "\"" + environmentName + "\" " + detail;
+        Map<String, User> recipients = new LinkedHashMap<>();
+        userRepository.findAllById(participantIds).forEach(u -> recipients.put(u.getUserId(), u));
+        resolveEnvironmentReviewers(environmentId).forEach(u -> recipients.put(u.getUserId(), u));
+        recipients.values().stream()
+                .filter(u -> Boolean.TRUE.equals(u.getIsActive()))
+                .forEach(u -> create(u.getUserId(), NotificationType.LEASE_EXPIRED, title, message,
+                        "ENVIRONMENT", environmentId));
+    }
+
     /** Tell the environment's owners that someone asked to run past the maximum. */
     public void notifyLeaseExtensionRequested(String environmentId, String environmentName, String requesterUserId,
                                               int minutes, String reason) {
