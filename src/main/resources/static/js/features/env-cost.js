@@ -45,6 +45,7 @@ const EnvCost = (function() {
                 if (!ContentRouter.isCurrent(token)) return; // navigated away meanwhile
                 $card.html(buildCard(cost));
                 drawTrend(cost);
+                addWorkloads($card, env, cost);
                 ContentRouter.onLeave(disposeChart);
             })
             .fail(function() {
@@ -54,6 +55,31 @@ const EnvCost = (function() {
                 $card.data('env', env);
             });
         $card.data('env', env);
+    }
+
+    /** EKS environments seen whole get a Workloads section, loaded when first opened (E26-T05). */
+    function addWorkloads($card, env, cost) {
+        if (String(env.serviceType || '').toUpperCase() !== 'EKS' || cost.scope === 'GROUPS' || typeof EksWorkloads === 'undefined') return;
+        $card.find('.env-cost-card .card-body').append(`
+            <div class="env-eks-workloads border-top mt-2 pt-2">
+                <button type="button" class="btn btn-link btn-sm p-0" id="env-eks-workloads-toggle"
+                        data-action="env-eks-workloads-toggle" aria-expanded="false" aria-controls="env-eks-workloads">
+                    <i class="fas fa-dharmachakra"></i> Workloads
+                </button>
+                <div id="env-eks-workloads" class="mt-2" data-eks-workloads hidden></div>
+            </div>`);
+    }
+
+    function toggleWorkloads(el) {
+        const env = $('#env-cost-card').data('env');
+        const $box = $('#env-eks-workloads');
+        if (!env || !$box.length) return;
+        const open = el.getAttribute('aria-expanded') !== 'true';
+        el.setAttribute('aria-expanded', String(open));
+        $box.prop('hidden', !open);
+        if (open && !$box.data('eksUrlFor')) {
+            EksWorkloads.mount($box, d => Config.API.environments.eksWorkloadCost(env.environmentId, d));
+        }
     }
 
     function retry() {
@@ -136,9 +162,10 @@ const EnvCost = (function() {
         });
     }
 
-    return { render, retry };
+    return { render, retry, toggleWorkloads };
 })();
 
 window.EnvCost = EnvCost;
 
 Actions.register('env-cost-retry', () => EnvCost.retry());
+Actions.register('env-eks-workloads-toggle', el => EnvCost.toggleWorkloads(el));

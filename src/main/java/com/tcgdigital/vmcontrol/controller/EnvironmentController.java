@@ -227,6 +227,27 @@ public class EnvironmentController {
         return ResponseEntity.ok(environmentCostService.getCost(environmentId));
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.tcgdigital.vmcontrol.service.EksWorkloadCostService eksWorkloadCostService;
+
+    @GetMapping("/{environmentId}/eks-workload-cost")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "EKS namespace and workload cost",
+            description = "Split Cost Allocation Data for the last 1-90 days (E26-T05). Anyone who views the whole "
+                    + "environment; a group-only grant is refused, since namespaces span every node group."
+    )
+    public ResponseEntity<com.tcgdigital.vmcontrol.dto.EksWorkloadCostDTO> getEksWorkloadCost(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId,
+            @RequestParam(defaultValue = "7") int days) {
+        securityService.assertCanView(environmentId);
+        if (!securityService.hasEnvironmentWideView(environmentId)) {
+            throw new com.tcgdigital.vmcontrol.exception.UnauthorizedException(
+                    "Workload cost needs access to the whole environment");
+        }
+        return ResponseEntity.ok(eksWorkloadCostService.forEnvironment(environmentId, days));
+    }
+
     @GetMapping("/{environmentId}")
     @PreAuthorize("isAuthenticated()")
     @Operation(

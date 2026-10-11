@@ -86,6 +86,7 @@ const Config = (function() {
             get: (id) => `${API_BASE_URL}/environments/${id}`,
             insights: (id) => `${API_BASE_URL}/environments/${id}/insights`,
             cost: (id) => `${API_BASE_URL}/environments/${encodeURIComponent(id)}/cost`,
+            eksWorkloadCost: (id, days = 7) => `${API_BASE_URL}/environments/${encodeURIComponent(id)}/eks-workload-cost?days=${days}`,
             create: `${API_BASE_URL}/environments`,
             update: (id) => `${API_BASE_URL}/environments/${id}`,
             delete: (id) => `${API_BASE_URL}/environments/${id}`,
@@ -336,6 +337,8 @@ const Config = (function() {
             summary: `${API_BASE_URL}/cost-management/summary`,
             spendByEnvironment: `${API_BASE_URL}/cost-management/spend-by-environment`,
             spendByVmType: `${API_BASE_URL}/cost-management/spend-by-vm-type`,
+            eksWorkloadCost: (environmentId, days = 7) =>
+                `${API_BASE_URL}/cost-management/eks-workload-cost?environmentId=${encodeURIComponent(environmentId)}&days=${days}`,
             spendTrend: (days = 90) => `${API_BASE_URL}/cost-management/spend-trend?days=${days}`,
             spendTrendByTeam: (days = 90) => `${API_BASE_URL}/cost-management/spend-trend-by-team?days=${days}`,
             idleWaste: (page = 0, size = 10) => `${API_BASE_URL}/cost-management/idle-waste?page=${page}&size=${size}`,

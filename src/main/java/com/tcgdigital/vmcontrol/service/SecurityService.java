@@ -277,6 +277,16 @@ public class SecurityService {
                 || effectiveEnvLevel(environmentId) != null;
     }
 
+    /**
+     * Whether the current user sees the whole environment (a global role or an ENVIRONMENT grant),
+     * not just some of its groups (E26-T05: namespace cost spans every node group).
+     */
+    public boolean hasEnvironmentWideView(String environmentId) {
+        User user = userService.getCurrentUser();
+        return user != null && (globalRoleLevel(user) != null
+                || accessService.getActiveGrant(user.getUserId(), AccessScopeType.ENVIRONMENT, environmentId).isPresent());
+    }
+
     /** The current user's visible group ids in an environment (see the {@link User} overload). */
     public List<String> getVisibleGroupIds(String environmentId) {
         return getVisibleGroupIds(userService.getCurrentUser(), environmentId);

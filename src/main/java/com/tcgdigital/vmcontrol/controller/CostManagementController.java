@@ -91,6 +91,17 @@ public class CostManagementController {
         this.userService = userService;
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.tcgdigital.vmcontrol.service.EksWorkloadCostService eksWorkloadCostService;
+
+    /** Namespace and workload cost of an EKS environment from Split Cost Allocation Data (E26-T05). */
+    @GetMapping("/eks-workload-cost")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<com.tcgdigital.vmcontrol.dto.EksWorkloadCostDTO> getEksWorkloadCost(
+            @RequestParam String environmentId, @RequestParam(defaultValue = "7") int days) {
+        return ResponseEntity.ok(eksWorkloadCostService.forEnvironment(environmentId, days));
+    }
+
     @GetMapping("/summary")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<CostSummaryDTO> getSummary() {

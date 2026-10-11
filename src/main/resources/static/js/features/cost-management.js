@@ -21,6 +21,7 @@ const CostManagement = (function() {
     let state = {
         summary: null,
         spendByEnvironment: [],
+        eksEnvironments: [],
         spendByVmType: [],
         teamTrend: [],
         trend: [],
@@ -157,7 +158,14 @@ const CostManagement = (function() {
         rightsizing: { url: () => Config.API.costManagement.rightsizing(state.rightsizing.page, PAGE_SIZE), apply: d => { state.rightsizing = mapPage(d); } },
         detail: { url: () => Config.API.costManagement.vmDetail(state.detail.page, PAGE_SIZE), apply: d => { state.detail = mapPage(d); } },
         anomalies: { url: () => Config.API.costAnomalies.list(ANOMALY_DAYS), apply: d => { state.anomalies = (d && d.content) || []; } },
-        anomalyMonitors: { url: () => Config.API.costAnomalies.monitors, apply: d => { state.anomalyMonitors = d || []; } }
+        anomalyMonitors: { url: () => Config.API.costAnomalies.monitors, apply: d => { state.anomalyMonitors = d || []; } },
+        eksEnvironments: {
+            url: () => Config.API.environments.list,
+            apply: d => {
+                const list = Array.isArray(d) ? d : ((d && d.content) || []);
+                state.eksEnvironments = list.filter(e => String(e.serviceType || '').toUpperCase() === 'EKS');
+            }
+        }
     };
 
     /** Days of anomalies the Anomalies panel lists (E21-T04). */
@@ -267,6 +275,9 @@ const CostManagement = (function() {
         $('#content-area').html(buildPageHtml());
         bindEvents();
         initCharts();
+        Object.keys(PANELS).forEach(name => {
+            if (!panelFailed(name) && PANELS[name].after) PANELS[name].after();
+        });
     }
 
     function buildPageHtml() {
@@ -312,6 +323,7 @@ const CostManagement = (function() {
                     ${panelSlot('trend')}
                     ${panelSlot('reservations')}
                     ${panelSlot('anomalies')}
+                    ${panelSlot('workloads')}
                     ${panelSlot('reconciliation')}
                     ${panelSlot('idle')}
                     ${panelSlot('rightsizing')}
@@ -354,8 +366,36 @@ const CostManagement = (function() {
         idle: { keys: ['idle'], label: 'idle VMs', build: () => buildIdleWasteTable() },
         rightsizing: { keys: ['rightsizing'], label: 'rightsizing recommendations', build: () => buildRightsizingTable() },
         detail: { keys: ['detail'], label: 'VM cost detail', build: () => buildVmDetailTable() },
-        anomalies: { keys: ['anomalies', 'anomalyMonitors'], label: 'cost anomalies', build: () => buildAnomaliesPanel() }
+        anomalies: { keys: ['anomalies', 'anomalyMonitors'], label: 'cost anomalies', build: () => buildAnomaliesPanel() },
+        workloads: {
+            keys: ['eksEnvironments'], label: 'EKS workload cost', build: () => buildWorkloadsPanel(),
+            after: () => mountWorkloads()
+        }
     };
+
+    /** Namespace and workload cost of one EKS environment (E26-T05); hidden without EKS environments. */
+    function buildWorkloadsPanel() {
+        const envs = state.eksEnvironments || [];
+        if (envs.length === 0) return '';
+        const options = envs.map(e => Utils.html`<option value="${e.environmentId}">${e.displayName || e.name}</option>`).join('');
+        return Utils.html`
+            <section class="cost-table-card" aria-labelledby="cost-workloads-title">
+                <div class="dashboard-panel-head d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <h2 id="cost-workloads-title">EKS Workloads</h2>
+                    <select class="form-select form-select-sm w-auto" id="cost-eks-env" data-action-change="cost-eks-env"
+                            aria-label="EKS environment">${Utils.raw(options)}</select>
+                </div>
+                <div id="cost-eks-workloads" data-eks-workloads></div>
+            </section>`;
+    }
+
+    function mountWorkloads(environmentId) {
+        const $select = $('#cost-eks-env');
+        if (!$select.length || typeof EksWorkloads === 'undefined') return;
+        const id = environmentId || $select.val();
+        const days = $('#cost-eks-workloads .eks-workloads-days').val();
+        EksWorkloads.mount($('#cost-eks-workloads'), d => Config.API.costManagement.eksWorkloadCost(id, d), days);
+    }
 
     /** AWS cost anomalies across environments, with owners' verdicts and monitor coverage (E21-T04). */
     function buildAnomaliesPanel() {
@@ -419,6 +459,7 @@ const CostManagement = (function() {
         if (!panelFailed(name) && panel.charts && window.echarts) {
             panel.charts().forEach(([id, option]) => chart(id, option));
         }
+        if (!panelFailed(name) && panel.after) panel.after();
     }
 
     /** Retry only the failed requests behind one panel. */
@@ -1380,7 +1421,8 @@ const CostManagement = (function() {
 
     return {
         load,
-        changePage
+        changePage,
+        showWorkloads: mountWorkloads
     };
 })();
 
@@ -1391,3 +1433,4 @@ Actions.registerAll({
     'cost-reload': () => ContentRouter.reload(),
     'cost-change-page': el => CostManagement.changePage(el.dataset.pageKey, Number(el.dataset.page))
 });
+Actions.register('cost-eks-env', el => CostManagement.showWorkloads(el.value), 'change');
