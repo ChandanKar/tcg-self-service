@@ -71,4 +71,15 @@ public class UpdateEnvironmentDTO {
     public void setServiceType(String serviceType) {
         this.serviceType = serviceType;
     }
+
+    /** The owning team (E23-T03): null leaves it unchanged, blank unassigns it. */
+    private String teamId;
+
+    public String getTeamId() {
+        return teamId;
+    }
+
+    public void setTeamId(String teamId) {
+        this.teamId = teamId;
+    }
 }

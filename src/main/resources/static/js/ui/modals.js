@@ -311,8 +311,8 @@ const Modals = (function() {
                                 </select>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Owner Team</label>
-                                <input type="text" class="form-control" id="cem-ownerTeam" placeholder="e.g., Platform Team">
+                                <label class="form-label" for="cem-team">Owner Team</label>
+                                <select class="form-select" id="cem-team"><option value="">Unassigned</option></select>
                             </div>
                         </div>
                     </div>
@@ -354,9 +354,8 @@ const Modals = (function() {
                         </div>
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Owner Team</label>
-                                <input type="text" class="form-control" id="cem-eks-ownerTeam"
-                                       placeholder="e.g., Platform Team">
+                                <label class="form-label" for="cem-eks-team">Owner Team</label>
+                                <select class="form-select" id="cem-eks-team"><option value="">Unassigned</option></select>
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Description</label>
@@ -467,6 +466,12 @@ const Modals = (function() {
                 switchToEc2();
                 document.getElementById('cem-name').focus();
 
+                if (typeof Teams !== 'undefined') {
+                    Teams.options(null).then(html => {
+                        $('#cem-team').html(html);
+                        $('#cem-eks-team').html(html);
+                    });
+                }
                 document.getElementById('cem-submitBtn').addEventListener('click', function() {
                     const serviceType = document.getElementById('cem-serviceType').value;
                     const isEks = serviceType === 'EKS';
@@ -480,9 +485,10 @@ const Modals = (function() {
                     const description = isEks
                         ? (document.getElementById('cem-eks-description').value || '').trim() || null
                         : (document.getElementById('cem-description').value || '').trim() || null;
-                    const ownerTeam   = isEks
-                        ? (document.getElementById('cem-eks-ownerTeam').value || '').trim() || null
-                        : (document.getElementById('cem-ownerTeam').value || '').trim() || null;
+                    // The owning team is a Team record now (E23-T03), not free text in metadata.
+                    const teamId      = isEks
+                        ? (document.getElementById('cem-eks-team').value || '') || null
+                        : (document.getElementById('cem-team').value || '') || null;
                     const cloudProv   = isEks ? 'AWS' : (document.getElementById('cem-cloudProvider').value || 'AWS');
                     const eksRegion   = isEks ? (document.getElementById('cem-eks-region').value || '') : '';
 
@@ -494,15 +500,16 @@ const Modals = (function() {
                     }
 
                     const metaObj = isEks
-                        ? { ownerTeam, defaultCloudProvider: 'AWS', ...(eksRegion && { region: eksRegion }) }
-                        : { ownerTeam, defaultCloudProvider: cloudProv };
+                        ? { defaultCloudProvider: 'AWS', ...(eksRegion && { region: eksRegion }) }
+                        : { defaultCloudProvider: cloudProv };
 
                     const data = {
                         name: envName,
                         displayName: displayName,
                         description: description,
                         serviceType: serviceType,
-                        metadata: JSON.stringify(metaObj)
+                        metadata: JSON.stringify(metaObj),
+                        teamId: teamId
                     };
                     if (isEks) {
                         // The exact cluster name (AWS names are case-sensitive; name is stored lower-cased).
@@ -561,9 +568,9 @@ const Modals = (function() {
                     </div>
                     <div class="row">
                         <div class="col-md-4 mb-3">
-                            <label class="form-label">Owner Team</label>
-                            <input type="text" class="form-control" id="editEnvOwnerTeam"
-                                   value="${Utils.escapeHtml(meta.ownerTeam || '')}">
+                            <label class="form-label" for="editEnvTeam">Owner Team</label>
+                            <select class="form-select" id="editEnvTeam"><option value="">Unassigned</option></select>
+                            ${!env.teamId && meta.ownerTeam ? `<div class="form-text" id="editEnvLegacyTeam">Previously typed: ${Utils.escapeHtml(meta.ownerTeam)}</div>` : ''}
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Default Cloud Provider</label>
@@ -590,6 +597,9 @@ const Modals = (function() {
             ],
             onShow: function() {
                 const $modal = $('#editEnvModal');
+                if (typeof Teams !== 'undefined') {
+                    Teams.options(env.teamId).then(html => $modal.find('#editEnvTeam').html(html));
+                }
                 $modal.find('#saveEnvBtn').off('click').on('click', function() {
                     const data = {
                         displayName: ($modal.find('#editEnvDisplayName').val() || '').trim() || env.displayName,
@@ -597,9 +607,10 @@ const Modals = (function() {
                         description: ($modal.find('#editEnvDescription').val() || '').trim(),
                         serviceType: ($modal.find('#editEnvServiceType').val() || 'EC2'),
                         metadata: JSON.stringify({
-                            ownerTeam: ($modal.find('#editEnvOwnerTeam').val() || '').trim() || null,
                             defaultCloudProvider: ($modal.find('#editEnvCloudProvider').val() || '') || null
-                        })
+                        }),
+                        // '' unassigns the team (E23-T03)
+                        teamId: $modal.find('#editEnvTeam').val() || ''
                     };
 
                     $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Saving...');

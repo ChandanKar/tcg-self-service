@@ -62,4 +62,31 @@ class TeamControllerIntegrationTest extends SecuredWebTestBase {
         expectError(mockMvc.perform(post("/api/v1/teams").with(asAdmin()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"displayName\":\" \"}")), 400);
     }
+
+    @Test
+    void environmentsTakeATeamOnCreateAndEditAndTheChangeIsAudited() throws Exception {
+        String id = create("Platform");
+        String body = mockMvc.perform(post("/api/v1/environments").with(asAdmin()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"team-env-" + System.nanoTime() + "\",\"displayName\":\"Team env\",\"teamId\":\"" + id + "\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.teamId").value(id))
+                .andExpect(jsonPath("$.teamName").value("Platform"))
+                .andReturn().getResponse().getContentAsString();
+        String envId = com.jayway.jsonpath.JsonPath.read(body, "$.environmentId");
+
+        mockMvc.perform(put("/api/v1/environments/" + envId).with(asAdmin()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"displayName\":\"Team env\"}"))
+                .andExpect(jsonPath("$.teamId").value(id)); // not sent: unchanged
+        mockMvc.perform(put("/api/v1/environments/" + envId).with(asAdmin()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"teamId\":\"\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.teamId").doesNotExist());
+        mockMvc.perform(put("/api/v1/environments/" + envId).with(asAdmin()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"teamId\":\"no-such-team\"}")).andExpect(status().isNotFound());
+        awaitAsync(() -> org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM audit_log WHERE environment_id = ? AND action_type = 'ENVIRONMENT_UPDATED' AND details LIKE '%team%'",
+                Integer.class, envId)).isEqualTo(1));
+    }
+
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 }

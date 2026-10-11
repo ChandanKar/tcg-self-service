@@ -1,0 +1,29 @@
+/*
+ * Teams page (E23-T03): the list beside the selected team's details.
+ */
+.teams-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    gap: 0.75rem;
+    align-items: start;
+}
+
+.team-members li {
+    padding: 0.25rem 0;
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+#team-detail .btn-link {
+    color: #0a58ca;
+}
+
+#teams-table .btn-link {
+    color: #0a58ca;
+    text-align: left;
+}
+
+@media (max-width: 991.98px) {
+    .teams-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

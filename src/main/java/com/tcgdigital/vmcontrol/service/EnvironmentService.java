@@ -46,6 +46,10 @@ public class EnvironmentService {
     private final com.tcgdigital.vmcontrol.repository.OperationExecutionRepository operationExecutionRepository;
     private final LockService lockService;
 
+    /** For the owning team of an environment (E23-T03). */
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.tcgdigital.vmcontrol.repository.TeamRepository teamRepository;
+
     public EnvironmentService(EnvironmentRepository environmentRepository,
                               EnvironmentAccessRepository accessRepository,
                               VmGroupRepository groupRepository,
@@ -214,6 +218,9 @@ public class EnvironmentService {
         environment.setMetadata(dto.getMetadata());
         environment.setServiceType(serviceType);
         environment.setIsActive(true);
+        if (dto.getTeamId() != null && !dto.getTeamId().isBlank()) {
+            environment.setTeam(activeTeam(dto.getTeamId()));
+        }
 
         Environment saved = environmentRepository.save(environment);
         log.info("Created environment: {} ({})", saved.getName(), saved.getEnvironmentId());
@@ -222,6 +229,12 @@ public class EnvironmentService {
         auditService.logEnvironmentCreated(actorUserId, saved.getEnvironmentId(), saved.getName());
 
         return saved;
+    }
+
+    /** An active team by id, else 404 (E23-T03). */
+    private com.tcgdigital.vmcontrol.model.Team activeTeam(String teamId) {
+        return teamRepository.findById(teamId.trim()).filter(t -> Boolean.TRUE.equals(t.getIsActive()))
+                .orElseThrow(() -> new com.tcgdigital.vmcontrol.exception.ResourceNotFoundException("Team", teamId));
     }
 
     /**
@@ -241,6 +254,10 @@ public class EnvironmentService {
         Boolean oldActive = environment.getIsActive();
         String oldServiceType = environment.getServiceType();
         String oldMetadata = environment.getMetadata();
+        String oldTeam = environment.getTeam() == null ? null : environment.getTeam().getDisplayName();
+        if (dto.getTeamId() != null) {
+            environment.setTeam(dto.getTeamId().isBlank() ? null : activeTeam(dto.getTeamId()));
+        }
 
         if (dto.getDisplayName() != null) {
             environment.setDisplayName(dto.getDisplayName());
@@ -271,6 +288,7 @@ public class EnvironmentService {
                 .add("description", oldDescription, saved.getDescription())
                 .add("isActive", oldActive, saved.getIsActive())
                 .add("serviceType", oldServiceType, saved.getServiceType())
+                .add("team", oldTeam, saved.getTeam() == null ? null : saved.getTeam().getDisplayName())
                 .changed("metadata", !java.util.Objects.equals(oldMetadata, saved.getMetadata()));
         if (!changes.isEmpty()) {
             auditService.logEnvironmentUpdated(actorUserId, saved.getEnvironmentId(), saved.getName(), changes.toString());

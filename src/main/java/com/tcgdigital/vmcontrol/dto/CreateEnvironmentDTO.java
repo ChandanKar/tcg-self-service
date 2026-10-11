@@ -89,4 +89,15 @@ public class CreateEnvironmentDTO {
     public void setEksClusterName(String eksClusterName) {
         this.eksClusterName = eksClusterName;
     }
+
+    /** The owning team (E23-T03); null or blank for none. */
+    private String teamId;
+
+    public String getTeamId() {
+        return teamId;
+    }
+
+    public void setTeamId(String teamId) {
+        this.teamId = teamId;
+    }
 }

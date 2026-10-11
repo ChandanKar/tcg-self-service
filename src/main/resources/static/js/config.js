@@ -127,6 +127,19 @@ const Config = (function() {
             acknowledge: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}/acknowledge`
         },
 
+        // Teams (E23)
+        teams: {
+            list: (includeInactive) => `${API_BASE_URL}/teams` + (includeInactive ? '?includeInactive=true' : ''),
+            create: `${API_BASE_URL}/teams`,
+            update: (id) => `${API_BASE_URL}/teams/${encodeURIComponent(id)}`,
+            delete: (id) => `${API_BASE_URL}/teams/${encodeURIComponent(id)}`,
+            entraGroups: (q) => `${API_BASE_URL}/teams/entra-groups?query=${encodeURIComponent(q)}`,
+            entraGroup: (id) => `${API_BASE_URL}/teams/${encodeURIComponent(id)}/entra-group`,
+            sync: (id) => `${API_BASE_URL}/teams/${encodeURIComponent(id)}/sync`,
+            members: (id) => `${API_BASE_URL}/teams/${encodeURIComponent(id)}/members`,
+            member: (id, userId) => `${API_BASE_URL}/teams/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}`
+        },
+
         // Waste sweeps (E22)
         waste: {
             summary: `${API_BASE_URL}/waste/summary`,
