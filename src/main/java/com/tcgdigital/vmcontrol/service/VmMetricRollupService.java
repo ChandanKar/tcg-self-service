@@ -121,6 +121,10 @@ public class VmMetricRollupService {
             daily.setSumDiskReadBytes(agg.getSumDiskRead());
             daily.setSumDiskWriteBytes(agg.getSumDiskWrite());
             daily.setSampleCount(agg.getSampleCount() == null ? 0 : agg.getSampleCount().intValue());
+            int memorySamples = agg.getMemorySampleCount() == null ? 0 : agg.getMemorySampleCount().intValue();
+            daily.setAvgMemoryUtilization(memorySamples > 0 ? agg.getAvgMemory() : null);
+            daily.setMaxMemoryUtilization(memorySamples > 0 ? agg.getMaxMemory() : null);
+            daily.setMemorySampleCount(memorySamples);
             toSave.add(daily);
         }
 
@@ -146,6 +150,9 @@ public class VmMetricRollupService {
             daily.setSumDiskReadBytes(0L);
             daily.setSumDiskWriteBytes(0L);
             daily.setSampleCount(0);
+            daily.setAvgMemoryUtilization(null);
+            daily.setMaxMemoryUtilization(null);
+            daily.setMemorySampleCount(0);
             toSave.add(daily);
         }
 

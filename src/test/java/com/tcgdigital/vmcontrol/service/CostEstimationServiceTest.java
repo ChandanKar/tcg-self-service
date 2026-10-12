@@ -52,7 +52,7 @@ class CostEstimationServiceTest {
     @Mock private CostDailySnapshotRepository costDailySnapshotRepository;
     @Mock private CostDataProvider costDataProvider;
     @Mock private ComputeOptimizerService computeOptimizerService;
-    @Mock private VmMetricDailyRepository.CpuStats cpuStats;
+    @Mock private VmMetricDailyRepository.UtilizationStats cpuStats;
     @Mock private VmMetricDaily vmMetricDaily;
     @Mock private VmInventorySnapshotRepository.InstanceTypeProjection instanceTypeProjection;
 
@@ -81,7 +81,7 @@ class CostEstimationServiceTest {
         when(cpuStats.getVmId()).thenReturn(VM_ID);
         when(cpuStats.getAvgCpu()).thenReturn(BigDecimal.valueOf(2));
         when(cpuStats.getMaxCpu()).thenReturn(BigDecimal.valueOf(10));
-        when(vmMetricDailyRepository.findCpuStatsSince(anyList(), any())).thenReturn(List.of(cpuStats));
+        when(vmMetricDailyRepository.findUtilizationStatsSince(anyList(), any())).thenReturn(List.of(cpuStats));
 
         // Scale-down candidacy: 3 consecutive daily rows (matching scaleDownConsecutiveDays),
         // each below the 15% threshold, so every test in this class exercises a scale-down

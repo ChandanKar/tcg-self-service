@@ -43,6 +43,17 @@ public class VmMetricDaily {
     @Column(name = "sample_count", nullable = false)
     private Integer sampleCount;
 
+    /** Daily memory utilisation; null when the CloudWatch agent reported none (E30-T01). */
+    @Column(name = "avg_memory_utilization", precision = 7, scale = 3)
+    private BigDecimal avgMemoryUtilization;
+
+    @Column(name = "max_memory_utilization", precision = 7, scale = 3)
+    private BigDecimal maxMemoryUtilization;
+
+    /** Samples that carried a memory value; 0 for a VM without the agent. */
+    @Column(name = "memory_sample_count", nullable = false)
+    private Integer memorySampleCount = 0;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @CreationTimestamp
     private Timestamp createdAt;
@@ -72,6 +83,12 @@ public class VmMetricDaily {
     public void setSumDiskWriteBytes(Long sumDiskWriteBytes) { this.sumDiskWriteBytes = sumDiskWriteBytes; }
     public Integer getSampleCount() { return sampleCount; }
     public void setSampleCount(Integer sampleCount) { this.sampleCount = sampleCount; }
+    public BigDecimal getAvgMemoryUtilization() { return avgMemoryUtilization; }
+    public void setAvgMemoryUtilization(BigDecimal avgMemoryUtilization) { this.avgMemoryUtilization = avgMemoryUtilization; }
+    public BigDecimal getMaxMemoryUtilization() { return maxMemoryUtilization; }
+    public void setMaxMemoryUtilization(BigDecimal maxMemoryUtilization) { this.maxMemoryUtilization = maxMemoryUtilization; }
+    public Integer getMemorySampleCount() { return memorySampleCount; }
+    public void setMemorySampleCount(Integer memorySampleCount) { this.memorySampleCount = memorySampleCount; }
     public Timestamp getCreatedAt() { return createdAt; }
     public void setCreatedAt(Timestamp createdAt) { this.createdAt = createdAt; }
 }

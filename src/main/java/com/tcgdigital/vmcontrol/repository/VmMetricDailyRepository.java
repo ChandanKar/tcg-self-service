@@ -22,16 +22,18 @@ public interface VmMetricDailyRepository extends JpaRepository<VmMetricDaily, St
     List<VmMetricDaily> findByBucketDate(Date bucketDate);
 
     /**
-     * Average-of-daily-averages and max CPU per VM since a given date, for a batch of VMs in one
+     * Average-of-daily-averages and max CPU and memory per VM since a given date, for a batch of VMs in one
      * query — avoids a per-VM query when computing rightsizing candidates for a page of VMs.
      * Note: this averages each day's already-averaged value, not sample-weighted across days
      * (a day with 3 samples counts the same as a day with 288) — an accepted approximation given
-     * only daily rollups are queried here, not raw samples.
+     * only daily rollups are queried here, not raw samples. Memory is null for VMs without the
+     * CloudWatch agent (AVG/MAX ignore the null days).
      */
-    @Query("SELECT m.vm.vmId AS vmId, AVG(m.avgCpuUtilization) AS avgCpu, MAX(m.maxCpuUtilization) AS maxCpu " +
+    @Query("SELECT m.vm.vmId AS vmId, AVG(m.avgCpuUtilization) AS avgCpu, MAX(m.maxCpuUtilization) AS maxCpu, " +
+           "AVG(m.avgMemoryUtilization) AS avgMemory, MAX(m.maxMemoryUtilization) AS maxMemory " +
            "FROM VmMetricDaily m WHERE m.vm.vmId IN :vmIds AND m.bucketDate >= :sinceDate " +
            "GROUP BY m.vm.vmId")
-    List<CpuStats> findCpuStatsSince(@Param("vmIds") List<String> vmIds, @Param("sinceDate") Date sinceDate);
+    List<UtilizationStats> findUtilizationStatsSince(@Param("vmIds") List<String> vmIds, @Param("sinceDate") Date sinceDate);
 
     /**
      * Individual per-day rows (not aggregated) for a batch of VMs since a given date, newest
@@ -41,9 +43,11 @@ public interface VmMetricDailyRepository extends JpaRepository<VmMetricDaily, St
     List<VmMetricDaily> findByVmVmIdInAndBucketDateGreaterThanEqualOrderByVmVmIdAscBucketDateDesc(
             List<String> vmIds, Date sinceDate);
 
-    interface CpuStats {
+    interface UtilizationStats {
         String getVmId();
         BigDecimal getAvgCpu();
         BigDecimal getMaxCpu();
+        BigDecimal getAvgMemory();
+        BigDecimal getMaxMemory();
     }
 }

@@ -423,9 +423,9 @@ public class CostEstimationService {
 
         Map<String, CostDataProvider.VmCostEstimate> estimates = costDataProvider.estimateCosts(vms, start, end);
 
-        Map<String, VmMetricDailyRepository.CpuStats> cpuStatsByVmId = new LinkedHashMap<>();
+        Map<String, VmMetricDailyRepository.UtilizationStats> cpuStatsByVmId = new LinkedHashMap<>();
         Date sinceDate = Date.valueOf(LocalDate.now().minusDays(COST_WINDOW_DAYS));
-        for (VmMetricDailyRepository.CpuStats stats : vmMetricDailyRepository.findCpuStatsSince(vmIds, sinceDate)) {
+        for (VmMetricDailyRepository.UtilizationStats stats : vmMetricDailyRepository.findUtilizationStatsSince(vmIds, sinceDate)) {
             cpuStatsByVmId.put(stats.getVmId(), stats);
         }
 
@@ -451,7 +451,7 @@ public class CostEstimationService {
         for (Vm vm : vms) {
             String vmId = vm.getVmId();
             CostDataProvider.VmCostEstimate estimate = estimates.get(vmId);
-            VmMetricDailyRepository.CpuStats cpuStats = cpuStatsByVmId.get(vmId);
+            VmMetricDailyRepository.UtilizationStats cpuStats = cpuStatsByVmId.get(vmId);
             VmIdleSummary idleSummary = idleByVmId.get(vmId);
 
             // An EKS node group has no inventory snapshot: its node type comes from its metadata (E26-T02).
@@ -463,6 +463,8 @@ public class CostEstimationService {
                     instanceType,
                     cpuStats == null ? null : cpuStats.getAvgCpu(),
                     cpuStats == null ? null : cpuStats.getMaxCpu(),
+                    cpuStats == null ? null : cpuStats.getAvgMemory(),
+                    cpuStats == null ? null : cpuStats.getMaxMemory(),
                     idleSummary != null && Boolean.TRUE.equals(idleSummary.getIdle()),
                     idleSummary == null ? null : idleSummary.getIdleSince(),
                     idleSummary == null ? null : idleSummary.getIdleDurationMinutes(),
@@ -762,6 +764,8 @@ public class CostEstimationService {
             String instanceType,
             BigDecimal avgCpu,
             BigDecimal peakCpu,
+            BigDecimal avgMemory,
+            BigDecimal peakMemory,
             boolean idle,
             Timestamp idleSince,
             Integer idleDurationMinutes,

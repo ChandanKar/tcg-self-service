@@ -90,4 +90,54 @@ class VmMetricRollupServiceTest {
         assertThat(full.getSampleCount()).isEqualTo(288);
         assertThat(full.getAvgCpuUtilization()).isEqualByComparingTo("40");
     }
+
+    private List<VmMetricDaily> rollUpToday(VmMetricSampleRepository.DailyAggregate agg) {
+        when(sampleRepository.aggregateByVmForPeriod(org.mockito.ArgumentMatchers.eq(
+                Timestamp.valueOf(LocalDate.now().atStartOfDay())), any())).thenReturn(List.of(agg));
+        service.rollupDailyMetrics();
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<VmMetricDaily>> saved = ArgumentCaptor.forClass(List.class);
+        verify(dailyRepository, atLeastOnce()).saveAll(saved.capture());
+        List<VmMetricDaily> all = new ArrayList<>();
+        saved.getAllValues().forEach(all::addAll);
+        return all;
+    }
+
+    private VmMetricSampleRepository.DailyAggregate aggregate(BigDecimal avgMemory, BigDecimal maxMemory, long memorySamples) {
+        VmMetricSampleRepository.DailyAggregate agg = mock(VmMetricSampleRepository.DailyAggregate.class);
+        when(agg.getVmId()).thenReturn("vm-1");
+        lenient().when(agg.getSampleCount()).thenReturn(288L);
+        lenient().when(agg.getAvgCpu()).thenReturn(BigDecimal.valueOf(12));
+        lenient().when(agg.getAvgMemory()).thenReturn(avgMemory);
+        lenient().when(agg.getMaxMemory()).thenReturn(maxMemory);
+        lenient().when(agg.getMemorySampleCount()).thenReturn(memorySamples);
+        return agg;
+    }
+
+    @Test
+    void memoryFromTheAgentIsRolledUp() {
+        List<VmMetricDaily> all = rollUpToday(aggregate(new BigDecimal("41.500"), new BigDecimal("77.250"), 288));
+
+        VmMetricDaily today = all.stream().filter(d -> d.getBucketDate().equals(Date.valueOf(LocalDate.now())))
+                .findFirst().orElseThrow();
+        assertThat(today.getAvgMemoryUtilization()).isEqualByComparingTo("41.5");
+        assertThat(today.getMaxMemoryUtilization()).isEqualByComparingTo("77.25");
+        assertThat(today.getMemorySampleCount()).isEqualTo(288);
+    }
+
+    @Test
+    void withoutTheAgentMemoryIsNullAndCountZero() {
+        List<VmMetricDaily> all = rollUpToday(aggregate(null, null, 0));
+
+        VmMetricDaily today = all.stream().filter(d -> d.getBucketDate().equals(Date.valueOf(LocalDate.now())))
+                .findFirst().orElseThrow();
+        assertThat(today.getSampleCount()).isEqualTo(288);
+        assertThat(today.getAvgCpuUtilization()).isEqualByComparingTo("12");
+        assertThat(today.getAvgMemoryUtilization()).isNull();
+        assertThat(today.getMaxMemoryUtilization()).isNull();
+        assertThat(today.getMemorySampleCount()).isZero();
+        // gap-filled days carry no memory either
+        assertThat(all).filteredOn(d -> d.getSampleCount() == 0)
+                .allSatisfy(d -> assertThat(d.getMemorySampleCount()).isZero());
+    }
 }
