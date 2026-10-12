@@ -165,6 +165,23 @@ class VmMetricsServiceTest {
         verify(sampleRepository, times(2)).save(any(VmMetricSample.class));
     }
 
+    @Test
+    void databaseConnectionsAreStoredWithTheSample() {
+        // E33-T03
+        Instant latest = Instant.now().minus(Duration.ofMinutes(10));
+        latestStored(latest);
+        List<CloudMetricsProviderService.VmMetricData> pts = points(latest.plus(Duration.ofMinutes(5)), 1);
+        pts.get(0).setDbConnections(new BigDecimal("7.000"));
+        when(provider.fetchMetricSeries(anyList(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), any(), any(), anyInt()))
+                .thenReturn(Map.of("i-1", pts));
+
+        assertThat(service.syncRunningVmMetrics()).isEqualTo(1);
+
+        ArgumentCaptor<VmMetricSample> saved = ArgumentCaptor.forClass(VmMetricSample.class);
+        verify(sampleRepository).save(saved.capture());
+        assertThat(saved.getValue().getDbConnections()).isEqualByComparingTo("7");
+    }
+
     // ---- Period bucketing and memory (E12-T04) ----
 
     private static VmMetricSample stored(Instant at, String cpu, String memory, long netIn) {

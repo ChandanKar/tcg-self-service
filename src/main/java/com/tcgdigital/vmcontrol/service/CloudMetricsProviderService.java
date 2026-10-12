@@ -34,6 +34,8 @@ public interface CloudMetricsProviderService {
         private Long networkOutBytes;
         private Long diskReadBytes;
         private Long diskWriteBytes;
+        /** Database connections (AWS_RDS, E33-T03). */
+        private BigDecimal dbConnections;
 
         public String getProviderVmId() { return providerVmId; }
         public void setProviderVmId(String providerVmId) { this.providerVmId = providerVmId; }
@@ -53,5 +55,7 @@ public interface CloudMetricsProviderService {
         public void setDiskReadBytes(Long diskReadBytes) { this.diskReadBytes = diskReadBytes; }
         public Long getDiskWriteBytes() { return diskWriteBytes; }
         public void setDiskWriteBytes(Long diskWriteBytes) { this.diskWriteBytes = diskWriteBytes; }
+        public BigDecimal getDbConnections() { return dbConnections; }
+        public void setDbConnections(BigDecimal dbConnections) { this.dbConnections = dbConnections; }
     }
 }

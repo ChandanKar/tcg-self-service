@@ -244,6 +244,7 @@ public class VmMetricsService {
         sample.setNetworkOutBytes(data.getNetworkOutBytes());
         sample.setDiskReadBytes(data.getDiskReadBytes());
         sample.setDiskWriteBytes(data.getDiskWriteBytes());
+        sample.setDbConnections(data.getDbConnections());
         sample.setStatusAtSample(vm.getStatus() != null ? vm.getStatus().name() : null);
 
         try {

@@ -28,8 +28,14 @@ public interface CloudInventoryProviderService {
         private String availabilityZone;
         private Timestamp launchTime;
         private List<VmVolumeData> volumes = List.of();
+        /** Database engine and Multi-AZ (AWS_RDS, E33-T03). */
+        private String engine;
+        private Boolean multiAz;
+        /** Storage that is not a list of volumes (an RDS allocation, E33-T03); wins over the volumes when set. */
+        private Integer storageGib;
 
         public Integer getTotalStorageGib() {
+            if (storageGib != null) return storageGib;
             return volumes == null ? 0 : volumes.stream()
                     .map(VmVolumeData::getSizeGib)
                     .filter(size -> size != null)
@@ -58,6 +64,12 @@ public interface CloudInventoryProviderService {
         public void setLaunchTime(Timestamp launchTime) { this.launchTime = launchTime; }
         public List<VmVolumeData> getVolumes() { return volumes; }
         public void setVolumes(List<VmVolumeData> volumes) { this.volumes = volumes; }
+        public String getEngine() { return engine; }
+        public void setEngine(String engine) { this.engine = engine; }
+        public Boolean getMultiAz() { return multiAz; }
+        public void setMultiAz(Boolean multiAz) { this.multiAz = multiAz; }
+        public Integer getStorageGib() { return storageGib; }
+        public void setStorageGib(Integer storageGib) { this.storageGib = storageGib; }
     }
 
     class VmVolumeData {

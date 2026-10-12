@@ -52,7 +52,7 @@ class VmInventoryServiceTest {
         stored = new VmInventorySnapshot();
         stored.setInstanceType("m5.xlarge");
         when(vmRepository.findByIsActiveTrue()).thenReturn(List.of(vm));
-        when(providerFactory.getService(CloudProvider.AWS)).thenReturn(Optional.of(provider));
+        lenient().when(providerFactory.getService(CloudProvider.AWS)).thenReturn(Optional.of(provider));
         when(provider.isAvailable()).thenReturn(true);
         when(inventoryRepository.findByVmVmId("vm-1")).thenReturn(Optional.of(stored));
         lenient().when(volumeRepository.findByVmVmIdOrderByDeviceNameAsc(any())).thenReturn(List.of());
@@ -63,6 +63,28 @@ class VmInventoryServiceTest {
         data.setProviderVmId("i-1");
         data.setInstanceType(type);
         when(provider.fetchInventory(anyList(), any())).thenReturn(Map.of("i-1", data));
+    }
+
+    @Test
+    void anRdsDatabaseKeepsItsEngineMultiAzAndAllocatedStorage() {
+        // E33-T03
+        vm.setProvider(CloudProvider.AWS_RDS);
+        vm.setProviderVmId("db:orders");
+        when(providerFactory.getService(CloudProvider.AWS_RDS)).thenReturn(Optional.of(provider));
+        CloudInventoryProviderService.VmInventoryData data = new CloudInventoryProviderService.VmInventoryData();
+        data.setProviderVmId("db:orders");
+        data.setInstanceType("m5.xlarge");
+        data.setEngine("postgres");
+        data.setMultiAz(true);
+        data.setStorageGib(100);
+        when(provider.fetchInventory(anyList(), any())).thenReturn(Map.of("db:orders", data));
+
+        service.syncAllInventory();
+
+        assertThat(stored.getEngine()).isEqualTo("postgres");
+        assertThat(stored.getMultiAz()).isTrue();
+        assertThat(stored.getTotalStorageGib()).isEqualTo(100);
+        assertThat(stored.getProvider()).isEqualTo(CloudProvider.AWS_RDS);
     }
 
     @Test

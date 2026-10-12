@@ -52,6 +52,10 @@ public class VmMetricSampleArchive {
     @Column(name = "disk_write_bytes")
     private Long diskWriteBytes;
 
+    /** Database connections, Maximum over the period (E33-T03, V82); null for EC2 and EKS. */
+    @Column(name = "db_connections", precision = 12, scale = 3)
+    private java.math.BigDecimal dbConnections;
+
     @Column(name = "status_at_sample", length = 32)
     private String statusAtSample;
 
@@ -93,6 +97,8 @@ public class VmMetricSampleArchive {
     public void setDiskReadBytes(Long diskReadBytes) { this.diskReadBytes = diskReadBytes; }
     public Long getDiskWriteBytes() { return diskWriteBytes; }
     public void setDiskWriteBytes(Long diskWriteBytes) { this.diskWriteBytes = diskWriteBytes; }
+    public java.math.BigDecimal getDbConnections() { return dbConnections; }
+    public void setDbConnections(java.math.BigDecimal dbConnections) { this.dbConnections = dbConnections; }
     public String getStatusAtSample() { return statusAtSample; }
     public void setStatusAtSample(String statusAtSample) { this.statusAtSample = statusAtSample; }
     public Timestamp getCreatedAt() { return createdAt; }

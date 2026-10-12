@@ -18,6 +18,8 @@ public class VmInventoryDTO {
     private String availabilityZone;
     private Timestamp launchTime;
     private Integer totalStorageGib;
+    private String engine;
+    private Boolean multiAz;
     private Timestamp lastRefreshedAt;
     private List<VolumeDTO> volumes;
 
@@ -35,6 +37,8 @@ public class VmInventoryDTO {
             dto.setAvailabilityZone(snapshot.getAvailabilityZone());
             dto.setLaunchTime(snapshot.getLaunchTime());
             dto.setTotalStorageGib(snapshot.getTotalStorageGib());
+            dto.setEngine(snapshot.getEngine());
+            dto.setMultiAz(snapshot.getMultiAz());
             dto.setLastRefreshedAt(snapshot.getLastRefreshedAt());
         }
         dto.setVolumes(volumes.stream().map(VolumeDTO::from).toList());
@@ -103,6 +107,10 @@ public class VmInventoryDTO {
     public Timestamp getLaunchTime() { return launchTime; }
     public void setLaunchTime(Timestamp launchTime) { this.launchTime = launchTime; }
     public Integer getTotalStorageGib() { return totalStorageGib; }
+    public String getEngine() { return engine; }
+    public void setEngine(String engine) { this.engine = engine; }
+    public Boolean getMultiAz() { return multiAz; }
+    public void setMultiAz(Boolean multiAz) { this.multiAz = multiAz; }
     public void setTotalStorageGib(Integer totalStorageGib) { this.totalStorageGib = totalStorageGib; }
     public Timestamp getLastRefreshedAt() { return lastRefreshedAt; }
     public void setLastRefreshedAt(Timestamp lastRefreshedAt) { this.lastRefreshedAt = lastRefreshedAt; }

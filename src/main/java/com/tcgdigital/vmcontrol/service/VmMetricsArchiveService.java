@@ -135,6 +135,7 @@ public class VmMetricsArchiveService {
         archive.setNetworkOutBytes(sample.getNetworkOutBytes());
         archive.setDiskReadBytes(sample.getDiskReadBytes());
         archive.setDiskWriteBytes(sample.getDiskWriteBytes());
+        archive.setDbConnections(sample.getDbConnections());
         archive.setStatusAtSample(sample.getStatusAtSample());
         archive.setCreatedAt(sample.getCreatedAt());
         return archive;

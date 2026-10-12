@@ -146,6 +146,8 @@ public class VmInventoryService {
         snapshot.setAvailabilityZone(data.getAvailabilityZone());
         snapshot.setLaunchTime(data.getLaunchTime());
         snapshot.setTotalStorageGib(data.getTotalStorageGib());
+        snapshot.setEngine(data.getEngine());
+        snapshot.setMultiAz(data.getMultiAz());
         snapshot.setLastRefreshedAt(now);
         inventoryRepository.save(snapshot);
         // A targeted update: a full save of the VM could overwrite a status a sync just wrote (E31-T01).

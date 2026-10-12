@@ -58,6 +58,13 @@ public class VmInventorySnapshot {
     @Column(name = "total_storage_gib")
     private Integer totalStorageGib;
 
+    /** Database engine and Multi-AZ of an AWS_RDS VM (E33-T03, V82); null for EC2 and EKS. */
+    @Column(name = "engine", length = 40)
+    private String engine;
+
+    @Column(name = "multi_az")
+    private Boolean multiAz;
+
     @Column(name = "last_refreshed_at", nullable = false)
     private Timestamp lastRefreshedAt;
 
@@ -108,6 +115,10 @@ public class VmInventorySnapshot {
     public void setLaunchTime(Timestamp launchTime) { this.launchTime = launchTime; }
     public Integer getTotalStorageGib() { return totalStorageGib; }
     public void setTotalStorageGib(Integer totalStorageGib) { this.totalStorageGib = totalStorageGib; }
+    public String getEngine() { return engine; }
+    public void setEngine(String engine) { this.engine = engine; }
+    public Boolean getMultiAz() { return multiAz; }
+    public void setMultiAz(Boolean multiAz) { this.multiAz = multiAz; }
     public Timestamp getLastRefreshedAt() { return lastRefreshedAt; }
     public void setLastRefreshedAt(Timestamp lastRefreshedAt) { this.lastRefreshedAt = lastRefreshedAt; }
     public Timestamp getInstanceTypeChangedAt() { return instanceTypeChangedAt; }

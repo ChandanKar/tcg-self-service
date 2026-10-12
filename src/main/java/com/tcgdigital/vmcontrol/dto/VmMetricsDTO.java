@@ -80,6 +80,7 @@ public class VmMetricsDTO {
         private Long networkOutBytes;
         private Long diskReadBytes;
         private Long diskWriteBytes;
+        private java.math.BigDecimal dbConnections;
 
         public static SampleDTO from(VmMetricSample sample) {
             SampleDTO dto = new SampleDTO();
@@ -90,6 +91,7 @@ public class VmMetricsDTO {
             dto.setNetworkOutBytes(sample.getNetworkOutBytes());
             dto.setDiskReadBytes(sample.getDiskReadBytes());
             dto.setDiskWriteBytes(sample.getDiskWriteBytes());
+            dto.setDbConnections(sample.getDbConnections());
             return dto;
         }
 
@@ -107,6 +109,8 @@ public class VmMetricsDTO {
         public void setDiskReadBytes(Long diskReadBytes) { this.diskReadBytes = diskReadBytes; }
         public Long getDiskWriteBytes() { return diskWriteBytes; }
         public void setDiskWriteBytes(Long diskWriteBytes) { this.diskWriteBytes = diskWriteBytes; }
+        public java.math.BigDecimal getDbConnections() { return dbConnections; }
+        public void setDbConnections(java.math.BigDecimal dbConnections) { this.dbConnections = dbConnections; }
     }
 
     public String getVmId() { return vmId; }
