@@ -433,6 +433,63 @@ public class EksCloudProviderService implements CloudProviderService {
         }
     }
 
+    /** Name of a node group's Spot twin: "&lt;source&gt;-spot", within EKS's 63 characters (E31-T05). */
+    public static String spotTwinName(String sourceNodegroup) {
+        String base = sourceNodegroup.length() > 58 ? sourceNodegroup.substring(0, 58) : sourceNodegroup;
+        return base + "-spot";
+    }
+
+    /**
+     * Creates a SPOT copy of a node group (E31-T05): same subnets, node role, labels, taints,
+     * scaling and launch template (or AMI type and disk size), the given diversified instance types,
+     * tagged tcg:spot-twin-of; waits until it is ACTIVE with nodes. Returns the twin's name; throws
+     * when it does not become ready in time (the caller deletes it).
+     */
+    public String createSpotTwin(CloudTarget target, String clusterName, String sourceNodegroup, List<String> instanceTypes) {
+        EksClient eks = getEksClient(target);
+        Nodegroup source = eks.describeNodegroup(DescribeNodegroupRequest.builder()
+                .clusterName(clusterName).nodegroupName(sourceNodegroup).build()).nodegroup();
+        String twin = spotTwinName(sourceNodegroup);
+        java.util.Map<String, String> tags = new java.util.HashMap<>(source.tags() == null ? Map.of() : source.tags());
+        tags.put("tcg:spot-twin-of", sourceNodegroup);
+        CreateNodegroupRequest.Builder request = CreateNodegroupRequest.builder()
+                .clusterName(clusterName)
+                .nodegroupName(twin)
+                .capacityType(CapacityTypes.SPOT)
+                .instanceTypes(instanceTypes)
+                .subnets(source.subnets())
+                .nodeRole(source.nodeRole())
+                .scalingConfig(source.scalingConfig())
+                .tags(tags);
+        if (source.labels() != null && !source.labels().isEmpty()) {
+            request.labels(source.labels());
+        }
+        if (source.taints() != null && !source.taints().isEmpty()) {
+            request.taints(source.taints());
+        }
+        if (source.launchTemplate() != null) {
+            // The node group's types replace the template's: a template that names a type is refused by EKS.
+            request.launchTemplate(LaunchTemplateSpecification.builder()
+                    .id(source.launchTemplate().id()).version(source.launchTemplate().version()).build());
+        } else {
+            request.amiType(source.amiType()).diskSize(source.diskSize());
+        }
+        eks.createNodegroup(request.build());
+        log.info("Creating Spot twin {}/{} of {} with types {}", clusterName, twin, sourceNodegroup, instanceTypes);
+        VmStatus status = waitForNodegroupActive(eks, clusterName, twin, true);
+        if (status != VmStatus.RUNNING) {
+            throw new IllegalStateException("Spot node group " + twin + " did not become ready (" + status + ")");
+        }
+        return twin;
+    }
+
+    /** Deletes a node group (a Spot twin being removed, E31-T05); does not wait. */
+    public void deleteNodegroup(CloudTarget target, String clusterName, String nodegroupName) {
+        getEksClient(target).deleteNodegroup(DeleteNodegroupRequest.builder()
+                .clusterName(clusterName).nodegroupName(nodegroupName).build());
+        log.info("Deleting EKS node group {}/{}", clusterName, nodegroupName);
+    }
+
     /**
      * Polls until the node group reaches a stable state.
      *

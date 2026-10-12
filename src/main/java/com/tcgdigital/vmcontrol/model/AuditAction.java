@@ -35,6 +35,11 @@ public enum AuditAction {
     VM_RESIZE_ROLLED_BACK,
     /** An environment's Spot policy or a VM's Spot exclusion changed (E31-T03). */
     SPOT_POLICY_CHANGED,
+    /** A node group's conversion to a Spot twin started, completed, failed, or was undone (E31-T05). */
+    SPOT_CONVERSION_STARTED,
+    SPOT_CONVERSION_COMPLETED,
+    SPOT_CONVERSION_FAILED,
+    SPOT_REVERTED,
 
     // Lock operations
     LOCK_ACQUIRED,

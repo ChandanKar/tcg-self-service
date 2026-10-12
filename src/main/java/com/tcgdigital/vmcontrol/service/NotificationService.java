@@ -437,6 +437,15 @@ public class NotificationService {
                 title, message, "VM", vmId);
     }
 
+    /** The admin who converted a node group to Spot (or back) hears how it ended (E31-T05). */
+    public void notifySpotOutcome(String userId, String vmId, boolean succeeded, String title, String message) {
+        if (userId == null) {
+            return;
+        }
+        create(userId, succeeded ? NotificationType.OPERATION_COMPLETED : NotificationType.OPERATION_FAILED,
+                title, message, "VM", vmId);
+    }
+
     /** A safe resize failed and its rollback too: the environment's admins must fix the VM (E30-T06). */
     public void notifyResizeNeedsAttention(String environmentId, String vmId, String title, String message) {
         resolveEnvironmentReviewers(environmentId).forEach(u -> create(u.getUserId(), NotificationType.OPERATION_FAILED,

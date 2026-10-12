@@ -74,6 +74,10 @@ public final class SettingsRegistry {
                     "Capture Spot prices daily and price Spot VMs and node groups at them.", false),
             flag("Spot", "spot.enabled", "Spot opt-in",
                     "Environment admins may allow Spot in interruptible, non-production environments.", false),
+            flag("Spot", "spot.eks.conversion.enabled", "Convert node groups to Spot",
+                    "Create a Spot twin of an EKS node group and keep the on-demand one as standby.", false),
+            integer("Spot", "spot.eks.min-instance-types", "Spot instance types",
+                    "Fewest same-size instance types a Spot twin may use.", 3, 1, 10),
 
             // Idle detection
             decimal("Idle detection", "vm.metrics.idle.cpu-threshold-percent", "Idle CPU %",

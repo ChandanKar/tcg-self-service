@@ -62,6 +62,9 @@ Run this (or the AWS Console's "Policy simulator" under IAM) before flipping any
 | Waste fix actions | `ec2:ModifyVolume`, `ec2:ModifySnapshotTier`, `ec2:RestoreSnapshotTier`, `ec2:DescribeAddresses`, `ec2:ReleaseAddress` | ❓ Unverified | gp2 → gp3, snapshot archiving and its restore, Elastic IP release (not reversible) |
 | **Safe resize** (`RIGHTSIZING_SAFE_RESIZE_ENABLED`, off by default, E30-T06) | `ec2:ModifyInstanceAttribute`, `ec2:StopInstances`, `ec2:StartInstances` | ❓ Unverified | Stop a running VM, change its instance type, start it again; the old type is put back when the new one will not start |
 | Safe resize | `ec2:DescribeInstanceTypeOfferings`, `ec2:DescribeInstanceTypes` | ❓ Unverified | Read-only pre-checks: the type is offered in the VM's zone, runs its architecture, and its ENA requirement |
+| **Spot pricing** (`SPOT_PRICING_ENABLED`, off by default, E31-T02) | `ec2:DescribeSpotPriceHistory` | ❓ Unverified | Read-only daily capture of Linux Spot prices for the types Spot VMs and node groups run |
+| Spot opportunities (E31-T04) | `ec2:GetSpotPlacementScores` | ❓ Unverified | Read-only 1-10 likelihood of Spot capacity; shown as unknown when denied |
+| **Spot conversion** (`SPOT_EKS_CONVERSION_ENABLED`, off by default, E31-T05) | `eks:CreateNodegroup`, `eks:DeleteNodegroup`, `eks:TagResource`, `iam:PassRole` (on the node role) | ❓ Unverified | Creates a SPOT twin of a node group and deletes it when going back to on demand |
 | **Budgets mirror** (`BUDGETS_AWS_SYNC_ENABLED`, off by default, E20-T06) | `budgets:ViewBudget` | ❓ Unverified | Needed only when mirroring app budgets to AWS Budgets |
 | Budgets mirror | `budgets:ModifyBudget` | ❓ Unverified | Create, update and delete of the mirrored budgets (names start with `tcg-`) |
 | Phase 4 | `budgets:CreateBudget` / `budgets:DescribeBudgets` | ❓ Unverified | Only needed if real AWS Budget resources are created (optional sub-feature) |

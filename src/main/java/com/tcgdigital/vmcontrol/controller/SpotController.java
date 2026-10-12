@@ -22,10 +22,29 @@ public class SpotController {
 
     private final SpotPolicyService spotPolicyService;
     private final UserService userService;
+    private final com.tcgdigital.vmcontrol.service.SpotConversionService conversionService;
 
-    public SpotController(SpotPolicyService spotPolicyService, UserService userService) {
+    public SpotController(SpotPolicyService spotPolicyService, UserService userService,
+                          com.tcgdigital.vmcontrol.service.SpotConversionService conversionService) {
         this.spotPolicyService = spotPolicyService;
         this.userService = userService;
+        this.conversionService = conversionService;
+    }
+
+    @PostMapping("/vms/{vmId}/convert-to-spot")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(summary = "Convert a node group to Spot", description = "Creates a Spot twin and keeps the on-demand node group as standby (E31-T05).")
+    public ResponseEntity<Map<String, Object>> convertToSpot(@PathVariable String environmentId, @PathVariable String vmId) {
+        conversionService.convertToSpot(environmentId, vmId, userService.getCurrentUserId());
+        return ResponseEntity.accepted().body(Map.of("vmId", vmId, "status", "CONVERTING"));
+    }
+
+    @PostMapping("/vms/{vmId}/revert-to-on-demand")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(summary = "Go back to on demand", description = "Starts the standby node group and removes the Spot twin (E31-T05).")
+    public ResponseEntity<Map<String, Object>> revertToOnDemand(@PathVariable String environmentId, @PathVariable String vmId) {
+        conversionService.revertToOnDemand(environmentId, vmId, userService.getCurrentUserId());
+        return ResponseEntity.accepted().body(Map.of("vmId", vmId, "status", "REVERTING"));
     }
 
     public record SpotPolicyRequest(String policy, Boolean acknowledgeInterruptible) {

@@ -371,5 +371,18 @@ class VmOperationsServiceTest extends AbstractIntegrationTest {
             assertNotNull(refreshed.getStatus());
         }
     }
-}
 
+    // ---- A Spot twin's standby is not started with the environment (E31-T05) ----
+
+    @Test
+    void aStandbyNodeGroupIsStoppedWithTheEnvironmentButNeverStarted() {
+        testVm2.setStandby(true);
+
+        var start = operationsService.planSteps(java.util.List.of(testVm1, testVm2), com.tcgdigital.vmcontrol.model.OperationType.START);
+        var stop = operationsService.planSteps(java.util.List.of(testVm1, testVm2), com.tcgdigital.vmcontrol.model.OperationType.STOP);
+
+        org.junit.jupiter.api.Assertions.assertEquals(1, start.size());
+        org.junit.jupiter.api.Assertions.assertEquals(testVm1.getVmId(), start.get(0).vm().getVmId());
+        org.junit.jupiter.api.Assertions.assertEquals(2, stop.size());
+    }
+}

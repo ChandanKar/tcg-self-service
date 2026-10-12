@@ -15,7 +15,8 @@ const Settings = (function() {
         'automation.rules.enabled': 'Automation rules start and stop VMs on their schedules.',
         'approvals.enabled': 'Starts that match an approval policy will wait for an approver.',
         'quotas.enabled': 'Starts that would exceed a team quota will warn, wait for approval or be refused.',
-        'rightsizing.safe-resize.enabled': 'Admins can stop running VMs, change their instance type and start them again from Cost Management.'
+        'rightsizing.safe-resize.enabled': 'Admins can stop running VMs, change their instance type and start them again from Cost Management.',
+        'spot.eks.conversion.enabled': 'Environment admins can create Spot node groups in EKS and scale their on-demand node groups to 0.'
     };
     let pageToken = null;
     let settings = [];

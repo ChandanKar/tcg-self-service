@@ -79,6 +79,30 @@ public class Vm {
         this.spotExcluded = spotExcluded;
     }
 
+    /** The on-demand original of a Spot twin, kept at 0 nodes and not started with the environment (E31-T05). */
+    @Column(name = "is_standby", nullable = false)
+    private boolean standby;
+
+    /** The other half of a Spot conversion: the twin of a standby, or the standby of a twin. */
+    @Column(name = "spot_partner_vm_id", length = 36)
+    private String spotPartnerVmId;
+
+    public boolean isStandby() {
+        return standby;
+    }
+
+    public void setStandby(boolean standby) {
+        this.standby = standby;
+    }
+
+    public String getSpotPartnerVmId() {
+        return spotPartnerVmId;
+    }
+
+    public void setSpotPartnerVmId(String spotPartnerVmId) {
+        this.spotPartnerVmId = spotPartnerVmId;
+    }
+
     @Column(nullable = false)
     private String name;
 

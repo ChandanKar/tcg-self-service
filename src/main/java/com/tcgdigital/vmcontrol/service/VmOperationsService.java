@@ -795,7 +795,9 @@ public class VmOperationsService {
             if (operationType == OperationType.RESTART) {
                 plan.addAll(phase(vms, OperationType.STOP, "stop", null));
             }
-            plan.addAll(phase(vms, OperationType.START, "start",
+            // A Spot twin's on-demand standby stays at 0 nodes when the environment starts (E31-T05).
+            List<Vm> startable = vms.stream().filter(v -> !v.isStandby()).toList();
+            plan.addAll(phase(startable, OperationType.START, "start",
                     operationType == OperationType.RESTART ? "stop" : null));
         } else {
             plan.addAll(phase(vms, OperationType.STOP, "stop", null));

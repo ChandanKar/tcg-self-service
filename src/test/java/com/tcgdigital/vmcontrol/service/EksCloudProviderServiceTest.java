@@ -519,4 +519,56 @@ class EksCloudProviderServiceTest {
             eksPool.shutdownNow();
         }
     }
+
+    // ---- Spot twin (E31-T05) ----
+
+    private Nodegroup sourceGroup() {
+        return Nodegroup.builder().clusterName(CLUSTER).nodegroupName(NODEGROUP)
+                .subnets("subnet-a", "subnet-b").nodeRole("arn:aws:iam::1:role/nodes")
+                .labels(Map.of("tier", "batch")).amiType(AMITypes.AL2_X86_64).diskSize(40)
+                .scalingConfig(NodegroupScalingConfig.builder().minSize(1).desiredSize(3).maxSize(5).build())
+                .tags(Map.of("team", "data")).build();
+    }
+
+    @Test
+    void aSpotTwinCopiesTheNodeGroupWithSpotCapacityAndItsTypes() {
+        when(mockEksClient.describeNodegroup(any(DescribeNodegroupRequest.class)))
+                .thenReturn(DescribeNodegroupResponse.builder().nodegroup(sourceGroup()).build())
+                .thenReturn(DescribeNodegroupResponse.builder().nodegroup(Nodegroup.builder().status(NodegroupStatus.ACTIVE)
+                        .scalingConfig(NodegroupScalingConfig.builder().minSize(1).desiredSize(3).maxSize(5).build()).build()).build());
+
+        String twin = service.createSpotTwin(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), CLUSTER, NODEGROUP,
+                List.of("m6i.large", "m5.large", "m6a.large"));
+
+        assertEquals("workers-spot", twin);
+        ArgumentCaptor<CreateNodegroupRequest> request = ArgumentCaptor.forClass(CreateNodegroupRequest.class);
+        verify(mockEksClient).createNodegroup(request.capture());
+        CreateNodegroupRequest r = request.getValue();
+        assertEquals(CapacityTypes.SPOT, r.capacityType());
+        assertEquals(List.of("m6i.large", "m5.large", "m6a.large"), r.instanceTypes());
+        assertEquals(List.of("subnet-a", "subnet-b"), r.subnets());
+        assertEquals("arn:aws:iam::1:role/nodes", r.nodeRole());
+        assertEquals(3, r.scalingConfig().desiredSize());
+        assertEquals("batch", r.labels().get("tier"));
+        assertEquals(NODEGROUP, r.tags().get("tcg:spot-twin-of"));
+        assertEquals("data", r.tags().get("team"));
+    }
+
+    @Test
+    void aSpotTwinThatIsNotReadyInTimeIsReportedAsFailed() {
+        when(mockEksClient.describeNodegroup(any(DescribeNodegroupRequest.class)))
+                .thenReturn(DescribeNodegroupResponse.builder().nodegroup(sourceGroup()).build())
+                .thenReturn(DescribeNodegroupResponse.builder().nodegroup(Nodegroup.builder().status(NodegroupStatus.CREATE_FAILED).build()).build());
+
+        assertThrows(IllegalStateException.class, () -> service.createSpotTwin(
+                com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), CLUSTER, NODEGROUP, List.of("m6i.large", "m5.large", "m6a.large")));
+    }
+
+    @Test
+    void aLongNodeGroupNameStillFitsWithTheSpotSuffix() {
+        String twin = EksCloudProviderService.spotTwinName("x".repeat(63));
+
+        assertEquals(63, twin.length());
+        assertTrue(twin.endsWith("-spot"));
+    }
 }
