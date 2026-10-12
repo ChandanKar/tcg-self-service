@@ -24,6 +24,7 @@ import software.amazon.awssdk.services.ec2.Ec2Client;
 import software.amazon.awssdk.services.eks.EksClient;
 import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.organizations.OrganizationsClient;
+import software.amazon.awssdk.services.servicecatalog.ServiceCatalogClient;
 import software.amazon.awssdk.services.sts.StsClient;
 
 import java.time.Duration;
@@ -154,6 +155,14 @@ public class AwsClientFactory {
         Region r = region(region);
         return cached("compute-optimizer", accountRef, r, () -> ComputeOptimizerClient.builder().region(r)
                 .credentialsProvider(credentials(accountRef)).overrideConfiguration(DEFAULT_OVERRIDES).build());
+    }
+
+    /** Service Catalog in an account and region (E32-T02); a null account is the default one. */
+    public ServiceCatalogClient serviceCatalog(String accountRef, String region) {
+        String ref = accountRef == null || accountRef.isBlank() ? AwsAccount.DEFAULT_REF : accountRef;
+        Region r = region(region);
+        return cached("service-catalog", ref, r, () -> ServiceCatalogClient.builder().region(r)
+                .credentialsProvider(credentials(ref)).overrideConfiguration(DEFAULT_OVERRIDES).build());
     }
 
     public AthenaClient athena(String region) {

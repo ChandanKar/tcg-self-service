@@ -65,6 +65,7 @@ Run this (or the AWS Console's "Policy simulator" under IAM) before flipping any
 | **Spot pricing** (`SPOT_PRICING_ENABLED`, off by default, E31-T02) | `ec2:DescribeSpotPriceHistory` | ❓ Unverified | Read-only daily capture of Linux Spot prices for the types Spot VMs and node groups run |
 | Spot opportunities (E31-T04) | `ec2:GetSpotPlacementScores` | ❓ Unverified | Read-only 1-10 likelihood of Spot capacity; shown as unknown when denied |
 | **Spot conversion** (`SPOT_EKS_CONVERSION_ENABLED`, off by default, E31-T05) | `eks:CreateNodegroup`, `eks:DeleteNodegroup`, `eks:TagResource`, `iam:PassRole` (on the node role) | ❓ Unverified | Creates a SPOT twin of a node group and deletes it when going back to on demand |
+| **Provisioning** (`PROVISIONING_ENABLED`, off by default, E32-T02) | `servicecatalog:ProvisionProduct`, `servicecatalog:DescribeRecord`, `servicecatalog:GetProvisionedProductOutputs`, `servicecatalog:TerminateProvisionedProduct` | ❓ Unverified | Builds and destroys environments from Service Catalog products; the product's launch constraint role creates the resources |
 | **Budgets mirror** (`BUDGETS_AWS_SYNC_ENABLED`, off by default, E20-T06) | `budgets:ViewBudget` | ❓ Unverified | Needed only when mirroring app budgets to AWS Budgets |
 | Budgets mirror | `budgets:ModifyBudget` | ❓ Unverified | Create, update and delete of the mirrored budgets (names start with `tcg-`) |
 | Phase 4 | `budgets:CreateBudget` / `budgets:DescribeBudgets` | ❓ Unverified | Only needed if real AWS Budget resources are created (optional sub-feature) |

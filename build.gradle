@@ -38,6 +38,7 @@ dependencies {
 	implementation 'software.amazon.awssdk:budgets'
 	implementation 'software.amazon.awssdk:athena'
 	implementation 'software.amazon.awssdk:organizations'
+	implementation 'software.amazon.awssdk:servicecatalog'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
