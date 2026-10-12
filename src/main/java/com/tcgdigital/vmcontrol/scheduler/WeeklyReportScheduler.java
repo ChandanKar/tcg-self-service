@@ -4,7 +4,6 @@ import com.tcgdigital.vmcontrol.service.ScheduledJobLockService;
 import com.tcgdigital.vmcontrol.service.WeeklyReportService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -26,8 +25,14 @@ public class WeeklyReportScheduler {
     private final WeeklyReportService weeklyReportService;
     private final ScheduledJobLockService lockService;
 
-    @Value("${notification.weekly-reports.enabled:true}")
-    private boolean enabled;
+
+    /** Live settings (E29-T02); absent in plain unit tests, where each toggle's default applies. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    private boolean setting(String key, boolean defaultValue) {
+        return settings == null ? defaultValue : settings.getBoolean(key, defaultValue);
+    }
 
     public WeeklyReportScheduler(WeeklyReportService weeklyReportService, ScheduledJobLockService lockService) {
         this.weeklyReportService = weeklyReportService;
@@ -36,7 +41,9 @@ public class WeeklyReportScheduler {
 
     @Scheduled(cron = "${notification.weekly-reports.cron:0 0 9 * * MON}", zone = "Asia/Kolkata")
     public void scheduledWeeklyReports() {
-        if (!enabled) {
+        // Read at each run (E29-T02): turning it off in Settings skips the next run.
+        if (!setting("notification.weekly-reports.enabled", true)) {
+            log.info("Weekly reports are turned off in Settings; skipping this run");
             return;
         }
         lockService.runLocked(LOCK_NAME, () -> {

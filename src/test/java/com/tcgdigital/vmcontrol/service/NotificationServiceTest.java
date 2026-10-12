@@ -41,9 +41,16 @@ class NotificationServiceTest {
     private User regularUser;  // direct USER-level access on envA
     private User groupScopedUser; // only a GROUP-scoped grant on envA
 
+
+    /** Settings this test turns on or off (E29-T02). */
+
+    private final java.util.Map<String, String> settingValues = new java.util.HashMap<>();
+
     @BeforeEach
     void setUp() {
         service = new NotificationService(notificationRepository, accessRepository, userRepository, emailService);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "settings",
+                com.tcgdigital.vmcontrol.service.settings.TestSettings.of(settingValues));
 
         envA = new Environment("env-A");
 
@@ -170,7 +177,7 @@ class NotificationServiceTest {
 
     @Test
     void notifyAccessGranted_sendsNoEmailWhenFlagOff() {
-        ReflectionTestUtils.setField(service, "emailAccessGrantedEnabled", false);
+        settingValues.put("notification.email.access-granted.enabled", "false");
 
         service.notifyAccessGranted("user-regular", "Env A", "env-A");
 
@@ -180,7 +187,7 @@ class NotificationServiceTest {
 
     @Test
     void notifyAccessGranted_sendsEmailWhenFlagOn() {
-        ReflectionTestUtils.setField(service, "emailAccessGrantedEnabled", true);
+        settingValues.put("notification.email.access-granted.enabled", "true");
         when(userRepository.findById("user-regular")).thenReturn(Optional.of(regularUser));
 
         service.notifyAccessGranted("user-regular", "Env A", "env-A");
@@ -191,7 +198,7 @@ class NotificationServiceTest {
 
     @Test
     void notifyAccessRequestedForReviewers_emailGoesToAllAdminOnly_notEnvAdmin() {
-        ReflectionTestUtils.setField(service, "emailAccessRequestedEnabled", true);
+        settingValues.put("notification.email.access-requested.enabled", "true");
 
         service.notifyAccessRequestedForReviewers("env-A", "Env A", "user-regular", "req-1", "user");
 
@@ -206,8 +213,24 @@ class NotificationServiceTest {
     }
 
     @Test
+    void theOperationFailedEmailFollowsTheSettingWithoutARestart() {
+        // E29-T02: the toggle is read at each call.
+        service.notifyOperationFailedForEnvironment("env-A", "Env A", "user-regular", "START", "boom");
+        verify(emailService, never()).sendHtml(anyList(), anyString(), anyString(), eq(null), eq(null));
+
+        settingValues.put("notification.email.operation-failed.enabled", "true");
+        service.notifyOperationFailedForEnvironment("env-A", "Env A", "user-regular", "START", "boom");
+        verify(emailService, atLeastOnce()).sendHtml(anyList(), anyString(), anyString(), eq(null), eq(null));
+
+        settingValues.put("notification.email.operation-failed.enabled", "false");
+        org.mockito.Mockito.clearInvocations(emailService);
+        service.notifyOperationFailedForEnvironment("env-A", "Env A", "user-regular", "START", "boom");
+        verify(emailService, never()).sendHtml(anyList(), anyString(), anyString(), eq(null), eq(null));
+    }
+
+    @Test
     void notifyOperationFailedForEnvironment_emailExcludesEnvAdmin() {
-        ReflectionTestUtils.setField(service, "emailOperationFailedEnabled", true);
+        settingValues.put("notification.email.operation-failed.enabled", "true");
 
         service.notifyOperationFailedForEnvironment("env-A", "Env A", "user-regular", "START", "boom");
 
@@ -223,7 +246,7 @@ class NotificationServiceTest {
 
     @Test
     void notifyLockBrokenForEnvironment_emailIncludesEnvAdmin() {
-        ReflectionTestUtils.setField(service, "emailLockBrokenEnabled", true);
+        settingValues.put("notification.email.lock-broken.enabled", "true");
 
         service.notifyLockBrokenForEnvironment("env-A", "Env A", "user-admin", "user-regular", "policy");
 
@@ -255,7 +278,7 @@ class NotificationServiceTest {
 
     @Test
     void notifyAccessExpiring_emailGoesToUserAndAdministeringEnvAdmins() {
-        ReflectionTestUtils.setField(service, "emailAccessExpiringEnabled", true);
+        settingValues.put("notification.email.access-expiring.enabled", "true");
         Timestamp windowStart = new Timestamp(System.currentTimeMillis());
         when(notificationRepository.existsByUserIdAndTypeAndEntityTypeAndEntityIdAndCreatedAtGreaterThanEqual(
                 eq("user-regular"), any(), eq("ACCESS"), eq("access-1"), eq(windowStart))).thenReturn(false);
@@ -271,7 +294,7 @@ class NotificationServiceTest {
 
     @Test
     void notifyAccessExpiring_doesNotResendEmailWhenBellNotificationAlreadyExists() {
-        ReflectionTestUtils.setField(service, "emailAccessExpiringEnabled", true);
+        settingValues.put("notification.email.access-expiring.enabled", "true");
         Timestamp windowStart = new Timestamp(System.currentTimeMillis());
         when(notificationRepository.existsByUserIdAndTypeAndEntityTypeAndEntityIdAndCreatedAtGreaterThanEqual(
                 eq("user-regular"), any(), eq("ACCESS"), eq("access-1"), eq(windowStart))).thenReturn(true);

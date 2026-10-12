@@ -33,14 +33,21 @@ class EmailServiceTest {
 
     private EmailService service;
 
+
+    /** Settings this test turns on or off (E29-T02). */
+
+    private final java.util.Map<String, String> settingValues = new java.util.HashMap<>();
+
     @BeforeEach
     void setUp() {
         service = new EmailService(mailSender, emailLogRepository);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "settings",
+                com.tcgdigital.vmcontrol.service.settings.TestSettings.of(settingValues));
     }
 
     @Test
     void sendHtml_doesNothingWhenDisabled() throws InterruptedException {
-        ReflectionTestUtils.setField(service, "enabled", false);
+        settingValues.put("notification.email.enabled", "false");
 
         service.sendHtml(List.of("user@example.com"), "Subject", "<p>body</p>", null, null);
         awaitAsync();
@@ -53,7 +60,7 @@ class EmailServiceTest {
 
     @Test
     void sendHtml_sendsWhenEnabled() throws InterruptedException {
-        ReflectionTestUtils.setField(service, "enabled", true);
+        settingValues.put("notification.email.enabled", "true");
         ReflectionTestUtils.setField(service, "fromAddress", "noreply@tcgdigital.com");
         MimeMessage mimeMessage = mock(MimeMessage.class);
         when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
@@ -74,7 +81,7 @@ class EmailServiceTest {
 
     @Test
     void sendHtml_withContext_recordsTypeEnvironmentAndActor() throws InterruptedException {
-        ReflectionTestUtils.setField(service, "enabled", true);
+        settingValues.put("notification.email.enabled", "true");
         ReflectionTestUtils.setField(service, "fromAddress", "noreply@tcgdigital.com");
         when(mailSender.createMimeMessage()).thenReturn(mock(MimeMessage.class));
 
@@ -92,7 +99,7 @@ class EmailServiceTest {
 
     @Test
     void sendHtml_swallowsSendExceptionRatherThanPropagating() throws InterruptedException {
-        ReflectionTestUtils.setField(service, "enabled", true);
+        settingValues.put("notification.email.enabled", "true");
         ReflectionTestUtils.setField(service, "fromAddress", "noreply@tcgdigital.com");
         MimeMessage mimeMessage = mock(MimeMessage.class);
         when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
@@ -113,7 +120,7 @@ class EmailServiceTest {
 
     @Test
     void sendHtml_skipsSendWithNoRecipients() throws InterruptedException {
-        ReflectionTestUtils.setField(service, "enabled", true);
+        settingValues.put("notification.email.enabled", "true");
 
         service.sendHtml(List.of(), "Subject", "<p>body</p>", null, null);
         awaitAsync();
@@ -142,7 +149,7 @@ class EmailServiceTest {
 
     @Test
     void aBroadcastHidesItsRecipientsInBcc() throws Exception {
-        org.springframework.test.util.ReflectionTestUtils.setField(service, "enabled", true);
+        settingValues.put("notification.email.enabled", "true");
         org.springframework.test.util.ReflectionTestUtils.setField(service, "fromAddress", "noreply@tcgdigital.com");
         jakarta.mail.internet.MimeMessage message = realMessage();
         java.util.List<String> recipients = java.util.stream.IntStream.range(0, 15)
@@ -157,7 +164,7 @@ class EmailServiceTest {
 
     @Test
     void aSingleRecipientIsTheToAddress() throws Exception {
-        org.springframework.test.util.ReflectionTestUtils.setField(service, "enabled", true);
+        settingValues.put("notification.email.enabled", "true");
         org.springframework.test.util.ReflectionTestUtils.setField(service, "fromAddress", "noreply@tcgdigital.com");
         jakarta.mail.internet.MimeMessage message = realMessage();
 

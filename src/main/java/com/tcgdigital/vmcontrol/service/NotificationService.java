@@ -35,32 +35,16 @@ public class NotificationService {
     private final UserRepository userRepository;
     private final EmailService emailService;
 
-    @Value("${notification.email.access-requested.enabled:false}")
-    private boolean emailAccessRequestedEnabled;
-    @Value("${notification.email.access-expiring.enabled:false}")
-    private boolean emailAccessExpiringEnabled;
-    @Value("${notification.email.access-expired.enabled:false}")
-    private boolean emailAccessExpiredEnabled;
-    @Value("${notification.email.access-granted.enabled:false}")
-    private boolean emailAccessGrantedEnabled;
-    @Value("${notification.email.access-request-approved.enabled:false}")
-    private boolean emailAccessRequestApprovedEnabled;
-    @Value("${notification.email.access-request-denied.enabled:false}")
-    private boolean emailAccessRequestDeniedEnabled;
-    @Value("${notification.email.access-revoked.enabled:false}")
-    private boolean emailAccessRevokedEnabled;
-    @Value("${notification.email.operation-failed.enabled:false}")
-    private boolean emailOperationFailedEnabled;
-    @Value("${notification.email.lock-broken.enabled:false}")
-    private boolean emailLockBrokenEnabled;
-    @Value("${notification.email.lease-expiring.enabled:false}")
-    private boolean emailLeaseExpiringEnabled;
 
-    @Value("${notification.email.budget-alert.enabled:false}")
-    private boolean emailBudgetAlertEnabled;
+    /** Live settings (E29-T02); absent in plain unit tests, where each toggle's default applies. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
 
-    @Value("${notification.email.cost-anomaly.enabled:false}")
-    private boolean emailCostAnomalyEnabled;
+    private boolean setting(String key, boolean defaultValue) {
+        return settings == null ? defaultValue : settings.getBoolean(key, defaultValue);
+    }
+
+
 
     public NotificationService(NotificationRepository notificationRepository,
                                EnvironmentAccessRepository accessRepository,
@@ -230,7 +214,7 @@ public class NotificationService {
                 environmentId);
         toChat(environmentId, NotificationType.LOCK_BROKEN, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.WARNING, otherTitle, otherMessage);
 
-        if (emailLockBrokenEnabled) {
+        if (setting("notification.email.lock-broken.enabled", false)) {
             emailBroadcastSplitByActor(resolveEnvironmentRecipients(environmentId), adminUserId,
                     actorTitle, actorMessage, otherTitle, otherMessage);
         }
@@ -240,7 +224,7 @@ public class NotificationService {
         String title = "Access granted: " + environmentName;
         String message = "You have been granted access to environment \"" + environmentName + "\".";
         create(userId, NotificationType.ACCESS_GRANTED, title, message, "ENVIRONMENT", environmentId);
-        if (emailAccessGrantedEnabled) {
+        if (setting("notification.email.access-granted.enabled", false)) {
             sendEventEmailToUser(userId, title, message);
         }
     }
@@ -251,7 +235,7 @@ public class NotificationService {
         String message = "Your access to environment \"" + environmentName + "\" changed from "
                 + previousLevel + " to " + newLevel + ".";
         create(userId, NotificationType.ACCESS_LEVEL_CHANGED, title, message, "ENVIRONMENT", environmentId);
-        if (emailAccessGrantedEnabled) {
+        if (setting("notification.email.access-granted.enabled", false)) {
             sendEventEmailToUser(userId, title, message);
         }
     }
@@ -260,7 +244,7 @@ public class NotificationService {
         String title = "Access revoked: " + environmentName;
         String message = "Your access to environment \"" + environmentName + "\" has been revoked.";
         create(userId, NotificationType.ACCESS_REVOKED, title, message, "ENVIRONMENT", environmentId);
-        if (emailAccessRevokedEnabled) {
+        if (setting("notification.email.access-revoked.enabled", false)) {
             sendEventEmailToUser(userId, title, message);
         }
     }
@@ -269,7 +253,7 @@ public class NotificationService {
         String title = "Request approved: " + environmentName;
         String message = "Your access request for environment \"" + environmentName + "\" has been approved.";
         create(userId, NotificationType.ACCESS_REQUEST_APPROVED, title, message, "ENVIRONMENT", environmentId);
-        if (emailAccessRequestApprovedEnabled) {
+        if (setting("notification.email.access-request-approved.enabled", false)) {
             sendEventEmailToUser(userId, title, message);
         }
     }
@@ -278,7 +262,7 @@ public class NotificationService {
         String title = "Request denied: " + environmentName;
         String message = "Your access request for environment \"" + environmentName + "\" has been denied.";
         create(userId, NotificationType.ACCESS_REQUEST_DENIED, title, message, "ENVIRONMENT", environmentId);
-        if (emailAccessRequestDeniedEnabled) {
+        if (setting("notification.email.access-request-denied.enabled", false)) {
             sendEventEmailToUser(userId, title, message);
         }
     }
@@ -323,7 +307,7 @@ public class NotificationService {
             }
         }
 
-        if (emailAccessRequestedEnabled) {
+        if (setting("notification.email.access-requested.enabled", false)) {
             // Email is intentionally narrower than the bell's reviewer set — All Admin only,
             // not env-admins (who are part of the bell's broadcast via resolveEnvironmentReviewers).
             sendEventEmail(userRepository.findByAdminTrueAndIsActiveTrue(), title, message);
@@ -341,7 +325,7 @@ public class NotificationService {
         boolean created = createIfAbsentSince(userId, NotificationType.ACCESS_EXPIRING, title, message,
                 "ACCESS", accessId, dedupSince);
 
-        if (created && emailAccessExpiringEnabled) {
+        if (created && setting("notification.email.access-expiring.enabled", false)) {
             List<User> recipients = new ArrayList<>();
             userRepository.findById(userId).ifPresent(recipients::add);
             recipients.addAll(resolveAdministeringEnvAdmins(environmentId));
@@ -395,7 +379,7 @@ public class NotificationService {
         String entityType = team || environmentIds.isEmpty() ? "BUDGET" : "ENVIRONMENT";
         String entityId = team || environmentIds.isEmpty() ? budgetId : environmentIds.get(0);
         recipients.values().forEach(u -> create(u.getUserId(), type, title, message, entityType, entityId));
-        if (emailBudgetAlertEnabled) {
+        if (setting("notification.email.budget-alert.enabled", false)) {
             sendEventEmail(List.copyOf(recipients.values()), title, message);
         }
     }
@@ -431,7 +415,7 @@ public class NotificationService {
                 log.warn("Could not send the cost anomaly to chat: {}", e.getClass().getSimpleName());
             }
         }
-        if (emailCostAnomalyEnabled) {
+        if (setting("notification.email.cost-anomaly.enabled", false)) {
             try {
                 sendEventEmail(recipients, title, message);
             } catch (Exception e) {
@@ -551,7 +535,7 @@ public class NotificationService {
                 log.warn("Could not send the lease warning to chat: {}", e.getClass().getSimpleName());
             }
         }
-        if (created && emailLeaseExpiringEnabled) {
+        if (created && setting("notification.email.lease-expiring.enabled", false)) {
             sendEventEmailToUser(userId, title, message);
         }
         return created;
@@ -604,7 +588,7 @@ public class NotificationService {
         String message = "Your access to \"" + scopeLabel + "\" has expired.";
         boolean created = createIfAbsent(userId, NotificationType.ACCESS_EXPIRED, title, message, "ACCESS", accessId);
 
-        if (created && emailAccessExpiredEnabled) {
+        if (created && setting("notification.email.access-expired.enabled", false)) {
             List<User> recipients = new ArrayList<>();
             userRepository.findById(userId).ifPresent(recipients::add);
             recipients.addAll(resolveAdministeringEnvAdmins(environmentId));
@@ -681,7 +665,7 @@ public class NotificationService {
                 environmentId);
         toChat(environmentId, NotificationType.OPERATION_FAILED, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.CRITICAL, otherTitle, otherMessage);
 
-        if (emailOperationFailedEnabled) {
+        if (setting("notification.email.operation-failed.enabled", false)) {
             // Env admin explicitly excluded from this email per spec, unlike the bell broadcast.
             emailBroadcastSplitByActor(resolveEnvironmentRecipients(environmentId, false), actorUserId,
                     actorTitle, actorMessage, otherTitle, otherMessage);

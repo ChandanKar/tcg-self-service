@@ -12,7 +12,6 @@ import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
@@ -41,12 +40,14 @@ public class WeeklyReportService {
 
     private static final Logger log = LoggerFactory.getLogger(WeeklyReportService.class);
 
-    @Value("${notification.email.weekly-cost-report.enabled:false}")
-    private boolean weeklyCostReportEmailEnabled;
-    @Value("${notification.email.weekly-idle-waste-report.enabled:false}")
-    private boolean weeklyIdleWasteReportEmailEnabled;
-    @Value("${notification.email.weekly-rightsizing-report.enabled:false}")
-    private boolean weeklyRightsizingReportEmailEnabled;
+
+    /** Live settings (E29-T02); absent in plain unit tests, where each toggle's default applies. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    private boolean setting(String key, boolean defaultValue) {
+        return settings == null ? defaultValue : settings.getBoolean(key, defaultValue);
+    }
 
     private final CostDailySnapshotRepository costDailySnapshotRepository;
     private final EnvironmentRepository environmentRepository;
@@ -164,7 +165,7 @@ public class WeeklyReportService {
         notificationService.notifyWeeklyReportSent(recipient.getUserId(), NotificationType.WEEKLY_COST_REPORT,
                 subject, "Your weekly cost report (" + scopeLabel + ", " + rows.size() + " environment(s)) is ready.");
 
-        if (!weeklyCostReportEmailEnabled || isBlank(recipient.getEmail())) {
+        if (!setting("notification.email.weekly-cost-report.enabled", false) || isBlank(recipient.getEmail())) {
             return;
         }
         String bodyHtml = EmailTemplates.digestSummary(subject,
@@ -234,7 +235,7 @@ public class WeeklyReportService {
             notificationService.notifyWeeklyReportSent(admin.getUserId(), NotificationType.WEEKLY_IDLE_WASTE_REPORT,
                     subject, "Your weekly idle waste report is ready. Idle cost over the last 30 days: " + grandTotal + deltaSuffix + ".");
 
-            if (!weeklyIdleWasteReportEmailEnabled || isBlank(admin.getEmail())) {
+            if (!setting("notification.email.weekly-idle-waste-report.enabled", false) || isBlank(admin.getEmail())) {
                 continue;
             }
             String bodyHtml = EmailTemplates.digestSummary(subject,
@@ -329,7 +330,7 @@ public class WeeklyReportService {
                 subject, "Your weekly rightsizing report (" + scopeLabel + ", " + rows.size() + " candidate(s)) is ready. " +
                         "Potential savings: " + totalSavings + deltaSuffix + ".");
 
-        if (!weeklyRightsizingReportEmailEnabled || isBlank(recipient.getEmail())) {
+        if (!setting("notification.email.weekly-rightsizing-report.enabled", false) || isBlank(recipient.getEmail())) {
             return;
         }
         String bodyHtml = EmailTemplates.digestSummary(subject,

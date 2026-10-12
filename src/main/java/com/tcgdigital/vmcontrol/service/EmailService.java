@@ -24,8 +24,14 @@ public class EmailService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);
 
-    @Value("${notification.email.enabled:false}")
-    private boolean enabled;
+
+    /** Live settings (E29-T02); absent in plain unit tests, where each toggle's default applies. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    private boolean setting(String key, boolean defaultValue) {
+        return settings == null ? defaultValue : settings.getBoolean(key, defaultValue);
+    }
 
     @Value("${notification.email.from:noreply@tcgdigital.com}")
     private String fromAddress;
@@ -59,7 +65,7 @@ public class EmailService {
     public void sendHtml(List<String> toAddresses, String subject, String htmlBody,
                          String attachmentName, byte[] attachmentBytes,
                          String notificationType, String environmentId, String sentByUserId) {
-        if (!enabled) {
+        if (!setting("notification.email.enabled", false)) {
             log.debug("Email suppressed (notification.email.enabled=false): {}", subject);
             return;
         }

@@ -43,11 +43,18 @@ class WeeklyReportServiceTest {
 
     private WeeklyReportService service;
 
+
+    /** Settings this test turns on or off (E29-T02). */
+
+    private final java.util.Map<String, String> settingValues = new java.util.HashMap<>();
+
     @BeforeEach
     void setUp() {
         service = new WeeklyReportService(costDailySnapshotRepository, environmentRepository,
                 environmentAccessService, userRepository, costEstimationService, weeklySnapshotService,
                 excelExportService, emailService, notificationService);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "settings",
+                com.tcgdigital.vmcontrol.service.settings.TestSettings.of(settingValues));
         lenient().when(excelExportService.toWorkbook(any(), any(), any())).thenReturn(new byte[]{1});
         lenient().when(costEstimationService.getUptimeHoursByEnvironment(any(), any())).thenReturn(Map.of());
     }
@@ -148,7 +155,7 @@ class WeeklyReportServiceTest {
 
     @Test
     void sendWeeklyCostReport_bellFiresRegardlessOfEmailFlag() {
-        ReflectionTestUtils.setField(service, "weeklyCostReportEmailEnabled", false);
+        settingValues.put("notification.email.weekly-cost-report.enabled", "false");
         User admin = user("user-admin", "admin@tcg.com", true, false);
         when(userRepository.findByAdminTrueAndIsActiveTrue()).thenReturn(List.of(admin));
         when(userRepository.findByEnvAdminTrueAndIsActiveTrue()).thenReturn(List.of());
