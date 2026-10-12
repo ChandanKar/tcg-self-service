@@ -182,6 +182,37 @@ class VmMetricsServiceTest {
         assertThat(saved.getValue().getDbConnections()).isEqualByComparingTo("7");
     }
 
+    @Test
+    void theIdleSummaryOfADatabaseLooksAtConnectionsNotNetwork() {
+        // E33-T06: idle waste lists idle databases.
+        vm.setProvider(CloudProvider.AWS_RDS);
+        lenient().when(providerFactory.getService(CloudProvider.AWS_RDS)).thenReturn(Optional.of(provider));
+        Instant latest = Instant.now().minus(Duration.ofMinutes(10));
+        latestStored(latest);
+        when(provider.fetchMetricSeries(anyList(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), any(), any(), anyInt()))
+                .thenReturn(Map.of("i-1", points(latest.plus(Duration.ofMinutes(5)), 1)));
+        List<VmMetricSample> recent = new ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            VmMetricSample s = new VmMetricSample();
+            s.setVm(vm);
+            s.setSampleTime(Timestamp.from(Instant.now().minus(Duration.ofMinutes(5L * i))));
+            s.setCpuUtilization(BigDecimal.ONE);
+            s.setNetworkInBytes(50_000_000L); // replication traffic
+            s.setDbConnections(BigDecimal.ZERO);
+            recent.add(s);
+        }
+        when(sampleRepository.findByVmVmIdOrderBySampleTimeDesc(anyString(), any())).thenReturn(recent);
+        when(idleSummaryRepository.findByVmVmId("vm-1")).thenReturn(Optional.empty());
+
+        service.syncRunningVmMetrics();
+
+        ArgumentCaptor<com.tcgdigital.vmcontrol.model.VmIdleSummary> summary =
+                ArgumentCaptor.forClass(com.tcgdigital.vmcontrol.model.VmIdleSummary.class);
+        verify(idleSummaryRepository).save(summary.capture());
+        assertThat(summary.getValue().getIdle()).isTrue();
+        assertThat(summary.getValue().getReason()).startsWith("No database connections");
+    }
+
     // ---- Period bucketing and memory (E12-T04) ----
 
     private static VmMetricSample stored(Instant at, String cpu, String memory, long netIn) {

@@ -82,6 +82,10 @@ public final class SettingsRegistry {
                     "Start and stop RDS DB instances and Aurora clusters registered as VMs.", false),
             flag("RDS", "rds.keep-stopped.enabled", "Keep stopped databases stopped",
                     "Stop again a database AWS started after seven days stopped.", false),
+            integer("RDS", "rds.idle.max-connections", "Idle database connections",
+                    "Most database connections an idle database may have in a sample.", 0, 0, 1000),
+            decimal("RDS", "rds.idle.cpu-threshold-percent", "Idle database CPU %",
+                    "CPU below which a database with no connections counts as idle.", "5", "0", "100"),
 
             // Spot (E31)
             flag("Spot", "spot.pricing.enabled", "Spot pricing",

@@ -212,4 +212,56 @@ class IdleEvaluatorTest {
                 .satisfies(e -> assertThat(e.idleSince()).isEqualTo(NOW.minus(Duration.ofMinutes(180))));
         assertThat(result.idleSince()).isEqualTo(NOW.minus(Duration.ofMinutes(85)));
     }
+
+    // --- RDS (E33-T06): connections and CPU, not network ---
+
+    private Vm rdsWithConnections(String connections) {
+        Vm db = vm("db", VmStatus.RUNNING);
+        db.setProvider(CloudProvider.AWS_RDS);
+        // Busy network (replication) must not matter for a database.
+        samples(db, 70, 300, "2", 50_000_000);
+        stored.forEach(s -> s.setDbConnections(connections == null ? null : new BigDecimal(connections)));
+        return db;
+    }
+
+    @Test
+    void aDatabaseWithNoConnectionsAndLowCpuIsIdleWhateverItsNetwork() {
+        Vm db = rdsWithConnections("0");
+
+        EnvironmentIdleResult result = evaluator.evaluate(List.of(db), rule, NOW);
+
+        assertThat(result.allIdle()).isTrue();
+        assertThat(result.vms().get(0).reason()).isNull();
+    }
+
+    @Test
+    void oneConnectionKeepsADatabaseBusy() {
+        Vm db = rdsWithConnections("1");
+
+        EnvironmentIdleResult result = evaluator.evaluate(List.of(db), rule, NOW);
+
+        assertThat(result.allIdle()).isFalse();
+        assertThat(result.vms().get(0).reason()).startsWith("1 database connection(s)");
+    }
+
+    @Test
+    void aDatabaseWithoutConnectionDataIsNotIdle() {
+        Vm db = rdsWithConnections(null);
+
+        EnvironmentIdleResult result = evaluator.evaluate(List.of(db), rule, NOW);
+
+        assertThat(result.allIdle()).isFalse();
+        assertThat(result.vms().get(0).reason()).startsWith("No database connection data");
+    }
+
+    @Test
+    void aDatabaseAboveTheCpuThresholdIsNotIdle() {
+        evaluator.setRdsIdlePolicy(new RdsIdlePolicy(0, new BigDecimal("1.5")));
+        Vm db = rdsWithConnections("0");
+
+        EnvironmentIdleResult result = evaluator.evaluate(List.of(db), rule, NOW);
+
+        assertThat(result.allIdle()).isFalse();
+        assertThat(result.vms().get(0).reason()).startsWith("CPU 2%");
+    }
 }

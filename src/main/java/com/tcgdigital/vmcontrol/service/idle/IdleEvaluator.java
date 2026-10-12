@@ -39,8 +39,16 @@ public class IdleEvaluator {
     @org.springframework.beans.factory.annotation.Value("${idle.auto-stop.include-eks:false}")
     private boolean includeEks;
 
+    /** RDS databases are idle by connections and CPU, not network (E33-T06). */
+    private RdsIdlePolicy rdsIdlePolicy = new RdsIdlePolicy(0, BigDecimal.valueOf(5));
+
     public IdleEvaluator(VmMetricSampleRepository sampleRepository) {
         this.sampleRepository = sampleRepository;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setRdsIdlePolicy(RdsIdlePolicy rdsIdlePolicy) {
+        this.rdsIdlePolicy = rdsIdlePolicy;
     }
 
     /**
@@ -98,7 +106,7 @@ public class IdleEvaluator {
             disk += nz(s.getDiskReadBytes()) + nz(s.getDiskWriteBytes());
             coveredSeconds += period(s);
             if (reason == null) {
-                reason = notIdleReason(s, rule);
+                reason = reasonFor(vm, s, rule);
             }
         }
         int coverage = (int) Math.min(100, coveredSeconds * 100 / Math.max(1, window.getSeconds()));
@@ -107,9 +115,14 @@ public class IdleEvaluator {
         } else if (reason == null && coverage < MIN_COVERAGE_PERCENT) {
             reason = "Insufficient metric coverage (" + coverage + "% of the window)";
         }
-        Instant idleSince = reason == null ? trailingIdleStart(lookbackSamples, rule) : null;
+        Instant idleSince = reason == null ? trailingIdleStart(vm, lookbackSamples, rule) : null;
         return new VmIdleEvidence(vm.getVmId(), name, reason == null, idleSince, maxCpu, network, disk,
                 inWindow.size(), coverage, reason);
+    }
+
+    /** Null when the sample is idle; RDS databases by their own rule (E33-T06). */
+    private String reasonFor(Vm vm, VmMetricSample s, IdleStopRule rule) {
+        return vm.getProvider() == CloudProvider.AWS_RDS ? rdsIdlePolicy.notIdleReason(s) : notIdleReason(s, rule);
     }
 
     /** Null when the sample is idle; otherwise what made it busy. */
@@ -133,13 +146,13 @@ public class IdleEvaluator {
      * Start of the longest trailing run of idle samples: walk back from the newest sample while
      * samples are idle and contiguous (a gap of more than two periods ends the run).
      */
-    private static Instant trailingIdleStart(List<VmMetricSample> samples, IdleStopRule rule) {
+    private Instant trailingIdleStart(Vm vm, List<VmMetricSample> samples, IdleStopRule rule) {
         Instant start = null;
         Instant previous = null;
         for (int i = samples.size() - 1; i >= 0; i--) {
             VmMetricSample s = samples.get(i);
             Instant at = s.getSampleTime().toInstant();
-            if (notIdleReason(s, rule) != null) {
+            if (reasonFor(vm, s, rule) != null) {
                 break;
             }
             if (previous != null && Duration.between(at, previous).getSeconds() > 2L * period(s)) {

@@ -266,7 +266,9 @@ public class VmMetricsService {
                 .orElse(recent.get(0));
 
         boolean enoughSamples = recent.size() >= sampleCount;
-        boolean allIdle = enoughSamples && recent.stream().allMatch(this::isSampleIdle);
+        boolean rds = vm.getProvider() == com.tcgdigital.vmcontrol.model.CloudProvider.AWS_RDS;
+        // RDS: connections and CPU, not network or disk bytes (E33-T06), so idle waste lists idle databases.
+        boolean allIdle = enoughSamples && recent.stream().allMatch(s -> rds ? rdsIdlePolicy.isIdle(s) : isSampleIdle(s));
         VmIdleSummary summary = idleSummaryRepository.findByVmVmId(vm.getVmId())
                 .orElseGet(VmIdleSummary::new);
         summary.setVm(vm);
@@ -285,13 +287,22 @@ public class VmMetricsService {
             summary.setIdleSince(idleSince);
             long minutes = Duration.between(idleSince.toInstant(), latest.getSampleTime().toInstant()).toMinutes();
             summary.setIdleDurationMinutes((int) Math.max(minutes, live("vm.metrics.idle.minimum-duration-minutes", idleMinimumDurationMinutes)));
-            summary.setReason("Below configured CPU, network, and disk IO thresholds");
+            summary.setReason(rds ? "No database connections and CPU below the idle threshold"
+                    : "Below configured CPU, network, and disk IO thresholds");
         } else {
             summary.setIdleSince(null);
             summary.setIdleDurationMinutes(0);
             summary.setReason(enoughSamples ? "Recent activity is above idle thresholds" : "Insufficient metric samples");
         }
         idleSummaryRepository.save(summary);
+    }
+
+    private com.tcgdigital.vmcontrol.service.idle.RdsIdlePolicy rdsIdlePolicy =
+            new com.tcgdigital.vmcontrol.service.idle.RdsIdlePolicy(0, BigDecimal.valueOf(5));
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setRdsIdlePolicy(com.tcgdigital.vmcontrol.service.idle.RdsIdlePolicy rdsIdlePolicy) {
+        this.rdsIdlePolicy = rdsIdlePolicy;
     }
 
     private boolean isSampleIdle(VmMetricSample sample) {
