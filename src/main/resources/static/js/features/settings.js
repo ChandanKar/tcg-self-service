@@ -16,7 +16,8 @@ const Settings = (function() {
         'approvals.enabled': 'Starts that match an approval policy will wait for an approver.',
         'quotas.enabled': 'Starts that would exceed a team quota will warn, wait for approval or be refused.',
         'rightsizing.safe-resize.enabled': 'Admins can stop running VMs, change their instance type and start them again from Cost Management.',
-        'spot.eks.conversion.enabled': 'Environment admins can create Spot node groups in EKS and scale their on-demand node groups to 0.'
+        'spot.eks.conversion.enabled': 'Environment admins can create Spot node groups in EKS and scale their on-demand node groups to 0.',
+        'spot.fallback.enabled': 'On-demand node groups start automatically when their Spot twin is short of capacity.'
     };
     let pageToken = null;
     let settings = [];

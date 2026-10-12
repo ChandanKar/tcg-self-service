@@ -103,6 +103,40 @@ public class Vm {
         this.spotPartnerVmId = spotPartnerVmId;
     }
 
+    /** Spot fallback state of a twin (E31-T06): short of capacity since, standby started, healthy checks since. */
+    @Column(name = "spot_degraded_since")
+    private Timestamp spotDegradedSince;
+
+    @Column(name = "spot_fallback_active", nullable = false)
+    private boolean spotFallbackActive;
+
+    @Column(name = "spot_healthy_checks", nullable = false)
+    private int spotHealthyChecks;
+
+    public Timestamp getSpotDegradedSince() {
+        return spotDegradedSince;
+    }
+
+    public void setSpotDegradedSince(Timestamp spotDegradedSince) {
+        this.spotDegradedSince = spotDegradedSince;
+    }
+
+    public boolean isSpotFallbackActive() {
+        return spotFallbackActive;
+    }
+
+    public void setSpotFallbackActive(boolean spotFallbackActive) {
+        this.spotFallbackActive = spotFallbackActive;
+    }
+
+    public int getSpotHealthyChecks() {
+        return spotHealthyChecks;
+    }
+
+    public void setSpotHealthyChecks(int spotHealthyChecks) {
+        this.spotHealthyChecks = spotHealthyChecks;
+    }
+
     @Column(nullable = false)
     private String name;
 

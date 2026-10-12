@@ -483,6 +483,39 @@ public class EksCloudProviderService implements CloudProviderService {
         return twin;
     }
 
+    /** A node group's health for Spot fallback (E31-T06): EKS issue codes, desired and running nodes. */
+    public record NodegroupHealth(List<String> issueCodes, int desired, int running) {
+    }
+
+    /**
+     * Health issues and desired size from DescribeNodegroup, and running nodes counted from the
+     * EC2 instances EKS tags with the cluster and node group name. Read-only.
+     */
+    public NodegroupHealth getNodegroupHealth(CloudTarget target, String clusterName, String nodegroupName) {
+        Nodegroup ng = getEksClient(target).describeNodegroup(DescribeNodegroupRequest.builder()
+                .clusterName(clusterName).nodegroupName(nodegroupName).build()).nodegroup();
+        List<String> issues = ng.health() == null || ng.health().issues() == null ? List.of()
+                : ng.health().issues().stream().map(Issue::codeAsString).filter(java.util.Objects::nonNull).toList();
+        int desired = ng.scalingConfig() == null || ng.scalingConfig().desiredSize() == null ? 0 : ng.scalingConfig().desiredSize();
+        String region = target.region() != null && !target.region().isEmpty() ? target.region() : defaultRegion;
+        software.amazon.awssdk.services.ec2.Ec2Client ec2 = awsClientFactory.ec2(target.accountRef(), region);
+        int running = 0;
+        String token = null;
+        do {
+            software.amazon.awssdk.services.ec2.model.DescribeInstancesResponse page = ec2.describeInstances(
+                    software.amazon.awssdk.services.ec2.model.DescribeInstancesRequest.builder()
+                            .filters(software.amazon.awssdk.services.ec2.model.Filter.builder().name("tag:eks:cluster-name").values(clusterName).build(),
+                                    software.amazon.awssdk.services.ec2.model.Filter.builder().name("tag:eks:nodegroup-name").values(nodegroupName).build(),
+                                    software.amazon.awssdk.services.ec2.model.Filter.builder().name("instance-state-name").values("running").build())
+                            .nextToken(token).build());
+            for (software.amazon.awssdk.services.ec2.model.Reservation r : page.reservations()) {
+                running += r.instances().size();
+            }
+            token = page.nextToken();
+        } while (token != null && !token.isEmpty());
+        return new NodegroupHealth(issues, desired, running);
+    }
+
     /** Deletes a node group (a Spot twin being removed, E31-T05); does not wait. */
     public void deleteNodegroup(CloudTarget target, String clusterName, String nodegroupName) {
         getEksClient(target).deleteNodegroup(DeleteNodegroupRequest.builder()

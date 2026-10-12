@@ -78,6 +78,10 @@ public final class SettingsRegistry {
                     "Create a Spot twin of an EKS node group and keep the on-demand one as standby.", false),
             integer("Spot", "spot.eks.min-instance-types", "Spot instance types",
                     "Fewest same-size instance types a Spot twin may use.", 3, 1, 10),
+            flag("Spot", "spot.fallback.enabled", "On-demand fallback",
+                    "Start a Spot twin's on-demand standby when it is short of Spot capacity.", false),
+            integer("Spot", "spot.fallback.grace-minutes", "Fallback grace minutes",
+                    "How long a Spot twin may be short of capacity before the standby starts.", 10, 1, 240),
 
             // Idle detection
             decimal("Idle detection", "vm.metrics.idle.cpu-threshold-percent", "Idle CPU %",
@@ -125,6 +129,7 @@ public final class SettingsRegistry {
             readOnly("Restart required", "cost.reservations.cron", "Reservation coverage schedule", "Cron, read at startup."),
             readOnly("Restart required", "cost.optimizer.cron", "Compute Optimizer capture schedule", "Cron, read at startup."),
             readOnly("Restart required", "spot.pricing.cron", "Spot price capture schedule", "Cron, read at startup."),
+            readOnly("Restart required", "spot.fallback.cron", "Spot fallback schedule", "Cron, read at startup."),
             readOnly("Restart required", "notification.weekly-reports.cron", "Weekly report schedule", "Cron, read at startup."),
             readOnly("Restart required", "retention.cron", "Retention schedule", "Cron, read at startup."),
             readOnly("Restart required", "savings.ledger.cron", "Savings ledger schedule", "Cron, read at startup."),

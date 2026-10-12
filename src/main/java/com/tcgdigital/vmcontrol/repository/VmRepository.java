@@ -235,6 +235,14 @@ public interface VmRepository extends JpaRepository<Vm, String> {
     @Query("SELECT v.status FROM Vm v WHERE v.vmId = :vmId")
     Optional<VmStatus> findStatusById(@Param("vmId") String vmId);
 
+    /** A Spot twin's fallback state (E31-T06), without touching status or metadata. */
+    @Modifying(flushAutomatically = true)
+    @Transactional
+    @Query("UPDATE Vm v SET v.spotDegradedSince = :since, v.spotFallbackActive = :active, v.spotHealthyChecks = :healthy, "
+            + "v.version = v.version + 1 WHERE v.vmId = :vmId")
+    int updateSpotFallbackState(@Param("vmId") String vmId, @Param("since") Timestamp since,
+                                @Param("active") boolean active, @Param("healthy") int healthyChecks);
+
     /** Records the purchase option inventory found, without touching anything else (E31-T01). */
     @Modifying(flushAutomatically = true)
     @Transactional

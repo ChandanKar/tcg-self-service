@@ -40,6 +40,9 @@ public enum AuditAction {
     SPOT_CONVERSION_COMPLETED,
     SPOT_CONVERSION_FAILED,
     SPOT_REVERTED,
+    /** A Spot twin lost capacity and its on-demand standby was started, or it recovered (E31-T06). */
+    SPOT_FALLBACK_ACTIVATED,
+    SPOT_FALLBACK_CLEARED,
 
     // Lock operations
     LOCK_ACQUIRED,

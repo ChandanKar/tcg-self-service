@@ -446,6 +446,15 @@ public class NotificationService {
                 title, message, "VM", vmId);
     }
 
+    /** A Spot twin lost capacity and its standby started (or it recovered): the environment's admins hear it (E31-T06). */
+    public void notifySpotFallback(String environmentId, String vmId, boolean activated, String title, String message) {
+        resolveEnvironmentReviewers(environmentId).forEach(u -> create(u.getUserId(),
+                activated ? NotificationType.OPERATION_FAILED : NotificationType.OPERATION_COMPLETED, title, message, "VM", vmId));
+        toChat(environmentId, activated ? NotificationType.OPERATION_FAILED : NotificationType.OPERATION_COMPLETED,
+                activated ? com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.WARNING
+                        : com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.INFO, title, message);
+    }
+
     /** A safe resize failed and its rollback too: the environment's admins must fix the VM (E30-T06). */
     public void notifyResizeNeedsAttention(String environmentId, String vmId, String title, String message) {
         resolveEnvironmentReviewers(environmentId).forEach(u -> create(u.getUserId(), NotificationType.OPERATION_FAILED,
