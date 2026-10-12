@@ -30,6 +30,9 @@ public class PricingReferenceService {
     private final Map<String, BigDecimal> ratesByTypeAnyRegion = new HashMap<>();
     private final Map<String, String> downsizeMap = new HashMap<>();
     private final Map<String, String> upsizeMap = new HashMap<>();
+    private final Map<String, InstanceSpec> specsByType = new HashMap<>();
+    /** "provider:type" -> architecture -> newer-generation type of the same size (E30-T02). */
+    private final Map<String, Map<String, String>> generationUpgrades = new HashMap<>();
     private BigDecimal storageGbMonthRate = BigDecimal.ZERO;
 
     /** EKS control-plane fee per cluster-hour: 0.10 standard, 0.60 on extended support (E26-T03). */
@@ -78,8 +81,26 @@ public class PricingReferenceService {
                 upsizeMap.putIfAbsent(typeKey(provider, smallerType), largerType);
             }
 
-            log.info("Loaded cost pricing reference: {} instance rates, {} downsize rules, {} upsize rules, storage rate ${}/GB-month",
-                    ratesByTypeAndRegion.size(), downsizeMap.size(), upsizeMap.size(), storageGbMonthRate);
+            for (JsonNode spec : root.path("instanceTypes")) {
+                InstanceSpec s = new InstanceSpec(spec.get("instanceType").asText(), spec.path("vcpu").asInt(),
+                        spec.path("memoryMib").asInt(), spec.path("architecture").asText("x86_64"),
+                        spec.path("generation").asInt());
+                specsByType.put(s.instanceType(), s);
+            }
+            for (Map.Entry<String, JsonNode> field : root.path("generationUpgradeMap").properties()) {
+                Map<String, String> byArchitecture = new HashMap<>();
+                for (Map.Entry<String, JsonNode> target : field.getValue().properties()) {
+                    byArchitecture.put(target.getKey(), target.getValue().asText());
+                }
+                generationUpgrades.put(field.getKey(), byArchitecture);
+            }
+
+            long regions = ratesByTypeAndRegion.keySet().stream()
+                    .map(k -> k.substring(k.lastIndexOf(':') + 1)).distinct().count();
+            log.info("Loaded cost pricing reference: {} instance rates in {} regions, {} instance specs, {} downsize rules, "
+                    + "{} upsize rules, {} generation upgrades, storage rate ${}/GB-month",
+                    ratesByTypeAndRegion.size(), regions, specsByType.size(), downsizeMap.size(), upsizeMap.size(),
+                    generationUpgrades.size(), storageGbMonthRate);
         } catch (IOException e) {
             throw new IllegalStateException("Failed to load pricing reference data from " + RESOURCE_PATH, e);
         }
@@ -127,12 +148,40 @@ public class PricingReferenceService {
         return Optional.ofNullable(upsizeMap.get(typeKey(provider, instanceType)));
     }
 
+    /** vCPU, memory and architecture of an instance type, when the reference has it (E30-T02). */
+    public Optional<InstanceSpec> getSpec(String instanceType) {
+        return instanceType == null ? Optional.empty() : Optional.ofNullable(specsByType.get(instanceType));
+    }
+
+    /**
+     * The newer-generation type of the same size on the given architecture (m5.large on x86_64 ->
+     * m7i.large, on arm64 -> m7g.large); empty when the type is already current or unknown.
+     */
+    public Optional<String> suggestNewerGeneration(String provider, String instanceType, String architecture) {
+        if (provider == null || instanceType == null || architecture == null) {
+            return Optional.empty();
+        }
+        Map<String, String> targets = generationUpgrades.get(typeKey(provider, instanceType));
+        return targets == null ? Optional.empty() : Optional.ofNullable(targets.get(architecture));
+    }
+
+    /** The Graviton (arm64) equivalent of the same size, when there is one. */
+    public Optional<String> suggestGraviton(String provider, String instanceType) {
+        return suggestNewerGeneration(provider, instanceType, "arm64");
+    }
+
     private static String typeAndRegionKey(String provider, String instanceType, String region) {
         return provider + ":" + instanceType + ":" + region;
     }
 
     private static String typeKey(String provider, String instanceType) {
         return provider + ":" + instanceType;
+    }
+
+    public record InstanceSpec(String instanceType, int vcpu, int memoryMib, String architecture, int generation) {
+        public boolean isArm() {
+            return "arm64".equals(architecture);
+        }
     }
 
     /**

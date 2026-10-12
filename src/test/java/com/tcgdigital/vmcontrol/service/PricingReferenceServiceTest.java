@@ -7,7 +7,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * A rate from the VM's own region is exact; another region's rate is usable but flagged as
- * approximate; an unknown type is unknown (E08-T07).
+ * approximate; an unknown type is unknown (E08-T07). Instance specs and newer-generation and
+ * Graviton targets come from the same reference (E30-T02).
  */
 class PricingReferenceServiceTest {
 
@@ -42,5 +43,53 @@ class PricingReferenceServiceTest {
 
         assertThat(r.priceKnown()).isFalse();
         assertThat(r.approximate()).isFalse();
+    }
+
+    @Test
+    void specsGiveVcpuMemoryAndArchitecture() {
+        PricingReferenceService.InstanceSpec m7g = pricing.getSpec("m7g.large").orElseThrow();
+        assertThat(m7g.architecture()).isEqualTo("arm64");
+        assertThat(m7g.isArm()).isTrue();
+        assertThat(m7g.vcpu()).isEqualTo(2);
+        assertThat(m7g.memoryMib()).isEqualTo(8192);
+        assertThat(m7g.generation()).isEqualTo(7);
+
+        assertThat(pricing.getSpec("r6i.2xlarge").orElseThrow().memoryMib()).isEqualTo(65536);
+        assertThat(pricing.getSpec("c7i.xlarge").orElseThrow().memoryMib()).isEqualTo(8192);
+        assertThat(pricing.getSpec("t3.micro").orElseThrow().architecture()).isEqualTo("x86_64");
+        assertThat(pricing.getSpec("zz9.mega")).isEmpty();
+        assertThat(pricing.getSpec(null)).isEmpty();
+    }
+
+    @Test
+    void newerGenerationAndGravitonTargetsKeepTheSize() {
+        assertThat(pricing.suggestNewerGeneration("AWS", "m5.large", "x86_64")).contains("m7i.large");
+        assertThat(pricing.suggestNewerGeneration("AWS", "r6i.2xlarge", "x86_64")).contains("r7i.2xlarge");
+        assertThat(pricing.suggestGraviton("AWS", "m5.large")).contains("m7g.large");
+        assertThat(pricing.suggestGraviton("AWS", "t3.medium")).contains("t4g.medium");
+        // no x86 burstable newer than t3; already-current and unknown types have no target
+        assertThat(pricing.suggestNewerGeneration("AWS", "t3.medium", "x86_64")).isEmpty();
+        assertThat(pricing.suggestGraviton("AWS", "m7g.large")).isEmpty();
+        assertThat(pricing.suggestGraviton("AWS", "zz9.mega")).isEmpty();
+        assertThat(pricing.suggestNewerGeneration("AWS", "m5.large", null)).isEmpty();
+    }
+
+    @Test
+    void everyPricedTypeHasASpecAndEveryUpgradeTargetIsPriced() {
+        for (String type : new String[] {"m7i.large", "m7g.4xlarge", "c7g.large", "r7i.xlarge", "t4g.small", "m6a.4xlarge"}) {
+            assertThat(pricing.getSpec(type)).as(type).isPresent();
+            PricingReferenceService.PriceLookupResult r = pricing.lookupHourlyRate("AWS", type, "us-east-1");
+            assertThat(r.priceKnown()).as(type).isTrue();
+            assertThat(r.approximate()).as(type).isFalse();
+        }
+    }
+
+    @Test
+    void existingLookupsAreUnchanged() {
+        assertThat(pricing.lookupHourlyRate("AWS", "m5.large", "ap-south-1").hourlyRate()).isEqualByComparingTo("0.104");
+        assertThat(pricing.lookupHourlyRate("AWS", "t3.large", "eu-west-1").hourlyRate()).isEqualByComparingTo("0.0928");
+        assertThat(pricing.suggestSmallerType("AWS", "m5.xlarge")).contains("m5.large");
+        assertThat(pricing.suggestSmallerType("AWS", "m7g.xlarge")).contains("m7g.large");
+        assertThat(pricing.suggestLargerType("AWS", "t3.medium")).contains("t3.large");
     }
 }
