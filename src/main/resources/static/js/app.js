@@ -107,6 +107,10 @@ const App = (function() {
         } else {
             $('#user-management-link').hide();
         }
+        // New environment from a template (E32-T07): only while provisioning is on.
+        if (typeof Templates !== 'undefined') {
+            Templates.probeNav();
+        }
         // The Pending Requests badge is kept current by RealTime (started in RealTime.init).
     }
 

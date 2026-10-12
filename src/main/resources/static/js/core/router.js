@@ -45,6 +45,7 @@ const ContentRouter = (function() {
         'cost-setup':         '#/cost-setup',
         'system-health':      '#/system-health',
         'settings':           '#/settings',
+        'templates':          '#/templates',
         'help':               '#/help'
     };
 
@@ -119,6 +120,7 @@ const ContentRouter = (function() {
             'cost-setup':         () => window.CostSetup?.load?.(),
             'system-health':      () => SystemHealth.load(),
             'settings':           () => window.Settings?.load?.(),
+            'templates':          () => window.Templates?.load?.(),
             'help':               (params) => window.Help?.load?.(params)
         };
         return loaders[contentType];

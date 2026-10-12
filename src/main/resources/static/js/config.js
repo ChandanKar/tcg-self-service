@@ -131,6 +131,22 @@ const Config = (function() {
 
         // Teams (E23)
         // Operation approvals and their policies (E25)
+        // Environment templates and requests (E32-T07)
+        templates: {
+            list: (includeRetired = false) => `${API_BASE_URL}/templates${includeRetired ? '?includeRetired=true' : ''}`,
+            create: () => `${API_BASE_URL}/templates`,
+            item: (id) => `${API_BASE_URL}/templates/${encodeURIComponent(id)}`
+        },
+        provisioning: {
+            create: () => `${API_BASE_URL}/provisioning-requests`,
+            mine: (page = 0, size = 100) => `${API_BASE_URL}/provisioning-requests/mine?page=${page}&size=${size}`,
+            pending: (page = 0, size = 100) => `${API_BASE_URL}/provisioning-requests/pending?page=${page}&size=${size}`,
+            approve: (id) => `${API_BASE_URL}/provisioning-requests/${encodeURIComponent(id)}/approve`,
+            reject: (id) => `${API_BASE_URL}/provisioning-requests/${encodeURIComponent(id)}/reject`,
+            cancel: (id) => `${API_BASE_URL}/provisioning-requests/${encodeURIComponent(id)}/cancel`,
+            extend: (id) => `${API_BASE_URL}/provisioning-requests/${encodeURIComponent(id)}/extend-ttl`,
+            destroy: (id) => `${API_BASE_URL}/provisioning-requests/${encodeURIComponent(id)}/destroy`
+        },
         approvals: {
             list: (view) => `${API_BASE_URL}/approval-requests?view=${encodeURIComponent(view)}`,
             approve: (id) => `${API_BASE_URL}/approval-requests/${encodeURIComponent(id)}/approve`,
