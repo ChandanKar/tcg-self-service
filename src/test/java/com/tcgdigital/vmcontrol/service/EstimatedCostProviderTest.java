@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -321,5 +322,78 @@ class EstimatedCostProviderTest {
         CostDataProvider.VmCostEstimate estimate = provider.estimateCosts(List.of(far), windowStart, windowEnd).get("vm-far");
         assertTrue(estimate.costKnown());
         assertTrue(estimate.priceApproximate());
+    }
+
+    // --- RDS (E33-T05) ---
+
+    private Vm rdsVm(String vmId, String providerVmId) {
+        Vm vm = new Vm(vmId);
+        vm.setProvider(CloudProvider.AWS_RDS);
+        vm.setProviderVmId(providerVmId);
+        vm.setRegion("us-east-1");
+        vm.setCreatedAt(Timestamp.from(windowStart.toInstant().minus(10, ChronoUnit.DAYS)));
+        vm.setStatus(com.tcgdigital.vmcontrol.model.VmStatus.STOPPED);
+        return vm;
+    }
+
+    private void rdsInventory(Vm vm, String dbClass, String engine, boolean multiAz, Integer storageGib) {
+        instanceType(vm.getVmId(), dbClass);
+        com.tcgdigital.vmcontrol.model.VmInventorySnapshot s = new com.tcgdigital.vmcontrol.model.VmInventorySnapshot();
+        s.setVm(vm);
+        s.setInstanceType(dbClass);
+        s.setEngine(engine);
+        s.setMultiAz(multiAz);
+        s.setTotalStorageGib(storageGib);
+        when(vmInventorySnapshotRepository.findByVmVmIdIn(any())).thenReturn(List.of(s));
+    }
+
+    @Test
+    void aDatabaseStoppedHalfTheWindowPaysComputeForHalfAndStorageForAll() {
+        Vm vm = rdsVm("vm-db", "db:orders");
+        rdsInventory(vm, "db.t4g.medium", "postgres", false, 100);
+        com.tcgdigital.vmcontrol.model.VmStateHistory stopped = com.tcgdigital.vmcontrol.model.VmStateHistory.builder()
+                .previousStatus(com.tcgdigital.vmcontrol.model.VmStatus.RUNNING)
+                .newStatus(com.tcgdigital.vmcontrol.model.VmStatus.STOPPED).build();
+        stopped.setChangedAt(Timestamp.from(windowStart.toInstant().plus(5, ChronoUnit.HOURS)));
+        stopped.setVm(vm);
+        when(vmStateHistoryRepository.findByVmVmIdInAndChangedAtBetweenOrderByVmVmIdAscChangedAtAsc(any(), any(), any()))
+                .thenReturn(List.of(stopped));
+
+        CostDataProvider.VmCostEstimate estimate = provider.estimateCosts(List.of(vm), windowStart, windowEnd).get("vm-db");
+
+        assertTrue(estimate.costKnown());
+        assertFalse(estimate.priceApproximate());
+        assertEquals(0, new BigDecimal("0.065").compareTo(estimate.hourlyRate()));
+        assertEquals(0, new BigDecimal("5").compareTo(estimate.runtimeHours()));
+        assertEquals(100L, estimate.storageGib());
+        // 5 h x 0.065 = 0.325 compute + 100 GiB x 0.115 for the whole 10 h (0.416667 day) = 0.159722 storage
+        BigDecimal storage = new BigDecimal("0.115").multiply(new BigDecimal("0.416667"))
+                .divide(BigDecimal.valueOf(30), 6, java.math.RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
+        assertEquals(0, new BigDecimal("0.325").add(storage).setScale(2, java.math.RoundingMode.HALF_UP).compareTo(estimate.cost()));
+    }
+
+    @Test
+    void aMultiAzDatabaseUsesTheMultiAzRateAndDoubleStorage() {
+        Vm vm = rdsVm("vm-db", "db:orders");
+        vm.setStatus(com.tcgdigital.vmcontrol.model.VmStatus.RUNNING);
+        rdsInventory(vm, "db.m5.large", "mysql", true, 50);
+
+        CostDataProvider.VmCostEstimate estimate = provider.estimateCosts(List.of(vm), windowStart, windowEnd).get("vm-db");
+
+        assertEquals(0, new BigDecimal("0.342").compareTo(estimate.hourlyRate()));
+        BigDecimal storage = new BigDecimal("0.230").multiply(new BigDecimal("0.416667"))
+                .divide(BigDecimal.valueOf(30), 6, java.math.RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(50));
+        assertEquals(0, new BigDecimal("3.42").add(storage).setScale(2, java.math.RoundingMode.HALF_UP).compareTo(estimate.cost()));
+    }
+
+    @Test
+    void anUnpricedEngineIsUnknownButStillPaysStorage() {
+        Vm vm = rdsVm("vm-db", "db:legacy");
+        rdsInventory(vm, "db.m5.large", "sqlserver-se", false, 200);
+
+        CostDataProvider.VmCostEstimate estimate = provider.estimateCosts(List.of(vm), windowStart, windowEnd).get("vm-db");
+
+        assertFalse(estimate.costKnown());
+        assertTrue(estimate.cost().signum() > 0);
     }
 }

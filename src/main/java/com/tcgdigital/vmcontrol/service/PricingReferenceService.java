@@ -35,6 +35,10 @@ public class PricingReferenceService {
     /** "provider:type" -> architecture -> newer-generation type of the same size (E30-T02). */
     private final Map<String, Map<String, String>> generationUpgrades = new HashMap<>();
     private BigDecimal storageGbMonthRate = BigDecimal.ZERO;
+    /** RDS: "engine|class|region|deployment" and "engine|class|deployment" (any region) -> hourly rate (E33-T05). */
+    private final Map<String, BigDecimal> rdsRates = new HashMap<>();
+    private final Map<String, BigDecimal> rdsRatesAnyRegion = new HashMap<>();
+    private BigDecimal rdsStorageGbMonthRate = BigDecimal.ZERO;
 
     /** EKS control-plane fee per cluster-hour: 0.10 standard, 0.60 on extended support (E26-T03). */
     @org.springframework.beans.factory.annotation.Value("${eks.pricing.control-plane-hourly:0.10}")
@@ -96,6 +100,18 @@ public class PricingReferenceService {
                 generationUpgrades.put(field.getKey(), byArchitecture);
             }
 
+            if (root.hasNonNull("rdsStorageGbMonthRate")) {
+                rdsStorageGbMonthRate = new BigDecimal(root.get("rdsStorageGbMonthRate").asText());
+            }
+            for (JsonNode entry : root.path("rdsPricing")) {
+                String engine = entry.get("engine").asText();
+                String dbClass = entry.get("instanceClass").asText();
+                String deployment = entry.path("deployment").asText("SINGLE_AZ");
+                BigDecimal hourlyRate = new BigDecimal(entry.get("hourlyRate").asText());
+                rdsRates.put(String.join("|", engine, dbClass, entry.get("region").asText(), deployment), hourlyRate);
+                rdsRatesAnyRegion.putIfAbsent(String.join("|", engine, dbClass, deployment), hourlyRate);
+            }
+
             long regions = ratesByTypeAndRegion.keySet().stream()
                     .map(k -> k.substring(k.lastIndexOf(':') + 1)).distinct().count();
             log.info("Loaded cost pricing reference: {} instance rates in {} regions, {} instance specs, {} downsize rules, "
@@ -115,6 +131,12 @@ public class PricingReferenceService {
         if (provider == null || instanceType == null) {
             return PriceLookupResult.unknown();
         }
+        if (com.tcgdigital.vmcontrol.model.CloudProvider.AWS_RDS.name().equals(provider)) {
+            // Callers that know only the DB class (idle savings, previews, the ledger) get the
+            // PostgreSQL Single-AZ rate, flagged approximate (E33-T05).
+            PriceLookupResult rds = lookupRdsHourlyRate("postgres", instanceType, region, false);
+            return rds.priceKnown() ? new PriceLookupResult(true, rds.hourlyRate(), true) : rds;
+        }
         BigDecimal rate = ratesByTypeAndRegion.get(typeAndRegionKey(provider, instanceType, region));
         if (rate != null) {
             return new PriceLookupResult(true, rate, false);
@@ -129,6 +151,50 @@ public class PricingReferenceService {
 
     public BigDecimal getStorageGbMonthRate() {
         return storageGbMonthRate;
+    }
+
+    /**
+     * An RDS database's hourly rate (E33-T05) by engine, DB class, region and Single- or Multi-AZ:
+     * the exact rate, else another region's (approximate), else for Multi-AZ twice the Single-AZ rate
+     * (approximate: Aurora has no Multi-AZ price, its replicas are separate instances), else unknown.
+     * MariaDB is priced as MySQL. SQL Server and Oracle carry license costs the reference lacks: unknown.
+     */
+    public PriceLookupResult lookupRdsHourlyRate(String engine, String dbClass, String region, boolean multiAz) {
+        String e = rdsEngine(engine);
+        if (e == null || dbClass == null) {
+            return PriceLookupResult.unknown();
+        }
+        String deployment = multiAz ? "MULTI_AZ" : "SINGLE_AZ";
+        BigDecimal rate = rdsRates.get(String.join("|", e, dbClass, String.valueOf(region), deployment));
+        if (rate != null) {
+            return new PriceLookupResult(true, rate, false);
+        }
+        rate = rdsRatesAnyRegion.get(String.join("|", e, dbClass, deployment));
+        if (rate != null) {
+            return new PriceLookupResult(true, rate, true);
+        }
+        if (multiAz) {
+            PriceLookupResult single = lookupRdsHourlyRate(engine, dbClass, region, false);
+            if (single.priceKnown()) {
+                return new PriceLookupResult(true, single.hourlyRate().multiply(BigDecimal.valueOf(2)), true);
+            }
+        }
+        return PriceLookupResult.unknown();
+    }
+
+    /** RDS storage per GB-month (E33-T05); Multi-AZ keeps a standby copy and is billed twice. */
+    public BigDecimal getRdsStorageGbMonthRate(boolean multiAz) {
+        return multiAz ? rdsStorageGbMonthRate.multiply(BigDecimal.valueOf(2)) : rdsStorageGbMonthRate;
+    }
+
+    private static String rdsEngine(String engine) {
+        if (engine == null) return null;
+        String e = engine.trim().toLowerCase(java.util.Locale.ROOT);
+        if (e.equals("postgres") || e.equals("postgresql")) return "postgres";
+        if (e.equals("mysql") || e.equals("mariadb")) return "mysql";
+        if (e.equals("aurora-postgresql")) return "aurora-postgresql";
+        if (e.equals("aurora-mysql") || e.equals("aurora")) return "aurora-mysql";
+        return null;
     }
 
     public BigDecimal getEksControlPlaneHourlyRate() {

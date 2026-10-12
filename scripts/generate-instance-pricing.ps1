@@ -8,11 +8,14 @@
     tenancy hourly rate, and from describe-instance-types the vCPU, memory and architecture of every
     type. storageGbMonthRate, downsizeMap and generationUpgradeMap are kept from the current file
     (the downsize and upgrade maps are extended to any new family/size so every priced type has them).
+    With -Rds (E33-T05) it also reads AmazonRDS on-demand rates per engine, DB class, region and
+    deployment (Single-AZ / Multi-AZ) into rdsPricing; rdsStorageGbMonthRate is kept from the file.
     The app reads the file once at startup and never calls the Price List API itself.
 
 .EXAMPLE
     ./scripts/generate-instance-pricing.ps1
     ./scripts/generate-instance-pricing.ps1 -Regions us-east-1,eu-central-1 -Families m7i,m7g
+    ./scripts/generate-instance-pricing.ps1 -Rds
 #>
 param(
     [string[]]$Regions = @('ap-south-1', 'us-east-1', 'us-west-2', 'eu-west-1', 'eu-central-1', 'ap-southeast-1'),
@@ -20,7 +23,15 @@ param(
                             'c5', 'c6i', 'c6g', 'c7i', 'c7g', 'r5', 'r6i', 'r6g', 'r7i', 'r7g'),
     [string[]]$BurstableSizes = @('nano', 'micro', 'small', 'medium', 'large', 'xlarge', '2xlarge'),
     [string[]]$Sizes = @('large', 'xlarge', '2xlarge', '4xlarge'),
-    [string]$OutFile = (Join-Path $PSScriptRoot '..\src\main\resources\pricing\instance-pricing.json')
+    [string]$OutFile = (Join-Path $PSScriptRoot '..\src\main\resources\pricing\instance-pricing.json'),
+    [switch]$Rds,
+    [string[]]$RdsClasses = @('db.t3.micro', 'db.t3.small', 'db.t3.medium', 'db.t3.large',
+                              'db.t4g.micro', 'db.t4g.small', 'db.t4g.medium', 'db.t4g.large',
+                              'db.m5.large', 'db.m5.xlarge', 'db.m5.2xlarge', 'db.m6g.large', 'db.m6g.xlarge', 'db.m6g.2xlarge',
+                              'db.m6i.large', 'db.m6i.xlarge', 'db.m6i.2xlarge', 'db.r5.large', 'db.r5.xlarge', 'db.r5.2xlarge',
+                              'db.r6g.large', 'db.r6g.xlarge', 'db.r6g.2xlarge', 'db.r6i.large', 'db.r6i.xlarge', 'db.r6i.2xlarge'),
+    # Price List databaseEngine values and the RDS engine names the app stores
+    [hashtable]$RdsEngines = @{ 'PostgreSQL' = 'postgres'; 'MySQL' = 'mysql'; 'Aurora MySQL' = 'aurora-mysql'; 'Aurora PostgreSQL' = 'aurora-postgresql' }
 )
 $ErrorActionPreference = 'Stop'
 if (-not (Get-Command aws -ErrorAction SilentlyContinue)) { throw 'The AWS CLI (v2) is required.' }
@@ -45,6 +56,28 @@ function Get-OnDemandRate([string]$Type, [string]$Region) {
     $raw = aws pricing get-products --service-code AmazonEC2 --region us-east-1 --filters $filters --output json | ConvertFrom-Json
     foreach ($item in $raw.PriceList) {
         $product = $item | ConvertFrom-Json
+        foreach ($term in $product.terms.OnDemand.PSObject.Properties.Value) {
+            foreach ($dim in $term.priceDimensions.PSObject.Properties.Value) {
+                $usd = [decimal]$dim.pricePerUnit.USD
+                if ($dim.unit -eq 'Hrs' -and $usd -gt 0) { return $usd }
+            }
+        }
+    }
+    return $null
+}
+
+function Get-RdsRate([string]$Class, [string]$Engine, [string]$Region, [string]$Deployment) {
+    $filters = @(
+        "Type=TERM_MATCH,Field=instanceType,Value=$Class",
+        "Type=TERM_MATCH,Field=regionCode,Value=$Region",
+        "Type=TERM_MATCH,Field=databaseEngine,Value=$Engine",
+        "Type=TERM_MATCH,Field=deploymentOption,Value=$Deployment"
+    )
+    $raw = aws pricing get-products --service-code AmazonRDS --region us-east-1 --filters $filters --output json | ConvertFrom-Json
+    foreach ($item in $raw.PriceList) {
+        $product = $item | ConvertFrom-Json
+        # Aurora I/O-Optimized and license-included variants are separate products; take the standard one.
+        if ($product.product.attributes.storage -eq 'Aurora IO Optimization Mode') { continue }
         foreach ($term in $product.terms.OnDemand.PSObject.Properties.Value) {
             foreach ($dim in $term.priceDimensions.PSObject.Properties.Value) {
                 $usd = [decimal]$dim.pricePerUnit.USD
@@ -96,6 +129,26 @@ foreach ($f in $Families) {
     }
 }
 
+$rdsPricing = $current.rdsPricing
+if ($Rds) {
+    $rdsPricing = New-Object System.Collections.Generic.List[object]
+    foreach ($region in $Regions) {
+        foreach ($engine in $RdsEngines.Keys) {
+            foreach ($class in $RdsClasses) {
+                # Aurora has no Multi-AZ deployment option: a cluster's replicas are separate instances.
+                $deployments = if ($engine -like 'Aurora*') { @('Single-AZ') } else { @('Single-AZ', 'Multi-AZ') }
+                foreach ($deployment in $deployments) {
+                    $rate = Get-RdsRate $class $engine $region $deployment
+                    if ($null -eq $rate) { continue }
+                    $rdsPricing.Add([ordered]@{ engine = $RdsEngines[$engine]; instanceClass = $class; region = $region
+                        deployment = if ($deployment -eq 'Multi-AZ') { 'MULTI_AZ' } else { 'SINGLE_AZ' }; hourlyRate = $rate })
+                }
+            }
+        }
+        Write-Output "RDS $region done ($($rdsPricing.Count) rates so far)"
+    }
+}
+
 $doc = [ordered]@{
     _comment = $current._comment
     storageGbMonthRate = $current.storageGbMonthRate
@@ -103,6 +156,8 @@ $doc = [ordered]@{
     downsizeMap = $downsize
     instanceTypes = $specs
     generationUpgradeMap = $current.generationUpgradeMap
+    rdsStorageGbMonthRate = $current.rdsStorageGbMonthRate
+    rdsPricing = $rdsPricing
 }
 $doc | ConvertTo-Json -Depth 6 | Set-Content -Path $OutFile -Encoding utf8
 Write-Output "Wrote $($pricing.Count) rates in $($Regions.Count) regions and $($specs.Count) specs to $OutFile"

@@ -68,6 +68,13 @@ public class TagReconciliationService {
     public record Result(int tagged, int failed, int total) {
     }
 
+    private RdsCloudProviderService rdsCloudProviderService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setRdsCloudProviderService(RdsCloudProviderService rdsCloudProviderService) {
+        this.rdsCloudProviderService = rdsCloudProviderService;
+    }
+
     /**
      * Sweeps every active VM fleet-wide. Used by the nightly scheduler and the manual
      * "Reconcile Tags Now" admin action.
@@ -155,6 +162,26 @@ public class TagReconciliationService {
                 tagged++;
             } catch (Exception e) {
                 log.error("Failed to tag EKS node group {}: {}", vm.getProviderVmId(), e.getMessage());
+                failed++;
+            }
+        }
+
+        // RDS: one database at a time, by its ARN (E33-T05); Cost Explorer actuals then include it.
+        List<Vm> rdsVms = vms.stream().filter(vm -> vm.getProvider() == CloudProvider.AWS_RDS).toList();
+        for (Vm vm : rdsVms) {
+            if (rdsCloudProviderService == null || !rdsCloudProviderService.isAvailable()) {
+                break;
+            }
+            try {
+                if (rdsCloudProviderService.tagResource(CloudTarget.of(vm), vm.getProviderVmId(), buildTags(vm.getGroup().getEnvironment()))) {
+                    markTagged(List.of(vm));
+                    tagged++;
+                } else {
+                    log.warn("Could not resolve the ARN of RDS database {} — skipping tag", vm.getProviderVmId());
+                    failed++;
+                }
+            } catch (Exception e) {
+                log.error("Failed to tag RDS database {}: {}", vm.getProviderVmId(), e.getMessage());
                 failed++;
             }
         }

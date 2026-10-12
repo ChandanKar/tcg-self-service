@@ -101,4 +101,36 @@ class PricingReferenceServiceTest {
         assertThat(types).contains("m5.large", "m6a.large", "m7i.large").doesNotContain("m7g.large", "c6i.large", "m6i.xlarge");
         assertThat(pricing.sameShapeTypes("zz9.mega")).containsExactly("zz9.mega");
     }
+
+    // --- RDS (E33-T05) ---
+
+    @Test
+    void rdsRatesDependOnEngineClassAndDeployment() {
+        PricingReferenceService.PriceLookupResult postgres = pricing.lookupRdsHourlyRate("postgres", "db.t4g.medium", "us-east-1", false);
+        PricingReferenceService.PriceLookupResult multiAz = pricing.lookupRdsHourlyRate("postgres", "db.t4g.medium", "us-east-1", true);
+        PricingReferenceService.PriceLookupResult mariadb = pricing.lookupRdsHourlyRate("mariadb", "db.m5.large", "us-east-1", false);
+
+        assertThat(postgres.priceKnown()).isTrue();
+        assertThat(postgres.approximate()).isFalse();
+        assertThat(postgres.hourlyRate()).isEqualByComparingTo("0.065");
+        assertThat(multiAz.hourlyRate()).isEqualByComparingTo("0.13");
+        assertThat(mariadb.hourlyRate()).isEqualByComparingTo("0.171");
+    }
+
+    @Test
+    void rdsFallbacksAreApproximateAndUnpricedEnginesUnknown() {
+        PricingReferenceService.PriceLookupResult otherRegion = pricing.lookupRdsHourlyRate("mysql", "db.t3.medium", "ap-south-1", false);
+        PricingReferenceService.PriceLookupResult auroraMultiAz = pricing.lookupRdsHourlyRate("aurora-postgresql", "db.r6g.large", "us-east-1", true);
+        PricingReferenceService.PriceLookupResult byClassOnly = pricing.lookupHourlyRate("AWS_RDS", "db.t3.medium", "us-east-1");
+
+        assertThat(otherRegion.approximate()).isTrue();
+        assertThat(otherRegion.hourlyRate()).isEqualByComparingTo("0.068");
+        assertThat(auroraMultiAz.approximate()).isTrue();
+        assertThat(auroraMultiAz.hourlyRate()).isEqualByComparingTo("0.52");
+        assertThat(byClassOnly.priceKnown()).isTrue();
+        assertThat(byClassOnly.approximate()).isTrue();
+        assertThat(pricing.lookupRdsHourlyRate("oracle-ee", "db.m5.large", "us-east-1", false).priceKnown()).isFalse();
+        assertThat(pricing.lookupRdsHourlyRate("postgres", "db.x2g.large", "us-east-1", false).priceKnown()).isFalse();
+        assertThat(pricing.getRdsStorageGbMonthRate(true)).isEqualByComparingTo("0.230");
+    }
 }

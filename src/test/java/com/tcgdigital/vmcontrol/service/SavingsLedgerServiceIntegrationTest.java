@@ -118,6 +118,25 @@ class SavingsLedgerServiceIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void aScheduledStopOfAnRdsDatabaseIsCreditedAtItsClassRate() {
+        // E33-T05: the ledger prices RDS through the pricing reference (the class rate, approximate).
+        Vm db = pricedVm("orders-db", VmStatus.STOPPED);
+        db.setProvider(CloudProvider.AWS_RDS);
+        db.setProviderVmId("db:orders-" + db.getVmId().substring(0, 8));
+        vmRepository.saveAndFlush(db);
+        jdbcTemplate.update("UPDATE vm_inventory_snapshot SET instance_type = 'db.t3.medium' WHERE vm_id = ?", db.getVmId());
+        history(db, VmStatus.RUNNING, VmStatus.STOPPED, DAY.minusDays(1), 19, operation(OperationTriggerSource.SCHEDULE));
+
+        assertThat(ledgerService.captureForDate(DAY)).isEqualTo(1);
+        SavingsLedgerEntry row = ledger.findByLedgerDateBetweenOrderByLedgerDateAsc(DAY, DAY).get(0);
+        assertThat(row.getCause()).isEqualTo(SavingsCause.SCHEDULE);
+        assertThat(row.getAvoidedHours()).isEqualByComparingTo("24");
+        assertThat(row.getGrossSaving()).isEqualByComparingTo(new BigDecimal("0.072").multiply(new BigDecimal("24"))
+                .setScale(2, java.math.RoundingMode.HALF_UP));
+        assertThat(row.isPriceApproximate()).isTrue();
+    }
+
+    @Test
     void causesComeFromTheOperationsAndStateSyncStopsAreOther() {
         Vm vm = pricedVm("api", VmStatus.RUNNING);
         history(vm, VmStatus.RUNNING, VmStatus.STOPPED, DAY, 2, operation(OperationTriggerSource.IDLE_STOP));

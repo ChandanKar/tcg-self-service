@@ -115,6 +115,15 @@ public class EstimatedCostProvider implements CostDataProvider {
             });
         }
 
+        // RDS: engine, Multi-AZ and allocated storage come from the inventory snapshot (E33-T05).
+        Map<String, com.tcgdigital.vmcontrol.model.VmInventorySnapshot> rdsInventory = new LinkedHashMap<>();
+        List<String> rdsIds = vms.stream().filter(v -> v.getProvider() == CloudProvider.AWS_RDS).map(Vm::getVmId).toList();
+        if (!rdsIds.isEmpty()) {
+            vmInventorySnapshotRepository.findByVmVmIdIn(rdsIds).forEach(s -> {
+                if (s.getVm() != null) rdsInventory.put(s.getVm().getVmId(), s);
+            });
+        }
+
         for (Vm vm : vms) {
             String vmId = vm.getVmId();
             List<VmStateHistory> transitions = transitionsByVmId.getOrDefault(vmId, List.of());
@@ -136,8 +145,20 @@ public class EstimatedCostProvider implements CostDataProvider {
                 storageDays = runtimeHours.divide(HOURS_PER_DAY, 6, RoundingMode.HALF_UP);
             }
 
-            PricingReferenceService.PriceLookupResult rate =
-                    pricingReferenceService.lookupHourlyRate(pricingProvider, instanceType, vm.getRegion());
+            boolean isRds = vm.getProvider() == CloudProvider.AWS_RDS;
+            BigDecimal vmStorageRate = storageGbMonthRate;
+            PricingReferenceService.PriceLookupResult rate;
+            if (isRds) {
+                // Compute for the hours it ran, its storage for the whole window: RDS bills storage while stopped.
+                com.tcgdigital.vmcontrol.model.VmInventorySnapshot inv = rdsInventory.get(vmId);
+                boolean multiAz = inv != null && Boolean.TRUE.equals(inv.getMultiAz());
+                storageGib = inv != null && inv.getTotalStorageGib() != null ? inv.getTotalStorageGib() : 0L;
+                vmStorageRate = pricingReferenceService.getRdsStorageGbMonthRate(multiAz);
+                rate = pricingReferenceService.lookupRdsHourlyRate(inv != null ? inv.getEngine() : null, instanceType,
+                        vm.getRegion(), multiAz);
+            } else {
+                rate = pricingReferenceService.lookupHourlyRate(pricingProvider, instanceType, vm.getRegion());
+            }
             BigDecimal spotRate = vm.getPurchaseOption() == com.tcgdigital.vmcontrol.model.PurchaseOption.SPOT && spotPriceService != null
                     ? spotPriceService.lookupSpotRate(instanceType, vm.getRegion(), zoneByVmId.get(vmId)).orElse(null) : null;
 
@@ -151,10 +172,10 @@ public class EstimatedCostProvider implements CostDataProvider {
                 result.put(vmId, new VmCostEstimate(true, effectiveHourlyRate, runtimeHours, storageGib, cost, false, onDemandCost));
             } else if (rate.priceKnown()) {
                 BigDecimal effectiveHourlyRate = rate.hourlyRate().multiply(BigDecimal.valueOf(nodeCount));
-                BigDecimal cost = vmCostCalculator.estimateCost(effectiveHourlyRate, runtimeHours, storageGib, storageGbMonthRate, storageDays);
+                BigDecimal cost = vmCostCalculator.estimateCost(effectiveHourlyRate, runtimeHours, storageGib, vmStorageRate, storageDays);
                 result.put(vmId, new VmCostEstimate(true, effectiveHourlyRate, runtimeHours, storageGib, cost, rate.approximate()));
             } else {
-                BigDecimal proratedStorageRate = storageGbMonthRate.multiply(storageDays)
+                BigDecimal proratedStorageRate = vmStorageRate.multiply(storageDays)
                         .divide(BigDecimal.valueOf(30), 6, RoundingMode.HALF_UP);
                 BigDecimal storageOnlyCost = proratedStorageRate.multiply(BigDecimal.valueOf(storageGib))
                         .setScale(2, RoundingMode.HALF_UP);

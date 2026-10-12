@@ -258,4 +258,19 @@ class RdsCloudProviderServiceTest {
         assertEquals(List.of("orders", "gone"), request.getValue().filters().get(0).values());
         verify(rds, times(1)).describeDBClusters(any(DescribeDbClustersRequest.class));
     }
+
+    @Test
+    void tagsAreWrittenOnTheDatabasesArn() {
+        // E33-T05
+        when(rds.describeDBInstances(any(DescribeDbInstancesRequest.class))).thenReturn(instance(DBInstance.builder()
+                .dbInstanceIdentifier("orders").dbInstanceArn("arn:aws:rds:ap-south-1:111:db:orders").build()));
+
+        assertTrue(service.tagResource(TARGET, "db:orders", Map.of("tcg:environment", "qa")));
+
+        ArgumentCaptor<AddTagsToResourceRequest> request = ArgumentCaptor.forClass(AddTagsToResourceRequest.class);
+        verify(rds).addTagsToResource(request.capture());
+        assertEquals("arn:aws:rds:ap-south-1:111:db:orders", request.getValue().resourceName());
+        assertEquals("tcg:environment", request.getValue().tags().get(0).key());
+        assertEquals("qa", request.getValue().tags().get(0).value());
+    }
 }

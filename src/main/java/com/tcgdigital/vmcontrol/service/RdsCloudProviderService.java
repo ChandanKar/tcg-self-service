@@ -186,6 +186,35 @@ public class RdsCloudProviderService implements CloudProviderService {
     }
 
     /**
+     * Writes cost-allocation tags on a database (E33-T05): AddTagsToResource on its instance or cluster
+     * ARN, read with a describe. False when the database is not found; failures propagate.
+     */
+    public boolean tagResource(CloudTarget target, String providerVmId, Map<String, String> tags) {
+        RdsId id = parse(providerVmId);
+        if (id == null || tags == null || tags.isEmpty()) {
+            return false;
+        }
+        RdsClient rds = client(target);
+        String arn;
+        if (id.cluster()) {
+            DBCluster c = describeCluster(rds, id.identifier());
+            arn = c == null ? null : c.dbClusterArn();
+        } else {
+            DBInstance i = describeInstance(rds, id.identifier());
+            arn = i == null ? null : i.dbInstanceArn();
+        }
+        if (arn == null) {
+            return false;
+        }
+        rds.addTagsToResource(software.amazon.awssdk.services.rds.model.AddTagsToResourceRequest.builder()
+                .resourceName(arn)
+                .tags(tags.entrySet().stream().map(t -> software.amazon.awssdk.services.rds.model.Tag.builder()
+                        .key(t.getKey()).value(t.getValue()).build()).toList())
+                .build());
+        return true;
+    }
+
+    /**
      * Asks RDS to stop the database and returns without waiting (E33-T04: the keep-stopped pass must
      * not hold its lock for the minutes a stop takes); state sync follows it to stopped.
      */

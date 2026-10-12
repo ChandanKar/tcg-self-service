@@ -246,4 +246,30 @@ class TagReconciliationServiceTest {
         vm.setRegion(region);
         return vm;
     }
+
+    @Test
+    void rdsDatabasesCarryTheEnvironmentTags() {
+        // E33-T05
+        RdsCloudProviderService rds = org.mockito.Mockito.mock(RdsCloudProviderService.class);
+        service.setRdsCloudProviderService(rds);
+        when(rds.isAvailable()).thenReturn(true);
+        Environment env = buildEnvironment("env-1", "qa", "{\"ownerTeam\":\"payments\"}");
+        Vm db = buildEc2Vm("vm-db", env, "db:orders", "ap-south-1");
+        db.setProvider(CloudProvider.AWS_RDS);
+        Vm gone = buildEc2Vm("vm-gone", env, "cluster:gone", "ap-south-1");
+        gone.setProvider(CloudProvider.AWS_RDS);
+        when(vmRepository.findByIsActiveTrueFetchGroupAndEnvironment()).thenReturn(List.of(db, gone));
+        when(rds.tagResource(any(), eq("db:orders"), any())).thenReturn(true);
+        when(rds.tagResource(any(), eq("cluster:gone"), any())).thenReturn(false);
+
+        TagReconciliationService.Result result = service.reconcileAll();
+
+        assertEquals(1, result.tagged());
+        assertEquals(1, result.failed());
+        ArgumentCaptor<Map<String, String>> tags = ArgumentCaptor.forClass(Map.class);
+        verify(rds).tagResource(eq(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1")), eq("db:orders"), tags.capture());
+        assertEquals("qa", tags.getValue().get("tcg:environment"));
+        assertEquals("payments", tags.getValue().get("tcg:team"));
+        verify(vmRepository).markTagsSynced(eq(List.of("vm-db")), any());
+    }
 }
