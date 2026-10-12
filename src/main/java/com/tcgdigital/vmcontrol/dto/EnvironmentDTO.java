@@ -59,6 +59,7 @@ public class EnvironmentDTO {
         dto.setEksClusterName(environment.getEksClusterName());
         dto.setProduction(Boolean.TRUE.equals(environment.getIsProduction()));
         dto.setAwsAccountRef(environment.getAwsAccountRef());
+        dto.setSpotPolicy(environment.getSpotPolicy() == null ? null : environment.getSpotPolicy().name());
         if (environment.getTeam() != null) {
             dto.teamId = environment.getTeam().getTeamId();
             dto.teamName = environment.getTeam().getDisplayName();
@@ -249,6 +250,17 @@ public class EnvironmentDTO {
 
     public String getAwsAccountRef() {
         return awsAccountRef;
+    }
+
+    /** NONE or ALLOWED (E31-T03). */
+    private String spotPolicy;
+
+    public String getSpotPolicy() {
+        return spotPolicy;
+    }
+
+    public void setSpotPolicy(String spotPolicy) {
+        this.spotPolicy = spotPolicy;
     }
 
     public void setAwsAccountRef(String awsAccountRef) {

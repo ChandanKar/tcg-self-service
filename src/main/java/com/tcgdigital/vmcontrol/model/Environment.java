@@ -81,6 +81,19 @@ public class Environment {
     @Column(name = "lease_enabled", nullable = false)
     private Boolean leaseEnabled = false;
 
+    /** Spot opt-in by the environment's administrators (E31-T03). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "spot_policy", nullable = false, length = 20)
+    private SpotPolicy spotPolicy = SpotPolicy.NONE;
+
+    public SpotPolicy getSpotPolicy() {
+        return spotPolicy;
+    }
+
+    public void setSpotPolicy(SpotPolicy spotPolicy) {
+        this.spotPolicy = spotPolicy == null ? SpotPolicy.NONE : spotPolicy;
+    }
+
     /** Owner's default lease length in minutes; null = the platform default. */
     @Column(name = "lease_default_minutes")
     private Integer leaseDefaultMinutes;

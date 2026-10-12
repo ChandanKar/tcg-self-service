@@ -55,6 +55,7 @@ public class VmDTO {
         dto.setRegion(vm.getRegion());
         dto.setAwsAccountRef(vm.getAwsAccountRef());
         dto.setPurchaseOption(vm.getPurchaseOption() == null ? null : vm.getPurchaseOption().name());
+        dto.setSpotExcluded(vm.isSpotExcluded());
         dto.setProviderVmId(vm.getProviderVmId());
         dto.setVmType(vm.getVmType());
         dto.setSequencePosition(vm.getSequencePosition());
@@ -267,6 +268,17 @@ public class VmDTO {
 
     /** ON_DEMAND or SPOT (E31-T01). */
     private String purchaseOption;
+
+    /** Kept off Spot (E31-T03). */
+    private boolean spotExcluded;
+
+    public boolean isSpotExcluded() {
+        return spotExcluded;
+    }
+
+    public void setSpotExcluded(boolean spotExcluded) {
+        this.spotExcluded = spotExcluded;
+    }
 
     public String getPurchaseOption() {
         return purchaseOption;

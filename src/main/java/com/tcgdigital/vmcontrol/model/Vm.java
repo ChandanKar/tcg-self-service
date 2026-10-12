@@ -67,6 +67,18 @@ public class Vm {
         this.purchaseOption = purchaseOption == null ? PurchaseOption.ON_DEMAND : purchaseOption;
     }
 
+    /** Kept off Spot even when its environment allows it (E31-T03). */
+    @Column(name = "spot_excluded", nullable = false)
+    private boolean spotExcluded;
+
+    public boolean isSpotExcluded() {
+        return spotExcluded;
+    }
+
+    public void setSpotExcluded(boolean spotExcluded) {
+        this.spotExcluded = spotExcluded;
+    }
+
     @Column(nullable = false)
     private String name;
 

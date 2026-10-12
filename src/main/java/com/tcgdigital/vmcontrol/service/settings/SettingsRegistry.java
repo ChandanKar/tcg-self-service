@@ -72,6 +72,8 @@ public final class SettingsRegistry {
             // Spot (E31)
             flag("Spot", "spot.pricing.enabled", "Spot pricing",
                     "Capture Spot prices daily and price Spot VMs and node groups at them.", false),
+            flag("Spot", "spot.enabled", "Spot opt-in",
+                    "Environment admins may allow Spot in interruptible, non-production environments.", false),
 
             // Idle detection
             decimal("Idle detection", "vm.metrics.idle.cpu-threshold-percent", "Idle CPU %",

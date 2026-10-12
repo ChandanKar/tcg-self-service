@@ -76,7 +76,11 @@ public class SpotPriceService {
      * environments (E31-T03) add their on-demand VMs so opportunities can be priced.
      */
     protected boolean wantsPrice(Vm vm) {
-        return vm.getPurchaseOption() == PurchaseOption.SPOT;
+        if (vm.getPurchaseOption() == PurchaseOption.SPOT) {
+            return true;
+        }
+        com.tcgdigital.vmcontrol.model.Environment env = vm.getGroup() == null ? null : vm.getGroup().getEnvironment();
+        return !vm.isSpotExcluded() && env != null && env.getSpotPolicy() == com.tcgdigital.vmcontrol.model.SpotPolicy.ALLOWED;
     }
 
     /** Captures today's prices; returns the number of (zone, type) prices stored. */

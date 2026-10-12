@@ -33,6 +33,8 @@ public enum AuditAction {
     VM_RESIZE_FAILED,
     /** A safe resize could not start on the new type and went back to the old one (E30-T06). */
     VM_RESIZE_ROLLED_BACK,
+    /** An environment's Spot policy or a VM's Spot exclusion changed (E31-T03). */
+    SPOT_POLICY_CHANGED,
 
     // Lock operations
     LOCK_ACQUIRED,
