@@ -91,10 +91,11 @@ public class VmResizeService {
                     + (liveStatus != null ? liveStatus : VmStatus.UNKNOWN) + ")");
         }
 
-        // Only the type the page recommends right now (M11, E08-T05): a replayed or edited
-        // request cannot resize the VM to anything else.
+        // Only a type the page recommends right now (M11, E08-T05): the suggestion or an applicable
+        // alternative of the same architecture (E30-T05). A replayed or edited request cannot
+        // resize the VM to anything else.
         boolean matches = costEstimationService.findCandidate(vmId)
-                .map(c -> targetInstanceType.equals(c.suggestedInstanceType()))
+                .map(c -> c.canApply(targetInstanceType))
                 .orElse(false);
         if (!matches) {
             throw new ValidationException("Target instance type does not match the current recommendation for this VM");

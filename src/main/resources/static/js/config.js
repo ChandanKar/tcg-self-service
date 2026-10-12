@@ -361,7 +361,8 @@ const Config = (function() {
             spendTrend: (days = 90) => `${API_BASE_URL}/cost-management/spend-trend?days=${days}`,
             spendTrendByTeam: (days = 90) => `${API_BASE_URL}/cost-management/spend-trend-by-team?days=${days}`,
             idleWaste: (page = 0, size = 10) => `${API_BASE_URL}/cost-management/idle-waste?page=${page}&size=${size}`,
-            rightsizing: (page = 0, size = 10) => `${API_BASE_URL}/cost-management/rightsizing?page=${page}&size=${size}`,
+            rightsizing: (page = 0, size = 10, direction = '') => `${API_BASE_URL}/cost-management/rightsizing?page=${page}&size=${size}`
+                + (direction ? `&direction=${encodeURIComponent(direction)}` : ''),
             vmDetail: (page = 0, size = 10) => `${API_BASE_URL}/cost-management/vm-detail?page=${page}&size=${size}`,
             idleWasteExport: () => `${API_BASE_URL}/cost-management/idle-waste/export`,
             rightsizingExport: () => `${API_BASE_URL}/cost-management/rightsizing/export`,

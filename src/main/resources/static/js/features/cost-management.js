@@ -33,6 +33,8 @@ const CostManagement = (function() {
         reservationCoverage: [],
         idle: emptyPageState(),
         rightsizing: emptyPageState(),
+        /** '' (all), SCALE_DOWN, SCALE_UP or MODERNIZE (E30-T05). */
+        rightsizingDirection: '',
         detail: emptyPageState(),
         anomalies: [],
         anomalyMonitors: [],
@@ -159,7 +161,7 @@ const CostManagement = (function() {
         commitments: { url: () => Config.API.costManagement.commitmentInsights, apply: d => { state.commitments = d || null; } },
         forecast: { url: () => Config.API.costManagement.forecast(30, 14), apply: d => { state.forecast = d || null; } },
         idle: { url: () => Config.API.costManagement.idleWaste(state.idle.page, PAGE_SIZE), apply: d => { state.idle = mapPage(d); } },
-        rightsizing: { url: () => Config.API.costManagement.rightsizing(state.rightsizing.page, PAGE_SIZE), apply: d => { state.rightsizing = mapPage(d); } },
+        rightsizing: { url: () => Config.API.costManagement.rightsizing(state.rightsizing.page, PAGE_SIZE, state.rightsizingDirection), apply: d => { state.rightsizing = mapPage(d); } },
         detail: { url: () => Config.API.costManagement.vmDetail(state.detail.page, PAGE_SIZE), apply: d => { state.detail = mapPage(d); } },
         anomalies: { url: () => Config.API.costAnomalies.list(ANOMALY_DAYS), apply: d => { state.anomalies = (d && d.content) || []; } },
         anomalyMonitors: { url: () => Config.API.costAnomalies.monitors, apply: d => { state.anomalyMonitors = d || []; } },
@@ -208,7 +210,7 @@ const CostManagement = (function() {
 
     const TABLE_CONFIG = {
         idle: { url: (p) => Config.API.costManagement.idleWaste(p, PAGE_SIZE), render: () => renderIdleTable() },
-        rightsizing: { url: (p) => Config.API.costManagement.rightsizing(p, PAGE_SIZE), render: () => renderRightsizingTable() },
+        rightsizing: { url: (p) => Config.API.costManagement.rightsizing(p, PAGE_SIZE, state.rightsizingDirection), render: () => renderRightsizingTable() },
         detail: { url: (p) => Config.API.costManagement.vmDetail(p, PAGE_SIZE), render: () => renderDetailTable() },
         reconciliation: { clientPaged: true, render: () => renderReconciliationTable() }
     };
@@ -1093,6 +1095,7 @@ const CostManagement = (function() {
                         <i class="fas fa-file-excel"></i>
                     </a>
                 </div>
+                ${opts.toolbarHtml || ''}
                 <div class="table-responsive">
                     <table class="table table-baseline cost-table" id="${opts.tableId}">
                         <thead>
@@ -1179,7 +1182,8 @@ const CostManagement = (function() {
     function buildRightsizingTable() {
         return buildTableCard({
             title: 'Rightsizing Recommendations',
-            subtitle: `${state.rightsizing.totalElements} candidate(s) — scale-down and scale-up, based on CPU and memory utilization`,
+            subtitle: `${state.rightsizing.totalElements} candidate(s) — scale-down, scale-up and newer generations, from CPU and memory utilization and AWS Compute Optimizer`,
+            toolbarHtml: buildRightsizingFilter(),
             tableId: 'cost-rightsizing-table',
             bodyId: 'cost-rightsizing-table-body',
             paginationId: 'cost-rightsizing-pagination',
@@ -1200,12 +1204,12 @@ const CostManagement = (function() {
         if (!rows.length) {
             return `<tr><td colspan="11" class="text-center text-muted py-4">No rightsizing candidates found.</td></tr>`;
         }
-        return rows.map(row => `
+        return rows.map((row, i) => `
             <tr>
-                <td class="cost-vm-cell" title="${Utils.escapeHtml(row.environmentName || 'Unknown environment')}">${Utils.escapeHtml(row.vmName || row.vmId)}${eksNodes(row)}</td>
+                <td class="cost-vm-cell" title="${Utils.escapeHtml(row.environmentName || 'Unknown environment')}">${Utils.escapeHtml(row.vmName || row.vmId)}${eksNodes(row)}${optionsToggle(row, i)}</td>
                 <td>${buildRightsizingDirectionBadge(row)}${reasonChips(row)}</td>
                 <td>${Utils.escapeHtml(row.currentInstanceType || '-')} &rarr; ${Utils.escapeHtml(row.suggestedInstanceType || 'n/a')}</td>
-                <td>${buildRightsizingSourceBadge(row)}</td>
+                <td>${buildRightsizingSourceBadge(row)}${agreementBadge(row)}</td>
                 <td class="cost-num">${row.avgCpuUtilization != null ? Number(row.avgCpuUtilization).toFixed(1) + '%' : '-'}</td>
                 <td class="cost-num">${row.peakCpuUtilization != null ? Number(row.peakCpuUtilization).toFixed(1) + '%' : '-'}</td>
                 <td class="cost-num">${memoryCell(row, row.avgMemoryUtilization)}</td>
@@ -1215,7 +1219,100 @@ const CostManagement = (function() {
                 <td>${buildRightsizingApplyButton(row)}
                     ${typeof JiraTickets !== 'undefined' ? '<div class="mt-1">' + JiraTickets.cell('RIGHTSIZING', row.vmId, row.jiraKey, row.jiraUrl) + '</div>' : ''}</td>
             </tr>
+            ${alternativesRow(row, i)}
         `).join('');
+    }
+
+    const DIRECTIONS = [['', 'All'], ['SCALE_DOWN', 'Scale down'], ['SCALE_UP', 'Scale up'], ['MODERNIZE', 'Modernize']];
+
+    /** Direction filter pills over the rightsizing table (E30-T05). */
+    function buildRightsizingFilter() {
+        return `<div class="rightsizing-filter" role="group" aria-label="Recommendation type">${DIRECTIONS.map(([value, label]) => `
+            <button type="button" class="btn btn-sm ${state.rightsizingDirection === value ? 'btn-primary' : 'btn-outline-secondary'}"
+                    data-action="cost-rightsizing-direction" data-direction="${value}"
+                    aria-pressed="${state.rightsizingDirection === value}">${label}</button>`).join('')}</div>`;
+    }
+
+    function setRightsizingDirection(direction) {
+        state.rightsizingDirection = DIRECTIONS.some(([v]) => v === direction) ? direction : '';
+        $('.rightsizing-filter [data-action="cost-rightsizing-direction"]').each(function() {
+            const on = String(this.dataset.direction) === state.rightsizingDirection;
+            $(this).toggleClass('btn-primary', on).toggleClass('btn-outline-secondary', !on).attr('aria-pressed', String(on));
+        });
+        changePage('rightsizing', 0);
+    }
+
+    const AGREEMENT = {
+        AGREE: ['text-bg-success', 'AWS agrees', 'Compute Optimizer and the local rules point the same way'],
+        DISAGREE: ['text-bg-warning', 'AWS disagrees', 'Compute Optimizer and the local rules point different ways'],
+        ONLY_AWS: ['text-bg-info', 'AWS only', 'Only Compute Optimizer flags this VM'],
+        ONLY_RULE: ['text-bg-light border', 'Rule only', 'Compute Optimizer has no opinion on this VM']
+    };
+
+    /** Whether AWS Compute Optimizer and the local rules agree (E30-T05). */
+    function agreementBadge(row) {
+        const a = AGREEMENT[row.agreement];
+        if (!a) return '';
+        return `<div class="mt-1"><span class="badge ${a[0]} rightsizing-agreement" data-agreement="${Utils.escapeHtml(row.agreement)}" title="${a[2]}">${a[1]}</span></div>`;
+    }
+
+    function rowKey(row, i) {
+        return 'rs-alt-' + String(row.vmId || i).replace(/[^A-Za-z0-9_-]/g, '') + '-' + i;
+    }
+
+    function optionsToggle(row, i) {
+        const n = Array.isArray(row.alternatives) ? row.alternatives.length : 0;
+        if (!n) return '';
+        return `<div><button type="button" class="btn btn-link btn-sm p-0 rightsizing-options-toggle" data-action="cost-rightsizing-options"
+                    aria-expanded="false" aria-controls="${rowKey(row, i)}">Options (${n})</button></div>`;
+    }
+
+    const KIND_LABELS = { RIGHTSIZE: 'Rightsize', NEWER_GENERATION: 'Newer generation', GRAVITON: 'Graviton (ARM64)' };
+
+    function optionApply(row, o) {
+        if (!o.applicable) {
+            return `<span class="text-muted small rightsizing-option-why">${Utils.escapeHtml(o.applicableReason || 'Not applicable')}</span>`;
+        }
+        const isStopped = row.vmStatus === 'STOPPED';
+        return `<button class="btn btn-tonal btn-sm btn-primary rightsizing-apply-btn" ${isStopped ? '' : 'disabled'}
+                    title="${isStopped ? 'Apply this instance type change' : 'VM must be stopped to apply this change'}"
+                    data-vm-id="${Utils.escapeHtml(row.vmId)}" data-vm-name="${Utils.escapeHtml(row.vmName || row.vmId)}"
+                    data-current-type="${Utils.escapeHtml(row.currentInstanceType || '-')}"
+                    data-target-type="${Utils.escapeHtml(o.instanceType)}">Apply</button>`;
+    }
+
+    /** The alternatives of one recommendation, shown under its row on demand (E30-T05). */
+    function alternativesRow(row, i) {
+        const options = Array.isArray(row.alternatives) ? row.alternatives : [];
+        if (!options.length) return '';
+        const body = options.map(o => `
+            <tr data-option="${Utils.escapeHtml(o.instanceType)}">
+                <td>${Utils.escapeHtml(o.instanceType)}</td>
+                <td>${Utils.escapeHtml(KIND_LABELS[o.kind] || o.kind || '')}${o.source === 'compute-optimizer' ? ' <span class="badge bg-primary">AWS</span>' : ''}</td>
+                <td>${Utils.escapeHtml(o.architecture || '-')}${o.requiresArchitectureChange
+                    ? ' <i class="fas fa-exclamation-triangle text-warning rightsizing-arch-warning" title="Requires an image built for this architecture" aria-label="Requires another CPU architecture"></i>' : ''}</td>
+                <td class="cost-num">${o.monthlyCostAfter != null ? Utils.formatCurrency(Number(o.monthlyCostAfter)) : '<span class="text-muted">Unknown</span>'}</td>
+                <td class="cost-num">${o.monthlySavings != null ? Utils.formatCurrency(Number(o.monthlySavings)) : '<span class="text-muted">-</span>'}</td>
+                <td class="cost-num">${o.performanceRisk != null ? Number(o.performanceRisk).toFixed(1) : '-'}</td>
+                <td>${optionApply(row, o)}</td>
+            </tr>`).join('');
+        return `<tr class="rightsizing-alternatives" id="${rowKey(row, i)}" hidden>
+            <td colspan="11">
+                <table class="table table-sm mb-0 rightsizing-options-table" aria-label="Options for ${Utils.escapeHtml(row.vmName || row.vmId)}">
+                    <thead><tr><th>Type</th><th>Option</th><th>Architecture</th><th class="cost-num">Cost after</th>
+                        <th class="cost-num">Saving</th><th class="cost-num">AWS risk</th><th>Action</th></tr></thead>
+                    <tbody>${body}</tbody>
+                </table>
+            </td>
+        </tr>`;
+    }
+
+    function toggleOptions(btn) {
+        const target = document.getElementById(btn.getAttribute('aria-controls'));
+        if (!target) return;
+        const open = btn.getAttribute('aria-expanded') !== 'true';
+        btn.setAttribute('aria-expanded', String(open));
+        target.hidden = !open;
     }
 
     /** Memory utilisation, or a dash explaining the CloudWatch agent is not reporting it (E30-T03). */
@@ -1228,7 +1325,8 @@ const CostManagement = (function() {
 
     const REASON_LABELS = {
         CPU_LOW: 'CPU low', CPU_HIGH: 'CPU high', MEMORY_LOW: 'Memory low', MEMORY_HIGH: 'Memory high',
-        MEMORY_UNKNOWN: 'Memory unknown', MEMORY_WOULD_NOT_FIT: 'Memory would not fit'
+        MEMORY_UNKNOWN: 'Memory unknown', MEMORY_WOULD_NOT_FIT: 'Memory would not fit',
+        NEWER_GENERATION: 'Newer generation', AWS_OVER_PROVISIONED: 'AWS: over-provisioned'
     };
 
     /** Why the VM is listed, as small chips under the direction badge (E30-T03). */
@@ -1242,6 +1340,9 @@ const CostManagement = (function() {
     }
 
     function buildRightsizingDirectionBadge(row) {
+        if (row.direction === 'MODERNIZE') {
+            return '<span class="badge bg-success"><i class="fas fa-sync-alt"></i> Modernize</span>';
+        }
         return row.direction === 'SCALE_UP'
             ? '<span class="badge bg-warning text-dark"><i class="fas fa-arrow-up"></i> Scale Up</span>'
             : '<span class="badge bg-info text-dark"><i class="fas fa-arrow-down"></i> Scale Down</span>';
@@ -1256,6 +1357,10 @@ const CostManagement = (function() {
         if (row.nodeCount) {
             // EKS node groups change their instance type in EKS (node group / launch template), E26-T02.
             return '<span class="text-muted small">Change the node group in EKS</span>';
+        }
+        if (row.applicable === false) {
+            // e.g. a Graviton option needs an ARM64 image first (E30-T05)
+            return `<span class="text-muted small rightsizing-not-applicable">${Utils.escapeHtml(row.applicableReason || 'Not applicable here')}</span>`;
         }
         const isStopped = row.vmStatus === 'STOPPED';
         return `
@@ -1273,6 +1378,9 @@ const CostManagement = (function() {
         if (row.source === 'compute-optimizer') {
             const title = row.findingLevel ? ` title="${Utils.escapeHtml(row.findingLevel)}"` : '';
             return `<span class="badge bg-primary"${title}>Compute Optimizer</span>`;
+        }
+        if (row.source === 'newer-generation') {
+            return '<span class="badge bg-secondary">Newer generation</span>';
         }
         return `<span class="badge bg-secondary">CPU Rule</span>`;
     }
@@ -1560,7 +1668,9 @@ const CostManagement = (function() {
     return {
         load,
         changePage,
-        showWorkloads: mountWorkloads
+        showWorkloads: mountWorkloads,
+        setRightsizingDirection,
+        toggleOptions
     };
 })();
 
@@ -1569,6 +1679,8 @@ window.CostManagement = CostManagement;
 
 Actions.registerAll({
     'cost-reload': () => ContentRouter.reload(),
-    'cost-change-page': el => CostManagement.changePage(el.dataset.pageKey, Number(el.dataset.page))
+    'cost-change-page': el => CostManagement.changePage(el.dataset.pageKey, Number(el.dataset.page)),
+    'cost-rightsizing-direction': el => CostManagement.setRightsizingDirection(el.dataset.direction || ''),
+    'cost-rightsizing-options': el => CostManagement.toggleOptions(el)
 });
 Actions.register('cost-eks-env', el => CostManagement.showWorkloads(el.value), 'change');

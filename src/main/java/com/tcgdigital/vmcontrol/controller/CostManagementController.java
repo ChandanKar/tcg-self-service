@@ -160,8 +160,14 @@ public class CostManagementController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Page<RightsizingCandidateDTO>> getRightsizingCandidates(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "25") int size) {
-        return ResponseEntity.ok(costEstimationService.getRightsizingCandidates(com.tcgdigital.vmcontrol.controller.support.Paging.of(page, size, 100)));
+            @RequestParam(defaultValue = "25") int size,
+            @RequestParam(required = false) String direction) {
+        if (direction != null && !direction.isBlank() && !java.util.Set.of("SCALE_DOWN", "SCALE_UP", "MODERNIZE")
+                .contains(direction.toUpperCase(java.util.Locale.ROOT))) {
+            throw new com.tcgdigital.vmcontrol.exception.ValidationException("direction must be SCALE_DOWN, SCALE_UP or MODERNIZE");
+        }
+        return ResponseEntity.ok(costEstimationService.getRightsizingCandidates(direction,
+                com.tcgdigital.vmcontrol.controller.support.Paging.of(page, size, 100)));
     }
 
     /**

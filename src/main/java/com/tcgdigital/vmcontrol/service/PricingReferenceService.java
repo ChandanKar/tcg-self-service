@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -163,6 +164,28 @@ public class PricingReferenceService {
         }
         Map<String, String> targets = generationUpgrades.get(typeKey(provider, instanceType));
         return targets == null ? Optional.empty() : Optional.ofNullable(targets.get(architecture));
+    }
+
+    /**
+     * Every same-size, same-architecture type of a newer generation in the same class (m, c, r or
+     * t), newest generation first (E30-T05): m5.large on x86_64 -> m7i.large, m6i.large, m6a.large.
+     */
+    public List<String> newerGenerationsOf(String instanceType, String architecture) {
+        InstanceSpec current = instanceType == null ? null : specsByType.get(instanceType);
+        int dot = instanceType == null ? -1 : instanceType.indexOf('.');
+        if (current == null || dot < 1 || architecture == null) {
+            return List.of();
+        }
+        char typeClass = instanceType.charAt(0);
+        String size = instanceType.substring(dot);
+        return specsByType.values().stream()
+                .filter(s -> s.instanceType().charAt(0) == typeClass && s.instanceType().endsWith(size)
+                        && s.instanceType().indexOf('.') == s.instanceType().length() - size.length()
+                        && architecture.equals(s.architecture()) && s.generation() > current.generation())
+                .sorted(java.util.Comparator.comparingInt(InstanceSpec::generation).reversed()
+                        .thenComparing(InstanceSpec::instanceType))
+                .map(InstanceSpec::instanceType)
+                .toList();
     }
 
     /** The Graviton (arm64) equivalent of the same size, when there is one. */

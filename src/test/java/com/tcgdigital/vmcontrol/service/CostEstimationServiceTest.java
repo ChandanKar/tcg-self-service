@@ -106,7 +106,7 @@ class CostEstimationServiceTest {
 
     @Test
     void fallsBackToCpuThresholdRuleWhenComputeOptimizerHasNoOpinion() {
-        when(computeOptimizerService.getEc2Recommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of());
+        when(computeOptimizerService.getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of());
 
         RightsizingCandidateDTO row = onlyCandidate();
 
@@ -119,7 +119,7 @@ class CostEstimationServiceTest {
     void prefersComputeOptimizerRecommendationWhenOneExists() {
         ComputeOptimizerService.Recommendation recommendation =
                 new ComputeOptimizerService.Recommendation(INSTANCE_ID, "OVER_PROVISIONED", List.of("m6a.large"));
-        when(computeOptimizerService.getEc2Recommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of(INSTANCE_ID, recommendation));
+        when(computeOptimizerService.getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of(INSTANCE_ID, recommendation));
 
         RightsizingCandidateDTO row = onlyCandidate();
 
@@ -141,7 +141,7 @@ class CostEstimationServiceTest {
         when(vmMetricSampleRepository.findByVmVmIdInAndSampleTimeBetweenOrderBySampleTimeAsc(anyList(), any(), any()))
                 .thenReturn(List.of(sample, sample));
 
-        when(computeOptimizerService.getEc2Recommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of());
+        when(computeOptimizerService.getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of());
 
         RightsizingCandidateDTO row = onlyCandidate();
 
@@ -152,11 +152,11 @@ class CostEstimationServiceTest {
 
     @Test
     void callsComputeOptimizerOncePerDistinctRegionNotPerVm() {
-        when(computeOptimizerService.getEc2Recommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of());
+        when(computeOptimizerService.getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of());
 
         onlyCandidate();
 
-        org.mockito.Mockito.verify(computeOptimizerService, org.mockito.Mockito.times(1)).getEc2Recommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION));
+        org.mockito.Mockito.verify(computeOptimizerService, org.mockito.Mockito.times(1)).getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION));
     }
 
     @Test
@@ -169,7 +169,7 @@ class CostEstimationServiceTest {
         CostDataProvider.VmCostEstimate estimate = new CostDataProvider.VmCostEstimate(
                 true, BigDecimal.valueOf(0.1664), BigDecimal.valueOf(720), 0, BigDecimal.valueOf(119.81));
         when(costDataProvider.estimateCosts(anyList(), any(), any())).thenReturn(Map.of(VM_ID, estimate, "vm-2", estimate));
-        org.mockito.Mockito.lenient().when(computeOptimizerService.getEc2Recommendations(
+        org.mockito.Mockito.lenient().when(computeOptimizerService.getAllRecommendations(
                 org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(Map.of());
 
         List<com.tcgdigital.vmcontrol.dto.SpendByDimensionDTO> rows = service.getSpendByAccount();
@@ -191,13 +191,13 @@ class CostEstimationServiceTest {
         CostDataProvider.VmCostEstimate estimate = new CostDataProvider.VmCostEstimate(
                 true, BigDecimal.valueOf(0.1664), BigDecimal.valueOf(720), 0, BigDecimal.valueOf(119.81));
         when(costDataProvider.estimateCosts(anyList(), any(), any())).thenReturn(Map.of(VM_ID, estimate, "vm-2", estimate));
-        when(computeOptimizerService.getEc2Recommendations(org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class)))
+        when(computeOptimizerService.getAllRecommendations(org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class)))
                 .thenReturn(Map.of());
 
         service.getRightsizingCandidates(PageRequest.of(0, 25));
 
-        org.mockito.Mockito.verify(computeOptimizerService).getEc2Recommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION));
-        org.mockito.Mockito.verify(computeOptimizerService).getEc2Recommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of("acct-b", REGION));
+        org.mockito.Mockito.verify(computeOptimizerService).getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION));
+        org.mockito.Mockito.verify(computeOptimizerService).getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of("acct-b", REGION));
     }
 
     /** A 3-node t3.xlarge EKS node group in place of the EC2 VM (E26-T02). */
@@ -340,6 +340,132 @@ class CostEstimationServiceTest {
         assertEquals(List.of("CPU_LOW"), row.reasons());
     }
 
+    // ---- One recommendation: modernize, alternatives, agreement (E30-T05) ----
+
+    /** No rule candidacy: no daily rows, no samples. */
+    private void quietVm(String instanceType) {
+        when(vmMetricDailyRepository.findByVmVmIdInAndBucketDateGreaterThanEqualOrderByVmVmIdAscBucketDateDesc(anyList(), any()))
+                .thenReturn(List.of());
+        when(instanceTypeProjection.getInstanceType()).thenReturn(instanceType);
+    }
+
+    private static ComputeOptimizerService.Recommendation co(String finding, ComputeOptimizerService.Option... options) {
+        List<ComputeOptimizerService.Option> list = List.of(options);
+        return new ComputeOptimizerService.Recommendation(INSTANCE_ID, finding,
+                list.stream().map(ComputeOptimizerService.Option::instanceType).toList(), list, List.of(), true);
+    }
+
+    private static ComputeOptimizerService.Option coOption(int rank, String type, String risk, String... differences) {
+        return new ComputeOptimizerService.Option(rank, type, new BigDecimal(risk), "Low", List.of(differences), null);
+    }
+
+    @Test
+    void anOlderGenerationVmIsModernizedWithAGravitonAlternativeThatCannotBeApplied() {
+        quietVm("m5.large");
+
+        RightsizingCandidateDTO row = onlyCandidate();
+
+        assertEquals("MODERNIZE", row.direction());
+        // m7i.large costs more per hour than m5.large in us-east-1, so the newest generation that
+        // is not dearer is chosen
+        assertEquals("m6a.large", row.suggestedInstanceType());
+        assertEquals("newer-generation", row.source());
+        assertEquals(List.of("NEWER_GENERATION"), row.reasons());
+        assertEquals(true, row.applicable());
+        assertEquals("ONLY_RULE", row.agreement());
+        var byType = row.alternatives().stream().collect(java.util.stream.Collectors.toMap(
+                com.tcgdigital.vmcontrol.dto.RightsizingOptionDTO::instanceType, o -> o));
+        assertEquals("NEWER_GENERATION", byType.get("m6a.large").kind());
+        assertEquals("NEWER_GENERATION", byType.get("m7i.large").kind());
+        assertEquals(true, byType.get("m7i.large").applicable());
+        var graviton = byType.get("m7g.large");
+        assertEquals("GRAVITON", graviton.kind());
+        assertEquals(true, graviton.requiresArchitectureChange());
+        assertEquals(false, graviton.applicable());
+        assertEquals("Requires an ARM64 image", graviton.applicableReason());
+        assertEquals("arm64", graviton.architecture());
+        assertEquals(true, row.canApply("m7i.large"));
+        assertEquals(false, row.canApply("m7g.large"));
+    }
+
+    @Test
+    void aCurrentGenerationVmWithNothingToSayIsNotListed() {
+        quietVm("m7i.large");
+
+        assertEquals(0, service.getRightsizingCandidates(PageRequest.of(0, 25)).getTotalElements());
+    }
+
+    @Test
+    void theDirectionFilterKeepsOnlyThatDirection() {
+        quietVm("m5.large");
+
+        assertEquals(1, service.getRightsizingCandidates("MODERNIZE", PageRequest.of(0, 25)).getTotalElements());
+        assertEquals(0, service.getRightsizingCandidates("SCALE_DOWN", PageRequest.of(0, 25)).getTotalElements());
+        // KPIs do not count a modernize row as a scale-up or a saving
+        assertEquals(0, service.getSummary().scaleUpCandidateCount());
+        assertEquals(0, service.getSummary().rightsizingCandidateCount());
+    }
+
+    @Test
+    void computeOptimizerFindingOptimizedWhileTheRuleSaysScaleDownIsADisagreement() {
+        when(computeOptimizerService.getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)))
+                .thenReturn(Map.of(INSTANCE_ID, co("OPTIMIZED")));
+
+        RightsizingCandidateDTO row = onlyCandidate();
+
+        assertEquals("SCALE_DOWN", row.direction());
+        assertEquals("t3.large", row.suggestedInstanceType());
+        assertEquals("DISAGREE", row.agreement());
+    }
+
+    @Test
+    void theSameSuggestionFromBothIsAnAgreementAndOptionsCarryTheirRisk() {
+        when(computeOptimizerService.getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)))
+                .thenReturn(Map.of(INSTANCE_ID, co("OVER_PROVISIONED",
+                        coOption(1, "t3.large", "1.50"), coOption(2, "t4g.large", "2.00", "Architecture"))));
+
+        RightsizingCandidateDTO row = onlyCandidate();
+
+        assertEquals("compute-optimizer", row.source());
+        assertEquals("t3.large", row.suggestedInstanceType());
+        assertEquals("AGREE", row.agreement());
+        var chosen = row.alternatives().get(0);
+        assertEquals("t3.large", chosen.instanceType());
+        assertEquals("compute-optimizer", chosen.source());
+        var graviton = row.alternatives().stream().filter(o -> o.instanceType().equals("t4g.large")).findFirst().orElseThrow();
+        assertEquals("GRAVITON", graviton.kind());
+        assertEquals(false, graviton.applicable());
+        // the chosen option keeps Compute Optimizer's own risk
+        assertEquals(0, new BigDecimal("1.50").compareTo(chosen.performanceRisk()));
+    }
+
+    @Test
+    void anInstanceOnlyComputeOptimizerFlagsIsListedAsOnlyAws() {
+        quietVm("t3.xlarge");
+        when(computeOptimizerService.getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)))
+                .thenReturn(Map.of(INSTANCE_ID, co("OVER_PROVISIONED", coOption(1, "t3.large", "1.00"))));
+
+        RightsizingCandidateDTO row = onlyCandidate();
+
+        assertEquals("SCALE_DOWN", row.direction());
+        assertEquals("compute-optimizer", row.source());
+        assertEquals("ONLY_AWS", row.agreement());
+        assertEquals(List.of("AWS_OVER_PROVISIONED"), row.reasons());
+    }
+
+    @Test
+    void aGravitonOptionChosenByComputeOptimizerIsNotApplicable() {
+        when(computeOptimizerService.getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)))
+                .thenReturn(Map.of(INSTANCE_ID, co("OVER_PROVISIONED", coOption(1, "t4g.large", "0.50", "Architecture"))));
+
+        RightsizingCandidateDTO row = onlyCandidate();
+
+        assertEquals("t4g.large", row.suggestedInstanceType());
+        assertEquals(false, row.applicable());
+        assertEquals("Requires an ARM64 image", row.applicableReason());
+        assertEquals(false, row.canApply("t4g.large"));
+    }
+
     private RightsizingCandidateDTO onlyCandidate() {
         List<RightsizingCandidateDTO> content =
                 service.getRightsizingCandidates(PageRequest.of(0, 25)).getContent();
@@ -478,8 +604,8 @@ class CostEstimationServiceTest {
     void aComputeOptimizerOptionDearerThanTheCurrentTypeIsSkipped() {
         // t3.xlarge now; the top option (t3.2xlarge) costs more, the next (m6a.large) is cheaper.
         ComputeOptimizerService.Recommendation recommendation = new ComputeOptimizerService.Recommendation(
-                INSTANCE_ID, "OVERPROVISIONED", List.of("t3.2xlarge", "m6a.large"));
-        when(computeOptimizerService.getEc2Recommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of(INSTANCE_ID, recommendation));
+                INSTANCE_ID, "OVER_PROVISIONED", List.of("t3.2xlarge", "m6a.large"));
+        when(computeOptimizerService.getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of(INSTANCE_ID, recommendation));
 
         RightsizingCandidateDTO row = onlyCandidate();
 
@@ -491,8 +617,8 @@ class CostEstimationServiceTest {
     @Test
     void withOnlyDearerOptionsTheRuleBasedSuggestionIsUsed() {
         ComputeOptimizerService.Recommendation recommendation = new ComputeOptimizerService.Recommendation(
-                INSTANCE_ID, "OVERPROVISIONED", List.of("t3.2xlarge"));
-        when(computeOptimizerService.getEc2Recommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of(INSTANCE_ID, recommendation));
+                INSTANCE_ID, "OVER_PROVISIONED", List.of("t3.2xlarge"));
+        when(computeOptimizerService.getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of(INSTANCE_ID, recommendation));
 
         RightsizingCandidateDTO row = onlyCandidate();
 
@@ -545,8 +671,8 @@ class CostEstimationServiceTest {
         List<VmMetricDaily> days = List.of(quietDay(0), quietDay(1), quietDay(2));
         when(vmMetricDailyRepository.findByVmVmIdInAndBucketDateGreaterThanEqualOrderByVmVmIdAscBucketDateDesc(anyList(), any()))
                 .thenReturn(days);
-        org.mockito.Mockito.lenient().when(computeOptimizerService.getEc2Recommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of(INSTANCE_ID,
-                new ComputeOptimizerService.Recommendation(INSTANCE_ID, "OVERPROVISIONED", List.of("m6a.large"))));
+        org.mockito.Mockito.lenient().when(computeOptimizerService.getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(Map.of(INSTANCE_ID,
+                new ComputeOptimizerService.Recommendation(INSTANCE_ID, "OVER_PROVISIONED", List.of("m6a.large"))));
 
         RightsizingCandidateDTO row = onlyCandidate();
 

@@ -3,6 +3,7 @@ package com.tcgdigital.vmcontrol.service;
 import com.tcgdigital.vmcontrol.dto.CostSummaryDTO;
 import com.tcgdigital.vmcontrol.dto.IdleWasteRowDTO;
 import com.tcgdigital.vmcontrol.dto.RightsizingCandidateDTO;
+import com.tcgdigital.vmcontrol.dto.RightsizingOptionDTO;
 import com.tcgdigital.vmcontrol.dto.SpendByDimensionDTO;
 import com.tcgdigital.vmcontrol.dto.SpendTrendPointDTO;
 import com.tcgdigital.vmcontrol.dto.TeamSpendTrendPointDTO;
@@ -181,7 +182,7 @@ public class CostEstimationService {
         BigDecimal rightsizingSavings = candidates.stream()
                 .map(RightsizingCandidateDTO::estimatedMonthlySavings)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        int scaleUpCandidateCount = allCandidates.size() - candidates.size();
+        int scaleUpCandidateCount = (int) allCandidates.stream().filter(c -> "SCALE_UP".equals(c.direction())).count();
 
         long costKnownCount = bundles.stream().filter(b -> b.estimate().costKnown()).count();
 
@@ -257,7 +258,16 @@ public class CostEstimationService {
     }
 
     public Page<RightsizingCandidateDTO> getRightsizingCandidates(Pageable pageable) {
-        Page<RightsizingCandidateDTO> page = paginate(buildRightsizingCandidates(buildBundles()), pageable);
+        return getRightsizingCandidates(null, pageable);
+    }
+
+    /** Candidates of one direction (SCALE_DOWN, SCALE_UP, MODERNIZE) or all when null (E30-T05). */
+    public Page<RightsizingCandidateDTO> getRightsizingCandidates(String direction, Pageable pageable) {
+        List<RightsizingCandidateDTO> all = buildRightsizingCandidates(buildBundles());
+        if (direction != null && !direction.isBlank()) {
+            all = all.stream().filter(c -> direction.equalsIgnoreCase(c.direction())).toList();
+        }
+        Page<RightsizingCandidateDTO> page = paginate(all, pageable);
         Map<String, com.tcgdigital.vmcontrol.model.ExternalTicket> tickets = jiraTickets(
                 com.tcgdigital.vmcontrol.model.ExternalTicket.SourceType.RIGHTSIZING,
                 page.getContent().stream().map(RightsizingCandidateDTO::vmId).toList());
@@ -458,10 +468,14 @@ public class CostEstimationService {
 
         Map<String, String> instanceTypeByVmId = new LinkedHashMap<>();
         Map<String, Integer> memoryMibByVmId = new LinkedHashMap<>();
+        Map<String, String> architectureByVmId = new LinkedHashMap<>();
         Map<String, Timestamp> typeChangedAtByVmId = new LinkedHashMap<>();
         for (VmInventorySnapshotRepository.InstanceTypeProjection projection
                 : vmInventorySnapshotRepository.findInstanceTypesByVmIds(vmIds)) {
             instanceTypeByVmId.put(projection.getVmId(), projection.getInstanceType());
+            if (projection.getArchitecture() != null) {
+                architectureByVmId.put(projection.getVmId(), projection.getArchitecture());
+            }
             if (projection.getMemoryMib() != null && projection.getMemoryMib() > 0) {
                 memoryMibByVmId.put(projection.getVmId(), projection.getMemoryMib());
             }
@@ -506,7 +520,8 @@ public class CostEstimationService {
                     up.candidate(),
                     typeChangedAtByVmId.get(vmId),
                     memoryMib,
-                    down.candidate() ? down.reasons() : up.reasons()
+                    down.candidate() ? down.reasons() : up.reasons(),
+                    architectureByVmId.get(vmId)
             ));
         }
         return bundles;
@@ -607,17 +622,17 @@ public class CostEstimationService {
     }
 
     /**
-     * Candidacy rule: {@link #computeScaleDownCandidates} OR {@link #computeScaleUpCandidates}
-     * (never both — scale-down is checked first). Plain {@code CloudProvider.AWS} VMs and, since
-     * E26-T02, {@code AWS_EKS} node groups (priced as N EC2 nodes) are eligible. A node group is
-     * resized through its node-group/launch-template update in EKS, not the per-instance resize
-     * here, so its row is advice only (the UI offers no Apply for it).
+     * One recommendation per VM from the local rules and AWS Compute Optimizer (E30-T05).
+     * Direction: {@link #computeScaleDownCandidates} SCALE_DOWN, else {@link #computeScaleUpCandidates}
+     * SCALE_UP, else an instance Compute Optimizer finds over-provisioned with a cheaper option
+     * (SCALE_DOWN, agreement ONLY_AWS), else MODERNIZE when the same-architecture newer generation
+     * costs the same or less per hour. Plain {@code CloudProvider.AWS} VMs and, since E26-T02,
+     * {@code AWS_EKS} node groups (priced as N EC2 nodes) are eligible; a node group is resized in
+     * EKS, so its row is advice only (not applicable here) and Compute Optimizer has no opinion on it.
      *
-     * Where AWS Compute Optimizer has a real recommendation for a scale-down candidate, its
-     * suggested instance type is used (source={@code compute-optimizer}) instead of the local
-     * downsize-map guess — it's a second, AWS-vetted signal that overlays the rule rather than
-     * replacing it. Compute Optimizer integration is scale-down only; scale-up candidates and
-     * {@code AWS_EKS} VMs always use the local sizing map (source={@code cpu-threshold-rule}).
+     * For a scale-down, a cheaper Compute Optimizer option wins over the local downsize map
+     * (source={@code compute-optimizer}); every candidate also lists its alternatives (newer
+     * generation, Graviton, every Compute Optimizer option) and whether AWS and the rules agree.
      */
     private List<RightsizingCandidateDTO> buildRightsizingCandidates(List<VmCostBundle> bundles) {
         List<RightsizingCandidateDTO> candidates = new ArrayList<>();
@@ -629,46 +644,58 @@ public class CostEstimationService {
                 continue;
             }
 
-            String direction;
-            if (b.scaleDownCandidate()) {
-                direction = "SCALE_DOWN";
-            } else if (b.scaleUpCandidate()) {
-                direction = "SCALE_UP";
-            } else {
-                continue;
-            }
-
             // EKS nodes are plain EC2 instances: price them as AWS, times the node count (E26-T02).
             boolean eks = b.vm().getProvider() == CloudProvider.AWS_EKS;
             String provider = eks ? CloudProvider.AWS.name() : b.vm().getProvider().name();
             int nodes = eks ? EstimatedCostProvider.eksNodeInfo(b.vm().getMetadata()).nodeCount() : 1;
-            boolean isScaleDown = "SCALE_DOWN".equals(direction);
+            String region = b.vm().getRegion();
             // Compute Optimizer needs ~14 days on the new size: ignore it right after a resize (E08-T06).
             boolean inCooldown = b.instanceTypeChangedAt() != null && b.instanceTypeChangedAt().toInstant()
                     .isAfter(Instant.now().minus(java.time.Duration.ofDays(live("rightsizing.post-resize-cooldown-days", postResizeCooldownDays))));
-            ComputeOptimizerService.Recommendation recommendation =
-                    isScaleDown && !inCooldown ? recommendationsByInstanceId.get(b.vm().getProviderVmId()) : null;
+            ComputeOptimizerService.Recommendation co =
+                    eks || inCooldown ? null : recommendationsByInstanceId.get(b.vm().getProviderVmId());
+            // A Compute Optimizer option counts only if it is actually cheaper (E08-T05, M11).
+            String cheaperOption = co == null || !co.overProvisioned() ? null
+                    : firstCheaperOption(co, provider, region, b.estimate().hourlyRate());
+
+            String direction;
+            List<String> reasons = new ArrayList<>(b.reasons());
+            boolean ruleCandidate = true;
+            String modernizeTarget = null;
+            if (b.scaleDownCandidate()) {
+                direction = "SCALE_DOWN";
+            } else if (b.scaleUpCandidate()) {
+                direction = "SCALE_UP";
+            } else if (cheaperOption != null) {
+                direction = "SCALE_DOWN";
+                ruleCandidate = false;
+                reasons = new ArrayList<>(List.of("AWS_OVER_PROVISIONED"));
+            } else if (!eks && (modernizeTarget = modernizeTarget(b, provider)) != null) {
+                direction = "MODERNIZE";
+                reasons = new ArrayList<>(List.of("NEWER_GENERATION"));
+            } else {
+                continue;
+            }
+            boolean isScaleDown = "SCALE_DOWN".equals(direction);
 
             String suggestedType;
             String source;
-            String findingLevel;
-            // A Compute Optimizer option counts only if it is actually cheaper (E08-T05, M11).
-            String cheaperOption = recommendation == null ? null
-                    : firstCheaperOption(recommendation, provider, b.vm().getRegion(), b.estimate().hourlyRate());
-            if (cheaperOption != null) {
+            String findingLevel = null;
+            if (modernizeTarget != null) {
+                suggestedType = modernizeTarget;
+                source = "newer-generation";
+            } else if (isScaleDown && cheaperOption != null) {
                 suggestedType = cheaperOption;
                 source = "compute-optimizer";
-                findingLevel = recommendation.finding();
+                findingLevel = co.finding();
             } else {
                 suggestedType = isScaleDown
                         ? pricingReferenceService.suggestSmallerType(provider, b.instanceType()).orElse(null)
                         : pricingReferenceService.suggestLargerType(provider, b.instanceType()).orElse(null);
                 source = "cpu-threshold-rule";
-                findingLevel = null;
             }
 
             // A smaller type must hold the observed memory peak plus headroom (E30-T03).
-            List<String> reasons = new ArrayList<>(b.reasons());
             boolean wouldNotFit = isScaleDown && suggestedType != null && !memoryFits(b, suggestedType);
             if (wouldNotFit) {
                 reasons.add("MEMORY_WOULD_NOT_FIT");
@@ -676,32 +703,26 @@ public class CostEstimationService {
             }
 
             BigDecimal currentCost = b.estimate().cost();
-            BigDecimal afterCost = null;
-            BigDecimal savings = null;
-            boolean costKnown = false;
-            boolean approximate = b.estimate().priceApproximate();
-
-            if (suggestedType != null && b.estimate().costKnown()) {
-                PricingReferenceService.PriceLookupResult afterRate =
-                        pricingReferenceService.lookupHourlyRate(provider, suggestedType, b.vm().getRegion());
-                if (afterRate.priceKnown()) {
-                    approximate = approximate || afterRate.approximate();
-                    afterCost = vmCostCalculator.estimateCost(afterRate.hourlyRate().multiply(BigDecimal.valueOf(nodes)),
-                            b.estimate().runtimeHours(),
-                            b.estimate().storageGib(), pricingReferenceService.getStorageGbMonthRate(),
-                            // Intentionally the full window: the "after" cost is a 30-day projection.
-                            BigDecimal.valueOf(COST_WINDOW_DAYS));
-                    // Negative for scale-up (a cost increase) — expected, not a bug; the shared
-                    // sort below naturally ranks scale-up candidates after every real saving.
-                    savings = currentCost.subtract(afterCost);
-                    costKnown = true;
-                }
-            }
+            Priced priced = price(b, provider, nodes, suggestedType);
+            BigDecimal afterCost = priced == null ? null : priced.monthlyCost();
+            // Negative for scale-up (a cost increase) — expected, not a bug; the shared sort below
+            // naturally ranks scale-up candidates after every real saving.
+            BigDecimal savings = priced == null ? null : priced.savings();
+            boolean costKnown = priced != null;
+            boolean approximate = b.estimate().priceApproximate() || (priced != null && priced.approximate());
             // A scale-down that saves nothing is not a recommendation (E08-T05); one dropped for
             // memory stays listed without a suggestion so admins see why.
             if (isScaleDown && !wouldNotFit && (savings == null || savings.signum() <= 0)) {
                 continue;
             }
+
+            String architecture = currentArchitecture(b);
+            String chosenKind = modernizeTarget != null ? "NEW_GEN" : "RIGHTSIZE";
+            List<RightsizingOptionDTO> alternatives = alternatives(b, provider, nodes, eks, isScaleDown, suggestedType,
+                    chosenKind, source, co, architecture);
+            String applicableReason = eks ? "Change the node group in EKS"
+                    : suggestedType == null ? "No suggestion"
+                    : architectureChangeReason(architecture, suggestedType);
 
             candidates.add(new RightsizingCandidateDTO(
                     b.vm().getVmId(),
@@ -722,13 +743,163 @@ public class CostEstimationService {
                     b.vm().getStatus().name(),
                     approximate
             ).withNodeCount(eks ? nodes : null)
-                    .withMemory(b.avgMemory(), b.peakMemory(), b.peakMemory() != null, reasons));
+                    .withMemory(b.avgMemory(), b.peakMemory(), b.peakMemory() != null, reasons)
+                    .withRecommendation(alternatives, agreement(direction, ruleCandidate, co, suggestedType),
+                            applicableReason == null, applicableReason));
         }
 
         candidates.sort(Comparator.comparing(
                 (RightsizingCandidateDTO d) -> d.estimatedMonthlySavings() == null ? BigDecimal.ZERO : d.estimatedMonthlySavings()
         ).reversed());
         return candidates;
+    }
+
+    /** A priced option: its 30-day cost, the saving against the current cost, and whether a rate was another region's. */
+    private record Priced(BigDecimal monthlyCost, BigDecimal savings, boolean approximate) {
+    }
+
+    private Priced price(VmCostBundle b, String provider, int nodes, String type) {
+        if (type == null || !b.estimate().costKnown()) {
+            return null;
+        }
+        PricingReferenceService.PriceLookupResult rate = pricingReferenceService.lookupHourlyRate(provider, type, b.vm().getRegion());
+        if (!rate.priceKnown()) {
+            return null;
+        }
+        BigDecimal after = vmCostCalculator.estimateCost(rate.hourlyRate().multiply(BigDecimal.valueOf(nodes)),
+                b.estimate().runtimeHours(),
+                b.estimate().storageGib(), pricingReferenceService.getStorageGbMonthRate(),
+                // Intentionally the full window: the "after" cost is a 30-day projection.
+                BigDecimal.valueOf(COST_WINDOW_DAYS));
+        return new Priced(after, b.estimate().cost().subtract(after), rate.approximate());
+    }
+
+    /**
+     * The newest same-architecture newer-generation type of the same size that costs the same or
+     * less per hour than the current one, the cheapest within that generation (E30-T05), else null.
+     * m5.large in us-east-1 becomes m6a.large: m7i.large costs more per hour.
+     */
+    private String modernizeTarget(VmCostBundle b, String provider) {
+        if (b.instanceType() == null) {
+            return null;
+        }
+        PricingReferenceService.PriceLookupResult now = pricingReferenceService.lookupHourlyRate(provider, b.instanceType(), b.vm().getRegion());
+        if (!now.priceKnown()) {
+            return null;
+        }
+        String best = null;
+        BigDecimal bestRate = null;
+        int bestGeneration = -1;
+        for (String type : pricingReferenceService.newerGenerationsOf(b.instanceType(), currentArchitecture(b))) {
+            int generation = pricingReferenceService.getSpec(type).map(PricingReferenceService.InstanceSpec::generation).orElse(0);
+            if (best != null && generation < bestGeneration) {
+                break; // newest generation first: an older one is never preferred
+            }
+            PricingReferenceService.PriceLookupResult rate = pricingReferenceService.lookupHourlyRate(provider, type, b.vm().getRegion());
+            if (rate.priceKnown() && rate.hourlyRate().compareTo(now.hourlyRate()) <= 0
+                    && (bestRate == null || rate.hourlyRate().compareTo(bestRate) < 0)) {
+                best = type;
+                bestRate = rate.hourlyRate();
+                bestGeneration = generation;
+            }
+        }
+        return best;
+    }
+
+    /** x86_64 or arm64: the inventory's, else the current type's spec, else x86_64. */
+    private String currentArchitecture(VmCostBundle b) {
+        if (b.architecture() != null && !b.architecture().isBlank()) {
+            return b.architecture().toLowerCase(java.util.Locale.ROOT).startsWith("arm") ? "arm64" : "x86_64";
+        }
+        return pricingReferenceService.getSpec(b.instanceType()).map(PricingReferenceService.InstanceSpec::architecture).orElse("x86_64");
+    }
+
+    private String architectureOf(String type) {
+        return pricingReferenceService.getSpec(type).map(PricingReferenceService.InstanceSpec::architecture).orElse(null);
+    }
+
+    /** Why a type cannot be applied for its architecture, or null when it runs on the VM's image. */
+    private String architectureChangeReason(String currentArchitecture, String type) {
+        String target = architectureOf(type);
+        if (target == null || target.equals(currentArchitecture)) {
+            return null;
+        }
+        return "arm64".equals(target) ? "Requires an ARM64 image" : "Requires an x86_64 image";
+    }
+
+    /**
+     * The chosen option, the newer-generation and Graviton equivalents (of the suggested size, else
+     * the current one) and every Compute Optimizer option, each priced, without repeats (E30-T05).
+     */
+    private List<RightsizingOptionDTO> alternatives(VmCostBundle b, String provider, int nodes, boolean eks, boolean scaleDown,
+                                                    String suggestedType, String chosenKind, String chosenSource,
+                                                    ComputeOptimizerService.Recommendation co, String architecture) {
+        Map<String, RightsizingOptionDTO> byType = new LinkedHashMap<>();
+        java.util.function.BiConsumer<String, Object[]> add = (type, meta) -> {
+            if (type == null || type.equals(b.instanceType()) || byType.containsKey(type)) {
+                return;
+            }
+            String kind = (String) meta[0];
+            String source = (String) meta[1];
+            BigDecimal risk = (BigDecimal) meta[2];
+            String typeArchitecture = architectureOf(type);
+            String archReason = architectureChangeReason(architecture, type);
+            String reason = eks ? "Change the node group in EKS"
+                    : archReason != null ? archReason
+                    : scaleDown && !memoryFits(b, type) ? "Would not hold the memory peak"
+                    : null;
+            Priced priced = price(b, provider, nodes, type);
+            byType.put(type, new RightsizingOptionDTO(type, kind, source, typeArchitecture,
+                    priced == null ? null : priced.monthlyCost(), priced == null ? null : priced.savings(), risk,
+                    archReason != null, reason == null, reason));
+        };
+        BigDecimal chosenRisk = co == null || suggestedType == null ? null : co.options().stream()
+                .filter(o -> suggestedType.equals(o.instanceType())).map(ComputeOptimizerService.Option::performanceRisk)
+                .findFirst().orElse(null);
+        add.accept(suggestedType, new Object[] {"NEW_GEN".equals(chosenKind) ? "NEWER_GENERATION" : "RIGHTSIZE", chosenSource, chosenRisk});
+        String base = suggestedType != null ? suggestedType : b.instanceType();
+        add.accept(pricingReferenceService.suggestNewerGeneration(provider, base, architecture).orElse(null),
+                new Object[] {"NEWER_GENERATION", "newer-generation", null});
+        String graviton = pricingReferenceService.suggestGraviton(provider, base)
+                .or(() -> pricingReferenceService.suggestGraviton(provider, b.instanceType())).orElse(null);
+        if (!"arm64".equals(architecture)) {
+            add.accept(graviton, new Object[] {"GRAVITON", "graviton", null});
+        }
+        if (co != null) {
+            for (ComputeOptimizerService.Option option : co.options()) {
+                String typeArchitecture = architectureOf(option.instanceType());
+                boolean arm = "arm64".equals(typeArchitecture) && !"arm64".equals(architecture);
+                add.accept(option.instanceType(), new Object[] {arm ? "GRAVITON" : "RIGHTSIZE", "compute-optimizer", option.performanceRisk()});
+            }
+        }
+        return List.copyOf(byType.values());
+    }
+
+    /**
+     * AGREE when Compute Optimizer's top option is the suggestion or both point the same way,
+     * ONLY_RULE / ONLY_AWS when one side has nothing, DISAGREE when they point different ways
+     * (E30-T05).
+     */
+    private static String agreement(String direction, boolean ruleCandidate, ComputeOptimizerService.Recommendation co,
+                                    String suggestedType) {
+        if (co == null) {
+            return "ONLY_RULE";
+        }
+        if (!ruleCandidate) {
+            return "ONLY_AWS";
+        }
+        if (suggestedType != null && suggestedType.equals(co.suggestedInstanceType())) {
+            return "AGREE";
+        }
+        String finding = co.finding();
+        return switch (direction) {
+            case "SCALE_DOWN" -> ComputeOptimizerService.OVER_PROVISIONED.equals(finding) ? "AGREE"
+                    : "OPTIMIZED".equals(finding) || "UNDER_PROVISIONED".equals(finding) ? "DISAGREE" : "ONLY_RULE";
+            case "SCALE_UP" -> "UNDER_PROVISIONED".equals(finding) ? "AGREE"
+                    : "OPTIMIZED".equals(finding) || ComputeOptimizerService.OVER_PROVISIONED.equals(finding) ? "DISAGREE" : "ONLY_RULE";
+            default -> co.optionTypesByRank().contains(suggestedType) ? "AGREE"
+                    : "UNDER_PROVISIONED".equals(finding) ? "DISAGREE" : "ONLY_RULE";
+        };
     }
 
     /**
@@ -752,9 +923,8 @@ public class CostEstimationService {
     }
 
     /**
-     * One Compute Optimizer call per distinct region among the fleet's plain-EC2 VMs (never
-     * per-VM) — a no-op returning an empty map when {@code cost.optimizer.enabled=false}, so this
-     * fetch is safe to leave in the hot path unconditionally.
+     * Compute Optimizer's stored view (E30-T04) of every instance of the fleet's plain-EC2 accounts
+     * and regions, any finding — no AWS call; empty when {@code cost.optimizer.enabled=false}.
      */
     private Map<String, ComputeOptimizerService.Recommendation> fetchComputeOptimizerRecommendations(List<VmCostBundle> bundles) {
         Map<String, ComputeOptimizerService.Recommendation> result = new LinkedHashMap<>();
@@ -762,7 +932,7 @@ public class CostEstimationService {
                 .filter(b -> b.vm().getProvider() == CloudProvider.AWS)
                 .map(b -> CloudTarget.of(b.vm()))
                 .distinct()
-                .forEach(target -> result.putAll(computeOptimizerService.getEc2Recommendations(target)));
+                .forEach(target -> result.putAll(computeOptimizerService.getAllRecommendations(target)));
         return result;
     }
 
@@ -872,6 +1042,8 @@ public class CostEstimationService {
             /** Memory of the current type: inventory, else the pricing reference's spec (E30-T03). */
             Integer currentMemoryMib,
             /** Reason codes of the direction the VM qualifies for (E30-T03). */
-            List<String> reasons
+            List<String> reasons,
+            /** x86_64 or arm64 from inventory (E30-T05); null when not recorded. */
+            String architecture
     ) {}
 }

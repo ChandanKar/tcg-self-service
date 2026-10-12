@@ -20,7 +20,14 @@ import java.math.BigDecimal;
  *               {@code "cpu-threshold-rule"}. Compute Optimizer integration is scale-down only.
  * @param findingLevel Compute Optimizer's own finding (e.g. {@code "OVER_PROVISIONED"}) when
  *                      {@code source} is {@code "compute-optimizer"}, else null.
- * @param direction {@code "SCALE_DOWN"} or {@code "SCALE_UP"}.
+ * @param direction {@code "SCALE_DOWN"}, {@code "SCALE_UP"} or (E30-T05) {@code "MODERNIZE"}: a VM on an
+ *                  older generation whose same-architecture newer type costs the same or less.
+ * @param alternatives every option worth knowing (E30-T05): the chosen one, the newer-generation and
+ *                     Graviton equivalents, and every Compute Optimizer option, each priced.
+ * @param agreement {@code AGREE}, {@code ONLY_AWS}, {@code ONLY_RULE} or {@code DISAGREE}: whether
+ *                  Compute Optimizer and the local rules point the same way.
+ * @param applicable whether Apply may change the VM to the suggested type ({@code applicableReason}
+ *                   says why not: an EKS node group, another CPU architecture, no suggestion).
  * @param reasons why the VM is a candidate: CPU_LOW, CPU_HIGH, MEMORY_LOW, MEMORY_HIGH,
  *                MEMORY_UNKNOWN, MEMORY_WOULD_NOT_FIT.
  * @param vmStatus the VM's current {@code VmStatus} (e.g. {@code "STOPPED"}) — the Apply action
@@ -56,7 +63,11 @@ public record RightsizingCandidateDTO(
         BigDecimal avgMemoryUtilization,
         BigDecimal peakMemoryUtilization,
         Boolean memoryDataAvailable,
-        java.util.List<String> reasons
+        java.util.List<String> reasons,
+        java.util.List<RightsizingOptionDTO> alternatives,
+        String agreement,
+        Boolean applicable,
+        String applicableReason
 ) {
     public RightsizingCandidateDTO(String vmId, String vmName, String environmentId, String environmentName,
                                    String currentInstanceType, String suggestedInstanceType,
@@ -67,21 +78,23 @@ public record RightsizingCandidateDTO(
         this(vmId, vmName, environmentId, environmentName, currentInstanceType, suggestedInstanceType,
                 avgCpuUtilization, peakCpuUtilization, currentMonthlyCost, estimatedMonthlyCostAfter,
                 estimatedMonthlySavings, costKnown, source, findingLevel, direction, vmStatus, priceApproximate, null, null, null,
-                null, null, false, java.util.List.of());
+                null, null, false, java.util.List.of(), java.util.List.of(), null, suggestedInstanceType != null, null);
     }
 
     public RightsizingCandidateDTO withJira(String key, String url) {
         return new RightsizingCandidateDTO(vmId, vmName, environmentId, environmentName, currentInstanceType,
                 suggestedInstanceType, avgCpuUtilization, peakCpuUtilization, currentMonthlyCost, estimatedMonthlyCostAfter,
                 estimatedMonthlySavings, costKnown, source, findingLevel, direction, vmStatus, priceApproximate, key, url, nodeCount,
-                avgMemoryUtilization, peakMemoryUtilization, memoryDataAvailable, reasons);
+                avgMemoryUtilization, peakMemoryUtilization, memoryDataAvailable, reasons, alternatives, agreement, applicable,
+                applicableReason);
     }
 
     public RightsizingCandidateDTO withNodeCount(Integer nodes) {
         return new RightsizingCandidateDTO(vmId, vmName, environmentId, environmentName, currentInstanceType,
                 suggestedInstanceType, avgCpuUtilization, peakCpuUtilization, currentMonthlyCost, estimatedMonthlyCostAfter,
                 estimatedMonthlySavings, costKnown, source, findingLevel, direction, vmStatus, priceApproximate, jiraKey, jiraUrl, nodes,
-                avgMemoryUtilization, peakMemoryUtilization, memoryDataAvailable, reasons);
+                avgMemoryUtilization, peakMemoryUtilization, memoryDataAvailable, reasons, alternatives, agreement, applicable,
+                applicableReason);
     }
 
     public RightsizingCandidateDTO withMemory(BigDecimal avgMemory, BigDecimal peakMemory, boolean available,
@@ -89,7 +102,28 @@ public record RightsizingCandidateDTO(
         return new RightsizingCandidateDTO(vmId, vmName, environmentId, environmentName, currentInstanceType,
                 suggestedInstanceType, avgCpuUtilization, peakCpuUtilization, currentMonthlyCost, estimatedMonthlyCostAfter,
                 estimatedMonthlySavings, costKnown, source, findingLevel, direction, vmStatus, priceApproximate, jiraKey, jiraUrl,
-                nodeCount, avgMemory, peakMemory, available, why == null ? java.util.List.of() : java.util.List.copyOf(why));
+                nodeCount, avgMemory, peakMemory, available, why == null ? java.util.List.of() : java.util.List.copyOf(why),
+                alternatives, agreement, applicable, applicableReason);
+    }
+
+    public RightsizingCandidateDTO withRecommendation(java.util.List<RightsizingOptionDTO> options, String agree,
+                                                      boolean canApply, String whyNot) {
+        return new RightsizingCandidateDTO(vmId, vmName, environmentId, environmentName, currentInstanceType,
+                suggestedInstanceType, avgCpuUtilization, peakCpuUtilization, currentMonthlyCost, estimatedMonthlyCostAfter,
+                estimatedMonthlySavings, costKnown, source, findingLevel, direction, vmStatus, priceApproximate, jiraKey, jiraUrl,
+                nodeCount, avgMemoryUtilization, peakMemoryUtilization, memoryDataAvailable, reasons,
+                options == null ? java.util.List.of() : java.util.List.copyOf(options), agree, canApply, whyNot);
+    }
+
+    /** Whether Apply may change the VM to {@code type}: the suggestion or an applicable alternative (E30-T05). */
+    public boolean canApply(String type) {
+        if (type == null) {
+            return false;
+        }
+        if (type.equals(suggestedInstanceType)) {
+            return !Boolean.FALSE.equals(applicable);
+        }
+        return alternatives != null && alternatives.stream().anyMatch(o -> o.applicable() && type.equals(o.instanceType()));
     }
 
     public RightsizingCandidateDTO(String vmId, String vmName, String environmentId, String environmentName,

@@ -163,4 +163,11 @@
 
 .commitments-panel .commitments-note {
     margin-top: 0.5rem;
-}
+}
+
+/* Rightsizing direction filter and alternatives (E30-T05) */
+.rightsizing-filter { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 10px; }
+.rightsizing-alternatives > td { background: var(--bs-tertiary-bg, #f6f8fa); padding: 8px 12px; }
+.rightsizing-options-table { font-size: 0.85rem; }
+.rightsizing-options-table th { font-weight: 600; white-space: nowrap; }
+.rightsizing-agreement { font-weight: 500; }

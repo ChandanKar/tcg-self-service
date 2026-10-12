@@ -19,7 +19,7 @@ public interface VmInventorySnapshotRepository extends JpaRepository<VmInventory
      * dereferencing) full snapshot entities just to read one field.
      */
     @Query("SELECT s.vm.vmId AS vmId, s.instanceType AS instanceType, s.instanceTypeChangedAt AS instanceTypeChangedAt, " +
-           "s.memoryMib AS memoryMib " +
+           "s.memoryMib AS memoryMib, s.architecture AS architecture " +
            "FROM VmInventorySnapshot s WHERE s.vm.vmId IN :vmIds")
     List<InstanceTypeProjection> findInstanceTypesByVmIds(@Param("vmIds") List<String> vmIds);
 
@@ -35,5 +35,7 @@ public interface VmInventorySnapshotRepository extends JpaRepository<VmInventory
         java.sql.Timestamp getInstanceTypeChangedAt();
         /** Memory of the current type from EC2 (E30-T03); null when inventory has not recorded it. */
         Integer getMemoryMib();
+        /** x86_64 or arm64, as EC2 reports it (E30-T05); null when not recorded. */
+        String getArchitecture();
     }
 }

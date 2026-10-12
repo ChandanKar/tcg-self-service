@@ -276,8 +276,11 @@ public class WeeklyReportService {
         Date currentSnapshotDate = Date.valueOf(today);
         Date previousSnapshotDate = Date.valueOf(today.minusWeeks(1));
 
+        // Scale-downs and scale-ups only; MODERNIZE rows stay on the page (E30-T05).
         List<RightsizingCandidateDTO> allCandidates = costEstimationService
-                .getRightsizingCandidates(PageRequest.of(0, Integer.MAX_VALUE)).getContent();
+                .getRightsizingCandidates(PageRequest.of(0, Integer.MAX_VALUE)).getContent().stream()
+                .filter(c -> "SCALE_DOWN".equals(c.direction()) || "SCALE_UP".equals(c.direction()))
+                .toList();
         if (allCandidates.isEmpty()) {
             log.info("Weekly rightsizing report: no candidates found, skipping send.");
             return;
