@@ -45,6 +45,10 @@ public enum AuditAction {
     SPOT_FALLBACK_CLEARED,
     /** AWS took a Spot instance or node group capacity back (E31-T07). */
     SPOT_INTERRUPTION,
+    /** The environment template catalogue changed (E32-T01). */
+    TEMPLATE_CREATED,
+    TEMPLATE_UPDATED,
+    TEMPLATE_RETIRED,
 
     // Lock operations
     LOCK_ACQUIRED,

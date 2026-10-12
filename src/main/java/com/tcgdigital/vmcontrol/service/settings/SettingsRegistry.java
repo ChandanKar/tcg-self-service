@@ -69,6 +69,10 @@ public final class SettingsRegistry {
             flag("Rightsizing", "rightsizing.safe-resize.enabled", "Safe resize of running VMs",
                     "Apply may stop a running VM, change its type and start it again, rolling back on failure.", false),
 
+            // Provisioning (E32)
+            flag("Provisioning", "provisioning.enabled", "Environment templates",
+                    "Users can request new environments from approved templates.", false),
+
             // Spot (E31)
             flag("Spot", "spot.pricing.enabled", "Spot pricing",
                     "Capture Spot prices daily and price Spot VMs and node groups at them.", false),
