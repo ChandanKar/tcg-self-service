@@ -48,7 +48,7 @@ const Approvals = (function() {
         $('#content-area').html(`
             <div class="content-view approvals-page" id="approvals-view">
                 <div class="content-header">
-                    <h1><i class="fas fa-stamp me-2" aria-hidden="true"></i>Approvals</h1>
+                    <h1><i class="fas fa-stamp me-2" aria-hidden="true"></i>Approvals ${typeof HelpLink !== 'undefined' ? HelpLink.button('approvals', 'Approvals') : ''}</h1>
                     <p class="text-muted mb-0">Starts and extensions that need approval because of their size, length or cost</p>
                 </div>
                 <ul class="nav nav-tabs mb-3" role="tablist">

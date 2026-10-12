@@ -81,7 +81,7 @@ const Leases = (function() {
                 : 'Leases are off for this environment.';
             return Utils.html`<div class="lease-banner lease-idle" role="status">
                     <i class="fas fa-hourglass-start" aria-hidden="true"></i>
-                    <span class="lease-text">${text}</span>
+                    <span class="lease-text">${text}</span>${Utils.raw(typeof HelpLink !== 'undefined' ? HelpLink.button('leases', 'Leases') : '')}
                     ${Utils.raw(settings)}
                 </div>`;
         }
@@ -114,7 +114,7 @@ const Leases = (function() {
                     ${Utils.raw(pendingPill)}
                     ${who ? Utils.raw(Utils.html`<div class="lease-participants">Kept running by ${who}</div>`) : ''}
                 </div>
-                <div class="lease-actions">${Utils.raw(extend)}${Utils.raw(settings)}</div>
+                <div class="lease-actions">${Utils.raw(extend)}${Utils.raw(settings)}${Utils.raw(typeof HelpLink !== 'undefined' ? HelpLink.button('leases', 'Leases') : '')}</div>
             </div>
             ${requestRows ? Utils.raw(`<ul class="lease-requests" aria-label="Extension requests">${requestRows}</ul>`) : ''}`;
     }

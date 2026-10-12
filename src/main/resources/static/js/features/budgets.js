@@ -56,7 +56,7 @@ const Budgets = (function() {
             <div class="content-view budgets-page" id="budgets-view">
                 <div class="content-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <div>
-                        <h1><i class="fas fa-wallet me-2" aria-hidden="true"></i>Budgets</h1>
+                        <h1><i class="fas fa-wallet me-2" aria-hidden="true"></i>Budgets ${typeof HelpLink !== 'undefined' ? HelpLink.button('budgets', 'Budgets') : ''}</h1>
                         <p class="text-muted mb-0">Monthly budgets per environment or team, with alerts and approval-gated actions</p>
                     </div>
                     <button type="button" class="btn btn-primary" data-action="budget-new" id="budget-new-btn" hidden>

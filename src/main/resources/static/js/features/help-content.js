@@ -1,6 +1,7 @@
 /**
  * In-app help topics (E29-T07). Plain text only: help.js renders every string escaped.
  * roles: null for everyone, or the roles that see the topic ('ADMIN', 'ENV_ADMIN').
+ * optional: the feature can be switched off, so the topic says it may not be available (E29-T08).
  * PAGE_TOPICS maps a page's help button to its topic; every id there must exist below.
  */
 const HelpContent = (function() {
@@ -191,6 +192,194 @@ const HelpContent = (function() {
             ]
         },
         {
+            id: 'leases',
+            title: 'Leases and extensions',
+            roles: null,
+            optional: true,
+            keywords: ['lease', 'extend', 'extension', 'running until', 'auto stop', 'expire'],
+            sections: [
+                {
+                    heading: 'What a lease is',
+                    paragraphs: [
+                        'In an environment with leases, a start runs it for a set time. The banner on the environment shows when it will stop and who is keeping it running.',
+                        'The default length and the longest allowed lease are set per environment; the banner shows both before you start.'
+                    ]
+                },
+                {
+                    heading: 'Keeping it running longer',
+                    steps: [
+                        'Click Extend on the lease banner and choose how much longer.',
+                        'Up to the environment\'s maximum the extension applies at once; beyond it, or when a policy requires it, an environment admin is asked to approve.',
+                        'You are warned before the lease ends, in the bell and by email if you chose email.'
+                    ]
+                }
+            ]
+        },
+        {
+            id: 'idle-stop',
+            title: 'Idle auto-stop and snooze',
+            roles: null,
+            optional: true,
+            keywords: ['idle', 'auto-stop', 'snooze', 'unused', 'cpu', 'stopped automatically'],
+            sections: [
+                {
+                    heading: 'When a VM is stopped for being idle',
+                    paragraphs: [
+                        'With idle auto-stop on for an environment, running VMs whose CPU, network and disk stay below the thresholds for long enough are stopped. Production environments are never stopped this way.',
+                        'The environment page shows how long it has been idle and what stopping it saved.'
+                    ]
+                },
+                {
+                    heading: 'Keeping a quiet VM running',
+                    steps: [
+                        'Snooze idle auto-stop on the environment page (or from the Teams message) for the time you need.',
+                        'Ask an environment admin to change the thresholds if the VM is often quiet but in use.'
+                    ]
+                }
+            ]
+        },
+        {
+            id: 'savings',
+            title: 'Savings and efficiency score',
+            roles: ['ADMIN'],
+            optional: false,
+            keywords: ['savings', 'saved', 'efficiency', 'ledger', 'avoided hours', 'commitment'],
+            sections: [
+                {
+                    heading: 'How savings are counted',
+                    paragraphs: [
+                        'Every hour a VM was stopped by a schedule, a lease, idle auto-stop or by hand is an avoided hour, priced at its on-demand rate. Hours already paid for by Savings Plans or Reserved Instances do not count as savings.',
+                        'Storage keeps costing while a VM is stopped; it is subtracted, so the figure is a net saving.'
+                    ]
+                },
+                {
+                    heading: 'Efficiency score',
+                    paragraphs: [
+                        'The score compares the hours environments ran with the hours they were actually used. Higher is better; it falls when VMs run idle.'
+                    ]
+                }
+            ]
+        },
+        {
+            id: 'budgets',
+            title: 'Budgets and alerts',
+            roles: ['ENV_ADMIN'],
+            optional: false,
+            keywords: ['budget', 'alert', 'threshold', 'forecast', 'freeze', 'overspend'],
+            sections: [
+                {
+                    heading: 'Setting a budget',
+                    steps: [
+                        'Open Budgets and create one for an environment or a team, with a monthly amount.',
+                        'Choose the thresholds that warn you (for example 50, 80 and 100 per cent).',
+                        'Optionally choose what happens when it is spent: a warning only, holding new starts, or a stop that the owners approve.'
+                    ]
+                },
+                {
+                    heading: 'Alerts',
+                    paragraphs: [
+                        'Owners and admins are told when spend crosses a threshold and when the month-end forecast goes over the budget. A frozen environment shows a banner until the freeze ends.'
+                    ]
+                }
+            ]
+        },
+        {
+            id: 'chargeback',
+            title: 'Teams and chargeback',
+            roles: ['ADMIN'],
+            optional: true,
+            keywords: ['team', 'chargeback', 'allocation', 'split', 'showback', 'finance', 'statement'],
+            sections: [
+                {
+                    heading: 'Teams',
+                    paragraphs: [
+                        'Each environment can belong to a team. Teams carry members, quotas and budgets, and cost is reported per team.'
+                    ]
+                },
+                {
+                    heading: 'Chargeback',
+                    paragraphs: [
+                        'Chargeback shows each team\'s cost for a month: actual cost where AWS has it, otherwise the estimate. Shared costs are split by the split rules (evenly, by fixed percentages or in proportion to direct cost).',
+                        'At the start of a month the previous month is finalised and can be sent to finance; a finalised month no longer changes.'
+                    ]
+                }
+            ]
+        },
+        {
+            id: 'chat-actions',
+            title: 'Microsoft Teams actions and Jira tickets',
+            roles: null,
+            optional: true,
+            keywords: ['teams', 'chat', 'channel', 'button', 'jira', 'ticket', 'approve from teams'],
+            sections: [
+                {
+                    heading: 'Messages in Teams',
+                    paragraphs: [
+                        'Environment admins can send an environment\'s notifications to a Microsoft Teams channel. Some messages carry buttons, such as Approve, Extend lease or Snooze idle stop.'
+                    ]
+                },
+                {
+                    heading: 'Using a button',
+                    steps: [
+                        'Click the button in Teams; it opens this platform.',
+                        'Sign in if asked and confirm. The action runs as you, with your access, and each link works once.'
+                    ]
+                },
+                {
+                    heading: 'Jira tickets',
+                    paragraphs: [
+                        'Where Jira is connected, idle VMs, rightsizing suggestions and cost anomalies can be turned into a Jira ticket; the ticket key then shows next to the item.'
+                    ]
+                }
+            ]
+        },
+        {
+            id: 'approvals',
+            title: 'Approvals and quotas',
+            roles: null,
+            optional: true,
+            keywords: ['approval', 'approve', 'policy', 'quota', 'held', 'waiting', 'cost preview'],
+            sections: [
+                {
+                    heading: 'When a start needs approval',
+                    paragraphs: [
+                        'An approval policy can hold starts of large or expensive VMs, long runs, or starts above a cost. The start dialog shows the estimated cost before you confirm.',
+                        'A held start waits on the environment page and in Approvals until an approver decides; once approved it runs as you.'
+                    ]
+                },
+                {
+                    heading: 'Team quotas',
+                    paragraphs: [
+                        'A team can have a monthly limit on running hours or dollars. Going over can warn you, need an approval, or be refused, as the quota says. Your teams\' usage is in My Account > Cost.'
+                    ]
+                },
+                {
+                    heading: 'For approvers',
+                    steps: [
+                        'Open Approvals (or the bell or the Teams message).',
+                        'Check the estimate and the reason, then approve or deny with a reason.'
+                    ]
+                }
+            ]
+        },
+        {
+            id: 'settings',
+            title: 'Settings',
+            roles: ['ADMIN'],
+            optional: false,
+            keywords: ['settings', 'configuration', 'toggle', 'threshold', 'restart', 'flag'],
+            sections: [
+                {
+                    heading: 'What you can change here',
+                    paragraphs: [
+                        'Feature switches and thresholds take effect within 30 seconds on every server, without a restart. Changes are recorded in the audit log.',
+                        'Settings marked Restart required are shown so you see the whole picture; change them in the server configuration and restart.',
+                        'Reset to default returns a setting to the value in the server configuration.'
+                    ]
+                }
+            ]
+        },
+        {
             id: 'faq',
             title: 'FAQ and troubleshooting',
             roles: null,
@@ -228,7 +417,15 @@ const HelpContent = (function() {
         'request-access': 'access',
         'my-account': 'notifications',
         'vm-registry': 'environments',
-        'automation-rules': 'automation-rules'
+        'automation-rules': 'automation-rules',
+        leases: 'leases',
+        'idle-stop': 'idle-stop',
+        savings: 'savings',
+        budgets: 'budgets',
+        chargeback: 'chargeback',
+        teams: 'chargeback',
+        approvals: 'approvals',
+        settings: 'settings'
     };
 
     function all() {

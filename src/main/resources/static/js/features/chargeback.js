@@ -71,7 +71,7 @@ const Chargeback = (function() {
         $('#content-area').html(`
             <div class="content-view chargeback-page" id="chargeback-view">
                 <div class="content-header">
-                    <h1><i class="fas fa-file-invoice-dollar me-2" aria-hidden="true"></i>Chargeback</h1>
+                    <h1><i class="fas fa-file-invoice-dollar me-2" aria-hidden="true"></i>Chargeback ${typeof HelpLink !== 'undefined' ? HelpLink.button('chargeback', 'Chargeback') : ''}</h1>
                     <p class="text-muted mb-0">Monthly cost per team, with shared environments split between the teams that use them</p>
                 </div>
                 <ul class="nav nav-tabs mb-3" role="tablist">

@@ -31,7 +31,7 @@ const Teams = (function() {
             <div class="content-view teams-page" id="teams-view">
                 <div class="content-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <div>
-                        <h1><i class="fas fa-users me-2" aria-hidden="true"></i>Teams</h1>
+                        <h1><i class="fas fa-users me-2" aria-hidden="true"></i>Teams ${typeof HelpLink !== 'undefined' ? HelpLink.button('teams', 'Teams') : ''}</h1>
                         <p class="text-muted mb-0">Teams own environments; costs and budgets are reported per team</p>
                     </div>
                     <button type="button" class="btn btn-primary" data-action="team-new"><i class="fas fa-plus" aria-hidden="true"></i> New team</button>

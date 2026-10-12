@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
 
 /**
- * E29-T07: the Help page. Topic list and deep links, search, topics hidden by role, the header
+ * E29-T07/T08: the Help page. Topic list and deep links, search, topics hidden by role, the header
  * '?' buttons, and every page help link pointing at a topic that exists.
  */
 
@@ -59,6 +59,18 @@ test.describe('Help', () => {
     const missing = await page.evaluate(() => Object.entries(HelpContent.PAGE_TOPICS)
       .filter(([, id]) => !HelpContent.find(id)).map(([pageName]) => pageName));
     expect(missing).toEqual([]);
+  });
+
+  test('feature topics say when the feature may be switched off; core topics do not', async ({ page }) => {
+    test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
+    await go(page, 'user', '#/help/leases');
+    await expect(page.locator('#help-topic-title')).toHaveText('Leases and extensions', { timeout: 15_000 });
+    await expect(page.locator('.help-optional')).toContainText('may be switched off');
+    await page.evaluate(() => { location.hash = '#/help/locks'; });
+    await expect(page.locator('#help-topic-title')).toHaveText('Starting, stopping and locks');
+    await expect(page.locator('.help-optional')).toHaveCount(0);
+    await page.locator('#help-search').fill('snooze');
+    await expect(page.locator('.help-topic-link', { hasText: 'Idle auto-stop and snooze' })).toBeVisible();
   });
 
   test('the user menu has a Help entry', async ({ page }) => {

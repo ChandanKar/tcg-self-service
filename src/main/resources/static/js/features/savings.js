@@ -102,7 +102,7 @@ const Savings = (function() {
             <div class="content-view savings-page">
                 <div class="content-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <div>
-                        <h1><i class="fas fa-piggy-bank me-2" aria-hidden="true"></i>Savings</h1>
+                        <h1><i class="fas fa-piggy-bank me-2" aria-hidden="true"></i>Savings ${Utils.raw(typeof HelpLink !== 'undefined' ? HelpLink.button('savings', 'Savings') : '')}</h1>
                         <p class="text-muted mb-0">What the platform saved, what could still be saved, and how efficient the fleet is</p>
                     </div>
                     <div class="d-flex gap-2 flex-wrap align-items-center">

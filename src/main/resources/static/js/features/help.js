@@ -71,6 +71,7 @@ const Help = (function() {
         }
         $t.html(Utils.html`<div class="card-body">
             <h2 class="h4 mb-3" id="help-topic-title">${current.title}</h2>
+            ${Utils.raw(current.optional ? '<p class="small text-muted help-optional"><i class="fas fa-info-circle" aria-hidden="true"></i> This feature may be switched off in your organisation.</p>' : '')}
             ${Utils.raw(current.sections.map(s => Utils.html`<section class="help-section">
                 <h3 class="h6">${s.heading}</h3>
                 ${Utils.raw((s.paragraphs || []).map(p => Utils.html`<p>${p}</p>`).join(''))}

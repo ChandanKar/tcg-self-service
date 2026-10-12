@@ -98,7 +98,7 @@ const IdleStop = (function() {
                 <div class="card-body py-2">
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                         <div>
-                            <strong>Idle auto-stop</strong> ${Utils.raw(badge)}
+                            <strong>Idle auto-stop</strong> ${Utils.raw(badge)}${Utils.raw(typeof HelpLink !== 'undefined' ? HelpLink.button('idle-stop', 'Idle auto-stop') : '')}
                             ${Utils.raw(lines.join(''))}
                         </div>
                         <div class="text-nowrap">${Utils.raw(actions)}</div>

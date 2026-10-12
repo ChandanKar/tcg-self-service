@@ -38,7 +38,7 @@ const Settings = (function() {
         $('#content-area').html(`
             <div class="content-view settings-page" id="settings-view">
                 <div class="content-header">
-                    <h1><i class="fas fa-sliders-h me-2" aria-hidden="true"></i>Settings</h1>
+                    <h1><i class="fas fa-sliders-h me-2" aria-hidden="true"></i>Settings ${typeof HelpLink !== 'undefined' ? HelpLink.button('settings', 'Settings') : ''}</h1>
                     <p class="text-muted mb-0">Changes apply within 30 seconds on every server; no restart needed</p>
                 </div>
                 <div id="settings-groups"><div class="text-muted small"><i class="fas fa-spinner fa-spin"></i> Loading settings…</div></div>
