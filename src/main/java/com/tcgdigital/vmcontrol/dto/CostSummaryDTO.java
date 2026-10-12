@@ -28,5 +28,7 @@ public record CostSummaryDTO(
         Integer approximatePriceVmCount,
         BigDecimal eksControlPlaneCost,
         BigDecimal spotSavings,
-        Integer spotVmCount
+        Integer spotVmCount,
+        /** Spot interruptions in the last 30 days (E31-T08). */
+        Long spotInterruptions30d
 ) {}

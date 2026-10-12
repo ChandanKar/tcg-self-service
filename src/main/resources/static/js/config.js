@@ -368,6 +368,11 @@ const Config = (function() {
             rightsizingExport: () => `${API_BASE_URL}/cost-management/rightsizing/export`,
             applyRightsizing: () => `${API_BASE_URL}/cost-management/rightsizing/apply`,
             spotOpportunities: (page = 0, size = 25) => `${API_BASE_URL}/cost-management/spot-opportunities?page=${page}&size=${size}`,
+            spotSummary: (envId) => `${API_BASE_URL}/environments/${encodeURIComponent(envId)}/spot-summary`,
+            spotPolicy: (envId) => `${API_BASE_URL}/environments/${encodeURIComponent(envId)}/spot-policy`,
+            spotExcluded: (envId, vmId) => `${API_BASE_URL}/environments/${encodeURIComponent(envId)}/vms/${encodeURIComponent(vmId)}/spot-excluded`,
+            spotConvert: (envId, vmId) => `${API_BASE_URL}/environments/${encodeURIComponent(envId)}/vms/${encodeURIComponent(vmId)}/convert-to-spot`,
+            spotRevert: (envId, vmId) => `${API_BASE_URL}/environments/${encodeURIComponent(envId)}/vms/${encodeURIComponent(vmId)}/revert-to-on-demand`,
             rightsizingPrecheck: (vmId, targetType) => `${API_BASE_URL}/cost-management/rightsizing/precheck?vmId=${encodeURIComponent(vmId)}&targetInstanceType=${encodeURIComponent(targetType)}`,
             rightsizingResize: (resizeId) => `${API_BASE_URL}/cost-management/rightsizing/resizes/${encodeURIComponent(resizeId)}`,
             // Chargeback and split rules (E23-T06..T08)

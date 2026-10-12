@@ -560,6 +560,7 @@ const CostManagement = (function() {
                 ${buildKpi('Idle Waste', Utils.formatCurrency(summary.idleWasteMonthlyCost || 0), 'fa-moon', `${summary.idleVmCount || 0} idle VM(s)`)}
                 ${buildKpi('Rightsizing Potential', Utils.formatCurrency(summary.rightsizingPotentialSavings || 0), 'fa-compress-arrows-alt', rightsizingSubtitle(summary))}
                 ${buildKpi('Pricing Coverage', `${summary.costKnownVmCount || 0} / ${summary.totalVmCount || 0}`, 'fa-tag', pricingSubtitle(summary))}
+                ${spotKpi(summary)}
             </div>
         `;
     }
@@ -574,6 +575,14 @@ const CostManagement = (function() {
         let text = fee > 0 ? `${deltaText} · incl. ${Utils.formatCurrency(fee)} EKS control plane` : deltaText;
         if (spot > 0) text += ` · Spot saved ${Utils.formatCurrency(spot)}`;
         return text;
+    }
+
+    /** Spot savings (30d) and interruptions (E31-T08); only when something runs on Spot. */
+    function spotKpi(summary) {
+        if (!(summary.spotVmCount > 0) && !(Number(summary.spotSavings) > 0)) return '';
+        const interruptions = Number(summary.spotInterruptions30d || 0);
+        return buildKpi('Spot savings (30d)', Utils.formatCurrency(Number(summary.spotSavings || 0)), 'fa-bolt',
+            `${summary.spotVmCount || 0} on Spot · ${interruptions} interruption${interruptions === 1 ? '' : 's'}`);
     }
 
     function rightsizingSubtitle(summary) {

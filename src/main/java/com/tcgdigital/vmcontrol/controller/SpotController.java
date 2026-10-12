@@ -23,12 +23,22 @@ public class SpotController {
     private final SpotPolicyService spotPolicyService;
     private final UserService userService;
     private final com.tcgdigital.vmcontrol.service.SpotConversionService conversionService;
+    private final com.tcgdigital.vmcontrol.service.SpotSummaryService summaryService;
 
     public SpotController(SpotPolicyService spotPolicyService, UserService userService,
-                          com.tcgdigital.vmcontrol.service.SpotConversionService conversionService) {
+                          com.tcgdigital.vmcontrol.service.SpotConversionService conversionService,
+                          com.tcgdigital.vmcontrol.service.SpotSummaryService summaryService) {
         this.spotPolicyService = spotPolicyService;
         this.userService = userService;
         this.conversionService = conversionService;
+        this.summaryService = summaryService;
+    }
+
+    @GetMapping("/spot-summary")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Spot summary", description = "Policy, Spot node groups, standby and fallback state, interruptions and savings (E31-T08); 404 while Spot is off.")
+    public ResponseEntity<com.tcgdigital.vmcontrol.dto.SpotSummaryDTO> summary(@PathVariable String environmentId) {
+        return ResponseEntity.ok(summaryService.summary(environmentId));
     }
 
     @PostMapping("/vms/{vmId}/convert-to-spot")

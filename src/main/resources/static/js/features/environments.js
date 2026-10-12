@@ -712,6 +712,7 @@ const Environments = (function() {
                 <div id="env-anomaly-panel"></div>
                 <div id="env-idle-panel"></div>
                 <div id="env-chat-panel"></div>
+                <div id="env-spot-panel"></div>
 
                 <div class="mb-1">
                     <span class="text-muted text-uppercase" style="font-size:0.68rem;letter-spacing:0.05em;">Groups &amp; VMs</span>
@@ -968,6 +969,11 @@ const Environments = (function() {
         // Teams channels (E24-T02): only for those who administer the environment.
         if (typeof ChatChannels !== 'undefined') {
             ChatChannels.renderEnvPanel(env);
+        }
+
+        // Spot (E31-T08): renders nothing while Spot is off.
+        if (typeof SpotPanel !== 'undefined') {
+            SpotPanel.render(env);
         }
 
         // Lease banner (E15-T06): renders nothing while leases are off.

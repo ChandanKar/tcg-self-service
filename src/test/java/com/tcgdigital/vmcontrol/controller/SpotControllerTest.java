@@ -107,4 +107,39 @@ class SpotControllerTest extends SecuredWebTestBase {
         expectError(mockMvc.perform(put("/api/v1/environments/" + other.getEnvironmentId() + "/vms/" + vm.getVmId() + "/spot-excluded")
                 .with(asEnvAdmin()).contentType(MediaType.APPLICATION_JSON).content("{\"excluded\":false}")), 404);
     }
+
+    // ---- Spot summary (E31-T08) ----
+
+    @Test
+    void aViewerSeesTheSummaryWithoutActionsAndCannotChangeAnything() throws Exception {
+        newVm(newGroup(env, "web"), "web-1", VmStatus.RUNNING);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+                        "/api/v1/environments/" + env.getEnvironmentId() + "/spot-summary").with(asViewer()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.policy").value("NONE"))
+                .andExpect(jsonPath("$.canAdminister").value(false))
+                .andExpect(jsonPath("$.interruptions30d").value(0));
+        mockMvc.perform(put(policyUrl(env)).with(asViewer()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"policy\":\"ALLOWED\",\"acknowledgeInterruptible\":true}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void anAdministratorSeesThatTheyCanAct() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+                        "/api/v1/environments/" + env.getEnvironmentId() + "/spot-summary").with(asEnvAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.canAdminister").value(true));
+    }
+
+    @Test
+    void theSummaryIsNotFoundWhileSpotIsOffOrWithoutAccess() throws Exception {
+        expectError(mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+                "/api/v1/environments/" + other.getEnvironmentId() + "/spot-summary").with(asUser())), 403);
+
+        settings.reset("spot.enabled", admin.getUserId());
+        expectError(mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+                "/api/v1/environments/" + env.getEnvironmentId() + "/spot-summary").with(asViewer())), 404);
+    }
 }

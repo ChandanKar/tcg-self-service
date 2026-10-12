@@ -204,9 +204,23 @@ public class CostEstimationService {
                 bundles.stream().filter(b -> b.estimate() != null && b.estimate().onDemandEquivalentCost() != null)
                         .map(b -> b.estimate().onDemandEquivalentCost().subtract(b.estimate().cost()))
                         .reduce(BigDecimal.ZERO, BigDecimal::add),
-                (int) bundles.stream().filter(b -> b.vm().getPurchaseOption() == com.tcgdigital.vmcontrol.model.PurchaseOption.SPOT).count()
+                (int) bundles.stream().filter(b -> b.vm().getPurchaseOption() == com.tcgdigital.vmcontrol.model.PurchaseOption.SPOT).count(),
+                spotInterruptions30d()
         );
     }
+
+    /** Spot interruptions recorded in the last 30 days (E31-T08); null when history is not available. */
+    private Long spotInterruptions30d() {
+        if (stateHistoryRepository == null) {
+            return null;
+        }
+        return stateHistoryRepository.countByChangeSourceAndChangedAtBetween(SpotInterruptionRecorder.CHANGE_SOURCE,
+                windowStart(COST_WINDOW_DAYS), Timestamp.from(Instant.now()));
+    }
+
+    /** State history for the Spot interruption count (E31-T08); optional so unit tests can omit it. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.repository.VmStateHistoryRepository stateHistoryRepository;
 
     private BigDecimal sumFees(List<Vm> vms, Timestamp start, Timestamp end) {
         Map<String, BigDecimal> fees = costDataProvider.environmentFees(vms, start, end);
