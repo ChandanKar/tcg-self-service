@@ -34,6 +34,7 @@ const Config = (function() {
         users: {
             list: `${API_BASE_URL}/users`,
             myCost: `${API_BASE_URL}/users/me/cost`,
+            notificationPreferences: `${API_BASE_URL}/users/me/notification-preferences`,
             myLeases: `${API_BASE_URL}/users/me/leases`,
             listAll: `${API_BASE_URL}/users?includeInactive=true`,
             create: `${API_BASE_URL}/users`,

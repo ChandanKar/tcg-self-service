@@ -57,6 +57,12 @@ const NotificationBell = (function () {
         loadNotifications();
     }
 
+    /** The bell's "Notification settings" link opens My Account on its Notifications tab (E29-T06). */
+    $(document).off('click.notifSettings').on('click.notifSettings', '#notification-settings-link', function() {
+        closeDropdown();
+        if (typeof MyAccount !== 'undefined') MyAccount.open('notifications');
+    });
+
     function closeDropdown() {
         isOpen = false;
         $btn.attr('aria-expanded', 'false');

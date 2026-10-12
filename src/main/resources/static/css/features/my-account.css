@@ -763,3 +763,23 @@
     font-size: 0.85rem;
 }
 
+/* Notifications tab (E29-T06): event x in-app / email; rows stack on narrow screens. */
+.ma-pref-table th.ma-pref-label { font-weight: 500; }
+.ma-pref-table .ma-pref-group th {
+    background: var(--surface-muted, #f8fafc);
+    font-size: var(--font-size-xs, 0.75rem);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-secondary, #64748b);
+}
+.ma-pref-table td { white-space: nowrap; }
+.ma-pref-table .form-check { display: flex; align-items: center; gap: 0.4rem; }
+.ma-pref-actions { position: sticky; bottom: 0; background: var(--surface, #fff); padding: 0.5rem 0; }
+
+@media (max-width: 768px) {
+    .ma-pref-table thead { display: none; }
+    .ma-pref-table tr[data-pref-row] { display: grid; grid-template-columns: 1fr 1fr; gap: 0.25rem 0.75rem; padding: 0.5rem 0; }
+    .ma-pref-table tr[data-pref-row] th { grid-column: 1 / -1; border: none; padding: 0; }
+    .ma-pref-table tr[data-pref-row] td { border: none; padding: 0; white-space: normal; }
+    .ma-pref-table tr[data-pref-row] td::before { content: attr(data-label); display: block; font-size: 0.75rem; color: var(--text-secondary, #64748b); }
+}

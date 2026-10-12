@@ -5,6 +5,7 @@
  *   Access   - your grants (scope, level, expiry), pending requests, recently ended access
  *   Activity - your own VM operations and access history
  *   Cost     - month-to-date cost of your environments (E18-T04), loaded on first open
+ *   Notifications - which events reach you in the bell and by email (E29-T06)
  */
 
 const MyAccount = (function() {
@@ -15,7 +16,8 @@ const MyAccount = (function() {
         USER: { label: 'Start & stop', badge: 'level-user', help: 'Everything above, plus start and stop VMs' },
         ADMIN: { label: 'Manage access', badge: 'level-admin', help: 'Everything above, plus grant access and approve requests' }
     };
-    const TABS = [['overview', 'Overview'], ['access', 'Access'], ['activity', 'Activity'], ['cost', 'Cost']];
+    const TABS = [['overview', 'Overview'], ['access', 'Access'], ['activity', 'Activity'], ['cost', 'Cost'],
+        ['notifications', 'Notifications']];
     const EXTENSION_DAYS = [7, 14, 30, 60, 90];
     const DEFAULT_EXTENSION_DAYS = 30;
     const DAY_MS = 24 * 60 * 60 * 1000;
@@ -53,7 +55,12 @@ const MyAccount = (function() {
             extendingId: null,
             extendDraft: null,
             extendSending: false,
-            cancellingId: null
+            cancellingId: null,
+            prefs: null,
+            prefsRequested: false,
+            prefDraft: {},
+            prefSaving: false,
+            prefMessage: null
         };
         Slideout.open('My Account', `
             <div class="my-account">
@@ -64,6 +71,115 @@ const MyAccount = (function() {
         render();
         loadAll();
         if (state.tab === 'cost') loadCost();
+        if (state.tab === 'notifications') loadPrefs();
+    }
+
+    // ============= Notifications (E29-T06) =============
+
+    function loadPrefs() {
+        if (!state || state.prefsRequested) return;
+        state.prefsRequested = true;
+        load('prefs', Config.API.users.notificationPreferences);
+    }
+
+    function prefValue(p, channel) {
+        const draft = state.prefDraft[p.type];
+        return draft && draft[channel] !== undefined ? draft[channel] : p[channel];
+    }
+
+    function prefChanged() {
+        return Object.keys(state.prefDraft).length > 0;
+    }
+
+    function notificationsHtml() {
+        if (state.errors.prefs) return errorHtml('your notification settings');
+        if (!state.prefs) return loadingHtml();
+        const groups = [];
+        state.prefs.forEach(p => {
+            let g = groups.find(x => x.name === p.category);
+            if (!g) groups.push(g = { name: p.category, items: [] });
+            g.items.push(p);
+        });
+        const rows = groups.map(g => Utils.html`
+            <tr class="ma-pref-group"><th colspan="3" scope="colgroup">${g.name}</th></tr>
+            ${Utils.raw(g.items.map(p => {
+                const inAppId = `ma-pref-${p.type}-inApp`;
+                const emailId = `ma-pref-${p.type}-email`;
+                return Utils.html`<tr data-pref-row="${p.type}">
+                    <th scope="row" class="ma-pref-label">${p.label}</th>
+                    <td data-label="In-app">
+                        <div class="form-check form-switch m-0">
+                            <input class="form-check-input" type="checkbox" role="switch" id="${inAppId}" data-ma-pref="inApp"
+                                   data-type="${p.type}" aria-label="In-app for ${p.label}" ${prefValue(p, 'inApp') ? 'checked' : ''}
+                                   ${p.inAppLocked ? 'disabled' : ''}>
+                            ${Utils.raw(p.inAppLocked ? '<span class="small text-muted ma-pref-required" title="You always get this one in the bell">Required</span>' : '')}
+                        </div>
+                    </td>
+                    <td data-label="Email">
+                        <div class="form-check form-switch m-0" ${p.emailAvailable ? '' : Utils.raw('title="Email is off for this event platform-wide"')}>
+                            <input class="form-check-input" type="checkbox" role="switch" id="${emailId}" data-ma-pref="email"
+                                   data-type="${p.type}" aria-label="Email for ${p.label}" ${prefValue(p, 'email') ? 'checked' : ''}
+                                   ${p.emailAvailable ? '' : 'disabled'}>
+                            ${Utils.raw(p.emailAvailable ? '' : '<span class="small text-muted">Not emailed</span>')}
+                        </div>
+                    </td>
+                </tr>`;
+            }).join(''))}`).join('');
+        const message = state.prefMessage
+            ? Utils.html`<span class="small ${state.prefMessage.ok ? 'text-success' : 'text-danger'}" role="status">${state.prefMessage.text}</span>` : '';
+        return Utils.html`
+            <div class="ma-prefs">
+                <p class="small text-muted">Choose what reaches you. Some bell notifications are required; email only goes out
+                    for events your organisation emails.</p>
+                <div class="table-responsive">
+                    <table class="table table-sm ma-pref-table">
+                        <thead><tr><th scope="col">Event</th><th scope="col">In-app</th><th scope="col">Email</th></tr></thead>
+                        <tbody>${Utils.raw(rows)}</tbody>
+                    </table>
+                </div>
+                <div class="d-flex gap-2 align-items-center ma-pref-actions">
+                    <button type="button" class="btn btn-primary btn-sm" data-ma-action="prefs-save" id="ma-prefs-save"
+                            ${prefChanged() && !state.prefSaving ? '' : 'disabled'}>${state.prefSaving ? 'Saving…' : 'Save'}</button>
+                    ${Utils.raw(message)}
+                </div>
+            </div>`;
+    }
+
+    function onPrefChange() {
+        if (!state || !state.prefs) return;
+        const type = this.dataset.type;
+        const channel = this.dataset.maPref;
+        const original = state.prefs.find(p => p.type === type);
+        const draft = Object.assign({}, state.prefDraft[type]);
+        if (original && original[channel] === this.checked) delete draft[channel];
+        else draft[channel] = this.checked;
+        if (Object.keys(draft).length) state.prefDraft[type] = draft;
+        else delete state.prefDraft[type];
+        state.prefMessage = null;
+        render();
+    }
+
+    function savePrefs() {
+        if (!state || !prefChanged()) return;
+        const owner = state;
+        const changes = Object.keys(state.prefDraft).map(type => Object.assign({ type }, state.prefDraft[type]));
+        state.prefSaving = true;
+        render();
+        ApiClient.request('PUT', Config.API.users.notificationPreferences, changes, { suppressGlobalError: true })
+            .done(list => {
+                if (state !== owner) return;
+                state.prefs = list || state.prefs;
+                state.prefDraft = {};
+                state.prefMessage = { ok: true, text: 'Saved.' };
+            })
+            .fail(() => {
+                if (state === owner) state.prefMessage = { ok: false, text: 'Could not save. Try again.' };
+            })
+            .always(() => {
+                if (state !== owner) return;
+                state.prefSaving = false;
+                render();
+            });
     }
 
     /** The Cost tab is loaded the first time it is shown. */
@@ -333,6 +449,7 @@ const MyAccount = (function() {
         if (state.tab === 'access') return accessHtml();
         if (state.tab === 'activity') return activityHtml();
         if (state.tab === 'cost') return costHtml();
+        if (state.tab === 'notifications') return notificationsHtml();
         return overviewHtml();
     }
 
@@ -771,6 +888,7 @@ const MyAccount = (function() {
         $(document).on('keydown', `${ROOT} [role="tab"]`, onTabKeydown);
         $(document).on('click', `${ROOT} [data-ma-action]`, onAction);
         $(document).on('submit', `${ROOT} .ma-extend`, onExtendSubmit);
+        $(document).on('change', `${ROOT} [data-ma-pref]`, onPrefChange);
         $(document).on('input change', `${ROOT} .ma-extend select, ${ROOT} .ma-extend textarea`, function() {
             if (!state || !state.extendDraft) return;
             state.extendDraft.days = parseInt($('#ma-extend-days').val(), 10);
@@ -782,8 +900,13 @@ const MyAccount = (function() {
 
     function switchTab(tab, focusTab) {
         if (!state || state.tab === tab) return;
+        // Unsaved notification changes are not dropped silently (E29-T06).
+        if (state.tab === 'notifications' && prefChanged()
+            && !window.confirm('Discard your unsaved notification changes?')) return;
+        if (state.tab === 'notifications') state.prefDraft = {};
         state.tab = tab;
         if (tab === 'cost') loadCost();
+        if (tab === 'notifications') loadPrefs();
         render({ resetScroll: true });
         if (focusTab) $(`#ma-tab-${tab}`).trigger('focus');
     }
@@ -807,6 +930,9 @@ const MyAccount = (function() {
         switch ($btn.data('ma-action')) {
             case 'retry':
                 retryFailed();
+                break;
+            case 'prefs-save':
+                savePrefs();
                 break;
             case 'lease-extend':
                 extendLease(String($btn.data('env-id')));
