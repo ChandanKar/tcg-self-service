@@ -422,6 +422,9 @@ public class EksSyncService {
             }
         }
         if (nodegroup != null) {
+            // A node group's capacity type is fixed when it is created (E31-T01).
+            vm.setPurchaseOption(nodegroup.capacityType() == software.amazon.awssdk.services.eks.model.CapacityTypes.SPOT
+                    ? com.tcgdigital.vmcontrol.model.PurchaseOption.SPOT : com.tcgdigital.vmcontrol.model.PurchaseOption.ON_DEMAND);
             // The Auto Scaling groups (for CloudWatch metrics) and node disk size (for cost), static
             // configuration from the same DescribeNodegroup call (E26-T01).
             List<String> asgNames = nodegroup.resources() == null || nodegroup.resources().autoScalingGroups() == null ? List.of()

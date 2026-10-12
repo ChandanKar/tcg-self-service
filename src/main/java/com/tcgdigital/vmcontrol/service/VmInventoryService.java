@@ -140,6 +140,7 @@ public class VmInventoryService {
         snapshot.setVcpuCount(data.getVcpuCount());
         snapshot.setMemoryMib(data.getMemoryMib());
         snapshot.setArchitecture(data.getArchitecture());
+        snapshot.setPurchaseOption(data.getPurchaseOption());
         snapshot.setPrivateIp(data.getPrivateIp());
         snapshot.setPublicIp(data.getPublicIp());
         snapshot.setAvailabilityZone(data.getAvailabilityZone());
@@ -147,6 +148,11 @@ public class VmInventoryService {
         snapshot.setTotalStorageGib(data.getTotalStorageGib());
         snapshot.setLastRefreshedAt(now);
         inventoryRepository.save(snapshot);
+        // A targeted update: a full save of the VM could overwrite a status a sync just wrote (E31-T01).
+        if (data.getPurchaseOption() != null && data.getPurchaseOption() != vm.getPurchaseOption()) {
+            vmRepository.updatePurchaseOption(vm.getVmId(), data.getPurchaseOption());
+            vm.setPurchaseOption(data.getPurchaseOption());
+        }
 
         List<String> currentVolumeIds = data.getVolumes().stream()
                 .map(CloudInventoryProviderService.VmVolumeData::getVolumeId)

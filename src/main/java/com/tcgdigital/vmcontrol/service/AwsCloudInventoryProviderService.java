@@ -60,6 +60,9 @@ public class AwsCloudInventoryProviderService implements CloudInventoryProviderS
                 data.setProviderVmId(instance.instanceId());
                 data.setInstanceType(instance.instanceTypeAsString());
                 data.setArchitecture(instance.architectureAsString());
+                // A Spot instance reports instanceLifecycle=spot; on-demand reports none (E31-T01).
+                data.setPurchaseOption(instance.instanceLifecycle() == software.amazon.awssdk.services.ec2.model.InstanceLifecycleType.SPOT
+                        ? com.tcgdigital.vmcontrol.model.PurchaseOption.SPOT : com.tcgdigital.vmcontrol.model.PurchaseOption.ON_DEMAND);
                 data.setPrivateIp(instance.privateIpAddress());
                 data.setPublicIp(instance.publicIpAddress());
                 data.setAvailabilityZone(instance.placement() != null ? instance.placement().availabilityZone() : null);

@@ -54,6 +54,7 @@ public class VmDTO {
         dto.setProvider(vm.getProvider());
         dto.setRegion(vm.getRegion());
         dto.setAwsAccountRef(vm.getAwsAccountRef());
+        dto.setPurchaseOption(vm.getPurchaseOption() == null ? null : vm.getPurchaseOption().name());
         dto.setProviderVmId(vm.getProviderVmId());
         dto.setVmType(vm.getVmType());
         dto.setSequencePosition(vm.getSequencePosition());
@@ -262,6 +263,17 @@ public class VmDTO {
 
     public void setUpdatedAt(Timestamp updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    /** ON_DEMAND or SPOT (E31-T01). */
+    private String purchaseOption;
+
+    public String getPurchaseOption() {
+        return purchaseOption;
+    }
+
+    public void setPurchaseOption(String purchaseOption) {
+        this.purchaseOption = purchaseOption;
     }
 
     /** The AWS account and its display name (E28-T10). */

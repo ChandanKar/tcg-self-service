@@ -47,6 +47,11 @@ public class VmInventorySnapshot {
     @Column(name = "availability_zone", length = 64)
     private String availabilityZone;
 
+    /** On demand or Spot (E31-T01). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "purchase_option", nullable = false, length = 20)
+    private PurchaseOption purchaseOption = PurchaseOption.ON_DEMAND;
+
     @Column(name = "launch_time")
     private Timestamp launchTime;
 
@@ -96,6 +101,8 @@ public class VmInventorySnapshot {
     public String getPublicIp() { return publicIp; }
     public void setPublicIp(String publicIp) { this.publicIp = publicIp; }
     public String getAvailabilityZone() { return availabilityZone; }
+    public PurchaseOption getPurchaseOption() { return purchaseOption; }
+    public void setPurchaseOption(PurchaseOption purchaseOption) { this.purchaseOption = purchaseOption == null ? PurchaseOption.ON_DEMAND : purchaseOption; }
     public void setAvailabilityZone(String availabilityZone) { this.availabilityZone = availabilityZone; }
     public Timestamp getLaunchTime() { return launchTime; }
     public void setLaunchTime(Timestamp launchTime) { this.launchTime = launchTime; }

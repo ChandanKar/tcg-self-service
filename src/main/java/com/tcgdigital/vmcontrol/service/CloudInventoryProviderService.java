@@ -21,6 +21,8 @@ public interface CloudInventoryProviderService {
         private Integer vcpuCount;
         private Integer memoryMib;
         private String architecture;
+        /** On demand or Spot (E31-T01). */
+        private com.tcgdigital.vmcontrol.model.PurchaseOption purchaseOption = com.tcgdigital.vmcontrol.model.PurchaseOption.ON_DEMAND;
         private String privateIp;
         private String publicIp;
         private String availabilityZone;
@@ -44,6 +46,8 @@ public interface CloudInventoryProviderService {
         public void setMemoryMib(Integer memoryMib) { this.memoryMib = memoryMib; }
         public String getArchitecture() { return architecture; }
         public void setArchitecture(String architecture) { this.architecture = architecture; }
+        public com.tcgdigital.vmcontrol.model.PurchaseOption getPurchaseOption() { return purchaseOption; }
+        public void setPurchaseOption(com.tcgdigital.vmcontrol.model.PurchaseOption purchaseOption) { this.purchaseOption = purchaseOption; }
         public String getPrivateIp() { return privateIp; }
         public void setPrivateIp(String privateIp) { this.privateIp = privateIp; }
         public String getPublicIp() { return publicIp; }

@@ -83,6 +83,46 @@ class EksSyncServiceTest {
     }
 
     @Test
+    void aSpotNodeGroupMakesItsVmSpot() {
+        Environment env = buildEnvironment();
+        when(eksService.listNodegroups(CLUSTER, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(List.of(NODEGROUP));
+        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)))
+                .thenReturn(buildNodegroup(2, 4).toBuilder()
+                        .capacityType(software.amazon.awssdk.services.eks.model.CapacityTypes.SPOT).build());
+        when(groupRepository.findByEnvironmentEnvironmentIdAndName(ENV_ID, NODEGROUP)).thenReturn(Optional.empty());
+        when(groupRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(vmRepository.findByGroupGroupIdAndName(anyString(), eq(NODEGROUP))).thenReturn(Optional.empty());
+        when(vmRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(groupRepository.findByEnvironmentEnvironmentIdOrderBySequencePositionAsc(ENV_ID)).thenReturn(List.of());
+
+        service.syncEksEnvironment(env);
+
+        org.mockito.ArgumentCaptor<Vm> saved = org.mockito.ArgumentCaptor.forClass(Vm.class);
+        verify(vmRepository).save(saved.capture());
+        assertEquals(com.tcgdigital.vmcontrol.model.PurchaseOption.SPOT, saved.getValue().getPurchaseOption());
+    }
+
+    @Test
+    void anOnDemandNodeGroupStaysOnDemand() {
+        Environment env = buildEnvironment();
+        when(eksService.listNodegroups(CLUSTER, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION))).thenReturn(List.of(NODEGROUP));
+        when(eksService.describeNodegroup(CLUSTER, NODEGROUP, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)))
+                .thenReturn(buildNodegroup(2, 4).toBuilder()
+                        .capacityType(software.amazon.awssdk.services.eks.model.CapacityTypes.ON_DEMAND).build());
+        when(groupRepository.findByEnvironmentEnvironmentIdAndName(ENV_ID, NODEGROUP)).thenReturn(Optional.empty());
+        when(groupRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(vmRepository.findByGroupGroupIdAndName(anyString(), eq(NODEGROUP))).thenReturn(Optional.empty());
+        when(vmRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(groupRepository.findByEnvironmentEnvironmentIdOrderBySequencePositionAsc(ENV_ID)).thenReturn(List.of());
+
+        service.syncEksEnvironment(env);
+
+        org.mockito.ArgumentCaptor<Vm> saved = org.mockito.ArgumentCaptor.forClass(Vm.class);
+        verify(vmRepository).save(saved.capture());
+        assertEquals(com.tcgdigital.vmcontrol.model.PurchaseOption.ON_DEMAND, saved.getValue().getPurchaseOption());
+    }
+
+    @Test
     void syncEksEnvironment_createsEveryReturnedNodeGroup() {
         Environment env = buildEnvironment();
         List<String> nodegroups = List.of("system-workers", "app-workers", "spot-workers");

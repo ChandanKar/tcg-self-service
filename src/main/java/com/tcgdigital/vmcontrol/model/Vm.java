@@ -54,6 +54,19 @@ public class Vm {
         this.awsAccountRef = awsAccountRef;
     }
 
+    /** On demand or Spot, from inventory or EKS sync (E31-T01). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "purchase_option", nullable = false, length = 20)
+    private PurchaseOption purchaseOption = PurchaseOption.ON_DEMAND;
+
+    public PurchaseOption getPurchaseOption() {
+        return purchaseOption;
+    }
+
+    public void setPurchaseOption(PurchaseOption purchaseOption) {
+        this.purchaseOption = purchaseOption == null ? PurchaseOption.ON_DEMAND : purchaseOption;
+    }
+
     @Column(nullable = false)
     private String name;
 

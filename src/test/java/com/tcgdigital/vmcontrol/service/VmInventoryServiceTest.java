@@ -66,6 +66,31 @@ class VmInventoryServiceTest {
     }
 
     @Test
+    void aSpotInstanceIsRecordedOnTheSnapshotAndTheVm() {
+        CloudInventoryProviderService.VmInventoryData data = new CloudInventoryProviderService.VmInventoryData();
+        data.setProviderVmId("i-1");
+        data.setInstanceType("m5.xlarge");
+        data.setPurchaseOption(com.tcgdigital.vmcontrol.model.PurchaseOption.SPOT);
+        when(provider.fetchInventory(anyList(), any())).thenReturn(Map.of("i-1", data));
+
+        service.syncAllInventory();
+
+        assertThat(stored.getPurchaseOption()).isEqualTo(com.tcgdigital.vmcontrol.model.PurchaseOption.SPOT);
+        org.mockito.Mockito.verify(vmRepository).updatePurchaseOption("vm-1", com.tcgdigital.vmcontrol.model.PurchaseOption.SPOT);
+        org.mockito.Mockito.verify(vmRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void anOnDemandInstanceChangesNothingOnTheVm() {
+        awsReports("m5.xlarge");
+
+        service.syncAllInventory();
+
+        assertThat(stored.getPurchaseOption()).isEqualTo(com.tcgdigital.vmcontrol.model.PurchaseOption.ON_DEMAND);
+        org.mockito.Mockito.verify(vmRepository, org.mockito.Mockito.never()).updatePurchaseOption(any(), any());
+    }
+
+    @Test
     void aTypeChangedOutsideTheAppIsStamped() {
         awsReports("m5.large");
 

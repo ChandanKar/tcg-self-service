@@ -235,6 +235,12 @@ public interface VmRepository extends JpaRepository<Vm, String> {
     @Query("SELECT v.status FROM Vm v WHERE v.vmId = :vmId")
     Optional<VmStatus> findStatusById(@Param("vmId") String vmId);
 
+    /** Records the purchase option inventory found, without touching anything else (E31-T01). */
+    @Modifying(flushAutomatically = true)
+    @Transactional
+    @Query("UPDATE Vm v SET v.purchaseOption = :option, v.version = v.version + 1 WHERE v.vmId = :vmId AND v.purchaseOption <> :option")
+    int updatePurchaseOption(@Param("vmId") String vmId, @Param("option") com.tcgdigital.vmcontrol.model.PurchaseOption option);
+
     /** Set the status only if it is still {@code expectedStatus}; 0 when someone changed it first. */
     @Modifying(flushAutomatically = true)
     @Transactional
