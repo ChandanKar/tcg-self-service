@@ -76,6 +76,18 @@ public class CostEstimationService {
     @Value("${rightsizing.scale-up.consecutive-minutes:15}")
     private int scaleUpConsecutiveMinutes;
 
+    /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    private int live(String key, int current) {
+        return settings == null ? current : settings.overrideOr(key, current);
+    }
+
+    private java.math.BigDecimal live(String key, java.math.BigDecimal current) {
+        return settings == null ? current : settings.overrideOr(key, current);
+    }
+
     /** Days after an instance-type change during which Compute Optimizer advice is ignored (E08-T06). */
     @Value("${rightsizing.post-resize-cooldown-days:14}")
     private int postResizeCooldownDays = 14;
@@ -472,7 +484,7 @@ public class CostEstimationService {
      * before the VM's last instance-type change measure the old size and are ignored (E08-T06).
      */
     private Map<String, Boolean> computeScaleDownCandidates(List<String> vmIds, Map<String, Timestamp> typeChangedAtByVmId) {
-        Date sinceDate = Date.valueOf(LocalDate.now().minusDays(scaleDownConsecutiveDays));
+        Date sinceDate = Date.valueOf(LocalDate.now().minusDays(live("rightsizing.scale-down.consecutive-days", scaleDownConsecutiveDays)));
         List<VmMetricDaily> dailyRows =
                 vmMetricDailyRepository.findByVmVmIdInAndBucketDateGreaterThanEqualOrderByVmVmIdAscBucketDateDesc(vmIds, sinceDate);
 
@@ -489,10 +501,10 @@ public class CostEstimationService {
                         .filter(d -> d.getBucketDate() != null && d.getBucketDate().toLocalDate().isAfter(changeDay))
                         .toList();
             }
-            boolean candidate = rows.size() >= scaleDownConsecutiveDays
-                    && rows.stream().limit(scaleDownConsecutiveDays)
+            boolean candidate = rows.size() >= live("rightsizing.scale-down.consecutive-days", scaleDownConsecutiveDays)
+                    && rows.stream().limit(live("rightsizing.scale-down.consecutive-days", scaleDownConsecutiveDays))
                             .allMatch(d -> d.getAvgCpuUtilization() != null
-                                    && d.getAvgCpuUtilization().compareTo(scaleDownCpuThreshold) < 0);
+                                    && d.getAvgCpuUtilization().compareTo(live("rightsizing.scale-down.cpu-threshold", scaleDownCpuThreshold)) < 0);
             result.put(entry.getKey(), candidate);
         }
         return result;
@@ -507,7 +519,7 @@ public class CostEstimationService {
      * minimum coverage that still reflects sustained (not momentary) load.
      */
     private Map<String, Boolean> computeScaleUpCandidates(List<String> vmIds) {
-        Timestamp windowStart = Timestamp.from(Instant.now().minus(scaleUpConsecutiveMinutes, ChronoUnit.MINUTES));
+        Timestamp windowStart = Timestamp.from(Instant.now().minus(live("rightsizing.scale-up.consecutive-minutes", scaleUpConsecutiveMinutes), ChronoUnit.MINUTES));
         Timestamp windowEnd = Timestamp.from(Instant.now());
         List<VmMetricSample> samples =
                 vmMetricSampleRepository.findByVmVmIdInAndSampleTimeBetweenOrderBySampleTimeAsc(vmIds, windowStart, windowEnd);
@@ -520,7 +532,7 @@ public class CostEstimationService {
             List<VmMetricSample> vmSamples = entry.getValue();
             boolean candidate = vmSamples.size() >= 2
                     && vmSamples.stream().allMatch(s -> s.getCpuUtilization() != null
-                            && s.getCpuUtilization().compareTo(scaleUpCpuThreshold) > 0);
+                            && s.getCpuUtilization().compareTo(live("rightsizing.scale-up.cpu-threshold", scaleUpCpuThreshold)) > 0);
             result.put(entry.getKey(), candidate);
         }
         return result;
@@ -565,7 +577,7 @@ public class CostEstimationService {
             boolean isScaleDown = "SCALE_DOWN".equals(direction);
             // Compute Optimizer needs ~14 days on the new size: ignore it right after a resize (E08-T06).
             boolean inCooldown = b.instanceTypeChangedAt() != null && b.instanceTypeChangedAt().toInstant()
-                    .isAfter(Instant.now().minus(java.time.Duration.ofDays(postResizeCooldownDays)));
+                    .isAfter(Instant.now().minus(java.time.Duration.ofDays(live("rightsizing.post-resize-cooldown-days", postResizeCooldownDays))));
             ComputeOptimizerService.Recommendation recommendation =
                     isScaleDown && !inCooldown ? recommendationsByInstanceId.get(b.vm().getProviderVmId()) : null;
 

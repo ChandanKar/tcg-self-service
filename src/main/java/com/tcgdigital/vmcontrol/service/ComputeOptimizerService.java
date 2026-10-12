@@ -39,6 +39,14 @@ public class ComputeOptimizerService {
     @Value("${cost.optimizer.enabled:true}")
     private boolean enabled;
 
+    /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    private boolean live(String key, boolean current) {
+        return settings == null ? current : settings.overrideOr(key, current);
+    }
+
     /** How long a region's recommendations are reused (E08-T04); failures are never cached. */
     @Value("${cost.optimizer.cache-minutes:60}")
     private long cacheMinutes = 60;
@@ -77,7 +85,7 @@ public class ComputeOptimizerService {
     }
 
     public boolean isAvailable() {
-        return enabled && configured.getAsBoolean();
+        return live("cost.optimizer.enabled", enabled) && configured.getAsBoolean();
     }
 
     /**

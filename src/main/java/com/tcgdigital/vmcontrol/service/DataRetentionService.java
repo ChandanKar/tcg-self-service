@@ -54,6 +54,14 @@ public class DataRetentionService {
     @Value("${retention.email-log.days:180}")
     private int emailLogDays = 180;
 
+    /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    private int live(String key, int current) {
+        return settings == null ? current : settings.overrideOr(key, current);
+    }
+
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.tcgdigital.vmcontrol.repository.ChatDeliveryLogRepository chatDeliveryLogRepository;
 
@@ -79,14 +87,14 @@ public class DataRetentionService {
     public Map<String, Integer> purgeAll() {
         Instant now = Instant.now();
         Map<String, Integer> deleted = new LinkedHashMap<>();
-        deleted.put("audit_log", purge(cutoff(now, auditLogDays), auditLogRepository::deleteOlderThan));
-        deleted.put("notification_read", purge(cutoff(now, readNotificationDays), notificationRepository::deleteReadOlderThan));
-        deleted.put("notification", purge(cutoff(now, unreadNotificationDays), notificationRepository::deleteOlderThan));
-        deleted.put("vm_state_history", purge(cutoff(now, stateHistoryDays), stateHistoryRepository::deleteOlderThan));
-        deleted.put("email_log", purge(cutoff(now, emailLogDays), emailLogRepository::deleteOlderThan));
+        deleted.put("audit_log", purge(cutoff(now, live("retention.audit-log.days", auditLogDays)), auditLogRepository::deleteOlderThan));
+        deleted.put("notification_read", purge(cutoff(now, live("retention.notification.read-days", readNotificationDays)), notificationRepository::deleteReadOlderThan));
+        deleted.put("notification", purge(cutoff(now, live("retention.notification.unread-days", unreadNotificationDays)), notificationRepository::deleteOlderThan));
+        deleted.put("vm_state_history", purge(cutoff(now, live("retention.state-history.days", stateHistoryDays)), stateHistoryRepository::deleteOlderThan));
+        deleted.put("email_log", purge(cutoff(now, live("retention.email-log.days", emailLogDays)), emailLogRepository::deleteOlderThan));
         if (chatDeliveryLogRepository != null) {
             // Chat deliveries (E24-T03) follow the email log's period.
-            deleted.put("chat_delivery_log", purge(cutoff(now, emailLogDays), chatDeliveryLogRepository::deleteOlderThan));
+            deleted.put("chat_delivery_log", purge(cutoff(now, live("retention.email-log.days", emailLogDays)), chatDeliveryLogRepository::deleteOlderThan));
         }
         log.info("Data retention removed {}", deleted);
         auditService.logAction(null, AuditAction.SCHEDULED_JOB_EXECUTED, "job", "data_retention", "Data retention",

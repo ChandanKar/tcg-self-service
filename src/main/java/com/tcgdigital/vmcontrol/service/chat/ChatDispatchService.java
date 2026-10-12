@@ -39,6 +39,14 @@ public class ChatDispatchService {
     @Value("${chat.enabled:false}")
     private boolean enabled;
 
+    /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    private boolean live(String key, boolean current) {
+        return settings == null ? current : settings.overrideOr(key, current);
+    }
+
     @Value("${chat.public-base-url:}")
     private String publicBaseUrl = "";
 
@@ -54,7 +62,7 @@ public class ChatDispatchService {
     }
 
     public boolean isEnabled() {
-        return enabled;
+        return live("chat.enabled", enabled);
     }
 
     /** The app link for an environment, or null when chat.public-base-url is not set. */
@@ -86,7 +94,7 @@ public class ChatDispatchService {
      */
     public void notifyWithActions(String environmentId, NotificationType type, ChatMessage.Severity severity, String title,
                                   String text, String linkHash, List<ActionSpec> actions, String dedupKey) {
-        if (!enabled) {
+        if (!live("chat.enabled", enabled)) {
             return;
         }
         java.util.List<ChatAction> buttons = new java.util.ArrayList<>();
@@ -117,7 +125,7 @@ public class ChatDispatchService {
     /** As {@link #notify(String, NotificationType, ChatMessage.Severity, String, String)}, sent once per dedupKey. */
     public void notify(String environmentId, NotificationType type, ChatMessage.Severity severity, String title, String text,
                        String dedupKey) {
-        if (!enabled) {
+        if (!live("chat.enabled", enabled)) {
             return;
         }
         dispatch(environmentId, type, new ChatMessage(title, text, severity, List.of(), List.of(), environmentLink(environmentId)),
@@ -133,7 +141,7 @@ public class ChatDispatchService {
      * e.g. one lease warning although every participant gets their own bell notification.
      */
     public void dispatch(String environmentId, NotificationType type, ChatMessage message, String dedupKey) {
-        if (!enabled) {
+        if (!live("chat.enabled", enabled)) {
             return;
         }
         try {

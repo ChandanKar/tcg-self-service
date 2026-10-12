@@ -28,6 +28,14 @@ public class TagReconciliationScheduler {
     @Value("${cost.tagging.enabled:false}")
     private boolean enabled;
 
+    /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    private boolean live(String key, boolean current) {
+        return settings == null ? current : settings.overrideOr(key, current);
+    }
+
     public TagReconciliationScheduler(TagReconciliationService tagReconciliationService,
                                        ScheduledJobLockService lockService) {
         this.tagReconciliationService = tagReconciliationService;
@@ -36,7 +44,7 @@ public class TagReconciliationScheduler {
 
     @Scheduled(cron = "${cost.tagging.cron:0 30 2 * * *}")
     public void scheduledTagReconciliation() {
-        if (!enabled) {
+        if (!live("cost.tagging.enabled", enabled)) {
             return;
         }
         lockService.runLocked(LOCK_NAME, () -> {

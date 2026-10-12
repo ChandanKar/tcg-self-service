@@ -22,6 +22,14 @@ public class VmInventoryScheduler {
     @Value("${vm.inventory.sync.enabled:true}")
     private boolean enabled;
 
+    /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    private boolean live(String key, boolean current) {
+        return settings == null ? current : settings.overrideOr(key, current);
+    }
+
     public VmInventoryScheduler(VmInventoryService inventoryService, ScheduledJobLockService lockService) {
         this.inventoryService = inventoryService;
         this.lockService = lockService;
@@ -30,7 +38,7 @@ public class VmInventoryScheduler {
     @Scheduled(fixedRateString = "${vm.inventory.sync.interval:3600000}",
             initialDelayString = "${vm.inventory.sync.initial-delay:60000}")
     public void scheduledInventorySync() {
-        if (!enabled) {
+        if (!live("vm.inventory.sync.enabled", enabled)) {
             return;
         }
         lockService.runLocked(LOCK_NAME, () -> {

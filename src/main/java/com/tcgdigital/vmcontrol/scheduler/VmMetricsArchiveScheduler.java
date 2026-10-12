@@ -22,6 +22,14 @@ public class VmMetricsArchiveScheduler {
     @Value("${vm.metrics.archive.enabled:true}")
     private boolean enabled;
 
+    /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    private boolean live(String key, boolean current) {
+        return settings == null ? current : settings.overrideOr(key, current);
+    }
+
     public VmMetricsArchiveScheduler(VmMetricsArchiveService archiveService, ScheduledJobLockService lockService) {
         this.archiveService = archiveService;
         this.lockService = lockService;
@@ -29,7 +37,7 @@ public class VmMetricsArchiveScheduler {
 
     @Scheduled(cron = "${vm.metrics.archive.cron:0 30 2 * * *}")
     public void scheduledMetricsArchive() {
-        if (!enabled) {
+        if (!live("vm.metrics.archive.enabled", enabled)) {
             return;
         }
         // A backlog run can take a while: the lock outlives it (E12-T01).

@@ -40,6 +40,14 @@ public class EksSyncScheduler {
     @Value("${eks.sync.status-refresh.enabled:true}")
     private boolean statusRefreshEnabled;
 
+    /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    private boolean live(String key, boolean current) {
+        return settings == null ? current : settings.overrideOr(key, current);
+    }
+
     public EksSyncScheduler(EksSyncService eksSyncService, ScheduledJobLockService lockService) {
         this.eksSyncService = eksSyncService;
         this.lockService = lockService;
@@ -48,7 +56,7 @@ public class EksSyncScheduler {
     @Scheduled(fixedRateString = "${eks.sync.interval:300000}",
                initialDelayString = "${eks.sync.initial-delay:60000}")
     public void scheduledEksSync() {
-        if (!autoRegisterEnabled && !statusRefreshEnabled) {
+        if (!live("eks.sync.auto-register.enabled", autoRegisterEnabled) && !live("eks.sync.status-refresh.enabled", statusRefreshEnabled)) {
             return;
         }
         lockService.runLocked("eks_sync", Duration.ofMinutes(30), this::runEksSync);
@@ -56,12 +64,12 @@ public class EksSyncScheduler {
 
     private void runEksSync() {
         log.info("Scheduled EKS sync triggered (auto-register={}, status-refresh={})",
-                autoRegisterEnabled, statusRefreshEnabled);
+                live("eks.sync.auto-register.enabled", autoRegisterEnabled), live("eks.sync.status-refresh.enabled", statusRefreshEnabled));
         try {
-            if (autoRegisterEnabled) {
+            if (live("eks.sync.auto-register.enabled", autoRegisterEnabled)) {
                 eksSyncService.autoDiscoverClusters();
             }
-            if (statusRefreshEnabled) {
+            if (live("eks.sync.status-refresh.enabled", statusRefreshEnabled)) {
                 int synced = eksSyncService.syncRegisteredEksEnvironments();
                 log.info("EKS status refresh completed — {} node group(s) processed", synced);
             }

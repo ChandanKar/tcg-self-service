@@ -42,6 +42,14 @@ public class ApprovalPolicyService {
     @Value("${approvals.enabled:false}")
     private boolean enabled;
 
+    /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    private boolean live(String key, boolean current) {
+        return settings == null ? current : settings.overrideOr(key, current);
+    }
+
     @Value("${approvals.admin-bypass:false}")
     private boolean adminBypass;
 
@@ -59,7 +67,7 @@ public class ApprovalPolicyService {
     }
 
     public boolean isEnabled() {
-        return enabled;
+        return live("approvals.enabled", enabled);
     }
 
     /** Team quotas (E25-T07); optional so the evaluator works without them. */
@@ -72,7 +80,7 @@ public class ApprovalPolicyService {
 
     /** Policies or quotas are on, so starts and extensions are worth evaluating. */
     public boolean isActive() {
-        return enabled || (quotaService != null && quotaService.isEnabled());
+        return live("approvals.enabled", enabled) || (quotaService != null && quotaService.isEnabled());
     }
 
     /** The synthetic match a quota with REQUIRE_APPROVAL adds; approvers come from the team. */
@@ -145,7 +153,7 @@ public class ApprovalPolicyService {
             return ApprovalDecision.allow();
         }
         List<PolicyMatch> matches = new ArrayList<>();
-        if (enabled) {
+        if (live("approvals.enabled", enabled)) {
             for (ApprovalPolicy policy : policyRepository.findActiveForEnvironment(ctx.environmentId(), ctx.teamId())) {
                 List<String> reasons = reasons(policy, ctx);
                 if (!reasons.isEmpty()) {

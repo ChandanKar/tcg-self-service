@@ -47,6 +47,22 @@ public class VmMetricsService {
     @Value("${vm.metrics.idle.minimum-duration-minutes:30}")
     private int idleMinimumDurationMinutes;
 
+    /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    private int live(String key, int current) {
+        return settings == null ? current : settings.overrideOr(key, current);
+    }
+
+    private long live(String key, long current) {
+        return settings == null ? current : settings.overrideOr(key, current);
+    }
+
+    private java.math.BigDecimal live(String key, java.math.BigDecimal current) {
+        return settings == null ? current : settings.overrideOr(key, current);
+    }
+
     /** How far back a sync fills gaps since each VM's latest stored sample (E12-T03). */
     @Value("${vm.metrics.backfill-max-hours:3}")
     private int backfillMaxHours = 3;
@@ -239,7 +255,7 @@ public class VmMetricsService {
     }
 
     private void updateIdleSummary(Vm vm) {
-        int sampleCount = Math.max(1, (idleMinimumDurationMinutes * 60 + periodSeconds - 1) / periodSeconds);
+        int sampleCount = Math.max(1, (live("vm.metrics.idle.minimum-duration-minutes", idleMinimumDurationMinutes) * 60 + periodSeconds - 1) / periodSeconds);
         List<VmMetricSample> recent = sampleRepository.findByVmVmIdOrderBySampleTimeDesc(
                 vm.getVmId(), org.springframework.data.domain.PageRequest.of(0, sampleCount));
         if (recent.isEmpty()) return;
@@ -267,7 +283,7 @@ public class VmMetricsService {
                     .orElse(latest.getSampleTime());
             summary.setIdleSince(idleSince);
             long minutes = Duration.between(idleSince.toInstant(), latest.getSampleTime().toInstant()).toMinutes();
-            summary.setIdleDurationMinutes((int) Math.max(minutes, idleMinimumDurationMinutes));
+            summary.setIdleDurationMinutes((int) Math.max(minutes, live("vm.metrics.idle.minimum-duration-minutes", idleMinimumDurationMinutes)));
             summary.setReason("Below configured CPU, network, and disk IO thresholds");
         } else {
             summary.setIdleSince(null);
@@ -282,9 +298,9 @@ public class VmMetricsService {
         long network = safe(sample.getNetworkInBytes()) + safe(sample.getNetworkOutBytes());
         long disk = safe(sample.getDiskReadBytes()) + safe(sample.getDiskWriteBytes());
         return cpu != null
-                && cpu.compareTo(idleCpuThresholdPercent) < 0
-                && network < idleNetworkThresholdBytes
-                && disk < idleDiskThresholdBytes;
+                && cpu.compareTo(live("vm.metrics.idle.cpu-threshold-percent", idleCpuThresholdPercent)) < 0
+                && network < live("vm.metrics.idle.network-threshold-bytes-per-period", idleNetworkThresholdBytes)
+                && disk < live("vm.metrics.idle.disk-threshold-bytes-per-period", idleDiskThresholdBytes);
     }
 
     private long safe(Long value) {

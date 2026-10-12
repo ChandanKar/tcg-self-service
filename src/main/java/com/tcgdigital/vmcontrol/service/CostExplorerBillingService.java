@@ -52,6 +52,14 @@ public class CostExplorerBillingService {
     @Value("${cost.actuals.enabled:true}")
     private boolean actualsEnabled;
 
+    /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    private boolean live(String key, boolean current) {
+        return settings == null ? current : settings.overrideOr(key, current);
+    }
+
     private final EnvironmentRepository environmentRepository;
     private final CostDailySnapshotRepository costDailySnapshotRepository;
     private final CostExplorerClientProvider clientProvider;
@@ -102,7 +110,7 @@ public class CostExplorerBillingService {
      * each day's values over whatever was stored before.
      */
     public IngestResult ingestWindow(LocalDate startInclusive, LocalDate endExclusive) {
-        if (!actualsEnabled) {
+        if (!live("cost.actuals.enabled", actualsEnabled)) {
             log.debug("Actual cost ingestion disabled (cost.actuals.enabled=false) — skipping {}..{}", startInclusive, endExclusive);
             return new IngestResult(0, 0, 0, 0);
         }

@@ -34,6 +34,14 @@ public class ReservationCoverageScheduler {
     @Value("${cost.reservations.enabled:true}")
     private boolean enabled;
 
+    /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    private boolean live(String key, boolean current) {
+        return settings == null ? current : settings.overrideOr(key, current);
+    }
+
     public ReservationCoverageScheduler(ReservationCoverageService reservationCoverageService,
                                          ScheduledJobLockService lockService,
                                          CommitmentRecommendationService recommendationService,
@@ -46,7 +54,7 @@ public class ReservationCoverageScheduler {
 
     @Scheduled(cron = "${cost.reservations.cron:0 15 5 * * *}")
     public void scheduledReservationCoverageSnapshot() {
-        if (!enabled) {
+        if (!live("cost.reservations.enabled", enabled)) {
             return;
         }
         lockService.runLocked(LOCK_NAME, () -> {

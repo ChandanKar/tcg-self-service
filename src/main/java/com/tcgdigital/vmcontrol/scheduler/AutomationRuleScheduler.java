@@ -32,6 +32,14 @@ public class AutomationRuleScheduler {
     @Value("${automation.rules.enabled:true}")
     private boolean enabled;
 
+    /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    private boolean live(String key, boolean current) {
+        return settings == null ? current : settings.overrideOr(key, current);
+    }
+
     public AutomationRuleScheduler(AutomationRuleService automationRuleService,
                                     ScheduledJobLockService scheduledJobLockService) {
         this.automationRuleService = automationRuleService;
@@ -41,7 +49,7 @@ public class AutomationRuleScheduler {
     @Scheduled(fixedRateString = "${automation.rules.interval:60000}",
                initialDelayString = "${automation.rules.initial-delay:60000}")
     public void scheduledEvaluate() {
-        if (!enabled) {
+        if (!live("automation.rules.enabled", enabled)) {
             return;
         }
         scheduledJobLockService.runLocked(LOCK_NAME, () -> {

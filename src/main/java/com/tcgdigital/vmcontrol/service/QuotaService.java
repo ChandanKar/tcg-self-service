@@ -37,6 +37,14 @@ public class QuotaService {
     @Value("${quotas.enabled:false}")
     private boolean enabled;
 
+    /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    private boolean live(String key, boolean current) {
+        return settings == null ? current : settings.overrideOr(key, current);
+    }
+
     public QuotaService(TeamQuotaRepository quotaRepository, TeamRepository teamRepository, TeamMemberRepository memberRepository,
                         QuotaUsageService usageService, NotificationService notificationService, AuditService auditService) {
         this.quotaRepository = quotaRepository;
@@ -48,7 +56,7 @@ public class QuotaService {
     }
 
     public boolean isEnabled() {
-        return enabled;
+        return live("quotas.enabled", enabled);
     }
 
     // ============= Configuration =============
@@ -146,7 +154,7 @@ public class QuotaService {
     /** vmCount VMs starting for hours, costing about estimatedCost. */
     @Transactional(readOnly = true)
     public QuotaCheck check(String teamId, int vmCount, int hours, BigDecimal estimatedCost) {
-        if (!enabled || teamId == null) {
+        if (!live("quotas.enabled", enabled) || teamId == null) {
             return QuotaCheck.ok();
         }
         List<TeamQuota> quotas = quotaRepository.findByTeamIdAndIsActiveTrue(teamId);
@@ -191,7 +199,7 @@ public class QuotaService {
     /** Warns team members once a month when usage reaches warn_percent and again at 100%. */
     @Transactional
     public int sendWarnings() {
-        if (!enabled) {
+        if (!live("quotas.enabled", enabled)) {
             return 0;
         }
         String month = YearMonth.now(ZoneOffset.UTC).toString();

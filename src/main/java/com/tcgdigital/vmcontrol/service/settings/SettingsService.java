@@ -88,6 +88,58 @@ public class SettingsService {
         return raw(key).orElse(defaultValue);
     }
 
+    // ---- an admin's override, else the caller's current value (E29-T03) ----
+    // For code that keeps its @Value field as the deploy-time value: without an override the
+    // behaviour is exactly the field's.
+
+    public boolean overrideOr(String key, boolean current) {
+        return override(key).map(v -> Boolean.parseBoolean(v.trim())).orElse(current);
+    }
+
+    public int overrideOr(String key, int current) {
+        return override(key).map(v -> {
+            try {
+                return Integer.parseInt(v.trim());
+            } catch (NumberFormatException e) {
+                return current;
+            }
+        }).orElse(current);
+    }
+
+    public long overrideOr(String key, long current) {
+        return override(key).map(v -> {
+            try {
+                return Long.parseLong(v.trim());
+            } catch (NumberFormatException e) {
+                return current;
+            }
+        }).orElse(current);
+    }
+
+    public BigDecimal overrideOr(String key, BigDecimal current) {
+        return override(key).map(v -> {
+            try {
+                return new BigDecimal(v.trim());
+            } catch (NumberFormatException e) {
+                return current;
+            }
+        }).orElse(current);
+    }
+
+    private final Map<String, Cached> overrideCache = new ConcurrentHashMap<>();
+
+    /** Only the stored override, cached like every read. */
+    Optional<String> override(String key) {
+        Instant now = clock.instant();
+        Cached cached = overrideCache.get(key);
+        if (cached != null && cached.loadedAt().plus(TTL).isAfter(now)) {
+            return cached.value();
+        }
+        Optional<String> value = repository.findById(key).map(AppSetting::getSettingValue);
+        overrideCache.put(key, new Cached(value, now));
+        return value;
+    }
+
     /** The effective value: override, else property; empty when neither is set. */
     Optional<String> raw(String key) {
         Instant now = clock.instant();
@@ -124,6 +176,7 @@ public class SettingsService {
         row.setUpdatedByUserId(actorId);
         repository.save(row);
         cache.remove(key);
+        overrideCache.remove(key);
         auditService.logAction(actorId, AuditAction.SYSTEM_CONFIG_UPDATED, "setting", null, key,
                 key + ": " + old + " -> " + normalized);
         return view(definition);
@@ -136,6 +189,7 @@ public class SettingsService {
             String old = currentValue(definition);
             repository.deleteById(key);
             cache.remove(key);
+            overrideCache.remove(key);
             auditService.logAction(actorId, AuditAction.SYSTEM_CONFIG_UPDATED, "setting", null, key,
                     key + ": " + old + " -> default (" + defaultValue(definition) + ")");
         }

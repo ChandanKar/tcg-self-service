@@ -37,6 +37,14 @@ public class ReservationCoverageService {
     @Value("${cost.reservations.enabled:true}")
     private boolean enabled;
 
+    /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    private boolean live(String key, boolean current) {
+        return settings == null ? current : settings.overrideOr(key, current);
+    }
+
     private final ReservationCoverageSnapshotRepository repository;
     private final CostExplorerClientProvider clientProvider;
     private final CostDayBoundary dayBoundary;
@@ -50,7 +58,7 @@ public class ReservationCoverageService {
     }
 
     public boolean isAvailable() {
-        return enabled && clientProvider.isConfigured();
+        return live("cost.reservations.enabled", enabled) && clientProvider.isConfigured();
     }
 
     /**

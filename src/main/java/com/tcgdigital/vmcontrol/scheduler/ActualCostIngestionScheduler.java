@@ -32,6 +32,14 @@ public class ActualCostIngestionScheduler {
     @Value("${cost.actuals.enabled:true}")
     private boolean enabled;
 
+    /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    private boolean live(String key, boolean current) {
+        return settings == null ? current : settings.overrideOr(key, current);
+    }
+
     @Value("${cost.actuals.trailing-days:3}")
     private int trailingDays = 3;
 
@@ -43,7 +51,7 @@ public class ActualCostIngestionScheduler {
 
     @Scheduled(cron = "${cost.actuals.cron:0 0 5 * * *}")
     public void scheduledActualCostIngestion() {
-        if (!enabled) {
+        if (!live("cost.actuals.enabled", enabled)) {
             return;
         }
         lockService.runLocked(LOCK_NAME, () -> {

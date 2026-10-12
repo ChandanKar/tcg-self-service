@@ -36,6 +36,14 @@ public class TagReconciliationService {
     @Value("${cost.tagging.enabled:false}")
     private boolean taggingEnabled;
 
+    /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    private boolean live(String key, boolean current) {
+        return settings == null ? current : settings.overrideOr(key, current);
+    }
+
     @Value("${cost.tagging.key-prefix:tcg:}")
     private String tagKeyPrefix;
 
@@ -65,7 +73,7 @@ public class TagReconciliationService {
      * "Reconcile Tags Now" admin action.
      */
     public Result reconcileAll() {
-        if (!taggingEnabled) {
+        if (!live("cost.tagging.enabled", taggingEnabled)) {
             log.debug("Cost-allocation tagging disabled (cost.tagging.enabled=false) — skipping");
             return new Result(0, 0, 0);
         }
@@ -74,7 +82,7 @@ public class TagReconciliationService {
 
     /** Sweeps every active VM of one environment (a full re-tag of that environment). */
     public Result reconcileEnvironment(Environment environment) {
-        if (!taggingEnabled) {
+        if (!live("cost.tagging.enabled", taggingEnabled)) {
             return new Result(0, 0, 0);
         }
         return reconcile(vmRepository.findActiveByEnvironmentIdFetchGroupAndEnvironment(environment.getEnvironmentId(), false));
@@ -86,7 +94,7 @@ public class TagReconciliationService {
      * nightly {@link #reconcileAll()} remains the drift-repair sweep.
      */
     public Result reconcileNewInEnvironment(Environment environment) {
-        if (!taggingEnabled) {
+        if (!live("cost.tagging.enabled", taggingEnabled)) {
             return new Result(0, 0, 0);
         }
         return reconcile(vmRepository.findActiveByEnvironmentIdFetchGroupAndEnvironment(environment.getEnvironmentId(), true));

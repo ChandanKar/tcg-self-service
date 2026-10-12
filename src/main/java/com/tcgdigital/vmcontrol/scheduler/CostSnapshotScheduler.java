@@ -22,6 +22,14 @@ public class CostSnapshotScheduler {
     @Value("${cost.snapshot.enabled:true}")
     private boolean enabled;
 
+    /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    private boolean live(String key, boolean current) {
+        return settings == null ? current : settings.overrideOr(key, current);
+    }
+
     public CostSnapshotScheduler(CostSnapshotService costSnapshotService, ScheduledJobLockService lockService) {
         this.costSnapshotService = costSnapshotService;
         this.lockService = lockService;
@@ -29,7 +37,7 @@ public class CostSnapshotScheduler {
 
     @Scheduled(cron = "${cost.snapshot.cron:0 0 3 * * *}")
     public void scheduledCostSnapshot() {
-        if (!enabled) {
+        if (!live("cost.snapshot.enabled", enabled)) {
             return;
         }
         lockService.runLocked(LOCK_NAME, () -> {

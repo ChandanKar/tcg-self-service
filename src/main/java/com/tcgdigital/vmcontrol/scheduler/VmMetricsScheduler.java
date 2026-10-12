@@ -22,6 +22,14 @@ public class VmMetricsScheduler {
     @Value("${cloudwatch.metric.enable:true}")
     private boolean enabled;
 
+    /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    private boolean live(String key, boolean current) {
+        return settings == null ? current : settings.overrideOr(key, current);
+    }
+
     public VmMetricsScheduler(VmMetricsService metricsService, ScheduledJobLockService lockService) {
         this.metricsService = metricsService;
         this.lockService = lockService;
@@ -30,7 +38,7 @@ public class VmMetricsScheduler {
     @Scheduled(fixedRateString = "#{${cloudwatch.metric.schedule.interval:5} * 60000}",
             initialDelayString = "#{${cloudwatch.metric.schedule.initial-delay:2} * 60000}")
     public void scheduledMetricsSync() {
-        if (!enabled) {
+        if (!live("cloudwatch.metric.enable", enabled)) {
             return;
         }
         lockService.runLocked(LOCK_NAME, () -> {

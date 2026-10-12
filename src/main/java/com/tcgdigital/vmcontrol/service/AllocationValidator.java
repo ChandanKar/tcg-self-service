@@ -25,6 +25,14 @@ public class AllocationValidator {
     @Value("${allocation.require-team:false}")
     private boolean requireTeam = false;
 
+    /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    private boolean live(String key, boolean current) {
+        return settings == null ? current : settings.overrideOr(key, current);
+    }
+
     @Value("${allocation.required-metadata-keys:}")
     private String requiredMetadataKeys = "";
 
@@ -36,7 +44,7 @@ public class AllocationValidator {
     public record Rules(boolean requireTeam, List<String> requiredMetadataKeys) {}
 
     public Rules rules() {
-        return new Rules(requireTeam, metadataKeys());
+        return new Rules(live("allocation.require-team", requireTeam), metadataKeys());
     }
 
     List<String> metadataKeys() {
@@ -47,7 +55,7 @@ public class AllocationValidator {
     /** The missing fields ("team", or a metadata key); empty when the environment is allocated. */
     public List<String> missing(Environment environment) {
         List<String> missing = new ArrayList<>();
-        if (requireTeam && environment.getTeam() == null) {
+        if (live("allocation.require-team", requireTeam) && environment.getTeam() == null) {
             missing.add("team");
         }
         List<String> keys = metadataKeys();

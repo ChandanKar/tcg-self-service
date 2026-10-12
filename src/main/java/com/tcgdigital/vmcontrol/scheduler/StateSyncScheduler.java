@@ -26,6 +26,14 @@ public class StateSyncScheduler {
     @Value("${vm.state.sync.enabled:true}")
     private boolean syncEnabled;
 
+    /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    private boolean live(String key, boolean current) {
+        return settings == null ? current : settings.overrideOr(key, current);
+    }
+
     public StateSyncScheduler(StateSyncService stateSyncService, ScheduledJobLockService lockService) {
         this.stateSyncService = stateSyncService;
         this.lockService = lockService;
@@ -37,7 +45,7 @@ public class StateSyncScheduler {
      */
     @Scheduled(fixedRateString = "${vm.state.sync.interval:300000}", initialDelayString = "${vm.state.sync.initial-delay:60000}")
     public void scheduledStateSync() {
-        if (!syncEnabled) {
+        if (!live("vm.state.sync.enabled", syncEnabled)) {
             log.debug("VM state sync is disabled, skipping");
             return;
         }
