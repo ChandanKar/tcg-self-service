@@ -45,6 +45,14 @@ public class WeeklyReportService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private NotificationPreferenceService preferences;
+
+    /** The user's own email choice for this report (E29-T05). */
+    private boolean wantsEmail(String userId, NotificationType type) {
+        return preferences == null || preferences.wantsEmail(userId, type);
+    }
+
     private boolean setting(String key, boolean defaultValue) {
         return settings == null ? defaultValue : settings.getBoolean(key, defaultValue);
     }
@@ -165,7 +173,8 @@ public class WeeklyReportService {
         notificationService.notifyWeeklyReportSent(recipient.getUserId(), NotificationType.WEEKLY_COST_REPORT,
                 subject, "Your weekly cost report (" + scopeLabel + ", " + rows.size() + " environment(s)) is ready.");
 
-        if (!setting("notification.email.weekly-cost-report.enabled", false) || isBlank(recipient.getEmail())) {
+        if (!setting("notification.email.weekly-cost-report.enabled", false) || isBlank(recipient.getEmail())
+                || !wantsEmail(recipient.getUserId(), NotificationType.WEEKLY_COST_REPORT)) {
             return;
         }
         String bodyHtml = EmailTemplates.digestSummary(subject,
@@ -235,7 +244,8 @@ public class WeeklyReportService {
             notificationService.notifyWeeklyReportSent(admin.getUserId(), NotificationType.WEEKLY_IDLE_WASTE_REPORT,
                     subject, "Your weekly idle waste report is ready. Idle cost over the last 30 days: " + grandTotal + deltaSuffix + ".");
 
-            if (!setting("notification.email.weekly-idle-waste-report.enabled", false) || isBlank(admin.getEmail())) {
+            if (!setting("notification.email.weekly-idle-waste-report.enabled", false) || isBlank(admin.getEmail())
+                || !wantsEmail(admin.getUserId(), NotificationType.WEEKLY_IDLE_WASTE_REPORT)) {
                 continue;
             }
             String bodyHtml = EmailTemplates.digestSummary(subject,
@@ -330,7 +340,8 @@ public class WeeklyReportService {
                 subject, "Your weekly rightsizing report (" + scopeLabel + ", " + rows.size() + " candidate(s)) is ready. " +
                         "Potential savings: " + totalSavings + deltaSuffix + ".");
 
-        if (!setting("notification.email.weekly-rightsizing-report.enabled", false) || isBlank(recipient.getEmail())) {
+        if (!setting("notification.email.weekly-rightsizing-report.enabled", false) || isBlank(recipient.getEmail())
+                || !wantsEmail(recipient.getUserId(), NotificationType.WEEKLY_RIGHTSIZING_REPORT)) {
             return;
         }
         String bodyHtml = EmailTemplates.digestSummary(subject,

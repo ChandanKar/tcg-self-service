@@ -292,6 +292,54 @@ class NotificationServiceTest {
         assertTrue(addressesCaptor.getValue().contains("envadmin@tcg.com"));
     }
 
+    // ---- per-user preferences (E29-T05) ----
+
+    private com.tcgdigital.vmcontrol.repository.UserNotificationPreferenceRepository usePreferences() {
+        com.tcgdigital.vmcontrol.repository.UserNotificationPreferenceRepository repo =
+                org.mockito.Mockito.mock(com.tcgdigital.vmcontrol.repository.UserNotificationPreferenceRepository.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "preferences", new NotificationPreferenceService(repo));
+        return repo;
+    }
+
+    @Test
+    void aUserWhoTurnedOffInAppOperationCompletedGetsNoBellItemOthersStillDo() {
+        com.tcgdigital.vmcontrol.repository.UserNotificationPreferenceRepository repo = usePreferences();
+        com.tcgdigital.vmcontrol.model.UserNotificationPreference off =
+                new com.tcgdigital.vmcontrol.model.UserNotificationPreference("user-regular", com.tcgdigital.vmcontrol.model.NotificationType.OPERATION_COMPLETED);
+        off.setInAppEnabled(false);
+        when(repo.findByUserIdInAndNotificationType(anyList(), eq(com.tcgdigital.vmcontrol.model.NotificationType.OPERATION_COMPLETED)))
+                .thenReturn(List.of(off));
+
+        service.notifyOperationCompletedForEnvironment("env-A", "Env A", "user-admin", "START", 1, 0);
+
+        List<String> ids = broadcastUserIds();
+        assertFalse(ids.contains("user-regular"));
+        assertTrue(ids.contains("user-admin"));
+        assertTrue(ids.contains("user-envadmin"));
+        verify(repo, times(1)).findByUserIdInAndNotificationType(anyList(), any()); // one query for the broadcast
+    }
+
+    @Test
+    void aUserWhoTurnedOffTheAccessExpiringEmailStillGetsTheBellOnly() {
+        com.tcgdigital.vmcontrol.repository.UserNotificationPreferenceRepository repo = usePreferences();
+        com.tcgdigital.vmcontrol.model.UserNotificationPreference off =
+                new com.tcgdigital.vmcontrol.model.UserNotificationPreference("user-regular", com.tcgdigital.vmcontrol.model.NotificationType.ACCESS_EXPIRING);
+        off.setEmailEnabled(false);
+        when(repo.findByUserIdInAndNotificationType(anyList(), eq(com.tcgdigital.vmcontrol.model.NotificationType.ACCESS_EXPIRING)))
+                .thenReturn(List.of(off));
+        settingValues.put("notification.email.access-expiring.enabled", "true");
+        Timestamp windowStart = new Timestamp(System.currentTimeMillis());
+        when(userRepository.findById("user-regular")).thenReturn(Optional.of(regularUser));
+
+        service.notifyAccessExpiring("user-regular", "Env A", "env-A", "access-1", null, windowStart);
+
+        verify(notificationRepository).save(argThat(n -> "user-regular".equals(n.getUserId()))); // the bell
+        ArgumentCaptor<List<String>> addresses = ArgumentCaptor.forClass(List.class);
+        verify(emailService).sendHtml(addresses.capture(), anyString(), anyString(), eq(null), eq(null));
+        assertFalse(addresses.getValue().contains("regular@tcg.com"));
+        assertTrue(addresses.getValue().contains("envadmin@tcg.com"));
+    }
+
     @Test
     void notifyAccessExpiring_doesNotResendEmailWhenBellNotificationAlreadyExists() {
         settingValues.put("notification.email.access-expiring.enabled", "true");

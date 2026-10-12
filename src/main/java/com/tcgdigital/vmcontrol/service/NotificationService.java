@@ -35,6 +35,10 @@ public class NotificationService {
     private final UserRepository userRepository;
     private final EmailService emailService;
 
+    /** Each user's choices of bell and email per type (E29-T05); absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private NotificationPreferenceService preferences;
+
 
     /** Live settings (E29-T02); absent in plain unit tests, where each toggle's default applies. */
     @org.springframework.beans.factory.annotation.Autowired(required = false)
@@ -215,7 +219,7 @@ public class NotificationService {
         toChat(environmentId, NotificationType.LOCK_BROKEN, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.WARNING, otherTitle, otherMessage);
 
         if (setting("notification.email.lock-broken.enabled", false)) {
-            emailBroadcastSplitByActor(resolveEnvironmentRecipients(environmentId), adminUserId,
+            emailBroadcastSplitByActor(resolveEnvironmentRecipients(environmentId), NotificationType.LOCK_BROKEN, adminUserId,
                     actorTitle, actorMessage, otherTitle, otherMessage);
         }
     }
@@ -225,7 +229,7 @@ public class NotificationService {
         String message = "You have been granted access to environment \"" + environmentName + "\".";
         create(userId, NotificationType.ACCESS_GRANTED, title, message, "ENVIRONMENT", environmentId);
         if (setting("notification.email.access-granted.enabled", false)) {
-            sendEventEmailToUser(userId, title, message);
+            sendEventEmailToUser(userId, NotificationType.ACCESS_GRANTED, title, message);
         }
     }
 
@@ -236,7 +240,7 @@ public class NotificationService {
                 + previousLevel + " to " + newLevel + ".";
         create(userId, NotificationType.ACCESS_LEVEL_CHANGED, title, message, "ENVIRONMENT", environmentId);
         if (setting("notification.email.access-granted.enabled", false)) {
-            sendEventEmailToUser(userId, title, message);
+            sendEventEmailToUser(userId, NotificationType.ACCESS_LEVEL_CHANGED, title, message);
         }
     }
 
@@ -245,7 +249,7 @@ public class NotificationService {
         String message = "Your access to environment \"" + environmentName + "\" has been revoked.";
         create(userId, NotificationType.ACCESS_REVOKED, title, message, "ENVIRONMENT", environmentId);
         if (setting("notification.email.access-revoked.enabled", false)) {
-            sendEventEmailToUser(userId, title, message);
+            sendEventEmailToUser(userId, NotificationType.ACCESS_REVOKED, title, message);
         }
     }
 
@@ -254,7 +258,7 @@ public class NotificationService {
         String message = "Your access request for environment \"" + environmentName + "\" has been approved.";
         create(userId, NotificationType.ACCESS_REQUEST_APPROVED, title, message, "ENVIRONMENT", environmentId);
         if (setting("notification.email.access-request-approved.enabled", false)) {
-            sendEventEmailToUser(userId, title, message);
+            sendEventEmailToUser(userId, NotificationType.ACCESS_REQUEST_APPROVED, title, message);
         }
     }
 
@@ -263,7 +267,7 @@ public class NotificationService {
         String message = "Your access request for environment \"" + environmentName + "\" has been denied.";
         create(userId, NotificationType.ACCESS_REQUEST_DENIED, title, message, "ENVIRONMENT", environmentId);
         if (setting("notification.email.access-request-denied.enabled", false)) {
-            sendEventEmailToUser(userId, title, message);
+            sendEventEmailToUser(userId, NotificationType.ACCESS_REQUEST_DENIED, title, message);
         }
     }
 
@@ -310,7 +314,7 @@ public class NotificationService {
         if (setting("notification.email.access-requested.enabled", false)) {
             // Email is intentionally narrower than the bell's reviewer set — All Admin only,
             // not env-admins (who are part of the bell's broadcast via resolveEnvironmentReviewers).
-            sendEventEmail(userRepository.findByAdminTrueAndIsActiveTrue(), title, message);
+            sendEventEmail(userRepository.findByAdminTrueAndIsActiveTrue(), NotificationType.ACCESS_REQUESTED, title, message);
         }
     }
 
@@ -329,7 +333,7 @@ public class NotificationService {
             List<User> recipients = new ArrayList<>();
             userRepository.findById(userId).ifPresent(recipients::add);
             recipients.addAll(resolveAdministeringEnvAdmins(environmentId));
-            sendEventEmail(recipients, title, message);
+            sendEventEmail(recipients, NotificationType.ACCESS_EXPIRING, title, message);
         }
     }
 
@@ -380,7 +384,7 @@ public class NotificationService {
         String entityId = team || environmentIds.isEmpty() ? budgetId : environmentIds.get(0);
         recipients.values().forEach(u -> create(u.getUserId(), type, title, message, entityType, entityId));
         if (setting("notification.email.budget-alert.enabled", false)) {
-            sendEventEmail(List.copyOf(recipients.values()), title, message);
+            sendEventEmail(List.copyOf(recipients.values()), type, title, message);
         }
     }
 
@@ -417,7 +421,7 @@ public class NotificationService {
         }
         if (setting("notification.email.cost-anomaly.enabled", false)) {
             try {
-                sendEventEmail(recipients, title, message);
+                sendEventEmail(recipients, NotificationType.COST_ANOMALY, title, message);
             } catch (Exception e) {
                 log.warn("Could not email cost anomaly {}: {}", anomalyId, e.getMessage());
             }
@@ -536,7 +540,7 @@ public class NotificationService {
             }
         }
         if (created && setting("notification.email.lease-expiring.enabled", false)) {
-            sendEventEmailToUser(userId, title, message);
+            sendEventEmailToUser(userId, NotificationType.LEASE_EXPIRING, title, message);
         }
         return created;
     }
@@ -592,7 +596,7 @@ public class NotificationService {
             List<User> recipients = new ArrayList<>();
             userRepository.findById(userId).ifPresent(recipients::add);
             recipients.addAll(resolveAdministeringEnvAdmins(environmentId));
-            sendEventEmail(recipients, title, message);
+            sendEventEmail(recipients, NotificationType.ACCESS_EXPIRED, title, message);
         }
     }
 
@@ -667,7 +671,7 @@ public class NotificationService {
 
         if (setting("notification.email.operation-failed.enabled", false)) {
             // Env admin explicitly excluded from this email per spec, unlike the bell broadcast.
-            emailBroadcastSplitByActor(resolveEnvironmentRecipients(environmentId, false), actorUserId,
+            emailBroadcastSplitByActor(resolveEnvironmentRecipients(environmentId, false), NotificationType.OPERATION_FAILED, actorUserId,
                     actorTitle, actorMessage, otherTitle, otherMessage);
         }
     }
@@ -734,8 +738,13 @@ public class NotificationService {
                                         String actorTitle, String actorMessage,
                                         String otherTitle, String otherMessage,
                                         String entityType, String entityId) {
-        // One saveAll for the whole broadcast (E11-T08).
-        List<Notification> batch = resolveEnvironmentRecipients(environmentId).stream()
+        // One saveAll for the whole broadcast (E11-T08); preferences in one query too (E29-T05).
+        List<User> recipients = resolveEnvironmentRecipients(environmentId);
+        java.util.Set<String> wanted = preferences == null
+                ? recipients.stream().map(User::getUserId).collect(java.util.stream.Collectors.toSet())
+                : preferences.inAppRecipients(type, recipients.stream().map(User::getUserId).toList());
+        List<Notification> batch = recipients.stream()
+                .filter(user -> wanted.contains(user.getUserId()))
                 .map(user -> {
                     boolean isActor = user.getUserId().equals(actorUserId);
                     return newNotification(user.getUserId(), type,
@@ -847,6 +856,10 @@ public class NotificationService {
 
     private void create(String userId, NotificationType type, String title, String message,
                         String entityType, String entityId) {
+        if (preferences != null && !preferences.wantsInApp(userId, type)) {
+            log.debug("User {} turned off in-app {}", userId, type); // E29-T05
+            return;
+        }
         notificationRepository.save(newNotification(userId, type, title, message, entityType, entityId));
         log.debug("Notification created for user {}: {}", userId, title);
     }
@@ -894,8 +907,8 @@ public class NotificationService {
 
     // ============= Email dispatch helpers (Notification System v2) =============
 
-    private void sendEventEmailToUser(String userId, String subject, String bodyText) {
-        userRepository.findById(userId).ifPresent(user -> sendEventEmail(List.of(user), subject, bodyText));
+    private void sendEventEmailToUser(String userId, NotificationType type, String subject, String bodyText) {
+        userRepository.findById(userId).ifPresent(user -> sendEventEmail(List.of(user), type, subject, bodyText));
     }
 
     /**
@@ -949,8 +962,10 @@ public class NotificationService {
         return addresses.size();
     }
 
-    private void sendEventEmail(List<User> recipients, String subject, String bodyText) {
-        List<String> addresses = recipients.stream()
+    private void sendEventEmail(List<User> recipients, NotificationType type, String subject, String bodyText) {
+        // Users who turned this email off are dropped, with one preference query (E29-T05).
+        List<User> wanted = preferences == null ? recipients : preferences.emailRecipients(type, recipients);
+        List<String> addresses = wanted.stream()
                 .filter(user -> user != null && Boolean.TRUE.equals(user.getIsActive()) && !isBlank(user.getEmail()))
                 .map(User::getEmail)
                 .distinct()
@@ -966,16 +981,16 @@ public class NotificationService {
      * else" (one batched email, "actor's X" phrasing) — mirrors the bell's per-recipient
      * actor/other title distinction, since email bodies can't vary per-address in one send.
      */
-    private void emailBroadcastSplitByActor(List<User> recipients, String actorUserId,
+    private void emailBroadcastSplitByActor(List<User> recipients, NotificationType type, String actorUserId,
                                             String actorTitle, String actorMessage,
                                             String otherTitle, String otherMessage) {
         List<User> actor = recipients.stream().filter(u -> u.getUserId().equals(actorUserId)).toList();
         List<User> others = recipients.stream().filter(u -> !u.getUserId().equals(actorUserId)).toList();
         if (!actor.isEmpty()) {
-            sendEventEmail(actor, actorTitle, actorMessage);
+            sendEventEmail(actor, type, actorTitle, actorMessage);
         }
         if (!others.isEmpty()) {
-            sendEventEmail(others, otherTitle, otherMessage);
+            sendEventEmail(others, type, otherTitle, otherMessage);
         }
     }
 }

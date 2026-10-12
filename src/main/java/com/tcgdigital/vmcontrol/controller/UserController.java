@@ -153,6 +153,23 @@ public class UserController {
         return ResponseEntity.ok(myAccountService.getMyLeases(userService.getCurrentUserId()));
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.tcgdigital.vmcontrol.service.NotificationPreferenceService notificationPreferenceService;
+
+    /** Which notifications reach me, by type, in the bell and by email (E29-T05). */
+    @GetMapping("/me/notification-preferences")
+    @PreAuthorize("isAuthenticated()")
+    public List<com.tcgdigital.vmcontrol.dto.NotificationPreferenceDTO> getMyNotificationPreferences() {
+        return notificationPreferenceService.list(userService.getCurrentUserId());
+    }
+
+    @PutMapping("/me/notification-preferences")
+    @PreAuthorize("isAuthenticated()")
+    public List<com.tcgdigital.vmcontrol.dto.NotificationPreferenceDTO> updateMyNotificationPreferences(
+            @RequestBody List<com.tcgdigital.vmcontrol.dto.NotificationPreferenceDTO.Update> changes) {
+        return notificationPreferenceService.update(userService.getCurrentUserId(), changes);
+    }
+
     @GetMapping("/me/cost")
     @Operation(
             summary = "Get my environments' cost",
