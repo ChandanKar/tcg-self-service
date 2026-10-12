@@ -69,6 +69,10 @@ public final class SettingsRegistry {
             flag("Rightsizing", "rightsizing.safe-resize.enabled", "Safe resize of running VMs",
                     "Apply may stop a running VM, change its type and start it again, rolling back on failure.", false),
 
+            // Spot (E31)
+            flag("Spot", "spot.pricing.enabled", "Spot pricing",
+                    "Capture Spot prices daily and price Spot VMs and node groups at them.", false),
+
             // Idle detection
             decimal("Idle detection", "vm.metrics.idle.cpu-threshold-percent", "Idle CPU %",
                     "CPU below which a running VM counts as idle.", "5", "0", "100"),
@@ -114,6 +118,7 @@ public final class SettingsRegistry {
             readOnly("Restart required", "cost.actuals.cron", "Actual cost schedule", "Cron, read at startup."),
             readOnly("Restart required", "cost.reservations.cron", "Reservation coverage schedule", "Cron, read at startup."),
             readOnly("Restart required", "cost.optimizer.cron", "Compute Optimizer capture schedule", "Cron, read at startup."),
+            readOnly("Restart required", "spot.pricing.cron", "Spot price capture schedule", "Cron, read at startup."),
             readOnly("Restart required", "notification.weekly-reports.cron", "Weekly report schedule", "Cron, read at startup."),
             readOnly("Restart required", "retention.cron", "Retention schedule", "Cron, read at startup."),
             readOnly("Restart required", "savings.ledger.cron", "Savings ledger schedule", "Cron, read at startup."),

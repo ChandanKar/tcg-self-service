@@ -39,6 +39,14 @@ public class EstimatedCostProvider implements CostDataProvider {
     private final VmInventorySnapshotRepository vmInventorySnapshotRepository;
     private final ObjectMapper objectMapper;
 
+    /** Spot rates for SPOT VMs (E31-T02); optional so unit tests can omit it. */
+    private SpotPriceService spotPriceService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setSpotPriceService(SpotPriceService spotPriceService) {
+        this.spotPriceService = spotPriceService;
+    }
+
     public EstimatedCostProvider(PricingReferenceService pricingReferenceService,
                                   VmCostCalculator vmCostCalculator,
                                   VmVolumeSnapshotRepository vmVolumeSnapshotRepository,
@@ -95,6 +103,18 @@ public class EstimatedCostProvider implements CostDataProvider {
 
         BigDecimal storageGbMonthRate = pricingReferenceService.getStorageGbMonthRate();
 
+        // Spot VMs are priced at the captured Spot rate of their zone (E31-T02).
+        Map<String, String> zoneByVmId = new LinkedHashMap<>();
+        List<String> spotEc2 = vms.stream().filter(v -> v.getPurchaseOption() == com.tcgdigital.vmcontrol.model.PurchaseOption.SPOT
+                && v.getProvider() == CloudProvider.AWS).map(Vm::getVmId).toList();
+        if (spotPriceService != null && spotPriceService.isEnabled() && !spotEc2.isEmpty()) {
+            vmInventorySnapshotRepository.findByVmVmIdIn(spotEc2).forEach(s -> {
+                if (s.getVm() != null && s.getAvailabilityZone() != null) {
+                    zoneByVmId.put(s.getVm().getVmId(), s.getAvailabilityZone());
+                }
+            });
+        }
+
         for (Vm vm : vms) {
             String vmId = vm.getVmId();
             List<VmStateHistory> transitions = transitionsByVmId.getOrDefault(vmId, List.of());
@@ -118,8 +138,18 @@ public class EstimatedCostProvider implements CostDataProvider {
 
             PricingReferenceService.PriceLookupResult rate =
                     pricingReferenceService.lookupHourlyRate(pricingProvider, instanceType, vm.getRegion());
+            BigDecimal spotRate = vm.getPurchaseOption() == com.tcgdigital.vmcontrol.model.PurchaseOption.SPOT && spotPriceService != null
+                    ? spotPriceService.lookupSpotRate(instanceType, vm.getRegion(), zoneByVmId.get(vmId)).orElse(null) : null;
 
-            if (rate.priceKnown()) {
+            if (spotRate != null) {
+                BigDecimal effectiveHourlyRate = spotRate.multiply(BigDecimal.valueOf(nodeCount));
+                BigDecimal cost = vmCostCalculator.estimateCost(effectiveHourlyRate, runtimeHours, storageGib, storageGbMonthRate, storageDays);
+                BigDecimal onDemandCost = rate.priceKnown()
+                        ? vmCostCalculator.estimateCost(rate.hourlyRate().multiply(BigDecimal.valueOf(nodeCount)), runtimeHours,
+                                storageGib, storageGbMonthRate, storageDays)
+                        : null;
+                result.put(vmId, new VmCostEstimate(true, effectiveHourlyRate, runtimeHours, storageGib, cost, false, onDemandCost));
+            } else if (rate.priceKnown()) {
                 BigDecimal effectiveHourlyRate = rate.hourlyRate().multiply(BigDecimal.valueOf(nodeCount));
                 BigDecimal cost = vmCostCalculator.estimateCost(effectiveHourlyRate, runtimeHours, storageGib, storageGbMonthRate, storageDays);
                 result.put(vmId, new VmCostEstimate(true, effectiveHourlyRate, runtimeHours, storageGib, cost, rate.approximate()));

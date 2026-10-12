@@ -74,7 +74,9 @@ public class SchedulerJobCatalog {
             cron("eks_split_cost", "EKS split cost ingestion (daily)", "eks.scad.cron", "0 30 6 * * *",
                     "eks.scad.enabled", false),
             cron("compute_optimizer_capture", "Compute Optimizer capture (daily)", "cost.optimizer.cron", "0 45 5 * * *",
-                    "cost.optimizer.enabled", true));
+                    "cost.optimizer.enabled", true),
+            cron("spot_price_capture", "Spot prices (daily)", "spot.pricing.cron", "0 20 4 * * *",
+                    "spot.pricing.enabled", false));
 
     /** A job as the health view needs it. */
     public record Job(String jobName, String label, Duration expectedInterval, boolean enabled) {

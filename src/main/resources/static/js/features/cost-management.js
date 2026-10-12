@@ -523,10 +523,16 @@ const CostManagement = (function() {
         `;
     }
 
-    /** The month-over-month change, plus the EKS control-plane fee the total includes (E26-T03). */
+    /**
+     * The month-over-month change, plus the EKS control-plane fee the total includes (E26-T03) and
+     * what Spot saved against on demand (E31-T02).
+     */
     function totalSubtitle(summary, deltaText) {
         const fee = Number(summary.eksControlPlaneCost || 0);
-        return fee > 0 ? `${deltaText} · incl. ${Utils.formatCurrency(fee)} EKS control plane` : deltaText;
+        const spot = Number(summary.spotSavings || 0);
+        let text = fee > 0 ? `${deltaText} · incl. ${Utils.formatCurrency(fee)} EKS control plane` : deltaText;
+        if (spot > 0) text += ` · Spot saved ${Utils.formatCurrency(spot)}`;
+        return text;
     }
 
     function rightsizingSubtitle(summary) {

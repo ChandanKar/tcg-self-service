@@ -199,7 +199,12 @@ public class CostEstimationService {
                 Timestamp.from(Instant.now()),
                 scaleUpCandidateCount,
                 (int) bundles.stream().filter(b -> b.estimate() != null && b.estimate().priceApproximate()).count(),
-                eksControlPlaneCost
+                eksControlPlaneCost,
+                // Spot priced at its Spot rate against the same hours on demand (E31-T02).
+                bundles.stream().filter(b -> b.estimate() != null && b.estimate().onDemandEquivalentCost() != null)
+                        .map(b -> b.estimate().onDemandEquivalentCost().subtract(b.estimate().cost()))
+                        .reduce(BigDecimal.ZERO, BigDecimal::add),
+                (int) bundles.stream().filter(b -> b.vm().getPurchaseOption() == com.tcgdigital.vmcontrol.model.PurchaseOption.SPOT).count()
         );
     }
 

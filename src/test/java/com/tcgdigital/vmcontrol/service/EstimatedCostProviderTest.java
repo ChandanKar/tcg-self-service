@@ -98,6 +98,39 @@ class EstimatedCostProviderTest {
         assertEquals(0, new BigDecimal("2.50").compareTo(estimate.cost()));
     }
 
+    // --- Spot priced at its Spot rate (E31-T02) ---
+
+    @Test
+    void aSpotNodeGroupIsPricedAtTheSpotRateWithItsOnDemandEquivalent() {
+        Vm vm = eksNodeGroupVm("{\"minSize\":1,\"desiredSize\":3,\"instanceType\":\"m6i.large\"}");
+        vm.setPurchaseOption(com.tcgdigital.vmcontrol.model.PurchaseOption.SPOT);
+        SpotPriceService spot = org.mockito.Mockito.mock(SpotPriceService.class);
+        when(spot.lookupSpotRate("m6i.large", "us-east-1", null)).thenReturn(java.util.Optional.of(new BigDecimal("0.04")));
+        provider.setSpotPriceService(spot);
+
+        CostDataProvider.VmCostEstimate estimate = provider.estimateCosts(List.of(vm), windowStart, windowEnd).get("eks-vm-1");
+
+        assertTrue(estimate.costKnown());
+        // 3 x 0.04 Spot = 0.12/hr; 10 h -> 1.20; on demand 3 x 0.096 x 10 = 2.88
+        assertEquals(0, new BigDecimal("0.12").compareTo(estimate.hourlyRate()));
+        assertEquals(0, new BigDecimal("1.20").compareTo(estimate.cost()));
+        assertEquals(0, new BigDecimal("2.88").compareTo(estimate.onDemandEquivalentCost()));
+    }
+
+    @Test
+    void withoutASpotPriceASpotVmFallsBackToOnDemand() {
+        Vm vm = eksNodeGroupVm("{\"minSize\":1,\"desiredSize\":3,\"instanceType\":\"t3.large\"}");
+        vm.setPurchaseOption(com.tcgdigital.vmcontrol.model.PurchaseOption.SPOT);
+        SpotPriceService spot = org.mockito.Mockito.mock(SpotPriceService.class);
+        when(spot.lookupSpotRate(any(), any(), any())).thenReturn(java.util.Optional.empty());
+        provider.setSpotPriceService(spot);
+
+        CostDataProvider.VmCostEstimate estimate = provider.estimateCosts(List.of(vm), windowStart, windowEnd).get("eks-vm-1");
+
+        assertEquals(0, new BigDecimal("0.2496").compareTo(estimate.hourlyRate()));
+        assertEquals(null, estimate.onDemandEquivalentCost());
+    }
+
     @Test
     void eksNodeGroupWithoutMetadataIsUnknownNotZero() {
         Vm vm = eksNodeGroupVm(null);

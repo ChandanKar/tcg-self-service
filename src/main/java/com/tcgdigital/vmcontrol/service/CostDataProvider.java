@@ -37,11 +37,18 @@ public interface CostDataProvider {
             BigDecimal runtimeHours,
             long storageGib,
             BigDecimal cost,
-            boolean priceApproximate
+            boolean priceApproximate,
+            /** What the same hours would cost on demand, for a Spot VM priced at its Spot rate (E31-T02); else null. */
+            BigDecimal onDemandEquivalentCost
     ) {
         public VmCostEstimate(boolean costKnown, BigDecimal hourlyRate, BigDecimal runtimeHours, long storageGib,
                               BigDecimal cost) {
-            this(costKnown, hourlyRate, runtimeHours, storageGib, cost, false);
+            this(costKnown, hourlyRate, runtimeHours, storageGib, cost, false, null);
+        }
+
+        public VmCostEstimate(boolean costKnown, BigDecimal hourlyRate, BigDecimal runtimeHours, long storageGib,
+                              BigDecimal cost, boolean priceApproximate) {
+            this(costKnown, hourlyRate, runtimeHours, storageGib, cost, priceApproximate, null);
         }
     }
 }

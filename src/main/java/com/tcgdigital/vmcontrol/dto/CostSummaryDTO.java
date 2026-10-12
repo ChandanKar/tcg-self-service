@@ -10,6 +10,8 @@ import java.sql.Timestamp;
  * scale-down candidates that save money; {@code scaleUpCandidateCount} counts the rest.
  * {@code approximatePriceVmCount} VMs are priced with another region's rate (E08-T07).
  * {@code eksControlPlaneCost} is the EKS control-plane fee, already part of {@code totalMonthlyCost} (E26-T03).
+ * {@code spotSavings} is what Spot VMs priced at their Spot rate saved against on demand, over
+ * {@code spotVmCount} Spot VMs and node groups (E31-T02).
  */
 public record CostSummaryDTO(
         BigDecimal totalMonthlyCost,
@@ -24,5 +26,7 @@ public record CostSummaryDTO(
         Timestamp generatedAt,
         Integer scaleUpCandidateCount,
         Integer approximatePriceVmCount,
-        BigDecimal eksControlPlaneCost
+        BigDecimal eksControlPlaneCost,
+        BigDecimal spotSavings,
+        Integer spotVmCount
 ) {}
