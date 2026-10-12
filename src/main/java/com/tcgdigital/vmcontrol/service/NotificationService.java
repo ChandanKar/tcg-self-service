@@ -446,6 +446,24 @@ public class NotificationService {
                 title, message, "VM", vmId);
     }
 
+    /** Approvers hear about a request for an environment from a template (E32-T03). */
+    public void notifyProvisioningRequested(List<String> approverIds, String requestId, String environmentName,
+                                            String templateName, String requesterName) {
+        String title = "Environment requested: " + environmentName;
+        String message = (requesterName == null ? "Someone" : requesterName) + " asks for a new environment '" + environmentName
+                + "' from the template " + templateName + ". Open Provisioning requests to approve or reject it.";
+        approverIds.forEach(id -> create(id, NotificationType.PROVISIONING_REQUESTED, title, message, "PROVISIONING_REQUEST", requestId));
+    }
+
+    /** The requester hears the decision on their environment request (E32-T03). */
+    public void notifyProvisioningDecision(String requesterId, String requestId, String environmentName, boolean approved, String notes) {
+        String title = (approved ? "Environment request approved: " : "Environment request rejected: ") + environmentName;
+        String message = approved ? "Your request for '" + environmentName + "' was approved; it will be built shortly."
+                : "Your request for '" + environmentName + "' was rejected." + (notes == null || notes.isBlank() ? "" : " Reason: " + notes);
+        create(requesterId, approved ? NotificationType.PROVISIONING_APPROVED : NotificationType.PROVISIONING_REJECTED,
+                title, message, "PROVISIONING_REQUEST", requestId);
+    }
+
     /** AWS took Spot capacity back: the environment's admins and the lock holder hear it (E31-T07). */
     public void notifySpotInterrupted(String environmentId, String environmentName, String vmId, String vmName,
                                       String lockHolderUserId, String details) {

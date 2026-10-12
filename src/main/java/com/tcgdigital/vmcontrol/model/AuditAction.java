@@ -49,6 +49,11 @@ public enum AuditAction {
     TEMPLATE_CREATED,
     TEMPLATE_UPDATED,
     TEMPLATE_RETIRED,
+    /** A request for an environment from a template was made, approved, rejected or cancelled (E32-T03). */
+    PROVISIONING_REQUESTED,
+    PROVISIONING_APPROVED,
+    PROVISIONING_REJECTED,
+    PROVISIONING_CANCELLED,
 
     // Lock operations
     LOCK_ACQUIRED,
