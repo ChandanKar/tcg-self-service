@@ -51,6 +51,7 @@ DELETE FROM environment_access;
 DELETE FROM environment;
 DELETE FROM chargeback_statement;
 DELETE FROM chat_action_token;
+DELETE FROM api_token;
 DELETE FROM external_ticket;
 DELETE FROM approval_decision;
 DELETE FROM approval_request_approver;

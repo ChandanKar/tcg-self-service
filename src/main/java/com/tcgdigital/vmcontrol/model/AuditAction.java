@@ -65,6 +65,9 @@ public enum AuditAction {
     // RDS (E33-T04)
     RDS_AUTO_START_DETECTED,
     RDS_RESTOPPED,
+    // API tokens (E34-T01)
+    API_TOKEN_CREATED,
+    API_TOKEN_REVOKED,
 
     // Lock operations
     LOCK_ACQUIRED,
