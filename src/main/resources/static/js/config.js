@@ -367,6 +367,7 @@ const Config = (function() {
             idleWasteExport: () => `${API_BASE_URL}/cost-management/idle-waste/export`,
             rightsizingExport: () => `${API_BASE_URL}/cost-management/rightsizing/export`,
             applyRightsizing: () => `${API_BASE_URL}/cost-management/rightsizing/apply`,
+            spotOpportunities: (page = 0, size = 25) => `${API_BASE_URL}/cost-management/spot-opportunities?page=${page}&size=${size}`,
             rightsizingPrecheck: (vmId, targetType) => `${API_BASE_URL}/cost-management/rightsizing/precheck?vmId=${encodeURIComponent(vmId)}&targetInstanceType=${encodeURIComponent(targetType)}`,
             rightsizingResize: (resizeId) => `${API_BASE_URL}/cost-management/rightsizing/resizes/${encodeURIComponent(resizeId)}`,
             // Chargeback and split rules (E23-T06..T08)

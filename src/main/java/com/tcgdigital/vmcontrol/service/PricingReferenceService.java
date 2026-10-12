@@ -188,6 +188,24 @@ public class PricingReferenceService {
                 .toList();
     }
 
+    /**
+     * The type and every other type with the same vCPU, memory and architecture (E31-T04): the
+     * diversified set Spot capacity is asked for. Just the type when its spec is unknown.
+     */
+    public List<String> sameShapeTypes(String instanceType) {
+        InstanceSpec spec = instanceType == null ? null : specsByType.get(instanceType);
+        if (spec == null) {
+            return instanceType == null ? List.of() : List.of(instanceType);
+        }
+        List<String> types = new java.util.ArrayList<>();
+        types.add(instanceType);
+        specsByType.values().stream()
+                .filter(s -> !s.instanceType().equals(instanceType) && s.vcpu() == spec.vcpu()
+                        && s.memoryMib() == spec.memoryMib() && s.architecture().equals(spec.architecture()))
+                .map(InstanceSpec::instanceType).sorted().forEach(types::add);
+        return types;
+    }
+
     /** The Graviton (arm64) equivalent of the same size, when there is one. */
     public Optional<String> suggestGraviton(String provider, String instanceType) {
         return suggestNewerGeneration(provider, instanceType, "arm64");

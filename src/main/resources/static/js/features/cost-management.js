@@ -37,6 +37,7 @@ const CostManagement = (function() {
         rightsizingDirection: '',
         detail: emptyPageState(),
         anomalies: [],
+        spotOpportunities: [],
         anomalyMonitors: [],
         // Requests that failed, by key: their panels show an error with Retry (E08-T09).
         errors: {}
@@ -164,6 +165,7 @@ const CostManagement = (function() {
         rightsizing: { url: () => Config.API.costManagement.rightsizing(state.rightsizing.page, PAGE_SIZE, state.rightsizingDirection), apply: d => { state.rightsizing = mapPage(d); } },
         detail: { url: () => Config.API.costManagement.vmDetail(state.detail.page, PAGE_SIZE), apply: d => { state.detail = mapPage(d); } },
         anomalies: { url: () => Config.API.costAnomalies.list(ANOMALY_DAYS), apply: d => { state.anomalies = (d && d.content) || []; } },
+        spotOpportunities: { url: () => Config.API.costManagement.spotOpportunities(0, 100), apply: d => { state.spotOpportunities = (d && d.content) || []; } },
         anomalyMonitors: { url: () => Config.API.costAnomalies.monitors, apply: d => { state.anomalyMonitors = d || []; } },
         eksEnvironments: {
             url: () => Config.API.environments.list,
@@ -335,6 +337,7 @@ const CostManagement = (function() {
                     ${panelSlot('reconciliation')}
                     ${panelSlot('idle')}
                     ${panelSlot('rightsizing')}
+                    ${panelSlot('spot')}
                     ${panelSlot('detail')}
                 </div>
             </div>
@@ -385,12 +388,50 @@ const CostManagement = (function() {
         idle: { keys: ['idle'], label: 'idle VMs', build: () => buildIdleWasteTable() },
         rightsizing: { keys: ['rightsizing'], label: 'rightsizing recommendations', build: () => buildRightsizingTable() },
         detail: { keys: ['detail'], label: 'VM cost detail', build: () => buildVmDetailTable() },
+        spot: { keys: ['spotOpportunities'], label: 'Spot opportunities', build: () => buildSpotPanel() },
         anomalies: { keys: ['anomalies', 'anomalyMonitors'], label: 'cost anomalies', build: () => buildAnomaliesPanel() },
         workloads: {
             keys: ['eksEnvironments'], label: 'EKS workload cost', build: () => buildWorkloadsPanel(),
             after: () => mountWorkloads()
         }
     };
+
+    /**
+     * On-demand VMs and node groups of Spot-eligible environments with what Spot would have saved
+     * over 30 days and AWS's placement score (E31-T04); hidden when there are none (or Spot is off).
+     */
+    function buildSpotPanel() {
+        const rows = state.spotOpportunities || [];
+        if (!rows.length) return '';
+        const money = v => v == null ? '<span class="text-muted">Unknown</span>' : Utils.escapeHtml(Utils.formatCurrency(Number(v)));
+        const body = rows.map(r => `
+            <tr data-spot-vm="${Utils.escapeHtml(r.vmId)}">
+                <td class="cost-vm-cell" title="${Utils.escapeHtml(r.environmentName || '')}">${Utils.escapeHtml(r.name || r.vmId)}</td>
+                <td>${r.kind === 'EKS_NODE_GROUP' ? `EKS node group${r.nodeCount ? ` · ${Number(r.nodeCount)} node${r.nodeCount === 1 ? '' : 's'}` : ''}` : 'EC2 VM'}</td>
+                <td>${Utils.escapeHtml(r.instanceType || '-')}</td>
+                <td class="cost-num">${money(r.onDemandMonthly)}</td>
+                <td class="cost-num">${money(r.spotMonthly)}</td>
+                <td class="cost-num">${money(r.savings)}</td>
+                <td class="cost-num">${r.placementScore != null ? `<span class="spot-score" title="AWS placement score: 10 is most likely to get the capacity">${Number(r.placementScore)}/10</span>` : '<span class="text-muted">-</span>'}</td>
+                <td>${r.eligible ? '<span class="badge text-bg-success">Can convert</span>' : `<span class="text-muted small">${Utils.escapeHtml(r.reason || 'Not eligible')}</span>`}</td>
+            </tr>`).join('');
+        return `
+            <section class="cost-table-card" aria-labelledby="cost-spot-title">
+                <div class="dashboard-panel-head">
+                    <div class="cost-panel-head-text">
+                        <h2 id="cost-spot-title">Spot opportunities</h2>
+                        <small>${rows.length} on-demand VM(s) and node group(s) in environments that allow Spot · last 30 days</small>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-baseline cost-table" id="cost-spot-table">
+                        <thead><tr><th>VM / node group</th><th>Kind</th><th>Type</th><th class="cost-num">On demand</th>
+                            <th class="cost-num">On Spot</th><th class="cost-num">Saving</th><th class="cost-num">Placement</th><th>Conversion</th></tr></thead>
+                        <tbody>${body}</tbody>
+                    </table>
+                </div>
+            </section>`;
+    }
 
     /** Namespace and workload cost of one EKS environment (E26-T05); hidden without EKS environments. */
     function buildWorkloadsPanel() {

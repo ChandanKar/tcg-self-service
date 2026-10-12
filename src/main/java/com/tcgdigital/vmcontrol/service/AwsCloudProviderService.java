@@ -819,6 +819,23 @@ public class AwsCloudProviderService implements CloudProviderService {
         return !response.instanceTypeOfferings().isEmpty();
     }
 
+    /**
+     * AWS's 1-10 Spot placement score for this capacity of these types in the target's region
+     * (E31-T04), or null when AWS returns none. Read-only (ec2:GetSpotPlacementScores).
+     */
+    public Integer getSpotPlacementScore(CloudTarget target, List<String> instanceTypes, int targetCapacity) {
+        GetSpotPlacementScoresResponse response = getEc2Client(target).getSpotPlacementScores(GetSpotPlacementScoresRequest.builder()
+                .instanceTypes(instanceTypes)
+                .targetCapacity(Math.max(1, targetCapacity))
+                .targetCapacityUnitType("units")
+                .singleAvailabilityZone(false)
+                .regionNames(target.region())
+                .build());
+        return response.spotPlacementScores().stream()
+                .map(SpotPlacementScore::score).filter(java.util.Objects::nonNull)
+                .max(Integer::compare).orElse(null);
+    }
+
     /** The instance's current type as AWS reports it, or null if it cannot be read. */
     public String getInstanceType(String region, String providerVmId) {
         DescribeInstancesResponse response = getEc2Client(region).describeInstances(

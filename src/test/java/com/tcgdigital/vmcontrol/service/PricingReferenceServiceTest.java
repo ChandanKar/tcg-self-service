@@ -92,4 +92,13 @@ class PricingReferenceServiceTest {
         assertThat(pricing.suggestSmallerType("AWS", "m7g.xlarge")).contains("m7g.large");
         assertThat(pricing.suggestLargerType("AWS", "t3.medium")).contains("t3.large");
     }
+
+    @Test
+    void sameShapeTypesShareVcpuMemoryAndArchitecture() {
+        java.util.List<String> types = pricing.sameShapeTypes("m6i.large");
+
+        assertThat(types.get(0)).isEqualTo("m6i.large");
+        assertThat(types).contains("m5.large", "m6a.large", "m7i.large").doesNotContain("m7g.large", "c6i.large", "m6i.xlarge");
+        assertThat(pricing.sameShapeTypes("zz9.mega")).containsExactly("zz9.mega");
+    }
 }

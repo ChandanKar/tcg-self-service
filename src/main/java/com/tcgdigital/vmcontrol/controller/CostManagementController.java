@@ -201,6 +201,24 @@ public class CostManagementController {
                 .toList());
     }
 
+    /** Spot opportunities (E31-T04); optional so controller tests can leave it out. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.SpotOpportunityService spotOpportunityService;
+
+    /** On-demand VMs and node groups of Spot-eligible environments and what Spot would save (E31-T04). */
+    @GetMapping("/spot-opportunities")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Page<com.tcgdigital.vmcontrol.dto.SpotOpportunityDTO>> getSpotOpportunities(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size) {
+        org.springframework.data.domain.Pageable pageable = com.tcgdigital.vmcontrol.controller.support.Paging.of(page, size, 100);
+        java.util.List<com.tcgdigital.vmcontrol.dto.SpotOpportunityDTO> all =
+                spotOpportunityService == null ? java.util.List.of() : spotOpportunityService.list();
+        int from = (int) Math.min(pageable.getOffset(), all.size());
+        int to = Math.min(from + pageable.getPageSize(), all.size());
+        return ResponseEntity.ok(new org.springframework.data.domain.PageImpl<>(all.subList(from, to), pageable, all.size()));
+    }
+
     /** A safe resize's status, stage and error (E30-T06). */
     @GetMapping("/rightsizing/resizes/{resizeId}")
     @PreAuthorize("hasRole('ADMIN')")
