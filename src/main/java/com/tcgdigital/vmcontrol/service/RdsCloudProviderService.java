@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.dto.RdsDatabaseInfoDTO;
 import com.tcgdigital.vmcontrol.model.CloudProvider;
 import com.tcgdigital.vmcontrol.model.VmStatus;
 import com.tcgdigital.vmcontrol.service.aws.AwsClientFactory;
@@ -392,6 +393,39 @@ public class RdsCloudProviderService implements CloudProviderService {
         } catch (Exception e) {
             log.error("Batch RDS status fetch failed in {}: {}", target, e.getMessage());
         }
+        return result;
+    }
+
+    /**
+     * The DB instances and DB clusters of a target for registration (E33-T02). Instances that belong
+     * to a cluster are left out: the cluster is what is started and stopped. Failures propagate.
+     */
+    public List<RdsDatabaseInfoDTO> listDatabases(CloudTarget target) {
+        RdsClient rds = client(target);
+        List<RdsDatabaseInfoDTO> result = new ArrayList<>();
+        String marker = null;
+        do {
+            DescribeDbClustersResponse page = rds.describeDBClusters(DescribeDbClustersRequest.builder().marker(marker).build());
+            for (DBCluster c : page.dbClusters()) {
+                String reason = stopRestriction(c);
+                result.add(new RdsDatabaseInfoDTO(CLUSTER_PREFIX + c.dbClusterIdentifier(), c.dbClusterIdentifier(), "CLUSTER",
+                        c.engine(), c.engineVersion(), c.dbClusterInstanceClass(), c.status(), Boolean.TRUE.equals(c.multiAZ()),
+                        reason == null, reason, false));
+            }
+            marker = page.marker();
+        } while (marker != null && !marker.isBlank());
+        marker = null;
+        do {
+            DescribeDbInstancesResponse page = rds.describeDBInstances(DescribeDbInstancesRequest.builder().marker(marker).build());
+            for (DBInstance db : page.dbInstances()) {
+                if (db.dbClusterIdentifier() != null) continue;
+                String reason = stopRestriction(db);
+                result.add(new RdsDatabaseInfoDTO(INSTANCE_PREFIX + db.dbInstanceIdentifier(), db.dbInstanceIdentifier(), "INSTANCE",
+                        db.engine(), db.engineVersion(), db.dbInstanceClass(), db.dbInstanceStatus(), Boolean.TRUE.equals(db.multiAZ()),
+                        reason == null, reason, false));
+            }
+            marker = page.marker();
+        } while (marker != null && !marker.isBlank());
         return result;
     }
 

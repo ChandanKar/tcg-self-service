@@ -58,6 +58,7 @@ public abstract class AbstractIntegrationTest {
     @MockitoBean protected CloudProviderFactory cloudProviderFactory;
     @MockitoBean protected AwsCloudProviderService awsCloudProviderService;
     @MockitoBean protected EksCloudProviderService eksCloudProviderService;
+    @MockitoBean protected com.tcgdigital.vmcontrol.service.RdsCloudProviderService rdsCloudProviderService;
     @MockitoBean protected AwsCloudInventoryProviderService awsCloudInventoryProviderService;
     @MockitoBean protected AwsCloudMetricsProviderService awsCloudMetricsProviderService;
     @MockitoBean protected Ec2Service ec2Service;

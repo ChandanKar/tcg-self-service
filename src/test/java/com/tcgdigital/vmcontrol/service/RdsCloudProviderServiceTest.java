@@ -215,6 +215,34 @@ class RdsCloudProviderServiceTest {
     }
 
     @Test
+    void listingOffersClustersAndStandaloneInstancesButNotClusterMembers() {
+        when(rds.describeDBClusters(any(DescribeDbClustersRequest.class))).thenReturn(
+                DescribeDbClustersResponse.builder().dbClusters(DBCluster.builder().dbClusterIdentifier("aurora-qa")
+                        .engine("aurora-postgresql").engineMode("provisioned").status("available").build()).marker("next").build(),
+                DescribeDbClustersResponse.builder().dbClusters(DBCluster.builder().dbClusterIdentifier("legacy")
+                        .engine("aurora-mysql").engineMode("serverless").status("available").build()).build());
+        when(rds.describeDBInstances(any(DescribeDbInstancesRequest.class))).thenReturn(DescribeDbInstancesResponse.builder().dbInstances(
+                DBInstance.builder().dbInstanceIdentifier("aurora-qa-1").engine("aurora-postgresql").dbClusterIdentifier("aurora-qa")
+                        .dbInstanceStatus("available").build(),
+                DBInstance.builder().dbInstanceIdentifier("orders").engine("postgres").dbInstanceClass("db.t3.medium")
+                        .dbInstanceStatus("stopped").build(),
+                DBInstance.builder().dbInstanceIdentifier("orders-ro").engine("postgres").readReplicaSourceDBInstanceIdentifier("orders")
+                        .dbInstanceStatus("available").build()).build());
+
+        List<com.tcgdigital.vmcontrol.dto.RdsDatabaseInfoDTO> found = service.listDatabases(TARGET);
+
+        assertEquals(List.of("cluster:aurora-qa", "cluster:legacy", "db:orders", "db:orders-ro"),
+                found.stream().map(com.tcgdigital.vmcontrol.dto.RdsDatabaseInfoDTO::providerVmId).toList());
+        assertTrue(found.get(0).stoppable());
+        assertFalse(found.get(1).stoppable());
+        assertEquals("db.t3.medium", found.get(2).instanceClass());
+        assertEquals("INSTANCE", found.get(2).kind());
+        assertFalse(found.get(3).stoppable());
+        assertTrue(found.get(3).notStoppableReason().contains("read replica"));
+        verify(rds, times(2)).describeDBClusters(any(DescribeDbClustersRequest.class));
+    }
+
+    @Test
     void theBatchMakesOneCallPerKindAndMarksMissingIds() {
         when(rds.describeDBInstances(any(DescribeDbInstancesRequest.class))).thenReturn(instance("available"));
         when(rds.describeDBClusters(any(DescribeDbClustersRequest.class))).thenReturn(cluster("stopped"));

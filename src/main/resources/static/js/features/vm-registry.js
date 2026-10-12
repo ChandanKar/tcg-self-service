@@ -9,6 +9,9 @@ const VmRegistry = (function() {
 
     // Cache for fetched EC2 instances (used for client-side filtering)
     let _ec2FetchedInstances = [];
+    // What the import panel browses (E33-T02): 'EC2' instances or 'RDS' databases, and the databases fetched
+    let _importSource = 'EC2';
+    let _rdsFetched = [];
 
     /**
      * Spring Data serializes Page<T> as { content: [...], page: { totalElements, totalPages,
@@ -697,8 +700,8 @@ const VmRegistry = (function() {
 
     function buildVmRows(vms, group, opts = {}) {
         const isEks = (window.VmRegistryState.currentEnvironment?.serviceType || 'EC2') === 'EKS';
-        const providerLabels = { AWS: 'AWS', AZURE: 'Azure', GCP: 'GCP', OCI: 'OCI', AWS_EKS: 'EKS' };
-        const providerIcons = { AWS: 'fab fa-aws', AZURE: 'fab fa-microsoft', GCP: 'fab fa-google', OCI: 'fas fa-cloud', AWS_EKS: 'fas fa-dharmachakra' };
+        const providerLabels = { AWS: 'AWS', AZURE: 'Azure', GCP: 'GCP', OCI: 'OCI', AWS_EKS: 'EKS', AWS_RDS: 'RDS' };
+        const providerIcons = { AWS: 'fab fa-aws', AZURE: 'fab fa-microsoft', GCP: 'fab fa-google', OCI: 'fas fa-cloud', AWS_EKS: 'fas fa-dharmachakra', AWS_RDS: 'fas fa-database' };
 
         return vms.map(vm => {
             const statusConfig = Config.STATUS.vm[vm.status] || Config.STATUS.vm.UNKNOWN;
@@ -978,13 +981,10 @@ const VmRegistry = (function() {
         $('#ec2ImportCard').show();
 
         _ec2FetchedInstances = [];
-        $('#ec2InstancesList').html(`
-            <div class="text-center text-muted py-3">
-                <i class="fab fa-aws fa-2x mb-2 d-block text-warning opacity-50"></i>
-                Select a region and click "Fetch Instances" to browse available EC2 instances.
-            </div>
-        `);
-        $('#ec2SearchFilter').val('').hide();
+        _rdsFetched = [];
+        $('#importSourceEc2').prop('checked', true);
+        setImportSource('EC2');
+        probeRds();
 
         fillEc2Regions(null);
         // Another account to browse and register into, when there is more than one (E28-T10).
@@ -1071,11 +1071,113 @@ const VmRegistry = (function() {
         return $('#ec2AccountCol').prop('hidden') ? null : ($('#ec2Account').val() || null);
     }
 
+    /** The EC2 / RDS toggle is shown only while RDS browsing is on (GET /rds answers enabled). */
+    function probeRds() {
+        $('#importSourceToggle').prop('hidden', true);
+        ApiClient.request('GET', Config.API.rds.status, null, { suppressGlobalError: true })
+            .done(r => $('#importSourceToggle').prop('hidden', !(r && r.enabled)))
+            .fail(() => $('#importSourceToggle').prop('hidden', true));
+    }
+
+    function setImportSource(source) {
+        _importSource = source === 'RDS' ? 'RDS' : 'EC2';
+        const rds = _importSource === 'RDS';
+        $('#btnFetchEc2').html(rds ? '<i class="fas fa-database me-1"></i> Fetch Databases' : '<i class="fab fa-aws me-1"></i> Fetch Instances');
+        $('#ec2SearchFilter').val('').hide();
+        $('#ec2InstancesList').html(rds ? `
+            <div class="text-center text-muted py-3">
+                <i class="fas fa-database fa-2x mb-2 d-block opacity-50"></i>
+                Select a region and click "Fetch Databases" to browse RDS DB instances and Aurora clusters.
+            </div>` : `
+            <div class="text-center text-muted py-3">
+                <i class="fab fa-aws fa-2x mb-2 d-block text-warning opacity-50"></i>
+                Select a region and click "Fetch Instances" to browse available EC2 instances.
+            </div>`);
+    }
+
+    async function fetchRdsDatabases(region) {
+        const button = $('#btnFetchEc2');
+        try {
+            button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Fetching...');
+            $('#ec2InstancesList').html(Utils.html`
+                <div class="text-center py-3">
+                    <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                    Fetching RDS databases from <strong>${region}</strong>...
+                </div>`);
+            _rdsFetched = await ApiClient.get(Config.API.rds.databases(region, selectedAccountRef())) || [];
+            renderRdsDatabases(_rdsFetched);
+            $('#ec2SearchFilter').show();
+        } catch (error) {
+            console.error('Failed to fetch RDS databases:', error);
+            $('#ec2InstancesList').html(`
+                <div class="text-center text-danger py-3">
+                    <i class="fas fa-exclamation-triangle me-1"></i> Failed to fetch databases. Check AWS credentials and region.
+                </div>`);
+        } finally {
+            button.prop('disabled', false).html('<i class="fas fa-database me-1"></i> Fetch Databases');
+        }
+    }
+
+    /** Databases with Select for unregistered ones; those RDS cannot stop say why. */
+    function renderRdsDatabases(list) {
+        const container = $('#ec2InstancesList');
+        if (!list || list.length === 0) {
+            container.html(`
+                <div class="text-center text-muted py-3">
+                    <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
+                    No RDS databases found in this region.
+                </div>`);
+            return;
+        }
+        const rows = list.map(db => Utils.html`
+            <tr class="${db.registered ? '' : 'rds-selectable-row'}" data-provider-vm-id="${db.providerVmId}"
+                ${Utils.raw(db.registered ? '' : Utils.html`data-action="vr-select-rds" data-id="${db.providerVmId}" style="cursor:pointer;"`)}>
+                <td><strong>${db.identifier}</strong>
+                    <div class="small text-muted">${db.kind === 'CLUSTER' ? 'Aurora cluster' : 'DB instance'}${db.multiAz ? ' · Multi-AZ' : ''}</div></td>
+                <td>${db.engine || '-'} ${db.engineVersion || ''}</td>
+                <td>${db.instanceClass || '-'}</td>
+                <td>${db.status || '-'}</td>
+                <td class="td-actions">${Utils.raw(db.registered
+                    ? '<span class="badge bg-warning text-dark"><i class="fas fa-check me-1"></i>In Use</span>'
+                    : '<button type="button" class="btn btn-sm btn-outline-success">Select</button>')}
+                    ${Utils.raw(db.stoppable ? '' : Utils.html`<div class="small text-danger mt-1 rds-not-stoppable">Can't be stopped: ${db.notStoppableReason || ''}</div>`)}</td>
+            </tr>`).join('');
+        container.html(`
+            <div class="small text-muted mb-2"><strong>${list.length}</strong> databases found</div>
+            <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
+                <table class="table table-sm mb-0 table-cards" id="rdsDatabaseTable">
+                    <thead class="table-light sticky-top">
+                        <tr><th>Identifier</th><th>Engine</th><th>Class</th><th>Status</th><th style="width:140px;"></th></tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>`);
+    }
+
+    function selectRdsDatabase(providerVmId) {
+        const db = _rdsFetched.find(d => d.providerVmId === providerVmId);
+        if (!db || db.registered) return;
+        $('#vmProvider').val('AWS_RDS').prop('disabled', true);
+        $('#vmRegion').val($('#ec2Region').val()).prop('readonly', true);
+        $('#vmProviderVmId').val(db.providerVmId).prop('readonly', true);
+        $('#vmName').val(db.identifier.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-'));
+        $('#vmDisplayName').val(db.identifier);
+        $('#vmDescription').val([db.engine && (db.engine + ' ' + (db.engineVersion || '')).trim(), db.instanceClass, db.status]
+            .filter(Boolean).join(' | '));
+        $('#ec2InstancesList .rds-selectable-row').removeClass('table-success');
+        $('#ec2InstancesList tr').filter(function() { return this.dataset.providerVmId === providerVmId; }).addClass('table-success');
+        document.getElementById('registerVmForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        Notifications.success(`Selected: ${db.identifier}`);
+    }
+
     async function fetchEc2Instances() {
         const region = $('#ec2Region').val();
         if (!region) {
             Notifications.error('Please select a region');
             return;
+        }
+        if (_importSource === 'RDS') {
+            return fetchRdsDatabases(region);
         }
         try {
             $('#btnFetchEc2').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Fetching...');
@@ -1214,6 +1316,12 @@ const VmRegistry = (function() {
     }
 
     function filterEc2Instances(searchText) {
+        if (_importSource === 'RDS') {
+            const term = (searchText || '').toLowerCase();
+            renderRdsDatabases(term ? _rdsFetched.filter(db => db.identifier.toLowerCase().includes(term)
+                || (db.engine || '').toLowerCase().includes(term)) : _rdsFetched);
+            return;
+        }
         if (!_ec2FetchedInstances || _ec2FetchedInstances.length === 0) return;
         if (!searchText) {
             renderEc2Instances(_ec2FetchedInstances);
@@ -1385,6 +1493,8 @@ const VmRegistry = (function() {
         fetchEc2Instances,
         filterEc2Instances,
         selectEc2Instance,
+        setImportSource,
+        selectRdsDatabase,
         submitVm,
         deleteVm,
         refreshGroupsModal,
@@ -1423,6 +1533,7 @@ Actions.registerAll({
     'vr-open-vm-form': el => VmRegistry.openVmForm(el.dataset.groupId),
     'vr-delete-group': el => VmRegistry.deleteGroup(el.dataset.groupId),
     'vr-select-ec2': el => VmRegistry.selectEc2Instance(el.dataset.instanceId),
+    'vr-select-rds': el => VmRegistry.selectRdsDatabase(el.dataset.id),
     'vr-open-group-form': () => VmRegistry.openGroupForm(),
     'vr-submit-group': () => Features.submitGroup(),
     'vr-fetch-ec2': () => Features.fetchEc2Instances(),
@@ -1435,3 +1546,4 @@ Actions.registerAll({
 Actions.register('vr-reload', () => VmRegistry.loadEnvironmentsData(), 'change');
 
 Actions.register('vr-ec2-account', el => VmRegistry.fillEc2Regions(el.value), 'change');
+Actions.register('vr-import-source', el => VmRegistry.setImportSource(el.value), 'change');

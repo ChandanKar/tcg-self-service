@@ -367,6 +367,13 @@ const Config = (function() {
             registeredIds: `/api/ec2/registered-ids`
         },
 
+        // RDS databases as VMs (E33-T02); 404 while rds.enabled is off
+        rds: {
+            status: `${API_BASE_URL}/rds`,
+            databases: (region, accountRef) => `${API_BASE_URL}/rds/databases?region=${encodeURIComponent(region)}`
+                + (accountRef ? `&accountRef=${encodeURIComponent(accountRef)}` : '')
+        },
+
         // Cost Management (admin only)
         costManagement: {
             summary: `${API_BASE_URL}/cost-management/summary`,
@@ -554,7 +561,8 @@ const Config = (function() {
         AWS: { icon: 'fab fa-aws', color: '#FF9900', label: 'AWS' },
         AZURE: { icon: 'fab fa-microsoft', color: '#0078D4', label: 'Azure' },
         GCP: { icon: 'fab fa-google', color: '#4285F4', label: 'GCP' },
-        OCI: { icon: 'fas fa-cloud', color: '#F80000', label: 'Oracle Cloud' }
+        OCI: { icon: 'fas fa-cloud', color: '#F80000', label: 'Oracle Cloud' },
+        AWS_RDS: { icon: 'fas fa-database', color: '#3B48CC', label: 'RDS' }
     };
 
     // Access levels

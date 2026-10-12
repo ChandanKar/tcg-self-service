@@ -121,6 +121,7 @@ public class VmService {
     /** Register a VM, audited as {@code actorUserId} (E11-T03; null for the system). */
     @Transactional
     public Vm registerVm(RegisterVmDTO dto, String actorUserId) {
+        requireRdsId(dto);
         // Verify group exists
         VmGroup group = groupRepository.findById(dto.getGroupId())
                 .orElseThrow(() -> new ResourceNotFoundException("VmGroup", dto.getGroupId()));
@@ -194,6 +195,13 @@ public class VmService {
      * Update VM status.
      */
     @Transactional
+    /** An AWS_RDS VM's providerVmId names an instance or a cluster (E33-T02): db:<id> or cluster:<id>. */
+    private static void requireRdsId(RegisterVmDTO dto) {
+        if (dto.getProvider() == CloudProvider.AWS_RDS && RdsCloudProviderService.parse(dto.getProviderVmId()) == null) {
+            throw new ValidationException("An RDS provider VM id must be db:<instance identifier> or cluster:<cluster identifier>");
+        }
+    }
+
     public Vm updateVmStatus(String vmId, VmStatus status) {
         Vm vm = getVmById(vmId);
         vm.setStatus(status);
@@ -212,6 +220,7 @@ public class VmService {
     /** Update a VM, audited with its changed fields as {@code actorUserId} (E11-T03). */
     @Transactional
     public Vm updateVm(String vmId, RegisterVmDTO dto, String actorUserId) {
+        requireRdsId(dto);
         Vm vm = getVmById(vmId);
         String groupId = vm.getGroup().getGroupId();
         com.tcgdigital.vmcontrol.service.support.AuditChanges changes = new com.tcgdigital.vmcontrol.service.support.AuditChanges()
