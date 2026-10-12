@@ -88,6 +88,28 @@ public class CostEstimationService {
         return settings == null ? current : settings.overrideOr(key, current);
     }
 
+    /** Memory-aware rightsizing (E30-T03); false returns the CPU-only rules. */
+    @Value("${rightsizing.memory.enabled:true}")
+    private boolean memoryRightsizingEnabled = true;
+
+    @Value("${rightsizing.scale-down.memory-peak-threshold:60}")
+    private BigDecimal scaleDownMemoryPeakThreshold = BigDecimal.valueOf(60);
+
+    @Value("${rightsizing.scale-up.memory-threshold:85}")
+    private BigDecimal scaleUpMemoryThreshold = BigDecimal.valueOf(85);
+
+    @Value("${rightsizing.memory.headroom-percent:20}")
+    private int memoryHeadroomPercent = 20;
+
+    private boolean memoryEnabled() {
+        return settings == null ? memoryRightsizingEnabled : settings.overrideOr("rightsizing.memory.enabled", memoryRightsizingEnabled);
+    }
+
+    /** Why a VM is (or is not) a candidate in one direction, with its reason codes (E30-T03). */
+    private record Candidacy(boolean candidate, List<String> reasons) {
+        static final Candidacy NONE = new Candidacy(false, List.of());
+    }
+
     /** Days after an instance-type change during which Compute Optimizer advice is ignored (E08-T06). */
     @Value("${rightsizing.post-resize-cooldown-days:14}")
     private int postResizeCooldownDays = 14;
@@ -435,17 +457,21 @@ public class CostEstimationService {
         }
 
         Map<String, String> instanceTypeByVmId = new LinkedHashMap<>();
+        Map<String, Integer> memoryMibByVmId = new LinkedHashMap<>();
         Map<String, Timestamp> typeChangedAtByVmId = new LinkedHashMap<>();
         for (VmInventorySnapshotRepository.InstanceTypeProjection projection
                 : vmInventorySnapshotRepository.findInstanceTypesByVmIds(vmIds)) {
             instanceTypeByVmId.put(projection.getVmId(), projection.getInstanceType());
+            if (projection.getMemoryMib() != null && projection.getMemoryMib() > 0) {
+                memoryMibByVmId.put(projection.getVmId(), projection.getMemoryMib());
+            }
             if (projection.getInstanceTypeChangedAt() != null) {
                 typeChangedAtByVmId.put(projection.getVmId(), projection.getInstanceTypeChangedAt());
             }
         }
 
-        Map<String, Boolean> scaleDownByVmId = computeScaleDownCandidates(vmIds, typeChangedAtByVmId);
-        Map<String, Boolean> scaleUpByVmId = computeScaleUpCandidates(vmIds);
+        Map<String, Candidacy> scaleDownByVmId = computeScaleDownCandidates(vmIds, typeChangedAtByVmId);
+        Map<String, Candidacy> scaleUpByVmId = computeScaleUpCandidates(vmIds);
 
         List<VmCostBundle> bundles = new ArrayList<>();
         for (Vm vm : vms) {
@@ -457,6 +483,13 @@ public class CostEstimationService {
             // An EKS node group has no inventory snapshot: its node type comes from its metadata (E26-T02).
             String instanceType = vm.getProvider() == CloudProvider.AWS_EKS
                     ? EstimatedCostProvider.eksNodeInfo(vm.getMetadata()).instanceType() : instanceTypeByVmId.get(vmId);
+            Candidacy down = scaleDownByVmId.getOrDefault(vmId, Candidacy.NONE);
+            Candidacy up = scaleUpByVmId.getOrDefault(vmId, Candidacy.NONE);
+            Integer memoryMib = memoryMibByVmId.get(vmId);
+            if (memoryMib == null) {
+                memoryMib = pricingReferenceService.getSpec(instanceType)
+                        .map(PricingReferenceService.InstanceSpec::memoryMib).orElse(null);
+            }
             bundles.add(new VmCostBundle(
                     vm,
                     estimate,
@@ -469,9 +502,11 @@ public class CostEstimationService {
                     idleSummary == null ? null : idleSummary.getIdleSince(),
                     idleSummary == null ? null : idleSummary.getIdleDurationMinutes(),
                     idleSummary == null ? null : idleSummary.getLatestCpuUtilization(),
-                    Boolean.TRUE.equals(scaleDownByVmId.get(vmId)),
-                    Boolean.TRUE.equals(scaleUpByVmId.get(vmId)),
-                    typeChangedAtByVmId.get(vmId)
+                    down.candidate(),
+                    up.candidate(),
+                    typeChangedAtByVmId.get(vmId),
+                    memoryMib,
+                    down.candidate() ? down.reasons() : up.reasons()
             ));
         }
         return bundles;
@@ -484,8 +519,10 @@ public class CostEstimationService {
      * Skipped (false) if fewer than that many days of daily-rollup history exist, same
      * "don't guess with incomplete data" rule the old aggregate-based check used. Days on or
      * before the VM's last instance-type change measure the old size and are ignored (E08-T06).
+     * With memory-aware rightsizing on and memory reported for those days, each day's memory peak
+     * must also stay below {@code rightsizing.scale-down.memory-peak-threshold} (E30-T03).
      */
-    private Map<String, Boolean> computeScaleDownCandidates(List<String> vmIds, Map<String, Timestamp> typeChangedAtByVmId) {
+    private Map<String, Candidacy> computeScaleDownCandidates(List<String> vmIds, Map<String, Timestamp> typeChangedAtByVmId) {
         Date sinceDate = Date.valueOf(LocalDate.now().minusDays(live("rightsizing.scale-down.consecutive-days", scaleDownConsecutiveDays)));
         List<VmMetricDaily> dailyRows =
                 vmMetricDailyRepository.findByVmVmIdInAndBucketDateGreaterThanEqualOrderByVmVmIdAscBucketDateDesc(vmIds, sinceDate);
@@ -493,7 +530,10 @@ public class CostEstimationService {
         Map<String, List<VmMetricDaily>> rowsByVmId = dailyRows.stream()
                 .collect(Collectors.groupingBy(d -> d.getVm().getVmId(), LinkedHashMap::new, Collectors.toList()));
 
-        Map<String, Boolean> result = new LinkedHashMap<>();
+        int days = live("rightsizing.scale-down.consecutive-days", scaleDownConsecutiveDays);
+        boolean memoryOn = memoryEnabled();
+        BigDecimal memoryPeak = live("rightsizing.scale-down.memory-peak-threshold", scaleDownMemoryPeakThreshold);
+        Map<String, Candidacy> result = new LinkedHashMap<>();
         for (Map.Entry<String, List<VmMetricDaily>> entry : rowsByVmId.entrySet()) {
             List<VmMetricDaily> rows = entry.getValue();
             Timestamp changedAt = typeChangedAtByVmId.get(entry.getKey());
@@ -503,11 +543,28 @@ public class CostEstimationService {
                         .filter(d -> d.getBucketDate() != null && d.getBucketDate().toLocalDate().isAfter(changeDay))
                         .toList();
             }
-            boolean candidate = rows.size() >= live("rightsizing.scale-down.consecutive-days", scaleDownConsecutiveDays)
-                    && rows.stream().limit(live("rightsizing.scale-down.consecutive-days", scaleDownConsecutiveDays))
+            boolean cpuLow = rows.size() >= days
+                    && rows.stream().limit(days)
                             .allMatch(d -> d.getAvgCpuUtilization() != null
                                     && d.getAvgCpuUtilization().compareTo(live("rightsizing.scale-down.cpu-threshold", scaleDownCpuThreshold)) < 0);
-            result.put(entry.getKey(), candidate);
+            if (!cpuLow) {
+                result.put(entry.getKey(), Candidacy.NONE);
+                continue;
+            }
+            if (!memoryOn) {
+                result.put(entry.getKey(), new Candidacy(true, List.of("CPU_LOW")));
+                continue;
+            }
+            List<VmMetricDaily> recent = rows.stream().limit(days).toList();
+            boolean memoryReported = recent.stream()
+                    .anyMatch(d -> d.getMemorySampleCount() != null && d.getMemorySampleCount() > 0);
+            if (!memoryReported) {
+                result.put(entry.getKey(), new Candidacy(true, List.of("CPU_LOW", "MEMORY_UNKNOWN")));
+                continue;
+            }
+            boolean memoryLow = recent.stream().allMatch(d -> d.getMaxMemoryUtilization() != null
+                    && d.getMaxMemoryUtilization().compareTo(memoryPeak) < 0);
+            result.put(entry.getKey(), memoryLow ? new Candidacy(true, List.of("CPU_LOW", "MEMORY_LOW")) : Candidacy.NONE);
         }
         return result;
     }
@@ -518,9 +575,10 @@ public class CostEstimationService {
      * scaleUpConsecutiveMinutes} window must exceed {@code scaleUpCpuThreshold}. Requires at
      * least 2 samples in the window so a single fluky high reading can't trigger a false
      * positive — with the default 5-minute sampling interval and 15-minute window that's the
-     * minimum coverage that still reflects sustained (not momentary) load.
+     * minimum coverage that still reflects sustained (not momentary) load. Memory above
+     * {@code rightsizing.scale-up.memory-threshold} in every sample qualifies the same way (E30-T03).
      */
-    private Map<String, Boolean> computeScaleUpCandidates(List<String> vmIds) {
+    private Map<String, Candidacy> computeScaleUpCandidates(List<String> vmIds) {
         Timestamp windowStart = Timestamp.from(Instant.now().minus(live("rightsizing.scale-up.consecutive-minutes", scaleUpConsecutiveMinutes), ChronoUnit.MINUTES));
         Timestamp windowEnd = Timestamp.from(Instant.now());
         List<VmMetricSample> samples =
@@ -529,13 +587,21 @@ public class CostEstimationService {
         Map<String, List<VmMetricSample>> samplesByVmId = samples.stream()
                 .collect(Collectors.groupingBy(s -> s.getVm().getVmId(), LinkedHashMap::new, Collectors.toList()));
 
-        Map<String, Boolean> result = new LinkedHashMap<>();
+        boolean memoryOn = memoryEnabled();
+        BigDecimal memoryHigh = live("rightsizing.scale-up.memory-threshold", scaleUpMemoryThreshold);
+        Map<String, Candidacy> result = new LinkedHashMap<>();
         for (Map.Entry<String, List<VmMetricSample>> entry : samplesByVmId.entrySet()) {
             List<VmMetricSample> vmSamples = entry.getValue();
-            boolean candidate = vmSamples.size() >= 2
+            boolean cpuHigh = vmSamples.size() >= 2
                     && vmSamples.stream().allMatch(s -> s.getCpuUtilization() != null
                             && s.getCpuUtilization().compareTo(live("rightsizing.scale-up.cpu-threshold", scaleUpCpuThreshold)) > 0);
-            result.put(entry.getKey(), candidate);
+            boolean memHigh = memoryOn && vmSamples.size() >= 2
+                    && vmSamples.stream().allMatch(s -> s.getMemoryUtilization() != null
+                            && s.getMemoryUtilization().compareTo(memoryHigh) > 0);
+            List<String> reasons = new ArrayList<>();
+            if (cpuHigh) reasons.add("CPU_HIGH");
+            if (memHigh) reasons.add("MEMORY_HIGH");
+            result.put(entry.getKey(), reasons.isEmpty() ? Candidacy.NONE : new Candidacy(true, List.copyOf(reasons)));
         }
         return result;
     }
@@ -601,6 +667,14 @@ public class CostEstimationService {
                 findingLevel = null;
             }
 
+            // A smaller type must hold the observed memory peak plus headroom (E30-T03).
+            List<String> reasons = new ArrayList<>(b.reasons());
+            boolean wouldNotFit = isScaleDown && suggestedType != null && !memoryFits(b, suggestedType);
+            if (wouldNotFit) {
+                reasons.add("MEMORY_WOULD_NOT_FIT");
+                suggestedType = null;
+            }
+
             BigDecimal currentCost = b.estimate().cost();
             BigDecimal afterCost = null;
             BigDecimal savings = null;
@@ -623,8 +697,9 @@ public class CostEstimationService {
                     costKnown = true;
                 }
             }
-            // A scale-down that saves nothing is not a recommendation (E08-T05).
-            if (isScaleDown && (savings == null || savings.signum() <= 0)) {
+            // A scale-down that saves nothing is not a recommendation (E08-T05); one dropped for
+            // memory stays listed without a suggestion so admins see why.
+            if (isScaleDown && !wouldNotFit && (savings == null || savings.signum() <= 0)) {
                 continue;
             }
 
@@ -646,13 +721,34 @@ public class CostEstimationService {
                     direction,
                     b.vm().getStatus().name(),
                     approximate
-            ).withNodeCount(eks ? nodes : null));
+            ).withNodeCount(eks ? nodes : null)
+                    .withMemory(b.avgMemory(), b.peakMemory(), b.peakMemory() != null, reasons));
         }
 
         candidates.sort(Comparator.comparing(
                 (RightsizingCandidateDTO d) -> d.estimatedMonthlySavings() == null ? BigDecimal.ZERO : d.estimatedMonthlySavings()
         ).reversed());
         return candidates;
+    }
+
+    /**
+     * Whether {@code targetType} holds the VM's memory peak plus headroom: required = current
+     * memory x peak% x (1 + headroom%). True when the check cannot be made (memory-aware rightsizing
+     * off, no memory peak, or the current or target memory unknown).
+     */
+    private boolean memoryFits(VmCostBundle b, String targetType) {
+        if (!memoryEnabled() || b.peakMemory() == null || b.currentMemoryMib() == null) {
+            return true;
+        }
+        Optional<PricingReferenceService.InstanceSpec> target = pricingReferenceService.getSpec(targetType);
+        if (target.isEmpty()) {
+            return true;
+        }
+        BigDecimal headroom = BigDecimal.ONE.add(BigDecimal.valueOf(live("rightsizing.memory.headroom-percent", memoryHeadroomPercent))
+                .movePointLeft(2));
+        BigDecimal required = BigDecimal.valueOf(b.currentMemoryMib())
+                .multiply(b.peakMemory().movePointLeft(2)).multiply(headroom);
+        return BigDecimal.valueOf(target.get().memoryMib()).compareTo(required) >= 0;
     }
 
     /**
@@ -772,6 +868,10 @@ public class CostEstimationService {
             BigDecimal latestCpuUtilization,
             boolean scaleDownCandidate,
             boolean scaleUpCandidate,
-            Timestamp instanceTypeChangedAt
+            Timestamp instanceTypeChangedAt,
+            /** Memory of the current type: inventory, else the pricing reference's spec (E30-T03). */
+            Integer currentMemoryMib,
+            /** Reason codes of the direction the VM qualifies for (E30-T03). */
+            List<String> reasons
     ) {}
 }

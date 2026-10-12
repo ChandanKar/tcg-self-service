@@ -1179,11 +1179,11 @@ const CostManagement = (function() {
     function buildRightsizingTable() {
         return buildTableCard({
             title: 'Rightsizing Recommendations',
-            subtitle: `${state.rightsizing.totalElements} candidate(s) — scale-down and scale-up, based on CPU utilization`,
+            subtitle: `${state.rightsizing.totalElements} candidate(s) — scale-down and scale-up, based on CPU and memory utilization`,
             tableId: 'cost-rightsizing-table',
             bodyId: 'cost-rightsizing-table-body',
             paginationId: 'cost-rightsizing-pagination',
-            columns: ['VM', 'Direction', 'Current → Suggested', 'Source', { label: 'Avg CPU', numeric: true }, { label: 'Peak CPU', numeric: true }, { label: 'Current Cost', numeric: true }, { label: 'Est. Savings', numeric: true }, 'Action'],
+            columns: ['VM', 'Direction', 'Current → Suggested', 'Source', { label: 'Avg CPU', numeric: true }, { label: 'Peak CPU', numeric: true }, { label: 'Mem avg', numeric: true }, { label: 'Mem peak', numeric: true }, { label: 'Current Cost', numeric: true }, { label: 'Est. Savings', numeric: true }, 'Action'],
             rowsHtml: buildRightsizingRows(state.rightsizing.content),
             pageState: state.rightsizing,
             tableKey: 'rightsizing',
@@ -1198,22 +1198,47 @@ const CostManagement = (function() {
 
     function buildRightsizingRows(rows) {
         if (!rows.length) {
-            return `<tr><td colspan="9" class="text-center text-muted py-4">No rightsizing candidates found.</td></tr>`;
+            return `<tr><td colspan="11" class="text-center text-muted py-4">No rightsizing candidates found.</td></tr>`;
         }
         return rows.map(row => `
             <tr>
                 <td class="cost-vm-cell" title="${Utils.escapeHtml(row.environmentName || 'Unknown environment')}">${Utils.escapeHtml(row.vmName || row.vmId)}${eksNodes(row)}</td>
-                <td>${buildRightsizingDirectionBadge(row)}</td>
+                <td>${buildRightsizingDirectionBadge(row)}${reasonChips(row)}</td>
                 <td>${Utils.escapeHtml(row.currentInstanceType || '-')} &rarr; ${Utils.escapeHtml(row.suggestedInstanceType || 'n/a')}</td>
                 <td>${buildRightsizingSourceBadge(row)}</td>
                 <td class="cost-num">${row.avgCpuUtilization != null ? Number(row.avgCpuUtilization).toFixed(1) + '%' : '-'}</td>
                 <td class="cost-num">${row.peakCpuUtilization != null ? Number(row.peakCpuUtilization).toFixed(1) + '%' : '-'}</td>
+                <td class="cost-num">${memoryCell(row, row.avgMemoryUtilization)}</td>
+                <td class="cost-num">${memoryCell(row, row.peakMemoryUtilization)}</td>
                 <td class="cost-num">${costCell(row.currentMonthlyCost, true, row.priceApproximate)}</td>
                 <td class="cost-num">${row.estimatedMonthlySavings != null ? costCell(row.estimatedMonthlySavings, row.costKnown, row.priceApproximate) : '<span class="text-muted">Unknown</span>'}</td>
                 <td>${buildRightsizingApplyButton(row)}
                     ${typeof JiraTickets !== 'undefined' ? '<div class="mt-1">' + JiraTickets.cell('RIGHTSIZING', row.vmId, row.jiraKey, row.jiraUrl) + '</div>' : ''}</td>
             </tr>
         `).join('');
+    }
+
+    /** Memory utilisation, or a dash explaining the CloudWatch agent is not reporting it (E30-T03). */
+    function memoryCell(row, value) {
+        if (!row.memoryDataAvailable || value == null) {
+            return '<span class="text-muted rightsizing-mem-unknown" title="CloudWatch agent not reporting memory">—</span>';
+        }
+        return Number(value).toFixed(1) + '%';
+    }
+
+    const REASON_LABELS = {
+        CPU_LOW: 'CPU low', CPU_HIGH: 'CPU high', MEMORY_LOW: 'Memory low', MEMORY_HIGH: 'Memory high',
+        MEMORY_UNKNOWN: 'Memory unknown', MEMORY_WOULD_NOT_FIT: 'Memory would not fit'
+    };
+
+    /** Why the VM is listed, as small chips under the direction badge (E30-T03). */
+    function reasonChips(row) {
+        const reasons = Array.isArray(row.reasons) ? row.reasons : [];
+        if (!reasons.length) return '';
+        return '<div class="rightsizing-reasons mt-1">' + reasons.map(r => {
+            const warn = r === 'MEMORY_WOULD_NOT_FIT' ? ' text-bg-warning' : ' text-bg-light border';
+            return `<span class="badge${warn} rightsizing-reason" data-reason="${Utils.escapeHtml(r)}">${Utils.escapeHtml(REASON_LABELS[r] || r)}</span>`;
+        }).join(' ') + '</div>';
     }
 
     function buildRightsizingDirectionBadge(row) {
@@ -1224,7 +1249,9 @@ const CostManagement = (function() {
 
     function buildRightsizingApplyButton(row) {
         if (!row.suggestedInstanceType) {
-            return '<span class="text-muted small">No suggestion</span>';
+            const why = (row.reasons || []).includes('MEMORY_WOULD_NOT_FIT')
+                ? ' title="A smaller type would not hold the observed memory peak"' : '';
+            return `<span class="text-muted small"${why}>No suggestion</span>`;
         }
         if (row.nodeCount) {
             // EKS node groups change their instance type in EKS (node group / launch template), E26-T02.

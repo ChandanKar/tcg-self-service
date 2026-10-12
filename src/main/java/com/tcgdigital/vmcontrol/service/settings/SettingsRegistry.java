@@ -58,6 +58,14 @@ public final class SettingsRegistry {
                     "Minutes in a row the CPU must stay above the threshold.", 15, 1, 1440),
             integer("Rightsizing", "rightsizing.post-resize-cooldown-days", "Cooldown after a resize",
                     "Days a resized VM is not recommended again.", 14, 0, 365),
+            flag("Rightsizing", "rightsizing.memory.enabled", "Memory-aware rightsizing",
+                    "Use memory (CloudWatch agent) as well as CPU; off returns the CPU-only rules.", true),
+            decimal("Rightsizing", "rightsizing.scale-down.memory-peak-threshold", "Scale-down memory peak %",
+                    "Daily memory peak every recent day must stay below for a scale-down.", "60", "1", "100"),
+            decimal("Rightsizing", "rightsizing.scale-up.memory-threshold", "Scale-up memory %",
+                    "Memory above which (in every sample of the scale-up window) a VM needs more capacity.", "85", "1", "100"),
+            integer("Rightsizing", "rightsizing.memory.headroom-percent", "Memory headroom %",
+                    "Spare memory a smaller type must keep above the observed peak.", 20, 0, 200),
 
             // Idle detection
             decimal("Idle detection", "vm.metrics.idle.cpu-threshold-percent", "Idle CPU %",

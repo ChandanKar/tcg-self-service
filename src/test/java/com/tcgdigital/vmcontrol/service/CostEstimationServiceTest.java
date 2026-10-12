@@ -245,6 +245,101 @@ class CostEstimationServiceTest {
         assertEquals(0, new BigDecimal("4.99").compareTo(rows.get(0).monthlyIdleCost()));
     }
 
+    // ---- Memory-aware rightsizing (E30-T03) ----
+
+    /** setUp's three low-CPU days, now with the CloudWatch agent reporting this daily memory peak. */
+    private void memoryPeakEachDay(double peak) {
+        when(vmMetricDaily.getMemorySampleCount()).thenReturn(288);
+        when(vmMetricDaily.getMaxMemoryUtilization()).thenReturn(BigDecimal.valueOf(peak));
+    }
+
+    @Test
+    void lowCpuWithHighMemoryPeaksIsNotAScaleDownCandidate() {
+        memoryPeakEachDay(80);
+
+        assertEquals(0, service.getRightsizingCandidates(PageRequest.of(0, 25)).getTotalElements());
+    }
+
+    @Test
+    void lowCpuWithoutTheAgentIsACandidateMarkedMemoryUnknown() {
+        RightsizingCandidateDTO row = onlyCandidate();
+
+        assertEquals("t3.large", row.suggestedInstanceType());
+        assertEquals(List.of("CPU_LOW", "MEMORY_UNKNOWN"), row.reasons());
+        assertEquals(false, row.memoryDataAvailable());
+        assertEquals(null, row.peakMemoryUtilization());
+    }
+
+    @Test
+    void lowCpuAndLowMemoryThatFitsTheSmallerTypeKeepsTheSuggestion() {
+        memoryPeakEachDay(30);
+        when(cpuStats.getAvgMemory()).thenReturn(BigDecimal.valueOf(20));
+        when(cpuStats.getMaxMemory()).thenReturn(BigDecimal.valueOf(30)); // 16 GiB x 30% x 1.2 = 5.9 GiB <= 8 GiB
+
+        RightsizingCandidateDTO row = onlyCandidate();
+
+        assertEquals("t3.large", row.suggestedInstanceType());
+        assertEquals(List.of("CPU_LOW", "MEMORY_LOW"), row.reasons());
+        assertEquals(true, row.memoryDataAvailable());
+        assertEquals(0, BigDecimal.valueOf(30).compareTo(row.peakMemoryUtilization()));
+    }
+
+    @Test
+    void aSmallerTypeThatWouldNotHoldTheMemoryPeakIsDroppedButTheRowStays() {
+        memoryPeakEachDay(55);
+        when(cpuStats.getMaxMemory()).thenReturn(BigDecimal.valueOf(55)); // 16 GiB x 55% x 1.2 = 10.6 GiB > 8 GiB
+
+        RightsizingCandidateDTO row = onlyCandidate();
+
+        assertEquals("SCALE_DOWN", row.direction());
+        assertEquals(null, row.suggestedInstanceType());
+        assertEquals(false, row.costKnown());
+        assertEquals(List.of("CPU_LOW", "MEMORY_LOW", "MEMORY_WOULD_NOT_FIT"), row.reasons());
+        // not counted as a saving
+        assertEquals(0, service.getSummary().rightsizingCandidateCount());
+    }
+
+    @Test
+    void inventoryMemoryWinsOverTheTypesSpecForTheFitCheck() {
+        memoryPeakEachDay(55);
+        when(cpuStats.getMaxMemory()).thenReturn(BigDecimal.valueOf(55));
+        when(instanceTypeProjection.getMemoryMib()).thenReturn(8192); // 8 GiB x 55% x 1.2 = 5.3 GiB <= 8 GiB
+
+        assertEquals("t3.large", onlyCandidate().suggestedInstanceType());
+    }
+
+    @Test
+    void memoryAboveTheThresholdInEverySampleIsAScaleUp() {
+        when(vmMetricDailyRepository.findByVmVmIdInAndBucketDateGreaterThanEqualOrderByVmVmIdAscBucketDateDesc(anyList(), any()))
+                .thenReturn(List.of());
+        Vm vm = buildAwsVm();
+        com.tcgdigital.vmcontrol.model.VmMetricSample sample = org.mockito.Mockito.mock(com.tcgdigital.vmcontrol.model.VmMetricSample.class);
+        when(sample.getVm()).thenReturn(vm);
+        when(sample.getCpuUtilization()).thenReturn(BigDecimal.valueOf(30));
+        when(sample.getMemoryUtilization()).thenReturn(BigDecimal.valueOf(92));
+        when(vmMetricSampleRepository.findByVmVmIdInAndSampleTimeBetweenOrderBySampleTimeAsc(anyList(), any(), any()))
+                .thenReturn(List.of(sample, sample));
+
+        RightsizingCandidateDTO row = onlyCandidate();
+
+        assertEquals("SCALE_UP", row.direction());
+        assertEquals("t3.2xlarge", row.suggestedInstanceType());
+        assertEquals(List.of("MEMORY_HIGH"), row.reasons());
+    }
+
+    @Test
+    void withMemoryRightsizingOffTheResultsAreTheCpuOnlyOnes() {
+        ReflectionTestUtils.setField(service, "memoryRightsizingEnabled", false);
+        org.mockito.Mockito.lenient().when(vmMetricDaily.getMemorySampleCount()).thenReturn(288);
+        org.mockito.Mockito.lenient().when(vmMetricDaily.getMaxMemoryUtilization()).thenReturn(BigDecimal.valueOf(95));
+        when(cpuStats.getMaxMemory()).thenReturn(BigDecimal.valueOf(95));
+
+        RightsizingCandidateDTO row = onlyCandidate();
+
+        assertEquals("t3.large", row.suggestedInstanceType());
+        assertEquals(List.of("CPU_LOW"), row.reasons());
+    }
+
     private RightsizingCandidateDTO onlyCandidate() {
         List<RightsizingCandidateDTO> content =
                 service.getRightsizingCandidates(PageRequest.of(0, 25)).getContent();

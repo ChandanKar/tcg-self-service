@@ -18,7 +18,8 @@ public interface VmInventorySnapshotRepository extends JpaRepository<VmInventory
      * Instance type per VM for a batch of VMs, for cost estimation — avoids loading (and lazily
      * dereferencing) full snapshot entities just to read one field.
      */
-    @Query("SELECT s.vm.vmId AS vmId, s.instanceType AS instanceType, s.instanceTypeChangedAt AS instanceTypeChangedAt " +
+    @Query("SELECT s.vm.vmId AS vmId, s.instanceType AS instanceType, s.instanceTypeChangedAt AS instanceTypeChangedAt, " +
+           "s.memoryMib AS memoryMib " +
            "FROM VmInventorySnapshot s WHERE s.vm.vmId IN :vmIds")
     List<InstanceTypeProjection> findInstanceTypesByVmIds(@Param("vmIds") List<String> vmIds);
 
@@ -32,5 +33,7 @@ public interface VmInventorySnapshotRepository extends JpaRepository<VmInventory
         String getInstanceType();
         /** When the type last changed (E08-T06); null if never seen to change. */
         java.sql.Timestamp getInstanceTypeChangedAt();
+        /** Memory of the current type from EC2 (E30-T03); null when inventory has not recorded it. */
+        Integer getMemoryMib();
     }
 }

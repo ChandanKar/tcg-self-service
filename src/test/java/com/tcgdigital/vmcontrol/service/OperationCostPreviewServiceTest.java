@@ -92,6 +92,7 @@ class OperationCostPreviewServiceTest {
                 public String getVmId() { return id; }
                 public String getInstanceType() { return type; }
                 public Timestamp getInstanceTypeChangedAt() { return null; }
+                public Integer getMemoryMib() { return null; }
             });
         }
         when(inventory.findInstanceTypesByVmIds(anyList())).thenReturn(projections);

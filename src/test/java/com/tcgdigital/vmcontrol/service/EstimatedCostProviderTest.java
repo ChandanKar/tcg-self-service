@@ -203,6 +203,7 @@ class EstimatedCostProviderTest {
             public String getVmId() { return vmId; }
             public String getInstanceType() { return type; }
             public Timestamp getInstanceTypeChangedAt() { return null; }
+            public Integer getMemoryMib() { return null; }
         };
         when(vmInventorySnapshotRepository.findInstanceTypesByVmIds(any())).thenReturn(List.of(p));
     }
