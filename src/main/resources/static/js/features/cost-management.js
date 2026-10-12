@@ -1273,12 +1273,21 @@ const CostManagement = (function() {
         if (!o.applicable) {
             return `<span class="text-muted small rightsizing-option-why">${Utils.escapeHtml(o.applicableReason || 'Not applicable')}</span>`;
         }
-        const isStopped = row.vmStatus === 'STOPPED';
-        return `<button class="btn btn-tonal btn-sm btn-primary rightsizing-apply-btn" ${isStopped ? '' : 'disabled'}
-                    title="${isStopped ? 'Apply this instance type change' : 'VM must be stopped to apply this change'}"
+        return applyButton(row, o.instanceType);
+    }
+
+    /**
+     * Apply opens the checks dialog (E30-T07) for a running or stopped VM; a running one can only
+     * go ahead with the safe stop-resize-start.
+     */
+    function applyButton(row, targetType) {
+        const usable = row.vmStatus === 'STOPPED' || row.vmStatus === 'RUNNING';
+        return `<button class="btn btn-tonal btn-sm btn-primary rightsizing-apply-btn" ${usable ? '' : 'disabled'}
+                    title="${usable ? 'Apply this instance type change (checks run first)' : 'The VM must be running or stopped'}"
                     data-vm-id="${Utils.escapeHtml(row.vmId)}" data-vm-name="${Utils.escapeHtml(row.vmName || row.vmId)}"
+                    data-vm-status="${Utils.escapeHtml(row.vmStatus || '')}"
                     data-current-type="${Utils.escapeHtml(row.currentInstanceType || '-')}"
-                    data-target-type="${Utils.escapeHtml(o.instanceType)}">Apply</button>`;
+                    data-target-type="${Utils.escapeHtml(targetType)}">Apply</button>`;
     }
 
     /** The alternatives of one recommendation, shown under its row on demand (E30-T05). */
@@ -1362,16 +1371,7 @@ const CostManagement = (function() {
             // e.g. a Graviton option needs an ARM64 image first (E30-T05)
             return `<span class="text-muted small rightsizing-not-applicable">${Utils.escapeHtml(row.applicableReason || 'Not applicable here')}</span>`;
         }
-        const isStopped = row.vmStatus === 'STOPPED';
-        return `
-            <button class="btn btn-tonal btn-sm btn-primary rightsizing-apply-btn" ${isStopped ? '' : 'disabled'}
-                    title="${isStopped ? 'Apply this instance type change' : 'VM must be stopped to apply this change'}"
-                    data-vm-id="${row.vmId}" data-vm-name="${Utils.escapeHtml(row.vmName || row.vmId)}"
-                    data-current-type="${Utils.escapeHtml(row.currentInstanceType || '-')}"
-                    data-target-type="${Utils.escapeHtml(row.suggestedInstanceType)}">
-                Apply
-            </button>
-        `;
+        return applyButton(row, row.suggestedInstanceType);
     }
 
     function buildRightsizingSourceBadge(row) {
@@ -1457,24 +1457,129 @@ const CostManagement = (function() {
             });
     }
 
+    const APPLY_MODAL = 'rightsizingApplyModal';
+    const RESIZE_POLL = 'rightsizingResize';
+    const RESIZE_POLL_MS = 5000;
+
+    function call(method, url, body) {
+        return new Promise((resolve, reject) => {
+            ApiClient.request(method, url, body || null, { suppressGlobalError: true }).done(resolve).fail(reject);
+        });
+    }
+
+    function serverMessage(e, fallback) {
+        return (e && e.responseJSON && e.responseJSON.message) || fallback;
+    }
+
+    /**
+     * Apply (E30-T07): the dialog lists every pre-check of the safe resize; Confirm is enabled
+     * only when they pass and, for a running VM, once the admin accepts the stop and restart.
+     * With safe resize off, a stopped VM can still change type the old way. A safe resize is
+     * followed until it completes or rolls back.
+     */
     function applyRightsizing(data) {
-        const vmName = Utils.escapeHtml(String(data.vmName));
-        const currentType = Utils.escapeHtml(String(data.currentType));
-        const targetType = Utils.escapeHtml(String(data.targetType));
-        Modals.confirm(
-            'Change Instance Type',
-            `Change <strong>${vmName}</strong> from <strong>${currentType}</strong> to <strong>${targetType}</strong>?`,
-            function() {
-                ApiClient.post(Config.API.costManagement.applyRightsizing(), {
-                    vmId: data.vmId,
-                    targetInstanceType: data.targetType
-                }).done(() => {
+        const running = data.vmStatus === 'RUNNING';
+        const body = `
+            <p class="mb-2">Change <strong>${Utils.escapeHtml(String(data.vmName))}</strong> from
+                <strong>${Utils.escapeHtml(String(data.currentType))}</strong> to <strong>${Utils.escapeHtml(String(data.targetType))}</strong>.</p>
+            <ul class="list-unstyled rs-checks mb-2" id="rs-checks" aria-live="polite">
+                <li class="text-muted small"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Running the checks…</li>
+            </ul>
+            <div class="small text-muted mb-2" id="rs-mode-note"></div>
+            ${running ? `<div class="form-check rs-restart">
+                <input class="form-check-input" type="checkbox" id="rs-restart">
+                <label class="form-check-label" for="rs-restart">Stop, resize and start again</label>
+                <div class="form-text">The VM will be stopped and started; typically 2–5 minutes of downtime. If it will not start on the new type, it goes back to the old one.</div>
+            </div>` : ''}
+            <div class="rs-progress mt-3" id="rs-progress" role="status" aria-live="polite" hidden></div>`;
+        Modals.show({
+            id: APPLY_MODAL,
+            title: 'Change instance type',
+            body,
+            buttons: [
+                { text: 'Cancel', class: 'btn-secondary', dismiss: true, id: 'rs-apply-cancel' },
+                { text: 'Apply', class: 'btn-primary', id: 'rs-apply-confirm', disabled: true }
+            ]
+        });
+        let mode = null; // 'safe' | 'stopped' | null
+        const refresh = () => {
+            const restartOk = !running || $('#rs-restart').is(':checked');
+            $('#rs-apply-confirm').prop('disabled', !mode || (mode === 'safe' && !restartOk));
+        };
+        $(`#${APPLY_MODAL}`).on('change', '#rs-restart', refresh);
+        call('GET', Config.API.costManagement.rightsizingPrecheck(data.vmId, data.targetType)).then(checks => {
+            checks = checks || [];
+            $('#rs-checks').html(checks.map(c => `<li class="rs-check ${c.passed ? 'text-success' : 'text-danger'}" data-check="${Utils.escapeHtml(c.name)}">
+                    <i class="fas ${c.passed ? 'fa-check-circle' : 'fa-times-circle'}" aria-hidden="true"></i>
+                    <span class="visually-hidden">${c.passed ? 'Passed' : 'Failed'}:</span>
+                    <strong>${Utils.escapeHtml(c.name)}</strong> <span class="text-body">${Utils.escapeHtml(c.message || '')}</span></li>`).join(''));
+            const failed = checks.filter(c => !c.passed);
+            if (!failed.length) {
+                mode = 'safe';
+            } else if (!running && failed.every(c => c.name === 'Safe resize')) {
+                mode = 'stopped';
+                $('#rs-mode-note').text('Safe resize is off: the type changes while the VM stays stopped.');
+            } else {
+                $('#rs-mode-note').text('Fix the failed checks to apply this change.');
+            }
+            refresh();
+        }).catch(e => {
+            $('#rs-checks').html(`<li class="text-danger">${Utils.escapeHtml(serverMessage(e, "Couldn't run the checks."))}</li>`);
+        });
+        $('#rs-apply-confirm').on('click', function() {
+            if (!mode) return;
+            $(this).prop('disabled', true);
+            $('#rs-restart').prop('disabled', true);
+            const payload = { vmId: data.vmId, targetInstanceType: data.targetType, restartIfRunning: mode === 'safe' };
+            call('POST', Config.API.costManagement.applyRightsizing(), payload).then(res => {
+                if (mode === 'stopped' || !res || !res.resizeId) {
                     Notifications.success(`Instance type change applied for ${data.vmName}.`);
+                    Modals.hideWhenReady(document.getElementById(APPLY_MODAL));
                     changePage('rightsizing', state.rightsizing.page);
-                });
-            },
-            { confirmText: 'Apply', confirmClass: 'btn-primary', html: true }
-        );
+                    return;
+                }
+                followResize(res.resizeId, data);
+            }).catch(e => {
+                $('#rs-progress').prop('hidden', false).html(`<div class="alert alert-danger mb-0">${Utils.escapeHtml(serverMessage(e, 'The change could not be applied.'))}</div>`);
+            });
+        });
+    }
+
+    const STATUS_TEXT = {
+        REQUESTED: 'Requested', STOPPING: 'Stopping', RESIZING: 'Changing the type', STARTING: 'Starting',
+        COMPLETED: 'Completed', ROLLING_BACK: 'Rolling back', ROLLED_BACK: 'Rolled back', FAILED: 'Failed'
+    };
+
+    /** Polls a safe resize until it finishes; stops when the user leaves the page (E30-T07). */
+    function followResize(resizeId, data) {
+        const show = (r) => {
+            const $p = $('#rs-progress').prop('hidden', false);
+            if (!r.finished) {
+                $p.html(`<div class="d-flex align-items-center gap-2"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                    <span><strong class="rs-status">${Utils.escapeHtml(STATUS_TEXT[r.status] || r.status)}</strong> —
+                    <span class="rs-stage">${Utils.escapeHtml(r.stage || '')}</span></span></div>`);
+                return;
+            }
+            const ok = r.status === 'COMPLETED';
+            $p.html(`<div class="alert ${ok ? 'alert-success' : 'alert-warning'} mb-0">
+                <strong class="rs-status">${Utils.escapeHtml(STATUS_TEXT[r.status] || r.status)}</strong>: <span class="rs-stage">${Utils.escapeHtml(r.stage || '')}</span>
+                ${r.errorMessage ? `<div class="small mt-1 rs-error">${Utils.escapeHtml(r.errorMessage)}</div>` : ''}</div>`);
+            $('#rs-apply-cancel').text('Close');
+        };
+        show({ status: 'REQUESTED', stage: 'Requested', finished: false });
+        RealTime.startPolling(RESIZE_POLL, () => {
+            call('GET', Config.API.costManagement.rightsizingResize(resizeId)).then(r => {
+                show(r);
+                if (!r.finished) return;
+                RealTime.stopPolling(RESIZE_POLL);
+                if (r.status === 'COMPLETED') {
+                    Notifications.success(`${data.vmName} now runs on ${r.newInstanceType}.`);
+                } else {
+                    Notifications.showError(`${data.vmName}: ${STATUS_TEXT[r.status] || r.status}. ${r.errorMessage || ''}`);
+                }
+                if (isActive()) changePage('rightsizing', state.rightsizing.page);
+            }).catch(() => { /* keep polling; a transient error must not stop following the resize */ });
+        }, RESIZE_POLL_MS, { pageScoped: true });
     }
 
     function triggerBackfill() {

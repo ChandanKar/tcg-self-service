@@ -170,4 +170,8 @@
 .rightsizing-alternatives > td { background: var(--bs-tertiary-bg, #f6f8fa); padding: 8px 12px; }
 .rightsizing-options-table { font-size: 0.85rem; }
 .rightsizing-options-table th { font-weight: 600; white-space: nowrap; }
-.rightsizing-agreement { font-weight: 500; }
+.rightsizing-agreement { font-weight: 500; }
+
+/* Apply dialog checks and progress (E30-T07) */
+.rs-checks .rs-check { display: flex; gap: 6px; align-items: baseline; padding: 2px 0; }
+.rs-checks .rs-check strong { white-space: nowrap; }

@@ -188,6 +188,19 @@ public class CostManagementController {
         return ResponseEntity.ok().build();
     }
 
+    /**
+     * Every check a safe resize of this VM to this type makes, passed or not, without changing
+     * anything (E30-T07): the Apply dialog lists them before the admin confirms.
+     */
+    @GetMapping("/rightsizing/precheck")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<java.util.List<com.tcgdigital.vmcontrol.dto.ResizeCheckDTO>> precheckResize(
+            @RequestParam String vmId, @RequestParam String targetInstanceType) {
+        return ResponseEntity.ok(vmResizeService.precheck(vmId, targetInstanceType, userService.getCurrentUserId()).stream()
+                .map(c -> new com.tcgdigital.vmcontrol.dto.ResizeCheckDTO(c.name(), c.passed(), c.message()))
+                .toList());
+    }
+
     /** A safe resize's status, stage and error (E30-T06). */
     @GetMapping("/rightsizing/resizes/{resizeId}")
     @PreAuthorize("hasRole('ADMIN')")

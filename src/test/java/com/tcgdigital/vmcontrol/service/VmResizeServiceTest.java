@@ -380,4 +380,56 @@ class VmResizeServiceTest {
         verify(aws, never()).stopVm(anyString(), any(), org.mockito.ArgumentMatchers.anyBoolean());
         assertThat(theResize().getStatus()).isEqualTo(com.tcgdigital.vmcontrol.model.ResizeStatus.COMPLETED);
     }
+
+    // ---- Pre-check list for the Apply dialog (E30-T07) ----
+
+    @Test
+    void thePrecheckListsEveryCheckPassedAndChangesNothing() {
+        safeResizeOfARunningVm();
+        when(aws.getVmStatus("i-123", TARGET)).thenReturn(VmStatus.RUNNING);
+
+        java.util.List<VmResizeService.ResizeCheck> checks = service.precheck("vm-1", "t3.large", "user-1");
+
+        assertThat(checks).extracting(VmResizeService.ResizeCheck::name).containsExactly("Safe resize", "Environment lock",
+                "No operation running", "Recommended type", "VM state", "Offered in the zone", "Architecture", "Networking (ENA)");
+        assertThat(checks).allMatch(VmResizeService.ResizeCheck::passed);
+        assertThat(checks.get(4).message()).contains("stopped, resized and started again");
+        verify(aws, never()).stopVm(anyString(), any(), org.mockito.ArgumentMatchers.anyBoolean());
+        verify(aws, never()).changeInstanceType(any(), anyString(), anyString());
+        assertThat(stored).isEmpty();
+    }
+
+    @Test
+    void thePrecheckReportsEachFailureWithItsReason() {
+        safeResizeOfARunningVm();
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "safeResizeEnabled", false);
+        when(aws.getVmStatus("i-123", TARGET)).thenReturn(VmStatus.RUNNING);
+        doThrow(new ValidationException("You do not hold the lock on this environment"))
+                .when(lockService).verifyLockPermission("env-1", "user-1");
+        when(executions.hasActiveOperations("env-1")).thenReturn(true);
+        when(aws.describeInstanceType(TARGET, "t3.large"))
+                .thenReturn(new AwsCloudProviderService.InstanceTypeFacts(java.util.List.of("arm64"), "supported"));
+
+        java.util.Map<String, VmResizeService.ResizeCheck> byName = service.precheck("vm-1", "t3.large", "user-1").stream()
+                .collect(java.util.stream.Collectors.toMap(VmResizeService.ResizeCheck::name, c -> c));
+
+        assertThat(byName.get("Safe resize").passed()).isFalse();
+        assertThat(byName.get("Environment lock").message()).isEqualTo("You do not hold the lock on this environment");
+        assertThat(byName.get("No operation running").passed()).isFalse();
+        assertThat(byName.get("Architecture").message()).contains("does not run x86_64 images");
+        assertThat(byName.get("Offered in the zone").passed()).isTrue();
+    }
+
+    @Test
+    void anAwsErrorDuringThePrecheckIsAFailedCheckNotAnError() {
+        safeResizeOfARunningVm();
+        when(aws.getVmStatus("i-123", TARGET)).thenReturn(VmStatus.RUNNING);
+        when(aws.describeForResize(TARGET, "i-123")).thenThrow(new RuntimeException("throttled"));
+
+        java.util.List<VmResizeService.ResizeCheck> checks = service.precheck("vm-1", "t3.large", "user-1");
+
+        assertThat(checks.get(checks.size() - 1).name()).isEqualTo("AWS checks");
+        assertThat(checks.get(checks.size() - 1).passed()).isFalse();
+        assertThat(checks.get(checks.size() - 1).message()).contains("throttled");
+    }
 }
