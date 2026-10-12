@@ -20,6 +20,9 @@ public interface ProvisioningRequestRepository extends JpaRepository<Provisionin
 
     boolean existsByTemplateIdAndStatusIn(String templateId, Collection<ProvisioningStatus> statuses);
 
+    /** The ready request that built an environment, if any (E32-T05). */
+    java.util.Optional<ProvisioningRequest> findByEnvironmentIdAndStatus(String environmentId, ProvisioningStatus status);
+
     boolean existsByEnvironmentNameIgnoreCaseAndStatusIn(String environmentName, Collection<ProvisioningStatus> statuses);
 
     /** Moves a request on only if it is still in {@code from} (E32-T03): 0 when someone decided first. */

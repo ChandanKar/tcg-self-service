@@ -51,5 +51,8 @@ public enum NotificationType {
     PROVISIONING_REJECTED,
     /** A requested environment is ready, or could not be built (E32-T04). */
     PROVISIONING_READY,
-    PROVISIONING_FAILED
+    PROVISIONING_FAILED,
+    /** A provisioned environment will be destroyed soon, or was destroyed (E32-T05). */
+    ENVIRONMENT_DESTROY_WARNING,
+    ENVIRONMENT_DESTROYED
 }

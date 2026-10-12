@@ -98,6 +98,10 @@ public class LeaseService {
         this.newTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
+    /** Lease extensions are announced to listeners (E32-T05); optional in unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
+
     public LeaseService(EnvironmentRepository environmentRepository,
                         EnvironmentLeaseRepository leaseRepository,
                         EnvironmentLeaseParticipantRepository participantRepository,
@@ -489,6 +493,10 @@ public class LeaseService {
             join(lease, userId, now);
             auditService.logLeaseExtended(userId, environmentId, env.getName(), lease.getLeaseId(),
                     "Extended by " + minutes + " minutes: " + oldEnd + " -> " + newEnd + ".");
+            if (eventPublisher != null) {
+                // A provisioned environment's destroy time follows its lease (E32-T05).
+                eventPublisher.publishEvent(new LeaseExtendedEvent(environmentId, newEnd, userId));
+            }
             return new ExtendOutcome(toDto(lease, permissionsFor(environmentId)), null);
         }
         if (total > platformAbsoluteMaxMinutes) {

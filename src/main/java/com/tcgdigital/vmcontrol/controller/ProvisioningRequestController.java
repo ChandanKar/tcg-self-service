@@ -35,6 +35,35 @@ public class ProvisioningRequestController {
     public record DecisionRequest(String notes) {
     }
 
+    public record ExtendRequest(Integer hours) {
+    }
+
+    public record DestroyRequest(Boolean confirm) {
+    }
+
+    /** Destroy-time handling (E32-T05); optional so controller slices can leave it out. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.provisioning.ProvisioningDestroyService destroyService;
+
+    @PostMapping("/{requestId}/extend-ttl")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Extend a provisioned environment", description = "Requester or environment admins, within the template's maximum (admins beyond it).")
+    public ResponseEntity<ProvisioningRequestDTO> extendTtl(@PathVariable String requestId, @RequestBody ExtendRequest body) {
+        if (body == null || body.hours() == null) {
+            throw new com.tcgdigital.vmcontrol.exception.ValidationException("hours is required");
+        }
+        destroyService.extendTtl(requestId, body.hours(), userService.getCurrentUserId());
+        return ResponseEntity.ok(requestService.get(requestId, userService.getCurrentUserId()));
+    }
+
+    @PostMapping("/{requestId}/destroy")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Destroy a provisioned environment now", description = "Requester or admin, with confirm=true.")
+    public ResponseEntity<ProvisioningRequestDTO> destroy(@PathVariable String requestId, @RequestBody(required = false) DestroyRequest body) {
+        destroyService.destroyNow(requestId, userService.getCurrentUserId(), body != null && Boolean.TRUE.equals(body.confirm()));
+        return ResponseEntity.ok(requestService.get(requestId, userService.getCurrentUserId()));
+    }
+
     @PostMapping
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Request an environment", description = "Checked against the template; waits for approval unless the template needs none.")

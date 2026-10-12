@@ -58,6 +58,10 @@ public enum AuditAction {
     PROVISIONING_STARTED,
     PROVISIONING_SUCCEEDED,
     PROVISIONING_FAILED,
+    /** A provisioned environment's destroy was requested, it was destroyed, or its lifetime extended (E32-T05). */
+    PROVISIONING_DESTROY_REQUESTED,
+    PROVISIONING_DESTROYED,
+    PROVISIONING_TTL_EXTENDED,
 
     // Lock operations
     LOCK_ACQUIRED,

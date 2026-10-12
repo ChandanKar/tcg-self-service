@@ -17,7 +17,8 @@ const Settings = (function() {
         'quotas.enabled': 'Starts that would exceed a team quota will warn, wait for approval or be refused.',
         'rightsizing.safe-resize.enabled': 'Admins can stop running VMs, change their instance type and start them again from Cost Management.',
         'spot.eks.conversion.enabled': 'Environment admins can create Spot node groups in EKS and scale their on-demand node groups to 0.',
-        'spot.fallback.enabled': 'On-demand node groups start automatically when their Spot twin is short of capacity.'
+        'spot.fallback.enabled': 'On-demand node groups start automatically when their Spot twin is short of capacity.',
+        'provisioning.destroy.enabled': 'Provisioned environments and everything in them are deleted in AWS when their lifetime ends.'
     };
     let pageToken = null;
     let settings = [];

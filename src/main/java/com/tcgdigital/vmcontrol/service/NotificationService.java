@@ -474,6 +474,29 @@ public class NotificationService {
                 ready ? "ENVIRONMENT" : "PROVISIONING_REQUEST", ready ? environmentId : requestId);
     }
 
+    /** The requester of a provisioned environment hears it will be destroyed soon (E32-T05). */
+    public void notifyEnvironmentDestroyWarning(String requesterId, String environmentId, String environmentName,
+                                                java.time.Instant destroyAt, String within) {
+        create(requesterId, NotificationType.ENVIRONMENT_DESTROY_WARNING, "Destroyed within " + within + ": " + environmentName,
+                "'" + environmentName + "' and everything in it will be destroyed at " + destroyAt
+                        + ". Extend it from My requests if you still need it.", "ENVIRONMENT", environmentId);
+    }
+
+    /** The requester hears their provisioned environment was destroyed, or that destroying it failed (E32-T05). */
+    public void notifyEnvironmentDestroyed(String requesterId, String environmentId, String environmentName, boolean destroyed,
+                                           String error) {
+        create(requesterId, destroyed ? NotificationType.ENVIRONMENT_DESTROYED : NotificationType.OPERATION_FAILED,
+                (destroyed ? "Environment destroyed: " : "Destroy failed: ") + environmentName,
+                destroyed ? "'" + environmentName + "' was destroyed and removed from the platform."
+                        : "Destroying '" + environmentName + "' failed: " + error + ". An admin needs to look at it.",
+                "ENVIRONMENT", environmentId);
+        if (!destroyed) {
+            userRepository.findByAdminTrueAndIsActiveTrue().forEach(u -> create(u.getUserId(), NotificationType.OPERATION_FAILED,
+                    "Destroy failed: " + environmentName, "Destroying '" + environmentName + "' failed: " + error + ".",
+                    "ENVIRONMENT", environmentId));
+        }
+    }
+
     /** AWS took Spot capacity back: the environment's admins and the lock holder hear it (E31-T07). */
     public void notifySpotInterrupted(String environmentId, String environmentName, String vmId, String vmName,
                                       String lockHolderUserId, String details) {

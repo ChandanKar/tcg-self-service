@@ -65,6 +65,17 @@ public class ProvisioningRequest {
     @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
 
+    /** Destroy warnings already sent (E32-T05). */
+    @Column(name = "warned_day", nullable = false)
+    private boolean warnedDay;
+
+    @Column(name = "warned_hour", nullable = false)
+    private boolean warnedHour;
+
+    /** The engine record of the destroy run (E32-T05). */
+    @Column(name = "destroy_record_id", length = 200)
+    private String destroyRecordId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Timestamp createdAt;
 
@@ -114,6 +125,12 @@ public class ProvisioningRequest {
     public void setDestroyAt(Timestamp destroyAt) { this.destroyAt = destroyAt; }
     public String getErrorMessage() { return errorMessage; }
     public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
+    public boolean isWarnedDay() { return warnedDay; }
+    public void setWarnedDay(boolean warnedDay) { this.warnedDay = warnedDay; }
+    public boolean isWarnedHour() { return warnedHour; }
+    public void setWarnedHour(boolean warnedHour) { this.warnedHour = warnedHour; }
+    public String getDestroyRecordId() { return destroyRecordId; }
+    public void setDestroyRecordId(String destroyRecordId) { this.destroyRecordId = destroyRecordId; }
     public Timestamp getCreatedAt() { return createdAt; }
     public Timestamp getUpdatedAt() { return updatedAt; }
 }

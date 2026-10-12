@@ -74,6 +74,8 @@ public final class SettingsRegistry {
                     "Users can request new environments from approved templates.", false),
             integer("Provisioning", "provisioning.timeout-minutes", "Build time-out minutes",
                     "How long a build may take before the request fails.", 60, 5, 720),
+            flag("Provisioning", "provisioning.destroy.enabled", "Destroy at end of lifetime",
+                    "Destroy provisioned environments in AWS when their lifetime ends.", false),
 
             // Spot (E31)
             flag("Spot", "spot.pricing.enabled", "Spot pricing",

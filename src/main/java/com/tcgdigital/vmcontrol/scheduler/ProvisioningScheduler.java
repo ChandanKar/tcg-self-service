@@ -16,11 +16,15 @@ public class ProvisioningScheduler {
     static final String LOCK_NAME = "provisioning";
 
     private final ProvisioningExecutor executor;
+    private final com.tcgdigital.vmcontrol.service.provisioning.ProvisioningDestroyService destroyService;
     private final TemplateService templateService;
     private final ScheduledJobLockService lockService;
 
-    public ProvisioningScheduler(ProvisioningExecutor executor, TemplateService templateService, ScheduledJobLockService lockService) {
+    public ProvisioningScheduler(ProvisioningExecutor executor,
+                                 com.tcgdigital.vmcontrol.service.provisioning.ProvisioningDestroyService destroyService,
+                                 TemplateService templateService, ScheduledJobLockService lockService) {
         this.executor = executor;
+        this.destroyService = destroyService;
         this.templateService = templateService;
         this.lockService = lockService;
     }
@@ -35,6 +39,14 @@ public class ProvisioningScheduler {
                 executor.run();
             } catch (Exception e) {
                 log.error("Error during the provisioning run: {}", e.getMessage(), e);
+            }
+            try {
+                // E32-T05: warn before the destroy time, destroy what is due (only with provisioning.destroy.enabled), follow destroys
+                destroyService.warn();
+                destroyService.destroyDue();
+                destroyService.pollDestroying();
+            } catch (Exception e) {
+                log.error("Error during the provisioning destroy pass: {}", e.getMessage(), e);
             }
         });
     }

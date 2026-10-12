@@ -159,7 +159,8 @@ public class NotificationPreferenceService {
         String name = type.name();
         if (name.startsWith("ACCESS_")) return "Access";
         if (name.startsWith("LOCK_")) return "Locks";
-        if (name.startsWith("OPERATION_") || name.startsWith("SPOT_") || name.equals("ENVIRONMENT_STOP_NOTICE")
+        if (name.startsWith("OPERATION_") || name.startsWith("SPOT_") || name.startsWith("ENVIRONMENT_DESTROY")
+                || name.equals("ENVIRONMENT_STOP_NOTICE")
                 || name.equals("IDLE_AUTO_STOPPED")) return "Operations";
         if (name.startsWith("LEASE_")) return "Leases";
         if (name.startsWith("APPROVAL_") || name.startsWith("QUOTA_") || name.startsWith("PROVISIONING_")) return "Approvals and quotas";
