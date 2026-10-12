@@ -1,10 +1,19 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.model.CloudProvider;
+import com.tcgdigital.vmcontrol.model.ComputeOptimizerOption;
+import com.tcgdigital.vmcontrol.model.ComputeOptimizerRecommendation;
+import com.tcgdigital.vmcontrol.model.Vm;
+import com.tcgdigital.vmcontrol.repository.ComputeOptimizerRecommendationRepository;
+import com.tcgdigital.vmcontrol.repository.VmRepository;
 import com.tcgdigital.vmcontrol.service.aws.AwsClientFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionTemplate;
 import software.amazon.awssdk.services.computeoptimizer.ComputeOptimizerClient;
 import software.amazon.awssdk.services.computeoptimizer.model.ComputeOptimizerException;
 import software.amazon.awssdk.services.computeoptimizer.model.GetEc2InstanceRecommendationsRequest;
@@ -13,31 +22,48 @@ import software.amazon.awssdk.services.computeoptimizer.model.InstanceRecommenda
 import software.amazon.awssdk.services.computeoptimizer.model.InstanceRecommendationOption;
 import software.amazon.awssdk.services.computeoptimizer.model.OptInRequiredException;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.sql.Timestamp;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Overlays AWS Compute Optimizer's real, ML-driven EC2 rightsizing recommendations onto the
- * home-grown CPU-threshold rule in {@link CostEstimationService} — a second signal, never a
- * replacement: Compute Optimizer needs the account opted in and ~14 days of data before it
- * returns anything, and has no recommendation type for EKS managed node groups at all, so
- * {@code AWS_EKS} VMs always stay on the CPU-threshold rule regardless of this service.
+ * home-grown rules in {@link CostEstimationService} — a second signal, never a replacement:
+ * Compute Optimizer needs the account opted in and ~14 days of data before it returns anything,
+ * and has no recommendation type for EKS managed node groups at all, so {@code AWS_EKS} VMs
+ * always stay on the local rules regardless of this service.
  *
- * Enabled by default (E08-T10; {@code cost.optimizer.enabled}): read-only, not billed per
- * request, cached per region, and skipped without AWS credentials. An account not opted in
- * just falls back to the CPU-threshold rule.
+ * Since E30-T04 a daily capture ({@link #captureRecommendations()}) stores every recommendation
+ * of every account and region the fleet runs in, with all options, performance risk, migration
+ * effort and platform differences; the rightsizing page reads those rows and never calls AWS.
+ * Enabled by default (E08-T10; {@code cost.optimizer.enabled}): read-only, not billed per request,
+ * and skipped without AWS credentials. An account not opted in just has no rows.
  */
 @Service
 public class ComputeOptimizerService {
 
     private static final Logger log = LoggerFactory.getLogger(ComputeOptimizerService.class);
 
+    public static final String OVER_PROVISIONED = "OVER_PROVISIONED";
+
     @Value("${cost.optimizer.enabled:true}")
     private boolean enabled;
+
+    /** Stored rows not refreshed by a capture for this long are dropped (the instance went away). */
+    @Value("${cost.optimizer.retention-days:7}")
+    private int retentionDays = 7;
 
     /** An admin's override from Settings (E29-T03), else the configured value; absent in plain unit tests. */
     @org.springframework.beans.factory.annotation.Autowired(required = false)
@@ -47,40 +73,66 @@ public class ComputeOptimizerService {
         return settings == null ? current : settings.overrideOr(key, current);
     }
 
-    /** How long a region's recommendations are reused (E08-T04); failures are never cached. */
-    @Value("${cost.optimizer.cache-minutes:60}")
-    private long cacheMinutes = 60;
-
-    private record CachedRecs(java.time.Instant fetchedAt, Map<String, Recommendation> recommendations) {
-    }
-
-    private final Map<String, CachedRecs> recommendationCache = new ConcurrentHashMap<>();
     /** An account's client in a region: the factory's cached one, or a fixed one in tests. */
     private final java.util.function.BiFunction<String, String, ComputeOptimizerClient> clientFactory;
     private final java.util.function.BooleanSupplier configured;
+    private final ComputeOptimizerRecommendationRepository repository;
+    private final VmRepository vmRepository;
+    private final TransactionOperations tx;
     private java.time.Clock clock = java.time.Clock.systemUTC();
 
     @org.springframework.beans.factory.annotation.Autowired
-    public ComputeOptimizerService(AwsClientFactory awsClientFactory) {
+    public ComputeOptimizerService(AwsClientFactory awsClientFactory,
+                                   ComputeOptimizerRecommendationRepository repository,
+                                   VmRepository vmRepository,
+                                   PlatformTransactionManager transactionManager) {
         this.clientFactory = (accountRef, region) -> awsClientFactory.computeOptimizer(accountRef, region);
         this.configured = awsClientFactory::isConfigured;
+        this.repository = repository;
+        this.vmRepository = vmRepository;
+        this.tx = new TransactionTemplate(transactionManager);
     }
 
-    /** Test seam: fixed clients and clock, credentials configured. */
-    ComputeOptimizerService(java.util.function.Function<String, ComputeOptimizerClient> clientFactory, java.time.Clock clock) {
+    /** Test seam: fixed clients and clock, credentials configured, no transactions. */
+    ComputeOptimizerService(Function<String, ComputeOptimizerClient> clientFactory, java.time.Clock clock,
+                            ComputeOptimizerRecommendationRepository repository, VmRepository vmRepository) {
         this.clientFactory = (accountRef, region) -> clientFactory.apply(region);
         this.configured = () -> true;
+        this.repository = repository;
+        this.vmRepository = vmRepository;
+        this.tx = TransactionOperations.withoutTransaction();
         this.clock = clock;
     }
 
     /**
-     * An OVERPROVISIONED instance and its recommended types, best rank first (E08-T05). Callers
-     * still check each option is actually cheaper before suggesting it.
+     * One option of a recommendation (E30-T04). {@code performanceRisk} is AWS's 0 (very low) to 4
+     * (very high); {@code platformDifferences} lists e.g. Architecture for a Graviton option.
      */
-    public record Recommendation(String instanceId, String finding, List<String> optionTypesByRank) {
+    public record Option(int rank, String instanceType, BigDecimal performanceRisk, String migrationEffort,
+                         List<String> platformDifferences, BigDecimal estimatedMonthlySavings) {
+        public boolean changesArchitecture() {
+            return platformDifferences != null && platformDifferences.stream().anyMatch("Architecture"::equalsIgnoreCase);
+        }
+    }
+
+    /**
+     * An instance's finding (OVER_PROVISIONED, UNDER_PROVISIONED, OPTIMIZED, NOT_OPTIMIZED) and its
+     * recommended types, best rank first (E08-T05). Callers still check each option is actually
+     * cheaper before suggesting it.
+     */
+    public record Recommendation(String instanceId, String finding, List<String> optionTypesByRank,
+                                 List<Option> options, List<String> findingReasons, boolean memoryMetricPresent) {
+        public Recommendation(String instanceId, String finding, List<String> optionTypesByRank) {
+            this(instanceId, finding, optionTypesByRank, List.of(), List.of(), false);
+        }
+
         /** The top-ranked option. */
         public String suggestedInstanceType() {
             return optionTypesByRank.isEmpty() ? null : optionTypesByRank.get(0);
+        }
+
+        public boolean overProvisioned() {
+            return OVER_PROVISIONED.equals(finding);
         }
     }
 
@@ -88,49 +140,143 @@ public class ComputeOptimizerService {
         return live("cost.optimizer.enabled", enabled) && configured.getAsBoolean();
     }
 
-    /**
-     * @return every EC2 instance in this region Compute Optimizer currently has an opinion on,
-     *         keyed by instance ID — never partial/per-instance calls, one call covers the
-     *         account's whole recommendation set for the region.
-     */
     public Map<String, Recommendation> getEc2Recommendations(String region) {
         return getEc2Recommendations(CloudTarget.of(region));
     }
 
-    /** One account's recommendations in one region (E28-T06), cached per account and region. */
+    /**
+     * The over-provisioned instances of one account in one region that have at least one option,
+     * keyed by instance ID — the scale-down overlay (an under-provisioned instance's options are
+     * larger, M11, E08-T05). Read from the stored capture: no AWS call.
+     */
     public Map<String, Recommendation> getEc2Recommendations(CloudTarget target) {
+        Map<String, Recommendation> result = new LinkedHashMap<>();
+        getAllRecommendations(target).forEach((id, rec) -> {
+            if (rec.overProvisioned() && !rec.optionTypesByRank().isEmpty()) {
+                result.put(id, rec);
+            }
+        });
+        return result;
+    }
+
+    /** Every stored recommendation (any finding) of one account in one region (E30-T04). */
+    public Map<String, Recommendation> getAllRecommendations(CloudTarget target) {
+        if (!live("cost.optimizer.enabled", enabled) || target == null || target.region() == null) {
+            return Map.of();
+        }
+        Map<String, Recommendation> result = new LinkedHashMap<>();
+        for (ComputeOptimizerRecommendation row : repository.findByRegionAndAwsAccountRef(target.region(), target.accountRef())) {
+            result.put(row.getProviderVmId(), toRecommendation(row));
+        }
+        return result;
+    }
+
+    /**
+     * Daily capture (E30-T04): for every account and region with active EC2 VMs, every page of
+     * Compute Optimizer's EC2 recommendations is stored with all options, replacing that
+     * instance's previous row; instances no longer reported are removed. Returns rows stored.
+     */
+    public int captureRecommendations() {
         if (!isAvailable()) {
-            return Map.of();
+            return 0;
         }
-        String region = target.region();
-        CachedRecs cached = recommendationCache.get(target.key());
-        if (cached != null && cached.fetchedAt().plus(java.time.Duration.ofMinutes(cacheMinutes)).isAfter(clock.instant())) {
-            return cached.recommendations();
+        List<Vm> vms = vmRepository.findByIsActiveTrueFetchGroupAndEnvironment().stream()
+                .filter(v -> v.getProvider() == CloudProvider.AWS && v.getRegion() != null)
+                .toList();
+        Map<String, String> vmIdByInstance = vms.stream().filter(v -> v.getProviderVmId() != null)
+                .collect(Collectors.toMap(Vm::getProviderVmId, Vm::getVmId, (a, b) -> a));
+        List<CloudTarget> targets = vms.stream().map(CloudTarget::of).distinct().toList();
+
+        int stored = 0;
+        for (CloudTarget target : targets) {
+            try {
+                List<InstanceRecommendation> recs = fetchAll(target);
+                Integer n = tx.execute(status -> store(target, recs, vmIdByInstance));
+                stored += n == null ? 0 : n;
+            } catch (OptInRequiredException e) {
+                log.warn("Compute Optimizer is not enrolled for {} — enable it in the AWS console to get its "
+                        + "rightsizing recommendations; the local rules still apply.", target);
+            } catch (ComputeOptimizerException e) {
+                log.error("Compute Optimizer capture failed for {}: {}", target, e.getMessage());
+            } catch (Exception e) {
+                log.error("Unexpected error capturing Compute Optimizer recommendations for {}: {}", target, e.getMessage());
+            }
         }
-        try {
-            // Every page (E08-T04): one response covers at most a page of the region's instances.
-            Map<String, Recommendation> all = new LinkedHashMap<>();
-            String token = null;
-            do {
-                GetEc2InstanceRecommendationsResponse response = clientFactory.apply(target.accountRef(), region)
-                        .getEC2InstanceRecommendations(GetEc2InstanceRecommendationsRequest.builder().nextToken(token).build());
-                all.putAll(parseRecommendations(response));
-                token = response.nextToken();
-            } while (token != null && !token.isEmpty());
-            Map<String, Recommendation> result = java.util.Collections.unmodifiableMap(all);
-            recommendationCache.put(target.key(), new CachedRecs(clock.instant(), result));
-            return result;
-        } catch (OptInRequiredException e) {
-            log.warn("Compute Optimizer is not enrolled for this account (region {}) — enable it in the " +
-                    "AWS console to get real rightsizing recommendations; falling back to the CPU-threshold rule.", region);
-            return Map.of();
-        } catch (ComputeOptimizerException e) {
-            log.error("Compute Optimizer call failed for region {}: {}", region, e.getMessage());
-            return Map.of();
-        } catch (Exception e) {
-            log.error("Unexpected error fetching Compute Optimizer recommendations for region {}: {}", region, e.getMessage());
-            return Map.of();
+        Timestamp cutoff = Timestamp.from(clock.instant().minus(Duration.ofDays(retentionDays)));
+        tx.executeWithoutResult(status -> repository.deleteByCapturedAtBefore(cutoff));
+        log.info("Compute Optimizer capture: {} recommendation(s) stored across {} account/region target(s)",
+                stored, targets.size());
+        return stored;
+    }
+
+    /** Every page of one target's recommendations (E08-T04). */
+    private List<InstanceRecommendation> fetchAll(CloudTarget target) {
+        List<InstanceRecommendation> all = new ArrayList<>();
+        String token = null;
+        do {
+            GetEc2InstanceRecommendationsResponse response = clientFactory.apply(target.accountRef(), target.region())
+                    .getEC2InstanceRecommendations(GetEc2InstanceRecommendationsRequest.builder().nextToken(token).build());
+            all.addAll(response.instanceRecommendations());
+            token = response.nextToken();
+        } while (token != null && !token.isEmpty());
+        return all;
+    }
+
+    private int store(CloudTarget target, List<InstanceRecommendation> recs, Map<String, String> vmIdByInstance) {
+        Timestamp now = Timestamp.from(clock.instant());
+        Map<String, ComputeOptimizerRecommendation> existing = new LinkedHashMap<>();
+        for (ComputeOptimizerRecommendation row : repository.findByRegionAndAwsAccountRef(target.region(), target.accountRef())) {
+            existing.put(row.getProviderVmId(), row);
         }
+        Set<String> seen = new HashSet<>();
+        List<String> ids = recs.stream().map(r -> extractInstanceId(r.instanceArn())).filter(Objects::nonNull).toList();
+        if (!ids.isEmpty()) {
+            // a row of the same instance stored under another target (e.g. moved account) is replaced too
+            repository.findByProviderVmIdIn(ids).forEach(r -> existing.putIfAbsent(r.getProviderVmId(), r));
+        }
+        int count = 0;
+        for (InstanceRecommendation rec : recs) {
+            String instanceId = extractInstanceId(rec.instanceArn());
+            if (instanceId == null || !seen.add(instanceId)) {
+                continue;
+            }
+            ComputeOptimizerRecommendation row = existing.get(instanceId);
+            if (row == null) {
+                row = new ComputeOptimizerRecommendation();
+                row.setProviderVmId(instanceId);
+            } else {
+                row.getOptions().clear();
+            }
+            row.setVmId(vmIdByInstance.get(instanceId));
+            row.setAwsAccountRef(target.accountRef());
+            row.setRegion(target.region());
+            row.setFinding(normalizeFinding(rec));
+            row.setFindingReasons(rec.hasFindingReasonCodes() ? String.join(",", rec.findingReasonCodesAsStrings()) : null);
+            row.setCurrentInstanceType(rec.currentInstanceType());
+            row.setLookbackDays(rec.lookBackPeriodInDays() == null ? null : rec.lookBackPeriodInDays().intValue());
+            row.setMemoryMetricPresent(memoryPresent(rec));
+            row.setCapturedAt(now);
+            for (InstanceRecommendationOption o : sortedOptions(rec)) {
+                ComputeOptimizerOption option = new ComputeOptimizerOption();
+                option.setOptionRank(o.rank() == null ? 0 : o.rank());
+                option.setInstanceType(o.instanceType());
+                option.setPerformanceRisk(o.performanceRisk() == null ? null
+                        : BigDecimal.valueOf(o.performanceRisk()).setScale(2, RoundingMode.HALF_UP));
+                option.setMigrationEffort(o.migrationEffortAsString());
+                option.setPlatformDifferences(o.hasPlatformDifferences() && !o.platformDifferencesAsStrings().isEmpty()
+                        ? String.join(",", o.platformDifferencesAsStrings()) : null);
+                option.setEstimatedMonthlySavings(monthlySavings(o));
+                row.addOption(option);
+            }
+            repository.save(row);
+            count++;
+        }
+        // instances of this target Compute Optimizer no longer reports
+        existing.values().stream()
+                .filter(r -> !seen.contains(r.getProviderVmId()))
+                .filter(r -> target.region().equals(r.getRegion()) && target.accountRef().equals(r.getAwsAccountRef()))
+                .forEach(repository::delete);
+        return count;
     }
 
     /**
@@ -144,10 +290,8 @@ public class ComputeOptimizerService {
     }
 
     /**
-     * Parses recommendations keyed by instance ID (extracted from each recommendation's ARN,
-     * since the request doesn't filter by instance and the response covers every EC2 instance
-     * Compute Optimizer knows about). Only instances with at least one recommendation option are
-     * included — an instance already at {@code OPTIMIZED} may have no smaller option to suggest.
+     * Over-provisioned instances of one response with at least one option, keyed by instance ID
+     * (extracted from each recommendation's ARN), options in rank order (E08-T05, M11).
      */
     Map<String, Recommendation> parseRecommendations(GetEc2InstanceRecommendationsResponse response) {
         Map<String, Recommendation> result = new LinkedHashMap<>();
@@ -156,22 +300,76 @@ public class ComputeOptimizerService {
             if (instanceId == null) {
                 continue;
             }
-            // Only an over-provisioned instance is a scale-down; an under-provisioned one's
-            // options are larger (M11, E08-T05).
-            if (rec.finding() != software.amazon.awssdk.services.computeoptimizer.model.Finding.OVERPROVISIONED) {
-                continue;
+            Recommendation r = toRecommendation(instanceId, rec);
+            if (r.overProvisioned() && !r.optionTypesByRank().isEmpty()) {
+                result.put(instanceId, r);
             }
-            List<String> options = rec.recommendationOptions().stream()
-                    .sorted(Comparator.comparing(InstanceRecommendationOption::rank))
-                    .map(InstanceRecommendationOption::instanceType)
-                    .filter(java.util.Objects::nonNull)
-                    .toList();
-            if (options.isEmpty()) {
-                continue;
-            }
-            result.put(instanceId, new Recommendation(instanceId, rec.findingAsString(), options));
         }
         return result;
+    }
+
+    private Recommendation toRecommendation(String instanceId, InstanceRecommendation rec) {
+        List<Option> options = sortedOptions(rec).stream()
+                .filter(o -> o.instanceType() != null)
+                .map(o -> new Option(o.rank() == null ? 0 : o.rank(), o.instanceType(),
+                        o.performanceRisk() == null ? null : BigDecimal.valueOf(o.performanceRisk()).setScale(2, RoundingMode.HALF_UP),
+                        o.migrationEffortAsString(),
+                        o.hasPlatformDifferences() ? List.copyOf(o.platformDifferencesAsStrings()) : List.of(),
+                        monthlySavings(o)))
+                .toList();
+        return new Recommendation(instanceId, normalizeFinding(rec), options.stream().map(Option::instanceType).toList(),
+                options, rec.hasFindingReasonCodes() ? List.copyOf(rec.findingReasonCodesAsStrings()) : List.of(),
+                memoryPresent(rec));
+    }
+
+    private Recommendation toRecommendation(ComputeOptimizerRecommendation row) {
+        List<Option> options = row.getOptions().stream()
+                .sorted(Comparator.comparing(ComputeOptimizerOption::getOptionRank))
+                .map(o -> new Option(o.getOptionRank(), o.getInstanceType(), o.getPerformanceRisk(), o.getMigrationEffort(),
+                        split(o.getPlatformDifferences()), o.getEstimatedMonthlySavings()))
+                .toList();
+        return new Recommendation(row.getProviderVmId(), row.getFinding(), options.stream().map(Option::instanceType).toList(),
+                options, split(row.getFindingReasons()), row.isMemoryMetricPresent());
+    }
+
+    private static List<String> split(String csv) {
+        return csv == null || csv.isBlank() ? List.of() : Arrays.stream(csv.split(",")).map(String::trim).toList();
+    }
+
+    private static List<InstanceRecommendationOption> sortedOptions(InstanceRecommendation rec) {
+        if (!rec.hasRecommendationOptions()) {
+            return List.of();
+        }
+        return rec.recommendationOptions().stream()
+                .sorted(Comparator.comparing(o -> o.rank() == null ? Integer.MAX_VALUE : o.rank()))
+                .toList();
+    }
+
+    private static BigDecimal monthlySavings(InstanceRecommendationOption o) {
+        if (o.savingsOpportunity() == null || o.savingsOpportunity().estimatedMonthlySavings() == null
+                || o.savingsOpportunity().estimatedMonthlySavings().value() == null) {
+            return null;
+        }
+        return BigDecimal.valueOf(o.savingsOpportunity().estimatedMonthlySavings().value()).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private static boolean memoryPresent(InstanceRecommendation rec) {
+        return rec.hasUtilizationMetrics() && rec.utilizationMetrics().stream()
+                .anyMatch(m -> "Memory".equalsIgnoreCase(m.nameAsString()));
+    }
+
+    /** OVER_PROVISIONED, UNDER_PROVISIONED, OPTIMIZED or NOT_OPTIMIZED. */
+    static String normalizeFinding(InstanceRecommendation rec) {
+        if (rec.finding() == null) {
+            return "UNKNOWN";
+        }
+        return switch (rec.finding()) {
+            case OVERPROVISIONED -> OVER_PROVISIONED;
+            case UNDERPROVISIONED -> "UNDER_PROVISIONED";
+            case OPTIMIZED -> "OPTIMIZED";
+            case NOT_OPTIMIZED -> "NOT_OPTIMIZED";
+            default -> String.valueOf(rec.findingAsString()).toUpperCase(java.util.Locale.ROOT);
+        };
     }
 
     private String extractInstanceId(String instanceArn) {

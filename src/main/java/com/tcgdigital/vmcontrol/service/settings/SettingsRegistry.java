@@ -111,6 +111,7 @@ public final class SettingsRegistry {
             readOnly("Restart required", "cost.tagging.cron", "Tag reconciliation schedule", "Cron, read at startup."),
             readOnly("Restart required", "cost.actuals.cron", "Actual cost schedule", "Cron, read at startup."),
             readOnly("Restart required", "cost.reservations.cron", "Reservation coverage schedule", "Cron, read at startup."),
+            readOnly("Restart required", "cost.optimizer.cron", "Compute Optimizer capture schedule", "Cron, read at startup."),
             readOnly("Restart required", "notification.weekly-reports.cron", "Weekly report schedule", "Cron, read at startup."),
             readOnly("Restart required", "retention.cron", "Retention schedule", "Cron, read at startup."),
             readOnly("Restart required", "savings.ledger.cron", "Savings ledger schedule", "Cron, read at startup."),

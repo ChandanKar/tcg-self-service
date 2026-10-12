@@ -72,7 +72,9 @@ public class SchedulerJobCatalog {
             cron("quota_warnings", "Team quota warnings (hourly)", "quotas.warning-cron", "0 5 * * * *",
                     "quotas.enabled", false),
             cron("eks_split_cost", "EKS split cost ingestion (daily)", "eks.scad.cron", "0 30 6 * * *",
-                    "eks.scad.enabled", false));
+                    "eks.scad.enabled", false),
+            cron("compute_optimizer_capture", "Compute Optimizer capture (daily)", "cost.optimizer.cron", "0 45 5 * * *",
+                    "cost.optimizer.enabled", true));
 
     /** A job as the health view needs it. */
     public record Job(String jobName, String label, Duration expectedInterval, boolean enabled) {

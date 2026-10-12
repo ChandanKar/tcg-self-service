@@ -39,6 +39,8 @@ DELETE FROM vm_provider_details;
 DELETE FROM vm_metric_sample;
 DELETE FROM vm_metric_sample_archive;
 DELETE FROM vm_metric_daily;
+DELETE FROM compute_optimizer_option;
+DELETE FROM compute_optimizer_recommendation;
 DELETE FROM vm;
 DELETE FROM vm_group;
 DELETE FROM environment_access_request;
