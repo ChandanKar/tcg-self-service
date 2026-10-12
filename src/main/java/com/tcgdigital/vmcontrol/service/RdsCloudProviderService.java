@@ -185,6 +185,28 @@ public class RdsCloudProviderService implements CloudProviderService {
         return waitFor(rds, id, start, listener);
     }
 
+    /**
+     * Asks RDS to stop the database and returns without waiting (E33-T04: the keep-stopped pass must
+     * not hold its lock for the minutes a stop takes); state sync follows it to stopped.
+     */
+    public VmOperationResult requestStop(String providerVmId, CloudTarget target) {
+        if (!isAvailable()) {
+            return VmOperationResult.failure("RDS support is not enabled (rds.enabled)");
+        }
+        RdsId id = parse(providerVmId);
+        if (id == null) {
+            return VmOperationResult.failure("Invalid RDS id: " + providerVmId);
+        }
+        try {
+            call(client(target), id, false);
+            return VmOperationResult.success(id.providerVmId(), VmStatus.STOPPING);
+        } catch (AwsServiceException e) {
+            return VmOperationResult.failure("RDS error: " + message(e));
+        } catch (Exception e) {
+            return VmOperationResult.failure("Error: " + e.getMessage());
+        }
+    }
+
     private void call(RdsClient rds, RdsId id, boolean start) {
         if (id.cluster()) {
             if (start) rds.startDBCluster(StartDbClusterRequest.builder().dbClusterIdentifier(id.identifier()).build());

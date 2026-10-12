@@ -229,6 +229,20 @@ public class AutomationRuleService {
                 behavior, blankToNull(ruleId), clock.instant(), clamp(limit)));
     }
 
+    /** Whether an enabled schedule starts the environment within the window (E33-T04: no re-stop just before it). */
+    @Transactional(readOnly = true)
+    public boolean startsWithin(String environmentId, java.time.Duration window) {
+        Instant now = clock.instant();
+        Instant until = now.plus(window);
+        for (AutomationRule rule : automationRuleRepository.findEnabledSchedulesForEnvironments(List.of(environmentId))) {
+            for (ScheduleCalculator.Run run : runsOf(rule, now, 4)) {
+                if (run.at().toInstant().isAfter(until)) break;
+                if (!run.skipped() && run.action() == com.tcgdigital.vmcontrol.model.OperationType.START) return true;
+            }
+        }
+        return false;
+    }
+
     /** The next runs of a saved schedule rule, with its holidays and overrides. */
     @Transactional(readOnly = true)
     public List<ScheduleRunPreviewDTO> nextRuns(String ruleId, int limit) {

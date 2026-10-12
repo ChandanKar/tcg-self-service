@@ -80,6 +80,8 @@ public final class SettingsRegistry {
             // RDS (E33)
             flag("RDS", "rds.enabled", "RDS databases",
                     "Start and stop RDS DB instances and Aurora clusters registered as VMs.", false),
+            flag("RDS", "rds.keep-stopped.enabled", "Keep stopped databases stopped",
+                    "Stop again a database AWS started after seven days stopped.", false),
 
             // Spot (E31)
             flag("Spot", "spot.pricing.enabled", "Spot pricing",

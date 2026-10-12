@@ -57,6 +57,11 @@ public class VmDTO {
         dto.setPurchaseOption(vm.getPurchaseOption() == null ? null : vm.getPurchaseOption().name());
         dto.setSpotExcluded(vm.isSpotExcluded());
         dto.setProviderVmId(vm.getProviderVmId());
+        if (vm.getProvider() == com.tcgdigital.vmcontrol.model.CloudProvider.AWS_RDS && vm.getIntendedStoppedSince() != null) {
+            // E33-T04: when AWS will start the stopped database again
+            dto.setAwsAutoStartAt(java.sql.Timestamp.from(vm.getIntendedStoppedSince().toInstant()
+                    .plus(com.tcgdigital.vmcontrol.service.RdsKeepStoppedService.AUTO_START_AFTER)));
+        }
         dto.setVmType(vm.getVmType());
         dto.setSequencePosition(vm.getSequencePosition());
         dto.setDependsOnVmIds(vm.getDependencies());
@@ -291,6 +296,16 @@ public class VmDTO {
     /** The AWS account and its display name (E28-T10). */
     private String awsAccountRef;
     private String awsAccountName;
+    /** When AWS will start this stopped RDS database again (E33-T04); null otherwise. */
+    private java.sql.Timestamp awsAutoStartAt;
+
+    public java.sql.Timestamp getAwsAutoStartAt() {
+        return awsAutoStartAt;
+    }
+
+    public void setAwsAutoStartAt(java.sql.Timestamp awsAutoStartAt) {
+        this.awsAutoStartAt = awsAutoStartAt;
+    }
 
     public String getAwsAccountRef() {
         return awsAccountRef;

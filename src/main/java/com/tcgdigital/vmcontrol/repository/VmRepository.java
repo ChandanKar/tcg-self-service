@@ -249,6 +249,38 @@ public interface VmRepository extends JpaRepository<Vm, String> {
     @Query("UPDATE Vm v SET v.purchaseOption = :option, v.version = v.version + 1 WHERE v.vmId = :vmId AND v.purchaseOption <> :option")
     int updatePurchaseOption(@Param("vmId") String vmId, @Param("option") com.tcgdigital.vmcontrol.model.PurchaseOption option);
 
+    // ---- RDS keep-stopped (E33-T04) ----
+
+    /** Active AWS_RDS VMs the platform keeps stopped, with their group and environment. */
+    @Query("SELECT v FROM Vm v JOIN FETCH v.group g JOIN FETCH g.environment WHERE v.provider = com.tcgdigital.vmcontrol.model.CloudProvider.AWS_RDS " +
+           "AND v.intendedStoppedSince IS NOT NULL AND v.isActive = true")
+    List<Vm> findRdsIntendedStopped();
+
+    /** The platform stopped it: kept stopped from now unless already so. */
+    @Modifying(flushAutomatically = true)
+    @Transactional
+    @Query("UPDATE Vm v SET v.intendedStoppedSince = COALESCE(v.intendedStoppedSince, :at), v.version = v.version + 1 WHERE v.vmId = :vmId")
+    int markIntendedStopped(@Param("vmId") String vmId, @Param("at") Timestamp at);
+
+    /** The platform starts it, or someone started it outside the platform: it may run. */
+    @Modifying(flushAutomatically = true)
+    @Transactional
+    @Query("UPDATE Vm v SET v.intendedStoppedSince = NULL, v.autoStartDetectedAt = NULL, v.version = v.version + 1 " +
+           "WHERE v.vmId = :vmId AND (v.intendedStoppedSince IS NOT NULL OR v.autoStartDetectedAt IS NOT NULL)")
+    int clearIntendedStopped(@Param("vmId") String vmId);
+
+    /** Records an automatic start once: 1 for the first caller, 0 when already recorded. */
+    @Modifying(flushAutomatically = true)
+    @Transactional
+    @Query("UPDATE Vm v SET v.autoStartDetectedAt = :at, v.version = v.version + 1 WHERE v.vmId = :vmId AND v.autoStartDetectedAt IS NULL")
+    int markAutoStartDetected(@Param("vmId") String vmId, @Param("at") Timestamp at);
+
+    /** Stopped again after an automatic start: AWS's seven days start over. */
+    @Modifying(flushAutomatically = true)
+    @Transactional
+    @Query("UPDATE Vm v SET v.intendedStoppedSince = :at, v.autoStartDetectedAt = NULL, v.version = v.version + 1 WHERE v.vmId = :vmId")
+    int markRestopped(@Param("vmId") String vmId, @Param("at") Timestamp at);
+
     /** Set the status only if it is still {@code expectedStatus}; 0 when someone changed it first. */
     @Modifying(flushAutomatically = true)
     @Transactional

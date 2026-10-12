@@ -871,6 +871,9 @@ public class VmOperationsService {
             final String detailId = detail.getDetailId();
 
             if (operationType == OperationType.START) {
+                if (vm.getProvider() == com.tcgdigital.vmcontrol.model.CloudProvider.AWS_RDS) {
+                    vmRepository.clearIntendedStopped(vm.getVmId()); // E33-T04: the platform wants it running
+                }
                 updateOperationProgress(executionId, detailId,
                         CloudProviderService.VmOperationProgress.of(VmStatus.STARTING, "Start requested", 10));
                 result = providerService.startVm(vm.getProviderVmId(), CloudTarget.of(vm),
@@ -904,6 +907,11 @@ public class VmOperationsService {
                                 operationType + " operation completed");
                     }
                     writeStatus(vm.getVmId(), reconciledStatus);
+                }
+                if (operationType == OperationType.STOP && reconciledStatus == VmStatus.STOPPED
+                        && vm.getProvider() == com.tcgdigital.vmcontrol.model.CloudProvider.AWS_RDS) {
+                    // E33-T04: kept stopped through AWS's seven-day automatic start
+                    vmRepository.markIntendedStopped(vm.getVmId(), Timestamp.from(Instant.now()));
                 }
 
                 updateExecutionCounters(executionId, true);

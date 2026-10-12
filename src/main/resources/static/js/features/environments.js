@@ -71,6 +71,35 @@ const Environments = (function() {
         return ['STARTING', 'STOPPING'].includes((status || '').toUpperCase());
     }
 
+    // E33-T04: AWS starts a stopped RDS database again after seven days; whether the platform stops
+    // it again (rds.keep-stopped.enabled) is asked once and the notes are reworded when it answers.
+    let rdsKeepStopped = null;
+    let rdsKeepStoppedAsked = false;
+
+    function rdsAutoStartText(at) {
+        const when = Utils.formatDate(at);
+        return rdsKeepStopped
+            ? `AWS will restart it on ${when}; the platform will stop it again`
+            : `AWS will restart it on ${when} and it will keep running until stopped`;
+    }
+
+    function rdsAutoStartNote(vm) {
+        if (vm.provider !== 'AWS_RDS' || !vm.awsAutoStartAt || vm.status !== 'STOPPED') return '';
+        if (!rdsKeepStoppedAsked) {
+            rdsKeepStoppedAsked = true;
+            ApiClient.request('GET', Config.API.rds.status, null, { suppressGlobalError: true })
+                .done(r => {
+                    rdsKeepStopped = !!(r && r.keepStopped);
+                    document.querySelectorAll('.rds-auto-start').forEach(el => {
+                        el.textContent = rdsAutoStartText(el.dataset.at);
+                        el.classList.toggle('text-warning-emphasis', !rdsKeepStopped);
+                    });
+                });
+        }
+        return Utils.html`<div class="small mt-1 rds-auto-start ${rdsKeepStopped ? 'text-muted' : 'text-warning-emphasis'}"
+            data-at="${vm.awsAutoStartAt}">${rdsAutoStartText(vm.awsAutoStartAt)}</div>`;
+    }
+
     function getEnvironmentVms(env) {
         return (env.groups || []).flatMap(groupData => groupData.vms || []);
     }
@@ -776,6 +805,7 @@ const Environments = (function() {
                         <span class="status-badge ${statusConfig.class}">
                             <i class="fas ${statusConfig.icon}"></i> ${statusConfig.label}
                         </span>
+                        ${rdsAutoStartNote(vm)}
                     </td>
                     <td data-label="Seq">${vm.sequencePosition || '-'}</td>
                     <td class="td-actions">

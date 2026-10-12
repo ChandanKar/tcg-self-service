@@ -78,6 +78,7 @@ public abstract class AbstractIntegrationTest {
     void stubCloudProviders() {
         when(cloudProviderFactory.getService(CloudProvider.AWS)).thenReturn(awsCloudProviderService);
         when(cloudProviderFactory.getService(CloudProvider.AWS_EKS)).thenReturn(eksCloudProviderService);
+        when(cloudProviderFactory.getService(CloudProvider.AWS_RDS)).thenReturn(rdsCloudProviderService);
         when(cloudProviderFactory.isProviderAvailable(any())).thenReturn(true);
         when(awsCloudProviderService.getProvider()).thenReturn(CloudProvider.AWS);
         when(eksCloudProviderService.getProvider()).thenReturn(CloudProvider.AWS_EKS);

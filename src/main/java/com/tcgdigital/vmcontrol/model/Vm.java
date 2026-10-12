@@ -71,6 +71,30 @@ public class Vm {
     @Column(name = "spot_excluded", nullable = false)
     private boolean spotExcluded;
 
+    /** Since when the platform has kept this AWS_RDS VM stopped (E33-T04, V83); null when it may run. */
+    @Column(name = "intended_stopped_since")
+    private Timestamp intendedStoppedSince;
+
+    /** When AWS's seven-day automatic start was recorded (E33-T04); null until then. */
+    @Column(name = "auto_start_detected_at")
+    private Timestamp autoStartDetectedAt;
+
+    public Timestamp getIntendedStoppedSince() {
+        return intendedStoppedSince;
+    }
+
+    public void setIntendedStoppedSince(Timestamp intendedStoppedSince) {
+        this.intendedStoppedSince = intendedStoppedSince;
+    }
+
+    public Timestamp getAutoStartDetectedAt() {
+        return autoStartDetectedAt;
+    }
+
+    public void setAutoStartDetectedAt(Timestamp autoStartDetectedAt) {
+        this.autoStartDetectedAt = autoStartDetectedAt;
+    }
+
     public boolean isSpotExcluded() {
         return spotExcluded;
     }

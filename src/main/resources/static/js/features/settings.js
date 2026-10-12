@@ -18,7 +18,8 @@ const Settings = (function() {
         'rightsizing.safe-resize.enabled': 'Admins can stop running VMs, change their instance type and start them again from Cost Management.',
         'spot.eks.conversion.enabled': 'Environment admins can create Spot node groups in EKS and scale their on-demand node groups to 0.',
         'spot.fallback.enabled': 'On-demand node groups start automatically when their Spot twin is short of capacity.',
-        'provisioning.destroy.enabled': 'Provisioned environments and everything in them are deleted in AWS when their lifetime ends.'
+        'provisioning.destroy.enabled': 'Provisioned environments and everything in them are deleted in AWS when their lifetime ends.',
+        'rds.keep-stopped.enabled': 'RDS databases that AWS starts after seven days stopped are stopped again.'
     };
     let pageToken = null;
     let settings = [];

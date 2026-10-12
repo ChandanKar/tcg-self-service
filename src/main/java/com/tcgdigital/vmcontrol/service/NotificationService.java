@@ -521,6 +521,18 @@ public class NotificationService {
                         : com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.INFO, title, message);
     }
 
+    /** AWS started a database the platform keeps stopped (E33-T04): the environment's admins hear whether it is stopped again. */
+    public void notifyRdsAutoStart(String environmentId, String environmentName, String vmId, String vmName, boolean restopping) {
+        String title = "AWS restarted " + vmName;
+        String message = "AWS started " + vmName + " in " + environmentName + " after seven days stopped. "
+                + (restopping ? "The platform will stop it again once it is available."
+                : "Keep-stopped is off, so it keeps running (and costing) until someone stops it.");
+        resolveEnvironmentReviewers(environmentId).forEach(u -> create(u.getUserId(), NotificationType.STATE_DRIFT_DETECTED,
+                title, message, "VM", vmId));
+        toChat(environmentId, NotificationType.STATE_DRIFT_DETECTED, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.WARNING,
+                title, message);
+    }
+
     /** A safe resize failed and its rollback too: the environment's admins must fix the VM (E30-T06). */
     public void notifyResizeNeedsAttention(String environmentId, String vmId, String title, String message) {
         resolveEnvironmentReviewers(environmentId).forEach(u -> create(u.getUserId(), NotificationType.OPERATION_FAILED,

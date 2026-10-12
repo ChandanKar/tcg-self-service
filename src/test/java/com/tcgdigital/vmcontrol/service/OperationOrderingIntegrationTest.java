@@ -3,6 +3,7 @@ package com.tcgdigital.vmcontrol.service;
 import com.tcgdigital.vmcontrol.dto.StartOperationDTO;
 import com.tcgdigital.vmcontrol.model.AccessLevel;
 import com.tcgdigital.vmcontrol.model.AccessScopeType;
+import com.tcgdigital.vmcontrol.model.CloudProvider;
 import com.tcgdigital.vmcontrol.model.Environment;
 import com.tcgdigital.vmcontrol.model.ExecutionStatus;
 import com.tcgdigital.vmcontrol.model.OperationDetail;
@@ -117,6 +118,39 @@ class OperationOrderingIntegrationTest extends AbstractIntegrationTest {
             }
         }
         return byStep;
+    }
+
+    @Test
+    void anRdsDatabaseStoppedByThePlatformIsKeptStoppedUntilThePlatformStartsIt() throws Exception {
+        // E33-T04: intended_stopped_since is set by a platform stop and cleared by a platform start.
+        VmGroup group = newGroup(env, "data");
+        Vm db = vm(group, "rds", VmStatus.RUNNING);
+        db.setProvider(CloudProvider.AWS_RDS);
+        db.setProviderVmId("db:orders-" + db.getVmId().substring(0, 8));
+        db = vmRepository.saveAndFlush(db);
+        nameByProviderId.put(db.getProviderVmId(), "rds");
+        when(rdsCloudProviderService.stopVm(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), anyBoolean(), any()))
+                .thenAnswer(inv -> record("stop", inv.getArgument(0), VmStatus.STOPPED));
+        when(rdsCloudProviderService.startVm(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class), any()))
+                .thenAnswer(inv -> record("start", inv.getArgument(0), VmStatus.RUNNING));
+
+        run(OperationType.STOP, false, List.of(db.getVmId()));
+        java.sql.Timestamp since = vmRepository.findById(db.getVmId()).orElseThrow().getIntendedStoppedSince();
+        assertThat(since).isNotNull();
+
+        run(OperationType.START, false, List.of(db.getVmId()));
+        assertThat(vmRepository.findById(db.getVmId()).orElseThrow().getIntendedStoppedSince()).isNull();
+        assertThat(calls).containsExactly("stop:rds", "start:rds");
+    }
+
+    @Test
+    void anEc2VmIsNeverMarkedKeptStopped() throws Exception {
+        VmGroup group = newGroup(env, "web");
+        Vm web = vm(group, "web", VmStatus.RUNNING);
+
+        run(OperationType.STOP, false, List.of(web.getVmId()));
+
+        assertThat(vmRepository.findById(web.getVmId()).orElseThrow().getIntendedStoppedSince()).isNull();
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.tcgdigital.vmcontrol.model.CloudProvider;
 import com.tcgdigital.vmcontrol.repository.VmRepository;
 import com.tcgdigital.vmcontrol.service.CloudTarget;
 import com.tcgdigital.vmcontrol.service.RdsCloudProviderService;
+import com.tcgdigital.vmcontrol.service.RdsKeepStoppedService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
@@ -29,16 +30,24 @@ public class RdsController {
 
     private final RdsCloudProviderService rdsService;
     private final VmRepository vmRepository;
+    private final RdsKeepStoppedService keepStoppedService;
 
-    public RdsController(RdsCloudProviderService rdsService, VmRepository vmRepository) {
+    public RdsController(RdsCloudProviderService rdsService, VmRepository vmRepository,
+                         RdsKeepStoppedService keepStoppedService) {
         this.rdsService = rdsService;
         this.vmRepository = vmRepository;
+        this.keepStoppedService = keepStoppedService;
     }
 
-    /** Whether RDS databases can be browsed; the registry shows its EC2 / RDS toggle only then. */
+    /**
+     * Whether RDS is on (the registry shows its EC2 / RDS toggle only then) and whether databases AWS
+     * restarts after seven days are stopped again (the environment page words its note by it, E33-T04).
+     */
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Map<String, Boolean>> status() {
-        return ResponseEntity.ok(Map.of("enabled", rdsService.isEnabled()));
+        return ResponseEntity.ok(Map.of("enabled", rdsService.isEnabled(),
+                "keepStopped", keepStoppedService.isKeepStoppedEnabled()));
     }
 
     @GetMapping("/databases")

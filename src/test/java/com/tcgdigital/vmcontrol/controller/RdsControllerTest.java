@@ -77,7 +77,9 @@ class RdsControllerTest extends SecuredWebTestBase {
     void usersAndViewersMayNotBrowse() throws Exception {
         mockMvc.perform(get(URL).with(asUser())).andExpect(status().isForbidden());
         mockMvc.perform(get(URL).with(asViewer())).andExpect(status().isForbidden());
-        mockMvc.perform(get("/api/v1/rds").with(asViewer())).andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/rds").with(asViewer()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.keepStopped").value(false));
     }
 
     @Test
