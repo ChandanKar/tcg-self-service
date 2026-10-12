@@ -51,6 +51,14 @@ public class SpotFallbackService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
 
+    /** Records each fallback as a Spot interruption of the twin (E31-T07); optional in unit tests. */
+    private SpotInterruptionRecorder interruptionRecorder;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setInterruptionRecorder(SpotInterruptionRecorder interruptionRecorder) {
+        this.interruptionRecorder = interruptionRecorder;
+    }
+
     public SpotFallbackService(VmRepository vmRepository, EksCloudProviderService eks,
                                OperationExecutionRepository executionRepository, AuditService auditService) {
         this.vmRepository = vmRepository;
@@ -131,6 +139,10 @@ public class SpotFallbackService {
             String detail = describe(health);
             auditService.logEnvironmentAction(null, AuditAction.SPOT_FALLBACK_ACTIVATED, env.getEnvironmentId(), env.getDisplayName(),
                     "vm", twin.getVmId(), twin.getDisplayName(), "Started on-demand " + standby.getDisplayName() + ": " + detail);
+            if (interruptionRecorder != null) {
+                interruptionRecorder.record(twin.getVmId(), twin.getDisplayName(), env.getEnvironmentId(), env.getDisplayName(),
+                        twin.getStatus(), twin.getStatus(), "Spot capacity lost (" + detail + "); on-demand standby started");
+            }
             if (notificationService != null) {
                 notificationService.notifySpotFallback(env.getEnvironmentId(), twin.getVmId(), true,
                         "Spot capacity lost: " + twin.getDisplayName(),

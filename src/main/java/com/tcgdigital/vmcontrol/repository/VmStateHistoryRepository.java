@@ -102,4 +102,14 @@ public interface VmStateHistoryRepository extends JpaRepository<VmStateHistory, 
     @Modifying
     @Query(nativeQuery = true, value = "DELETE FROM vm_state_history WHERE created_at < :cutoff ORDER BY created_at LIMIT :limit")
     int deleteOlderThan(@Param("cutoff") java.sql.Timestamp cutoff, @Param("limit") int limit);
+
+    /** How many changes of one source happened in [from, to), e.g. Spot interruptions (E31-T07). */
+    long countByChangeSourceAndChangedAtBetween(String changeSource, java.sql.Timestamp from, java.sql.Timestamp to);
+
+    /** The same, for the VMs of one environment (E31-T08). */
+    @org.springframework.data.jpa.repository.Query("SELECT COUNT(h) FROM VmStateHistory h WHERE h.changeSource = :source "
+            + "AND h.vm.group.environment.environmentId = :environmentId AND h.changedAt >= :from")
+    long countBySourceInEnvironmentSince(@org.springframework.data.repository.query.Param("source") String changeSource,
+                                         @org.springframework.data.repository.query.Param("environmentId") String environmentId,
+                                         @org.springframework.data.repository.query.Param("from") java.sql.Timestamp from);
 }

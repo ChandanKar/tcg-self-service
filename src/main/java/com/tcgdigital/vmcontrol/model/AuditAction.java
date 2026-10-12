@@ -43,6 +43,8 @@ public enum AuditAction {
     /** A Spot twin lost capacity and its on-demand standby was started, or it recovered (E31-T06). */
     SPOT_FALLBACK_ACTIVATED,
     SPOT_FALLBACK_CLEARED,
+    /** AWS took a Spot instance or node group capacity back (E31-T07). */
+    SPOT_INTERRUPTION,
 
     // Lock operations
     LOCK_ACQUIRED,

@@ -496,4 +496,51 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
         assertFalse(after.getStateDriftDetected());
         assertTrue(after.getIsActive());
     }
+
+    // ---- Spot interruptions (E31-T07) ----
+
+    private void spotVmStoppedByAws(String reason) {
+        testVm.setPurchaseOption(com.tcgdigital.vmcontrol.model.PurchaseOption.SPOT);
+        testVm = vmRepository.save(testVm);
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.STOPPED);
+        when(awsCloudProviderService.getStateReasons(org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class),
+                org.mockito.ArgumentMatchers.eq(List.of(testVm.getProviderVmId()))))
+                .thenReturn(java.util.Map.of(testVm.getProviderVmId(), reason));
+    }
+
+    @Test
+    void aSpotVmReclaimedByAwsIsRecordedAsASpotInterruption() {
+        spotVmStoppedByAws("Server.SpotInstanceShutdown");
+
+        assertTrue(stateSyncService.syncVmState(testVm));
+
+        List<VmStateHistory> history = stateSyncService.getVmStateHistory(testVm.getVmId());
+        assertEquals("spot_interruption", history.get(0).getChangeSource());
+        assertTrue(history.get(0).getDetails().contains("Server.SpotInstanceShutdown"));
+        assertEquals(1, stateHistoryRepository.countByChangeSourceAndChangedAtBetween("spot_interruption",
+                java.sql.Timestamp.from(java.time.Instant.now().minusSeconds(3600)), java.sql.Timestamp.from(java.time.Instant.now().plusSeconds(60))));
+        awaitAsync(() -> assertEquals(1, jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM audit_log WHERE action_type = 'SPOT_INTERRUPTION' AND environment_id = ?",
+                Integer.class, testEnvironment.getEnvironmentId())));
+    }
+
+    @Test
+    void aSpotVmStoppedForAnotherReasonIsOrdinaryDrift() {
+        spotVmStoppedByAws("Client.UserInitiatedShutdown");
+
+        stateSyncService.syncVmState(testVm);
+
+        assertEquals("state_sync", stateSyncService.getVmStateHistory(testVm.getVmId()).get(0).getChangeSource());
+    }
+
+    @Test
+    void anOnDemandVmIsNeverAskedForAStateReason() {
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.STOPPED);
+
+        stateSyncService.syncVmState(testVm);
+
+        assertEquals("state_sync", stateSyncService.getVmStateHistory(testVm.getVmId()).get(0).getChangeSource());
+        org.mockito.Mockito.verify(awsCloudProviderService, org.mockito.Mockito.never())
+                .getStateReasons(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyList());
+    }
 }

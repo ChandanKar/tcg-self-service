@@ -262,14 +262,14 @@ public class StateSyncService {
      */
     record SyncTarget(String vmId, String name, String displayName, CloudProvider provider, String region,
                       String providerVmId, VmStatus status, Boolean active, Timestamp updatedAt,
-                      int notFoundCount, String envId, String envName, String accountRef) {
+                      int notFoundCount, String envId, String envName, String accountRef, boolean spot) {
         static SyncTarget of(Vm vm) {
             Environment env = vm.getGroup().getEnvironment();
             String accountRef = vm.getAwsAccountRef() != null ? vm.getAwsAccountRef() : env.getAwsAccountRef();
             return new SyncTarget(vm.getVmId(), vm.getName(), vm.getDisplayName(), vm.getProvider(), vm.getRegion(),
                     vm.getProviderVmId(), vm.getStatus(), vm.getIsActive(), vm.getUpdatedAt(),
                     vm.getNotFoundCount() == null ? 0 : vm.getNotFoundCount(), env.getEnvironmentId(), env.getName(),
-                    accountRef);
+                    accountRef, vm.getPurchaseOption() == com.tcgdigital.vmcontrol.model.PurchaseOption.SPOT);
         }
 
         /** The VM's account and region (E28-T05). */
@@ -358,8 +358,48 @@ public class StateSyncService {
         return false;
     }
 
+    /** Spot interruption detection (E31-T07); optional so unit tests can leave it out. */
+    private SpotInterruptionRecorder spotInterruptionRecorder;
+    private AwsCloudProviderService awsCloudProviderService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setSpotInterruptionRecorder(SpotInterruptionRecorder recorder) {
+        this.spotInterruptionRecorder = recorder;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setAwsCloudProviderService(AwsCloudProviderService awsCloudProviderService) {
+        this.awsCloudProviderService = awsCloudProviderService;
+    }
+
+    /**
+     * The state reason of a running EC2 Spot VM AWS just stopped or terminated, when it was a
+     * Spot interruption (Server.SpotInstanceShutdown / Server.SpotInstanceTermination), else null.
+     */
+    private String spotInterruptionCode(SyncTarget vm, VmStatus from, VmStatus to) {
+        if (!vm.spot() || vm.provider() != CloudProvider.AWS || from != VmStatus.RUNNING
+                || (to != VmStatus.STOPPED && to != VmStatus.TERMINATED)
+                || spotInterruptionRecorder == null || awsCloudProviderService == null) {
+            return null;
+        }
+        try {
+            String code = awsCloudProviderService.getStateReasons(vm.target(), List.of(vm.providerVmId())).get(vm.providerVmId());
+            return code != null && code.startsWith("Server.SpotInstance") ? code : null;
+        } catch (Exception e) {
+            log.debug("Could not read the state reason of {}: {}", vm.providerVmId(), e.getMessage());
+            return null;
+        }
+    }
+
     /** History, audit and notification for a drift that was applied. */
     private void recordDrift(SyncTarget vm, VmStatus from, VmStatus to, String historyDetails, String auditDetails) {
+        String spotCode = spotInterruptionCode(vm, from, to);
+        if (spotCode != null) {
+            String details = "AWS reclaimed the Spot instance (" + spotCode + "): " + from + " -> " + to;
+            runNotificationSideEffect("record Spot interruption", vm.vmId(), () ->
+                    spotInterruptionRecorder.record(vm.vmId(), vm.name(), vm.envId(), vm.envName(), from, to, details));
+            return;
+        }
         recordStateChange(vmRepository.getReferenceById(vm.vmId()), from, to, "state_sync", null, null, historyDetails);
         auditService.logEnvironmentAction(null, AuditAction.STATE_DRIFT_DETECTED, vm.envId(), vm.envName(),
                 "vm", vm.vmId(), vm.name(), auditDetails);

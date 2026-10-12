@@ -589,4 +589,43 @@ class AwsCloudProviderServiceTest {
 
         org.junit.jupiter.api.Assertions.assertFalse(service.canTagInstance(REGION, INSTANCE_ID));
     }
+
+    // --- Spot capacity on start (E31-T07) ---
+
+    private void lifecycle(InstanceLifecycleType type) {
+        when(mockEc2Client.describeInstances(any(DescribeInstancesRequest.class))).thenReturn(DescribeInstancesResponse.builder()
+                .reservations(Reservation.builder().instances(Instance.builder().instanceId(INSTANCE_ID).instanceLifecycle(type).build()).build())
+                .build());
+    }
+
+    @Test
+    void aSpotStartWithoutCapacitySaysSpotCapacityIsUnavailable() {
+        lifecycle(InstanceLifecycleType.SPOT);
+
+        assertEquals(AwsCloudProviderService.SPOT_CAPACITY_MESSAGE, service.spotStartMessage(
+                com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), INSTANCE_ID, "InsufficientInstanceCapacity", "AWS Error: x"));
+        assertEquals(AwsCloudProviderService.SPOT_CAPACITY_MESSAGE, service.spotStartMessage(
+                com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), INSTANCE_ID, "SpotMaxPriceTooLow", "AWS Error: y"));
+    }
+
+    @Test
+    void anOnDemandCapacityFailureKeepsAwsMessage() {
+        when(mockEc2Client.describeInstances(any(DescribeInstancesRequest.class))).thenReturn(DescribeInstancesResponse.builder()
+                .reservations(Reservation.builder().instances(Instance.builder().instanceId(INSTANCE_ID).build()).build()).build());
+
+        assertEquals("AWS Error: x", service.spotStartMessage(
+                com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), INSTANCE_ID, "InsufficientInstanceCapacity", "AWS Error: x"));
+        assertEquals("AWS Error: z", service.spotStartMessage(
+                com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), INSTANCE_ID, "UnauthorizedOperation", "AWS Error: z"));
+    }
+
+    @Test
+    void stateReasonsAreReadPerInstance() {
+        when(mockEc2Client.describeInstances(any(DescribeInstancesRequest.class))).thenReturn(DescribeInstancesResponse.builder()
+                .reservations(Reservation.builder().instances(Instance.builder().instanceId(INSTANCE_ID)
+                        .stateReason(StateReason.builder().code("Server.SpotInstanceTermination").build()).build()).build()).build());
+
+        assertEquals(java.util.Map.of(INSTANCE_ID, "Server.SpotInstanceTermination"),
+                service.getStateReasons(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), java.util.List.of(INSTANCE_ID)));
+    }
 }

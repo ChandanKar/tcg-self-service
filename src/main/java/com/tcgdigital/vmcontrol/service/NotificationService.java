@@ -446,6 +446,21 @@ public class NotificationService {
                 title, message, "VM", vmId);
     }
 
+    /** AWS took Spot capacity back: the environment's admins and the lock holder hear it (E31-T07). */
+    public void notifySpotInterrupted(String environmentId, String environmentName, String vmId, String vmName,
+                                      String lockHolderUserId, String details) {
+        String title = "Spot interruption: " + vmName;
+        String message = "AWS took back the Spot capacity of " + vmName + " in " + environmentName + ". " + details;
+        java.util.Set<String> recipients = new java.util.LinkedHashSet<>();
+        resolveEnvironmentReviewers(environmentId).forEach(u -> recipients.add(u.getUserId()));
+        if (lockHolderUserId != null) {
+            recipients.add(lockHolderUserId);
+        }
+        recipients.forEach(id -> create(id, NotificationType.SPOT_INTERRUPTED, title, message, "VM", vmId));
+        toChat(environmentId, NotificationType.SPOT_INTERRUPTED, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.WARNING,
+                title, message);
+    }
+
     /** A Spot twin lost capacity and its standby started (or it recovered): the environment's admins hear it (E31-T06). */
     public void notifySpotFallback(String environmentId, String vmId, boolean activated, String title, String message) {
         resolveEnvironmentReviewers(environmentId).forEach(u -> create(u.getUserId(),

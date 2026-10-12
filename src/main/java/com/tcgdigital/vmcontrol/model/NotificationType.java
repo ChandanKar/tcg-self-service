@@ -42,5 +42,7 @@ public enum NotificationType {
     APPROVAL_REQUESTED,
     APPROVAL_GRANTED,
     APPROVAL_DENIED,
-    QUOTA_THRESHOLD
+    QUOTA_THRESHOLD,
+    /** AWS reclaimed a Spot VM or a Spot node group lost capacity (E31-T07). */
+    SPOT_INTERRUPTED
 }

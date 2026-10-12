@@ -144,7 +144,8 @@ public class AwsCloudProviderService implements CloudProviderService {
                     }
                 }
                 log.error("Failed to start AWS EC2 instance {}: {}", providerVmId, e.getMessage());
-                return VmOperationResult.failure("AWS Error: " + e.awsErrorDetails().errorMessage());
+                return VmOperationResult.failure(spotStartMessage(target, providerVmId, e.awsErrorDetails().errorCode(),
+                        "AWS Error: " + e.awsErrorDetails().errorMessage()));
             } catch (Exception e) {
                 // Network timeout or similar — AWS may have accepted the request already.
                 // Check actual instance state before declaring failure.
@@ -769,6 +770,46 @@ public class AwsCloudProviderService implements CloudProviderService {
                 .instanceType(AttributeValue.builder().value(newInstanceType).build())
                 .build());
         log.info("Changed EC2 instance {} in region {} to instance type {}", providerVmId, target, newInstanceType);
+    }
+
+    /** The reason code of each instance's last state change, e.g. Server.SpotInstanceTermination (E31-T07). */
+    public Map<String, String> getStateReasons(CloudTarget target, List<String> instanceIds) {
+        Map<String, String> reasons = new HashMap<>();
+        if (instanceIds == null || instanceIds.isEmpty()) {
+            return reasons;
+        }
+        DescribeInstancesResponse response = getEc2Client(target).describeInstances(
+                DescribeInstancesRequest.builder().instanceIds(instanceIds).build());
+        for (software.amazon.awssdk.services.ec2.model.Reservation r : response.reservations()) {
+            for (Instance i : r.instances()) {
+                if (i.stateReason() != null && i.stateReason().code() != null) {
+                    reasons.put(i.instanceId(), i.stateReason().code());
+                }
+            }
+        }
+        return reasons;
+    }
+
+    static final String SPOT_CAPACITY_MESSAGE =
+            "Spot capacity is not available right now - try again later or another instance type";
+
+    /** A Spot start that failed for capacity gets a message that says so (E31-T07); other failures keep theirs. */
+    String spotStartMessage(CloudTarget target, String instanceId, String errorCode, String original) {
+        if ("SpotMaxPriceTooLow".equals(errorCode)) {
+            return SPOT_CAPACITY_MESSAGE;
+        }
+        if (!"InsufficientInstanceCapacity".equals(errorCode) && !"InsufficientCapacity".equals(errorCode)) {
+            return original;
+        }
+        try {
+            DescribeInstancesResponse response = getEc2Client(target).describeInstances(
+                    DescribeInstancesRequest.builder().instanceIds(instanceId).build());
+            boolean spot = response.reservations().stream().flatMap(r -> r.instances().stream())
+                    .anyMatch(i -> i.instanceLifecycle() == InstanceLifecycleType.SPOT);
+            return spot ? SPOT_CAPACITY_MESSAGE : original;
+        } catch (Exception e) {
+            return original;
+        }
     }
 
     /** What a safe resize checks about the instance (E30-T06): its type, AZ, architecture and ENA. */
