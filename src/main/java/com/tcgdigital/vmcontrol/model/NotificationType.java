@@ -48,5 +48,8 @@ public enum NotificationType {
     /** A request for an environment from a template waits for approval, or was decided (E32-T03). */
     PROVISIONING_REQUESTED,
     PROVISIONING_APPROVED,
-    PROVISIONING_REJECTED
+    PROVISIONING_REJECTED,
+    /** A requested environment is ready, or could not be built (E32-T04). */
+    PROVISIONING_READY,
+    PROVISIONING_FAILED
 }

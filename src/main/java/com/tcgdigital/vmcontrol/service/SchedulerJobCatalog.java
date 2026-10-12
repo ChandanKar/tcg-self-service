@@ -78,7 +78,9 @@ public class SchedulerJobCatalog {
             cron("spot_price_capture", "Spot prices (daily)", "spot.pricing.cron", "0 20 4 * * *",
                     "spot.pricing.enabled", false),
             cron("spot_fallback", "Spot fallback (every 5 min)", "spot.fallback.cron", "0 */5 * * * *",
-                    "spot.fallback.enabled", false));
+                    "spot.fallback.enabled", false),
+            cron("provisioning", "Provisioning (every minute)", "provisioning.cron", "0 * * * * *",
+                    "provisioning.enabled", false));
 
     /** A job as the health view needs it. */
     public record Job(String jobName, String label, Duration expectedInterval, boolean enabled) {

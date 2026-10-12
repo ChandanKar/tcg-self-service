@@ -54,6 +54,10 @@ public enum AuditAction {
     PROVISIONING_APPROVED,
     PROVISIONING_REJECTED,
     PROVISIONING_CANCELLED,
+    /** An approved request is being built, was built, or failed (E32-T04). */
+    PROVISIONING_STARTED,
+    PROVISIONING_SUCCEEDED,
+    PROVISIONING_FAILED,
 
     // Lock operations
     LOCK_ACQUIRED,

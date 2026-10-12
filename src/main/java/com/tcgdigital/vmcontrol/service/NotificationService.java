@@ -464,6 +464,16 @@ public class NotificationService {
                 title, message, "PROVISIONING_REQUEST", requestId);
     }
 
+    /** The requester hears whether their environment was built (E32-T04). */
+    public void notifyProvisioningOutcome(String requesterId, String requestId, String environmentName, String environmentId,
+                                          boolean ready, String detail) {
+        String title = (ready ? "Environment ready: " : "Environment not built: ") + environmentName;
+        String message = ready ? "'" + environmentName + "' is ready and you are its admin. " + (detail == null ? "" : detail)
+                : "'" + environmentName + "' could not be built. " + (detail == null ? "" : detail);
+        create(requesterId, ready ? NotificationType.PROVISIONING_READY : NotificationType.PROVISIONING_FAILED, title, message,
+                ready ? "ENVIRONMENT" : "PROVISIONING_REQUEST", ready ? environmentId : requestId);
+    }
+
     /** AWS took Spot capacity back: the environment's admins and the lock holder hear it (E31-T07). */
     public void notifySpotInterrupted(String environmentId, String environmentName, String vmId, String vmName,
                                       String lockHolderUserId, String details) {

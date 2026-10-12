@@ -305,6 +305,14 @@ public class VmDiscoveryService {
         return total;
     }
 
+    /**
+     * Registers the tagged instances of one environment now (E32-T04: right after it is
+     * provisioned), in its metadata region or the discovery regions.
+     */
+    public int discoverEnvironmentVms(Environment env) {
+        return discoverEnvironmentVms(env, resolveRegions(env).regions());
+    }
+
     private int discoverEnvironmentVms(Environment env, List<String> regions) {
         // instance -> the region it was found in; a failed region is unknown, not empty (H24).
         Map<Instance, String> liveInstances = new LinkedHashMap<>();

@@ -33,4 +33,14 @@ public interface ProvisioningRequestRepository extends JpaRepository<Provisionin
                @org.springframework.data.repository.query.Param("by") String userId,
                @org.springframework.data.repository.query.Param("at") Timestamp at,
                @org.springframework.data.repository.query.Param("notes") String notes);
+
+    /** Moves a request between two statuses only if it is still in {@code from} (E32-T04). */
+    @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true, clearAutomatically = true)
+    @org.springframework.transaction.annotation.Transactional
+    @org.springframework.data.jpa.repository.Query("UPDATE ProvisioningRequest r SET r.status = :to, r.updatedAt = :at "
+            + "WHERE r.requestId = :id AND r.status = :from")
+    int moveIfStatus(@org.springframework.data.repository.query.Param("id") String requestId,
+                     @org.springframework.data.repository.query.Param("from") ProvisioningStatus from,
+                     @org.springframework.data.repository.query.Param("to") ProvisioningStatus to,
+                     @org.springframework.data.repository.query.Param("at") Timestamp at);
 }

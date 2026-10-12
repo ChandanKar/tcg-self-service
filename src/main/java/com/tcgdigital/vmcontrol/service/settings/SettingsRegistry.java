@@ -72,6 +72,8 @@ public final class SettingsRegistry {
             // Provisioning (E32)
             flag("Provisioning", "provisioning.enabled", "Environment templates",
                     "Users can request new environments from approved templates.", false),
+            integer("Provisioning", "provisioning.timeout-minutes", "Build time-out minutes",
+                    "How long a build may take before the request fails.", 60, 5, 720),
 
             // Spot (E31)
             flag("Spot", "spot.pricing.enabled", "Spot pricing",
@@ -134,6 +136,7 @@ public final class SettingsRegistry {
             readOnly("Restart required", "cost.optimizer.cron", "Compute Optimizer capture schedule", "Cron, read at startup."),
             readOnly("Restart required", "spot.pricing.cron", "Spot price capture schedule", "Cron, read at startup."),
             readOnly("Restart required", "spot.fallback.cron", "Spot fallback schedule", "Cron, read at startup."),
+            readOnly("Restart required", "provisioning.cron", "Provisioning schedule", "Cron, read at startup."),
             readOnly("Restart required", "notification.weekly-reports.cron", "Weekly report schedule", "Cron, read at startup."),
             readOnly("Restart required", "retention.cron", "Retention schedule", "Cron, read at startup."),
             readOnly("Restart required", "savings.ledger.cron", "Savings ledger schedule", "Cron, read at startup."),
