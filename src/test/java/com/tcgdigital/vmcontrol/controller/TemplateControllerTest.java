@@ -117,4 +117,18 @@ class TemplateControllerTest extends SecuredWebTestBase {
         expectError(mockMvc.perform(post(URL).with(asAdmin()).contentType(MediaType.APPLICATION_JSON)
                 .content(template("Dev stack", "[\"USER\"]", SCHEMA))), 404);
     }
+
+    @Test
+    void onlyAdminsListEveryTemplate() throws Exception {
+        String retired = create("Old stack", "[\"USER\"]");
+        mockMvc.perform(delete(URL + "/" + retired).with(asAdmin())).andExpect(status().isOk());
+
+        mockMvc.perform(get(URL + "/all").with(asAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].active").value(false))
+                .andExpect(jsonPath("$[0].engineRef.productId").value("prod-abc"));
+        mockMvc.perform(get(URL + "/all").with(asEnvAdmin())).andExpect(status().isForbidden());
+        mockMvc.perform(get(URL + "/all").with(asUser())).andExpect(status().isForbidden());
+    }
 }

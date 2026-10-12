@@ -35,6 +35,13 @@ public class TemplateController {
         return ResponseEntity.ok(templateService.list(includeRetired));
     }
 
+    /** Every template, retired ones too, with engine references: the admin editor's list (E32-T08). */
+    @GetMapping("/all")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<EnvironmentTemplateDTO>> all() {
+        return ResponseEntity.ok(templateService.list(true));
+    }
+
     @GetMapping("/{templateId}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<EnvironmentTemplateDTO> get(@PathVariable String templateId) {

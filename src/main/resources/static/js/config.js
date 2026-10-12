@@ -134,6 +134,7 @@ const Config = (function() {
         // Environment templates and requests (E32-T07)
         templates: {
             list: (includeRetired = false) => `${API_BASE_URL}/templates${includeRetired ? '?includeRetired=true' : ''}`,
+            all: () => `${API_BASE_URL}/templates/all`,
             create: () => `${API_BASE_URL}/templates`,
             item: (id) => `${API_BASE_URL}/templates/${encodeURIComponent(id)}`
         },
