@@ -34,7 +34,8 @@ public class SettingsService {
     public enum Source { DEFAULT, OVERRIDE }
 
     /** A setting as the admin page shows it. */
-    public record SettingView(SettingDefinition definition, String value, String defaultValue, Source source) {}
+    public record SettingView(SettingDefinition definition, String value, String defaultValue, Source source,
+                              java.sql.Timestamp updatedAt, String updatedByUserId) {}
 
     private record Cached(Optional<String> value, Instant loadedAt) {}
 
@@ -155,14 +156,15 @@ public class SettingsService {
 
     @Transactional(readOnly = true)
     public List<SettingView> list() {
-        Map<String, String> overrides = new java.util.HashMap<>();
-        repository.findAll().forEach(s -> overrides.put(s.getSettingKey(), s.getSettingValue()));
+        Map<String, AppSetting> overrides = new java.util.HashMap<>();
+        repository.findAll().forEach(s -> overrides.put(s.getSettingKey(), s));
         return SettingsRegistry.DEFINITIONS.stream().map(d -> {
             String fromProperties = environment.getProperty(d.key());
             String defaultValue = fromProperties != null && !fromProperties.isEmpty() ? fromProperties : d.fallback();
-            String override = d.editable() ? overrides.get(d.key()) : null;
-            return new SettingView(d, override != null ? override : defaultValue, defaultValue,
-                    override != null ? Source.OVERRIDE : Source.DEFAULT);
+            AppSetting override = d.editable() ? overrides.get(d.key()) : null;
+            return override == null ? new SettingView(d, defaultValue, defaultValue, Source.DEFAULT, null, null)
+                    : new SettingView(d, override.getSettingValue(), defaultValue, Source.OVERRIDE,
+                    override.getUpdatedAt(), override.getUpdatedByUserId());
         }).toList();
     }
 
@@ -251,8 +253,9 @@ public class SettingsService {
     }
 
     private SettingView view(SettingDefinition d) {
-        Optional<String> override = repository.findById(d.key()).map(AppSetting::getSettingValue);
-        return new SettingView(d, override.orElseGet(() -> defaultValue(d)), defaultValue(d),
-                override.isPresent() ? Source.OVERRIDE : Source.DEFAULT);
+        Optional<AppSetting> override = repository.findById(d.key());
+        return override.map(o -> new SettingView(d, o.getSettingValue(), defaultValue(d), Source.OVERRIDE,
+                        o.getUpdatedAt() != null ? o.getUpdatedAt() : new java.sql.Timestamp(clock.millis()), o.getUpdatedByUserId()))
+                .orElseGet(() -> new SettingView(d, defaultValue(d), defaultValue(d), Source.DEFAULT, null, null));
     }
 }

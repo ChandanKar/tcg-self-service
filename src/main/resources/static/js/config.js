@@ -136,6 +136,12 @@ const Config = (function() {
             deny: (id) => `${API_BASE_URL}/approval-requests/${encodeURIComponent(id)}/deny`,
             cancel: (id) => `${API_BASE_URL}/approval-requests/${encodeURIComponent(id)}/cancel`
         },
+        // Runtime settings (E29-T01), admin only
+        settings: {
+            list: `${API_BASE_URL}/settings`,
+            item: (key) => `${API_BASE_URL}/settings/${encodeURIComponent(key)}`
+        },
+
         // AWS account registry (E28-T07..T09), admin only
         awsAccounts: {
             list: `${API_BASE_URL}/aws-accounts`,

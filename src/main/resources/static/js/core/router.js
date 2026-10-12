@@ -111,7 +111,7 @@ const ContentRouter = (function() {
             'chat-action':        (params) => window.ChatActionPage?.load?.(params),
             'cost-setup':         () => window.CostSetup?.load?.(),
             'system-health':      () => SystemHealth.load(),
-            'settings':           () => showPlaceholder('settings'),
+            'settings':           () => window.Settings?.load?.(),
             'help':               () => showPlaceholder('help')
         };
         return loaders[contentType];
