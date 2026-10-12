@@ -24,6 +24,7 @@ import software.amazon.awssdk.services.ec2.Ec2Client;
 import software.amazon.awssdk.services.eks.EksClient;
 import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.organizations.OrganizationsClient;
+import software.amazon.awssdk.services.rds.RdsClient;
 import software.amazon.awssdk.services.servicecatalog.ServiceCatalogClient;
 import software.amazon.awssdk.services.sts.StsClient;
 
@@ -144,6 +145,12 @@ public class AwsClientFactory {
     public EksClient eks(String accountRef, String region) {
         Region r = region(region);
         return cached("eks", accountRef, r, () -> EksClient.builder().region(r).credentialsProvider(credentials(accountRef))
+                .overrideConfiguration(DEFAULT_OVERRIDES).build());
+    }
+
+    public RdsClient rds(String accountRef, String region) {
+        Region r = region(region);
+        return cached("rds", accountRef, r, () -> RdsClient.builder().region(r).credentialsProvider(credentials(accountRef))
                 .overrideConfiguration(DEFAULT_OVERRIDES).build());
     }
 

@@ -77,6 +77,10 @@ public final class SettingsRegistry {
             flag("Provisioning", "provisioning.destroy.enabled", "Destroy at end of lifetime",
                     "Destroy provisioned environments in AWS when their lifetime ends.", false),
 
+            // RDS (E33)
+            flag("RDS", "rds.enabled", "RDS databases",
+                    "Start and stop RDS DB instances and Aurora clusters registered as VMs.", false),
+
             // Spot (E31)
             flag("Spot", "spot.pricing.enabled", "Spot pricing",
                     "Capture Spot prices daily and price Spot VMs and node groups at them.", false),

@@ -65,6 +65,21 @@ public class AsyncConfig {
      * Runs EKS node-group start/stop calls and their polling (M10), which used the JVM-wide
      * ForkJoinPool.commonPool shared with everything else.
      */
+    /** Runs RDS start/stop calls and their polling (E33-T01): a start can take ten minutes or more. */
+    @Bean(name = "rdsOperationExecutor")
+    public Executor rdsOperationExecutor(@Value("${rds.operations.parallelism:10}") int parallelism) {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(parallelism);
+        executor.setMaxPoolSize(parallelism);
+        executor.setQueueCapacity(200);
+        executor.setThreadNamePrefix("rds-op-");
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
+    }
+
     @Bean(name = "eksOperationExecutor")
     public Executor eksOperationExecutor(@Value("${eks.operations.parallelism:10}") int parallelism) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();

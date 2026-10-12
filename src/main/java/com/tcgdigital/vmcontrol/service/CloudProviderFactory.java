@@ -35,7 +35,8 @@ public class CloudProviderFactory {
         CloudProviderService service = providerServices.get(provider);
         if (service == null) {
             throw new ValidationException("Cloud provider not yet supported: " + provider +
-                    ". Currently only AWS and AWS_EKS are available.");
+                    ". Supported: " + providerServices.keySet().stream().map(Enum::name).sorted()
+                    .collect(java.util.stream.Collectors.joining(", ")) + ".");
         }
         return service;
     }

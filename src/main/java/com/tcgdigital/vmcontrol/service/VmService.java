@@ -164,7 +164,7 @@ public class VmService {
         vm.setPurpose(dto.getPurpose());
         vm.setRemarks(dto.getRemarks());
         vm.setProvider(dto.getProvider());
-        if (dto.getProvider() == CloudProvider.AWS || dto.getProvider() == CloudProvider.AWS_EKS) {
+        if (dto.getProvider() != null && dto.getProvider().isAws()) {
             // The environment's account (E28-T03), or another active one, e.g. a shared-services VM (E28-T10).
             vm.setAwsAccountRef(dto.getAwsAccountRef() != null && !dto.getAwsAccountRef().isBlank()
                     ? activeAwsAccount(dto.getAwsAccountRef()) : group.getEnvironment().getAwsAccountRef());
@@ -252,7 +252,7 @@ public class VmService {
         vm.setPurpose(dto.getPurpose());
         vm.setRemarks(dto.getRemarks());
         vm.setProvider(dto.getProvider());
-        if (vm.getAwsAccountRef() == null && (dto.getProvider() == CloudProvider.AWS || dto.getProvider() == CloudProvider.AWS_EKS)) {
+        if (vm.getAwsAccountRef() == null && dto.getProvider() != null && dto.getProvider().isAws()) {
             vm.setAwsAccountRef(vm.getGroup().getEnvironment().getAwsAccountRef()); // E28-T03
         }
         vm.setRegion(dto.getRegion());

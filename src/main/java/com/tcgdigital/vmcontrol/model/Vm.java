@@ -29,7 +29,7 @@ public class Vm {
     private VmGroup group;
 
     /**
-     * The AWS account of an AWS/AWS_EKS VM (E28-T03, V70): its environment's account unless set,
+     * The AWS account of an AWS/AWS_EKS/AWS_RDS VM (E28-T03, V70): its environment's account unless set,
      * else the default account. Null for other providers.
      */
     @Column(name = "aws_account_ref", length = 36)
@@ -37,7 +37,7 @@ public class Vm {
 
     @PrePersist
     void defaultAwsAccount() {
-        if (awsAccountRef != null || (provider != CloudProvider.AWS && provider != CloudProvider.AWS_EKS)) {
+        if (awsAccountRef != null || provider == null || !provider.isAws()) {
             return;
         }
         // Only an already-loaded environment is read: a lazy proxy may have no session here.
