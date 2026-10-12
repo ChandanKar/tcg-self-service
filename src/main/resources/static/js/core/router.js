@@ -62,6 +62,13 @@ const ContentRouter = (function() {
             params: m => ({ environmentId: decodeURIComponent(m[1]) })
         },
         {
+            // A help topic (E29-T07).
+            contentType: 'help',
+            pattern: /^#\/help\/([a-z0-9-]+)$/,
+            build: p => (p && p.topic) ? '#/help/' + p.topic : null,
+            params: m => ({ topic: m[1] })
+        },
+        {
             // One-click Teams action confirm page (E24-T04); the token is a signed, single-use link.
             contentType: 'chat-action',
             pattern: /^#\/chat-action\/([A-Za-z0-9_\-.]+)$/,
@@ -112,7 +119,7 @@ const ContentRouter = (function() {
             'cost-setup':         () => window.CostSetup?.load?.(),
             'system-health':      () => SystemHealth.load(),
             'settings':           () => window.Settings?.load?.(),
-            'help':               () => showPlaceholder('help')
+            'help':               (params) => window.Help?.load?.(params)
         };
         return loaders[contentType];
     }

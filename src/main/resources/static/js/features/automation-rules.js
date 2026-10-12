@@ -120,7 +120,7 @@ const AutomationRules = (function() {
             <div class="ar-container" id="automation-rules-view">
                 <div class="content-header d-flex justify-content-between align-items-end flex-wrap gap-2">
                     <div>
-                        <h1>Automation Rules</h1>
+                        <h1>Automation Rules ${typeof HelpLink !== 'undefined' ? HelpLink.button('automation-rules', 'Automation rules') : ''}</h1>
                         <p>Recurring schedules and access-triggered actions that start or stop environments automatically. If the environment is locked by another user or an operation is running, the rule retries until its catch-up window ends, then is skipped. The rule's creator is notified. Rules never break an active lock.</p>
                     </div>
                     <button class="btn btn-primary" id="ar-new-rule-btn">

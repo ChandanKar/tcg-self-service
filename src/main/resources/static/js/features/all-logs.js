@@ -254,7 +254,7 @@ const AllLogs = (function() {
                 <div class="content-header">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h1><i class="fas fa-file-alt"></i> Global Audit Logs</h1>
+                            <h1><i class="fas fa-file-alt"></i> Global Audit Logs ${typeof HelpLink !== 'undefined' ? HelpLink.button('all-logs', 'Audit logs') : ''}</h1>
                             <p class="text-muted">Complete audit trail across ${isAdmin() ? 'all environments' : 'your environments'}</p>
                         </div>
                     </div>

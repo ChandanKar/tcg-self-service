@@ -343,7 +343,7 @@ const Environments = (function() {
             return `
                 <div class="content-header d-flex justify-content-between align-items-start">
                     <div>
-                        <h1>My Environments</h1>
+                        <h1>My Environments ${typeof HelpLink !== 'undefined' ? HelpLink.button('environments', 'Environments') : ''}</h1>
                         <p>Manage and monitor your accessible environments</p>
                     </div>
                 </div>
@@ -361,7 +361,7 @@ const Environments = (function() {
             <div id="environments-list-view">
             <div class="content-header d-flex justify-content-between align-items-start flex-shrink-0">
                 <div>
-                    <h1>My Environments</h1>
+                    <h1>My Environments ${typeof HelpLink !== 'undefined' ? HelpLink.button('environments', 'Environments') : ''}</h1>
                     <p>Manage and monitor your accessible environments</p>
                 </div>
             </div>

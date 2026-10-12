@@ -168,7 +168,7 @@ const AccessRequests = (function() {
             <div class="request-access-container">
                 <!-- Header -->
                 <div class="content-header">
-                    <h1><i class="fas fa-paper-plane"></i> Request Environment Access</h1>
+                    <h1><i class="fas fa-paper-plane"></i> Request Environment Access ${typeof HelpLink !== 'undefined' ? HelpLink.button('request-access', 'Request access') : ''}</h1>
                     <p class="text-muted">Request access to environments you need for your work</p>
                 </div>
 

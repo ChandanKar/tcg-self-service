@@ -63,7 +63,7 @@ const VmRegistry = (function() {
                 <div class="content-header">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h1><i class="fas fa-database"></i> VM Registry</h1>
+                            <h1><i class="fas fa-database"></i> VM Registry ${typeof HelpLink !== 'undefined' ? HelpLink.button('vm-registry', 'VM registry') : ''}</h1>
                             <p class="text-muted">Create and manage environments, groups, and VMs</p>
                         </div>
                         <div>

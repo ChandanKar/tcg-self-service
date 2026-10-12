@@ -289,7 +289,7 @@ const CostManagement = (function() {
             <div class="content-view cost-management-view" id="cost-management-view">
                 <div class="content-header d-flex justify-content-between align-items-start flex-wrap gap-2">
                     <div>
-                        <h1>Cost Management</h1>
+                        <h1>Cost Management ${typeof HelpLink !== 'undefined' ? HelpLink.button('cost-management', 'Cost management') : ''}</h1>
                         <p>Estimated spend across the fleet, from VM runtime and a static pricing reference &mdash; not live billing data.</p>
                     </div>
                     <div class="cost-toolbar no-print">

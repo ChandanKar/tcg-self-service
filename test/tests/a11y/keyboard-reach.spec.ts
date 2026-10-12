@@ -51,6 +51,8 @@ test.describe('Keyboard reach', () => {
     await expect(trigger).toHaveAttribute('aria-expanded', 'true');
     await expect(page.locator('#my-account-btn')).toBeFocused();
     await page.keyboard.press('ArrowDown');
+    await expect(page.locator('#help-menu-btn')).toBeFocused(); // Help (E29-T07)
+    await page.keyboard.press('ArrowDown');
     await expect(page.locator('#logout-btn')).toBeFocused();
     await page.keyboard.press('ArrowDown');
     await expect(page.locator('#my-account-btn')).toBeFocused();

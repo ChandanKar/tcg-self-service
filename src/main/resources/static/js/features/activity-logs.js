@@ -173,7 +173,7 @@ const ActivityLogs = (function() {
                 <div class="content-header">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h1><i class="fas fa-clipboard-list"></i> My Activity Logs</h1>
+                            <h1><i class="fas fa-clipboard-list"></i> My Activity Logs ${typeof HelpLink !== 'undefined' ? HelpLink.button('activity-logs', 'Activity logs') : ''}</h1>
                             <p class="text-muted">Your start/stop, restart and lock operations across all environments</p>
                         </div>
                     </div>

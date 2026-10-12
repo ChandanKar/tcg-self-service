@@ -108,6 +108,13 @@ const UserMenu = (function() {
                             <span class="dropdown-item-hint">Profile, access and activity</span>
                         </span>
                     </a>
+                    <a href="#/help" class="dropdown-item" id="help-menu-btn" role="menuitem">
+                        <i class="fas fa-life-ring" aria-hidden="true"></i>
+                        <span class="dropdown-item-text">
+                            <span>Help</span>
+                            <span class="dropdown-item-hint">How to use the platform</span>
+                        </span>
+                    </a>
                     <div class="dropdown-divider"></div>
                     <a href="#" class="dropdown-item text-danger" id="logout-btn" role="menuitem">
                         <i class="fas fa-sign-out-alt" aria-hidden="true"></i> Logout

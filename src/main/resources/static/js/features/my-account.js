@@ -130,7 +130,7 @@ const MyAccount = (function() {
         return Utils.html`
             <div class="ma-prefs">
                 <p class="small text-muted">Choose what reaches you. Some bell notifications are required; email only goes out
-                    for events your organisation emails.</p>
+                    for events your organisation emails. <button type="button" class="ma-link ma-help-link" data-ma-action="help" data-help-topic="notifications">Help</button></p>
                 <div class="table-responsive">
                     <table class="table table-sm ma-pref-table">
                         <thead><tr><th scope="col">Event</th><th scope="col">In-app</th><th scope="col">Email</th></tr></thead>
@@ -933,6 +933,9 @@ const MyAccount = (function() {
                 break;
             case 'prefs-save':
                 savePrefs();
+                break;
+            case 'help':
+                leaveTo('help', { topic: String($btn.data('help-topic')) });
                 break;
             case 'lease-extend':
                 extendLease(String($btn.data('env-id')));
