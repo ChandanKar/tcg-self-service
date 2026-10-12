@@ -177,9 +177,22 @@ public class CostManagementController {
      */
     @PostMapping("/rightsizing/apply")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> applyRightsizing(@Valid @RequestBody ApplyRightsizingRequestDTO request) {
+    public ResponseEntity<?> applyRightsizing(@Valid @RequestBody ApplyRightsizingRequestDTO request) {
+        if (Boolean.TRUE.equals(request.restartIfRunning())) {
+            // Safe resize (E30-T06): checked now, run in the background; follow it by its id.
+            String resizeId = vmResizeService.resizeWithRestart(request.vmId(), request.targetInstanceType(),
+                    userService.getCurrentUserId());
+            return ResponseEntity.accepted().body(java.util.Map.of("resizeId", resizeId));
+        }
         vmResizeService.applyInstanceTypeChange(request.vmId(), request.targetInstanceType(), userService.getCurrentUserId());
         return ResponseEntity.ok().build();
+    }
+
+    /** A safe resize's status, stage and error (E30-T06). */
+    @GetMapping("/rightsizing/resizes/{resizeId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<com.tcgdigital.vmcontrol.dto.ResizeStatusDTO> getResize(@org.springframework.web.bind.annotation.PathVariable String resizeId) {
+        return ResponseEntity.ok(com.tcgdigital.vmcontrol.dto.ResizeStatusDTO.of(vmResizeService.getResize(resizeId)));
     }
 
     @GetMapping("/vm-detail")

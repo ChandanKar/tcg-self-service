@@ -223,4 +223,161 @@ class VmResizeServiceTest {
         assertThatThrownBy(() -> service.applyInstanceTypeChange("vm-1", "t9.huge", "user-1"));
         verify(events, never()).save(any());
     }
+
+    // ---- Safe resize: stop, change, start, roll back (E30-T06) ----
+
+    private static final com.tcgdigital.vmcontrol.service.CloudTarget TARGET = com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1");
+
+    private final java.util.Map<String, com.tcgdigital.vmcontrol.model.VmResizeEvent> stored = new java.util.HashMap<>();
+    private com.tcgdigital.vmcontrol.repository.VmResizeEventRepository resizes;
+    private NotificationService notifications;
+
+    private static java.util.concurrent.CompletableFuture<CloudProviderService.VmOperationResult> done(boolean ok, VmStatus status, String message) {
+        return java.util.concurrent.CompletableFuture.completedFuture(ok ? CloudProviderService.VmOperationResult.success("r", status)
+                : CloudProviderService.VmOperationResult.failure(message));
+    }
+
+    /** A running VM, safe resize on, every AWS check passing. */
+    private void safeResizeOfARunningVm() {
+        resizes = org.mockito.Mockito.mock(com.tcgdigital.vmcontrol.repository.VmResizeEventRepository.class);
+        lenient().when(resizes.save(any())).thenAnswer(inv -> {
+            com.tcgdigital.vmcontrol.model.VmResizeEvent e = inv.getArgument(0);
+            stored.put(e.getEventId(), e);
+            return e;
+        });
+        lenient().when(resizes.findById(anyString())).thenAnswer(inv -> Optional.ofNullable(stored.get((String) inv.getArgument(0))));
+        service.setResizeEventRepository(resizes);
+        notifications = org.mockito.Mockito.mock(NotificationService.class);
+        service.setNotificationService(notifications);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "safeResizeEnabled", true);
+        vm.setStatus(VmStatus.RUNNING);
+        lenient().when(aws.describeForResize(TARGET, "i-123"))
+                .thenReturn(new AwsCloudProviderService.ResizeFacts("t3.xlarge", "ap-south-1a", "x86_64", true));
+        lenient().when(aws.isInstanceTypeOffered(TARGET, "t3.large", "ap-south-1a")).thenReturn(true);
+        lenient().when(aws.describeInstanceType(TARGET, "t3.large"))
+                .thenReturn(new AwsCloudProviderService.InstanceTypeFacts(java.util.List.of("x86_64"), "required"));
+        lenient().when(aws.getInstanceType("ap-south-1", "i-123")).thenReturn("t3.xlarge");
+        lenient().when(aws.stopVm(eq("i-123"), eq(TARGET), org.mockito.ArgumentMatchers.anyBoolean()))
+                .thenReturn(done(true, VmStatus.STOPPED, null));
+    }
+
+    private com.tcgdigital.vmcontrol.model.VmResizeEvent theResize() {
+        assertThat(stored).hasSize(1);
+        return stored.values().iterator().next();
+    }
+
+    @Test
+    void aRunningVmIsStoppedResizedAndStartedInThatOrder() {
+        safeResizeOfARunningVm();
+        when(aws.getVmStatus("i-123", TARGET)).thenReturn(VmStatus.RUNNING, VmStatus.STOPPED);
+        when(aws.startVm("i-123", TARGET)).thenReturn(done(true, VmStatus.RUNNING, null));
+
+        String id = service.resizeWithRestart("vm-1", "t3.large", "user-1");
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(aws);
+        order.verify(aws).stopVm("i-123", TARGET, false);
+        order.verify(aws).changeInstanceType(TARGET, "i-123", "t3.large");
+        order.verify(aws).startVm("i-123", TARGET);
+        com.tcgdigital.vmcontrol.model.VmResizeEvent e = theResize();
+        assertThat(e.getEventId()).isEqualTo(id);
+        assertThat(e.getStatus()).isEqualTo(com.tcgdigital.vmcontrol.model.ResizeStatus.COMPLETED);
+        assertThat(e.getOldInstanceType()).isEqualTo("t3.xlarge");
+        assertThat(e.isRestartRequested()).isTrue();
+        assertThat(e.getOriginalStatus()).isEqualTo("RUNNING");
+        verify(auditService).logChange("user-1", AuditAction.VM_RESIZE_COMPLETED, "vm", "vm-1", "app-1", "t3.xlarge", "t3.large", null);
+        verify(notifications).notifyResizeOutcome(eq("user-1"), eq("vm-1"), eq(true), anyString(), anyString());
+        verify(costEstimationService).invalidateBundles();
+    }
+
+    @Test
+    void aStartFailureOnTheNewTypeRevertsToTheOldTypeAndStartsAgain() {
+        safeResizeOfARunningVm();
+        when(aws.getVmStatus("i-123", TARGET)).thenReturn(VmStatus.RUNNING, VmStatus.STOPPED, VmStatus.STOPPED);
+        when(aws.startVm("i-123", TARGET)).thenReturn(done(false, null, "InsufficientInstanceCapacity"),
+                done(true, VmStatus.RUNNING, null));
+
+        service.resizeWithRestart("vm-1", "t3.large", "user-1");
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(aws);
+        order.verify(aws).changeInstanceType(TARGET, "i-123", "t3.large");
+        order.verify(aws).startVm("i-123", TARGET);
+        order.verify(aws).changeInstanceType(TARGET, "i-123", "t3.xlarge");
+        order.verify(aws).startVm("i-123", TARGET);
+        com.tcgdigital.vmcontrol.model.VmResizeEvent e = theResize();
+        assertThat(e.getStatus()).isEqualTo(com.tcgdigital.vmcontrol.model.ResizeStatus.ROLLED_BACK);
+        assertThat(e.getErrorMessage()).contains("InsufficientInstanceCapacity");
+        verify(auditService).logEnvironmentFailure(eq("user-1"), eq(AuditAction.VM_RESIZE_ROLLED_BACK), eq("env-1"), eq("Env 1"),
+                eq("vm"), eq("vm-1"), eq("app-1"), anyString());
+        verify(notifications).notifyResizeOutcome(eq("user-1"), eq("vm-1"), eq(false),
+                org.mockito.ArgumentMatchers.contains("rolled back"), anyString());
+        verify(auditService, never()).logChange(any(), eq(AuditAction.VM_RESIZE_COMPLETED), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void aFailedRollbackEndsFailedAndTellsTheEnvironmentAdmins() {
+        safeResizeOfARunningVm();
+        when(aws.getVmStatus("i-123", TARGET)).thenReturn(VmStatus.RUNNING, VmStatus.STOPPED, VmStatus.STOPPED);
+        when(aws.startVm("i-123", TARGET)).thenReturn(done(false, null, "InsufficientInstanceCapacity"),
+                done(false, null, "still no capacity"));
+
+        service.resizeWithRestart("vm-1", "t3.large", "user-1");
+
+        com.tcgdigital.vmcontrol.model.VmResizeEvent e = theResize();
+        assertThat(e.getStatus()).isEqualTo(com.tcgdigital.vmcontrol.model.ResizeStatus.FAILED);
+        assertThat(e.getErrorMessage()).contains("still no capacity");
+        verify(notifications).notifyResizeNeedsAttention(eq("env-1"), eq("vm-1"), anyString(), anyString());
+    }
+
+    @Test
+    void aTypeNotOfferedInTheZoneIsRejectedBeforeAnyAwsChange() {
+        safeResizeOfARunningVm();
+        when(aws.getVmStatus("i-123", TARGET)).thenReturn(VmStatus.RUNNING);
+        when(aws.isInstanceTypeOffered(TARGET, "t3.large", "ap-south-1a")).thenReturn(false);
+
+        assertThatThrownBy(() -> service.resizeWithRestart("vm-1", "t3.large", "user-1"))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("not offered in ap-south-1a");
+        verify(aws, never()).stopVm(anyString(), any(), org.mockito.ArgumentMatchers.anyBoolean());
+        verify(aws, never()).changeInstanceType(any(), anyString(), anyString());
+        assertThat(stored).isEmpty();
+    }
+
+    @Test
+    void aTargetNeedingEnaOnAnInstanceWithoutItIsRejected() {
+        safeResizeOfARunningVm();
+        when(aws.getVmStatus("i-123", TARGET)).thenReturn(VmStatus.RUNNING);
+        when(aws.describeForResize(TARGET, "i-123"))
+                .thenReturn(new AwsCloudProviderService.ResizeFacts("t3.xlarge", "ap-south-1a", "x86_64", false));
+
+        assertThatThrownBy(() -> service.resizeWithRestart("vm-1", "t3.large", "user-1"))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("needs ENA");
+        verify(aws, never()).changeInstanceType(any(), anyString(), anyString());
+    }
+
+    @Test
+    void turnedOffTheSafeResizeIsRejected() {
+        safeResizeOfARunningVm();
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "safeResizeEnabled", false);
+        when(aws.getVmStatus("i-123", TARGET)).thenReturn(VmStatus.RUNNING);
+
+        assertThatThrownBy(() -> service.resizeWithRestart("vm-1", "t3.large", "user-1"))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("turned off");
+        verify(aws, never()).stopVm(anyString(), any(), org.mockito.ArgumentMatchers.anyBoolean());
+    }
+
+    @Test
+    void aStoppedVmIsResizedWithoutBeingStarted() {
+        safeResizeOfARunningVm();
+        vm.setStatus(VmStatus.STOPPED);
+        when(aws.getVmStatus("i-123", TARGET)).thenReturn(VmStatus.STOPPED);
+
+        service.resizeWithRestart("vm-1", "t3.large", "user-1");
+
+        verify(aws).changeInstanceType(TARGET, "i-123", "t3.large");
+        verify(aws, never()).startVm(anyString(), any());
+        verify(aws, never()).stopVm(anyString(), any(), org.mockito.ArgumentMatchers.anyBoolean());
+        assertThat(theResize().getStatus()).isEqualTo(com.tcgdigital.vmcontrol.model.ResizeStatus.COMPLETED);
+    }
 }

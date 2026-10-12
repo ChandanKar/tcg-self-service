@@ -31,6 +31,8 @@ public enum AuditAction {
     VM_RESIZE_REQUESTED,
     VM_RESIZE_COMPLETED,
     VM_RESIZE_FAILED,
+    /** A safe resize could not start on the new type and went back to the old one (E30-T06). */
+    VM_RESIZE_ROLLED_BACK,
 
     // Lock operations
     LOCK_ACQUIRED,

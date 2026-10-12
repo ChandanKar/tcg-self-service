@@ -66,6 +66,8 @@ public final class SettingsRegistry {
                     "Memory above which (in every sample of the scale-up window) a VM needs more capacity.", "85", "1", "100"),
             integer("Rightsizing", "rightsizing.memory.headroom-percent", "Memory headroom %",
                     "Spare memory a smaller type must keep above the observed peak.", 20, 0, 200),
+            flag("Rightsizing", "rightsizing.safe-resize.enabled", "Safe resize of running VMs",
+                    "Apply may stop a running VM, change its type and start it again, rolling back on failure.", false),
 
             // Idle detection
             decimal("Idle detection", "vm.metrics.idle.cpu-threshold-percent", "Idle CPU %",

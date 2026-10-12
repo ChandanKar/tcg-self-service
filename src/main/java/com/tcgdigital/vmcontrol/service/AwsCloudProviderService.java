@@ -771,6 +771,54 @@ public class AwsCloudProviderService implements CloudProviderService {
         log.info("Changed EC2 instance {} in region {} to instance type {}", providerVmId, target, newInstanceType);
     }
 
+    /** What a safe resize checks about the instance (E30-T06): its type, AZ, architecture and ENA. */
+    public record ResizeFacts(String instanceType, String availabilityZone, String architecture, Boolean enaSupport) {
+    }
+
+    /** What a safe resize checks about the target type: its architectures and ENA (unsupported, supported, required). */
+    public record InstanceTypeFacts(List<String> supportedArchitectures, String enaSupport) {
+        public boolean requiresEna() {
+            return "required".equalsIgnoreCase(enaSupport);
+        }
+    }
+
+    /** The instance's resize facts, or null when AWS does not know it. Read-only. */
+    public ResizeFacts describeForResize(CloudTarget target, String providerVmId) {
+        DescribeInstancesResponse response = getEc2Client(target).describeInstances(
+                DescribeInstancesRequest.builder().instanceIds(providerVmId).build());
+        if (response.reservations().isEmpty() || response.reservations().get(0).instances().isEmpty()) {
+            return null;
+        }
+        Instance instance = response.reservations().get(0).instances().get(0);
+        return new ResizeFacts(instance.instanceTypeAsString(),
+                instance.placement() == null ? null : instance.placement().availabilityZone(),
+                instance.architectureAsString(), instance.enaSupport());
+    }
+
+    /** The target type's architectures and ENA requirement, or null for an unknown type. Read-only. */
+    public InstanceTypeFacts describeInstanceType(CloudTarget target, String instanceType) {
+        DescribeInstanceTypesResponse response = getEc2Client(target).describeInstanceTypes(
+                DescribeInstanceTypesRequest.builder().instanceTypesWithStrings(instanceType).build());
+        if (response.instanceTypes().isEmpty()) {
+            return null;
+        }
+        InstanceTypeInfo info = response.instanceTypes().get(0);
+        return new InstanceTypeFacts(
+                info.processorInfo() == null ? List.of() : info.processorInfo().supportedArchitecturesAsStrings(),
+                info.networkInfo() == null ? null : info.networkInfo().enaSupportAsString());
+    }
+
+    /** Whether the type can be launched in this availability zone (DescribeInstanceTypeOfferings). Read-only. */
+    public boolean isInstanceTypeOffered(CloudTarget target, String instanceType, String availabilityZone) {
+        DescribeInstanceTypeOfferingsResponse response = getEc2Client(target).describeInstanceTypeOfferings(
+                DescribeInstanceTypeOfferingsRequest.builder()
+                        .locationType(LocationType.AVAILABILITY_ZONE)
+                        .filters(Filter.builder().name("location").values(availabilityZone).build(),
+                                Filter.builder().name("instance-type").values(instanceType).build())
+                        .build());
+        return !response.instanceTypeOfferings().isEmpty();
+    }
+
     /** The instance's current type as AWS reports it, or null if it cannot be read. */
     public String getInstanceType(String region, String providerVmId) {
         DescribeInstancesResponse response = getEc2Client(region).describeInstances(

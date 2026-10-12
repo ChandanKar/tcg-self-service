@@ -428,6 +428,23 @@ public class NotificationService {
         }
     }
 
+    /** The admin who asked for a safe resize hears how it ended (E30-T06). */
+    public void notifyResizeOutcome(String userId, String vmId, boolean succeeded, String title, String message) {
+        if (userId == null) {
+            return;
+        }
+        create(userId, succeeded ? NotificationType.OPERATION_COMPLETED : NotificationType.OPERATION_FAILED,
+                title, message, "VM", vmId);
+    }
+
+    /** A safe resize failed and its rollback too: the environment's admins must fix the VM (E30-T06). */
+    public void notifyResizeNeedsAttention(String environmentId, String vmId, String title, String message) {
+        resolveEnvironmentReviewers(environmentId).forEach(u -> create(u.getUserId(), NotificationType.OPERATION_FAILED,
+                title, message, "VM", vmId));
+        toChat(environmentId, NotificationType.OPERATION_FAILED, com.tcgdigital.vmcontrol.service.chat.ChatMessage.Severity.CRITICAL,
+                title, message);
+    }
+
     /** An exhausted budget's action needs an owner's decision (E20-T03). */
     public void notifyBudgetActionPending(String environmentId, String environmentName, String requestId,
                                           com.tcgdigital.vmcontrol.model.BudgetActionType action, java.time.YearMonth month) {

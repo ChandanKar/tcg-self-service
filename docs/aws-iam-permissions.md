@@ -60,6 +60,8 @@ Run this (or the AWS Console's "Policy simulator" under IAM) before flipping any
 | Waste sweeps | `ec2:DescribeSnapshots`, `ec2:DescribeImages` | ❓ Unverified | Old snapshots, minus those an own AMI uses |
 | **Waste fix actions** (`WASTE_ACTIONS_ENABLED`, off by default, E22-T04) | `ec2:CreateSnapshot`, `ec2:DeleteVolume`, `ec2:CreateVolume`, `ec2:CreateTags` | ❓ Unverified | Snapshot-before-delete of an unattached volume, and its rollback; each action needs a second admin's approval |
 | Waste fix actions | `ec2:ModifyVolume`, `ec2:ModifySnapshotTier`, `ec2:RestoreSnapshotTier`, `ec2:DescribeAddresses`, `ec2:ReleaseAddress` | ❓ Unverified | gp2 → gp3, snapshot archiving and its restore, Elastic IP release (not reversible) |
+| **Safe resize** (`RIGHTSIZING_SAFE_RESIZE_ENABLED`, off by default, E30-T06) | `ec2:ModifyInstanceAttribute`, `ec2:StopInstances`, `ec2:StartInstances` | ❓ Unverified | Stop a running VM, change its instance type, start it again; the old type is put back when the new one will not start |
+| Safe resize | `ec2:DescribeInstanceTypeOfferings`, `ec2:DescribeInstanceTypes` | ❓ Unverified | Read-only pre-checks: the type is offered in the VM's zone, runs its architecture, and its ENA requirement |
 | **Budgets mirror** (`BUDGETS_AWS_SYNC_ENABLED`, off by default, E20-T06) | `budgets:ViewBudget` | ❓ Unverified | Needed only when mirroring app budgets to AWS Budgets |
 | Budgets mirror | `budgets:ModifyBudget` | ❓ Unverified | Create, update and delete of the mirrored budgets (names start with `tcg-`) |
 | Phase 4 | `budgets:CreateBudget` / `budgets:DescribeBudgets` | ❓ Unverified | Only needed if real AWS Budget resources are created (optional sub-feature) |

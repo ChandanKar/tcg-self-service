@@ -4,12 +4,19 @@ import jakarta.validation.constraints.NotBlank;
 
 /**
  * Request body for applying a rightsizing recommendation — changes {@code vmId}'s instance type
- * to {@code targetInstanceType}. Only permitted while the VM is stopped.
+ * to {@code targetInstanceType}. Without {@code restartIfRunning} only permitted while the VM is
+ * stopped; with it (E30-T06, rightsizing.safe-resize.enabled) a running VM is stopped, resized and
+ * started again, with rollback.
  */
 public record ApplyRightsizingRequestDTO(
         @NotBlank String vmId,
         @NotBlank
         @jakarta.validation.constraints.Pattern(regexp = "^[a-z0-9-]+\\.[a-z0-9]+$",
                 message = "targetInstanceType must look like an instance type, e.g. t3.large")
-        String targetInstanceType
-) {}
+        String targetInstanceType,
+        Boolean restartIfRunning
+) {
+    public ApplyRightsizingRequestDTO(String vmId, String targetInstanceType) {
+        this(vmId, targetInstanceType, null);
+    }
+}

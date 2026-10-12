@@ -14,7 +14,8 @@ const Settings = (function() {
         'cost.tagging.enabled': 'Tag reconciliation writes cost-allocation tags to your AWS resources.',
         'automation.rules.enabled': 'Automation rules start and stop VMs on their schedules.',
         'approvals.enabled': 'Starts that match an approval policy will wait for an approver.',
-        'quotas.enabled': 'Starts that would exceed a team quota will warn, wait for approval or be refused.'
+        'quotas.enabled': 'Starts that would exceed a team quota will warn, wait for approval or be refused.',
+        'rightsizing.safe-resize.enabled': 'Admins can stop running VMs, change their instance type and start them again from Cost Management.'
     };
     let pageToken = null;
     let settings = [];
