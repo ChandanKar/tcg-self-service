@@ -4,6 +4,7 @@ DELETE FROM job_execution_log;
 DELETE FROM scheduled_job;
 DELETE FROM cloud_provider_credential;
 DELETE FROM system_config;
+DELETE FROM app_setting;
 DELETE FROM login_session;
 DELETE FROM vm_state_history;
 DELETE FROM audit_log;
