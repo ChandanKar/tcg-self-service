@@ -204,6 +204,13 @@ public class EnvironmentService {
     /**
      * Get environment by ID.
      */
+    /** An environment by its name, as typed or as stored (names are kept normalized), E34-T08. */
+    public java.util.Optional<Environment> findByName(String name) {
+        if (name == null || name.isBlank()) return java.util.Optional.empty();
+        return environmentRepository.findByName(name.trim())
+                .or(() -> environmentRepository.findByName(com.tcgdigital.vmcontrol.service.support.NameNormalizer.slug(name)));
+    }
+
     public Environment getEnvironmentById(String environmentId) {
         return environmentRepository.findById(environmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Environment", environmentId));

@@ -297,6 +297,24 @@ public class EnvironmentController {
         return ResponseEntity.ok(dto);
     }
 
+    /**
+     * An environment by name (E34-T08: the Terraform provider's data source and import). 404 both
+     * when there is none and when the caller may not see it, so names do not leak.
+     */
+    @GetMapping("/by-name/{name}")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Get an environment by name", description = "404 when it does not exist or you cannot see it.")
+    public ResponseEntity<EnvironmentDTO> getEnvironmentByName(@PathVariable String name) {
+        Environment environment = environmentService.findByName(name)
+                .filter(e -> securityService.canViewEnvironment(e.getEnvironmentId()))
+                .orElseThrow(() -> new com.tcgdigital.vmcontrol.exception.ResourceNotFoundException("Environment", name));
+        EnvironmentDTO dto = toDtosWithBatchedCounts(List.of(environment)).get(0);
+        if (leaseService.isFeatureEnabled()) {
+            dto.setLeaseEnabled(Boolean.TRUE.equals(environment.getLeaseEnabled()));
+        }
+        return ResponseEntity.ok(dto);
+    }
+
     @GetMapping("/{environmentId}/insights")
     @PreAuthorize("isAuthenticated()")
     @Operation(
