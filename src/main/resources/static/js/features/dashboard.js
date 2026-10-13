@@ -150,7 +150,7 @@ const Dashboard = (function() {
                     </button>
                 </div>
 
-                <div class="dashboard-body">
+                <div class="dashboard-body" tabindex="0" role="region" aria-label="Dashboard">
                     ${buildMetricStrip(data)}
                     ${admin ? buildAdminDashboard(data) : buildUserDashboard(data)}
                 </div>
@@ -354,7 +354,7 @@ const Dashboard = (function() {
                     <h2>${Utils.escapeHtml(title)}</h2>
                     <small>${rows.length}</small>
                 </div>
-                <div>${body}</div>
+                <div ${prominent ? 'tabindex="0" role="region" aria-label="Scheduler health jobs"' : ''}>${body}</div>
             </section>
         `;
     }

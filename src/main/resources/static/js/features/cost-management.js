@@ -470,7 +470,7 @@ const CostManagement = (function() {
                         <tbody>${body}</tbody>
                     </table>
                 </div>
-                <div id="cost-chart-carbon" class="dashboard-chart carbon-chart" aria-label="Carbon by month, attributed and unallocated"></div>
+                <div id="cost-chart-carbon" class="dashboard-chart carbon-chart" role="img" aria-label="Carbon by month, attributed and unallocated"></div>
                 <p class="small text-muted mb-0">Estimated by cost share from AWS Customer Carbon Footprint data, per account, region
                     and service. AWS publishes it monthly with a delay of several weeks. Unallocated is what no environment's cost covers.</p>
             </section>`;
@@ -948,7 +948,7 @@ const CostManagement = (function() {
                     Always-on floor: <strong>${hourly(c.alwaysOnHourlyFloor)}</strong>
                     <span class="text-muted">(${c.floorVmCount} VM${c.floorVmCount === 1 ? '' : 's'}; ${c.floorNote})</span>
                 </div>
-                <div id="cost-chart-commitments" class="dashboard-chart commitments-chart" aria-label="Always-on floor against recommended commitments"></div>
+                <div id="cost-chart-commitments" class="dashboard-chart commitments-chart" role="img" aria-label="Always-on floor against recommended commitments"></div>
                 ${Utils.raw(flagList)}
                 ${Utils.raw(table)}
                 <p class="commitments-note small text-muted mb-0">Recommendations come from AWS Cost Explorer. Purchases are made by

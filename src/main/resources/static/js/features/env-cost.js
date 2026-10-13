@@ -133,7 +133,7 @@ const EnvCost = (function() {
         const s = cost.scheduleStatus;
         if (!s || s.ruleCount === 0) {
             return Auth.isEnvAdmin && Auth.isEnvAdmin()
-                ? '<div class="small">No schedule — <a href="#/automation-rules">set one up</a></div>'
+                ? '<div class="small">No schedule — <a href="#/automation-rules" class="text-decoration-underline">set one up</a></div>'
                 : '<div class="small text-muted">No schedule</div>';
         }
         const parts = [];
@@ -176,7 +176,7 @@ const EnvCost = (function() {
                             <div class="env-cost-mtd" id="env-cost-mtd">${money(cost.monthToDateEstimated)} ${Utils.raw(changeBadge(cost.changePercent))}</div>
                             ${Utils.raw(lines.join(''))}
                         </div>
-                        ${groups ? '' : Utils.raw('<div class="env-cost-trend" id="env-cost-trend" aria-label="Daily cost, last 30 days"></div>')}
+                        ${groups ? '' : Utils.raw('<div class="env-cost-trend" id="env-cost-trend" role="img" aria-label="Daily cost, last 30 days"></div>')}
                         ${Utils.raw(topHtml)}
                     </div>
                 </div>

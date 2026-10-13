@@ -1858,7 +1858,7 @@ const Environments = (function() {
         const windows = ['1h', '6h', '12h', '24h', '7d'];
         return `
             <div class="vm-insight-section">
-                <div class="vm-window-control" aria-label="Metric window">
+                <div class="vm-window-control" role="group" aria-label="Metric window">
                     ${windows.map(window => `
                         <button class="${window === selectedWindow ? 'active' : ''}" type="button"
                                 data-env-id="${Utils.escapeHtml(envId)}" data-vm-id="${Utils.escapeHtml(vmId)}" data-window="${window}">
@@ -1993,7 +1993,7 @@ const Environments = (function() {
 
     function buildDotLegend(lines) {
         return `
-            <div class="vm-chart-dot-legend" aria-label="VM chart legend">
+            <div class="vm-chart-dot-legend" role="group" aria-label="VM chart legend">
                 ${lines.map((line) => `
                     <span class="vm-chart-dot"
                           style="background:${line.color}"
