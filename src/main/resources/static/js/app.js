@@ -31,6 +31,9 @@ const App = (function() {
             MyAccount.init();
             Sidebar.init();
             Slideout.init();
+            if (typeof AssistantPanel !== 'undefined') {
+                AssistantPanel.init();
+            }
             Notifications.init();
             // Signed in from here on: the bell's count is polled by RealTime (no pre-auth calls).
             NotificationBell.init();

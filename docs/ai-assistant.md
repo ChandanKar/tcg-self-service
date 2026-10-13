@@ -114,6 +114,23 @@ Every tool is read-only and returns at most 50 rows. Amounts are in USD with two
 - **Audit.** Every call is written to the audit log as `ASSISTANT_TOOL_CALLED`, with the user, token prefix, tool, arguments (long text shortened to 200 characters), rows returned and time taken. Refused calls (bad arguments, rate limit, timeout) are logged as failed. Filter the Audit Logs page by that action.
 - **Data leaves the platform.** Tool results go into the AI client's context and so to its model provider. Use only AI clients your organisation has approved for this data. Cost and environment names may be commercially sensitive.
 
+## In-app Ask panel
+
+People without an MCP client can ask in the platform: **user menu → Ask** opens a panel where a question goes to a model that uses the same read-only tools, as the signed-in user, through the same rate limit, timeout, output cap and audit (the audit rows say "Ask panel" instead of a token). The answer is shown as text with the tools used underneath. Model output is never rendered as HTML.
+
+It is off by default and needs data-processing approval, because questions and tool results go to the model provider:
+
+| Setting | Default | |
+|---|---|---|
+| `ASSISTANT_CHAT_ENABLED` | false | The panel and `POST /api/v1/assistant/ask` (404 while off) |
+| `ASSISTANT_CHAT_PROVIDER` | anthropic | `anthropic` (Messages API) or `openai` (any OpenAI-compatible chat completions endpoint, such as a Bedrock or Azure OpenAI gateway) |
+| `ASSISTANT_CHAT_PROVIDER_URL` | https://api.anthropic.com | For `openai`, include the version path, for example `https://api.openai.com/v1` |
+| `ASSISTANT_CHAT_MODEL` | claude-opus-5-5 | The provider's model id |
+| `ASSISTANT_API_KEY` | (empty) | Kept on the server; the panel stays off without it |
+| `ASSISTANT_CHAT_DAILY_QUESTIONS_PER_USER` | 50 | Past it the API answers 429 |
+
+Each question carries at most the 10 earlier turns of the panel. The model gets at most 6 rounds of tool calls before the panel says it could not finish. Nothing is stored besides the audit rows; the conversation lives in the browser tab. The daily count is kept in memory, so it restarts with the application and is per instance.
+
 ## Limitations
 
 - Estimates use static on-demand pricing. Savings Plans, Reserved Instances and discounts are not in them; actuals from Cost Explorer are.

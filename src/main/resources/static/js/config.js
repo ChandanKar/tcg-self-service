@@ -368,6 +368,11 @@ const Config = (function() {
         },
 
         // API tokens and service accounts (E34); 404 while api-tokens.enabled is off
+        // In-app Ask panel (E36-T05); ask answers 404 while assistant.chat.enabled is off
+        assistant: {
+            status: `${API_BASE_URL}/assistant/status`,
+            ask: `${API_BASE_URL}/assistant/ask`
+        },
         apiTokens: {
             mine: `${API_BASE_URL}/me/api-tokens`,
             mineItem: (id) => `${API_BASE_URL}/me/api-tokens/${encodeURIComponent(id)}`,

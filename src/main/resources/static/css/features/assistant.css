@@ -1,0 +1,16 @@
+/* Ask panel (E36-T05) */
+.assistant-panel { display: flex; flex-direction: column; gap: 12px; height: 100%; }
+.assistant-thread { flex: 1 1 auto; min-height: 200px; max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.assistant-msg { display: flex; flex-direction: column; max-width: 92%; }
+.assistant-msg-user { align-self: flex-end; align-items: flex-end; }
+.assistant-msg-answer { align-self: flex-start; }
+.assistant-bubble { padding: 8px 12px; border-radius: 10px; background: var(--bs-tertiary-bg, #f1f3f5); overflow-wrap: anywhere; }
+.assistant-msg-user .assistant-bubble { background: var(--bs-primary-bg-subtle, #e4edf8); }
+.assistant-msg-failed .assistant-bubble { background: var(--bs-danger-bg-subtle, #fbeae3); }
+.assistant-bubble p { margin: 0 0 6px; }
+.assistant-bubble p:last-child, .assistant-bubble ul:last-child { margin-bottom: 0; }
+.assistant-bubble ul { margin: 0 0 6px; padding-left: 1.2em; }
+.assistant-tools { font-size: 0.8rem; margin-top: 4px; color: var(--bs-secondary-color, #6b7480); }
+.assistant-tools summary { cursor: pointer; }
+.assistant-tools ul { margin: 4px 0 0; padding-left: 1.2em; overflow-wrap: anywhere; }
+.assistant-form { display: flex; flex-direction: column; gap: 6px; }

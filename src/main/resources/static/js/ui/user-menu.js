@@ -26,7 +26,7 @@ const UserMenu = (function() {
 
         // Menu keyboard (E13-T02): arrows move between items, Escape closes and returns focus, Tab closes.
         $(document).on('keydown', '.user-dropdown', function(e) {
-            const items = $(this).find('[role="menuitem"]').toArray();
+            const items = $(this).find('[role="menuitem"]:visible').toArray(); // hidden entries (Ask while off) are skipped
             const index = items.indexOf(document.activeElement);
             if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
                 e.preventDefault();
@@ -106,6 +106,13 @@ const UserMenu = (function() {
                         <span class="dropdown-item-text">
                             <span>My Account</span>
                             <span class="dropdown-item-hint">Profile, access and activity</span>
+                        </span>
+                    </a>
+                    <a href="#" class="dropdown-item" id="ask-menu-btn" role="menuitem"${typeof AssistantPanel !== 'undefined' && AssistantPanel.isEnabled() ? '' : ' style="display: none;"'}>
+                        <i class="fas fa-comment-dots" aria-hidden="true"></i>
+                        <span class="dropdown-item-text">
+                            <span>Ask</span>
+                            <span class="dropdown-item-hint">Questions about your environments and costs</span>
                         </span>
                     </a>
                     <a href="#/help" class="dropdown-item" id="help-menu-btn" role="menuitem">

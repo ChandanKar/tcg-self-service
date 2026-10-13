@@ -87,7 +87,10 @@ public class AssistantToolGuard {
         executor.shutdownNow();
     }
 
-    /** Runs one tool as the current user, whose security context the worker thread takes over. */
+    /**
+     * Runs one tool as the current user, whose security context the worker thread takes over. The
+     * token prefix is null for the in-app Ask panel (E36-T05).
+     */
     public Outcome invoke(String userId, String tokenPrefix, AssistantTool tool, Map<String, Object> arguments) {
         Map<String, Object> args = arguments == null ? Map.of() : arguments;
         long retryAfter = rateLimit(userId);
@@ -188,7 +191,7 @@ public class AssistantToolGuard {
     private void audit(String userId, String tokenPrefix, String toolName, Map<String, Object> args, Integer rows,
                        long millis, String failure) {
         try {
-            String details = "Token " + tokenPrefix + "; args {" + summarise(args) + "}"
+            String details = (tokenPrefix == null ? "Ask panel" : "Token " + tokenPrefix) + "; args {" + summarise(args) + "}"
                     + (rows == null ? "" : "; rows " + rows) + "; " + millis + " ms";
             if (details.length() > 1000) details = details.substring(0, 1000);
             if (failure == null || "truncated".equals(failure)) {
