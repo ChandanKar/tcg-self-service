@@ -47,7 +47,8 @@ public class ApiTokenAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String uri = request.getRequestURI();
-        return !(uri.startsWith("/api/") || uri.startsWith(ApiScopeRegistry.DOCS_PATH)) || !isTokenRequest(request);
+        return !(uri.startsWith("/api/") || uri.startsWith(ApiScopeRegistry.DOCS_PATH) || uri.equals("/mcp") || uri.startsWith("/mcp/"))
+                || !isTokenRequest(request);
     }
 
     @Override

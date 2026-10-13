@@ -17,7 +17,9 @@ public enum ApiScope {
     COST_READ("cost:read"),
     AUDIT_READ("audit:read"),
     ACCESS_WRITE("access:write"),
-    ADMIN("admin");
+    ADMIN("admin"),
+    /** The read-only MCP server for AI assistants (E36-T01); any role may hold it. */
+    ASSISTANT_READ("assistant:read");
 
     private final String value;
 

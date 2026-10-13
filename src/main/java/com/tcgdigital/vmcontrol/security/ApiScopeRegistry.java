@@ -33,6 +33,10 @@ public class ApiScopeRegistry {
     private final AntPathMatcher matcher = new AntPathMatcher();
 
     private static final List<Rule> RULES = List.of(
+            // The MCP server for AI assistants (E36-T01): assistant:read only, not even admin opens it
+            new Rule(Kind.ANY, "/mcp", ApiScope.ASSISTANT_READ),
+            new Rule(Kind.ANY, "/mcp/**", ApiScope.ASSISTANT_READ),
+
             // Never with a token: token management, sign-in, signed chat links, password changes
             new Rule(Kind.ANY, "/api/v1/me/api-tokens/**", null),
             new Rule(Kind.ANY, "/api/auth/**", null),
@@ -136,6 +140,9 @@ public class ApiScopeRegistry {
             return "GET".equalsIgnoreCase(method);
         }
         Optional<ApiScope> required = requiredScope(method, path);
+        if (required.isPresent() && required.get() == ApiScope.ASSISTANT_READ) {
+            return token.hasScope(ApiScope.ASSISTANT_READ);
+        }
         return required.isPresent() && (token.hasScope(required.get()) || token.hasScope(ApiScope.ADMIN));
     }
 }

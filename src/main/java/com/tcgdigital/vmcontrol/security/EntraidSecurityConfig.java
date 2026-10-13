@@ -81,7 +81,7 @@ public class EntraidSecurityConfig {
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint((request, response, authException) -> {
                     String requestUri = request.getRequestURI();
-                    if (requestUri.startsWith("/api/") || requestUri.startsWith("/v3/api-docs")) {
+                    if (requestUri.startsWith("/api/") || requestUri.startsWith("/v3/api-docs") || requestUri.startsWith("/mcp")) {
                         response.setStatus(HttpStatus.UNAUTHORIZED.value());
                         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                         response.getWriter().write(
@@ -122,6 +122,8 @@ public class EntraidSecurityConfig {
                 .ignoringRequestMatchers(SecurityHeaders.REPORT_PATH)
                 // A bearer token is not a cookie: a forged cross-site request cannot carry it (E34-T02).
                 .ignoringRequestMatchers(ApiTokenAuthenticationFilter::isTokenRequest)
+                // The MCP endpoint takes API tokens only and answers 401 to a cookie session (E36-T01).
+                .ignoringRequestMatchers("/mcp", "/mcp/**")
             )
             .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
             // Content-Security-Policy, X-Frame-Options DENY, Referrer-Policy, nosniff

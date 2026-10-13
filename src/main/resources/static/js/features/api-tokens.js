@@ -13,6 +13,7 @@ const ApiTokenScopes = [
     ['schedules:write', 'Change schedules'],
     ['cost:read', 'Read cost and savings'],
     ['audit:read', 'Read the audit log'],
+    ['assistant:read', 'Read-only AI assistant (MCP) access'],
     ['access:write', 'Grant access and decide requests', 'envAdmin'],
     ['admin', 'Administration (everything)', 'admin']
 ];

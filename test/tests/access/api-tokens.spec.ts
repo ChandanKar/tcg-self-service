@@ -76,6 +76,7 @@ test.describe('API tokens', () => {
     await create.locator('#api-token-create').click();
     await expect(create.locator('#api-token-error')).toHaveText('Choose at least one scope.');
     await expect(create.locator('#api-scope-admin')).toBeVisible(); // an admin may grant admin
+    await expect(create.locator('#api-scope-assistant-read')).toBeVisible(); // the MCP assistant scope (E36-T01)
     await create.locator('#api-scope-environments-read').check();
     await create.locator('#api-token-create').click();
 
