@@ -25,8 +25,10 @@ async function openUserManagement(page: Page) {
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
   await page.evaluate(() => { location.hash = '#/user-management'; });
   await expect(page.locator('#user-search')).toBeVisible({ timeout: 10_000 });
-  // Narrow the table to the seeded user (a search keeps the status filter).
+  // Narrow the table to the seeded user (a search keeps the status filter). The search runs 300 ms
+  // after typing and re-renders the table: let it settle, or it detaches a menu the test opens.
   await page.locator('#user-search').fill(email);
+  await page.waitForTimeout(500);
 }
 
 function rowOf(page: Page) {
