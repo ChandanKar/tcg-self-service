@@ -8,6 +8,9 @@ test.describe('Session & route protection', () => {
   });
 
   test('an unauthenticated visit to /home does not render the app shell', async ({ page }) => {
+    // The dev security mode (X-User-Id, Entra off) permits every page by design, so this only
+    // means something where sign-in is enforced; it passes against staging (PL-06).
+    test.skip(!!process.env.TEST_DEV_ADMIN_ID || !!process.env.TEST_DEV_USER_ID, 'dev security mode permits all pages');
     const res = await page.goto('/home');
     // Depending on the active security profile this either redirects to
     // /login or returns 401/403 — either is an acceptable "not authenticated"

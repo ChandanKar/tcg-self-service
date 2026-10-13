@@ -31,7 +31,12 @@ test.describe('Login page', () => {
 
     const errorAlert = page.locator('#errorAlert');
     await expect(errorAlert).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator('#errorMessage')).toHaveText(/invalid credentials/i);
+    await expect(page.locator('#errorMessage')).toHaveText(/invalid username or password/i);
+    // The message stays until the user edits a field (no 5-second timer, WCAG 2.2.1).
+    await page.waitForTimeout(6_000);
+    await expect(errorAlert).toBeVisible();
+    await page.locator('#password').fill('x');
+    await expect(errorAlert).toBeHidden();
     // Regression guard: the message must not reveal whether the username exists
     // (see AuthController — deliberately generic message).
     await expect(page.locator('#errorMessage')).not.toHaveText(/user not found\.?$/i);
