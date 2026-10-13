@@ -20,6 +20,9 @@ public class ApiScopeRegistry {
     /** Never reachable with a token, whatever its scopes. */
     public static final Optional<ApiScope> DENIED = Optional.empty();
 
+    /** The OpenAPI description (E34-T04): any token may read it. */
+    public static final String DOCS_PATH = "/v3/api-docs";
+
     private enum Kind { READ, WRITE, ANY }
 
     /** {@code scope} null means denied to tokens. */
@@ -128,6 +131,9 @@ public class ApiScopeRegistry {
 
     /** Whether a token with these scopes may call the endpoint. */
     public boolean allows(ApiTokenAuthentication token, String method, String path) {
+        if (path.equals(DOCS_PATH) || path.startsWith(DOCS_PATH + "/")) {
+            return "GET".equalsIgnoreCase(method);
+        }
         Optional<ApiScope> required = requiredScope(method, path);
         return required.isPresent() && (token.hasScope(required.get()) || token.hasScope(ApiScope.ADMIN));
     }

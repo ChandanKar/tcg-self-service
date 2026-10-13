@@ -47,7 +47,9 @@ class SecurityHeadersTest extends SecuredWebTestBase {
 
     @Test
     void swaggerUiIsExcludedFromThePolicy() throws Exception {
-        mockMvc.perform(get("/v3/api-docs"))
+        // The description needs a session or a token since E34-T04.
+        mockMvc.perform(get("/v3/api-docs").with(asViewer()))
+                .andExpect(status().isOk())
                 .andExpect(header().doesNotExist(CSP_REPORT_ONLY))
                 .andExpect(header().doesNotExist(CSP));
     }

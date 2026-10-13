@@ -52,10 +52,10 @@ public class EntraidSecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .authorizeHttpRequests(authorize -> authorize
-                // allow static resources, login page, health/error endpoints, oauth callback, CSP reports and Swagger UI
+                // allow static resources, login page, health/error endpoints, oauth callback and CSP reports;
+                // the API description and Swagger UI need a session or an API token (E34-T04)
                 .requestMatchers("/", "/login", "/login.html", "/css/**", "/js/**", "/vendor/**", "/logo/**", "/images/**", "/static/**",
-                    "/error", "/login/**", "/oauth2/**",
-                    "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/swagger-resources/**", "/webjars/**",
+                    "/error", "/login/**", "/oauth2/**", "/webjars/**",
                     "/api/auth/login", "/api/auth/options", SecurityHeaders.REPORT_PATH,
                     "/actuator/health", "/actuator/health/**").permitAll()
                 // require authentication for all other requests (including /home)
@@ -81,7 +81,7 @@ public class EntraidSecurityConfig {
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint((request, response, authException) -> {
                     String requestUri = request.getRequestURI();
-                    if (requestUri.startsWith("/api/")) {
+                    if (requestUri.startsWith("/api/") || requestUri.startsWith("/v3/api-docs")) {
                         response.setStatus(HttpStatus.UNAUTHORIZED.value());
                         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                         response.getWriter().write(
