@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "vmcontrol": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://<host>/mcp",
+        "--header",
+        "Authorization: Bearer ${VMCONTROL_TOKEN}"
+      ],
+      "env": {
+        "VMCONTROL_TOKEN": "<API token with the assistant:read scope>"
+      }
+    },
+    "aws-billing": {
+      "command": "uvx",
+      "args": ["awslabs.billing-cost-management-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "<read-only billing profile>",
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
