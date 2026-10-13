@@ -28,6 +28,9 @@ const CostManagement = (function() {
         teamTrend: [],
         trend: [],
         forecast: null,
+        // E35-T02: '14 days' (the trend with both forecasts) or '18 months' (AWS's monthly forecast)
+        forecastRange: 'short',
+        longRange: null,
         reconciliation: emptyPageState(),
         reconciliationAll: [],
         reservationCoverage: [],
@@ -373,7 +376,8 @@ const CostManagement = (function() {
         trend: {
             keys: ['trend', 'forecast'], label: 'the spend trend', chartPanel: true, wide: true,
             build: () => buildTrendChart(),
-            charts: () => [['cost-chart-trend', buildTrendOption(state.trend)]]
+            charts: () => [['cost-chart-trend', state.forecastRange === 'long' && state.longRange
+                ? buildLongRangeOption(state.longRange) : buildTrendOption(state.trend)]]
         },
         reservations: {
             keys: ['reservationCoverage'], label: 'reservation coverage', chartPanel: true, wide: true,
@@ -613,9 +617,17 @@ const CostManagement = (function() {
     function buildTrendChart() {
         return `
             <section class="dashboard-chart-panel dashboard-wide">
-                <div class="dashboard-panel-head">
-                    <h2>Spend Trend</h2>
-                    <small>${trendSubtitle()}</small>
+                <div class="dashboard-panel-head d-flex justify-content-between align-items-start flex-wrap gap-2">
+                    <div>
+                        <h2>Spend Trend</h2>
+                        <small id="cost-trend-subtitle">${trendSubtitle()}</small>
+                    </div>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Forecast range">
+                        <button type="button" class="btn btn-outline-secondary ${state.forecastRange === 'long' ? '' : 'active'}"
+                                data-action="cost-forecast-range" data-range="short" aria-pressed="${state.forecastRange !== 'long'}">14 days</button>
+                        <button type="button" class="btn btn-outline-secondary ${state.forecastRange === 'long' ? 'active' : ''}"
+                                data-action="cost-forecast-range" data-range="long" aria-pressed="${state.forecastRange === 'long'}">18 months</button>
+                    </div>
                 </div>
                 <div id="cost-chart-trend" class="dashboard-chart"></div>
             </section>
@@ -623,15 +635,104 @@ const CostManagement = (function() {
     }
 
     function trendSubtitle() {
+        if (state.forecastRange === 'long') {
+            const lr = state.longRange;
+            if (!lr) return 'Loading the 18-month forecast&hellip;';
+            return lr.awsGeneratedOn
+                ? `AWS forecast generated ${Utils.escapeHtml(lr.awsGeneratedOn)}; covers resources tagged tcg:managed-by &mdash; with the platform's run-rate`
+                : 'No AWS forecast captured yet (it runs weekly) &mdash; the platform run-rate only';
+        }
         const base = `Estimated, last ${TREND_DAYS} days`;
         const forecast = state.forecast;
         if (!forecast) return base;
+        const aws = forecast.awsGeneratedOn && (forecast.awsDaily || []).length
+            ? ` &mdash; AWS forecast generated ${Utils.escapeHtml(forecast.awsGeneratedOn)}; covers resources tagged tcg:managed-by`
+            : ' &mdash; no AWS forecast captured yet';
         if (!forecast.sufficientHistory) {
             const daysNeeded = Math.max(0, forecast.minHistoryDaysRequired - forecast.historyDaysUsed);
-            return `${base} &mdash; forecast needs ${daysNeeded} more day(s) of history`;
+            return `${base} &mdash; platform forecast needs ${daysNeeded} more day(s) of history${aws}`;
         }
         const forecastDayCount = forecast.points.filter(p => p.isForecast).length;
-        return `${base} &mdash; with a ${forecastDayCount}-day forecast`;
+        return `${base} &mdash; with a ${forecastDayCount}-day platform forecast${aws}`;
+    }
+
+    /** '14 days' or '18 months' (E35-T02); the long range is fetched the first time it is shown. */
+    function setForecastRange(range) {
+        state.forecastRange = range === 'long' ? 'long' : 'short';
+        $('[data-action="cost-forecast-range"]').each(function() {
+            const on = this.dataset.range === state.forecastRange;
+            $(this).toggleClass('active', on).attr('aria-pressed', String(on));
+        });
+        const draw = () => {
+            $('#cost-trend-subtitle').html(trendSubtitle());
+            chart('cost-chart-trend', state.forecastRange === 'long' && state.longRange
+                ? buildLongRangeOption(state.longRange) : buildTrendOption(state.trend));
+        };
+        if (state.forecastRange === 'long' && !state.longRange) {
+            draw();
+            fetchJson(Config.API.costManagement.forecastLongRange, { suppressGlobalError: true })
+                .then(data => { state.longRange = data || { awsMonthly: [], platformRunRate: [] }; if (state.forecastRange === 'long') draw(); })
+                .catch(() => {
+                    state.longRange = { awsMonthly: [], platformRunRate: [], failed: true };
+                    if (state.forecastRange === 'long') draw();
+                });
+            return;
+        }
+        draw();
+    }
+
+    /** AWS's monthly forecast with its interval as bars and whiskers, and the platform run-rate as a line. */
+    function buildLongRangeOption(lr) {
+        if (lr.failed) return emptyChartOption("Couldn't load the 18-month forecast.");
+        const aws = lr.awsMonthly || [];
+        const runRate = lr.platformRunRate || [];
+        const months = (aws.length ? aws.map(p => p.periodStart) : runRate.map(r => r.periodStart));
+        if (!months.length) return emptyChartOption('No forecast yet: AWS forecasts are captured weekly and the run-rate needs cost history.');
+        const label = d => {
+            const dt = new Date(d + 'T00:00:00');
+            return isNaN(dt) ? d : dt.toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
+        };
+        const awsBy = new Map(aws.map(p => [p.periodStart, p]));
+        const runBy = new Map(runRate.map(r => [r.periodStart, r]));
+        const num = v => (v === null || v === undefined ? null : Number(v));
+        const series = [];
+        if (aws.length) {
+            series.push({ name: 'AWS interval low', type: 'line', stack: 'aws-band', symbol: 'none', silent: true,
+                lineStyle: { opacity: 0 }, data: months.map(m => num(awsBy.get(m) && awsBy.get(m).lower)) });
+            series.push({ name: 'AWS forecast (80% interval)', type: 'line', stack: 'aws-band', symbol: 'none',
+                lineStyle: { opacity: 0 }, areaStyle: { opacity: 0.18, color: CATEGORICAL_COLORS[3] },
+                data: months.map(m => { const p = awsBy.get(m); return p && p.lower != null && p.upper != null ? Number(p.upper) - Number(p.lower) : null; }) });
+            series.push({ name: 'AWS forecast', type: 'bar', barMaxWidth: 22, itemStyle: { color: CATEGORICAL_COLORS[3] },
+                data: months.map(m => num(awsBy.get(m) && awsBy.get(m).mean)) });
+        }
+        if (runRate.length) {
+            series.push({ name: 'Platform run-rate', type: 'line', symbol: 'diamond', symbolSize: 7,
+                lineStyle: { type: 'dashed', color: CATEGORICAL_COLORS[2] }, itemStyle: { color: CATEGORICAL_COLORS[2] },
+                data: months.map(m => num(runBy.get(m) && runBy.get(m).amount)) });
+        }
+        return {
+            legend: { bottom: 0, textStyle: chartTextStyle(), data: series.map(s => s.name).filter(n => n !== 'AWS interval low') },
+            tooltip: {
+                trigger: 'axis', confine: true,
+                formatter: params => {
+                    const idx = params && params[0] ? params[0].dataIndex : -1;
+                    const m = months[idx];
+                    if (!m) return '';
+                    const p = awsBy.get(m);
+                    const r = runBy.get(m);
+                    const lines = [label(m)];
+                    if (p) lines.push(`AWS forecast: ${Utils.formatCurrency(Number(p.mean) || 0)}`
+                        + (p.lower != null && p.upper != null ? ` (${Utils.formatCurrency(Number(p.lower))} to ${Utils.formatCurrency(Number(p.upper))})` : ''));
+                    if (r) lines.push(`Platform run-rate: ${Utils.formatCurrency(Number(r.amount) || 0)}`);
+                    return lines.join('<br/>');
+                }
+            },
+            grid: { left: 60, right: 24, top: 18, bottom: 48 },
+            xAxis: { type: 'category', data: months.map(label), axisLabel: chartTextStyle() },
+            yAxis: { type: 'value', axisLabel: { ...chartTextStyle(), formatter: v => compactCurrency(v) },
+                splitLine: { lineStyle: { color: '#eef2f7' } } },
+            series
+        };
     }
 
     function buildReservationsChart() {
@@ -923,19 +1024,25 @@ const CostManagement = (function() {
         const forecastPoints = (state.forecast && state.forecast.sufficientHistory)
             ? state.forecast.points.filter(p => p.isForecast)
             : [];
+        // AWS's forecast for the same days (E35-T02); it alone sets the future days when the
+        // platform has too little history for its own.
+        const awsPoints = (state.forecast && state.forecast.awsDaily) || [];
+        const forecastDates = forecastPoints.length ? forecastPoints.map(p => p.date) : awsPoints.map(p => p.periodStart);
+        const awsByDate = new Map(awsPoints.map(p => [p.periodStart, p]));
+        const awsAt = (d, key) => { const p = awsByDate.get(d); return p && p[key] !== null && p[key] !== undefined ? Number(p[key]) : null; };
 
         const historyLabels = rows.map(r => (r.date || '').slice(5));
-        const forecastLabels = forecastPoints.map(p => (p.date || '').slice(5));
+        const forecastLabels = forecastDates.map(d => (d || '').slice(5));
         const labels = historyLabels.concat(forecastLabels);
 
         const estimatedValues = rows.map(r => Number(r.estimatedCost) || 0)
-            .concat(forecastPoints.map(() => null));
+            .concat(forecastDates.map(() => null));
         // actualCost is null until Cost Management Phase 2 (real Cost Explorer ingestion) has
         // populated it — render the series only once at least one point has real data, so an
         // all-null trend doesn't draw a flat $0 line that looks like a real (zero-cost) answer.
         const hasAnyActual = rows.some(r => r.actualCost !== null && r.actualCost !== undefined);
         const actualValues = rows.map(r => (r.actualCost !== null && r.actualCost !== undefined) ? Number(r.actualCost) : null)
-            .concat(forecastPoints.map(() => null));
+            .concat(forecastDates.map(() => null));
         // Forecast series: null everywhere in the historical range except the very last historical
         // point (seeded with that day's estimated cost so the dashed line connects seamlessly to
         // the solid one), then the projected values.
@@ -948,7 +1055,7 @@ const CostManagement = (function() {
         // color alone). Actual only ever has values in the historical range and Forecast only
         // ever has values after it, so this line makes that existing gap explicit instead of
         // leaving the viewer to infer it.
-        const todayMarkLine = forecastPoints.length ? {
+        const todayMarkLine = forecastDates.length ? {
             silent: true,
             symbol: 'none',
             lineStyle: { type: 'dashed', color: '#94a3b8', width: 1 },
@@ -979,7 +1086,7 @@ const CostManagement = (function() {
         }
         if (forecastPoints.length) {
             series.push({
-                name: 'Forecast',
+                name: 'Platform forecast',
                 type: 'line',
                 // Diamond symbol is a second, color-independent way to tell Forecast apart from
                 // Actual (both dashed, both non-primary) — on top of the "Today" divider above.
@@ -993,11 +1100,28 @@ const CostManagement = (function() {
             });
         }
 
-        const hasLegend = hasAnyActual || forecastPoints.length > 0;
+        if (awsPoints.length) {
+            const none = rows.map(() => null);
+            // A confidence band: an invisible lower line with the interval's height stacked on it.
+            series.push({ name: 'AWS interval low', type: 'line', stack: 'aws-band', symbol: 'none', silent: true,
+                lineStyle: { opacity: 0 }, data: none.concat(forecastDates.map(d => awsAt(d, 'lower'))) });
+            series.push({ name: 'AWS forecast (80% interval)', type: 'line', stack: 'aws-band', symbol: 'none',
+                lineStyle: { opacity: 0 }, areaStyle: { opacity: 0.18, color: CATEGORICAL_COLORS[3] },
+                data: none.concat(forecastDates.map(d => {
+                    const lo = awsAt(d, 'lower'); const up = awsAt(d, 'upper');
+                    return lo !== null && up !== null ? up - lo : null;
+                })) });
+            series.push({ name: 'AWS forecast', type: 'line', symbol: 'triangle', symbolSize: 7, showSymbol: true,
+                lineStyle: { type: 'dashed', color: CATEGORICAL_COLORS[3] }, itemStyle: { color: CATEGORICAL_COLORS[3] },
+                data: none.concat(forecastDates.map(d => awsAt(d, 'mean'))) });
+        }
+
+        const hasLegend = hasAnyActual || forecastPoints.length > 0 || awsPoints.length > 0;
 
         return {
             color: [CATEGORICAL_COLORS[0], CATEGORICAL_COLORS[1]],
-            legend: hasLegend ? { bottom: 0, textStyle: chartTextStyle() } : undefined,
+            legend: hasLegend ? { bottom: 0, textStyle: chartTextStyle(),
+                data: series.map(s => s.name).filter(n => n !== 'AWS interval low') } : undefined,
             tooltip: {
                 trigger: 'axis',
                 confine: true,
@@ -1016,9 +1140,16 @@ const CostManagement = (function() {
                         return lines.join('<br/>');
                     }
                     const forecastPoint = forecastPoints[idx - rows.length];
-                    return forecastPoint
-                        ? `${forecastPoint.date} (projected)<br/>Forecast: ${Utils.formatCurrency(Number(forecastPoint.cost) || 0)}`
-                        : '';
+                    const day = forecastDates[idx - rows.length];
+                    const lines = day ? [`${day} (projected)`] : [];
+                    if (forecastPoint) lines.push(`Platform forecast: ${Utils.formatCurrency(Number(forecastPoint.cost) || 0)}`);
+                    const awsPoint = day && awsByDate.get(day);
+                    if (awsPoint) {
+                        lines.push(`AWS forecast: ${Utils.formatCurrency(Number(awsPoint.mean) || 0)}`
+                            + (awsPoint.lower != null && awsPoint.upper != null
+                                ? ` (${Utils.formatCurrency(Number(awsPoint.lower))} to ${Utils.formatCurrency(Number(awsPoint.upper))})` : ''));
+                    }
+                    return lines.join('<br/>');
                 }
             },
             grid: { left: 52, right: 24, top: 18, bottom: hasLegend ? 48 : 32 },
@@ -1831,7 +1962,8 @@ const CostManagement = (function() {
         changePage,
         showWorkloads: mountWorkloads,
         setRightsizingDirection,
-        toggleOptions
+        toggleOptions,
+        setForecastRange
     };
 })();
 
@@ -1842,6 +1974,7 @@ Actions.registerAll({
     'cost-reload': () => ContentRouter.reload(),
     'cost-change-page': el => CostManagement.changePage(el.dataset.pageKey, Number(el.dataset.page)),
     'cost-rightsizing-direction': el => CostManagement.setRightsizingDirection(el.dataset.direction || ''),
-    'cost-rightsizing-options': el => CostManagement.toggleOptions(el)
+    'cost-rightsizing-options': el => CostManagement.toggleOptions(el),
+    'cost-forecast-range': el => CostManagement.setForecastRange(el.dataset.range)
 });
 Actions.register('cost-eks-env', el => CostManagement.showWorkloads(el.value), 'change');

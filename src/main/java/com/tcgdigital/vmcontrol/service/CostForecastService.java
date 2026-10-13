@@ -33,6 +33,79 @@ public class CostForecastService {
         this.costDailySnapshotRepository = costDailySnapshotRepository;
     }
 
+    /** AWS's captured forecast (E35-T02); absent in plain unit tests. */
+    private com.tcgdigital.vmcontrol.repository.AwsCostForecastRepository awsForecasts;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setAwsForecasts(com.tcgdigital.vmcontrol.repository.AwsCostForecastRepository awsForecasts) {
+        this.awsForecasts = awsForecasts;
+    }
+
+    /** AWS daily points and when they were captured. */
+    private record AwsDaily(List<com.tcgdigital.vmcontrol.dto.AwsForecastPointDTO> points, Date generatedOn) {
+        static final AwsDaily NONE = new AwsDaily(List.of(), null);
+    }
+
+    /** The latest AWS daily forecast for the days after {@code afterDate}, up to {@code days} of them. */
+    private AwsDaily awsDaily(LocalDate afterDate, int days) {
+        if (awsForecasts == null) return AwsDaily.NONE;
+        LocalDate generated = awsForecasts.latestGeneration(com.tcgdigital.vmcontrol.model.AwsCostForecast.DAILY,
+                com.tcgdigital.vmcontrol.model.AwsCostForecast.MANAGED);
+        if (generated == null) return AwsDaily.NONE;
+        LocalDate last = afterDate.plusDays(days);
+        List<com.tcgdigital.vmcontrol.dto.AwsForecastPointDTO> points = awsForecasts
+                .findByGeneratedOnAndGranularityAndScopeOrderByPeriodStart(generated,
+                        com.tcgdigital.vmcontrol.model.AwsCostForecast.DAILY, com.tcgdigital.vmcontrol.model.AwsCostForecast.MANAGED)
+                .stream()
+                .filter(f -> !f.isTotal() && f.getPeriodStart().isAfter(afterDate) && !f.getPeriodStart().isAfter(last))
+                .map(CostForecastService::point)
+                .toList();
+        return new AwsDaily(points, Date.valueOf(generated));
+    }
+
+    private static com.tcgdigital.vmcontrol.dto.AwsForecastPointDTO point(com.tcgdigital.vmcontrol.model.AwsCostForecast f) {
+        return new com.tcgdigital.vmcontrol.dto.AwsForecastPointDTO(Date.valueOf(f.getPeriodStart()), Date.valueOf(f.getPeriodEnd()),
+                f.getMean(), f.getLowerBound(), f.getUpperBound());
+    }
+
+    private static CostForecastDTO withAws(CostForecastDTO base, AwsDaily aws) {
+        return aws.points().isEmpty() ? base : new CostForecastDTO(base.points(), base.sufficientHistory(), base.historyDaysUsed(),
+                base.minHistoryDaysRequired(), aws.points(), aws.generatedOn());
+    }
+
+    /**
+     * The 18-month view (E35-T02): AWS's latest monthly forecast and the platform's run-rate for
+     * the same months (the average daily estimated cost of the last 30 days times each month's days).
+     */
+    public com.tcgdigital.vmcontrol.dto.LongRangeForecastDTO getLongRange() {
+        List<CostDailySnapshotRepository.DailyCostTotal> totals =
+                costDailySnapshotRepository.findDailyTotalsSince(Date.valueOf(LocalDate.now().minusDays(30)));
+        BigDecimal average = totals.isEmpty() ? null : totals.stream().map(t -> nullToZero(t.getTotalEstimatedCost()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add).divide(BigDecimal.valueOf(totals.size()), 2, RoundingMode.HALF_UP);
+        LocalDate generated = awsForecasts == null ? null : awsForecasts.latestGeneration(
+                com.tcgdigital.vmcontrol.model.AwsCostForecast.MONTHLY, com.tcgdigital.vmcontrol.model.AwsCostForecast.MANAGED);
+        List<com.tcgdigital.vmcontrol.dto.AwsForecastPointDTO> monthly = generated == null ? List.of()
+                : awsForecasts.findByGeneratedOnAndGranularityAndScopeOrderByPeriodStart(generated,
+                        com.tcgdigital.vmcontrol.model.AwsCostForecast.MONTHLY, com.tcgdigital.vmcontrol.model.AwsCostForecast.MANAGED)
+                .stream().filter(f -> !f.isTotal()).map(CostForecastService::point).toList();
+        List<com.tcgdigital.vmcontrol.dto.LongRangeForecastDTO.RunRate> runRate = new ArrayList<>();
+        if (average != null) {
+            List<LocalDate> months = new ArrayList<>();
+            if (!monthly.isEmpty()) {
+                monthly.forEach(p -> months.add(p.periodStart().toLocalDate()));
+            } else {
+                LocalDate first = LocalDate.now().withDayOfMonth(1).plusMonths(1);
+                for (int i = 0; i < 18; i++) months.add(first.plusMonths(i));
+            }
+            for (LocalDate month : months) {
+                runRate.add(new com.tcgdigital.vmcontrol.dto.LongRangeForecastDTO.RunRate(Date.valueOf(month),
+                        average.multiply(BigDecimal.valueOf(month.lengthOfMonth())).setScale(2, RoundingMode.HALF_UP)));
+            }
+        }
+        return new com.tcgdigital.vmcontrol.dto.LongRangeForecastDTO(generated == null ? null : Date.valueOf(generated),
+                monthly, runRate, average);
+    }
+
     public CostForecastDTO getForecast(int historyDays, int forecastDays) {
         Date since = Date.valueOf(LocalDate.now().minusDays(historyDays));
         List<CostDailySnapshotRepository.DailyCostTotal> totals = costDailySnapshotRepository.findDailyTotalsSince(since);
@@ -42,15 +115,20 @@ public class CostForecastService {
             historyPoints.add(new CostForecastPointDTO(t.getSnapshotDate(), nullToZero(t.getTotalEstimatedCost()), false));
         }
 
+        // AWS's forecast for the same horizon, from the day after the last history point (E35-T02).
+        LocalDate lastHistory = historyPoints.isEmpty() ? LocalDate.now().minusDays(1)
+                : historyPoints.get(historyPoints.size() - 1).date().toLocalDate();
+        var aws = awsDaily(lastHistory, forecastDays);
+
         if (historyPoints.size() < MIN_HISTORY_DAYS) {
-            return new CostForecastDTO(historyPoints, false, historyPoints.size(), MIN_HISTORY_DAYS);
+            return withAws(new CostForecastDTO(historyPoints, false, historyPoints.size(), MIN_HISTORY_DAYS), aws);
         }
 
         List<CostForecastPointDTO> forecastPoints = projectForward(historyPoints, forecastDays);
 
         List<CostForecastPointDTO> allPoints = new ArrayList<>(historyPoints);
         allPoints.addAll(forecastPoints);
-        return new CostForecastDTO(allPoints, true, historyPoints.size(), MIN_HISTORY_DAYS);
+        return withAws(new CostForecastDTO(allPoints, true, historyPoints.size(), MIN_HISTORY_DAYS), aws);
     }
 
     /**

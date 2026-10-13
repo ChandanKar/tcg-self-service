@@ -17,6 +17,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -141,5 +142,87 @@ class CostForecastServiceTest {
             });
         }
         return totals;
+    }
+
+    // ---- AWS forecast alongside (E35-T02) ----
+
+    private com.tcgdigital.vmcontrol.model.AwsCostForecast aws(String granularity, LocalDate start, LocalDate end,
+                                                               String mean, boolean total) {
+        com.tcgdigital.vmcontrol.model.AwsCostForecast f = new com.tcgdigital.vmcontrol.model.AwsCostForecast();
+        f.setGranularity(granularity);
+        f.setPeriodStart(start);
+        f.setPeriodEnd(end);
+        f.setMean(new java.math.BigDecimal(mean));
+        f.setLowerBound(new java.math.BigDecimal(mean).subtract(java.math.BigDecimal.TEN));
+        f.setUpperBound(new java.math.BigDecimal(mean).add(java.math.BigDecimal.TEN));
+        f.setTotal(total);
+        return f;
+    }
+
+    @Test
+    void awsDailyPointsWithinTheHorizonAreAttached() {
+        LocalDate start = LocalDate.of(2026, 1, 1);
+        double[] costs = new double[20];
+        java.util.Arrays.fill(costs, 100);
+        when(costDailySnapshotRepository.findDailyTotalsSince(any())).thenReturn(buildTotals(start, costs));
+        LocalDate last = start.plusDays(19);
+        com.tcgdigital.vmcontrol.repository.AwsCostForecastRepository repo =
+                org.mockito.Mockito.mock(com.tcgdigital.vmcontrol.repository.AwsCostForecastRepository.class);
+        LocalDate generated = LocalDate.of(2026, 1, 19);
+        when(repo.latestGeneration("DAILY", "MANAGED")).thenReturn(generated);
+        when(repo.findByGeneratedOnAndGranularityAndScopeOrderByPeriodStart(generated, "DAILY", "MANAGED")).thenReturn(List.of(
+                aws("DAILY", last, last.plusDays(1), "90", false),                 // the last history day: not attached
+                aws("DAILY", last.plusDays(1), last.plusDays(2), "101", false),
+                aws("DAILY", last.plusDays(14), last.plusDays(15), "114", false),
+                aws("DAILY", last.plusDays(15), last.plusDays(16), "115", false), // past the 14-day horizon
+                aws("DAILY", last.plusDays(1), last.plusDays(91), "9000", true)));  // the total: not a point
+        service.setAwsForecasts(repo);
+
+        CostForecastDTO result = service.getForecast(30, 14);
+
+        assertEquals(2, result.awsDaily().size());
+        assertEquals(0, new java.math.BigDecimal("101").compareTo(result.awsDaily().get(0).mean()));
+        assertEquals(0, new java.math.BigDecimal("91").compareTo(result.awsDaily().get(0).lower()));
+        assertEquals(java.sql.Date.valueOf(generated), result.awsGeneratedOn());
+        assertTrue(result.sufficientHistory());
+    }
+
+    @Test
+    void withoutAnAwsForecastTheListIsEmpty() {
+        when(costDailySnapshotRepository.findDailyTotalsSince(any())).thenReturn(buildTotals(LocalDate.of(2026, 1, 1), new double[]{1, 2, 3}));
+        com.tcgdigital.vmcontrol.repository.AwsCostForecastRepository repo =
+                org.mockito.Mockito.mock(com.tcgdigital.vmcontrol.repository.AwsCostForecastRepository.class);
+        service.setAwsForecasts(repo);
+
+        CostForecastDTO result = service.getForecast(30, 14);
+
+        assertTrue(result.awsDaily().isEmpty());
+        assertNull(result.awsGeneratedOn());
+    }
+
+    @Test
+    void theLongRangePairsAwsMonthsWithThePlatformRunRate() {
+        when(costDailySnapshotRepository.findDailyTotalsSince(any())).thenReturn(buildTotals(LocalDate.of(2026, 1, 1), new double[]{10, 20, 30}));
+        com.tcgdigital.vmcontrol.repository.AwsCostForecastRepository repo =
+                org.mockito.Mockito.mock(com.tcgdigital.vmcontrol.repository.AwsCostForecastRepository.class);
+        LocalDate generated = LocalDate.of(2026, 10, 12);
+        when(repo.latestGeneration("MONTHLY", "MANAGED")).thenReturn(generated);
+        List<com.tcgdigital.vmcontrol.model.AwsCostForecast> months = new java.util.ArrayList<>();
+        for (int i = 0; i < 18; i++) {
+            LocalDate m = LocalDate.of(2026, 11, 1).plusMonths(i);
+            months.add(aws("MONTHLY", m, m.plusMonths(1), "600", false));
+        }
+        months.add(aws("MONTHLY", LocalDate.of(2026, 11, 1), LocalDate.of(2028, 5, 1), "10800", true));
+        when(repo.findByGeneratedOnAndGranularityAndScopeOrderByPeriodStart(generated, "MONTHLY", "MANAGED")).thenReturn(months);
+        service.setAwsForecasts(repo);
+
+        com.tcgdigital.vmcontrol.dto.LongRangeForecastDTO result = service.getLongRange();
+
+        assertEquals(18, result.awsMonthly().size());
+        assertEquals(18, result.platformRunRate().size());
+        assertEquals(0, new java.math.BigDecimal("20.00").compareTo(result.averageDailyCost()));
+        // November has 30 days: 20 x 30
+        assertEquals(0, new java.math.BigDecimal("600.00").compareTo(result.platformRunRate().get(0).amount()));
+        assertEquals(java.sql.Date.valueOf(generated), result.awsGeneratedOn());
     }
 }

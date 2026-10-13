@@ -438,6 +438,7 @@ const Config = (function() {
             commitmentInsights: `${API_BASE_URL}/cost-management/commitments/insights`,
             forecast: (historyDays = 30, forecastDays = 14) =>
                 `${API_BASE_URL}/cost-management/forecast?historyDays=${historyDays}&forecastDays=${forecastDays}`,
+            forecastLongRange: `${API_BASE_URL}/cost-management/forecast/long-range`,
             reservationsUtilization: `${API_BASE_URL}/cost-management/reservations/utilization`,
             setupStatus: `${API_BASE_URL}/cost-management/setup/status`,
             setupCheck: `${API_BASE_URL}/cost-management/setup/check`

@@ -72,4 +72,14 @@ class CostManagementControllerSecurityTest extends SecuredWebTestBase {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.probes.length()").value(0));
         org.mockito.Mockito.verifyNoInteractions(computeOptimizerService, costExplorerTagActivationService, awsCloudProviderService);
     }
+
+    @Test
+    void theLongRangeForecastIsForAdminsOnly() throws Exception {
+        // E35-T02
+        mockMvc.perform(get("/api/v1/cost-management/forecast/long-range").with(asAdmin()))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.awsMonthly").isArray());
+        mockMvc.perform(get("/api/v1/cost-management/forecast/long-range").with(asEnvAdmin()))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
+    }
 }

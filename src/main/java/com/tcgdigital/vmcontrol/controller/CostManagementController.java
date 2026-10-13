@@ -422,6 +422,13 @@ public class CostManagementController {
         return ResponseEntity.ok(costForecastService.getForecast(historyDays, forecastDays));
     }
 
+    /** AWS's 18-month forecast with the platform's run-rate for comparison (E35-T02). */
+    @GetMapping("/forecast/long-range")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<com.tcgdigital.vmcontrol.dto.LongRangeForecastDTO> getLongRangeForecast() {
+        return ResponseEntity.ok(costForecastService.getLongRange());
+    }
+
     @GetMapping("/setup/status")
     @PreAuthorize("hasRole('ADMIN')")
     @io.swagger.v3.oas.annotations.Operation(summary = "Cost feature switches and last runs (no AWS calls)")
