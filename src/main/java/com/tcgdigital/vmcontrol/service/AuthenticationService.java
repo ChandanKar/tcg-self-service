@@ -49,35 +49,35 @@ public class AuthenticationService {
     @Transactional
     public User authenticateUser(String username, String password) throws UnauthorizedException {
         if (!passwordLoginEnabled) {
-            throw new UnauthorizedException("Invalid credentials or user not found.");
+            throw new UnauthorizedException("Invalid username or password.");
         }
         if (username == null || username.isBlank() || password == null || password.isBlank()) {
             log.warn("Login attempt with empty username or password");
-            throw new UnauthorizedException("Invalid credentials or user not found.");
+            throw new UnauthorizedException("Invalid username or password.");
         }
 
         Optional<User> optionalUser = userRepository.findByUsername(username);
 
         if (optionalUser.isEmpty()) {
             log.warn("Login attempt for non-existent username: {}", username);
-            throw new UnauthorizedException("Invalid credentials or user not found.");
+            throw new UnauthorizedException("Invalid username or password.");
         }
 
         User user = optionalUser.get();
 
         if (user.isServiceAccount()) {
             log.warn("Password login attempt for service account {}", user.getUserId());
-            throw new UnauthorizedException("Invalid credentials or user not found.");
+            throw new UnauthorizedException("Invalid username or password.");
         }
 
         if (!user.isActive()) {
             log.warn("Login attempt for inactive user: {} ({})", username, user.getUserId());
-            throw new UnauthorizedException("Invalid credentials or user not found.");
+            throw new UnauthorizedException("Invalid username or password.");
         }
 
         if (user.getPassword() == null || user.getPassword().isBlank()) {
             log.warn("Login attempt for user without password configured: {}", username);
-            throw new UnauthorizedException("Invalid credentials or user not found.");
+            throw new UnauthorizedException("Invalid username or password.");
         }
 
         String stored = user.getPassword();
@@ -85,7 +85,7 @@ public class AuthenticationService {
 
         if (!authenticated) {
             log.warn("Failed login attempt for user: {}", username);
-            throw new UnauthorizedException("Invalid credentials or user not found.");
+            throw new UnauthorizedException("Invalid username or password.");
         }
 
         user.recordLogin();

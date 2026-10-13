@@ -44,7 +44,7 @@ import java.util.Optional;
 public class AuthController {
 
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
-    private static final String INVALID_CREDENTIALS = "Invalid credentials or user not found.";
+    private static final String INVALID_CREDENTIALS = "Invalid username or password.";
 
     private final AuthenticationService authenticationService;
     private final LoginThrottleService loginThrottleService;

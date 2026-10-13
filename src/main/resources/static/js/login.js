@@ -8,9 +8,7 @@
 
     const SIGN_IN_LABEL = '<i class="fas fa-sign-in-alt" aria-hidden="true"></i> Sign In';
     const SIGNING_IN_LABEL = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Signing in...';
-    const DEFAULT_ERROR = 'Invalid credentials or user not found.';
-
-    let errorTimer = null;
+    const DEFAULT_ERROR = 'Invalid username or password.';
 
     function show(el) {
         if (el) el.classList.remove('d-none');
@@ -26,12 +24,10 @@
         if (!errorAlert || !errorMessage) return;
         errorMessage.textContent = message;
         show(errorAlert);
-        clearTimeout(errorTimer);
-        errorTimer = setTimeout(() => hide(errorAlert), 5000);
     }
 
+    /** The message stays until the user edits a field or tries again (no timer: WCAG 2.2.1). */
     function hideError() {
-        clearTimeout(errorTimer);
         hide(document.getElementById('errorAlert'));
     }
 
@@ -137,5 +133,9 @@
         applySignInOptions();
         const loginForm = document.getElementById('loginForm');
         if (loginForm) loginForm.addEventListener('submit', submitLogin);
+        ['username', 'password'].forEach(function (id) {
+            const field = document.getElementById(id);
+            if (field) field.addEventListener('input', hideError);
+        });
     });
 })();
