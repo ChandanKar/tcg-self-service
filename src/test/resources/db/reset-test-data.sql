@@ -52,6 +52,8 @@ DELETE FROM environment;
 DELETE FROM chargeback_statement;
 DELETE FROM chat_action_token;
 DELETE FROM api_token;
+DELETE FROM webhook_delivery;
+DELETE FROM webhook_subscription;
 DELETE FROM external_ticket;
 DELETE FROM approval_decision;
 DELETE FROM approval_request_approver;

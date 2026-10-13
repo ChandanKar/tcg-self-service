@@ -114,6 +114,7 @@ public class ApiScopeRegistry {
             new Rule(Kind.ANY, "/api/v1/approval-policies/**", ApiScope.ADMIN),
             new Rule(Kind.ANY, "/api/v1/integrations/**", ApiScope.ADMIN),
             new Rule(Kind.ANY, "/api/v1/directory/**", ApiScope.ADMIN),
+            new Rule(Kind.ANY, "/api/v1/webhooks/**", ApiScope.ADMIN),
             new Rule(Kind.ANY, "/api/ec2/**", ApiScope.ADMIN)
     );
 

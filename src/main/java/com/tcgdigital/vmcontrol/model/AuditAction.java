@@ -71,6 +71,10 @@ public enum AuditAction {
     // Service accounts (E34-T03)
     SERVICE_ACCOUNT_CREATED,
     SERVICE_ACCOUNT_DEACTIVATED,
+    // Webhooks (E34-T06)
+    WEBHOOK_CREATED,
+    WEBHOOK_UPDATED,
+    WEBHOOK_DELETED,
 
     // Lock operations
     LOCK_ACQUIRED,

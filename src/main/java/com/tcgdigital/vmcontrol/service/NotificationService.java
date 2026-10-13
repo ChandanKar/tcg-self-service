@@ -533,6 +533,14 @@ public class NotificationService {
                 title, message);
     }
 
+    /** A webhook kept failing and was disabled (E34-T06): its creator hears it. */
+    public void notifyWebhookDisabled(String creatorUserId, String webhookId, String label, String reason) {
+        if (creatorUserId == null) return;
+        create(creatorUserId, NotificationType.OPERATION_FAILED, "Webhook disabled: " + label,
+                "The webhook '" + label + "' was disabled: " + reason + ". Fix the receiver, then enable it again.",
+                "WEBHOOK", webhookId);
+    }
+
     /** A safe resize failed and its rollback too: the environment's admins must fix the VM (E30-T06). */
     public void notifyResizeNeedsAttention(String environmentId, String vmId, String title, String message) {
         resolveEnvironmentReviewers(environmentId).forEach(u -> create(u.getUserId(), NotificationType.OPERATION_FAILED,
