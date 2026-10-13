@@ -144,11 +144,29 @@ public class ScheduledJobLockService {
         return ownerId;
     }
 
+    /**
+     * {@code host-pid@start}: the start part tells a restarted process from the one before it even
+     * when host and pid repeat, as they do in a container (the JVM is pid 1 and the container keeps
+     * its hostname across restarts).
+     */
     private String resolveOwnerId() {
+        String start = Long.toString(ProcessHandle.current().info().startInstant()
+                .map(java.time.Instant::toEpochMilli).orElseGet(System::currentTimeMillis), 36);
         try {
-            return InetAddress.getLocalHost().getHostName() + "-" + ProcessHandle.current().pid();
+            return InetAddress.getLocalHost().getHostName() + "-" + ProcessHandle.current().pid() + "@" + start;
         } catch (Exception e) {
-            return "vmcontrol-" + ProcessHandle.current().pid();
+            return "vmcontrol-" + ProcessHandle.current().pid() + "@" + start;
         }
+    }
+
+    /** The host part of an owner id ({@code host-pid} or {@code host-pid@start}), or null when it has none. */
+    public static String hostOf(String ownerId) {
+        if (ownerId == null) return null;
+        int at = ownerId.lastIndexOf('@');
+        String base = at < 0 ? ownerId : ownerId.substring(0, at);
+        int dash = base.lastIndexOf('-');
+        if (dash <= 0) return null;
+        String pid = base.substring(dash + 1);
+        return !pid.isEmpty() && pid.chars().allMatch(Character::isDigit) ? base.substring(0, dash) : null;
     }
 }

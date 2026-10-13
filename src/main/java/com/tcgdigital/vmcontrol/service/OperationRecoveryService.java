@@ -95,30 +95,28 @@ public class OperationRecoveryService {
         return failed;
     }
 
-    /** Runs this host started under another pid are dead whatever their age: this process restarted. */
+    /**
+     * Runs this host started in another process are dead whatever their age: this process
+     * restarted. Another process means another pid or, with the same pid (a restarted container),
+     * another start time.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public int failInterruptedOnThisHost() {
         String self = executorId();
-        int dash = self.lastIndexOf('-');
-        if (dash <= 0) {
+        String host = ScheduledJobLockService.hostOf(self);
+        if (host == null) {
             return 0;
         }
-        String hostPrefix = self.substring(0, dash + 1);
         int failed = 0;
         for (OperationExecution execution : executionRepository.findActiveWithEnvironment(null)) {
             String executor = execution.getExecutorId();
-            if (executor != null && executor.startsWith(hostPrefix) && !executor.equals(self)
-                    && isPid(executor.substring(hostPrefix.length()))) {
+            if (executor != null && !executor.equals(self) && host.equals(ScheduledJobLockService.hostOf(executor))) {
                 if (fail(execution, "Interrupted: the application restarted while this operation was running")) {
                     failed++;
                 }
             }
         }
         return failed;
-    }
-
-    private static boolean isPid(String value) {
-        return !value.isEmpty() && value.chars().allMatch(Character::isDigit);
     }
 
     private boolean fail(OperationExecution execution, String message) {

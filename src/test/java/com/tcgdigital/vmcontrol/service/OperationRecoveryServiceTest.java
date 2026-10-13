@@ -56,6 +56,7 @@ class OperationRecoveryServiceTest extends AbstractIntegrationTest {
     @Autowired private AuditLogRepository auditLogs;
     @Autowired private ApplicationEventPublisher events;
     @Autowired private ConfigurableApplicationContext context;
+    @Autowired private com.tcgdigital.vmcontrol.scheduler.OperationStaleSweepScheduler staleSweep;
 
     private Environment env;
     private Vm vm;
@@ -101,7 +102,13 @@ class OperationRecoveryServiceTest extends AbstractIntegrationTest {
 
     private String thisHostWithAnotherPid() {
         String self = recovery.executorId();
-        return self.substring(0, self.lastIndexOf('-') + 1) + "999999999";
+        return ScheduledJobLockService.hostOf(self) + "-999999999";
+    }
+
+    /** What a restarted container looks like: same host, same pid, an earlier start. */
+    private String thisHostSamePidEarlierStart() {
+        String self = recovery.executorId();
+        return self.substring(0, self.lastIndexOf('@')) + "@0";
     }
 
     private OperationExecution reload(OperationExecution e) {
@@ -113,6 +120,37 @@ class OperationRecoveryServiceTest extends AbstractIntegrationTest {
         dto.setOperationType(OperationType.START);
         dto.setSkipAlreadyInTargetState(false);
         return dto;
+    }
+
+    @Test
+    void startupFailsARunOfARestartedContainerWithTheSamePid() {
+        OperationExecution interrupted = inFlight(thisHostSamePidEarlierStart(), Instant.now());
+
+        events.publishEvent(new ApplicationReadyEvent(new SpringApplication(), new String[0], context, Duration.ZERO));
+
+        OperationExecution after = reload(interrupted);
+        assertThat(after.getStatus()).isEqualTo(ExecutionStatus.FAILED);
+        assertThat(after.getErrorMessage()).isEqualTo("Interrupted: the application restarted while this operation was running");
+    }
+
+    @Test
+    void theSweepFailsAStaleRunWithoutWaitingForANewOperation() {
+        OperationExecution stale = inFlight("another-host-7@1", Instant.now().minus(Duration.ofMinutes(31)));
+
+        staleSweep.sweep();
+
+        assertThat(reload(stale).getStatus()).isEqualTo(ExecutionStatus.FAILED);
+        assertThat(reload(stale).getErrorMessage()).isEqualTo("Interrupted: no progress for 30 minutes (application restart?)");
+    }
+
+    @Test
+    void ownerIdsParseWithAndWithoutTheStartPart() {
+        assertThat(ScheduledJobLockService.hostOf("ip-10-0-0-1-1@k9x2")).isEqualTo("ip-10-0-0-1");
+        assertThat(ScheduledJobLockService.hostOf("a1b2c3d4e5f6-1")).isEqualTo("a1b2c3d4e5f6");
+        assertThat(ScheduledJobLockService.hostOf("host.example.com-42@1")).isEqualTo("host.example.com");
+        assertThat(ScheduledJobLockService.hostOf("nopid")).isNull();
+        assertThat(ScheduledJobLockService.hostOf("host-abc")).isNull();
+        assertThat(recovery.executorId()).contains("@");
     }
 
     @Test
