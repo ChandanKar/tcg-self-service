@@ -1,7 +1,9 @@
 package com.tcgdigital.vmcontrol.service.carbon;
 
+import com.tcgdigital.vmcontrol.model.AwsAccount;
 import com.tcgdigital.vmcontrol.model.CarbonMonthly;
 import com.tcgdigital.vmcontrol.model.EnvironmentCarbonMonthly;
+import com.tcgdigital.vmcontrol.repository.AwsAccountRepository;
 import com.tcgdigital.vmcontrol.repository.CarbonMonthlyRepository;
 import com.tcgdigital.vmcontrol.repository.EnvironmentCarbonMonthlyRepository;
 import com.tcgdigital.vmcontrol.support.AbstractIntegrationTest;
@@ -24,6 +26,7 @@ class CarbonAttributionServiceTest extends AbstractIntegrationTest {
     @Autowired private CarbonAttributionService service;
     @Autowired private CarbonMonthlyRepository carbonRepository;
     @Autowired private EnvironmentCarbonMonthlyRepository attributedRepository;
+    @Autowired private AwsAccountRepository accountRepository;
 
     private static CarbonMonthly carbon(String account, String region, String serviceCode, String mbm, String lbm) {
         CarbonMonthly c = new CarbonMonthly();
@@ -101,7 +104,10 @@ class CarbonAttributionServiceTest extends AbstractIntegrationTest {
 
     @Test
     void reRunningAMonthReplacesItsRows() {
-        carbonRepository.save(carbon("111111111111", "me-central-1", "AmazonEC2", "12", "6"));
+        // Only the accounts the platform knows count; AWS accounts are not reset between tests.
+        String account = accountRepository.findAll().stream().map(AwsAccount::getAccountNumber)
+                .filter(n -> n != null && !n.isBlank()).findFirst().orElse("111111111111");
+        carbonRepository.save(carbon(account, "me-central-1", "AmazonEC2", "12", "6"));
 
         service.attributeMonth(YearMonth.of(2026, 8));
         service.attributeMonth(YearMonth.of(2026, 8));

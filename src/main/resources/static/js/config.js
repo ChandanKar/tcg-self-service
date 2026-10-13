@@ -87,6 +87,8 @@ const Config = (function() {
             get: (id) => `${API_BASE_URL}/environments/${id}`,
             insights: (id) => `${API_BASE_URL}/environments/${id}/insights`,
             cost: (id) => `${API_BASE_URL}/environments/${encodeURIComponent(id)}/cost`,
+            // Carbon (E37-T03); 404 while carbon.enabled is off
+            carbon: (id) => `${API_BASE_URL}/environments/${encodeURIComponent(id)}/carbon`,
             eksWorkloadCost: (id, days = 7) => `${API_BASE_URL}/environments/${encodeURIComponent(id)}/eks-workload-cost?days=${days}`,
             create: `${API_BASE_URL}/environments`,
             update: (id) => `${API_BASE_URL}/environments/${id}`,
@@ -403,6 +405,9 @@ const Config = (function() {
         // Cost Management (admin only)
         costManagement: {
             summary: `${API_BASE_URL}/cost-management/summary`,
+            // Carbon by environment (E37-T03); 404 while carbon.enabled is off
+            carbon: (month) => `${API_BASE_URL}/cost-management/carbon` + (month ? `?month=${encodeURIComponent(month)}` : ''),
+            carbonExport: (month) => `${API_BASE_URL}/cost-management/carbon/export` + (month ? `?month=${encodeURIComponent(month)}` : ''),
             spendByEnvironment: `${API_BASE_URL}/cost-management/spend-by-environment`,
             spendByVmType: `${API_BASE_URL}/cost-management/spend-by-vm-type`,
             spendByAccount: `${API_BASE_URL}/cost-management/spend-by-account`,

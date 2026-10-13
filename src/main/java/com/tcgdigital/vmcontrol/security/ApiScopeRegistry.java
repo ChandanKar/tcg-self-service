@@ -82,6 +82,7 @@ public class ApiScopeRegistry {
             new Rule(Kind.READ, "/api/v1/environments/*/savings", ApiScope.COST_READ),
             new Rule(Kind.READ, "/api/v1/environments/*/budget", ApiScope.COST_READ),
             new Rule(Kind.READ, "/api/v1/environments/*/spot-summary", ApiScope.COST_READ),
+            new Rule(Kind.READ, "/api/v1/environments/*/carbon", ApiScope.COST_READ),
 
             // Environments, their groups and VMs: reading; changing the registry is admin work
             new Rule(Kind.READ, "/api/v1/environments/**", ApiScope.ENVIRONMENTS_READ),

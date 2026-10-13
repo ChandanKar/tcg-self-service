@@ -2,7 +2,8 @@
  * Cost card on the environment detail page (E18-T03, G7): month to date with the change against
  * last month, actuals, a run-rate forecast, a 30-day trend, the top VMs, the next scheduled
  * stop/start and savings. Loads after the page renders and never blocks it; a late response for
- * an environment no longer shown is dropped.
+ * an environment no longer shown is dropped. With carbon data on (E37-T03), last month's attributed
+ * emissions and a 12-month sparkline follow.
  */
 const EnvCost = (function() {
     'use strict';
@@ -46,6 +47,7 @@ const EnvCost = (function() {
                 $card.html(buildCard(cost));
                 drawTrend(cost);
                 addWorkloads($card, env, cost);
+                if (cost.scope !== 'GROUPS') addCarbon($card, env, token);
                 ContentRouter.onLeave(disposeChart);
             })
             .fail(function() {
@@ -55,6 +57,39 @@ const EnvCost = (function() {
                 $card.data('env', env);
             });
         $card.data('env', env);
+    }
+
+    /** Last full month's carbon and a 12-month sparkline (E37-T03); nothing while carbon is off or has no data. */
+    function addCarbon($card, env, token) {
+        ApiClient.get(Config.API.environments.carbon(env.environmentId), { suppressGlobalError: true })
+            .done(function(carbon) {
+                if (!ContentRouter.isCurrent(token) || !carbon || !carbon.latestMonth) return;
+                const kg = carbon.latestMbmKg !== null && carbon.latestMbmKg !== undefined ? carbon.latestMbmKg : carbon.latestLbmKg;
+                const basis = carbon.latestMbmKg !== null && carbon.latestMbmKg !== undefined ? 'market-based' : 'location-based';
+                const label = new Date(carbon.latestMonth + '-01T00:00:00Z').toLocaleDateString([], { month: 'short', year: 'numeric', timeZone: 'UTC' });
+                $card.find('.env-cost-card .card-body').append(Utils.html`
+                    <div class="env-carbon border-top mt-2 pt-2 d-flex align-items-center gap-2 small" id="env-carbon">
+                        <i class="fas fa-leaf text-success" aria-hidden="true"></i>
+                        <span>Carbon (${label}): <strong id="env-carbon-kg">${formatKg(kg)} kg CO₂e</strong> (${basis})</span>
+                        <i class="fas fa-info-circle text-muted" tabindex="0" role="img" aria-label="${carbon.coverageNote}" title="${carbon.coverageNote}"></i>
+                        ${Utils.raw(sparkline(carbon.months || []))}
+                    </div>`);
+            });
+    }
+
+    function formatKg(kg) {
+        const n = Number(kg);
+        return n >= 100 ? Math.round(n).toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+    }
+
+    /** An inline SVG polyline of the monthly kg (gaps for months without data count as zero). */
+    function sparkline(months) {
+        const values = months.map(m => Number(m.mbmKg !== null && m.mbmKg !== undefined ? m.mbmKg : (m.lbmKg || 0)));
+        if (values.filter(v => v > 0).length < 2) return '';
+        const w = 96, h = 22, max = Math.max(...values) || 1;
+        const points = values.map((v, i) => `${(i * w / (values.length - 1)).toFixed(1)},${(h - 2 - v / max * (h - 4)).toFixed(1)}`).join(' ');
+        return `<svg class="env-carbon-spark ms-auto" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img"
+                     aria-label="Carbon, last 12 months"><polyline fill="none" stroke="currentColor" stroke-width="1.5" points="${points}"/></svg>`;
     }
 
     /** EKS environments seen whole get a Workloads section, loaded when first opened (E26-T05). */

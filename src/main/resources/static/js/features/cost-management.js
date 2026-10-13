@@ -24,6 +24,9 @@ const CostManagement = (function() {
         spendByAccount: [],
         eksEnvironments: [],
         commitments: null,
+        // E37-T03: carbon by environment for carbonMonth (null: the newest month with data); null while off
+        carbon: null,
+        carbonMonth: null,
         spendByVmType: [],
         teamTrend: [],
         trend: [],
@@ -115,6 +118,8 @@ const CostManagement = (function() {
 
     // Panel requests show their own error with Retry; no global toast for a server error.
     const PANEL_REQUEST = { quietServerErrors: true };
+    // A feature that may be switched off (404): no toast at all.
+    const OPTIONAL_REQUEST = { quietServerErrors: true, suppressGlobalError: true };
 
     function mapPage(pageData) {
         // Spring Data serializes Page<T> as { content: [...], page: { size, number, totalElements, totalPages } }
@@ -163,6 +168,9 @@ const CostManagement = (function() {
         },
         reservationCoverage: { url: () => Config.API.costManagement.reservationsCoverage(TREND_DAYS), apply: d => { state.reservationCoverage = d || []; } },
         commitments: { url: () => Config.API.costManagement.commitmentInsights, apply: d => { state.commitments = d || null; } },
+        // 404 while carbon is off: the panel stays hidden instead of showing an error
+        carbon: { url: () => Config.API.costManagement.carbon(state.carbonMonth), optional: true,
+            apply: d => { state.carbon = d && d.month ? d : null; } },
         forecast: { url: () => Config.API.costManagement.forecast(30, 14), apply: d => { state.forecast = d || null; } },
         idle: { url: () => Config.API.costManagement.idleWaste(state.idle.page, PAGE_SIZE), apply: d => { state.idle = mapPage(d); } },
         rightsizing: { url: () => Config.API.costManagement.rightsizing(state.rightsizing.page, PAGE_SIZE, state.rightsizingDirection), apply: d => { state.rightsizing = mapPage(d); } },
@@ -184,9 +192,15 @@ const CostManagement = (function() {
 
     /** Fetch the given keys; resolves once all settled, recording failures in state.errors. */
     function fetchKeys(keys) {
-        return Promise.allSettled(keys.map(key => fetchJson(REQUESTS[key].url(), PANEL_REQUEST))).then(results => {
+        return Promise.allSettled(keys.map(key => fetchJson(REQUESTS[key].url(),
+                REQUESTS[key].optional ? OPTIONAL_REQUEST : PANEL_REQUEST))).then(results => {
             results.forEach((result, i) => {
                 const key = keys[i];
+                if (result.status === 'rejected' && REQUESTS[key].optional && result.reason && result.reason.status === 404) {
+                    delete state.errors[key];
+                    REQUESTS[key].apply(null);
+                    return;
+                }
                 if (result.status === 'fulfilled') {
                     delete state.errors[key];
                     REQUESTS[key].apply(result.value);
@@ -345,6 +359,7 @@ const CostManagement = (function() {
                     ${panelSlot('idle')}
                     ${panelSlot('rightsizing')}
                     ${panelSlot('spot')}
+                    ${panelSlot('carbon')}
                     ${panelSlot('detail')}
                 </div>
             </div>
@@ -397,12 +412,89 @@ const CostManagement = (function() {
         rightsizing: { keys: ['rightsizing'], label: 'rightsizing recommendations', build: () => buildRightsizingTable() },
         detail: { keys: ['detail'], label: 'VM cost detail', build: () => buildVmDetailTable() },
         spot: { keys: ['spotOpportunities'], label: 'Spot opportunities', build: () => buildSpotPanel() },
+        carbon: {
+            keys: ['carbon'], label: 'carbon footprint', build: () => buildCarbonPanel(),
+            charts: () => state.carbon && (state.carbon.trend || []).length ? [['cost-chart-carbon', buildCarbonOption(state.carbon)]] : []
+        },
         anomalies: { keys: ['anomalies', 'anomalyMonitors'], label: 'cost anomalies', build: () => buildAnomaliesPanel() },
         workloads: {
             keys: ['eksEnvironments'], label: 'EKS workload cost', build: () => buildWorkloadsPanel(),
             after: () => mountWorkloads()
         }
     };
+
+    // ---- carbon (E37-T03): attributed by cost share, published monthly by AWS with a delay ----
+    function kg(v) {
+        if (v === null || v === undefined) return '<span class="text-muted">-</span>';
+        const n = Number(v);
+        return Utils.escapeHtml(n >= 100 ? Math.round(n).toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 2 }));
+    }
+
+    function monthLabel(m) {
+        return new Date(m + '-01T00:00:00Z').toLocaleDateString([], { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    }
+
+    function buildCarbonPanel() {
+        const c = state.carbon;
+        if (!c) return '';
+        const options = (c.availableMonths || []).map(m =>
+            `<option value="${Utils.escapeHtml(m)}"${m === c.month ? ' selected' : ''}>${Utils.escapeHtml(monthLabel(m))}</option>`).join('');
+        const money = v => v == null ? '<span class="text-muted">-</span>' : Utils.escapeHtml(Utils.formatCurrency(Number(v)));
+        const body = (c.rows || []).map(r => `
+            <tr class="${r.unallocated ? 'carbon-unallocated' : ''}" data-carbon-env="${Utils.escapeHtml(r.environmentId || 'unallocated')}">
+                <td>${r.unallocated ? '<em>Unallocated</em>' : Utils.escapeHtml(r.environmentName)}</td>
+                <td class="cost-num">${kg(r.mbmKg)}</td>
+                <td class="cost-num">${kg(r.lbmKg)}</td>
+                <td class="cost-num">${r.unallocated ? '' : money(r.cost)}</td>
+                <td class="cost-num">${r.kgPerDollar == null ? '' : Utils.escapeHtml(Number(r.kgPerDollar).toFixed(3))}</td>
+            </tr>`).join('');
+        const total = c.totalMbmKg != null ? c.totalMbmKg : c.totalLbmKg;
+        const coverage = c.coveragePct == null ? ''
+            : `; <strong>${Utils.escapeHtml(Number(c.coveragePct).toFixed(1))}%</strong> attributed to environments`;
+        return `
+            <section class="cost-table-card carbon-panel" aria-labelledby="cost-carbon-title">
+                <div class="cost-table-header d-flex flex-wrap align-items-center gap-2">
+                    <h2 id="cost-carbon-title" class="me-auto">Carbon footprint</h2>
+                    <label class="visually-hidden" for="cost-carbon-month">Month</label>
+                    <select id="cost-carbon-month" class="form-select form-select-sm w-auto" data-action-change="cost-carbon-month">${options}</select>
+                    <a class="btn btn-ghost btn-sm" id="cost-carbon-export" href="${Utils.escapeHtml(Config.API.costManagement.carbonExport(c.month))}"
+                       download><i class="fas fa-file-excel"></i> Export</a>
+                </div>
+                <div class="small mb-2" id="cost-carbon-summary">Total <strong>${kg(total)} kg CO\u2082e</strong>
+                    (${c.totalMbmKg != null ? 'market-based' : 'location-based'}) in ${Utils.escapeHtml(monthLabel(c.month))}${coverage}</div>
+                <div class="table-responsive">
+                    <table class="table table-baseline table-sm cost-table" id="cost-carbon-table">
+                        <thead><tr><th scope="col">Environment</th><th scope="col" class="cost-num">kg CO\u2082e (market)</th>
+                            <th scope="col" class="cost-num">kg CO\u2082e (location)</th><th scope="col" class="cost-num">Cost</th>
+                            <th scope="col" class="cost-num">kg per $</th></tr></thead>
+                        <tbody>${body}</tbody>
+                    </table>
+                </div>
+                <div id="cost-chart-carbon" class="dashboard-chart carbon-chart" aria-label="Carbon by month, attributed and unallocated"></div>
+                <p class="small text-muted mb-0">Estimated by cost share from AWS Customer Carbon Footprint data, per account, region
+                    and service. AWS publishes it monthly with a delay of several weeks. Unallocated is what no environment's cost covers.</p>
+            </section>`;
+    }
+
+    function buildCarbonOption(c) {
+        const months = (c.trend || []).map(p => p.month);
+        return {
+            grid: { left: 48, right: 16, top: 28, bottom: 28 },
+            legend: { top: 0 },
+            tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 })} kg` },
+            xAxis: { type: 'category', data: months },
+            yAxis: { type: 'value', name: 'kg CO\u2082e' },
+            series: [
+                { name: 'Environments', type: 'bar', stack: 'carbon', data: c.trend.map(p => Number(p.attributedKg)) },
+                { name: 'Unallocated', type: 'bar', stack: 'carbon', data: c.trend.map(p => Number(p.unallocatedKg)) }
+            ]
+        };
+    }
+
+    function setCarbonMonth(month) {
+        state.carbonMonth = month || null;
+        fetchKeys(['carbon']).then(() => { if (isActive()) renderPanel('carbon'); });
+    }
 
     /**
      * On-demand VMs and node groups of Spot-eligible environments with what Spot would have saved
@@ -1961,7 +2053,7 @@ const CostManagement = (function() {
 
             // html2canvas cannot reliably snapshot live SVG-rendered ECharts, so swap each
             // chart <div> for a static <img> taken from the chart's own dataURL first.
-            ['cost-chart-env', 'cost-chart-type', 'cost-chart-team', 'cost-chart-trend', 'cost-chart-reservations', 'cost-chart-commitments', 'cost-chart-account'].forEach(id => {
+            ['cost-chart-env', 'cost-chart-type', 'cost-chart-team', 'cost-chart-trend', 'cost-chart-reservations', 'cost-chart-commitments', 'cost-chart-account', 'cost-chart-carbon'].forEach(id => {
                 const liveEl = document.getElementById(id);
                 const cloneEl = clone.querySelector('#' + id);
                 const instance = chartRegistry.get(id);
@@ -2008,7 +2100,8 @@ const CostManagement = (function() {
         setRightsizingDirection,
         toggleOptions,
         setForecastRange,
-        openFocusExport
+        openFocusExport,
+        setCarbonMonth
     };
 })();
 
@@ -2024,3 +2117,4 @@ Actions.registerAll({
     'cost-focus-export': () => CostManagement.openFocusExport()
 });
 Actions.register('cost-eks-env', el => CostManagement.showWorkloads(el.value), 'change');
+Actions.register('cost-carbon-month', el => CostManagement.setCarbonMonth(el.value), 'change');
