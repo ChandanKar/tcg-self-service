@@ -65,6 +65,11 @@ public class AuthenticationService {
 
         User user = optionalUser.get();
 
+        if (user.isServiceAccount()) {
+            log.warn("Password login attempt for service account {}", user.getUserId());
+            throw new UnauthorizedException("Invalid credentials or user not found.");
+        }
+
         if (!user.isActive()) {
             log.warn("Login attempt for inactive user: {} ({})", username, user.getUserId());
             throw new UnauthorizedException("Invalid credentials or user not found.");

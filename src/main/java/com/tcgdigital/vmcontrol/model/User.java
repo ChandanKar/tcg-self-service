@@ -66,6 +66,30 @@ public class User {
     @Column(name = "previous_login_at")
     private Timestamp previousLoginAt;
 
+    /** A service account (E34-T03, V85): never signs in, acts only through admin-issued tokens. */
+    @Column(name = "is_service_account", nullable = false)
+    private boolean serviceAccount;
+
+    /** The person responsible for a service account. */
+    @Column(name = "service_owner_user_id", length = 36)
+    private String serviceOwnerUserId;
+
+    public boolean isServiceAccount() {
+        return serviceAccount;
+    }
+
+    public void setServiceAccount(boolean serviceAccount) {
+        this.serviceAccount = serviceAccount;
+    }
+
+    public String getServiceOwnerUserId() {
+        return serviceOwnerUserId;
+    }
+
+    public void setServiceOwnerUserId(String serviceOwnerUserId) {
+        this.serviceOwnerUserId = serviceOwnerUserId;
+    }
+
     /** user_id of the admin who onboarded this row from the panel; null for self-registered / legacy. */
     @Column(name = "onboarded_by", length = 36)
     private String onboardedBy;

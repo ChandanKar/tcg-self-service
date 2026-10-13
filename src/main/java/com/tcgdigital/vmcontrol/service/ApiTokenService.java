@@ -142,6 +142,7 @@ public class ApiTokenService {
         t.setTokenPrefix(prefix);
         t.setTokenHash(hash(token));
         t.setScopes(String.join(",", scopes));
+        t.setKind(user.isServiceAccount() ? "SERVICE" : "PERSONAL");
         t.setExpiresAt(Timestamp.from(now.plus(Duration.ofDays(days))));
         t.setCreatedAt(Timestamp.from(now));
         repository.saveAndFlush(t);

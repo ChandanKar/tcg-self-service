@@ -68,6 +68,9 @@ public enum AuditAction {
     // API tokens (E34-T01)
     API_TOKEN_CREATED,
     API_TOKEN_REVOKED,
+    // Service accounts (E34-T03)
+    SERVICE_ACCOUNT_CREATED,
+    SERVICE_ACCOUNT_DEACTIVATED,
 
     // Lock operations
     LOCK_ACQUIRED,

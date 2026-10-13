@@ -32,6 +32,9 @@ public interface UserRepository extends JpaRepository<User, String> {
      */
     Optional<User> findByUsername(String username);
 
+    /** Service accounts (E34-T03), active or not. */
+    java.util.List<User> findByServiceAccountTrueOrderByEmail();
+
     /**
      * Find all active users.
      */

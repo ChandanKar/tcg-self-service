@@ -96,6 +96,11 @@ public class UserService {
         Optional<User> userByEmail = userRepository.findByEmail(email);
         if (userByEmail.isPresent()) {
             User user = userByEmail.get();
+            if (user.isServiceAccount()) {
+                // A service account never signs in (E34-T03): no directory account may take it over.
+                log.warn("Refusing Entra sign-in for {}: it is a service account", email);
+                throw new AccountConflictException(user.getUserId());
+            }
             String linkedOid = user.getAzureAdObjectId();
             if (linkedOid != null && !linkedOid.equals(azureAdObjectId)) {
                 // Another directory account owns this row: adopting it would hand over its access.

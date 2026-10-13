@@ -23,6 +23,16 @@ public class UserDTO {
     private boolean unverified;
     /** Username for password sign-in; null for Entra-only accounts. */
     private String username;
+    /** A service account (E34-T03): no sign-in, tokens only. */
+    private boolean serviceAccount;
+
+    public boolean isServiceAccount() {
+        return serviceAccount;
+    }
+
+    public void setServiceAccount(boolean serviceAccount) {
+        this.serviceAccount = serviceAccount;
+    }
     /** Whether a password is set (the hash itself is never exposed). */
     private boolean hasPassword;
 
@@ -47,6 +57,7 @@ public class UserDTO {
         dto.setUnverified(onboarded && user.getAzureAdObjectId() == null);
         dto.setUsername(user.getUsername());
         dto.setHasPassword(user.getPassword() != null && !user.getPassword().isBlank());
+        dto.setServiceAccount(user.isServiceAccount());
         return dto;
     }
 

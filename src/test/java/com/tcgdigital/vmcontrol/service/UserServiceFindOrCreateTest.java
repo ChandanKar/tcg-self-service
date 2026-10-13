@@ -169,4 +169,18 @@ class UserServiceFindOrCreateTest {
 
         assertFalse(result.isAdmin());
     }
+
+    @Test
+    void aServiceAccountIsNeverTakenOverByASignIn() {
+        // E34-T03
+        User bot = existing("u-bot", null, "ci-bot@service.local", "Service: ci-bot");
+        bot.setServiceAccount(true);
+        when(userRepository.findByAzureAdObjectId("oid-x")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("ci-bot@service.local")).thenReturn(Optional.of(bot));
+
+        assertThrows(com.tcgdigital.vmcontrol.exception.AccountConflictException.class,
+                () -> service.findOrCreateUser("oid-x", "ci-bot@service.local", "Someone"));
+        assertNull(bot.getAzureAdObjectId());
+        verify(userRepository, never()).save(any(User.class));
+    }
 }

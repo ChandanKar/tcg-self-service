@@ -245,7 +245,10 @@ const UserManagement = (function() {
         const lastLogin = user.lastLoginAt ? Utils.formatRelativeTime(user.lastLoginAt) : 'Never';
 
         const onboardBadges = [
-            user.pendingFirstLogin
+            user.serviceAccount
+                ? '<span class="onboard-badge onboard-badge-service" title="Service account: never signs in, acts only through API tokens">Service account</span>'
+                : '',
+            user.pendingFirstLogin && !user.serviceAccount
                 ? '<span class="onboard-badge onboard-badge-pending" title="Onboarded from the panel — has not signed in yet">Not signed in</span>'
                 : '',
             user.unverified

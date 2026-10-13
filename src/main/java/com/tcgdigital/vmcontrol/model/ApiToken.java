@@ -54,6 +54,13 @@ public class ApiToken {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Timestamp createdAt;
 
+    /** PERSONAL, or SERVICE for a service account's token (E34-T03, V85). */
+    @Column(name = "kind", nullable = false, length = 20)
+    private String kind = "PERSONAL";
+
+    public String getKind() { return kind; }
+    public void setKind(String kind) { this.kind = kind; }
+
     public List<String> scopeList() {
         return scopes == null || scopes.isBlank() ? List.of() : Arrays.stream(scopes.split(",")).map(String::trim).toList();
     }

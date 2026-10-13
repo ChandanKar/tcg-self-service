@@ -14,10 +14,11 @@ public record ApiTokenDTO(
         Timestamp expiresAt,
         Timestamp lastUsedAt,
         Timestamp createdAt,
-        Timestamp revokedAt
+        Timestamp revokedAt,
+        String kind
 ) {
     public static ApiTokenDTO from(ApiToken t) {
         return new ApiTokenDTO(t.getTokenId(), t.getName(), t.getTokenPrefix(), t.scopeList(), t.getExpiresAt(),
-                t.getLastUsedAt(), t.getCreatedAt(), t.getRevokedAt());
+                t.getLastUsedAt(), t.getCreatedAt(), t.getRevokedAt(), t.getKind());
     }
 }

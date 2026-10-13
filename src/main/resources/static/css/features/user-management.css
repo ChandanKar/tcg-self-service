@@ -352,6 +352,12 @@
     border: 1px solid var(--border-color, #e2e8f0);
 }
 
+/* A service account (E34-T03) */
+.onboard-badge-service {
+    background: color-mix(in srgb, var(--primary, #2563eb) 14%, transparent);
+    color: var(--primary, #1d4ed8);
+}
+
 /* Directory typeahead */
 .onboard-autocomplete {
     position: relative;
