@@ -96,4 +96,30 @@ class ApiTokenControllerTest extends SecuredWebTestBase {
         expectError(mockMvc.perform(post(URL).with(asUser()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"ci\",\"scopes\":[\"cost:read\"],\"expiresInDays\":30}")), 404);
     }
+
+    // --- Admin oversight (E34-T05) ---
+
+    @Test
+    void anAdminSeesEveryActiveTokenWithItsOwnerAndRevokesAny() throws Exception {
+        String json = create("[\"environments:read\"]");
+        String id = JsonPath.read(json, "$.id");
+        String token = JsonPath.read(json, "$.token");
+
+        mockMvc.perform(get("/api/v1/api-tokens").with(asAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].token.id").value(id))
+                .andExpect(jsonPath("$.content[0].ownerUserId").value(operator.getUserId()))
+                .andExpect(jsonPath("$.content[0].token.token").doesNotExist());
+        mockMvc.perform(get("/api/v1/api-tokens").with(asEnvAdmin())).andExpect(status().isForbidden());
+        mockMvc.perform(delete("/api/v1/api-tokens/" + id).with(asUser())).andExpect(status().isForbidden());
+
+        mockMvc.perform(delete("/api/v1/api-tokens/" + id).with(asAdmin())).andExpect(status().isOk());
+        assertThat(tokenService.verify(token)).isEmpty();
+        mockMvc.perform(get("/api/v1/api-tokens").with(asAdmin())).andExpect(jsonPath("$.content.length()").value(0));
+        mockMvc.perform(get("/api/v1/api-tokens?includeInactive=true").with(asAdmin())).andExpect(jsonPath("$.content.length()").value(1));
+        awaitAsync(() -> assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM audit_log WHERE action_type = 'API_TOKEN_REVOKED' AND details LIKE '%revoked by an admin%'",
+                Integer.class)).isEqualTo(1));
+    }
 }

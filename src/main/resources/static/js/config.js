@@ -367,6 +367,19 @@ const Config = (function() {
             registeredIds: `/api/ec2/registered-ids`
         },
 
+        // API tokens and service accounts (E34); 404 while api-tokens.enabled is off
+        apiTokens: {
+            mine: `${API_BASE_URL}/me/api-tokens`,
+            mineItem: (id) => `${API_BASE_URL}/me/api-tokens/${encodeURIComponent(id)}`,
+            all: (page) => `${API_BASE_URL}/api-tokens?page=${page || 0}&size=50`,
+            item: (id) => `${API_BASE_URL}/api-tokens/${encodeURIComponent(id)}`
+        },
+        serviceAccounts: {
+            list: `${API_BASE_URL}/service-accounts`,
+            item: (id) => `${API_BASE_URL}/service-accounts/${encodeURIComponent(id)}`,
+            tokens: (id) => `${API_BASE_URL}/service-accounts/${encodeURIComponent(id)}/tokens`
+        },
+
         // RDS databases as VMs (E33-T02); 404 while rds.enabled is off
         rds: {
             status: `${API_BASE_URL}/rds`,

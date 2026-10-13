@@ -163,6 +163,37 @@ public class ApiTokenService {
         }
     }
 
+    /** A token as an admin sees it (E34-T05): with its owner, never the secret. */
+    public record AdminTokenView(ApiTokenDTO token, String ownerUserId, String ownerName, String ownerEmail,
+                                 boolean ownerServiceAccount) {
+    }
+
+    /** Every token (active only unless asked), newest first, with its owner. */
+    public org.springframework.data.domain.Page<AdminTokenView> listAll(boolean includeInactive,
+                                                                     org.springframework.data.domain.Pageable pageable) {
+        requireEnabled();
+        org.springframework.data.domain.Page<ApiToken> page = includeInactive ? repository.findAll(pageable)
+                : repository.findActive(Timestamp.from(clock.instant()), pageable);
+        java.util.Map<String, User> owners = new java.util.HashMap<>();
+        userRepository.findAllById(page.getContent().stream().map(ApiToken::getUserId).distinct().toList())
+                .forEach(u -> owners.put(u.getUserId(), u));
+        return page.map(t -> {
+            User owner = owners.get(t.getUserId());
+            return new AdminTokenView(ApiTokenDTO.from(t), t.getUserId(), owner == null ? null : owner.getDisplayName(),
+                    owner == null ? null : owner.getEmail(), owner != null && owner.isServiceAccount());
+        });
+    }
+
+    /** An admin revokes anyone's token; audited with the owner. */
+    public void adminRevoke(String tokenId, String actorUserId) {
+        requireEnabled();
+        ApiToken t = repository.findById(tokenId).orElseThrow(() -> new ResourceNotFoundException("API token", tokenId));
+        if (repository.revokeAny(tokenId, actorUserId, Timestamp.from(clock.instant())) == 1) {
+            auditService.logAction(actorUserId, AuditAction.API_TOKEN_REVOKED, "API_TOKEN", tokenId, t.getName(),
+                    "Prefix " + t.getTokenPrefix() + ", owner " + t.getUserId() + ", revoked by an admin");
+        }
+    }
+
     /** A verified token and its active owner. */
     public record Verified(ApiToken token, User user) {
     }

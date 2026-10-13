@@ -6,6 +6,7 @@
  *   Activity - your own VM operations and access history
  *   Cost     - month-to-date cost of your environments (E18-T04), loaded on first open
  *   Notifications - which events reach you in the bell and by email (E29-T06)
+ *   API tokens - your personal API tokens (E34-T05), shown only while tokens are on
  */
 
 const MyAccount = (function() {
@@ -17,7 +18,12 @@ const MyAccount = (function() {
         ADMIN: { label: 'Manage access', badge: 'level-admin', help: 'Everything above, plus grant access and approve requests' }
     };
     const TABS = [['overview', 'Overview'], ['access', 'Access'], ['activity', 'Activity'], ['cost', 'Cost'],
-        ['notifications', 'Notifications']];
+        ['notifications', 'Notifications'], ['api-tokens', 'API tokens']];
+
+    /** The tabs shown: API tokens only once the token list answered (E34-T05). */
+    function visibleTabs() {
+        return TABS.filter(([id]) => id !== 'api-tokens' || (state && state.tokensEnabled));
+    }
     const EXTENSION_DAYS = [7, 14, 30, 60, 90];
     const DEFAULT_EXTENSION_DAYS = 30;
     const DAY_MS = 24 * 60 * 60 * 1000;
@@ -60,7 +66,8 @@ const MyAccount = (function() {
             prefsRequested: false,
             prefDraft: {},
             prefSaving: false,
-            prefMessage: null
+            prefMessage: null,
+            tokensEnabled: false
         };
         Slideout.open('My Account', `
             <div class="my-account">
@@ -72,6 +79,14 @@ const MyAccount = (function() {
         loadAll();
         if (state.tab === 'cost') loadCost();
         if (state.tab === 'notifications') loadPrefs();
+        if (window.ApiTokensUi) {
+            const owner = state;
+            ApiTokensUi.probe().then(on => {
+                if (state !== owner || !on) return;
+                state.tokensEnabled = true;
+                render();
+            });
+        }
     }
 
     // ============= Notifications (E29-T06) =============
@@ -416,6 +431,7 @@ const MyAccount = (function() {
 
         $root.find('.ma-tabs').html(tabsHtml());
         $body.attr('aria-labelledby', `ma-tab-${state.tab}`).html(bodyHtml());
+        if (state.tab === 'api-tokens' && window.ApiTokensUi) ApiTokensUi.mount(document.getElementById('ma-api-tokens'));
         $body.scrollTop(scrollTop);
 
         if (focusedId) {
@@ -436,7 +452,7 @@ const MyAccount = (function() {
 
     function tabsHtml() {
         const expiring = state.grants ? expiringGrants().length : 0;
-        return TABS.map(([id, label]) => {
+        return visibleTabs().map(([id, label]) => {
             const selected = state.tab === id;
             const count = id === 'access' && expiring > 0
                 ? `<span class="ma-tab-count" title="${expiring} expiring soon">${expiring}</span>` : '';
@@ -450,6 +466,7 @@ const MyAccount = (function() {
         if (state.tab === 'activity') return activityHtml();
         if (state.tab === 'cost') return costHtml();
         if (state.tab === 'notifications') return notificationsHtml();
+        if (state.tab === 'api-tokens') return '<div id="ma-api-tokens" class="ma-api-tokens"></div>';
         return overviewHtml();
     }
 
@@ -912,7 +929,7 @@ const MyAccount = (function() {
     }
 
     function onTabKeydown(e) {
-        const ids = TABS.map(t => t[0]);
+        const ids = visibleTabs().map(t => t[0]);
         const i = ids.indexOf(state.tab);
         let next = null;
         if (e.key === 'ArrowRight') next = ids[(i + 1) % ids.length];

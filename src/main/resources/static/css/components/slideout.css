@@ -2,6 +2,14 @@
  * Slide-out Panel Styles
  */
 
+/* Dialogs opened from a slide-out (My Account's API tokens, E34-T05) and the shared confirm dialog
+   stay above it: the panel sits above Bootstrap's modal layer. */
+#apiTokenCreateModal,
+#apiTokenRevealModal,
+#confirmModal {
+    z-index: 1090;
+}
+
 .slideout-panel {
     position: fixed;
     top: var(--topnav-height);

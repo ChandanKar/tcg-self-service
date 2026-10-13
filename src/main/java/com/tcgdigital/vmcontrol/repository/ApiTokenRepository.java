@@ -15,6 +15,16 @@ public interface ApiTokenRepository extends JpaRepository<ApiToken, String> {
 
     Optional<ApiToken> findByTokenPrefix(String tokenPrefix);
 
+    /** Tokens that still work, for the admin list (E34-T05). */
+    @Query("SELECT t FROM ApiToken t WHERE t.revokedAt IS NULL AND t.expiresAt > :now")
+    org.springframework.data.domain.Page<ApiToken> findActive(@Param("now") Timestamp now, org.springframework.data.domain.Pageable pageable);
+
+    /** An admin revoking any token (E34-T05); 0 when already revoked. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Transactional
+    @Query("UPDATE ApiToken t SET t.revokedAt = :at, t.revokedBy = :by WHERE t.tokenId = :id AND t.revokedAt IS NULL")
+    int revokeAny(@Param("id") String tokenId, @Param("by") String revokedBy, @Param("at") Timestamp at);
+
     boolean existsByTokenPrefix(String tokenPrefix);
 
     List<ApiToken> findByUserIdOrderByCreatedAtDesc(String userId);
