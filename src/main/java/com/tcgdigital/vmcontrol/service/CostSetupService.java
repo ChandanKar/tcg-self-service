@@ -65,6 +65,8 @@ public class CostSetupService {
                             "ce:GetSavingsPlansCoverage", "ce:GetSavingsPlansUtilization")),
             new FeatureDef("awsForecast", "AWS cost forecast", "cost.aws-forecast.enabled", "COST_AWS_FORECAST_ENABLED",
                     "aws_cost_forecast", List.of("ce:GetCostForecast")),
+            new FeatureDef("carbon", "Carbon footprint (Data Export)", "carbon.enabled", "CARBON_ENABLED",
+                    "carbon_ingestion", List.of("s3:ListBucket", "s3:GetObject")),
             new FeatureDef("weeklyReports", "Weekly reports", "notification.weekly-reports.enabled",
                     "NOTIFICATION_WEEKLY_REPORTS_ENABLED", "weekly_notification_reports", List.of()));
 

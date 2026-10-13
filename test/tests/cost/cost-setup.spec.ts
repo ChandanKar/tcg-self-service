@@ -42,7 +42,7 @@ test.describe('Cost Setup', () => {
     await page.route(/\/api\/v1\/cost-management\/setup\/check/, route => { checks++; return route.abort(); });
     await openSetup(page);
 
-    await expect(page.locator('.cost-setup-table tbody tr')).toHaveCount(7);
+    await expect(page.locator('.cost-setup-table tbody tr')).toHaveCount(8);
     const tagging = page.locator('tr[data-feature="tagging"]');
     await expect(tagging).toContainText('cost.tagging.enabled');
     await expect(tagging).toContainText('COST_TAGGING_ENABLED');

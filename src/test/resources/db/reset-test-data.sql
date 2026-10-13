@@ -18,6 +18,8 @@ DELETE FROM cost_daily_snapshot;
 DELETE FROM vm_resize_event;
 DELETE FROM reservation_coverage_snapshot;
 DELETE FROM aws_cost_forecast;
+DELETE FROM carbon_monthly;
+DELETE FROM carbon_ingest_file;
 DELETE FROM lease_extension_request;
 DELETE FROM environment_lease_participant;
 DELETE FROM environment_lease;

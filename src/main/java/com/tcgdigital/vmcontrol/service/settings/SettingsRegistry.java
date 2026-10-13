@@ -46,6 +46,7 @@ public final class SettingsRegistry {
             flag("Cost management", "cost.optimizer.enabled", "Compute Optimizer", "Use AWS Compute Optimizer recommendations for rightsizing.", true),
             flag("Cost management", "cost.reservations.enabled", "Reservation coverage", "Record Savings Plan and RI coverage daily (billed API).", true),
             flag("Cost management", "cost.aws-forecast.enabled", "AWS cost forecast", "Capture AWS's 90-day and 18-month cost forecast weekly (billed API).", true),
+            flag("Cost management", "carbon.enabled", "Carbon footprint", "Ingest the AWS carbon emissions Data Export from S3 daily.", false),
             flag("Cost management", "cost.tagging.enabled", "Cost-allocation tagging", "Tag AWS resources with their environment and team.", false),
 
             // Rightsizing
@@ -147,6 +148,7 @@ public final class SettingsRegistry {
             readOnly("Restart required", "cost.actuals.cron", "Actual cost schedule", "Cron, read at startup."),
             readOnly("Restart required", "cost.reservations.cron", "Reservation coverage schedule", "Cron, read at startup."),
             readOnly("Restart required", "cost.aws-forecast.cron", "AWS forecast schedule", "Cron, read at startup."),
+            readOnly("Restart required", "carbon.cron", "Carbon export schedule", "Cron, read at startup."),
             readOnly("Restart required", "cost.optimizer.cron", "Compute Optimizer capture schedule", "Cron, read at startup."),
             readOnly("Restart required", "spot.pricing.cron", "Spot price capture schedule", "Cron, read at startup."),
             readOnly("Restart required", "spot.fallback.cron", "Spot fallback schedule", "Cron, read at startup."),

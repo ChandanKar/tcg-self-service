@@ -86,7 +86,8 @@ public class SchedulerJobCatalog {
             cron("rds_keep_stopped", "RDS keep stopped (every 15 min)", "rds.keep-stopped.cron", "0 */15 * * * *",
                     "rds.enabled", false),
             cron("webhook_delivery", "Webhook delivery (every 30 s)", "webhooks.cron", "*/30 * * * * *",
-                    "webhooks.enabled", false));
+                    "webhooks.enabled", false),
+            cron("carbon_ingestion", "Carbon export (daily)", "carbon.cron", "0 0 6 * * *", "carbon.enabled", false));
 
     /** A job as the health view needs it. */
     public record Job(String jobName, String label, Duration expectedInterval, boolean enabled) {

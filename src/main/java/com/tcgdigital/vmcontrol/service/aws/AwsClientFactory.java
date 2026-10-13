@@ -25,6 +25,7 @@ import software.amazon.awssdk.services.eks.EksClient;
 import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.organizations.OrganizationsClient;
 import software.amazon.awssdk.services.rds.RdsClient;
+import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.servicecatalog.ServiceCatalogClient;
 import software.amazon.awssdk.services.sts.StsClient;
 
@@ -151,6 +152,13 @@ public class AwsClientFactory {
     public RdsClient rds(String accountRef, String region) {
         Region r = region(region);
         return cached("rds", accountRef, r, () -> RdsClient.builder().region(r).credentialsProvider(credentials(accountRef))
+                .overrideConfiguration(DEFAULT_OVERRIDES).build());
+    }
+
+    /** S3, for reading Data Exports such as the carbon emissions export (E37-T01). */
+    public S3Client s3(String accountRef, String region) {
+        Region r = region(region);
+        return cached("s3", accountRef, r, () -> S3Client.builder().region(r).credentialsProvider(credentials(accountRef))
                 .overrideConfiguration(DEFAULT_OVERRIDES).build());
     }
 
