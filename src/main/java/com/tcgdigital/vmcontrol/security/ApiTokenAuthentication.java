@@ -21,12 +21,14 @@ public class ApiTokenAuthentication extends AbstractAuthenticationToken {
 
     private final String userId;
     private final String tokenId;
+    private final String tokenPrefix;
     private final Set<String> scopes;
 
     public ApiTokenAuthentication(String userId, ApiToken token, Collection<? extends GrantedAuthority> roleAuthorities) {
         super(withScopes(roleAuthorities, token));
         this.userId = userId;
         this.tokenId = token.getTokenId();
+        this.tokenPrefix = token.getTokenPrefix();
         this.scopes = Set.copyOf(token.scopeList());
         setAuthenticated(true);
     }
@@ -43,6 +45,11 @@ public class ApiTokenAuthentication extends AbstractAuthenticationToken {
 
     public String getTokenId() {
         return tokenId;
+    }
+
+    /** The token's visible prefix, which identifies it in the audit log without revealing it. */
+    public String getTokenPrefix() {
+        return tokenPrefix;
     }
 
     @Override

@@ -2,6 +2,9 @@ package com.tcgdigital.vmcontrol.assistant;
 
 import com.tcgdigital.vmcontrol.controller.McpController;
 import com.tcgdigital.vmcontrol.dto.CreateApiTokenDTO;
+import com.tcgdigital.vmcontrol.model.AuditAction;
+import com.tcgdigital.vmcontrol.repository.AuditLogRepository;
+import com.tcgdigital.vmcontrol.service.assistant.AssistantToolGuard;
 import com.tcgdigital.vmcontrol.service.ApiTokenService;
 import com.tcgdigital.vmcontrol.support.SecuredWebTestBase;
 import org.junit.jupiter.api.AfterEach;
@@ -15,6 +18,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -25,6 +29,8 @@ class McpEndpointSecurityTest extends SecuredWebTestBase {
 
     @Autowired private ApiTokenService tokenService;
     @Autowired private McpController mcpController;
+    @Autowired private AssistantToolGuard guard;
+    @Autowired private AuditLogRepository auditLogRepository;
 
     private void switches(boolean tokens, boolean mcp) {
         Object tokenTarget = AopTestUtils.getTargetObject(tokenService);
@@ -41,6 +47,7 @@ class McpEndpointSecurityTest extends SecuredWebTestBase {
     @AfterEach
     void off() {
         switches(false, false);
+        ReflectionTestUtils.setField(guard, "rateLimitPerMinute", 60);
     }
 
     private String token(String... scopes) {
@@ -99,5 +106,25 @@ class McpEndpointSecurityTest extends SecuredWebTestBase {
 
         mockMvc.perform(rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}").header("Authorization", "Bearer " + token))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void toolCallsAreAuditedAndRateLimited() throws Exception {
+        ReflectionTestUtils.setField(guard, "rateLimitPerMinute", 1);
+        String token = token("assistant:read");
+        String call = "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"tools/call\",\"params\":{\"name\":\"whoami\",\"arguments\":{}}}";
+
+        mockMvc.perform(rpc(call).header("Authorization", "Bearer " + token)).andExpect(jsonPath("$.result.isError").value(false));
+        mockMvc.perform(rpc(call).header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.error.code").value(-32000))
+                .andExpect(jsonPath("$.error.data.retryAfterSeconds").isNumber());
+
+        awaitAsync(() -> assertThat(auditLogRepository.findAll()).anySatisfy(row -> {
+            assertThat(row.getAction()).isEqualTo(AuditAction.ASSISTANT_TOOL_CALLED);
+            assertThat(row.getTargetName()).isEqualTo("whoami");
+            assertThat(row.getUserId()).isEqualTo(operator.getUserId());
+            assertThat(row.getDetails()).contains("Token ");
+        }));
     }
 }

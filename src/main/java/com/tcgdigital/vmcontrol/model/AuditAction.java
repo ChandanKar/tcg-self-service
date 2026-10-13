@@ -75,6 +75,8 @@ public enum AuditAction {
     WEBHOOK_CREATED,
     WEBHOOK_UPDATED,
     WEBHOOK_DELETED,
+    // AI assistant (E36-T03)
+    ASSISTANT_TOOL_CALLED,
 
     // Lock operations
     LOCK_ACQUIRED,

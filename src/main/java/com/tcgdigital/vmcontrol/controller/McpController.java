@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.tcgdigital.vmcontrol.security.ApiTokenAuthentication;
 import com.tcgdigital.vmcontrol.service.ApiTokenService;
 import com.tcgdigital.vmcontrol.service.assistant.AssistantTool;
+import com.tcgdigital.vmcontrol.service.assistant.AssistantToolGuard;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,7 +38,8 @@ import java.util.Map;
  *
  * <p>Only API tokens with the assistant:read scope get in (the token filter checks the scope); a
  * browser session gets 401, so a page cannot drive it cross-site. Off (assistant.mcp.enabled, or
- * API tokens off) it answers 404.
+ * API tokens off) it answers 404. Every tool call goes through {@link AssistantToolGuard} (E36-T03):
+ * rate limit, timeout, output cap and audit; a rate-limited call is JSON-RPC error -32000.
  */
 @RestController
 @RequestMapping("/mcp")
@@ -52,10 +54,13 @@ public class McpController {
     private final ApiTokenService tokenService;
     private final Map<String, AssistantTool> tools = new LinkedHashMap<>();
     private final ObjectMapper objectMapper;
+    private final AssistantToolGuard guard;
 
-    public McpController(ApiTokenService tokenService, List<AssistantTool> tools, ObjectMapper objectMapper) {
+    public McpController(ApiTokenService tokenService, List<AssistantTool> tools, ObjectMapper objectMapper,
+                         AssistantToolGuard guard) {
         this.tokenService = tokenService;
         this.objectMapper = objectMapper;
+        this.guard = guard;
         tools.stream().sorted((a, b) -> a.name().compareTo(b.name())).forEach(t -> this.tools.put(t.name(), t));
     }
 
@@ -147,23 +152,23 @@ public class McpController {
         @SuppressWarnings("unchecked")
         Map<String, Object> arguments = params.has("arguments") && params.get("arguments").isObject()
                 ? objectMapper.convertValue(params.get("arguments"), Map.class) : Map.of();
-        Map<String, Object> result = new LinkedHashMap<>();
-        try {
-            Object value = tool.call(arguments);
-            String text = objectMapper.writeValueAsString(value);
-            result.put("content", List.of(Map.of("type", "text", "text", text)));
-            if (value instanceof Map<?, ?>) result.put("structuredContent", value);
-            result.put("isError", false);
-        } catch (IllegalArgumentException | com.tcgdigital.vmcontrol.exception.ValidationException
-                 | com.tcgdigital.vmcontrol.exception.ResourceNotFoundException
-                 | com.tcgdigital.vmcontrol.exception.UnauthorizedException e) {
-            result.put("content", List.of(Map.of("type", "text", "text", e.getMessage() == null ? "Refused" : e.getMessage())));
-            result.put("isError", true);
-        } catch (Exception e) {
-            log.warn("MCP tool {} failed: {}", name, e.getMessage());
-            result.put("content", List.of(Map.of("type", "text", "text", "The tool failed")));
-            result.put("isError", true);
+        ApiTokenAuthentication auth = (ApiTokenAuthentication) SecurityContextHolder.getContext().getAuthentication();
+        AssistantToolGuard.Outcome outcome = guard.invoke((String) auth.getPrincipal(), auth.getTokenPrefix(), tool, arguments);
+        if (outcome.rateLimited()) {
+            Map<String, Object> response = error(id, -32000, outcome.text());
+            ((ObjectNode) response.get("error")).putObject("data").put("retryAfterSeconds", outcome.retryAfterSeconds());
+            return response;
         }
+        Map<String, Object> result = new LinkedHashMap<>();
+        List<Map<String, Object>> content = new ArrayList<>();
+        content.add(Map.of("type", "text", "text", outcome.text()));
+        if (outcome.truncated()) {
+            content.add(Map.of("type", "text", "text", "[Output truncated: the result was too long. Ask for fewer rows or one environment.]"));
+            result.put("_meta", Map.of("truncated", true));
+        }
+        result.put("content", content);
+        if (outcome.structured() != null) result.put("structuredContent", outcome.structured());
+        result.put("isError", outcome.error());
         return result(id, result);
     }
 
