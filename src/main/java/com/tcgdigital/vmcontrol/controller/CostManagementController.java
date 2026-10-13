@@ -422,6 +422,30 @@ public class CostManagementController {
         return ResponseEntity.ok(costForecastService.getForecast(historyDays, forecastDays));
     }
 
+    private com.tcgdigital.vmcontrol.service.FocusExportService focusExportService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void setFocusExportService(com.tcgdigital.vmcontrol.service.FocusExportService focusExportService) {
+        this.focusExportService = focusExportService;
+    }
+
+    /**
+     * Cost data as a FOCUS 1.2 CSV (E35-T03): basis=estimated (per VM per day) or actual (per
+     * environment per day, from Cost Explorer). Streamed; month yyyy-MM, not in the future.
+     */
+    @GetMapping("/export/focus")
+    @PreAuthorize("hasRole('ADMIN')")
+    @io.swagger.v3.oas.annotations.Operation(summary = "FOCUS 1.2 CSV export")
+    public ResponseEntity<org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody> exportFocus(
+            @RequestParam String month, @RequestParam(defaultValue = "estimated") String basis) {
+        com.tcgdigital.vmcontrol.service.FocusExportService.Plan plan = focusExportService.prepare(
+                focusExportService.parseMonth(month), com.tcgdigital.vmcontrol.service.FocusExportService.parseBasis(basis));
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + plan.filename() + "\"")
+                .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                .body(plan::writeTo);
+    }
+
     /** AWS's 18-month forecast with the platform's run-rate for comparison (E35-T02). */
     @GetMapping("/forecast/long-range")
     @PreAuthorize("hasRole('ADMIN')")

@@ -82,4 +82,22 @@ class CostManagementControllerSecurityTest extends SecuredWebTestBase {
         mockMvc.perform(get("/api/v1/cost-management/forecast/long-range").with(asEnvAdmin()))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
     }
+
+    @Test
+    void theFocusExportIsForAdminsAndChecksTheMonth() throws Exception {
+        // E35-T03
+        org.springframework.test.web.servlet.MvcResult started = mockMvc.perform(get("/api/v1/cost-management/export/focus?month=2026-01&basis=estimated").with(asAdmin()))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.request().asyncStarted())
+                .andReturn();
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch(started))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string("Content-Disposition", org.hamcrest.Matchers.containsString("focus-estimated-2026-01.csv")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.startsWith("AvailabilityZone,BilledCost,BillingAccountId")));
+        expectError(mockMvc.perform(get("/api/v1/cost-management/export/focus?month=2026-13").with(asAdmin())), 400);
+        expectError(mockMvc.perform(get("/api/v1/cost-management/export/focus?month=2099-01").with(asAdmin())), 400);
+        mockMvc.perform(get("/api/v1/cost-management/export/focus?month=2026-01").with(asUser()))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
+    }
 }

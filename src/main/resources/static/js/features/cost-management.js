@@ -312,6 +312,10 @@ const CostManagement = (function() {
                                 title="Ingest real AWS billing data for the last 30 days now — calls Cost Explorer's billed API, use sparingly">
                             <i class="fas fa-cloud-download-alt"></i> Ingest Actual Costs
                         </button>
+                        <button class="btn btn-ghost btn-sm" data-action="cost-focus-export"
+                                title="Download cost data as a FOCUS 1.2 CSV for finance tools">
+                            <i class="fas fa-file-csv" aria-hidden="true"></i> Export FOCUS CSV
+                        </button>
                         <button class="btn btn-ghost btn-sm" id="cost-export-png-btn">
                             <i class="fas fa-image"></i> Export PNG
                         </button>
@@ -654,6 +658,46 @@ const CostManagement = (function() {
         }
         const forecastDayCount = forecast.points.filter(p => p.isForecast).length;
         return `${base} &mdash; with a ${forecastDayCount}-day platform forecast${aws}`;
+    }
+
+    /** The FOCUS export dialog (E35-T03): one of the last 13 months and the basis, then a download. */
+    function openFocusExport() {
+        const now = new Date();
+        const months = [];
+        for (let i = 0; i < 13; i++) {
+            const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+            months.push(d.toISOString().slice(0, 7));
+        }
+        Modals.show({
+            id: 'focusExportModal',
+            title: 'Export FOCUS CSV',
+            body: `<p class="small text-muted">A FOCUS 1.2 cost file for finance tools. Estimates come from the platform's static
+                    pricing reference (one row per resource per day); actuals are Cost Explorer's cost per environment per day.</p>
+                <div class="mb-2"><label class="form-label small mb-1" for="focus-month">Month</label>
+                    <select class="form-select form-select-sm" id="focus-month">${months.map((m, i) =>
+                        `<option value="${m}" ${i === 1 ? 'selected' : ''}>${m}${i === 0 ? ' (so far)' : ''}</option>`).join('')}</select></div>
+                <fieldset><legend class="form-label small mb-1">Basis</legend>
+                    <div class="form-check"><input class="form-check-input" type="radio" name="focus-basis" id="focus-basis-estimated" value="estimated" checked>
+                        <label class="form-check-label small" for="focus-basis-estimated">Estimated, per resource</label></div>
+                    <div class="form-check"><input class="form-check-input" type="radio" name="focus-basis" id="focus-basis-actual" value="actual">
+                        <label class="form-check-label small" for="focus-basis-actual">Actual (Cost Explorer), per environment</label></div>
+                </fieldset>`,
+            buttons: [
+                { text: 'Cancel', class: 'btn-secondary', dismiss: true },
+                { text: 'Download', class: 'btn-primary', id: 'focus-download' }
+            ]
+        });
+        $('#focus-download').on('click', () => {
+            const month = $('#focus-month').val();
+            const basis = $('input[name="focus-basis"]:checked').val() || 'estimated';
+            const link = document.createElement('a');
+            link.href = Config.API.costManagement.focusExport(month, basis);
+            link.download = `focus-${basis}-${month}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            Modals.hideWhenReady(document.getElementById('focusExportModal'));
+        });
     }
 
     /** '14 days' or '18 months' (E35-T02); the long range is fetched the first time it is shown. */
@@ -1963,7 +2007,8 @@ const CostManagement = (function() {
         showWorkloads: mountWorkloads,
         setRightsizingDirection,
         toggleOptions,
-        setForecastRange
+        setForecastRange,
+        openFocusExport
     };
 })();
 
@@ -1975,6 +2020,7 @@ Actions.registerAll({
     'cost-change-page': el => CostManagement.changePage(el.dataset.pageKey, Number(el.dataset.page)),
     'cost-rightsizing-direction': el => CostManagement.setRightsizingDirection(el.dataset.direction || ''),
     'cost-rightsizing-options': el => CostManagement.toggleOptions(el),
-    'cost-forecast-range': el => CostManagement.setForecastRange(el.dataset.range)
+    'cost-forecast-range': el => CostManagement.setForecastRange(el.dataset.range),
+    'cost-focus-export': () => CostManagement.openFocusExport()
 });
 Actions.register('cost-eks-env', el => CostManagement.showWorkloads(el.value), 'change');

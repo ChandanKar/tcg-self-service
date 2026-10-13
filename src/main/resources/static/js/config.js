@@ -439,6 +439,7 @@ const Config = (function() {
             forecast: (historyDays = 30, forecastDays = 14) =>
                 `${API_BASE_URL}/cost-management/forecast?historyDays=${historyDays}&forecastDays=${forecastDays}`,
             forecastLongRange: `${API_BASE_URL}/cost-management/forecast/long-range`,
+            focusExport: (month, basis) => `${API_BASE_URL}/cost-management/export/focus?month=${encodeURIComponent(month)}&basis=${encodeURIComponent(basis)}`,
             reservationsUtilization: `${API_BASE_URL}/cost-management/reservations/utilization`,
             setupStatus: `${API_BASE_URL}/cost-management/setup/status`,
             setupCheck: `${API_BASE_URL}/cost-management/setup/check`
