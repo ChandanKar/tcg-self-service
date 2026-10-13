@@ -48,6 +48,10 @@ public class LeaseService {
 
     private static final Logger log = LoggerFactory.getLogger(LeaseService.class);
 
+    /** Platform events for webhooks (E34-T07); absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.events.PlatformEvents platformEvents;
+
     /** Shortest lease an owner may configure. */
     public static final int MIN_MINUTES = 15;
 
@@ -623,11 +627,19 @@ public class LeaseService {
                 if (!isEnabledFor(env)) continue;
                 Timestamp windowStart = Timestamp.from(lease.getEndsAt().toInstant().minus(Duration.ofMinutes(threshold)));
                 long minutesLeft = Math.max(1, Duration.between(now, lease.getEndsAt().toInstant()).toMinutes());
+                boolean anySent = false;
                 for (String userId : warningRecipients(lease)) {
                     if (notificationService.notifyLeaseExpiring(userId, env.getEnvironmentId(), env.getName(),
                             lease.getEndsAt(), minutesLeft, windowStart)) {
                         sent++;
+                        anySent = true;
                     }
+                }
+                if (anySent && platformEvents != null) {
+                    // E34-T07: once per warning window, like the notifications.
+                    platformEvents.publish(com.tcgdigital.vmcontrol.service.events.PlatformEventType.LEASE_EXPIRING, env.getEnvironmentId(), env.getName(),
+                            java.util.Map.of("leaseId", lease.getLeaseId(), "endsAt", lease.getEndsAt().toInstant().toString(),
+                                    "minutesLeft", minutesLeft));
                 }
             }
         }

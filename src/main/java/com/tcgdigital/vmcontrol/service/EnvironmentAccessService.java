@@ -41,6 +41,10 @@ public class EnvironmentAccessService {
 
     private static final Logger log = LoggerFactory.getLogger(EnvironmentAccessService.class);
 
+    /** Platform events for webhooks (E34-T07); absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.events.PlatformEvents platformEvents;
+
     @Value("${access.expiry.warning-days:1}")
     private int expiryWarningDays;
 
@@ -466,6 +470,10 @@ public class EnvironmentAccessService {
         String environmentId = environment.getEnvironmentId();
         sideEffectAfterCommit("notify access revoked", accessId, () ->
                 notificationService.notifyAccessRevoked(targetUserId, environmentName, environmentId));
+        if (platformEvents != null) {
+            platformEvents.publish(com.tcgdigital.vmcontrol.service.events.PlatformEventType.ACCESS_REVOKED, environmentId, environmentName,
+                    java.util.Map.of("userId", targetUserId, "revokedBy", actorUserId == null ? "" : actorUserId));
+        }
     }
 
     /**
@@ -502,6 +510,10 @@ public class EnvironmentAccessService {
         if (outcome.created()) {
             sideEffectAfterCommit("notify access granted", targetUserId, () ->
                     notificationService.notifyAccessGranted(targetUserId, environmentName, environmentId));
+            if (platformEvents != null) {
+                platformEvents.publish(com.tcgdigital.vmcontrol.service.events.PlatformEventType.ACCESS_GRANTED, environmentId, environmentName, java.util.Map.of(
+                        "userId", targetUserId, "accessLevel", String.valueOf(outcome.access().getAccessLevel())));
+            }
         } else if (outcome.levelChanged()) {
             AccessLevel previousLevel = outcome.previousLevel();
             AccessLevel newLevel = outcome.access().getAccessLevel();
@@ -706,6 +718,10 @@ public class EnvironmentAccessService {
         String environmentName = environment.getName();
         sideEffectAfterCommit("notify access revoked", access.getAccessId(), () ->
                 notificationService.notifyAccessRevoked(userId, environmentName, environmentId));
+        if (platformEvents != null) {
+            platformEvents.publish(com.tcgdigital.vmcontrol.service.events.PlatformEventType.ACCESS_REVOKED, environmentId, environmentName,
+                    java.util.Map.of("userId", userId, "revokedBy", revokedByUserId == null ? "" : revokedByUserId));
+        }
     }
 
     // ============= Access Query Operations =============

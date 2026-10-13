@@ -32,6 +32,10 @@ public class BudgetEvaluationService {
 
     private static final Logger log = LoggerFactory.getLogger(BudgetEvaluationService.class);
 
+    /** Platform events for webhooks (E34-T07); absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.events.PlatformEvents platformEvents;
+
     private final BudgetRepository budgetRepository;
     private final BudgetAlertRepository alertRepository;
     private final BudgetService budgetService;
@@ -92,6 +96,18 @@ public class BudgetEvaluationService {
                 fired++;
                 notify(() -> notificationService.notifyBudgetThreshold(environmentIds, budget.getBudgetId(),
                         budget.getScopeType() == BudgetScopeType.TEAM, scopeName, month, threshold, spend.toDate(), amount));
+                if (platformEvents != null) {
+                    java.util.Map<String, Object> data = new java.util.LinkedHashMap<>();
+                    data.put("budgetId", budget.getBudgetId());
+                    data.put("scope", scopeName);
+                    data.put("month", String.valueOf(month));
+                    data.put("thresholdPercent", threshold);
+                    data.put("spend", spend.toDate());
+                    data.put("amount", amount);
+                    for (String environmentId : environmentIds) {
+                        platformEvents.publish(com.tcgdigital.vmcontrol.service.events.PlatformEventType.BUDGET_THRESHOLD, environmentId, null, data);
+                    }
+                }
             }
         }
         if (actionsEnabled && budget.getActionType() != com.tcgdigital.vmcontrol.model.BudgetActionType.NONE

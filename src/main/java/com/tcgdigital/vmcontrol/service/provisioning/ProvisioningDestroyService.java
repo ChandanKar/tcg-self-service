@@ -41,6 +41,10 @@ public class ProvisioningDestroyService {
 
     private static final Logger log = LoggerFactory.getLogger(ProvisioningDestroyService.class);
 
+    /** Platform events for webhooks (E34-T07); absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.events.PlatformEvents platformEvents;
+
     private final ProvisioningRequestRepository repository;
     private final TemplateService templateService;
     private final ProvisioningEngineRegistry engines;
@@ -289,6 +293,10 @@ public class ProvisioningDestroyService {
         if (notificationService != null) {
             notificationService.notifyEnvironmentDestroyed(r.getRequestedByUserId(), r.getEnvironmentId(),
                     r.getEnvironmentName(), true, null);
+        }
+        if (platformEvents != null) {
+            platformEvents.publish(com.tcgdigital.vmcontrol.service.events.PlatformEventType.PROVISIONING_DESTROYED, r.getEnvironmentId(), r.getEnvironmentName(),
+                    java.util.Map.of("requestId", r.getRequestId(), "requestedBy", r.getRequestedByUserId()));
         }
     }
 

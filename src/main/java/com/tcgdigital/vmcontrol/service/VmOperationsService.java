@@ -40,6 +40,10 @@ public class VmOperationsService {
 
     private static final Logger log = LoggerFactory.getLogger(VmOperationsService.class);
 
+    /** Platform events for webhooks (E34-T07); absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.events.PlatformEvents platformEvents;
+
     /** Stored status values of a run that can still be cancelled or fail. */
     private static final List<String> ACTIVE_STATUSES = List.of(
             OperationExecution.statusValue(ExecutionStatus.PENDING),
@@ -1268,6 +1272,27 @@ public class VmOperationsService {
                         execution.getOperationType().name(),
                         total,
                         failed + skipped));
+        if (platformEvents != null) {
+            // E34-T07: webhooks hear the operation and, when every step was done, the environment's new state.
+            String envId = execution.getEnvironment().getEnvironmentId();
+            String envName = execution.getEnvironment().getName();
+            java.util.Map<String, Object> data = new java.util.LinkedHashMap<>();
+            data.put("operationId", executionId);
+            data.put("operationType", execution.getOperationType().name());
+            data.put("outcome", outcome.name());
+            data.put("targets", total);
+            data.put("failedOrSkipped", failed + skipped);
+            data.put("initiatedBy", execution.getInitiatedByUserId());
+            data.put("triggerSource", execution.getTriggerSource() == null ? null : execution.getTriggerSource().name());
+            platformEvents.publish(com.tcgdigital.vmcontrol.service.events.PlatformEventType.OPERATION_COMPLETED, envId, envName, data);
+            if (outcome == ExecutionStatus.COMPLETED && failed + skipped == 0) {
+                if (execution.getOperationType() == OperationType.START) {
+                    platformEvents.publish(com.tcgdigital.vmcontrol.service.events.PlatformEventType.ENVIRONMENT_STARTED, envId, envName, data);
+                } else if (execution.getOperationType() == OperationType.STOP) {
+                    platformEvents.publish(com.tcgdigital.vmcontrol.service.events.PlatformEventType.ENVIRONMENT_STOPPED, envId, envName, data);
+                }
+            }
+        }
     }
 
     /** The run itself broke (not a step): FAILED unless it already reached another final state. */
@@ -1301,6 +1326,15 @@ public class VmOperationsService {
                         execution.getInitiatedByUserId(),
                         execution.getOperationType().name(),
                         errorMessage));
+        if (platformEvents != null) {
+            java.util.Map<String, Object> data = new java.util.LinkedHashMap<>();
+            data.put("operationId", executionId);
+            data.put("operationType", execution.getOperationType().name());
+            data.put("error", errorMessage);
+            data.put("initiatedBy", execution.getInitiatedByUserId());
+            platformEvents.publish(com.tcgdigital.vmcontrol.service.events.PlatformEventType.OPERATION_FAILED, execution.getEnvironment().getEnvironmentId(),
+                    execution.getEnvironment().getName(), data);
+        }
     }
 
     private void runTerminalSideEffect(String action, String executionId, Runnable runnable) {

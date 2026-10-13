@@ -741,6 +741,7 @@ const Environments = (function() {
                 <div id="env-anomaly-panel"></div>
                 <div id="env-idle-panel"></div>
                 <div id="env-chat-panel"></div>
+                <div id="env-webhook-panel"></div>
                 <div id="env-spot-panel"></div>
 
                 <div class="mb-1">
@@ -1000,6 +1001,11 @@ const Environments = (function() {
         // Teams channels (E24-T02): only for those who administer the environment.
         if (typeof ChatChannels !== 'undefined') {
             ChatChannels.renderEnvPanel(env);
+        }
+
+        // Webhooks (E34-T07): only for those who administer the environment, while webhooks are on.
+        if (typeof WebhooksPanel !== 'undefined') {
+            WebhooksPanel.renderEnvPanel(env);
         }
 
         // Spot (E31-T08): renders nothing while Spot is off.

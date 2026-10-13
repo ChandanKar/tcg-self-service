@@ -48,6 +48,10 @@ class OperationOrderingIntegrationTest extends AbstractIntegrationTest {
     @Autowired private LockService lockService;
     @Autowired private OperationExecutionRepository executions;
     @Autowired private OperationDetailRepository details;
+    @Autowired private com.tcgdigital.vmcontrol.service.webhook.WebhookService webhookService;
+    @Autowired private com.tcgdigital.vmcontrol.repository.WebhookSubscriptionRepository webhookSubscriptions;
+    @Autowired private com.tcgdigital.vmcontrol.repository.WebhookDeliveryRepository webhookDeliveries;
+    @Autowired private com.tcgdigital.vmcontrol.service.chat.SecretCipher secretCipher;
 
     private Environment env;
     private User user;
@@ -141,6 +145,38 @@ class OperationOrderingIntegrationTest extends AbstractIntegrationTest {
         run(OperationType.START, false, List.of(db.getVmId()));
         assertThat(vmRepository.findById(db.getVmId()).orElseThrow().getIntendedStoppedSince()).isNull();
         assertThat(calls).containsExactly("stop:rds", "start:rds");
+    }
+
+    @Test
+    void aCompletedStopQueuesExactlyOneEnvironmentStoppedWebhookAfterCommit() throws Exception {
+        // E34-T07
+        Object webhookTarget = org.springframework.test.util.AopTestUtils.getTargetObject(webhookService);
+        java.util.function.Consumer<Boolean> webhooks = on -> org.springframework.test.util.ReflectionTestUtils.setField(
+                webhookTarget, "enabled", on);
+        webhooks.accept(true);
+        try {
+            com.tcgdigital.vmcontrol.model.WebhookSubscription s = new com.tcgdigital.vmcontrol.model.WebhookSubscription();
+            s.setWebhookId(java.util.UUID.randomUUID().toString());
+            s.setLabel("ci");
+            s.setUrl("https://93.184.216.34/hook");
+            s.setSecretEnc(secretCipher.encrypt("whsec_test"));
+            s.setEventTypes("environment.stopped");
+            s.setEnvironmentId(env.getEnvironmentId());
+            s.setCreatedBy(user.getUserId());
+            webhookSubscriptions.saveAndFlush(s);
+            VmGroup group = newGroup(env, "web");
+            Vm web = vm(group, "web", VmStatus.RUNNING);
+
+            OperationExecution done = run(OperationType.STOP, false, List.of(web.getVmId()));
+
+            assertThat(done.getStatus()).isEqualTo(ExecutionStatus.COMPLETED);
+            awaitAsync(() -> assertThat(webhookDeliveries.findAll()).hasSize(1));
+            com.tcgdigital.vmcontrol.model.WebhookDelivery d = webhookDeliveries.findAll().get(0);
+            assertThat(d.getEventType()).isEqualTo("environment.stopped");
+            assertThat(d.getPayload()).contains(env.getEnvironmentId()).contains(done.getExecutionId());
+        } finally {
+            webhooks.accept(false);
+        }
     }
 
     @Test

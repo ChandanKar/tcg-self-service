@@ -374,6 +374,14 @@ const Config = (function() {
             all: (page) => `${API_BASE_URL}/api-tokens?page=${page || 0}&size=50`,
             item: (id) => `${API_BASE_URL}/api-tokens/${encodeURIComponent(id)}`
         },
+        // Outbound webhooks (E34-T06/T07); 404 while webhooks.enabled is off
+        webhooks: {
+            list: (environmentId) => `${API_BASE_URL}/webhooks` + (environmentId ? `?environmentId=${encodeURIComponent(environmentId)}` : ''),
+            create: `${API_BASE_URL}/webhooks`,
+            item: (id) => `${API_BASE_URL}/webhooks/${encodeURIComponent(id)}`,
+            test: (id) => `${API_BASE_URL}/webhooks/${encodeURIComponent(id)}/test`,
+            deliveries: (id) => `${API_BASE_URL}/webhooks/${encodeURIComponent(id)}/deliveries?size=25`
+        },
         serviceAccounts: {
             list: `${API_BASE_URL}/service-accounts`,
             item: (id) => `${API_BASE_URL}/service-accounts/${encodeURIComponent(id)}`,

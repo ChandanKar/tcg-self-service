@@ -37,6 +37,10 @@ public class LeaseExpiryProcessor {
 
     private static final Logger log = LoggerFactory.getLogger(LeaseExpiryProcessor.class);
 
+    /** Platform events for webhooks (E34-T07); absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.events.PlatformEvents platformEvents;
+
     static final int MAX_STOP_ATTEMPTS = 10;
     static final String TRIGGER = "Lease expired";
 
@@ -112,6 +116,10 @@ public class LeaseExpiryProcessor {
                             + MAX_STOP_ATTEMPTS + " attempts.");
             afterCommit.run(() -> notificationService.notifyLeaseExpiredForEnvironment(envId, envName, participantIds,
                     "lease expired, but it could not be stopped because an operation was still running."));
+            if (platformEvents != null) {
+                platformEvents.publish(com.tcgdigital.vmcontrol.service.events.PlatformEventType.LEASE_EXPIRED, envId, envName,
+                        java.util.Map.of("leaseId", leaseId, "stopped", false));
+            }
             return true;
         }
 
@@ -137,6 +145,13 @@ public class LeaseExpiryProcessor {
                 ? "lease expired. Start it again from the environment page."
                 : "lease expired - stopping. Start it again from the environment page.";
         afterCommit.run(() -> notificationService.notifyLeaseExpiredForEnvironment(envId, envName, participantIds, detail));
+        if (platformEvents != null) {
+            java.util.Map<String, Object> data = new java.util.LinkedHashMap<>();
+            data.put("leaseId", leaseId);
+            data.put("stopped", executionId != null);
+            data.put("operationId", executionId);
+            platformEvents.publish(com.tcgdigital.vmcontrol.service.events.PlatformEventType.LEASE_EXPIRED, envId, envName, data);
+        }
         log.info("Lease {} on {} expired; stop execution {}", leaseId, envName, executionId);
         return true;
     }

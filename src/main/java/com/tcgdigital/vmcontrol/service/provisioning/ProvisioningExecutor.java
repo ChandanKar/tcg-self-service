@@ -44,6 +44,10 @@ public class ProvisioningExecutor {
 
     private static final Logger log = LoggerFactory.getLogger(ProvisioningExecutor.class);
 
+    /** Platform events for webhooks (E34-T07); absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.events.PlatformEvents platformEvents;
+
     private final ProvisioningRequestRepository repository;
     private final TemplateService templateService;
     private final ProvisioningEngineRegistry engines;
@@ -238,6 +242,11 @@ public class ProvisioningExecutor {
         if (notificationService != null) {
             notificationService.notifyProvisioningOutcome(r.getRequestedByUserId(), r.getRequestId(), r.getEnvironmentName(),
                     env.getEnvironmentId(), true, "It is ready until " + r.getDestroyAt() + ".");
+        }
+        if (platformEvents != null) {
+            platformEvents.publish(com.tcgdigital.vmcontrol.service.events.PlatformEventType.PROVISIONING_READY, env.getEnvironmentId(), env.getName(), java.util.Map.of(
+                    "requestId", r.getRequestId(), "templateId", template.getTemplateId(), "requestedBy", r.getRequestedByUserId(),
+                    "destroyAt", r.getDestroyAt() == null ? "" : r.getDestroyAt().toInstant().toString()));
         }
     }
 

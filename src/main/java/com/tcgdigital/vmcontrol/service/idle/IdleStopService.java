@@ -60,6 +60,10 @@ import java.util.stream.Collectors;
 public class IdleStopService {
 
     private static final Logger log = LoggerFactory.getLogger(IdleStopService.class);
+
+    /** Platform events for webhooks (E34-T07); absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.events.PlatformEvents platformEvents;
     private static final Duration REPEAT_SKIP_AFTER = Duration.ofHours(1);
 
     private final IdleStopRuleRepository ruleRepository;
@@ -225,6 +229,14 @@ public class IdleStopService {
             notificationService.notifyIdleStopForEnvironment(envId, env.getName(), idleMinutes, running.size());
         } catch (Exception e) {
             log.warn("Could not notify idle stop of {}: {}", env.getName(), e.getMessage());
+        }
+        if (platformEvents != null) {
+            java.util.Map<String, Object> data = new java.util.LinkedHashMap<>();
+            data.put("operationId", executionId);
+            data.put("idleMinutes", idleMinutes);
+            data.put("vmCount", running.size());
+            data.put("idleSince", idleSince.toInstant().toString());
+            platformEvents.publish(com.tcgdigital.vmcontrol.service.events.PlatformEventType.IDLE_STOPPED, envId, env.getName(), data);
         }
         return Optional.of(event);
     }
