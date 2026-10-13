@@ -60,6 +60,14 @@ public class ApiTokenService {
     @Value("${api-tokens.pepper:}")
     private String pepper;
 
+    @Value("${api-tokens.rate-limit-per-minute:600}")
+    private int rateLimitPerMinute;
+
+    /** Requests per token in the current minute (E34-T02); in memory, per server. */
+    private final java.util.concurrent.ConcurrentHashMap<String, long[]> windows = new java.util.concurrent.ConcurrentHashMap<>();
+    /** When each token's last use was written (E34-T02): at most once a minute. */
+    private final java.util.concurrent.ConcurrentHashMap<String, Instant> lastTouched = new java.util.concurrent.ConcurrentHashMap<>();
+
     private final ApiTokenRepository repository;
     private final UserRepository userRepository;
     private final AuditService auditService;
@@ -185,6 +193,39 @@ public class ApiTokenService {
             return Optional.empty();
         }
         return userRepository.findById(t.getUserId()).filter(User::isActive).map(u -> new Verified(t, u));
+    }
+
+    /**
+     * Counts a request against the token's per-minute allowance; 0 when allowed, otherwise the
+     * seconds until the next minute starts (the Retry-After).
+     */
+    public long rateLimit(String tokenId) {
+        long now = clock.millis();
+        long minute = now / 60_000L;
+        long[] window = windows.compute(tokenId, (k, w) -> {
+            if (w == null || w[0] != minute) return new long[]{minute, 1};
+            w[1]++;
+            return w;
+        });
+        if (window[1] <= rateLimitPerMinute) {
+            return 0;
+        }
+        return Math.max(1, ((minute + 1) * 60_000L - now + 999) / 1000);
+    }
+
+    /** Records when and from where a token was used, at most once a minute per token. */
+    public void touch(String tokenId, String ip) {
+        Instant now = clock.instant();
+        Instant last = lastTouched.get(tokenId);
+        if (last != null && Duration.between(last, now).compareTo(Duration.ofMinutes(1)) < 0) {
+            return;
+        }
+        lastTouched.put(tokenId, now);
+        try {
+            repository.touch(tokenId, Timestamp.from(now), ip == null || ip.length() <= 64 ? ip : ip.substring(0, 64));
+        } catch (Exception e) {
+            // A failed bookkeeping write must not fail the request.
+        }
     }
 
     private static Set<String> scopes(User user, List<String> requested) {

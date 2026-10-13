@@ -67,7 +67,9 @@ public class CurrentUserRefreshFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()
-                || authentication instanceof AnonymousAuthenticationToken) {
+                || authentication instanceof AnonymousAuthenticationToken
+                // A token request loaded its owner just now and must never be put in a session (E34-T02).
+                || authentication instanceof ApiTokenAuthentication) {
             chain.doFilter(request, response);
             return;
         }

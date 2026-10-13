@@ -28,18 +28,24 @@ public class EntraidSecurityConfig {
     private final UserRepository userRepository;
     private final Duration sessionAbsoluteTimeout;
     private final EntraLogoutSuccessHandler logoutSuccessHandler;
+    private final com.tcgdigital.vmcontrol.service.ApiTokenService apiTokenService;
+    private final ApiScopeRegistry apiScopeRegistry;
 
     public EntraidSecurityConfig(CustomOAuth2UserService customOAuth2UserService,
                                  @Value("${security.csp.report-only:true}") boolean cspReportOnly,
                                  UserRepository userRepository,
                                  @Value("${security.session.absolute-timeout:PT12H}") Duration sessionAbsoluteTimeout,
                                  @Value("${entraid.end-session-uri:}") String endSessionUri,
-                                 @Value("${entraid.post-logout-redirect-uri:}") String postLogoutRedirectUri) {
+                                 @Value("${entraid.post-logout-redirect-uri:}") String postLogoutRedirectUri,
+                                 com.tcgdigital.vmcontrol.service.ApiTokenService apiTokenService,
+                                 ApiScopeRegistry apiScopeRegistry) {
         this.customOAuth2UserService = customOAuth2UserService;
         this.cspReportOnly = cspReportOnly;
         this.userRepository = userRepository;
         this.sessionAbsoluteTimeout = sessionAbsoluteTimeout;
         this.logoutSuccessHandler = new EntraLogoutSuccessHandler(endSessionUri, postLogoutRedirectUri);
+        this.apiTokenService = apiTokenService;
+        this.apiScopeRegistry = apiScopeRegistry;
     }
 
     @Bean
@@ -99,6 +105,9 @@ public class EntraidSecurityConfig {
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                 .sessionFixation(fixation -> fixation.changeSessionId())
             )
+            // Bearer API tokens (E34-T02): authenticated per request, scope-checked, never in a session.
+            .addFilterBefore(new ApiTokenAuthenticationFilter(apiTokenService, apiScopeRegistry),
+                AuthorizationFilter.class)
             // Reload the user on every request: deactivation, role changes and the absolute
             // session lifetime apply on the next request (H10).
             .addFilterBefore(new CurrentUserRefreshFilter(userRepository, sessionAbsoluteTimeout),
@@ -111,6 +120,8 @@ public class EntraidSecurityConfig {
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                 .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
                 .ignoringRequestMatchers(SecurityHeaders.REPORT_PATH)
+                // A bearer token is not a cookie: a forged cross-site request cannot carry it (E34-T02).
+                .ignoringRequestMatchers(ApiTokenAuthenticationFilter::isTokenRequest)
             )
             .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
             // Content-Security-Policy, X-Frame-Options DENY, Referrer-Policy, nosniff
