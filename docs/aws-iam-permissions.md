@@ -50,6 +50,7 @@ Run this (or the AWS Console's "Policy simulator" under IAM) before flipping any
 | Phase 3 | `ce:GetSavingsPlansUtilization` | ❓ Unverified | Same |
 | **Commitment recommendations** (`COST_COMMITMENTS_RECOMMENDATIONS_ENABLED`, on by default, E27-T01) | `ce:GetSavingsPlansPurchaseRecommendation` | ❓ Unverified | Mondays, with the coverage snapshot: Compute and EC2 Instance Savings Plans (2 billed calls). Read-only; nothing is purchased |
 | Commitment recommendations | `ce:GetReservationPurchaseRecommendation` | ❓ Unverified | Mondays: EC2 Reserved Instances (1 billed call). A denial here leaves the Savings Plan rows intact |
+| AWS cost forecast (`COST_AWS_FORECAST_ENABLED`, on by default, E35-T01) | `ce:GetCostForecast` | ❓ Unverified | Mondays: daily 90-day and monthly 18-month forecast of resources tagged `tcg:managed-by=vmcontrol` (2 billed calls) |
 | **Phase 4 — anomaly alerts** (E21; tag monitors only return data once the `tcg:environment` cost allocation tag is active, see E08-T02) | `ce:GetAnomalyMonitors` | ❓ Unverified | Called by the admin "Sync monitors" action (`POST /api/v1/cost-anomalies/monitors/sync`) |
 | Phase 4 | `ce:CreateAnomalyMonitor` | ❓ Unverified | Only with `COST_ANOMALIES_MANAGE_MONITORS=true` (off by default): one CUSTOM monitor per environment. AWS limits the number of custom monitors per account (check the current Cost Anomaly Detection quota); the sync stops with a warning when it is reached |
 | Phase 4 | `ce:GetAnomalies` | ❓ Unverified | Anomaly ingestion (E21-T02) |

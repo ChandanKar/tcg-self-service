@@ -66,7 +66,7 @@ class CostManagementControllerSecurityTest extends SecuredWebTestBase {
     void anAdminSeesEachFeaturesSwitchWithoutAnyAwsCall() throws Exception {
         mockMvc.perform(get("/api/v1/cost-management/setup/status").with(asAdmin()))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.features.length()").value(6))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.features.length()").value(7))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.features[?(@.key=='tagging')].property")
                         .value("cost.tagging.enabled"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.probes.length()").value(0));

@@ -32,6 +32,8 @@ import java.util.stream.Collectors;
 public class TagReconciliationService {
 
     private static final Logger log = LoggerFactory.getLogger(TagReconciliationService.class);
+    /** The value of the {@code <prefix>managed-by} tag on everything the platform manages (filters the AWS forecast, E35-T01). */
+    public static final String MANAGED_BY_VALUE = "vmcontrol";
 
     @Value("${cost.tagging.enabled:false}")
     private boolean taggingEnabled;
@@ -197,7 +199,7 @@ public class TagReconciliationService {
 
     private Map<String, String> buildTags(Environment environment) {
         Map<String, String> tags = new LinkedHashMap<>();
-        tags.put(tagKeyPrefix + "managed-by", "vmcontrol");
+        tags.put(tagKeyPrefix + "managed-by", MANAGED_BY_VALUE);
         tags.put(tagKeyPrefix + "environment", environment.getName());
         tags.put(tagKeyPrefix + "team", teamResolver.resolveTeam(environment));
         // The team's cost center for chargeback (E23-T04).

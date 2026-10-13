@@ -54,6 +54,8 @@ public class SchedulerJobCatalog {
             cron("tag_reconciliation", "Cost tagging (daily)", "cost.tagging.cron", "0 30 2 * * *", "cost.tagging.enabled", false),
             cron("weekly_notification_reports", "Weekly reports", "notification.weekly-reports.cron", "0 0 9 * * MON",
                     "notification.weekly-reports.enabled", true),
+            cron("aws_cost_forecast", "AWS cost forecast (weekly)", "cost.aws-forecast.cron", "0 0 6 * * MON",
+                    "cost.aws-forecast.enabled", true),
             cron("data_retention", "Data retention (daily)", "retention.cron", "0 0 3 * * *", "retention.enabled", false),
             rate("lease-sweep", "Lease sweep", "lease.sweep.interval-ms", 60_000, "lease.enabled", false),
             cron("savings_ledger", "Savings ledger (daily)", "savings.ledger.cron", "0 30 3 * * *",

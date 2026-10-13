@@ -63,6 +63,8 @@ public class CostSetupService {
             new FeatureDef("reservations", "RI / Savings Plan coverage", "cost.reservations.enabled", "COST_RESERVATIONS_ENABLED",
                     "reservation_coverage_snapshot", List.of("ce:GetReservationCoverage", "ce:GetReservationUtilization",
                             "ce:GetSavingsPlansCoverage", "ce:GetSavingsPlansUtilization")),
+            new FeatureDef("awsForecast", "AWS cost forecast", "cost.aws-forecast.enabled", "COST_AWS_FORECAST_ENABLED",
+                    "aws_cost_forecast", List.of("ce:GetCostForecast")),
             new FeatureDef("weeklyReports", "Weekly reports", "notification.weekly-reports.enabled",
                     "NOTIFICATION_WEEKLY_REPORTS_ENABLED", "weekly_notification_reports", List.of()));
 
