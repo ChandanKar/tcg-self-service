@@ -29,8 +29,9 @@ test.describe('Dashboard environments table', () => {
     await expect(page.locator('#dashboard-env-rows .dashboard-env-row')).toHaveCount(2, { timeout: 15_000 });
 
     const payments = page.locator('#dashboard-env-rows .dashboard-env-row', { hasText: 'Payments QA' });
-    await expect(payments.locator('.badge')).toHaveText('Open');
-    await expect(payments.locator('.badge')).toHaveClass(/bg-success/);
+    await expect(payments.locator('.badge')).toHaveText('Unlocked');
+    await expect(payments.locator('.badge')).toHaveClass(/text-bg-light/);
+    await expect(payments.locator('a.dashboard-env-link')).toHaveAttribute('href', '#/environments/e11-pay');
     const billing = page.locator('#dashboard-env-rows .dashboard-env-row', { hasText: 'Billing' });
     await expect(billing.locator('.badge')).toHaveText('Locked');
     await expect(billing.locator('.badge')).toHaveClass(/bg-warning/);

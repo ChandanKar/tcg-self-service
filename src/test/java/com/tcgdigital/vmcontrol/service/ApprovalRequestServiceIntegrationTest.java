@@ -203,6 +203,22 @@ class ApprovalRequestServiceIntegrationTest extends SecuredWebTestBase {
     }
 
     @Test
+    void approvalsConcernsTheUserWhileOnOrWhenTheyHaveRequests() throws Exception {
+        mockMvc.perform(get("/api/v1/approval-requests/status").with(asViewer()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.visible").value(true));
+
+        policy("ANY");
+        startAsRequester();
+        ReflectionTestUtils.setField(policyTarget(), "enabled", false);
+        mockMvc.perform(get("/api/v1/approval-requests/status").with(asViewer()))
+                .andExpect(jsonPath("$.visible").value(false));
+        mockMvc.perform(get("/api/v1/approval-requests/status").with(asUser()))
+                .andExpect(jsonPath("$.visible").value(true));
+        mockMvc.perform(get("/api/v1/approval-requests/status").with(as(approverA)))
+                .andExpect(jsonPath("$.visible").value(true));
+    }
+
+    @Test
     void withApprovalsOffTheStartRunsAtOnce() throws Exception {
         policy("ANY");
         ReflectionTestUtils.setField(policyTarget(), "enabled", false);

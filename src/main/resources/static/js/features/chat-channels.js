@@ -70,7 +70,7 @@ const ChatChannels = (function() {
                 </div></li>`;
         }).join('') : '<li class="text-muted small">No channels yet. Add a Teams channel to get this environment\'s alerts in chat.</li>';
         const off = c.options.enabled ? '' : `<div class="small text-muted mb-2"><i class="fas fa-info-circle me-1" aria-hidden="true"></i>
-            Chat notifications are turned off on the server (CHAT_ENABLED). Channels are kept and start receiving messages once it is on.</div>`;
+            Teams notifications are switched off for this platform. Channels you add are kept and start receiving messages when an administrator switches them on.</div>`;
         $('#env-chat-panel').html(`<section class="card mb-3 chat-channels-card" aria-labelledby="chat-channels-title"><div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
                 <h2 class="h6 mb-0" id="chat-channels-title"><i class="fas fa-comments me-1" aria-hidden="true"></i>Teams channels</h2>

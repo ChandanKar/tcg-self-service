@@ -188,18 +188,25 @@
     font-size: 0.81rem;
 }
 
-/* Type and Cloud icon-only columns (fixed widths from tablet up; phones use cards, E13-T05) */
-@media (min-width: 768px) {
-.env-list-table-wrapper .table th.col-type,
-.env-list-table-wrapper .table th.col-cloud {
-    width: 48px;
-    text-align: center;
+/* Type in words with a small icon, e.g. "AWS EC2" (phones use cards, E13-T05) */
+.env-type-label {
+    white-space: nowrap;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
 }
+.env-type-icon {
+    font-size: 0.8125rem;
+    margin-right: 0.25rem;
 }
-.env-type-icon,
-.env-cloud-icon {
-    font-size: 1rem;
-    cursor: default;
+
+.env-name-link {
+    color: inherit;
+    text-decoration: none;
+}
+.env-name-link:hover strong,
+.env-name-link:focus-visible strong {
+    color: var(--primary-color);
+    text-decoration: underline;
 }
 
 /* Region, Groups, Total VMs, Running, Actions: no fixed width — nowrap alone is enough for an

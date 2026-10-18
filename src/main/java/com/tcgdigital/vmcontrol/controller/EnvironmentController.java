@@ -293,6 +293,8 @@ public class EnvironmentController {
         if (leaseService.isFeatureEnabled()) {
             dto.setLeaseEnabled(Boolean.TRUE.equals(environment.getLeaseEnabled()));
         }
+        dto.setViewerCanOperate(securityService.canOperateInEnvironment(environmentId));
+        dto.setViewerCanAdminister(securityService.canAdministerEnvironment(environmentId));
 
         return ResponseEntity.ok(dto);
     }

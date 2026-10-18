@@ -63,13 +63,33 @@ test.describe('Keyboard reach', () => {
     await expect(page.locator('#user-dropdown')).toBeHidden();
   });
 
-  test('an admin page opens the Admin section and marks its link active', async ({ page }) => {
-    await page.evaluate(() => { location.hash = '#/vm-registry'; });
+  test('an admin page opens the Administration section and marks its link active', async ({ page }) => {
+    await page.evaluate(() => { location.hash = '#/user-management'; });
     await expect(page.locator('#admin-menu')).toBeVisible();
     await expect(page.locator('#admin-title')).toHaveAttribute('aria-expanded', 'true');
-    await expect(page.locator('.sidebar-menu-link[data-content="vm-registry"]')).toHaveClass(/active/);
+    await expect(page.locator('.sidebar-menu-link[data-content="user-management"]')).toHaveClass(/active/);
 
     await page.reload();
     await expect(page.locator('#admin-menu')).toBeVisible({ timeout: 10_000 });
+  });
+
+  test('a Manage page opens the Manage section; sections open and close on their own', async ({ page }) => {
+    await page.evaluate(() => { location.hash = '#/vm-registry'; });
+    await expect(page.locator('#manage-menu')).toBeVisible();
+    await expect(page.locator('.sidebar-menu-link[data-content="vm-registry"]')).toHaveClass(/active/);
+
+    // Opening Administration leaves Workspace and Manage open (no accordion).
+    await page.locator('#admin-title').click();
+    await expect(page.locator('#admin-menu')).toBeVisible();
+    await expect(page.locator('#operations-menu')).toBeVisible();
+    await expect(page.locator('#manage-menu')).toBeVisible();
+
+    // A closed section stays closed after a reload.
+    await page.locator('#admin-title').click();
+    await expect(page.locator('#admin-menu')).toBeHidden();
+    await page.evaluate(() => { location.hash = '#/dashboard'; });
+    await page.reload();
+    await expect(page.locator('#operations-menu')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('#admin-title')).toHaveAttribute('aria-expanded', 'false');
   });
 });

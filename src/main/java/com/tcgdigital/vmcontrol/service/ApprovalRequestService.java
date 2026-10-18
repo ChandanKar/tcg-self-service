@@ -519,6 +519,13 @@ public class ApprovalRequestService {
 
     // ============= Reading =============
 
+    /** Policies or quotas are on, or the user has requests of their own or to review. */
+    @Transactional(readOnly = true)
+    public boolean isRelevantTo(String userId) {
+        return policyService.isActive() || requestRepository.existsByRequesterUserId(userId)
+                || requestRepository.existsForApprover(userId);
+    }
+
     @Transactional(readOnly = true)
     public List<ApprovalRequestDTO> list(String userId, String view) {
         List<ApprovalRequest> requests = "to-review".equalsIgnoreCase(view) ? requestRepository.findForApprover(userId)

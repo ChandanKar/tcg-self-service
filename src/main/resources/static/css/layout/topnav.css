@@ -18,7 +18,6 @@
     display: flex;
     align-items: center;
     padding: 0 1.5rem;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
 .top-navbar .hamburger {
@@ -80,12 +79,12 @@
 }
 
 .top-navbar .logo {
-    font-size: 1.25rem;
-    font-weight: 700;
-    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    padding-left: 0.75rem;
+    border-left: 1px solid var(--border-color);
+    line-height: 1.5rem;
 }
 
 .top-navbar .nav-icons {
@@ -270,7 +269,15 @@
     color: #ef4444;
 }
 
-/* Role Badges — see components/badges.css for .role-badge */
+/* Role Badges — see components/badges.css for .role-badge. Next to the name the role is a
+   plain caption: a coloured pill made "Administrator" look like a warning. */
+.top-navbar .user-role .role-badge {
+    background: none;
+    color: var(--text-secondary);
+    padding: 0;
+    font-size: 0.75rem;
+    letter-spacing: 0;
+}
 
 /* Loading and Error States */
 .loading-state,

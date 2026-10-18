@@ -137,17 +137,18 @@ const Dashboard = (function() {
                         <h1>Dashboard</h1>
                         <p>${subtitle}</p>
                     </div>
-                    <button class="btn btn-ghost btn-sm" data-action="dashboard-refresh" title="Refresh">
-                        <i class="fas fa-sync"></i> Refresh
-                    </button>
-                    <button class="btn btn-outline-secondary btn-sm ${autoRefreshEnabled ? 'active' : ''}"
-                            id="dashboard-auto-refresh-toggle"
-                            type="button"
-                            aria-pressed="${autoRefreshEnabled}"
-                            title="Auto refresh">
-                        <i class="fas ${autoRefreshEnabled ? 'fa-pause' : 'fa-play'}"></i>
-                        ${autoRefreshEnabled ? 'Auto On' : 'Auto Off'}
-                    </button>
+                    <div class="dashboard-header-actions">
+                        <button class="btn btn-ghost btn-sm" data-action="dashboard-refresh" title="Reload now">
+                            <i class="fas fa-sync" aria-hidden="true"></i> Refresh
+                        </button>
+                        <button class="btn btn-ghost btn-sm ${autoRefreshEnabled ? 'active' : ''}"
+                                id="dashboard-auto-refresh-toggle"
+                                type="button"
+                                aria-pressed="${autoRefreshEnabled}"
+                                title="Reload every 30 seconds">
+                            ${autoRefreshLabel()}
+                        </button>
+                    </div>
                 </div>
 
                 <div class="dashboard-body" tabindex="0" role="region" aria-label="Dashboard">
@@ -158,21 +159,26 @@ const Dashboard = (function() {
         `;
     }
 
+    function autoRefreshLabel() {
+        return `<i class="fas ${autoRefreshEnabled ? 'fa-pause' : 'fa-play'}" aria-hidden="true"></i> ${autoRefreshEnabled ? 'Auto On' : 'Auto Off'}`;
+    }
+
     function buildMetricStrip(data) {
         const summary = data.summary || {};
         const storage = data.storage || {};
         const coverage = data.coverage || {};
         // Admin dashboard no longer has an Idle VMs panel to jump to (removed with the
         // Global Utilization chart split) — only the non-admin dashboard's panel still exists.
-        const idleTarget = data.persona === 'ADMIN' ? null : 'dashboard-idle-vms';
+        const admin = data.persona === 'ADMIN';
+        const idleTarget = admin ? null : 'dashboard-idle-vms';
         return `
-            <div class="dashboard-kpi-grid">
-                ${buildKpi('Environments', summary.environments, 'fa-layer-group', 'Accessible active environments')}
-                ${buildKpi('Total VMs', summary.totalVms, 'fa-server', 'Registered active VMs')}
-                ${buildKpi('Running', summary.runningVms, 'fa-play-circle', `${percent(summary.runningVms, summary.totalVms)}% of fleet`)}
-                ${buildKpi('Idle', summary.idleVms, 'fa-moon', 'VMs with sustained low utilization', idleTarget)}
-                ${buildKpi('Storage', formatGiB(storage.totalAllocatedStorageGib), 'fa-hard-drive', 'Allocated EBS storage')}
-                ${buildKpi('Coverage', `${coverage.metricsPercent || 0}%`, 'fa-signal', 'Metric sample coverage')}
+            <div class="dashboard-kpi-grid${admin ? '' : ' dashboard-kpi-grid-4'}">
+                ${buildKpi('Environments', summary.environments, 'fa-layer-group', 'Environments you can see')}
+                ${buildKpi('Total VMs', summary.totalVms, 'fa-server', 'Registered VMs in those environments')}
+                ${buildKpi('Running', summary.runningVms, 'fa-play-circle', `${percent(summary.runningVms, summary.totalVms)}% of your VMs`)}
+                ${buildKpi('Idle', summary.idleVms, 'fa-moon', 'Running VMs that have been barely used', idleTarget)}
+                ${admin ? buildKpi('Storage', formatGiB(storage.totalAllocatedStorageGib), 'fa-hard-drive', 'Allocated EBS storage') : ''}
+                ${admin ? buildKpi('Coverage', `${coverage.metricsPercent || 0}%`, 'fa-signal', 'Share of VMs with recent metric samples') : ''}
             </div>
         `;
     }
@@ -194,13 +200,7 @@ const Dashboard = (function() {
     function buildUserDashboard(data) {
         return `
             <div class="dashboard-layout dashboard-layout-user">
-                <section class="dashboard-chart-panel dashboard-wide">
-                    <div class="dashboard-panel-head">
-                        <h2>Utilization Trend</h2>
-                        <small>Last 24h</small>
-                    </div>
-                    <div id="dash-util-trend" class="dashboard-chart"></div>
-                </section>
+                ${buildEnvironmentPanel(data.environments || [])}
                 <section class="dashboard-chart-panel">
                     <div class="dashboard-panel-head">
                         <h2>VM State</h2>
@@ -208,15 +208,14 @@ const Dashboard = (function() {
                     </div>
                     <div id="dash-vm-state" class="dashboard-chart"></div>
                 </section>
-                <section class="dashboard-chart-panel">
-                    <div class="dashboard-panel-head">
-                        <h2>Storage Mix</h2>
-                        <small>${data.storage?.volumeCount || 0} volumes</small>
-                    </div>
-                    <div id="dash-storage-mix" class="dashboard-chart"></div>
-                </section>
-                ${buildEnvironmentPanel(data.environments || [])}
                 ${buildListPanel('Idle VMs', data.idleVms || [], 'idle')}
+                <section class="dashboard-chart-panel dashboard-full">
+                    <div class="dashboard-panel-head">
+                        <h2>Utilization Trend</h2>
+                        <small>Last 24h</small>
+                    </div>
+                    <div id="dash-util-trend" class="dashboard-chart"></div>
+                </section>
             </div>
         `;
     }
@@ -305,14 +304,16 @@ const Dashboard = (function() {
             return `
                 <tr class="dashboard-env-row" data-name="${Utils.escapeHtml(searchText)}">
                     <td>
-                        <strong>${Utils.escapeHtml(env.displayName || env.name || '-')}</strong>
+                        ${env.environmentId
+                            ? `<a class="dashboard-env-link" href="#/environments/${encodeURIComponent(env.environmentId)}"><strong>${Utils.escapeHtml(env.displayName || env.name || '-')}</strong></a>`
+                            : `<strong>${Utils.escapeHtml(env.displayName || env.name || '-')}</strong>`}
                         <small>${Utils.escapeHtml(env.name || '')}</small>
                     </td>
                     <td>${Utils.escapeHtml(env.serviceType || 'EC2')}</td>
                     <td class="${runningClass}">${running}/${total}</td>
                     <td>${formatPercent(env.avgCpuUtilization)}</td>
                     <td>${formatGiB(env.allocatedStorageGib)}</td>
-                    <td><span class="badge ${env.locked ? 'bg-warning text-dark' : 'bg-success'}">${env.locked ? 'Locked' : 'Open'}</span></td>
+                    <td><span class="badge ${env.locked ? 'bg-warning text-dark' : 'text-bg-light border'}">${env.locked ? 'Locked' : 'Unlocked'}</span></td>
                 </tr>
             `;
         }).join('');
@@ -485,7 +486,7 @@ const Dashboard = (function() {
         chart('dash-util-cpu', buildSingleTrendOption(data, 'cpuUtilization', 'CPU %', '#2563eb', 'percent'));
         chart('dash-util-memory', buildSingleTrendOption(data, 'memoryUtilization', 'Memory %', '#7c3aed', 'percent'));
         chart('dash-util-network', buildSingleTrendOption(data, 'networkBytes', 'Network MB', '#10b981', 'mb'));
-        chart('dash-vm-state', buildDonutOption(data.vmStatusCounts || {}, ['#10b981', '#64748b', '#f59e0b', '#ef4444']));
+        chart('dash-vm-state', buildDonutOption(data.vmStatusCounts || {}, ['#10b981', '#64748b', '#f59e0b', '#ef4444'], true));
         chart('dash-storage-mix', buildDonutOption(data.volumeTypeCounts || {}, ['#2563eb', '#10b981', '#f59e0b', '#7c3aed', '#3b82f6']));
         chart('dash-coverage', buildGaugeOption(data.coverage?.metricsPercent || 0));
         chart('dash-risk-compliance', buildRiskComplianceOption(data.riskCompliance || []));
@@ -606,8 +607,19 @@ const Dashboard = (function() {
         return raw === null || raw === undefined ? null : Number(raw);
     }
 
-    function buildDonutOption(values, colors) {
-        const data = Object.entries(values).map(([name, value]) => ({ name, value }));
+    // VM states keep one colour each wherever they appear (green only ever means running).
+    const STATE_COLORS = { RUNNING: '#10b981', STOPPED: '#94a3b8', STARTING: '#3b82f6', STOPPING: '#f59e0b',
+        PENDING: '#3b82f6', ERROR: '#ef4444', UNKNOWN: '#cbd5e1' };
+
+    function stateLabel(key) {
+        const k = String(key || '');
+        return k.charAt(0) + k.slice(1).toLowerCase().replace(/_/g, ' ');
+    }
+
+    function buildDonutOption(values, colors, byState) {
+        const data = Object.entries(values).map(([name, value]) => byState
+            ? { name: stateLabel(name), value, itemStyle: STATE_COLORS[name] ? { color: STATE_COLORS[name] } : undefined }
+            : { name, value });
         return {
             color: colors,
             tooltip: { trigger: 'item', confine: true },
@@ -770,8 +782,7 @@ const Dashboard = (function() {
         $button.toggleClass('active', autoRefreshEnabled)
             .attr('aria-pressed', String(autoRefreshEnabled))
             .html(`
-                <i class="fas ${autoRefreshEnabled ? 'fa-pause' : 'fa-play'}"></i>
-                ${autoRefreshEnabled ? 'Auto On' : 'Auto Off'}
+                ${autoRefreshLabel()}
             `);
     }
 

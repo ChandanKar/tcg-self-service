@@ -39,6 +39,13 @@ const Approvals = (function() {
         return r.requestType === 'EXTEND' ? `Keep ${r.environmentName} running longer` : `Start ${r.environmentName}`;
     }
 
+    /** Shows the sidebar item only while Approvals concerns the user (on, or requests to see). */
+    function probeNav() {
+        call('GET', Config.API.approvals.status)
+            .then(r => $('#approvals-link').toggle(!!(r && r.visible)))
+            .catch(() => $('#approvals-link').hide());
+    }
+
     // ---------------------------------------------------------------- page
 
     function load() {
@@ -190,7 +197,7 @@ const Approvals = (function() {
         }).catch(() => $slot.html(''));
     }
 
-    return { load, showTab, approve, deny, cancel, renderEnvBanner, refreshBanner: () => bannerEnv && renderEnvBanner(bannerEnv) };
+    return { load, probeNav, showTab, approve, deny, cancel, renderEnvBanner, refreshBanner: () => bannerEnv && renderEnvBanner(bannerEnv) };
 })();
 
 window.Approvals = Approvals;

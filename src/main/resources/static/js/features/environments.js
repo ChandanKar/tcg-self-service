@@ -408,15 +408,14 @@ const Environments = (function() {
                         <thead class="table-light sticky-top">
                             <tr>
                                 <th>Environment</th>
-                                <th class="col-type text-center">Type</th>
-                                <th class="col-cloud text-center">Cloud</th>
+                                <th class="col-type">Type</th>
                                 <th class="col-account" hidden>Account</th>
                                 <th class="col-region">Region</th>
                                 <th class="col-groups text-center">Groups</th>
                                 <th class="col-vms text-center">Total VMs</th>
                                 <th class="col-running">Running</th>
-                                <th class="col-lock">Lock Status</th>
-                                <th>Actions</th>
+                                <th class="col-lock">Lock</th>
+                                <th><span class="visually-hidden">Actions</span></th>
                             </tr>
                         </thead>
                         <tbody id="env-list-body">
@@ -454,7 +453,7 @@ const Environments = (function() {
                 // truncates, so the full "Locked by X" is always recoverable on hover.
                 lockDisplay = `<span class="text-warning" data-bs-toggle="tooltip" title="Locked by ${Utils.escapeHtml(lockedBy)}"><i class="fas fa-lock"></i> ${Utils.escapeHtml(lockedBy)}</span>`;
             } else {
-                lockDisplay = `<span class="text-success"><i class="fas fa-unlock"></i> Unlocked</span>`;
+                lockDisplay = `<span class="text-muted"><i class="fas fa-lock-open" aria-hidden="true"></i> Unlocked</span>`;
             }
 
             const adminBtns = Auth.isEnvAdmin() ? `
@@ -465,7 +464,7 @@ const Environments = (function() {
                 </button>
                 <button type="button" class="btn btn-sm btn-outline-danger btn-action ms-1"
                         data-env-id="${env.environmentId}" data-env-name="${Utils.escapeHtml(env.displayName || env.name)}" data-action="delete-env"
-                        data-bs-toggle="tooltip" title="Delete" aria-label="Delete">
+                        data-bs-toggle="tooltip" title="Deactivate" aria-label="Deactivate">
                     <i class="fas fa-trash" aria-hidden="true"></i>
                 </button>
             ` : '';
@@ -477,12 +476,12 @@ const Environments = (function() {
             const serviceType = (env.serviceType || 'EC2').toUpperCase();
             const typeColor = serviceType === 'EKS' ? '#1d4ed8' : '#c2410c';
             const typeIcon = serviceType === 'EKS' ? 'fas fa-dharmachakra' : 'fas fa-server';
-            const typeCell = `<i class="${typeIcon} env-type-icon" style="color:${typeColor}" data-bs-toggle="tooltip" title="${serviceType}"></i>`;
-
+            // Type as words (icons alone were not understood): e.g. "AWS EC2", "AWS EKS".
             let envMeta = {};
             try { envMeta = JSON.parse(env.metadata || '{}') || {}; } catch(e) {}
             const cloudProv = (envMeta.defaultCloudProvider || 'AWS').toUpperCase();
-            const cloudCfg = (Config.CLOUD_ICONS || {})[cloudProv] || { icon: 'fab fa-aws', color: '#FF9900', label: 'AWS' };
+            const typeCell = `<span class="env-type-label"><i class="${typeIcon} env-type-icon" style="color:${typeColor}" aria-hidden="true"></i>`
+                + ` ${Utils.escapeHtml(cloudProv)} ${Utils.escapeHtml(serviceType)}</span>`;
 
             // Derived from the environment's own VMs (works the same for EC2 and EKS) rather
             // than a declared value, so it always reflects what's actually there.
@@ -496,11 +495,10 @@ const Environments = (function() {
             return `
                 <tr>
                     <td class="td-primary" data-label="Environment">
-                        <strong${descTooltip}>${Utils.escapeHtml(env.displayName || env.name)}</strong>
+                        <a class="env-name-link" href="#/environments/${encodeURIComponent(env.environmentId)}"><strong${descTooltip}>${Utils.escapeHtml(env.displayName || env.name)}</strong></a>
                         ${env.displayName && env.displayName !== env.name ? `<div class="small text-muted">${Utils.escapeHtml(env.name)}</div>` : ''}
                     </td>
-                    <td class="text-center" data-label="Type">${typeCell}</td>
-                    <td class="text-center" data-label="Cloud"><i class="${cloudCfg.icon} env-cloud-icon" style="color:${cloudCfg.color}" data-bs-toggle="tooltip" title="${Utils.escapeHtml(cloudCfg.label || cloudProv)}"></i></td>
+                    <td class="col-type" data-label="Type">${typeCell}</td>
                     <td class="col-account" data-label="Account" hidden>${Utils.escapeHtml(env.awsAccountName || '')}</td>
                     <td class="col-region" data-label="Region">${regionCell}</td>
                     <td class="col-groups text-center" data-label="Groups">${env.groupCount || 0}</td>
@@ -510,12 +508,12 @@ const Environments = (function() {
                             <i class="fas fa-circle"></i> ${runningVms}/${totalVms}
                         </span>
                     </td>
-                    <td class="col-lock" data-label="Lock Status">${lockDisplay}</td>
+                    <td class="col-lock" data-label="Lock">${lockDisplay}</td>
                     <td class="col-actions td-actions">
-                        <button type="button" class="btn btn-sm btn-primary btn-action"
+                        <button type="button" class="btn btn-sm btn-outline-primary"
                                 data-env-id="${env.environmentId}" data-env-name="${Utils.escapeHtml(env.displayName || env.name)}" data-action="view"
-                                data-bs-toggle="tooltip" title="View" aria-label="View">
-                            <i class="fas fa-eye" aria-hidden="true"></i>
+                                aria-label="Open ${Utils.escapeHtml(env.displayName || env.name)}">
+                            Open
                         </button>
                         ${adminBtns}
                     </td>
@@ -616,7 +614,7 @@ const Environments = (function() {
             // the user with no way to clear or change their search term.
             if (environmentsList.length === 0) {
                 $('#env-list-body').html(`
-                    <tr><td colspan="8" class="text-center text-muted py-4">
+                    <tr><td colspan="9" class="text-center text-muted py-4">
                         No environments match your search.
                     </td></tr>`);
                 $('#env-list-pagination').empty();
@@ -633,11 +631,16 @@ const Environments = (function() {
     const filterAndRenderEnvList = Utils.debounce(doSearchEnvList, 300);
 
     /**
-     * Build environment detail HTML
+     * Build environment detail HTML. Order follows the task: what it is and whether it runs, the
+     * controls, the groups and VMs; cost and settings panels come after the VMs.
      */
     function buildDetailHtml(env) {
         const totalVms = env.totalVms || 0;
         const runningVms = env.runningVms || 0;
+        // Older payloads (and faked ones) carry no viewer flags: keep the controls then.
+        const canOperate = env.viewerCanOperate !== false;
+        const isEnvAdmin = typeof Auth !== 'undefined' && Auth.isEnvAdmin && Auth.isEnvAdmin();
+        const envName = env.displayName || env.name;
 
         // Lock section
         let lockSection = '';
@@ -647,118 +650,121 @@ const Environments = (function() {
                 Locks.buildLockBanner(env.lockStatus, env.environmentId) : '';
         } catch (e) { lockSection = ''; }
 
-        // Compact metric cards — number-only + tooltip (same style as dashboard)
-        const metricsRow = `
-            <div class="row g-2 mb-2">
-                <div class="col-6 col-md-3">
-                    <div class="metric-card text-center" data-bs-toggle="tooltip" title="Total VMs in this environment">
-                        <div class="metric-value">${totalVms}</div>
-                        <div class="metric-label-hint">Total VMs</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="metric-card text-center" data-bs-toggle="tooltip" title="Currently running VMs">
-                        <div class="metric-value text-success">${runningVms}</div>
-                        <div class="metric-label-hint">Running</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="metric-card text-center" data-bs-toggle="tooltip" title="Currently stopped VMs">
-                        <div class="metric-value text-danger">${totalVms - runningVms}</div>
-                        <div class="metric-label-hint">Stopped</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="metric-card text-center" data-bs-toggle="tooltip" title="Number of VM groups">
-                        <div class="metric-value">${env.groups ? env.groups.length : 0}</div>
-                        <div class="metric-label-hint">Groups</div>
-                    </div>
-                </div>
+        const groupCount = env.groups ? env.groups.length : 0;
+        const unknownVms = countVmsWithStatus(env, 'UNKNOWN');
+        const summary = `
+            <div class="env-detail-summary">
+                <span class="env-run-dot ${runningVms === 0 ? 'off' : runningVms === totalVms ? 'on' : 'partial'}" aria-hidden="true"></span>
+                <strong>${runningVms} of ${totalVms}</strong> VMs running
+                <span class="env-summary-sep" aria-hidden="true">·</span> ${groupCount} ${groupCount === 1 ? 'group' : 'groups'}
+                ${unknownVms > 0 ? `<span class="env-summary-sep" aria-hidden="true">·</span>
+                    <span title="Not yet read from the cloud; it updates on the next sync">${unknownVms} with unknown status</span>` : ''}
             </div>`;
 
-        // Groups — first expanded, rest collapsed
+        const primaryAction = !canOperate ? '' :
+            hasTransitionalVms(env) ?
+                `<button class="btn btn-sm btn-secondary" id="btn-env-action" disabled
+                         data-bs-toggle="tooltip" title="Operation already in progress">
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> In Progress
+                </button>` :
+            runningVms === 0 ?
+                `<button class="btn btn-sm btn-success" id="btn-env-action" data-action-type="start">
+                    <i class="fas fa-play" aria-hidden="true"></i> Start All
+                </button>` :
+            runningVms === totalVms ?
+                `<button class="btn btn-sm btn-outline-danger" id="btn-env-action" data-action-type="stop">
+                    <i class="fas fa-stop" aria-hidden="true"></i> Stop All
+                </button>` :
+                `<button class="btn btn-sm btn-success" id="btn-env-action" data-action-type="start">
+                    <i class="fas fa-play" aria-hidden="true"></i> Start All
+                </button>
+                <button class="btn btn-sm btn-outline-danger" id="btn-env-action-stop" data-action-type="stop">
+                    <i class="fas fa-stop" aria-hidden="true"></i> Stop All
+                </button>`;
+
+        const viewOnly = canOperate ? '' : `
+            <div class="env-viewonly-note" role="note">
+                <i class="fas fa-eye" aria-hidden="true"></i>
+                <span>You have view-only access to this environment. To start or stop its VMs,
+                    <a href="#/request-access">request operator access</a>.</span>
+            </div>`;
+
+        // Groups: all open while the environment is small, otherwise the first one.
+        const openAll = totalVms <= 30;
         const groupsHtml = (env.groups || []).map((group, idx) =>
-            buildGroupCard(group, env, idx === 0)
+            buildGroupCard(group, env, openAll || idx === 0, canOperate)
         ).join('');
 
         return `
             <div id="env-detail-view">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <div style="border-left:4px solid var(--primary-color);padding-left:0.75rem;">
-                        <div style="font-size:1.25rem;font-weight:700;color:#1e293b;margin-bottom:0.05rem;">${Utils.escapeHtml(env.displayName || env.name)}</div>
-                        <div style="font-size:0.78rem;color:#64748b;">${Utils.escapeHtml(env.description || '')}</div>
+                <nav class="env-breadcrumb" aria-label="Breadcrumb">
+                    <a href="#/my-environments">My Environments</a>
+                    <span aria-hidden="true">/</span>
+                    <span aria-current="page">${Utils.escapeHtml(envName)}</span>
+                </nav>
+                <div class="env-detail-header">
+                    <div class="env-detail-title">
+                        <h1>${Utils.escapeHtml(envName)}</h1>
+                        ${env.description ? `<p>${Utils.escapeHtml(env.description)}</p>` : ''}
+                        ${summary}
                     </div>
-                    <div class="d-flex gap-2 align-items-center">
+                    <div class="env-detail-actions">
                         <button type="button" class="btn btn-sm btn-ghost" id="btn-env-insights"
-                                data-bs-toggle="tooltip" title="Environment insights" aria-label="Environment insights">
-                            <i class="fas fa-info-circle" aria-hidden="true"></i>
+                                data-bs-toggle="tooltip" title="Utilization, cost and recommendations" aria-label="Environment insights">
+                            <i class="fas fa-chart-line" aria-hidden="true"></i> Insights
                         </button>
-                        <button class="btn btn-sm btn-ghost" id="btn-operation-history">
-                            <i class="fas fa-history"></i> History
+                        <button class="btn btn-sm btn-ghost" id="btn-operation-history"
+                                data-bs-toggle="tooltip" title="Past starts and stops">
+                            <i class="fas fa-history" aria-hidden="true"></i> History
                         </button>
-                        ${(typeof Auth !== 'undefined' && Auth.isEnvAdmin && Auth.isEnvAdmin())
+                        ${isEnvAdmin
                             ? `<button class="btn btn-sm btn-ghost" id="btn-env-manage-access"
                                        data-bs-toggle="tooltip" title="Manage access for this environment">
-                                <i class="fas fa-user-shield"></i> Access
+                                <i class="fas fa-user-shield" aria-hidden="true"></i> Access
                             </button>
                             <button class="btn btn-sm btn-ghost" id="btn-env-notify"
                                        data-bs-toggle="tooltip" title="Email everyone with access to this environment">
-                                <i class="fas fa-envelope"></i> Notify
+                                <i class="fas fa-envelope" aria-hidden="true"></i> Notify
                             </button>` : ''}
-                        ${hasTransitionalVms(env) ?
-                            `<button class="btn btn-sm btn-secondary" id="btn-env-action" disabled
-                                     data-bs-toggle="tooltip" title="Operation already in progress">
-                                <i class="fas fa-spinner fa-spin"></i> In Progress
-                            </button>` :
-                        runningVms === 0 ?
-                            `<button class="btn btn-sm btn-tonal btn-success" id="btn-env-action" data-action-type="start">
-                                <i class="fas fa-play-circle"></i> Start All
-                            </button>` :
-                        runningVms === totalVms ?
-                            `<button class="btn btn-sm btn-tonal btn-danger" id="btn-env-action" data-action-type="stop">
-                                <i class="fas fa-stop-circle"></i> Stop All
-                            </button>` :
-                            `<button class="btn btn-sm btn-tonal btn-success" id="btn-env-action" data-action-type="start">
-                                <i class="fas fa-play-circle"></i> Start All
-                            </button>
-                            <button class="btn btn-sm btn-tonal btn-danger" id="btn-env-action-stop" data-action-type="stop">
-                                <i class="fas fa-stop-circle"></i> Stop All
-                            </button>`
-                        }
-                        <a class="btn btn-sm btn-ghost" href="#/my-environments">
-                            <i class="fas fa-arrow-left"></i> Back
-                        </a>
+                        ${primaryAction}
                     </div>
                 </div>
 
+                ${viewOnly}
                 ${lockSection}
                 <div id="env-approval-banner"></div>
                 <div id="env-lease-section"></div>
-                ${metricsRow}
 
-                <section id="env-cost-card" aria-label="Environment cost"></section>
-                <div id="env-budget-panel"></div>
-                <div id="env-anomaly-panel"></div>
-                <div id="env-idle-panel"></div>
-                <div id="env-chat-panel"></div>
-                <div id="env-webhook-panel"></div>
-                <div id="env-spot-panel"></div>
+                <section class="env-section" aria-labelledby="env-groups-title">
+                    <h2 class="env-section-title" id="env-groups-title">Groups &amp; VMs</h2>
+                    <div id="env-groups-container">
+                        ${groupsHtml || '<div class="alert alert-secondary py-2 small">No groups configured for this environment.</div>'}
+                    </div>
+                </section>
 
-                <div class="mb-1">
-                    <span class="text-muted text-uppercase" style="font-size:0.68rem;letter-spacing:0.05em;">Groups &amp; VMs</span>
-                </div>
-
-                <div id="env-groups-container">
-                    ${groupsHtml || '<div class="alert alert-secondary py-2 small">No groups configured for this environment.</div>'}
-                </div>
+                <section class="env-section env-more" aria-labelledby="env-more-title">
+                    <h2 class="env-section-title" id="env-more-title">Cost &amp; settings</h2>
+                    <section id="env-cost-card" aria-label="Environment cost"></section>
+                    <div id="env-budget-panel"></div>
+                    <div id="env-anomaly-panel"></div>
+                    <div id="env-idle-panel"></div>
+                    <div id="env-spot-panel"></div>
+                    <div id="env-chat-panel"></div>
+                    <div id="env-webhook-panel"></div>
+                </section>
             </div>`;
+    }
+
+    function countVmsWithStatus(env, status) {
+        return (env.groups || []).reduce((n, g) => n + (g.vms || []).filter(v => v.status === status).length, 0);
     }
 
     /**
      * Build group card — collapsible accordion.
-     * @param {boolean} expanded - first group starts open, rest collapsed
+     * @param {boolean} expanded - whether the group starts open
+     * @param {boolean} canOperate - the viewer may start/stop (otherwise no action buttons)
      */
-    function buildGroupCard(groupData, env, expanded) {
+    function buildGroupCard(groupData, env, expanded, canOperate = true) {
         const group = groupData.group || groupData;
         const vms   = groupData.vms || [];
 
@@ -784,9 +790,10 @@ const Environments = (function() {
             const g = gd.group || gd;
             if (g && g.groupId) groupNames[g.groupId] = g.displayName || g.name;
         });
-        const dependsText = dependsIds.length > 0
-            ? Utils.escapeHtml(dependsIds.map(id => groupNames[id] || 'removed group').join(', '))
-            : 'None';
+        const orderText = `Start order ${Utils.escapeHtml(String(group.sequencePosition ?? '-'))}`
+            + (dependsIds.length > 0
+                ? ` · after ${Utils.escapeHtml(dependsIds.map(id => groupNames[id] || 'removed group').join(', '))}`
+                : '');
 
         // VM rows — compact icon-only action buttons
         const vmRows = vms.map(vm => {
@@ -808,28 +815,26 @@ const Environments = (function() {
                         </span>
                         ${rdsAutoStartNote(vm)}
                     </td>
-                    <td data-label="Seq">${vm.sequencePosition || '-'}</td>
+                    <td data-label="Order">${vm.sequencePosition || '-'}</td>
                     <td class="td-actions">
-                        <button type="button" class="btn btn-sm btn-outline-primary btn-action"
+                        <button type="button" class="btn btn-sm btn-ghost btn-action"
                                 data-vm-id="${vm.vmId}" data-action="vm-details"
-                                data-bs-toggle="tooltip" title="Details" aria-label="Details">
-                            <i class="fas fa-info-circle" aria-hidden="true"></i>
+                                data-bs-toggle="tooltip" title="Details, metrics and history" aria-label="Details">
+                            <i class="fas fa-circle-info" aria-hidden="true"></i>
                         </button>
-                        ${isTransitionalStatus(vm.status) ?
+                        ${!canOperate ? '' : isTransitionalStatus(vm.status) ?
                             `<button type="button" class="btn btn-sm btn-outline-secondary btn-action ms-1" disabled
                                      data-bs-toggle="tooltip" title="Operation in progress" aria-label="Operation in progress">
                                 <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
                             </button>` :
                         vm.status === 'RUNNING' ?
-                            `<button type="button" class="btn btn-sm btn-outline-danger btn-action ms-1"
-                                     data-vm-id="${vm.vmId}" data-action="stop-vm"
-                                     data-bs-toggle="tooltip" title="Stop VM" aria-label="Stop VM">
-                                <i class="fas fa-stop-circle" aria-hidden="true"></i>
+                            `<button type="button" class="btn btn-sm btn-outline-danger btn-vm-op ms-1"
+                                     data-vm-id="${vm.vmId}" data-action="stop-vm" aria-label="Stop VM">
+                                <i class="fas fa-stop" aria-hidden="true"></i> Stop
                             </button>` :
-                            `<button type="button" class="btn btn-sm btn-outline-success btn-action ms-1"
-                                     data-vm-id="${vm.vmId}" data-action="start-vm"
-                                     data-bs-toggle="tooltip" title="Start VM" aria-label="Start VM">
-                                <i class="fas fa-play-circle" aria-hidden="true"></i>
+                            `<button type="button" class="btn btn-sm btn-outline-success btn-vm-op ms-1"
+                                     data-vm-id="${vm.vmId}" data-action="start-vm" aria-label="Start VM">
+                                <i class="fas fa-play" aria-hidden="true"></i> Start
                             </button>`
                         }
                     </td>
@@ -837,7 +842,7 @@ const Environments = (function() {
         }).join('');
 
         // Group action buttons
-        const groupBtns = transitioningCount > 0 ?
+        const groupBtns = !canOperate ? '' : transitioningCount > 0 ?
             `<button class="btn btn-sm btn-secondary" disabled data-bs-toggle="tooltip" title="Operation in progress">
                 <i class="fas fa-spinner fa-spin"></i> In Progress
             </button>` :
@@ -866,8 +871,8 @@ const Environments = (function() {
                             <th>VM Name</th>
                             <th>Location</th>
                             <th>Status</th>
-                            <th>Seq</th>
-                            <th>Actions</th>
+                            <th>Order</th>
+                            <th><span class="visually-hidden">Actions</span></th>
                         </tr>
                     </thead>
                     <tbody>${vmRows}</tbody>
@@ -885,7 +890,7 @@ const Environments = (function() {
                            style="font-size:0.68rem;color:#94a3b8;transition:transform 0.2s;"></i>
                         <strong class="flex-shrink-0" style="font-size:0.875rem;">${Utils.escapeHtml(group.displayName || group.name)}</strong>
                         <span class="badge ${statusClass} flex-shrink-0" style="font-size:0.68rem;padding:0.2em 0.45em;">${runningCount}/${totalCount}</span>
-                        <small class="text-muted text-truncate" style="font-size:0.72rem;min-width:0;">Seq: ${group.sequencePosition} | Depends: ${dependsText}</small>
+                        <small class="text-muted text-truncate" style="font-size:0.75rem;min-width:0;">${orderText}</small>
                     </button>
                     <div class="flex-shrink-0 ms-2">
                         ${groupBtns}
@@ -1095,32 +1100,20 @@ const Environments = (function() {
             showVmDetails(envId, vmId);
         });
 
-        // Group accordion — only one group open at a time (true accordion)
+        // Group open/close: each group on its own.
         $('#content-area').off('click.envDetail', '.group-card-toggle')
             .on('click.envDetail', '.group-card-toggle', function() {
-                const targetId  = $(this).data('collapse-target');
-                const $clicked  = $('#' + targetId);
-                const isNowOpen = !$clicked.hasClass('group-collapsed');
-
-                // Collapse ALL groups first
-                $('#env-groups-container .group-card-body').addClass('group-collapsed');
-                $('#env-groups-container .group-chevron')
-                    .removeClass('fa-chevron-down')
-                    .addClass('fa-chevron-right');
-                $('#env-groups-container .group-card-toggle').attr('aria-expanded', 'false');
-
-                // If it was closed → open it; if already open → leave collapsed (toggle off)
-                if (!isNowOpen) {
-                    $clicked.removeClass('group-collapsed');
-                    $(this).attr('aria-expanded', 'true').find('.group-chevron')
-                        .removeClass('fa-chevron-right')
-                        .addClass('fa-chevron-down');
-                }
+                const $body = $('#' + $(this).data('collapse-target'));
+                const open = $body.hasClass('group-collapsed');
+                $body.toggleClass('group-collapsed', !open);
+                $(this).attr('aria-expanded', String(open)).find('.group-chevron')
+                    .toggleClass('fa-chevron-down', open)
+                    .toggleClass('fa-chevron-right', !open);
             });
 
-        // Init tooltips — ONLY on metric cards and VM action buttons, NOT on group headers
+        // Init tooltips — header actions and VM buttons, not group headers
         document.querySelectorAll(
-            '#env-detail-view .metric-card[data-bs-toggle="tooltip"], ' +
+            '#env-detail-view .env-detail-actions [data-bs-toggle="tooltip"], ' +
             '#env-groups-container [data-bs-toggle="tooltip"]'
         ).forEach(el => {
             if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {

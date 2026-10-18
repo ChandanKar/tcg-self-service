@@ -220,51 +220,22 @@
     background: var(--table-header-bg, #f8fafc);
 }
 
-/* ── Column widths: 8-col layout (Environment | Type | Cloud | Groups | Total VMs | Running | Lock Status | Actions) ── */
-#environments-list-view .env-list-table-wrapper .table thead th:nth-child(1),
-#environments-list-view .env-list-table-wrapper .table tbody td:nth-child(1) {
-    width: 32%;
-    text-align: left;
-}
-/* Type */
-#environments-list-view .env-list-table-wrapper .table thead th:nth-child(2),
-#environments-list-view .env-list-table-wrapper .table tbody td:nth-child(2) {
-    width: 42px;
-    text-align: center;
-}
-/* Cloud */
-#environments-list-view .env-list-table-wrapper .table thead th:nth-child(3),
-#environments-list-view .env-list-table-wrapper .table tbody td:nth-child(3) {
-    width: 42px;
-    text-align: center;
-}
-/* Groups */
-#environments-list-view .env-list-table-wrapper .table thead th:nth-child(4),
-#environments-list-view .env-list-table-wrapper .table tbody td:nth-child(4) {
-    width: 6%;
-}
-/* Total VMs */
-#environments-list-view .env-list-table-wrapper .table thead th:nth-child(5),
-#environments-list-view .env-list-table-wrapper .table tbody td:nth-child(5) {
-    width: 7%;
-}
-/* Running */
-#environments-list-view .env-list-table-wrapper .table thead th:nth-child(6),
-#environments-list-view .env-list-table-wrapper .table tbody td:nth-child(6) {
-    width: 8%;
-}
-/* Lock Status */
-#environments-list-view .env-list-table-wrapper .table thead th:nth-child(7),
-#environments-list-view .env-list-table-wrapper .table tbody td:nth-child(7) {
-    width: 10%;
-    white-space: nowrap;
-}
+/* ── Column widths by class (columns come and go, e.g. Account only across several AWS accounts) ── */
+#environments-list-view .env-list-table-wrapper .table th:first-child { width: auto; text-align: left; }
+#environments-list-view .env-list-table-wrapper .table .col-type { width: 96px; white-space: nowrap; }
+#environments-list-view .env-list-table-wrapper .table .col-account { width: 140px; }
+#environments-list-view .env-list-table-wrapper .table .col-region { width: 120px; }
+#environments-list-view .env-list-table-wrapper .table .col-groups { width: 72px; }
+#environments-list-view .env-list-table-wrapper .table .col-vms { width: 84px; }
+#environments-list-view .env-list-table-wrapper .table .col-running { width: 92px; }
+#environments-list-view .env-list-table-wrapper .table .col-lock { width: 150px; white-space: nowrap; }
 
-/* Actions column — comfortable width for up to 3 icon buttons */
+/* Actions column — Open plus, for environment admins, Edit and Deactivate */
 #environments-list-view .env-list-table-wrapper .table td:last-child,
 #environments-list-view .env-list-table-wrapper .table th:last-child {
     white-space: nowrap;
-    width: 110px;
+    width: 150px;
+    text-align: right;
 }
 #environments-list-view .env-list-table-wrapper .btn-action {
     display: inline-flex;
@@ -322,53 +293,132 @@
     display: none;
 }
 
-/* ── Environment detail — group accordion cards ── */
+/* ── Environment detail ──
+   Reads top to bottom with the page scrolling: breadcrumb, title with a one-line run summary and
+   the actions, notes (view only, lock, approval, lease), groups and VMs, then cost and settings. */
 #env-detail-view {
     flex: 1;
-    display: flex;
-    flex-direction: column;
     min-height: 0;
-    overflow: hidden;       /* no page-level scroll */
+    overflow-y: auto;
+    padding-right: 0.25rem;
 }
 
-/* Fixed top section — never scrolls */
-#env-detail-view > .d-flex,
-#env-detail-view > .lock-banner,
-#env-detail-view > .row,
-#env-detail-view > .mb-1 {
+.env-breadcrumb {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+.env-breadcrumb a {
+    color: var(--text-secondary);
+    text-decoration: none;
+}
+.env-breadcrumb a:hover {
+    color: var(--primary-color);
+    text-decoration: underline;
+}
+.env-breadcrumb [aria-current="page"] {
+    color: var(--text-primary);
+}
+
+.env-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+.env-detail-title {
+    min-width: 0;
+}
+.env-detail-title h1 {
+    font-size: 1.375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 0.125rem;
+}
+.env-detail-title p {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin: 0 0 0.375rem;
+}
+.env-detail-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+.env-detail-summary strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+.env-run-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #94a3b8;
+}
+.env-run-dot.on { background: var(--success-color); }
+.env-run-dot.partial { background: var(--warning-color); }
+.env-summary-sep { color: #cbd5e1; }
+
+.env-detail-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.375rem;
     flex-shrink: 0;
 }
 
-/* Groups container — ONLY this section scrolls vertically */
-#env-groups-container {
-    flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;     /* no horizontal scroll */
-    min-height: 0;
-    padding-right: 2px;     /* thin gap so scrollbar doesn't clip card border */
+.env-viewonly-note {
+    display: flex;
+    gap: 0.625rem;
+    align-items: center;
+    padding: 0.625rem 1rem;
+    margin-bottom: 1rem;
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    color: #1e3a8a;
 }
-/* Scrollbar — see main.css for the shared ::-webkit-scrollbar rules */
 
-/* Compact metric cards on detail page */
-#env-detail-view .metric-card {
-    padding: 0.35rem 0.5rem;
-    border-radius: 7px;
-    cursor: default;
+.env-section {
+    margin-bottom: 1.5rem;
 }
-#env-detail-view .metric-card:hover {
-    transform: none;
+.env-section-title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 0.625rem;
 }
-#env-detail-view .metric-value {
-    font-size: 1.25rem;
-    font-weight: 700;
-    line-height: 1.2;
-    margin-bottom: 0;
+.env-more > :empty {
+    display: none;
 }
-#env-detail-view .metric-label-hint {
-    font-size: 0.6rem;
-    color: var(--text-caption, #64748b);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+.env-more > * + * {
+    margin-top: 0.75rem;
+}
+
+#env-groups-container .group-card + .group-card {
+    margin-top: 0.5rem;
+}
+
+#env-groups-container .btn-vm-op {
+    padding: 0.125rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+@media (max-width: 768px) {
+    .env-detail-header {
+        flex-direction: column;
+    }
+    .env-detail-actions {
+        justify-content: flex-start;
+    }
 }
 
 /* Compact lock banner on detail page */

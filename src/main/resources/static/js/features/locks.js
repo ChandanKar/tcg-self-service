@@ -332,7 +332,7 @@ const Locks = (function() {
         const id = Utils.escapeHtml(envId);
         const historyButton = `
             <button class="btn btn-sm btn-ghost me-2" data-lock-action="history" data-env-id="${id}">
-                <i class="fas fa-history"></i> History
+                <i class="fas fa-history" aria-hidden="true"></i> Lock history
             </button>`;
 
         if (lockStatus.isLocked) {
@@ -394,15 +394,17 @@ const Locks = (function() {
         }
 
         const acquireButton = lockStatus.canAcquire ? `
-            <button class="btn btn-sm btn-primary" data-lock-action="acquire" data-env-id="${id}"
+            <button class="btn btn-sm btn-outline-secondary" data-lock-action="acquire" data-env-id="${id}"
                     data-expiry-enabled="${lockStatus.lockExpiryEnabled ? 'true' : 'false'}">
-                <i class="fas fa-lock"></i> Acquire Lock
+                <i class="fas fa-lock" aria-hidden="true"></i> Lock environment
             </button>` : '';
+        // Unlocked is the normal state: a quiet line, with what a lock is for when the viewer may take one.
         return `
             <div class="lock-banner unlocked">
                 <div class="lock-info">
-                    <i class="fas fa-unlock"></i>
-                    <span>This environment is unlocked</span>
+                    <i class="fas fa-lock-open" aria-hidden="true"></i>
+                    <span><strong>Not locked.</strong>${lockStatus.canAcquire
+                        ? ' <span class="lock-hint">Lock it to stop others starting or stopping VMs while you work.</span>' : ''}</span>
                 </div>
                 <div class="lock-actions">
                     ${historyButton}

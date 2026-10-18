@@ -35,14 +35,16 @@ test.describe('Keyboard controls', () => {
 
     const toggles = page.locator('.group-card-toggle');
     await expect(toggles).toHaveCount(2, { timeout: 15_000 });
+    // A small environment opens every group; each one closes and opens on its own.
     const second = toggles.nth(1);
-    await expect(second).toHaveAttribute('aria-expanded', 'false');
+    await expect(second).toHaveAttribute('aria-expanded', 'true');
     await second.focus();
     await page.keyboard.press('Enter');
-    await expect(second).toHaveAttribute('aria-expanded', 'true');
-    await expect(page.locator(`#${await second.getAttribute('aria-controls')}`)).not.toHaveClass(/group-collapsed/);
-    await page.keyboard.press(' ');
     await expect(second).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator(`#${await second.getAttribute('aria-controls')}`)).toHaveClass(/group-collapsed/);
+    await expect(toggles.nth(0)).toHaveAttribute('aria-expanded', 'true');
+    await page.keyboard.press(' ');
+    await expect(second).toHaveAttribute('aria-expanded', 'true');
   });
 
   test('day pills toggle with Space; trigger type moves with the arrow keys', async ({ page }) => {

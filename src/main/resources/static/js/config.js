@@ -152,6 +152,7 @@ const Config = (function() {
         },
         approvals: {
             list: (view) => `${API_BASE_URL}/approval-requests?view=${encodeURIComponent(view)}`,
+            status: `${API_BASE_URL}/approval-requests/status`,
             approve: (id) => `${API_BASE_URL}/approval-requests/${encodeURIComponent(id)}/approve`,
             deny: (id) => `${API_BASE_URL}/approval-requests/${encodeURIComponent(id)}/deny`,
             cancel: (id) => `${API_BASE_URL}/approval-requests/${encodeURIComponent(id)}/cancel`
@@ -507,7 +508,7 @@ const Config = (function() {
             STOPPED: { label: 'Stopped', class: 'stopped', icon: 'fa-circle', color: '#4b5563' },
             STARTING: { label: 'Starting', class: 'pending', icon: 'fa-spinner fa-spin', color: '#f59e0b' },
             STOPPING: { label: 'Stopping', class: 'pending', icon: 'fa-spinner fa-spin', color: '#f59e0b' },
-            UNKNOWN: { label: 'Unknown', class: 'partial', icon: 'fa-question-circle', color: '#6b7280' },
+            UNKNOWN: { label: 'Unknown', class: 'unknown', icon: 'fa-question-circle', color: '#6b7280' },
             ERROR: { label: 'Error', class: 'error', icon: 'fa-exclamation-circle', color: '#ef4444' }
         },
         lock: {

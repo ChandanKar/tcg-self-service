@@ -65,8 +65,9 @@ const RealTime = (function() {
     function renderSyncIndicator(status) {
         const $pill = $('#sync-indicator');
         const last = status.lastSyncTime ? new Date(status.lastSyncTime) : null;
-        const stale = !last || (Date.now() - last.getTime()) > SYNC_STALE_MS;
-        $('#sync-time').text(last ? Utils.formatRelativeTime(last) : 'Never');
+        // Never synced (e.g. sync switched off) is shown plainly, not as a warning.
+        const stale = !!last && (Date.now() - last.getTime()) > SYNC_STALE_MS;
+        $('#sync-time').text(last ? Utils.formatRelativeTime(last) : 'Not synced');
         $pill.toggleClass('syncing', !!status.syncInProgress)
             .toggleClass('stale', stale && !status.syncInProgress)
             .toggleClass('error', Number(status.syncErrors) > 0)
@@ -204,8 +205,10 @@ const RealTime = (function() {
         pollGet(Config.API.access.pendingRequests)
             .done(function(requests) {
                 const count = requests ? requests.length : 0;
-                // Sidebar "Pending Requests" badge (index.html .pending-count)
+                // Sidebar "Access Requests" badge, and its copy on the Manage heading (shown while
+                // that section is closed, see sidebar.css)
                 $('.pending-count').text(count).toggle(count > 0);
+                $('.section-pending-count').text(count).toggle(count > 0);
             });
     }
 

@@ -100,27 +100,44 @@ const Sidebar = (function() {
         $('#mainContent').toggleClass('expanded');
     }
 
+    // Which sections the user closed or opened, kept per browser (a convenience only).
+    const SECTIONS_KEY = 'vmcontrol.sidebar.sections';
+
+    function readSectionState() {
+        try { return JSON.parse(localStorage.getItem(SECTIONS_KEY)) || {}; } catch (e) { return {}; }
+    }
+
+    function writeSectionState(key, open) {
+        try {
+            const state = readSectionState();
+            state[key] = open;
+            localStorage.setItem(SECTIONS_KEY, JSON.stringify(state));
+        } catch (e) { /* storage unavailable: the sidebar still works */ }
+    }
+
+    function setSectionOpen($title, open, animate) {
+        const $menu = $title.next('.sidebar-menu');
+        $title.toggleClass('collapsed', !open).attr('aria-expanded', String(open));
+        if (animate) { open ? $menu.slideDown(150) : $menu.slideUp(150); } else { $menu.toggle(open); }
+    }
+
+    /** Re-open the sections the user left open last time (Workspace starts open). */
+    function restoreSections() {
+        const state = readSectionState();
+        $('.sidebar-section-title').each(function() {
+            const key = $(this).data('section');
+            if (Object.prototype.hasOwnProperty.call(state, key)) setSectionOpen($(this), state[key] === true, false);
+        });
+    }
+
     /**
-     * Handle section title click (accordion behavior)
+     * Section title click: open or close that section only (the others stay as they are).
      */
     function handleSectionClick() {
-        const $clickedSection = $(this);
-        const $clickedMenu = $clickedSection.next('.sidebar-menu');
-        const isCurrentlyExpanded = !$clickedSection.hasClass('collapsed');
-
-        if (isCurrentlyExpanded) {
-            // Collapse clicked section
-            $clickedSection.addClass('collapsed').attr('aria-expanded', 'false');
-            $clickedMenu.slideUp(200);
-        } else {
-            // Collapse all other sections
-            $('.sidebar-section-title').not($clickedSection).addClass('collapsed').attr('aria-expanded', 'false');
-            $('.sidebar-menu').not($clickedMenu).slideUp(200);
-
-            // Expand clicked section
-            $clickedSection.removeClass('collapsed').attr('aria-expanded', 'true');
-            $clickedMenu.slideDown(200);
-        }
+        const $title = $(this);
+        const open = $title.hasClass('collapsed');
+        setSectionOpen($title, open, true);
+        writeSectionState($title.data('section'), open);
     }
 
     /**
@@ -293,6 +310,7 @@ const Sidebar = (function() {
         setActiveItem,
         expandSection,
         collapseAllSections,
+        restoreSections,
         initKeyboardNav
     };
 })();

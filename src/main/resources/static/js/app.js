@@ -92,27 +92,19 @@ const App = (function() {
      * Update sidebar menu based on user role
      */
     function updateSidebarForRole() {
-        // Show admin section for admins and env admins
-        if (Auth.isEnvAdmin()) {
-            $('#admin-section').show();
-            $('.env-admin-only').show();
-            $('#pending-requests-link').show();
-        } else {
-            $('#admin-section').hide();
-            $('.env-admin-only').hide();
-            $('#pending-requests-link').hide();
-        }
-
-        // Show user management only for full admins
-        if (Auth.isAdmin()) {
-            $('#user-management-link').show();
-            $('.admin-only').show();
-        } else {
-            $('#user-management-link').hide();
-        }
+        // Manage, Cost and Administration are for admins and environment admins; inside them,
+        // .admin-only items are for full admins only.
+        const envAdmin = Auth.isEnvAdmin();
+        $('.env-admin-only').toggle(envAdmin);
+        $('.admin-only').toggle(Auth.isAdmin());
+        Sidebar.restoreSections();
         // New environment from a template (E32-T07): only while provisioning is on.
         if (typeof Templates !== 'undefined') {
             Templates.probeNav();
+        }
+        // Approvals: only while it concerns this user (policies on, or requests to see).
+        if (typeof Approvals !== 'undefined' && Approvals.probeNav) {
+            Approvals.probeNav();
         }
         // The Pending Requests badge is kept current by RealTime (started in RealTime.init).
     }

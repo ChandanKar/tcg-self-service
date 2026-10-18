@@ -17,6 +17,11 @@ public interface ApprovalRequestRepository extends JpaRepository<ApprovalRequest
     @Query("SELECT DISTINCT r FROM ApprovalRequest r JOIN r.approverUserIds a WHERE a = :userId ORDER BY r.createdAt DESC")
     List<ApprovalRequest> findForApprover(@Param("userId") String userId);
 
+    boolean existsByRequesterUserId(String requesterUserId);
+
+    @Query("SELECT COUNT(r) > 0 FROM ApprovalRequest r JOIN r.approverUserIds a WHERE a = :userId")
+    boolean existsForApprover(@Param("userId") String userId);
+
     /**
      * Moves a request on from PENDING; 1 for the caller that won, 0 when someone else already
      * decided it (so an approval executes at most once).

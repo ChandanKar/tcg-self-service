@@ -42,6 +42,30 @@ public class EnvironmentDTO {
         this.leaseEnabled = leaseEnabled;
     }
 
+    /**
+     * What the signed-in viewer may do here, set only on the detail endpoint (null elsewhere):
+     * start/stop anything in it, and administer it (grants, settings). The page hides controls
+     * the viewer cannot use; the server still checks every action.
+     */
+    private Boolean viewerCanOperate;
+    private Boolean viewerCanAdminister;
+
+    public Boolean getViewerCanOperate() {
+        return viewerCanOperate;
+    }
+
+    public void setViewerCanOperate(Boolean viewerCanOperate) {
+        this.viewerCanOperate = viewerCanOperate;
+    }
+
+    public Boolean getViewerCanAdminister() {
+        return viewerCanAdminister;
+    }
+
+    public void setViewerCanAdminister(Boolean viewerCanAdminister) {
+        this.viewerCanAdminister = viewerCanAdminister;
+    }
+
     public EnvironmentDTO() {
     }
 

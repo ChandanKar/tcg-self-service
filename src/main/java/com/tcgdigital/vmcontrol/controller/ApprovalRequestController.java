@@ -9,6 +9,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Approval requests (E25-T04): requesters see and cancel theirs; approvers see what waits for
@@ -32,6 +33,15 @@ public class ApprovalRequestController {
     @Operation(summary = "view=mine (default) or to-review")
     public List<ApprovalRequestDTO> list(@RequestParam(defaultValue = "mine") String view) {
         return requestService.list(userService.getCurrentUserId(), view);
+    }
+
+    /**
+     * Whether Approvals concerns the signed-in user: policies or quotas are on, or they have
+     * requests of their own or to review. The sidebar hides the page otherwise.
+     */
+    @GetMapping("/status")
+    public Map<String, Boolean> status() {
+        return Map.of("visible", requestService.isRelevantTo(userService.getCurrentUserId()));
     }
 
     @GetMapping("/{requestId}")
