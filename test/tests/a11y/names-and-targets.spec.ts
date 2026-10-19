@@ -13,7 +13,8 @@ declare const MyAccount: any;
 declare const NotificationBell: any;
 
 async function nameViolations(page: Page, include?: string) {
-  let builder = new AxeBuilder({ page }).withRules(['button-name', 'link-name']);
+  // U02-T04: also form labels and switch names (the automation rule switches read as just 'on' before)
+  let builder = new AxeBuilder({ page }).withRules(['button-name', 'link-name', 'label', 'aria-toggle-field-name']);
   if (include) builder = builder.include(include);
   const result = await builder.analyze();
   return result.violations.flatMap(v => v.nodes.map(n => `${v.id}: ${n.target.join(' ')} ${n.html.slice(0, 120)}`));
@@ -43,6 +44,23 @@ test.describe('Accessible names (admin)', () => {
     ['#/access-management', '#content-area table'],
     ['#/user-management', '#content-area table'],
     ['#/my-environments', '#env-list-search'],
+    ['#/dashboard', '#content-area h1'],
+    ['#/request-access', '#content-area h1'],
+    ['#/activity-logs', '#content-area h1'],
+    ['#/pending-requests', '#content-area h1'],
+    ['#/automation-rules', '#content-area h1'],
+    ['#/approval-policies', '#content-area h1'],
+    ['#/budgets', '#content-area h1'],
+    ['#/audit-logs-all', '#content-area h1'],
+    ['#/cost-management', '#content-area h1'],
+    ['#/savings', '#content-area h1'],
+    ['#/waste', '#content-area h1'],
+    ['#/chargeback', '#content-area h1'],
+    ['#/teams', '#content-area h1'],
+    ['#/aws-accounts', '#content-area h1'],
+    ['#/api-access', '#content-area h1'],
+    ['#/settings', '#content-area h1'],
+    ['#/system-health', '#content-area h1'],
   ] as const) {
     test(`${hash} buttons and links are named`, async ({ page }) => {
       await page.evaluate(h => { location.hash = h; }, hash);

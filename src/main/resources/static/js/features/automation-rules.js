@@ -342,6 +342,7 @@ const AutomationRules = (function() {
                 <td class="text-center">
                     <div class="form-check form-switch mb-0 d-inline-block">
                         <input class="form-check-input ar-toggle-enabled" type="checkbox" role="switch"
+                               aria-label="Rule ${Utils.escapeHtml(rule.name || '')} on"
                                data-rule-id="${rule.ruleId}" ${rule.enabled ? 'checked' : ''}>
                     </div>
                 </td>
@@ -356,8 +357,8 @@ const AutomationRules = (function() {
                     ${rule.triggerType === 'SCHEDULE' && rule.nextStopAt ? `<button class="btn btn-action ar-skip-stop-btn" data-rule-id="${rule.ruleId}"
                         title="Skip next stop (${Utils.escapeHtml(Utils.formatDate(rule.nextStopAt))})"
                         aria-label="Skip next stop of ${Utils.escapeHtml(rule.name)}"><i class="fas fa-forward" aria-hidden="true"></i></button>` : ''}
-                    <button class="btn btn-action ar-edit-btn" data-rule-id="${rule.ruleId}" title="Edit"><i class="fas fa-pencil-alt"></i></button>
-                    <button class="btn btn-action btn-danger ar-delete-btn" data-rule-id="${rule.ruleId}" title="Delete"><i class="fas fa-trash"></i></button>
+                    <button type="button" class="btn btn-action ar-edit-btn" data-rule-id="${rule.ruleId}" title="Edit" aria-label="Edit ${Utils.escapeHtml(rule.name || 'rule')}"><i class="fas fa-pencil-alt" aria-hidden="true"></i></button>
+                    <button type="button" class="btn btn-action btn-danger ar-delete-btn" data-rule-id="${rule.ruleId}" title="Delete" aria-label="Delete ${Utils.escapeHtml(rule.name || 'rule')}"><i class="fas fa-trash" aria-hidden="true"></i></button>
                 </td>
             </tr>
         `).join('');

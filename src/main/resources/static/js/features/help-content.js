@@ -306,6 +306,62 @@ const HelpContent = (function() {
             ]
         },
         {
+            id: 'teams',
+            title: 'Teams',
+            roles: ['ADMIN'],
+            optional: false,
+            keywords: ['team', 'members', 'entra', 'group', 'cost centre', 'quota', 'limit'],
+            sections: [
+                {
+                    heading: 'What a team is',
+                    paragraphs: [
+                        'A team is a set of people and the environments they own. Cost, budgets and monthly limits can be set per team, and chargeback reports cost per team.'
+                    ]
+                },
+                {
+                    heading: 'Members',
+                    paragraphs: [
+                        'Add people by hand, or link a Microsoft Entra group so its members are kept in step. People who come from the Entra group are removed there, not here.'
+                    ]
+                },
+                {
+                    heading: 'Monthly limits',
+                    paragraphs: [
+                        'A limit on VM hours or cost can warn, ask an owner to approve each start, or block new starts once it is reached. It starts again on the 1st of each month.'
+                    ]
+                }
+            ]
+        },
+        {
+            id: 'vm-registry',
+            title: 'VM registry',
+            roles: ['ENV_ADMIN', 'ADMIN'],
+            optional: false,
+            keywords: ['registry', 'register', 'add vm', 'group', 'start order', 'move', 'remove', 'discovery', 'review'],
+            sections: [
+                {
+                    heading: 'Environments, groups and VMs',
+                    paragraphs: [
+                        'An environment holds groups, and groups hold VMs. Groups start in their start order, and a group can wait for others to be running first. Stopping happens in reverse order.'
+                    ]
+                },
+                {
+                    heading: 'Adding VMs',
+                    steps: [
+                        'Open the environment and pick Groups.',
+                        'Choose Add VM on a group and fetch the instances of the region.',
+                        'Pick an instance by its name and save. Instance IDs are shown to administrators only.'
+                    ]
+                },
+                {
+                    heading: 'Needs attention',
+                    paragraphs: [
+                        'VMs found by discovery, changed outside the platform or no longer found in AWS are listed under Needs attention until someone marks them as reviewed or moves them.'
+                    ]
+                }
+            ]
+        },
+        {
             id: 'chat-actions',
             title: 'Microsoft Teams actions and Jira tickets',
             roles: null,
@@ -407,25 +463,42 @@ const HelpContent = (function() {
         }
     ];
 
-    /** Page help buttons -> topic ids. */
+    /**
+     * Help topic of each page, keyed by the router's page name (U02-T04), plus panels with their own
+     * "?" (leases, idle-stop, my-account).
+     */
     const PAGE_TOPICS = {
-        environments: 'locks',
-        'environment-detail': 'locks',
-        'activity-logs': 'activity-logs',
-        'all-logs': 'activity-logs',
-        'cost-management': 'costs',
+        'dashboard': 'getting-started',
+        'my-environments': 'environments',
+        'environment-detail': 'environments',
         'request-access': 'access',
-        'my-account': 'notifications',
-        'vm-registry': 'environments',
+        'approvals': 'approvals',
+        'activity-logs': 'activity-logs',
+        'templates': 'getting-started',
+        'help': 'getting-started',
+        'chat-action': 'chat-actions',
+        'pending-requests': 'access',
+        'access-management': 'access',
+        'vm-registry': 'vm-registry',
         'automation-rules': 'automation-rules',
-        leases: 'leases',
+        'approval-policies': 'approvals',
+        'budgets': 'budgets',
+        'audit-logs-all': 'activity-logs',
+        'cost-management': 'costs',
+        'savings': 'savings',
+        'waste': 'costs',
+        'chargeback': 'chargeback',
+        'cost-setup': 'costs',
+        'user-management': 'getting-started',
+        'teams': 'teams',
+        'aws-accounts': 'getting-started',
+        'api-access': 'getting-started',
+        'settings': 'settings',
+        'system-health': 'getting-started',
+        // panels
+        'leases': 'leases',
         'idle-stop': 'idle-stop',
-        savings: 'savings',
-        budgets: 'budgets',
-        chargeback: 'chargeback',
-        teams: 'chargeback',
-        approvals: 'approvals',
-        settings: 'settings'
+        'my-account': 'notifications'
     };
 
     function all() {

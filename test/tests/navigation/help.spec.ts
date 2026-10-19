@@ -50,7 +50,8 @@ test.describe('Help', () => {
     const help = page.locator('.content-header .help-link').first();
     await expect(help).toHaveAttribute('aria-label', 'Help: Environments', { timeout: 15_000 });
     await help.click();
-    await expect(page.locator('#help-topic-title')).toHaveText('Starting, stopping and locks');
+    // U02-T04: My Environments opens the Environments topic (it used to open Locks)
+    await expect(page.locator('#help-topic-title')).toHaveText('Environments, groups and start order');
   });
 
   test('every page help link resolves to an existing topic', async ({ page }) => {

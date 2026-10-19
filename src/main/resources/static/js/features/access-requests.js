@@ -210,7 +210,8 @@ const AccessRequests = (function() {
                     <div class="card mb-3">
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <h5><i class="fas fa-history me-2"></i>Request History</h5>
-                            <button class="btn btn-sm btn-ghost" id="toggle-history">
+                            <button type="button" class="btn btn-sm btn-ghost" id="toggle-history"
+                                    aria-label="Show request history" aria-expanded="false" aria-controls="request-history">
                                 <i class="fas fa-chevron-down"></i>
                             </button>
                         </div>
@@ -523,6 +524,7 @@ const AccessRequests = (function() {
             const $icon    = $(this).find('i');
             $history.slideToggle(200);
             $icon.toggleClass('fa-chevron-down fa-chevron-up');
+            $(this).attr('aria-expanded', String($icon.hasClass('fa-chevron-up')));
         });
     }
 
