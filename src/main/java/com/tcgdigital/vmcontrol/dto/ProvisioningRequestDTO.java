@@ -21,7 +21,7 @@ public record ProvisioningRequestDTO(
         String reviewNotes,
         String environmentId,
         Timestamp destroyAt,
-        String errorMessage,
+        @com.tcgdigital.vmcontrol.dto.json.RedactProviderIds String errorMessage,
         Timestamp createdAt,
         boolean canApprove,
         boolean canCancel

@@ -364,7 +364,9 @@ class AwsCloudProviderServiceTest {
         CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
 
         assertFalse(result.isSuccess());
-        assertTrue(result.getMessage().contains("AWS Error:"));
+        // U01-T03: a plain sentence first, then what AWS said
+        assertTrue(result.getMessage().startsWith("AWS cannot start this VM in its current state."));
+        assertTrue(result.getMessage().contains("AWS said: Instance is terminated"));
     }
 
     // --- startVm: other AWS errors always fail ---
@@ -379,7 +381,7 @@ class AwsCloudProviderServiceTest {
         CloudProviderService.VmOperationResult result = service.startVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)).get();
 
         assertFalse(result.isSuccess());
-        assertTrue(result.getMessage().contains("AWS Error:"));
+        assertTrue(result.getMessage().startsWith("The platform is not allowed to start this VM in AWS."));
         assertTrue(result.getMessage().contains("not authorized"));
     }
 
@@ -451,7 +453,7 @@ class AwsCloudProviderServiceTest {
         CloudProviderService.VmOperationResult result = service.stopVm(INSTANCE_ID, com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), false).get();
 
         assertFalse(result.isSuccess());
-        assertTrue(result.getMessage().contains("AWS Error:"));
+        assertTrue(result.getMessage().startsWith("The platform is not allowed to stop this VM in AWS."));
         assertTrue(result.getMessage().contains("not authorized"));
     }
 
@@ -617,6 +619,16 @@ class AwsCloudProviderServiceTest {
                 com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), INSTANCE_ID, "InsufficientInstanceCapacity", "AWS Error: x"));
         assertEquals("AWS Error: z", service.spotStartMessage(
                 com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION), INSTANCE_ID, "UnauthorizedOperation", "AWS Error: z"));
+    }
+
+    @Test
+    void failuresAreExplainedInPlainWordsWithAwsTextAfter() {
+        assertEquals("AWS has no capacity for this VM's size in its zone right now. Try again later. - AWS said: "
+                        + "Insufficient capacity.",
+                AwsCloudProviderService.plainFailure("start", "InsufficientInstanceCapacity", "Insufficient capacity."));
+        assertEquals("AWS no longer has this VM.",
+                AwsCloudProviderService.plainFailure("stop", "InvalidInstanceID.NotFound", ""));
+        assertEquals("AWS Error: Something new", AwsCloudProviderService.plainFailure("start", "BrandNewCode", "Something new"));
     }
 
     @Test

@@ -145,7 +145,7 @@ public class AwsCloudProviderService implements CloudProviderService {
                 }
                 log.error("Failed to start AWS EC2 instance {}: {}", providerVmId, e.getMessage());
                 return VmOperationResult.failure(spotStartMessage(target, providerVmId, e.awsErrorDetails().errorCode(),
-                        "AWS Error: " + e.awsErrorDetails().errorMessage()));
+                        plainFailure("start", e.awsErrorDetails().errorCode(), e.awsErrorDetails().errorMessage())));
             } catch (Exception e) {
                 // Network timeout or similar — AWS may have accepted the request already.
                 // Check actual instance state before declaring failure.
@@ -169,6 +169,29 @@ public class AwsCloudProviderService implements CloudProviderService {
     @Override
     public CompletableFuture<VmOperationResult> stopVm(String providerVmId, CloudTarget target, boolean force) {
         return stopVm(providerVmId, target, force, null);
+    }
+
+    /**
+     * A failed start or stop in words people understand (U01-T03), followed by what AWS said. AWS's text
+     * often names the instance; it is kept for administrators and masked for everyone else when the step
+     * is read (OperationDetailDTO.errorMessage). Unknown codes keep the old "AWS Error: ..." form.
+     */
+    static String plainFailure(String action, String errorCode, String awsMessage) {
+        String sentence = switch (errorCode == null ? "" : errorCode) {
+            case "InsufficientInstanceCapacity" -> "AWS has no capacity for this VM's size in its zone right now. Try again later.";
+            case "InstanceLimitExceeded" -> "The AWS account has reached its limit of running instances.";
+            case "VcpuLimitExceeded" -> "The AWS account has reached its vCPU limit for this kind of VM.";
+            case "UnauthorizedOperation" -> "The platform is not allowed to " + action
+                    + " this VM in AWS. Ask an administrator to check the AWS permissions.";
+            case "InvalidInstanceID.NotFound", "InvalidInstanceID.Malformed" -> "AWS no longer has this VM.";
+            case "IncorrectInstanceState" -> "AWS cannot " + action + " this VM in its current state.";
+            default -> null;
+        };
+        String said = awsMessage == null || awsMessage.isBlank() ? "" : awsMessage;
+        if (sentence == null) {
+            return "AWS Error: " + said;
+        }
+        return said.isEmpty() ? sentence : sentence + " - AWS said: " + said;
     }
 
     @Override
@@ -244,7 +267,8 @@ public class AwsCloudProviderService implements CloudProviderService {
                     }
                 }
                 log.error("Failed to stop AWS EC2 instance {}: {}", providerVmId, e.getMessage());
-                return VmOperationResult.failure("AWS Error: " + e.awsErrorDetails().errorMessage());
+                return VmOperationResult.failure(plainFailure("stop", e.awsErrorDetails().errorCode(),
+                        e.awsErrorDetails().errorMessage()));
             } catch (Exception e) {
                 log.error("Failed to stop AWS EC2 instance {}: {}", providerVmId, e.getMessage());
                 try {

@@ -356,7 +356,7 @@ public class VmService {
         auditService.logEnvironmentAction(userId, AuditAction.VM_DELETED,
                 vm.getGroup().getEnvironment().getEnvironmentId(), vm.getGroup().getEnvironment().getName(),
                 "vm", vmId, vm.getDisplayName() != null ? vm.getDisplayName() : vm.getName(),
-                "VM removed from platform (soft delete; discovery will ignore instance " + vm.getProviderVmId() + ")");
+                "VM removed from the platform (soft delete); discovery will ignore its instance");
         log.info("Removed VM: {} ({}) by {}", vm.getName(), vmId, userId);
     }
 

@@ -247,7 +247,7 @@ class VmServiceTest {
         verify(vmRepository).save(vm);
         verify(vmRepository, never()).delete(any(Vm.class));
         verify(auditService).logEnvironmentAction(eq("admin-1"), eq(AuditAction.VM_DELETED), eq("env-1"), eq("prod"),
-                eq("vm"), eq("vm-1"), eq("Found 1"), contains("discovery will ignore instance i-0abc"));
+                eq("vm"), eq("vm-1"), eq("Found 1"), contains("discovery will ignore its instance"));
     }
 
     @Test

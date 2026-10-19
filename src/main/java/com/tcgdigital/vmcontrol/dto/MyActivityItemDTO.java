@@ -30,7 +30,7 @@ public record MyActivityItemDTO(
         Integer totalTargets,
         Integer completedTargets,
         Integer failedTargets,
-        String note,
+        @com.tcgdigital.vmcontrol.dto.json.RedactProviderIds String note,
         Timestamp occurredAt,
         String referenceId
 ) {}

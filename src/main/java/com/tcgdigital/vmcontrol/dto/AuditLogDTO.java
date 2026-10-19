@@ -18,14 +18,14 @@ public class AuditLogDTO {
     private String actionDisplay;
     private String targetType;
     private String targetId;
-    private String targetName;
+    @com.tcgdigital.vmcontrol.dto.json.RedactProviderIds private String targetName;
     private String environmentId;
     private String environmentName;
-    private String details;
-    private String oldValue;
-    private String newValue;
+    @com.tcgdigital.vmcontrol.dto.json.RedactProviderIds private String details;
+    @com.tcgdigital.vmcontrol.dto.json.RedactProviderIds private String oldValue;
+    @com.tcgdigital.vmcontrol.dto.json.RedactProviderIds private String newValue;
     private Boolean success;
-    private String errorMessage;
+    @com.tcgdigital.vmcontrol.dto.json.RedactProviderIds private String errorMessage;
     private Timestamp createdAt;
 
     public AuditLogDTO() {

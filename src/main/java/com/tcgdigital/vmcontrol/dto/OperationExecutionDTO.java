@@ -32,7 +32,7 @@ public class OperationExecutionDTO {
     private String initiatedByDisplayName;
     private Timestamp startedAt;
     private Timestamp completedAt;
-    private String errorMessage;
+    @com.tcgdigital.vmcontrol.dto.json.RedactProviderIds private String errorMessage;
     private Integer totalTargets;
     private Integer completedTargets;
     private Integer failedTargets;

@@ -20,7 +20,7 @@ public class VmStateHistoryDTO {
     private String changedByUserId;
     private String changedByUsername;
     private String operationId;
-    private String details;
+    @com.tcgdigital.vmcontrol.dto.json.RedactProviderIds private String details;
     private Timestamp changedAt;
     private boolean isDrift;
 

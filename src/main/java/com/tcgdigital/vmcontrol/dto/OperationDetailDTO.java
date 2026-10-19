@@ -15,14 +15,14 @@ public class OperationDetailDTO {
     private String targetName;
     private String action;
     private String status;
-    private String stageLabel;
+    @com.tcgdigital.vmcontrol.dto.json.RedactProviderIds private String stageLabel;
     private Integer progressPercentage;
     private Integer statusChecksPassed;
     private Integer statusChecksTotal;
     private Integer sequencePosition;
     private Timestamp startedAt;
     private Timestamp completedAt;
-    private String errorMessage;
+    @com.tcgdigital.vmcontrol.dto.json.RedactProviderIds private String errorMessage;
     /** The AWS request or update id; administrators only (U01-T01). */
     @com.tcgdigital.vmcontrol.dto.json.AdminOnly
     private String cloudOperationId;

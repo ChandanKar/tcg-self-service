@@ -14,9 +14,9 @@ public class EmailLogDTO {
     private String environmentId;
     private String recipients;
     private int recipientCount;
-    private String subject;
+    @com.tcgdigital.vmcontrol.dto.json.RedactProviderIds private String subject;
     private boolean success;
-    private String errorMessage;
+    @com.tcgdigital.vmcontrol.dto.json.RedactProviderIds private String errorMessage;
     private String sentByUserId;
     private Timestamp sentAt;
 

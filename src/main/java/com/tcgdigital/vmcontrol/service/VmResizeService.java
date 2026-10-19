@@ -257,7 +257,7 @@ public class VmResizeService {
         try {
             AwsCloudProviderService.ResizeFacts facts = awsCloudProviderService.describeForResize(target, vm.getProviderVmId());
             if (facts == null) {
-                checks.add(ResizeCheck.fail("Instance found", "AWS does not know instance " + vm.getProviderVmId()));
+                checks.add(ResizeCheck.fail("Instance found", "AWS no longer has this VM"));
                 return checks;
             }
             String az = facts.availabilityZone();

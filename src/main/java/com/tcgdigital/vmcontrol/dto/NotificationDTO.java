@@ -9,8 +9,8 @@ public class NotificationDTO {
 
     private String notificationId;
     private NotificationType type;
-    private String title;
-    private String message;
+    @com.tcgdigital.vmcontrol.dto.json.RedactProviderIds private String title;
+    @com.tcgdigital.vmcontrol.dto.json.RedactProviderIds private String message;
     private String entityType;
     private String entityId;
     private boolean isRead;
