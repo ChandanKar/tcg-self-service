@@ -52,8 +52,10 @@ class InstanceRefCodecTest {
     @Test
     void anAlteredOrMadeUpReferenceIsRefused() {
         String ref = codecAt(NOW).encode(CloudProvider.AWS, null, "ap-south-1", "i-0123456789abcdef0", "u-1");
-        char last = ref.charAt(ref.length() - 1);
-        String altered = ref.substring(0, ref.length() - 1) + (last == 'A' ? 'B' : 'A');
+        // Change a character in the middle: every bit of it is used. The last character can carry
+        // unused padding bits, so changing it (A to B) sometimes left the bytes, and the reference, the same.
+        int at = ref.length() / 2;
+        String altered = ref.substring(0, at) + (ref.charAt(at) == 'A' ? 'B' : 'A') + ref.substring(at + 1);
 
         for (String bad : new String[]{altered, "not-a-ref", "", "AAAA"}) {
             assertThatThrownBy(() -> codecAt(NOW).decode(bad, "u-1"))
