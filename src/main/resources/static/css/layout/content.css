@@ -2,28 +2,39 @@
  * Main Content Area Styles
  */
 
+/* The fixed top bar's height is the body's top padding, not a margin on .main-content: that
+   margin collapsed through <body> and left the document 56 px taller than the window. */
+body.app-shell {
+    padding-top: var(--topnav-height);
+}
+
 .main-content {
     margin-left: var(--sidebar-width);
-    margin-top: var(--topnav-height);
-    padding: 0.85rem 1.1rem;
+    padding: 24px 32px;
     height: calc(100vh - var(--topnav-height));
-    overflow: hidden;
     display: flex;
     flex-direction: column;
-    transition: margin-left 0.3s ease;
+    /* The only scroll container (U04-T01): the top bar and side menu stay put while the page
+       scrolls, and the document itself never scrolls. */
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 
-.main-content.expanded {
-    margin-left: var(--sidebar-collapsed-width);
-}
-
-/* content-area fills all main-content height */
+/* #content-area has the height of the visible page area. A page that fits the screen (the
+   dashboard, .page-fill) takes exactly that height; any other page grows past it and the main
+   area scrolls. */
 #content-area {
-    flex: 1;
+    flex: 1 0 auto;
     display: flex;
     flex-direction: column;
     min-height: 0;
-    overflow: hidden;
+    height: 100%;
+}
+
+/* Pages keep their full height (never squeezed into the visible area), so a long page overflows
+   #content-area and the main area scrolls. */
+#content-area > * {
+    flex-shrink: 0;
 }
 
 /* ── Dashboard: zero page scroll, maximum density ── */
@@ -282,11 +293,12 @@
 .content-view {
     display: flex;
     flex-direction: column;
+    min-height: 100%;
+}
+/* The dashboard still fits the screen until its redesign (U06/U14). */
+#dashboard-view.content-view {
     height: 100%;
     overflow: hidden;
-}
-.content-view:not(#dashboard-view) {
-    overflow-y: auto;
 }
 
 .content-view.hidden {
@@ -297,10 +309,7 @@
    Reads top to bottom with the page scrolling: breadcrumb, title with a one-line run summary and
    the actions, notes (view only, lock, approval, lease), groups and VMs, then cost and settings. */
 #env-detail-view {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    padding-right: 0.25rem;
+    flex: 1 0 auto;
 }
 
 .env-breadcrumb {

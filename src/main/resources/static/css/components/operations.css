@@ -295,11 +295,6 @@
     transition: left 0.3s ease;
 }
 
-.sidebar.collapsed ~ .main-content ~ .operation-banner,
-.operation-banner.sidebar-collapsed {
-    left: var(--sidebar-collapsed-width);
-}
-
 .operation-banner .operation-info {
     display: flex;
     align-items: center;

@@ -68,7 +68,8 @@ const RealTime = (function() {
         // Never synced (e.g. sync switched off) is shown plainly, not as a warning.
         const stale = !!last && (Date.now() - last.getTime()) > SYNC_STALE_MS;
         $('#sync-time').text(last ? Utils.formatRelativeTime(last) : 'Not synced');
-        $pill.toggleClass('syncing', !!status.syncInProgress)
+        $pill.toggleClass('never', !last)
+            .toggleClass('syncing', !!status.syncInProgress)
             .toggleClass('stale', stale && !status.syncInProgress)
             .toggleClass('error', Number(status.syncErrors) > 0)
             .attr('title', last ? `Last synced with cloud: ${last.toLocaleString()}` : 'Not synced with the cloud yet')
@@ -205,10 +206,8 @@ const RealTime = (function() {
         pollGet(Config.API.access.pendingRequests)
             .done(function(requests) {
                 const count = requests ? requests.length : 0;
-                // Sidebar "Access Requests" badge, and its copy on the Manage heading (shown while
-                // that section is closed, see sidebar.css)
+                // Sidebar "Access requests" count (the Manage section is always open)
                 $('.pending-count').text(count).toggle(count > 0);
-                $('.section-pending-count').text(count).toggle(count > 0);
             });
     }
 

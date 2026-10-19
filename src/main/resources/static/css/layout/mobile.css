@@ -76,16 +76,6 @@ button.mobile-nav-item {
         box-shadow: 4px 0 20px rgba(0,0,0,0.15);
     }
 
-    /* A desktop collapse carried over to a phone must not leave a narrow rail (E13-T01). */
-    .sidebar.collapsed {
-        width: 280px;
-    }
-
-    .sidebar.collapsed .sidebar-menu-link span,
-    .sidebar.collapsed .sidebar-section-title span {
-        display: inline;
-    }
-
     /* Adjust main content for mobile */
     .main-content {
         margin-left: 0 !important;
@@ -170,14 +160,14 @@ button.mobile-nav-item {
     }
 
     .sidebar .sidebar-menu-link span,
-    .sidebar .sidebar-section-title span,
+    .sidebar .sidebar-section-title,
     .sidebar .sidebar-menu-link .badge {
         opacity: 0;
         transition: opacity 0.2s;
     }
 
     .sidebar:hover .sidebar-menu-link span,
-    .sidebar:hover .sidebar-section-title span,
+    .sidebar:hover .sidebar-section-title,
     .sidebar:hover .sidebar-menu-link .badge {
         opacity: 1;
     }

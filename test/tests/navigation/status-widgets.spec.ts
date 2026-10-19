@@ -43,6 +43,14 @@ test.describe('Status widgets', () => {
     await expect(page.locator('#sync-indicator')).toHaveClass(/stale/);
   });
 
+  test('never synced: "Not synced" with a grey dot, not the green one (U04-T01)', async ({ page }) => {
+    await fakeSyncStatus(page, { lastSyncTime: null, syncInProgress: false, syncErrors: 0 });
+    await ready(page);
+    await expect(page.locator('#sync-time')).toHaveText('Not synced');
+    await expect(page.locator('#sync-indicator')).toHaveClass(/never/);
+    await expect(page.locator('#sync-indicator .sync-dot')).toHaveCSS('background-color', 'rgb(212, 218, 229)');
+  });
+
   test('a forbidden sync status hides the pill without an error toast', async ({ page }) => {
     await fakeSyncStatus(page, null, 403);
     await ready(page);

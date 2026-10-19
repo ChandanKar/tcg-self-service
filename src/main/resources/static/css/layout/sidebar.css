@@ -27,95 +27,42 @@
     flex-shrink: 0;
 }
 
+/* Side menu (SideNav.dc.html): 240 px, four sections that never collapse, 30 px rows. The active
+   page has the navy tint, navy 600 text and a gold marker on its left edge. */
 .sidebar {
     position: fixed;
     top: var(--topnav-height);
     left: 0;
     width: var(--sidebar-width);
     height: calc(100vh - var(--topnav-height));
-    background: var(--sidebar-bg);
+    background: #fff;
     overflow-y: auto;
-    transition: width 0.3s ease;
     z-index: 999;
-    border-right: 1px solid var(--border-color);
-}
-
-.sidebar.collapsed {
-    width: var(--sidebar-collapsed-width);
+    border-right: 1px solid var(--line);
+    padding: 8px 0;
 }
 
 /* Scrollbar — see main.css for the shared ::-webkit-scrollbar rules this inherits */
 
-/* Sidebar Sections */
-.sidebar-section {
-    padding: 0.5rem 0;
-}
-
 .sidebar-section + .sidebar-section {
-    border-top: 1px solid var(--border-color);
+    border-top: 1px solid var(--line-soft);
+    margin-top: 6px;
 }
 
 .sidebar-section-title {
-    /* A <button> (E13-T02): drop the browser chrome so it looks like the old header. */
-    width: 100%;
-    background: none;
-    border: 0;
-    text-align: left;
-    font-family: inherit;
-    padding: 0.5rem 1.25rem 0.375rem;
-    font-size: 0.75rem;
+    margin: 0;
+    padding: 9px 20px 3px;
+    font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.02em;
-    color: var(--text-secondary);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    cursor: pointer;
-    user-select: none;
-    transition: all 0.2s;
+    line-height: 18px;
+    color: var(--slate);
 }
 
-.sidebar-section-title:hover {
-    color: var(--primary-color);
+.sidebar-section:first-child .sidebar-section-title {
+    padding-top: 4px;
 }
 
-.sidebar-section-title:focus-visible {
-    outline: 2px solid var(--primary-color);
-    outline-offset: -2px;
-    border-radius: 4px;
-}
-
-.sidebar.collapsed .sidebar-section-title span {
-    display: none;
-}
-
-.sidebar-section-title i.toggle {
-    transition: transform 0.2s;
-    margin-left: auto;
-}
-
-/* Pending access requests on the Manage heading, only while the section is closed. */
-.section-pending-count {
-    margin: 0 0.5rem 0 auto;
-    background: var(--primary-color);
-    color: #fff;
-    font-size: 0.7rem;
-    font-weight: 600;
-    border-radius: 10px;
-    padding: 0.1rem 0.45rem;
-}
-.sidebar-section-title:not(.collapsed) .section-pending-count {
-    visibility: hidden;
-}
-.section-pending-count + i.toggle {
-    margin-left: 0;
-}
-
-.sidebar-section-title.collapsed i.toggle {
-    transform: rotate(-90deg);
-}
-
-/* Sidebar Menu */
 .sidebar-menu {
     list-style: none;
     padding: 0;
@@ -129,34 +76,40 @@
 .sidebar-menu-link {
     display: flex;
     align-items: center;
-    padding: 0.5rem 1.25rem;
-    min-height: 40px;
-    font-size: 0.9rem;
-    color: var(--text-primary);
+    gap: 10px;
+    height: 30px;
+    margin: 0 10px;
+    padding: 0 12px;
+    border-radius: 7px;
+    font-size: 13.5px;
+    color: #2a3245;
     text-decoration: none;
     cursor: pointer;
-    transition: all 0.2s;
-    border-left: 3px solid transparent;
 }
 
 .sidebar-menu-link:hover {
-    background: var(--sidebar-hover);
-    color: var(--primary-color);
+    background: var(--surface-subtle);
+    color: var(--ink);
+}
+
+.sidebar-menu-link:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: -2px;
 }
 
 .sidebar-menu-link.active {
-    background: var(--sidebar-active);
-    border-left-color: var(--primary-color);
-    /* Darker than --primary-color: 4.5:1 on the pale active background (E13-T04) */
-    color: var(--brand-navy-hover);
-    font-weight: 500;
+    background: var(--brand-navy-tint);
+    color: var(--brand-navy);
+    font-weight: 600;
+    box-shadow: inset 3px 0 0 var(--brand-gold);
 }
 
 .sidebar-menu-link i {
-    width: 20px;
-    margin-right: 0.75rem;
+    width: 18px;
+    flex-shrink: 0;
+    font-size: 14px;
     text-align: center;
-    color: var(--text-secondary);
+    color: var(--slate);
 }
 
 .sidebar-menu-link:hover i,
@@ -164,22 +117,25 @@
     color: inherit;
 }
 
-.sidebar.collapsed .sidebar-menu-link span {
-    display: none;
+.sidebar-menu-link > span:not(.badge) {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
+/* Access requests waiting: a navy count in mono */
 .sidebar-menu-link .badge {
     margin-left: auto;
-    background: var(--primary-color);
-    color: white;
-    padding: 0.125rem 0.5rem;
+    background: var(--brand-navy);
+    color: #fff;
+    padding: 1px 7px;
     border-radius: 10px;
-    font-size: 0.75rem;
-    font-weight: 600;
-}
-
-.sidebar.collapsed .sidebar-menu-link .badge {
-    display: none;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
 }
 
 /* Submenu */

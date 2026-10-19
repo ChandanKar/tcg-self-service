@@ -1,6 +1,7 @@
 /**
  * VM Self-Service Platform - Sidebar UI
- * Handles sidebar toggle, navigation, and menu interactions
+ * The side menu (SideNav.dc.html): four sections that are always open, the active page, arrow-key
+ * navigation, and on phones the drawer.
  */
 
 const Sidebar = (function() {
@@ -10,6 +11,8 @@ const Sidebar = (function() {
      * Initialize sidebar functionality
      */
     function init() {
+        // Sections used to open and close and remembered that per browser; they are always open now.
+        try { localStorage.removeItem('vmcontrol.sidebar.sections'); } catch (e) { /* storage unavailable */ }
         bindEvents();
     }
 
@@ -53,7 +56,7 @@ const Sidebar = (function() {
      * Event delegation ensures handlers work even if DOM changes or modules load late
      */
     function bindEvents() {
-        // Toggle sidebar collapse/expand
+        // The menu button (phones only): open or close the drawer
         $(document).on('click', '#toggleSidebar', toggleSidebar);
 
         // Phone drawer: More button, overlay, Escape, and growing past the phone breakpoint
@@ -73,9 +76,6 @@ const Sidebar = (function() {
         // Logo / brand — navigate to dashboard via the router (no page reload)
         $(document).on('click', '#topnav-home-link', handleLogoClick);
 
-        // Section collapse/expand (Accordion behavior)
-        $(document).on('click', '.sidebar-section-title', handleSectionClick);
-
         // Submenu toggle
         $(document).on('click', '[data-toggle="submenu"]', handleSubmenuToggle);
 
@@ -87,57 +87,9 @@ const Sidebar = (function() {
 
     }
 
-    /**
-     * Toggle sidebar collapsed state
-     */
+    /** The menu button: on a phone the side menu is a drawer; on wider screens it is always shown. */
     function toggleSidebar() {
-        // On a phone the sidebar is an off-screen drawer; collapsing it would do nothing visible.
-        if (isPhone()) {
-            toggleDrawer(document.getElementById('toggleSidebar'));
-            return;
-        }
-        $('#sidebar').toggleClass('collapsed');
-        $('#mainContent').toggleClass('expanded');
-    }
-
-    // Which sections the user closed or opened, kept per browser (a convenience only).
-    const SECTIONS_KEY = 'vmcontrol.sidebar.sections';
-
-    function readSectionState() {
-        try { return JSON.parse(localStorage.getItem(SECTIONS_KEY)) || {}; } catch (e) { return {}; }
-    }
-
-    function writeSectionState(key, open) {
-        try {
-            const state = readSectionState();
-            state[key] = open;
-            localStorage.setItem(SECTIONS_KEY, JSON.stringify(state));
-        } catch (e) { /* storage unavailable: the sidebar still works */ }
-    }
-
-    function setSectionOpen($title, open, animate) {
-        const $menu = $title.next('.sidebar-menu');
-        $title.toggleClass('collapsed', !open).attr('aria-expanded', String(open));
-        if (animate) { open ? $menu.slideDown(150) : $menu.slideUp(150); } else { $menu.toggle(open); }
-    }
-
-    /** Re-open the sections the user left open last time (Workspace starts open). */
-    function restoreSections() {
-        const state = readSectionState();
-        $('.sidebar-section-title').each(function() {
-            const key = $(this).data('section');
-            if (Object.prototype.hasOwnProperty.call(state, key)) setSectionOpen($(this), state[key] === true, false);
-        });
-    }
-
-    /**
-     * Section title click: open or close that section only (the others stay as they are).
-     */
-    function handleSectionClick() {
-        const $title = $(this);
-        const open = $title.hasClass('collapsed');
-        setSectionOpen($title, open, true);
-        writeSectionState($title.data('section'), open);
+        if (isPhone()) toggleDrawer(document.getElementById('toggleSidebar'));
     }
 
     /**
@@ -208,12 +160,8 @@ const Sidebar = (function() {
     function setActiveItem(contentType) {
         // Environment Detail lives under My Environments in the menu.
         const key = contentType === 'environment-detail' ? 'my-environments' : contentType;
-        $('.sidebar-menu-link').removeClass('active');
-        const $link = $(`.sidebar-menu-link[data-content="${key}"]`).addClass('active');
-
-        // Open the section holding the active page, so refreshes and deep links show it (E13-T02).
-        const $menu = $link.closest('.sidebar-menu');
-        if ($menu.length && $menu.css('display') === 'none') expandSection($menu.attr('id'));
+        $('.sidebar-menu-link').removeClass('active').removeAttr('aria-current');
+        $(`.sidebar-menu-link[data-content="${key}"]`).addClass('active').attr('aria-current', 'page');
 
         // Bottom bar: the item for this page, or More for pages only the drawer reaches.
         const $items = $('.mobile-nav-item').removeClass('active').removeAttr('aria-current');
@@ -221,25 +169,6 @@ const Sidebar = (function() {
         const $match = $items.filter((_, el) => hash && el.getAttribute('href') === hash);
         ($match.length ? $match : $('#mobile-more-btn')).addClass('active');
         $match.attr('aria-current', 'page');
-    }
-
-    /**
-     * Expand a specific section
-     */
-    function expandSection(sectionId) {
-        const $section = $(`#${sectionId}`);
-        const $title = $section.prev('.sidebar-section-title');
-
-        $title.removeClass('collapsed').attr('aria-expanded', 'true');
-        $section.slideDown(200);
-    }
-
-    /**
-     * Collapse all sections
-     */
-    function collapseAllSections() {
-        $('.sidebar-section-title').addClass('collapsed').attr('aria-expanded', 'false');
-        $('.sidebar-menu').slideUp(200);
     }
 
     /**
@@ -251,13 +180,9 @@ const Sidebar = (function() {
         if (!sidebar) return;
 
         sidebar.addEventListener('keydown', function(e) {
-            const menuLinks = Array.from(
-                sidebar.querySelectorAll('.sidebar-menu-link:not([style*="display: none"])')
-            ).filter(link => {
-                // Only include visible links
-                const parent = link.closest('.sidebar-menu');
-                return parent && parent.style.display !== 'none';
-            });
+            // Every link in a shown section and item (sections never collapse)
+            const menuLinks = Array.from(sidebar.querySelectorAll('.sidebar-menu-link'))
+                .filter(link => link.offsetParent !== null);
 
             const currentIndex = menuLinks.indexOf(document.activeElement);
             if (currentIndex === -1) return;
@@ -308,9 +233,6 @@ const Sidebar = (function() {
         openDrawer,
         closeDrawer,
         setActiveItem,
-        expandSection,
-        collapseAllSections,
-        restoreSections,
         initKeyboardNav
     };
 })();

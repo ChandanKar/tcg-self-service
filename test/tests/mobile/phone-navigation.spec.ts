@@ -55,6 +55,5 @@ test.describe('Phone navigation', () => {
     await burger.click();
     await page.locator('#mobile-overlay').click({ position: { x: 370, y: 400 } });
     await expect(page.locator('#sidebar')).not.toHaveClass(/mobile-open/);
-    await expect(page.locator('#sidebar')).not.toHaveClass(/collapsed/);
   });
 });

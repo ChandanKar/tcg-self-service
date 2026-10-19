@@ -77,8 +77,7 @@ const UserMenu = (function() {
 
         const $userProfile = $('.user-profile');
         const initials = getInitials(user.displayName);
-        const roleDisplay = Auth.getPrimaryRole();
-        const roleBadgeClass = getRoleBadgeClass(user);
+        const roleDisplay = roleLabel(user);
 
         // Build user profile HTML with dropdown
         const html = `
@@ -90,9 +89,7 @@ const UserMenu = (function() {
                     </div>
                     <div class="user-info">
                         <div class="user-name">${Utils.escapeHtml(user.displayName)}</div>
-                        <div class="user-role">
-                            <span class="role-badge ${roleBadgeClass}">${Utils.escapeHtml(roleDisplay)}</span>
-                        </div>
+                        <div class="user-role">${Utils.escapeHtml(roleDisplay)}</div>
                     </div>
                     <i class="fas fa-chevron-down dropdown-arrow" aria-hidden="true"></i>
                 </button>
@@ -113,13 +110,6 @@ const UserMenu = (function() {
                         <span class="dropdown-item-text">
                             <span>Ask</span>
                             <span class="dropdown-item-hint">Questions about your environments and costs</span>
-                        </span>
-                    </a>
-                    <a href="#/help" class="dropdown-item" id="help-menu-btn" role="menuitem">
-                        <i class="fas fa-life-ring" aria-hidden="true"></i>
-                        <span class="dropdown-item-text">
-                            <span>Help</span>
-                            <span class="dropdown-item-hint">How to use the platform</span>
                         </span>
                     </a>
                     <div class="dropdown-divider"></div>
@@ -146,13 +136,11 @@ const UserMenu = (function() {
         return displayName.substring(0, 2).toUpperCase();
     }
 
-    /**
-     * Get role badge CSS class
-     */
-    function getRoleBadgeClass(user) {
-        if (user.admin) return 'role-badge-admin';
-        if (user.envAdmin) return 'role-badge-env-admin';
-        return 'role-badge-user';
+    /** The role under the name in the top bar (TopBar.dc.html), in sentence case. */
+    function roleLabel(user) {
+        if (user.admin || Auth.isAdmin()) return 'Administrator';
+        if (user.envAdmin || Auth.isEnvAdmin()) return 'Environment admin';
+        return 'User';
     }
 
     /**

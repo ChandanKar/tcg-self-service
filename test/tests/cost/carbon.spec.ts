@@ -92,6 +92,9 @@ test.describe('Carbon footprint panel', () => {
     await withFeatures(page, { carbon: true }); // U02-T03: switched on for this page
     await signIn(page, 'admin');
     await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    // Let the first page open before moving on: a hash change during the router's first route could
+    // load Cost Management twice (and ask for carbon twice).
+    await expect(page.locator('#content-area h1').first()).toBeVisible({ timeout: 15_000 });
     await page.evaluate(() => { location.hash = '#/cost-management'; });
     await expect(page.locator('#cost-report')).toBeVisible({ timeout: 15_000 });
     return asked;

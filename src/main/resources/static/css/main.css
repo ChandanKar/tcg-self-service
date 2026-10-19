@@ -74,9 +74,10 @@
     --fs-small: 12px;
 
     /* Layout */
-    --sidebar-width: 260px;
+    --sidebar-width: 240px;
+    /* Tablet rail only (mobile.css); on desktop the side menu is always 240 px (U04-T01) */
     --sidebar-collapsed-width: 60px;
-    --topnav-height: 60px;
+    --topnav-height: 56px;
 
     /* Colors - Primary (brand navy; links a little lighter for contrast on tints) */
     --primary-color: #14245c;

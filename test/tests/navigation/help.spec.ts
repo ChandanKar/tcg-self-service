@@ -74,9 +74,13 @@ test.describe('Help', () => {
     await expect(page.locator('.help-topic-link', { hasText: 'Idle auto-stop and snooze' })).toBeVisible();
   });
 
-  test('the user menu has a Help entry', async ({ page }) => {
+  test('the top bar has a Help button (U04-T01)', async ({ page }) => {
     test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
     await go(page, 'user', '#/dashboard');
-    await expect(page.locator('#help-menu-btn')).toHaveAttribute('href', '#/help');
+    const help = page.locator('#topbar-help-btn');
+    await expect(help).toHaveAttribute('href', '#/help');
+    await expect(help).toHaveAccessibleName('Help');
+    await page.locator('.user-profile-trigger').click();
+    await expect(page.locator('#help-menu-btn')).toHaveCount(0);
   });
 });

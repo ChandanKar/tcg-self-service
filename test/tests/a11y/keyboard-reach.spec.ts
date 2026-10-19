@@ -2,8 +2,8 @@ import { test, expect, type Page } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
 
 /**
- * E13-T02: keyboard users reach the Admin section, its links, My Account and Logout; section
- * headers announce their state; the section holding the active page opens by itself.
+ * E13-T02 / U04-T01: keyboard users reach every menu link, My Account and Logout; the menu's
+ * sections are always open and the link of the open page is marked current.
  */
 
 declare const ContentRouter: any;
@@ -28,18 +28,13 @@ test.describe('Keyboard reach', () => {
     await page.waitForLoadState('networkidle');
   });
 
-  test('Tab reaches the Admin header; Enter opens it and its links are reachable', async ({ page }) => {
+  test('Tab reaches Users without opening anything (sections are always open, U04-T01)', async ({ page }) => {
     await page.evaluate(() => { location.hash = '#/dashboard'; });
-    const admin = page.locator('#admin-title');
-    await expect(admin).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('#admin-menu')).toBeVisible();
+    await expect(page.locator('#sidebar [aria-expanded]')).toHaveCount(0);
 
     await page.locator('body').focus();
-    expect(await tabUntil(page, el => el.id === 'admin-title')).toBe(true);
-    await page.keyboard.press('Enter');
-    await expect(admin).toHaveAttribute('aria-expanded', 'true');
-    await expect(page.locator('#admin-menu')).toBeVisible();
-
-    expect(await tabUntil(page, el => el.getAttribute('data-content') === 'user-management', 20)).toBe(true);
+    expect(await tabUntil(page, el => el.getAttribute('data-content') === 'user-management', 40)).toBe(true);
   });
 
   test('the user menu opens from the keyboard and Escape returns focus', async ({ page }) => {
@@ -50,8 +45,7 @@ test.describe('Keyboard reach', () => {
     await page.keyboard.press('Enter');
     await expect(trigger).toHaveAttribute('aria-expanded', 'true');
     await expect(page.locator('#my-account-btn')).toBeFocused();
-    await page.keyboard.press('ArrowDown');
-    await expect(page.locator('#help-menu-btn')).toBeFocused(); // Help (E29-T07)
+    // Help moved to the top bar (U04-T01); Ask is hidden while it is off.
     await page.keyboard.press('ArrowDown');
     await expect(page.locator('#logout-btn')).toBeFocused();
     await page.keyboard.press('ArrowDown');
@@ -63,33 +57,24 @@ test.describe('Keyboard reach', () => {
     await expect(page.locator('#user-dropdown')).toBeHidden();
   });
 
-  test('an admin page opens the Administration section and marks its link active', async ({ page }) => {
+  test('an admin page marks its link active and current', async ({ page }) => {
     await page.evaluate(() => { location.hash = '#/user-management'; });
     await expect(page.locator('#admin-menu')).toBeVisible();
-    await expect(page.locator('#admin-title')).toHaveAttribute('aria-expanded', 'true');
-    await expect(page.locator('.sidebar-menu-link[data-content="user-management"]')).toHaveClass(/active/);
+    const link = page.locator('.sidebar-menu-link[data-content="user-management"]');
+    await expect(link).toHaveClass(/active/);
+    await expect(link).toHaveAttribute('aria-current', 'page');
 
     await page.reload();
     await expect(page.locator('#admin-menu')).toBeVisible({ timeout: 10_000 });
   });
 
-  test('a Manage page opens the Manage section; sections open and close on their own', async ({ page }) => {
-    await page.evaluate(() => { location.hash = '#/vm-registry'; });
-    await expect(page.locator('#manage-menu')).toBeVisible();
-    await expect(page.locator('.sidebar-menu-link[data-content="vm-registry"]')).toHaveClass(/active/);
-
-    // Opening Administration leaves Workspace and Manage open (no accordion).
-    await page.locator('#admin-title').click();
-    await expect(page.locator('#admin-menu')).toBeVisible();
-    await expect(page.locator('#operations-menu')).toBeVisible();
-    await expect(page.locator('#manage-menu')).toBeVisible();
-
-    // A closed section stays closed after a reload.
-    await page.locator('#admin-title').click();
-    await expect(page.locator('#admin-menu')).toBeHidden();
-    await page.evaluate(() => { location.hash = '#/dashboard'; });
+  test('every section stays open, also after a reload that had stored closed sections', async ({ page }) => {
+    await page.evaluate(() => localStorage.setItem('vmcontrol.sidebar.sections', JSON.stringify({ admin: false, cost: false })));
     await page.reload();
     await expect(page.locator('#operations-menu')).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator('#admin-title')).toHaveAttribute('aria-expanded', 'false');
+    for (const menu of ['#manage-menu', '#cost-menu', '#admin-menu']) await expect(page.locator(menu)).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem('vmcontrol.sidebar.sections'))).toBeNull();
+    await page.locator('#admin-title').click();
+    await expect(page.locator('#admin-menu')).toBeVisible();
   });
 });

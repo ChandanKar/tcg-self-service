@@ -1,5 +1,6 @@
 /*
- * Top Navigation Styles
+ * Top bar (TopBar.dc.html): 56 px, white with a hairline. Logo | Self-Service on the left; sync,
+ * Help, notifications and the account on the right. The menu button shows on phones only.
  */
 
 .top-navbar {
@@ -8,8 +9,8 @@
     left: 0;
     right: 0;
     height: var(--topnav-height);
-    background: white;
-    border-bottom: 1px solid var(--border-color);
+    background: #fff;
+    border-bottom: 1px solid var(--line);
     /* Above Bootstrap's default .dropdown-menu z-index (1000, see vendor/bootstrap)
        so page-level dropdowns (e.g. a table row's "Actions" menu) never paint over
        the fixed navbar's own dropdowns (My Access, notifications). Matches
@@ -17,14 +18,8 @@
     z-index: 1030;
     display: flex;
     align-items: center;
-    padding: 0 1.5rem;
-}
-
-.top-navbar .hamburger {
-    font-size: 1.25rem;
-    cursor: pointer;
-    color: var(--text-secondary);
-    margin-right: 1rem;
+    gap: 16px;
+    padding: 0 20px;
 }
 
 .top-navbar .nav-left,
@@ -34,82 +29,97 @@
 }
 
 .top-navbar .nav-left {
-    gap: 0.75rem;
+    gap: 8px;
 }
 
 .top-navbar .nav-right {
-    gap: 1.5rem;
+    gap: 6px;
     margin-left: auto;
 }
 
-.top-navbar .user-icon {
-    font-size: 1.5rem;
-    color: var(--text-secondary);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
 .top-navbar .tcg-logo {
-    height: 28px;
+    height: 24px;
     width: auto;
-    margin-right: 0.75rem;
     display: block;
 }
 
 .top-navbar .topnav-brand-link {
     display: flex;
     align-items: center;
+    gap: 14px;
     text-decoration: none;
+    color: var(--ink);
     cursor: pointer;
-    border-radius: 6px;
-    padding: 0.2rem 0.3rem;
-    margin: -0.2rem -0.3rem;
-    transition: background 0.2s;
+    border-radius: 8px;
+    padding: 4px 6px;
+    margin: -4px -6px;
 }
 
 .top-navbar .topnav-brand-link:hover {
-    background: var(--surface-muted);
+    background: var(--surface-subtle);
 }
 
 .top-navbar .topnav-brand-link:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--brand-navy);
     outline-offset: 2px;
 }
 
+.top-navbar .topnav-divider {
+    width: 1px;
+    height: 22px;
+    background: var(--line);
+}
+
 .top-navbar .logo {
-    font-size: 1rem;
+    font-size: 15px;
     font-weight: 600;
-    color: var(--text-primary);
-    padding-left: 0.75rem;
-    border-left: 1px solid var(--border-color);
-    line-height: 1.5rem;
+    letter-spacing: -0.005em;
+    color: var(--ink);
 }
 
-.top-navbar .nav-icons {
-    display: flex;
-    align-items: center;
-    gap: 1.5rem;
-}
-
+/* 40 x 40 icon buttons: Help and notifications */
+.top-navbar .topbar-icon-btn,
 .top-navbar .notification-bell {
     position: relative;
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: var(--slate);
+    font-size: 19px;
+    text-decoration: none;
     cursor: pointer;
-    font-size: 1.25rem;
-    color: var(--text-secondary);
+}
+
+.top-navbar .topbar-icon-btn:hover,
+.top-navbar .notification-bell:hover {
+    background: var(--surface-subtle);
+    color: var(--ink);
+}
+
+.top-navbar .topbar-icon-btn:focus-visible,
+.top-navbar .notification-bell:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: 0;
 }
 
 .top-navbar .notification-bell .badge {
     position: absolute;
-    top: -8px;
-    right: -8px;
+    top: 5px;
+    right: 4px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
     background: var(--brand-red);
-    color: white;
-    border-radius: 50%;
-    width: 20px;
-    height: 20px;
-    font-size: 0.75rem;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -118,37 +128,40 @@
 .top-navbar .user-profile {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
     cursor: pointer;
-    padding: 0.5rem 1rem;
-    border-radius: 8px;
-    transition: background 0.2s;
+    margin-left: 6px;
+    padding: 4px 8px 4px 4px;
+    border-radius: 10px;
 }
 
 .top-navbar .user-profile:hover {
-    background: var(--surface-muted);
+    background: var(--surface-subtle);
 }
 
 .top-navbar .user-avatar {
-    width: 36px;
-    height: 36px;
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
-    background: var(--primary-color);
-    color: white;
+    background: var(--brand-navy);
+    color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
+    font-size: 13px;
     font-weight: 600;
 }
 
 .top-navbar .user-name {
+    font-size: 14px;
     font-weight: 500;
+    line-height: 1.2;
     color: var(--ink);
 }
 
 .top-navbar .user-role {
-    font-size: 0.875rem;
-    color: var(--text-caption);
+    font-size: 12px;
+    line-height: 1.2;
+    color: var(--slate);
 }
 
 /* User Profile Loading State */
@@ -168,7 +181,7 @@
 .user-profile-trigger {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 10px;
     /* A <button> (E13-T02) */
     background: none;
     border: 0;
@@ -179,18 +192,20 @@
 }
 
 .user-profile-trigger:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--brand-navy);
     outline-offset: 4px;
     border-radius: 6px;
 }
 
 .user-info {
+    display: flex;
+    flex-direction: column;
     text-align: left;
 }
 
 .dropdown-arrow {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
+    font-size: 11px;
+    color: var(--slate);
     transition: transform 0.2s;
 }
 
@@ -269,16 +284,6 @@
     color: var(--brand-red);
 }
 
-/* Role Badges — see components/badges.css for .role-badge. Next to the name the role is a
-   plain caption: a coloured pill made "Administrator" look like a warning. */
-.top-navbar .user-role .role-badge {
-    background: none;
-    color: var(--text-secondary);
-    padding: 0;
-    font-size: 0.75rem;
-    letter-spacing: 0;
-}
-
 /* Loading and Error States */
 .loading-state,
 .error-state {
@@ -312,24 +317,35 @@
    Shows real-time sync status with cloud
    ================================================ */
 .sync-indicator {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    padding: 0.25rem 0.75rem;
-    background: var(--surface-muted);
-    border-radius: 20px;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--slate);
+    padding: 6px 10px;
+    background: var(--canvas);
+    border-radius: 999px;
     cursor: pointer;
-    transition: all 0.2s;
+    margin-right: 4px;
 }
+
+.sync-indicator .sync-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--brand-green);
+}
+
+.sync-indicator.never .sync-dot { background: var(--line-strong); }
+.sync-indicator.stale .sync-dot { background: var(--brand-gold); }
+.sync-indicator.error .sync-dot { background: var(--brand-red); }
 
 .sync-indicator:hover {
     background: var(--border-color);
 }
 
-.sync-indicator.syncing i {
-    animation: sync-spin 1s linear infinite;
+.sync-indicator.syncing .sync-dot {
+    animation: sync-pulse 1s ease-in-out infinite;
 }
 
 .sync-indicator.stale {
@@ -344,17 +360,18 @@
 
 .sync-indicator .sync-time {
     white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 
-@keyframes sync-spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+@keyframes sync-pulse {
+    50% { opacity: 0.35; }
 }
 
 /* Phone top bar (E13-T05): logo text, user name/role, the menu arrow and the sync time give
    way so the bar fits 390px; the user menu is pinned inside the viewport. */
 @media (max-width: 767.98px) {
     .top-navbar .logo,
+    .top-navbar .topnav-divider,
     .top-navbar .user-info,
     .top-navbar .dropdown-arrow,
     .sync-indicator .sync-time {
@@ -374,20 +391,28 @@
     }
 }
 
-/* Hamburger button style */
+/* The menu button opens the drawer on phones; on wider screens the side menu is always shown. */
 .hamburger-btn {
+    display: none;
+    width: 40px;
+    height: 40px;
+    align-items: center;
+    justify-content: center;
     background: none;
     border: none;
-    font-size: 1.25rem;
+    font-size: 1.125rem;
     cursor: pointer;
-    color: var(--text-secondary);
-    padding: 0.5rem;
-    margin-right: 0.5rem;
-    border-radius: 4px;
-    transition: all 0.2s;
+    color: var(--slate);
+    border-radius: 8px;
 }
 
 .hamburger-btn:hover {
-    background: var(--surface-muted);
-    color: var(--primary-color);
+    background: var(--surface-subtle);
+    color: var(--ink);
+}
+
+@media (max-width: 768px) {
+    .hamburger-btn {
+        display: inline-flex;
+    }
 }

@@ -41,7 +41,7 @@ test.describe('Ask panel', () => {
   test('is not in the user menu while the assistant is off', async ({ page }) => {
     await setUp(page, false);
     await page.locator('.user-profile-trigger').click();
-    await expect(page.locator('#help-menu-btn')).toBeVisible();
+    await expect(page.locator('#my-account-btn')).toBeVisible();
     await expect(page.locator('#ask-menu-btn')).toBeHidden();
   });
 

@@ -92,12 +92,11 @@ const App = (function() {
      * Update sidebar menu based on user role
      */
     function updateSidebarForRole() {
-        // Manage, Cost and Administration are for admins and environment admins; inside them,
-        // .admin-only items are for full admins only.
+        // Manage is for environment admins and admins; Cost and Administration for admins only.
+        // Sections are always open (U04-T01).
         const envAdmin = Auth.isEnvAdmin();
         $('.env-admin-only').toggle(envAdmin);
         $('.admin-only').toggle(Auth.isAdmin());
-        Sidebar.restoreSections();
         // New environment from a template (E32-T07): only while provisioning is on.
         if (typeof Templates !== 'undefined') {
             Templates.probeNav();
