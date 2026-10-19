@@ -419,23 +419,23 @@ const AccessRequests = (function() {
 
         const rows = requests.map(req => `
             <tr>
-                <td class="ra-wrap">
+                <td class="ra-wrap" data-label="Requester">
                     <strong>${Utils.escapeHtml(req.requesterDisplayName || 'Unknown')}</strong>
                     <br><small class="text-muted">${Utils.escapeHtml(req.requesterEmail || '')}</small>
                 </td>
-                <td class="ra-wrap">
+                <td class="ra-wrap" data-label="Environment">
                     <strong>${Utils.escapeHtml(req.environmentName || 'Unknown')}</strong>
                 </td>
-                <td>
+                <td data-label="Access level">
                     <span class="badge bg-${Config.ACCESS_LEVELS[req.requestedAccessLevel]?.color || 'secondary'}">
                         ${Utils.escapeHtml(req.requestedAccessLevel)}
                     </span>
                 </td>
-                <td class="ra-wrap" data-col="scope">${Utils.escapeHtml(describeRequest(req).scope)}</td>
-                <td data-col="duration">${Utils.escapeHtml(describeRequest(req).duration)}</td>
-                <td class="ra-wrap" data-col="current">${currentAccessHtml(req)}</td>
-                <td>${Utils.formatRelativeTime(req.createdAt)}</td>
-                <td title="${Utils.escapeHtml(req.businessJustification || '')}">
+                <td class="ra-wrap" data-col="scope" data-label="Scope">${Utils.escapeHtml(describeRequest(req).scope)}</td>
+                <td data-col="duration" data-label="Duration">${Utils.escapeHtml(describeRequest(req).duration)}</td>
+                <td class="ra-wrap" data-col="current" data-label="Current access">${currentAccessHtml(req)}</td>
+                <td data-label="Requested">${Utils.formatRelativeTime(req.createdAt)}</td>
+                <td data-label="Reason" title="${Utils.escapeHtml(req.businessJustification || '')}">
                     <span class="reason-text">${Utils.escapeHtml(req.businessJustification || '-')}</span>
                 </td>
                 <td class="text-end ra-actions-cell td-actions">

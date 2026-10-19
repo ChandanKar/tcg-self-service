@@ -110,23 +110,34 @@
 #history-table thead th:nth-child(6),
 #history-table tbody td:nth-child(6) { width: 24%; }
 
-/* ── Pending Requests (admin) table column widths (6 cols) ── */
+/* ── Pending Requests (admin) table column widths (9 cols, U02-T05) ──
+   requester, environment, level, scope, duration, current access, requested, reason, actions.
+   The actions column has a fixed width so Approve and Deny always sit side by side. */
 #pending-requests-table {
     table-layout: fixed;
     width: 100%;
 }
 #pending-requests-table thead th:nth-child(1),
-#pending-requests-table tbody td:nth-child(1) { width: 22%; }
+#pending-requests-table tbody td:nth-child(1) { width: 16%; }
 #pending-requests-table thead th:nth-child(2),
-#pending-requests-table tbody td:nth-child(2) { width: 18%; }
+#pending-requests-table tbody td:nth-child(2) { width: 13%; }
 #pending-requests-table thead th:nth-child(3),
-#pending-requests-table tbody td:nth-child(3) { width: 12%; }
+#pending-requests-table tbody td:nth-child(3) { width: 8%; }
 #pending-requests-table thead th:nth-child(4),
 #pending-requests-table tbody td:nth-child(4) { width: 11%; }
 #pending-requests-table thead th:nth-child(5),
-#pending-requests-table tbody td:nth-child(5) { width: 19%; }
+#pending-requests-table tbody td:nth-child(5) { width: 9%; }
 #pending-requests-table thead th:nth-child(6),
-#pending-requests-table tbody td:nth-child(6) { width: 18%; text-align: right; }
+#pending-requests-table tbody td:nth-child(6) { width: 12%; }
+#pending-requests-table thead th:nth-child(7),
+#pending-requests-table tbody td:nth-child(7) { width: 8%; }
+#pending-requests-table thead th:nth-child(8),
+#pending-requests-table tbody td:nth-child(8) { width: auto; }
+#pending-requests-table thead th:nth-child(9),
+#pending-requests-table tbody td:nth-child(9) { width: 11.5rem; text-align: right; }
+#pending-requests-table .ra-action-buttons {
+    flex-wrap: nowrap;
+}
 
 /* Truncate long text in fixed-width cells */
 .request-access-container .table tbody td {
