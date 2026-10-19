@@ -15,18 +15,18 @@
 }
 
 .ar-type-schedule {
-    background: #e0e7ff;
-    color: #3730a3;
+    background: var(--brand-navy-tint);
+    color: var(--brand-navy);
 }
 
 .ar-type-access {
-    background: var(--status-starting-bg, #dbeafe);
-    color: var(--status-starting-text, #1e40af);
+    background: var(--status-starting-bg);
+    color: var(--status-starting-text);
 }
 
 /* Trigger-type choice cards in the New/Edit Rule modal */
 .ar-choice-card {
-    border: 1.5px solid var(--border-color, #e2e8f0);
+    border: 1.5px solid var(--border-color);
     border-radius: 8px;
     padding: 0.75rem 0.85rem;
     cursor: pointer;
@@ -48,12 +48,12 @@
 }
 
 .ar-choice-card:hover {
-    border-color: var(--primary-light, #3b82f6);
+    border-color: var(--primary-light);
 }
 
 .ar-choice-card.selected {
     border-color: var(--primary-color);
-    background: rgba(37, 99, 235, 0.06);
+    background: rgba(20, 36, 92, 0.06);
 }
 
 .ar-choice-top {
@@ -78,7 +78,7 @@
     width: 44px;
     height: 32px;
     border-radius: 7px;
-    border: 1px solid var(--border-color, #e2e8f0);
+    border: 1px solid var(--border-color);
     font-size: 0.78rem;
     font-weight: 600;
     color: var(--text-secondary);
@@ -127,7 +127,7 @@
     gap: 0.75rem;
     padding: 0.75rem;
     background: var(--sidebar-bg);
-    border: 1px solid var(--border-color, #e2e8f0);
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     margin-bottom: 0.75rem;
     align-items: center;
@@ -209,7 +209,7 @@
     font-size: var(--table-header-font, 0.7rem);
     font-weight: 600;
     letter-spacing: 0.03em;
-    background: var(--table-header-bg, #f8fafc);
+    background: var(--table-header-bg);
     position: sticky;
     top: 0;
     z-index: 1;
@@ -270,7 +270,7 @@
     justify-content: space-between;
     gap: 0.5rem 1rem;
     padding: 0.6rem 0.75rem;
-    border: 1px solid var(--border-color, #e2e8f0);
+    border: 1px solid var(--border-color);
     border-radius: 8px;
 }
 
@@ -285,7 +285,7 @@
     align-items: center;
     gap: 0.35rem;
     font-size: 0.8rem;
-    color: var(--text-secondary, #64748b);
+    color: var(--text-secondary);
     margin: 0;
     white-space: nowrap;
 }
@@ -345,7 +345,7 @@
 }
 
 .ar-run-skipped s {
-    color: var(--text-secondary, #64748b);
+    color: var(--text-secondary);
 }
 
 .ar-next-run {
@@ -354,7 +354,7 @@
 
 /* Suggest from usage (E19-T05) */
 .ar-suggestion {
-    border: 1px solid var(--border-color, #e2e8f0);
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 0.75rem;
     margin: 0.5rem 0 0.75rem;
@@ -376,7 +376,7 @@
     display: grid;
     gap: 2px;
     font-size: 0.7rem;
-    color: var(--text-secondary, #64748b);
+    color: var(--text-secondary);
 }
 
 .ar-heat-row,
@@ -390,5 +390,5 @@
 .ar-heat-cell {
     height: 0.75rem;
     border-radius: 2px;
-    background: var(--primary-color, #2563eb);
+    background: var(--primary-color);
 }

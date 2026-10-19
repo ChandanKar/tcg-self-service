@@ -8,7 +8,7 @@
 }
 
 .log-row:hover {
-    background: #f8fafc;
+    background: var(--surface-subtle);
 }
 
 /* Action badges */
@@ -36,13 +36,13 @@
     font-size: 0.75rem;
     font-weight: 600;
     text-transform: uppercase;
-    color: #64748b;
+    color: var(--slate);
 }
 
 /* Empty state */
 .empty-state {
     text-align: center;
-    color: #64748b;
+    color: var(--slate);
 }
 
 .empty-state i {
@@ -51,13 +51,13 @@
 
 /* Log details modal */
 #logDetailsModal .table th {
-    background: #f8fafc;
+    background: var(--surface-subtle);
     font-weight: 600;
-    color: #475569;
+    color: var(--slate);
 }
 
 #logDetailsModal pre {
-    background: #f1f5f9;
+    background: var(--surface-muted);
     padding: 0.75rem;
     border-radius: 4px;
     font-size: 0.75rem;
@@ -80,18 +80,18 @@
 
 /* Time filter badge colors */
 .time-badge-24h {
-    background: #dbeafe;
-    color: #1d4ed8;
+    background: var(--brand-navy-tint);
+    color: var(--brand-navy-hover);
 }
 
 .time-badge-7d {
-    background: #dcfce7;
-    color: #16a34a;
+    background: var(--brand-green-tint);
+    color: var(--brand-green);
 }
 
 .time-badge-30d {
-    background: #fef3c7;
-    color: #d97706;
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold);
 }
 
 /* Responsive table */
@@ -107,7 +107,7 @@
 
 /* Search highlight */
 .search-highlight {
-    background: #fef08a;
+    background: var(--brand-gold-tint);
     padding: 0 2px;
     border-radius: 2px;
 }

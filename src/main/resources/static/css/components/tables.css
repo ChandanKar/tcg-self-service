@@ -12,8 +12,8 @@
     font-weight: 600;
     letter-spacing: 0.03em;
     padding: var(--table-cell-padding, 0.28rem 0.55rem);
-    background: var(--table-header-bg, #f8fafc);
-    color: #475569;
+    background: var(--table-header-bg);
+    color: var(--slate);
     vertical-align: middle;
     line-height: 1.5;
 }
@@ -23,7 +23,7 @@
     padding: var(--table-cell-padding, 0.28rem 0.55rem);
     vertical-align: middle;
     line-height: 1.5;
-    color: #334155;
+    color: var(--ink);
 }
 
 .table-baseline tbody tr {
@@ -31,7 +31,7 @@
 }
 
 .table-baseline tbody tr:hover {
-    background-color: #f8fafc;
+    background-color: var(--surface-subtle);
 }
 
 /* ================================================
@@ -49,20 +49,20 @@
 }
 
 .custom-table th {
-    background: var(--table-header-bg, #f8fafc);
-    color: #475569;
+    background: var(--table-header-bg);
+    color: var(--slate);
     font-weight: 600;
     font-size: var(--table-header-font, 0.7rem);
     letter-spacing: 0.03em;
     padding: var(--table-cell-padding, 0.28rem 0.55rem);
-    border-bottom: 2px solid #e2e8f0;
+    border-bottom: 2px solid var(--line);
 }
 
 .custom-table td {
     font-size: var(--table-body-font, 0.81rem);
     padding: var(--table-cell-padding, 0.28rem 0.55rem);
     vertical-align: middle;
-    color: #334155;
+    color: var(--ink);
 }
 
 .custom-table tbody tr {
@@ -70,7 +70,7 @@
 }
 
 .custom-table tbody tr:hover {
-    background-color: #f8fafc;
+    background-color: var(--surface-subtle);
 }
 
 /* ================================================
@@ -110,7 +110,7 @@
         align-items: center;
         padding: 0.5rem 0;
         border: none;
-        border-bottom: 1px solid #f1f5f9;
+        border-bottom: 1px solid var(--surface-muted);
     }
 
     .table-responsive-stack tbody td:last-child {

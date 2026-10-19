@@ -11,18 +11,18 @@
 
 .waste-card {
     text-align: left;
-    border: 1px solid var(--border-color, #e2e8f0);
-    background: var(--card-bg, #fff);
+    border: 1px solid var(--border-color);
+    background: #fff;
     cursor: pointer;
 }
 
 .waste-card.active {
-    border-color: var(--primary-color, #2563eb);
-    box-shadow: 0 0 0 1px var(--primary-color, #2563eb) inset;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 1px var(--primary-color) inset;
 }
 
 .waste-card:focus-visible {
-    outline: 2px solid var(--primary-color, #2563eb);
+    outline: 2px solid var(--primary-color);
     outline-offset: 2px;
 }
 

@@ -23,17 +23,17 @@
 .ra-search-bar .input-group-text {
     font-size: 0.81rem;
     padding: 0.25rem 0.5rem;
-    background: #f8fafc;
-    border-color: #e2e8f0;
+    background: var(--surface-subtle);
+    border-color: var(--line);
 }
 .ra-search-bar .form-control {
     font-size: 0.81rem;
     padding: 0.25rem 0.5rem;
-    border-color: #e2e8f0;
+    border-color: var(--line);
 }
 .ra-search-bar .form-control:focus {
-    border-color: #93c5fd;
-    box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+    border-color: var(--brand-navy-line);
+    box-shadow: 0 0 0 2px rgba(20, 36, 92,0.15);
 }
 
 /* ── Card header density ── */
@@ -59,7 +59,7 @@
     font-size: var(--table-header-font, 0.7rem);
     font-weight: 600;
     letter-spacing: 0.03em;
-    background: var(--table-header-bg, #f8fafc);
+    background: var(--table-header-bg);
 }
 
 /* ── Available Environments table column widths ── */
@@ -216,7 +216,7 @@
     position: sticky;
     top: 0;
     z-index: 1;
-    background: #f8fafc;
+    background: var(--surface-subtle);
 }
 /* Filler row: expands to fill leftover vertical space */
 .ra-env-filler-row { height: 100%; }
@@ -233,7 +233,7 @@
 .ra-empty-state {
     text-align: center;
     padding: 2rem 1rem;
-    color: #64748b;
+    color: var(--slate);
 }
 .ra-empty-state i {
     opacity: 0.5;
@@ -259,8 +259,8 @@
 }
 
 .ra-extension-pill {
-    background: #fff4e5;
-    color: #8a4b00;
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
     font-weight: 600;
 }
 

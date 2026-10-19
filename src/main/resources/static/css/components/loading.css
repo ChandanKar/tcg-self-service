@@ -9,7 +9,7 @@
     align-items: center;
     justify-content: center;
     min-height: 300px;
-    color: #64748b;
+    color: var(--slate);
 }
 
 .loading-state .spinner-border {
@@ -58,7 +58,7 @@
 }
 
 .skeleton-line {
-    background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+    background: linear-gradient(90deg, var(--line) 25%, var(--surface-muted) 50%, var(--line) 75%);
     background-size: 200% 100%;
     animation: skeleton-pulse 1.5s ease-in-out infinite;
     border-radius: 4px;
@@ -66,7 +66,7 @@
 
 /* Skeleton card */
 .skeleton-card {
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--line);
 }
 
 .skeleton-card .skeleton-title {
@@ -141,17 +141,17 @@
 }
 
 #connection-status.connected {
-    background: var(--success-color, #10b981);
+    background: var(--success-color);
     color: white;
 }
 
 #connection-status.disconnected {
-    background: var(--danger-color, #ef4444);
+    background: var(--danger-color);
     color: white;
 }
 
 #connection-status.reconnecting {
-    background: var(--warning-color, #f59e0b);
+    background: var(--warning-color);
     color: white;
 }
 
@@ -161,9 +161,9 @@
     align-items: center;
     gap: 0.5rem;
     font-size: 0.75rem;
-    color: #64748b;
+    color: var(--slate);
     padding: 0.25rem 0.75rem;
-    background: #f1f5f9;
+    background: var(--surface-muted);
     border-radius: 20px;
 }
 
@@ -210,7 +210,7 @@
     content: '';
     width: 8px;
     height: 8px;
-    background: #10b981;
+    background: var(--brand-green);
     border-radius: 50%;
     animation: live-pulse 2s ease-in-out infinite;
 }

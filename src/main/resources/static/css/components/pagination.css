@@ -15,13 +15,13 @@
     gap: 0.6rem;
     min-height: 34px;
     padding: 0.5rem 0.75rem;
-    border-top: 1px solid var(--border-color, #e2e8f0);
-    background: var(--table-header-bg, #f8fafc);
+    border-top: 1px solid var(--border-color);
+    background: var(--table-header-bg);
 }
 
 .pagination-info {
     font-size: 0.75rem;
-    color: var(--text-secondary, #64748b);
+    color: var(--text-secondary);
 }
 
 .pagination-controls {
@@ -40,22 +40,22 @@
     gap: 0.3rem;
     font-size: 0.75rem;
     font-weight: 500;
-    color: var(--text-primary, #1e293b);
+    color: var(--text-primary);
     background: #fff;
-    border: 1px solid var(--border-color, #e2e8f0);
+    border: 1px solid var(--border-color);
     border-radius: 6px;
     cursor: pointer;
     transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .pg-btn:hover:not(:disabled) {
-    background: var(--background-light, #f8fafc);
-    border-color: #cbd5e1;
+    background: var(--background-light);
+    border-color: var(--line-strong);
 }
 
 .pg-btn.active {
-    background: var(--primary-color, #2563eb);
-    border-color: var(--primary-color, #2563eb);
+    background: var(--primary-color);
+    border-color: var(--primary-color);
     color: #fff;
 }
 
@@ -65,7 +65,7 @@
 }
 
 .pg-btn:focus-visible {
-    outline: 2px solid var(--primary-color, #2563eb);
+    outline: 2px solid var(--primary-color);
     outline-offset: 1px;
 }
 

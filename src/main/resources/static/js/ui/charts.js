@@ -6,11 +6,21 @@ const VmCharts = (function() {
     'use strict';
 
     const registry = new Map();
-    const palette = ['#2563eb', '#059669', '#d97706', '#dc2626', '#7c3aed', '#0891b2'];
+    // Series and text colours come from the style-guide tokens in main.css (U03-T04).
+    function token(name, fallback) {
+        const value = typeof getComputedStyle === 'function'
+            ? getComputedStyle(document.documentElement).getPropertyValue(name).trim() : '';
+        return value || fallback;
+    }
+    const palette = [
+        token('--brand-navy', '#14245c'), token('--brand-green', '#12915e'), token('--brand-gold', '#d9a21b'),
+        token('--brand-red', '#c2412d'), token('--primary-light', '#2f4a9e'), token('--slate', '#5b6478'),
+    ];
     const textStyle = {
-        fontFamily: 'Inter, Segoe UI, Arial, sans-serif',
-        color: '#64748b'
+        fontFamily: token('--font-sans', "'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif"),
+        color: token('--slate', '#5b6478')
     };
+    const gridLine = token('--line-soft', '#eef1f5');
 
     function init() {
         $(window).off('resize.vmCharts').on('resize.vmCharts', resizeAll);
@@ -99,7 +109,7 @@ const VmCharts = (function() {
                 axisLine: { show: false },
                 axisTick: { show: false },
                 axisLabel: { show: false },
-                splitLine: { lineStyle: { color: '#eef2f7' } }
+                splitLine: { lineStyle: { color: gridLine } }
             },
             series: lines.map(line => ({
                 name: line.name,

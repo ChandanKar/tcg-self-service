@@ -11,18 +11,18 @@
 }
 
 .chargeback-unassigned td {
-    color: var(--text-secondary, #64748b);
+    color: var(--text-secondary);
 }
 
 .chargeback-detail td {
-    background: var(--surface-muted, #f8fafc);
+    background: var(--surface-muted);
     font-size: 0.875rem;
     padding-left: 2rem;
 }
 
 .chargeback-totals th,
 .chargeback-totals td {
-    border-top: 2px solid var(--border-color, #cbd5e1);
+    border-top: 2px solid var(--border-color);
     font-weight: 600;
 }
 

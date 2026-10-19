@@ -35,7 +35,7 @@
 
 .environment-list-card:hover {
     border-color: var(--primary-light);
-    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.1);
+    box-shadow: 0 2px 8px rgba(20, 36, 92, 0.1);
 }
 
 .environment-list-card .env-header {
@@ -366,40 +366,40 @@
 }
 
 .vm-title-status.running {
-    background: #dcfce7;
-    color: #166534;
+    background: var(--brand-green-tint);
+    color: var(--brand-green-text);
 }
 
 .vm-title-status.stopped {
-    background: #f1f5f9;
-    color: #475569;
+    background: var(--surface-muted);
+    color: var(--slate);
 }
 
 .vm-title-status.starting,
 .vm-title-status.stopping,
 .vm-title-status.pending {
-    background: #fef3c7;
-    color: #92400e;
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
 }
 
 .vm-title-status.error {
-    background: #fee2e2;
-    color: #991b1b;
+    background: var(--brand-red-tint);
+    color: var(--brand-red-text);
 }
 
 .vm-title-status.unknown {
-    background: #f3f4f6;
-    color: #4b5563;
+    background: var(--surface-muted);
+    color: var(--slate);
 }
 
 .vm-title-idle.idle {
     background: transparent;
-    color: #92400e;
+    color: var(--brand-gold-text);
 }
 
 .vm-title-idle.active {
     background: transparent;
-    color: #166534;
+    color: var(--brand-green-text);
 }
 
 .vm-insights-panel {
@@ -421,13 +421,13 @@
 }
 
 .vm-idle-badge.idle {
-    background: #fef3c7;
-    color: #92400e;
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
 }
 
 .vm-idle-badge.active {
-    background: #dcfce7;
-    color: #166534;
+    background: var(--brand-green-tint);
+    color: var(--brand-green-text);
 }
 
 .vm-insights-summary {
@@ -564,8 +564,8 @@
     margin-top: 0.55rem;
     padding: 0.52rem 0.6rem;
     border-radius: 8px;
-    background: #eff6ff;
-    color: #1e40af;
+    background: var(--brand-navy-tint);
+    color: var(--brand-navy);
     font-size: 0.74rem;
 }
 
@@ -654,7 +654,7 @@
     width: 7px;
     height: 7px;
     border-radius: 999px;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.95), 0 0 0 2px rgba(148, 163, 184, 0.24);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.95), 0 0 0 2px rgba(91, 100, 120, 0.24);
     cursor: help;
 }
 
@@ -666,7 +666,7 @@
 
 .vm-metric-placeholder {
     height: 38px;
-    border: 1px dashed rgba(148, 163, 184, 0.55);
+    border: 1px dashed rgba(91, 100, 120, 0.55);
     border-radius: 6px;
     display: flex;
     align-items: center;
@@ -679,7 +679,7 @@
 
 .vm-empty-state {
     min-height: 84px;
-    border: 1px dashed rgba(148, 163, 184, 0.55);
+    border: 1px dashed rgba(91, 100, 120, 0.55);
     border-radius: 6px;
     display: flex;
     align-items: center;
@@ -726,11 +726,11 @@
     display: inline-flex;
     align-items: center;
     gap: 0.28rem;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--line);
     border-radius: 999px;
     padding: 0.18rem 0.45rem;
     color: var(--text-secondary);
-    background: #f8fafc;
+    background: var(--surface-subtle);
     font-size: 0.72rem;
 }
 
@@ -779,7 +779,7 @@
     margin-left: auto;
     border-radius: 999px;
     padding: 0.12rem 0.45rem;
-    background: #f1f5f9;
+    background: var(--surface-muted);
     color: var(--text-secondary);
     font-size: 0.72rem;
     font-weight: 700;
@@ -799,15 +799,15 @@
 }
 
 .vm-idle-panel {
-    background: #f8fafc;
+    background: var(--surface-subtle);
 }
 
 .vm-idle-panel.idle {
-    border-color: #f59e0b;
+    border-color: var(--brand-gold);
 }
 
 .vm-idle-panel.active {
-    border-color: #10b981;
+    border-color: var(--brand-green);
 }
 
 .vm-idle-label {
@@ -879,13 +879,13 @@
     margin-top: 0.55rem;
     overflow: hidden;
     border-radius: 999px;
-    background: #e2e8f0;
+    background: var(--line);
 }
 
 .vm-storage-meter div {
     height: 100%;
     border-radius: inherit;
-    background: #2563eb;
+    background: var(--brand-navy);
 }
 
 .vm-volume-list {
@@ -957,8 +957,8 @@
     display: inline-flex;
     border-radius: 999px;
     padding: 0.15rem 0.45rem;
-    background: #eef2ff;
-    color: #3730a3;
+    background: var(--brand-navy-tint);
+    color: var(--brand-navy);
     font-size: 0.72rem;
     font-weight: 700;
 }
@@ -995,7 +995,7 @@
 }
 
 .vm-timeline-dot.muted {
-    background: #94a3b8;
+    background: var(--slate-light);
 }
 
 .vm-timeline-item strong {
@@ -1050,8 +1050,8 @@
     font-weight: 600;
     margin-left: 0.25rem;
 }
-.env-cost-change.up { color: var(--status-error-text, #991b1b); }
-.env-cost-change.down { color: var(--status-running-text, #166534); }
+.env-cost-change.up { color: var(--status-error-text); }
+.env-cost-change.down { color: var(--status-running-text); }
 .env-cost-trend {
     height: 70px;
     width: 100%;

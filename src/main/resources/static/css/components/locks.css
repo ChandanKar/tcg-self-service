@@ -14,30 +14,30 @@
 }
 
 .lock-banner.locked {
-    background: #fffbeb;
-    border: 1px solid #fcd34d;
+    background: var(--brand-gold-tint);
+    border: 1px solid var(--brand-gold-line);
 }
 
 /* Held by someone else: operations are blocked for this viewer (E07-T05). */
 .lock-banner.locked.other {
-    background: #fef2f2;
-    border-color: #fca5a5;
+    background: var(--brand-red-tint);
+    border-color: var(--brand-red-line);
 }
 
 .lock-banner.locked.other .lock-info > i {
-    color: #dc2626;
+    color: var(--brand-red-text);
 }
 
 .lock-countdown {
     display: inline-block;
     margin-left: 0.5rem;
-    color: #475569;
+    color: var(--slate);
     font-size: 0.8rem;
     white-space: nowrap;
 }
 
 .lock-banner.expiring .lock-countdown {
-    color: #b91c1c;
+    color: var(--brand-red-text);
     font-weight: 600;
 }
 
@@ -72,7 +72,7 @@
 }
 
 .lock-banner.locked .lock-info > i {
-    color: #d97706;
+    color: var(--brand-gold);
 }
 
 .lock-banner.unlocked .lock-info > i {
@@ -80,11 +80,11 @@
 }
 
 .lock-info strong {
-    color: #1e293b;
+    color: var(--ink);
 }
 
 .lock-time {
-    color: #64748b;
+    color: var(--slate);
     font-size: 0.875rem;
 }
 
@@ -103,11 +103,11 @@
 }
 
 .lock-status.locked {
-    color: #d97706;
+    color: var(--brand-gold);
 }
 
 .lock-status.unlocked {
-    color: #059669;
+    color: var(--brand-green);
 }
 
 .lock-status i {
@@ -120,10 +120,10 @@
 }
 
 .lock-history .table th {
-    background: #f8fafc;
+    background: var(--surface-subtle);
     font-weight: 600;
     font-size: 0.75rem;
-    color: #64748b;
+    color: var(--slate);
 }
 
 .lock-history .table td {
@@ -145,18 +145,18 @@
 }
 
 .lock-indicator.locked {
-    background: #f59e0b;
-    box-shadow: 0 0 4px rgba(245, 158, 11, 0.5);
+    background: var(--brand-gold);
+    box-shadow: 0 0 4px rgba(217, 162, 27, 0.5);
 }
 
 .lock-indicator.unlocked {
-    background: #10b981;
+    background: var(--brand-green);
 }
 
 /* Lock warning in operation modals */
 .lock-warning {
-    background: #fef3c7;
-    border: 1px solid #fcd34d;
+    background: var(--brand-gold-tint);
+    border: 1px solid var(--brand-gold-line);
     border-radius: 6px;
     padding: 0.75rem 1rem;
     margin-bottom: 1rem;
@@ -166,7 +166,7 @@
 }
 
 .lock-warning i {
-    color: #d97706;
+    color: var(--brand-gold);
     font-size: 1.25rem;
 }
 
@@ -176,11 +176,11 @@
 
 .lock-warning-text strong {
     display: block;
-    color: #92400e;
+    color: var(--brand-gold-text);
 }
 
 .lock-warning-text small {
-    color: #b45309;
+    color: var(--brand-gold-text);
 }
 
 /* Responsive adjustments */
@@ -209,8 +209,8 @@
     position: sticky;
     top: var(--topnav-height, 60px);
     z-index: 100;
-    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-    border-left: 4px solid #f59e0b;
+    background: linear-gradient(135deg, var(--brand-gold-tint) 0%, var(--brand-gold-line) 100%);
+    border-left: 4px solid var(--brand-gold);
     padding: 0.75rem 1.25rem;
     margin: 0 0 1.5rem 0;
     display: flex;
@@ -221,12 +221,12 @@
 }
 
 .env-lock-banner.locked-by-other {
-    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-    border-left-color: #ef4444;
+    background: linear-gradient(135deg, var(--brand-red-tint) 0%, var(--brand-red-line) 100%);
+    border-left-color: var(--brand-red);
 }
 
 .env-lock-banner.locked-by-other .lock-info i {
-    color: #dc2626;
+    color: var(--brand-red-text);
 }
 
 .env-lock-banner .lock-info {
@@ -236,7 +236,7 @@
 }
 
 .env-lock-banner .lock-info i {
-    color: #d97706;
+    color: var(--brand-gold);
 }
 
 .env-lock-banner .lock-info span {
@@ -245,11 +245,11 @@
 
 .env-lock-banner .lock-info #lock-holder-name {
     font-weight: 600;
-    color: #92400e;
+    color: var(--brand-gold-text);
 }
 
 .env-lock-banner .lock-info #lock-acquired-time {
-    color: #b45309;
+    color: var(--brand-gold-text);
 }
 
 .env-lock-banner .lock-actions {

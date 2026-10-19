@@ -4,7 +4,7 @@
 
 /* Request cards */
 .access-request-card {
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--line);
     border-radius: 8px;
     padding: 1rem;
     margin-bottom: 0.75rem;
@@ -13,24 +13,28 @@
 }
 
 .access-request-card:hover {
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    box-shadow: var(--shadow-md);
 }
 
-/* Request status badges */
+/* Request status badges: the style guide's tinted chips */
 .badge.bg-PENDING {
-    background-color: #f59e0b !important;
+    background-color: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
 }
 
 .badge.bg-APPROVED {
-    background-color: #10b981 !important;
+    background-color: var(--brand-green-tint);
+    color: var(--brand-green-text);
 }
 
 .badge.bg-DENIED {
-    background-color: #ef4444 !important;
+    background-color: var(--brand-red-tint);
+    color: var(--brand-red-text);
 }
 
 .badge.bg-CANCELLED {
-    background-color: #6b7280 !important;
+    background-color: var(--surface-muted);
+    color: #4a5368;
 }
 
 /* Reason text truncation */
@@ -55,15 +59,15 @@
 }
 
 .manage-access-content .table th {
-    background: #f8fafc;
+    background: var(--surface-subtle);
     font-weight: 600;
     font-size: 0.75rem;
-    color: #64748b;
+    color: var(--slate);
 }
 
 /* Pending requests badge in sidebar */
 .sidebar-menu-link .pending-count {
-    background: #dc2626;
+    background: var(--brand-red-text);
     color: white;
     font-size: 0.65rem;
     padding: 0.125rem 0.375rem;
@@ -73,11 +77,11 @@
 
 /* Access expiration warning */
 .access-expiring-soon {
-    color: #f59e0b;
+    color: var(--brand-gold);
 }
 
 .access-expired {
-    color: #ef4444;
+    color: var(--brand-red);
     text-decoration: line-through;
 }
 
@@ -87,7 +91,7 @@
 }
 
 .env-row:hover {
-    background: #f8fafc;
+    background: var(--surface-subtle);
 }
 
 /* Request access form */
@@ -114,6 +118,6 @@
 }
 
 .card-header h5 i {
-    color: #64748b;
+    color: var(--slate);
 }
 

@@ -16,13 +16,13 @@
 }
 
 .cost-setup-pill.on {
-    background: #dcfce7;
-    color: #166534;
+    background: var(--brand-green-tint);
+    color: var(--brand-green-text);
 }
 
 .cost-setup-pill.off {
-    background: #f1f5f9;
-    color: #475569;
+    background: var(--surface-muted);
+    color: var(--slate);
 }
 
 .cost-setup-check {
@@ -38,19 +38,19 @@
 }
 
 .cost-setup-ok .cost-setup-result {
-    color: #15803d;
+    color: var(--brand-green-text);
 }
 
 .cost-setup-denied .cost-setup-result {
-    color: #b91c1c;
+    color: var(--brand-red-text);
 }
 
 .cost-setup-unknown .cost-setup-result {
-    color: #92400e;
+    color: var(--brand-gold-text);
 }
 
 .cost-setup-principal {
-    color: var(--text-secondary, #64748b);
+    color: var(--text-secondary);
     font-size: 0.85rem;
 }
 

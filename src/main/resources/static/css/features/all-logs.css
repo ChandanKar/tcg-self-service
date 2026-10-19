@@ -49,7 +49,7 @@
 }
 .all-logs-container .metric-label-hint {
     font-size: 0.63rem;
-    color: var(--text-secondary, #64748b);
+    color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.04em;
     margin-top: 0.1rem;
@@ -128,7 +128,7 @@
     position: sticky;
     top: 0;
     z-index: 1;
-    background: var(--table-header-bg, #f8fafc);
+    background: var(--table-header-bg);
 }
 
 /* Pagination — see components/pagination.css for .pagination-bar-wrap */

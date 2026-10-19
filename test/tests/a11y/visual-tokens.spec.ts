@@ -129,3 +129,26 @@ test.describe('Visual identity tokens', () => {
     expect(font.status()).toBe(200);
   });
 });
+
+test.describe('Light only (U03-T04)', () => {
+  test.use({ colorScheme: 'dark' });
+
+  test('with the OS in dark mode the app still renders the light theme with light controls', async ({ page }) => {
+    test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
+    await signIn(page, 'user');
+    await expect(page.locator('#content-area h1').first()).toBeVisible({ timeout: 15_000 });
+    const look = await page.evaluate(() => {
+      const input = document.createElement('input');
+      document.body.appendChild(input);
+      const scheme = getComputedStyle(input).colorScheme;
+      input.remove();
+      return {
+        dark: matchMedia('(prefers-color-scheme: dark)').matches,
+        root: getComputedStyle(document.documentElement).colorScheme,
+        input: scheme,
+        body: getComputedStyle(document.body).backgroundColor,
+      };
+    });
+    expect(look).toEqual({ dark: true, root: 'light', input: 'light', body: 'rgb(243, 245, 249)' });
+  });
+});

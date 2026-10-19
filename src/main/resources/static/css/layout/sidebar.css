@@ -20,8 +20,8 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    background: #e2e8f0;
-    color: #475569;
+    background: var(--line);
+    color: var(--slate);
     padding: 0.1rem 0.35rem;
     border-radius: 4px;
     flex-shrink: 0;
@@ -148,7 +148,7 @@
     background: var(--sidebar-active);
     border-left-color: var(--primary-color);
     /* Darker than --primary-color: 4.5:1 on the pale active background (E13-T04) */
-    color: #1d4ed8;
+    color: var(--brand-navy-hover);
     font-weight: 500;
 }
 
@@ -187,7 +187,7 @@
     list-style: none;
     padding: 0;
     margin: 0;
-    background: #f1f5f9;
+    background: var(--surface-muted);
     max-height: 0;
     overflow: hidden;
     transition: max-height 0.3s ease;
@@ -208,7 +208,7 @@
 }
 
 .submenu-item:hover {
-    background: #e2e8f0;
+    background: var(--line);
     color: var(--text-primary);
 }
 

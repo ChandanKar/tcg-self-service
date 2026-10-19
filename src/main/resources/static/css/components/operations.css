@@ -9,12 +9,12 @@
 
 .progress-header {
     padding-bottom: 0.5rem;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid var(--line);
 }
 
 .progress-status {
     font-weight: 500;
-    color: #334155;
+    color: var(--ink);
 }
 
 .progress-time {
@@ -25,7 +25,7 @@
 /* Mini metrics in progress modal */
 .metric-mini {
     padding: 0.75rem;
-    background: #f8fafc;
+    background: var(--surface-subtle);
     border-radius: 8px;
 }
 
@@ -36,7 +36,7 @@
 
 .metric-mini .metric-label {
     font-size: 0.75rem;
-    color: #64748b;
+    color: var(--slate);
     text-transform: uppercase;
 }
 
@@ -44,9 +44,9 @@
 .vm-status-list {
     max-height: 300px;
     overflow-y: auto;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--line);
     border-radius: 8px;
-    background: #fafafa;
+    background: var(--surface-subtle);
 }
 
 .vm-status-item {
@@ -56,7 +56,7 @@
 }
 
 .vm-status-item:hover {
-    background: #f8fafc;
+    background: var(--surface-subtle);
 }
 
 .vm-status-item:last-child {
@@ -71,7 +71,7 @@
 /* Progress bar customization */
 #operationProgressModal .progress {
     border-radius: 12px;
-    background: #e2e8f0;
+    background: var(--line);
     position: relative;
     overflow: hidden;
 }
@@ -91,11 +91,11 @@
     justify-content: center;
     padding: 0 0.75rem;
     /* Dark with a light halo: readable on both the filled bar and the empty track (E13-T04) */
-    color: #0f172a;
+    color: var(--ink);
     text-shadow: 0 0 2px #fff, 0 0 2px #fff;
     font-size: 0.8rem;
     font-weight: 700;
-    text-shadow: 0 1px 2px rgba(15, 23, 42, 0.75);
+    text-shadow: 0 1px 2px rgba(20, 27, 45, 0.75);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -104,23 +104,23 @@
 
 /* Operation status colors */
 .operation-status-completed {
-    color: var(--success-color, #10b981);
+    color: var(--success-color);
 }
 
 .operation-status-failed {
-    color: var(--danger-color, #ef4444);
+    color: var(--danger-color);
 }
 
 .operation-status-in-progress {
-    color: var(--info-color, #3b82f6);
+    color: var(--info-color);
 }
 
 .operation-status-pending {
-    color: #6b7280;
+    color: var(--slate);
 }
 
 .operation-status-cancelled {
-    color: #6b7280;
+    color: var(--slate);
 }
 
 /* Operation history table */
@@ -129,11 +129,11 @@
 }
 
 .operation-history .table th {
-    background: #f8fafc;
-    border-bottom: 2px solid #e2e8f0;
+    background: var(--surface-subtle);
+    border-bottom: 2px solid var(--line);
     font-weight: 600;
     font-size: 0.75rem;
-    color: #64748b;
+    color: var(--slate);
 }
 
 .operation-history .table td {
@@ -143,7 +143,7 @@
 
 /* Empty state */
 .operation-history .empty-state {
-    color: #64748b;
+    color: var(--slate);
 }
 
 /* Scrollbar styling for VM list */
@@ -152,17 +152,17 @@
 }
 
 .vm-status-list::-webkit-scrollbar-track {
-    background: #f1f5f9;
+    background: var(--surface-muted);
     border-radius: 3px;
 }
 
 .vm-status-list::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
+    background: var(--line-strong);
     border-radius: 3px;
 }
 
 .vm-status-list::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
+    background: var(--slate-light);
 }
 
 /* ================================================
@@ -211,7 +211,7 @@
 }
 
 .step.pending .step-indicator {
-    background: #f1f5f9;
+    background: var(--surface-muted);
     color: var(--text-secondary);
 }
 
@@ -231,8 +231,8 @@
 }
 
 .step.skipped .step-indicator {
-    background: #e5e7eb;
-    color: #9ca3af;
+    background: var(--line);
+    color: var(--slate-light);
 }
 
 /* Step content */
@@ -264,7 +264,7 @@
 .step-details {
     margin-top: 0.5rem;
     padding: 0.5rem;
-    background: #f8fafc;
+    background: var(--surface-subtle);
     border-radius: 4px;
     font-size: 0.8rem;
 }

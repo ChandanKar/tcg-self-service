@@ -10,15 +10,15 @@
 
 .team-members li {
     padding: 0.25rem 0;
-    border-bottom: 1px solid var(--border-color, #e2e8f0);
+    border-bottom: 1px solid var(--border-color);
 }
 
 #team-detail .btn-link {
-    color: #0a58ca;
+    color: var(--brand-navy-hover);
 }
 
 #teams-table .btn-link {
-    color: #0a58ca;
+    color: var(--brand-navy-hover);
     text-align: left;
 }
 

@@ -76,7 +76,7 @@
 }
 #dashboard-view .metric-label-hint {
     font-size: 0.63rem;
-    color: var(--text-caption, #64748b);
+    color: var(--text-caption);
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
@@ -121,7 +121,7 @@
     font-size: var(--table-header-font, 0.7rem);
     font-weight: 600;
     letter-spacing: 0.03em;
-    background: var(--table-header-bg, #f8fafc);
+    background: var(--table-header-bg);
 }
 
 /* Environment col */
@@ -217,7 +217,7 @@
     font-size: var(--table-header-font, 0.7rem);
     font-weight: 600;
     letter-spacing: 0.03em;
-    background: var(--table-header-bg, #f8fafc);
+    background: var(--table-header-bg);
 }
 
 /* ── Column widths by class (columns come and go, e.g. Account only across several AWS accounts) ── */
@@ -271,7 +271,7 @@
 .content-header h1 {
     font-size: 1.2rem;
     font-weight: 700;
-    color: #1e293b;
+    color: var(--ink);
     margin-bottom: 0.15rem;
 }
 .content-header p {
@@ -360,11 +360,11 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: #94a3b8;
+    background: var(--slate-light);
 }
 .env-run-dot.on { background: var(--success-color); }
 .env-run-dot.partial { background: var(--warning-color); }
-.env-summary-sep { color: #cbd5e1; }
+.env-summary-sep { color: var(--line-strong); }
 
 .env-detail-actions {
     display: flex;
@@ -380,11 +380,11 @@
     align-items: center;
     padding: 0.625rem 1rem;
     margin-bottom: 1rem;
-    border: 1px solid #bfdbfe;
-    background: #eff6ff;
+    border: 1px solid var(--brand-navy-line);
+    background: var(--brand-navy-tint);
     border-radius: 8px;
     font-size: 0.875rem;
-    color: #1e3a8a;
+    color: var(--brand-navy);
 }
 
 .env-section {
@@ -443,7 +443,7 @@
 }
 
 .group-card {
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--line);
     border-radius: 8px;
     overflow: hidden;       /* clip content, no horiz scroll */
     background: #fff;
@@ -452,7 +452,7 @@
 
 .group-card-header {
     padding: 0.45rem 0.75rem;
-    background: #f8fafc;
+    background: var(--surface-subtle);
     border-bottom: 1px solid transparent;
     min-width: 0;
     overflow: hidden;
@@ -486,7 +486,7 @@
 }
 
 .group-card-body {
-    border-top: 1px solid #e2e8f0;
+    border-top: 1px solid var(--line);
 }
 .group-card-body.group-collapsed {
     display: none;

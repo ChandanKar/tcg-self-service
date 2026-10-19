@@ -8,19 +8,19 @@
     border-radius: 12px;
     padding: 1.5rem;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    border: 1px solid var(--border-color, #e2e8f0);
+    border: 1px solid var(--border-color);
     transition: all 0.2s;
 }
 
 .metric-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+    box-shadow: 0 4px 12px rgba(20, 36, 92, 0.15);
     border-color: var(--primary-light);
 }
 
 .metric-card .metric-title {
     font-size: 0.875rem;
-    color: var(--text-secondary, #64748b);
+    color: var(--text-secondary);
     margin-bottom: 0.5rem;
     font-weight: 500;
 }
@@ -28,13 +28,13 @@
 .metric-card .metric-value {
     font-size: 2rem;
     font-weight: 700;
-    color: var(--text-primary, #1e293b);
+    color: var(--text-primary);
     margin-bottom: 0.25rem;
 }
 
 .metric-card .metric-subtitle {
     font-size: 0.875rem;
-    color: var(--text-caption, #64748b);
+    color: var(--text-caption);
 }
 
 .metric-card .metric-trend {
@@ -46,32 +46,32 @@
 }
 
 .metric-card .metric-trend.up {
-    color: #10b981;
+    color: var(--brand-green);
 }
 
 .metric-card .metric-trend.down {
-    color: #ef4444;
+    color: var(--brand-red);
 }
 
 /* Environment Cards in Slideout */
 .env-card {
-    background: var(--background-light, #f8fafc);
+    background: var(--background-light);
     border-radius: 8px;
     padding: 1rem;
     margin-bottom: 1rem;
-    border: 1px solid var(--border-color, #e2e8f0);
+    border: 1px solid var(--border-color);
 }
 
 .env-card h5 {
     font-size: 1rem;
     font-weight: 600;
-    color: var(--text-primary, #1e293b);
+    color: var(--text-primary);
     margin-bottom: 0.5rem;
 }
 
 .env-card .env-meta {
     font-size: 0.875rem;
-    color: var(--text-secondary, #64748b);
+    color: var(--text-secondary);
     margin-bottom: 0.75rem;
 }
 
@@ -83,7 +83,7 @@
 
 .env-card .vm-list li {
     padding: 0.5rem 0;
-    color: #475569;
+    color: var(--slate);
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -91,7 +91,7 @@
 }
 
 .env-card .vm-list li i {
-    color: #10b981;
+    color: var(--brand-green);
 }
 
 /* ================================================
@@ -99,7 +99,7 @@
    ================================================ */
 .metric-card.primary {
     border-left: 4px solid var(--primary-color);
-    background: linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%);
+    background: #fff;
 }
 
 .metric-card.primary:hover {

@@ -165,18 +165,18 @@
     font-weight: 700;
     padding: 0.05rem 0.4rem;
     border-radius: 999px;
-    background: var(--status-stopped-bg, #f3f4f6);
-    color: var(--status-stopped-text, #4b5563);
+    background: var(--status-stopped-bg);
+    color: var(--status-stopped-text);
 }
 
 .access-tabs .nav-link.active .access-tab-count {
-    background: var(--status-starting-bg, #dbeafe);
-    color: var(--status-starting-text, #1e40af);
+    background: var(--status-starting-bg);
+    color: var(--status-starting-text);
 }
 
 .access-tab-count.warn {
-    background: var(--status-stopping-bg, #fef3c7);
-    color: var(--status-stopping-text, #92400e);
+    background: var(--status-stopping-bg);
+    color: var(--status-stopping-text);
 }
 
 .access-tab-content {
@@ -262,7 +262,7 @@
 }
 
 .access-table th {
-    background: var(--table-header-bg, #f8fafc);
+    background: var(--table-header-bg);
     font-size: var(--table-header-font, 0.7rem);
     font-weight: 600;
     letter-spacing: 0.03em;
@@ -411,11 +411,11 @@
     font-size: var(--table-header-font, 0.7rem);
     font-weight: 600;
 }
-.access-status-badge.status-active   { background: var(--status-running-bg, #dcfce7); color: var(--status-running-text, #166534); }
-.access-status-badge.status-expiring { background: var(--status-stopping-bg, #fef3c7); color: var(--status-stopping-text, #92400e); }
-.access-status-badge.status-expired  { background: var(--status-error-bg, #fee2e2);   color: var(--status-error-text, #991b1b); }
-.access-status-badge.status-pending  { background: #e0e7ff; color: #3730a3; }
-.access-status-badge.status-revoked  { background: var(--status-stopped-bg, #f3f4f6); color: var(--status-stopped-text, #4b5563); }
+.access-status-badge.status-active   { background: var(--status-running-bg); color: var(--status-running-text); }
+.access-status-badge.status-expiring { background: var(--status-stopping-bg); color: var(--status-stopping-text); }
+.access-status-badge.status-expired  { background: var(--status-error-bg);   color: var(--status-error-text); }
+.access-status-badge.status-pending  { background: var(--brand-navy-tint); color: var(--brand-navy); }
+.access-status-badge.status-revoked  { background: var(--status-stopped-bg); color: var(--status-stopped-text); }
 
 /* ---- Source cell ---- */
 .access-src {
@@ -657,8 +657,8 @@
     letter-spacing: 0.02em;
     padding: 0.05rem 0.4rem;
     border-radius: 999px;
-    background: var(--status-stopped-bg, #f3f4f6);
-    color: var(--status-stopped-text, #4b5563);
+    background: var(--status-stopped-bg);
+    color: var(--status-stopped-text);
 }
 
 .access-autocomplete-empty {
@@ -757,23 +757,23 @@
     letter-spacing: .02em;
     padding: 2px 8px;
     border-radius: 6px;
-    background: var(--surface-2, #eef1f5);
-    border: 1px solid var(--border-color, #e0e4ea);
-    color: var(--text-muted, #64748b);
+    background: var(--surface-subtle);
+    border: 1px solid var(--border-color);
+    color: var(--slate);
     white-space: nowrap;
     max-width: 220px;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 .access-scope-chip--group {
-    color: #2f6bff;
+    color: var(--bs-link-color);
     border-color: rgba(47, 107, 255, 0.4);
     background: rgba(47, 107, 255, 0.08);
 }
 
 /* ---- Group checklist in the Grant / Edit Access modal ---- */
 .grant-group-checklist {
-    border: 1px solid var(--border-color, #d7dde5);
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     overflow: hidden;
     background: #fff;
@@ -783,8 +783,8 @@
     align-items: center;
     gap: 10px;
     padding: 8px 10px;
-    background: var(--surface-2, #f4f6f8);
-    border-bottom: 1px solid var(--border-color, #e5e9ef);
+    background: var(--surface-subtle);
+    border-bottom: 1px solid var(--border-color);
 }
 .grant-checklist-head .form-control { flex: 1; }
 .grant-selall {
@@ -792,7 +792,7 @@
     align-items: center;
     gap: 6px;
     font-size: 0.8rem;
-    color: var(--text-muted, #64748b);
+    color: var(--slate);
     white-space: nowrap;
     cursor: pointer;
 }
@@ -810,7 +810,7 @@
     padding: 7px 8px;
     border-radius: 6px;
 }
-.grant-checklist-items li:hover { background: var(--surface-2, #f4f6f8); }
+.grant-checklist-items li:hover { background: var(--surface-subtle); }
 .grant-checklist-items li label {
     display: flex;
     align-items: center;
@@ -823,7 +823,7 @@
 .grant-group-name { font-weight: 500; }
 .grant-group-meta {
     font-size: 0.75rem;
-    color: var(--text-muted, #64748b);
+    color: var(--slate);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }

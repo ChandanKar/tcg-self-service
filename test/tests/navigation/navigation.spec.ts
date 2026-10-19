@@ -3,8 +3,8 @@ import { loginAs, creds, hasUserCreds } from '../../fixtures/auth';
 
 /**
  * Each entry is a sidebar link's `data-content` value and the `data-view`
- * the resulting content pane should carry once rendered (see home.html:
- * `$('.sidebar-menu-link[data-content]').click(...)`).
+ * the resulting content pane should carry once rendered (the app shell is index.html; the
+ * click handler is `$(document).on('click', '.sidebar-menu-link[data-content]', ...)` in js/ui/sidebar.js).
  * Admin-only items (access-management, automation-rules, cost-management,
  * system-health, settings) are covered separately in navigation.admin.spec.ts
  * since a non-admin USER account won't see them in the sidebar at all.

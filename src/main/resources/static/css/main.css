@@ -6,6 +6,11 @@
  * the active state, the gear's green means "running" and nothing else, its gold means "changing
  * / needs attention". IBM Plex Sans for the interface, IBM Plex Mono for ids, regions, numbers
  * and times. Signature: the power strip, one light per VM (components/power-strip.css).
+ *
+ * Light only (U03-T04): the approved mockup has no dark theme, so the app sets color-scheme: light
+ * and form controls stay light in an OS dark mode. A dark theme would be its own piece of work on
+ * these tokens. The :root block below is the single source of colour; other sheets use the tokens
+ * (src/test/js/css-tokens.test.mjs fails on a retired palette colour anywhere else).
  */
 
 @font-face { font-family: 'IBM Plex Sans'; font-weight: 400; font-style: normal; font-display: swap;
@@ -22,6 +27,8 @@
     src: url('../webfonts/ibm-plex-mono-latin-500-normal.woff2') format('woff2'); }
 
 :root {
+    color-scheme: light;
+
     /* Brand */
     --brand-navy: #14245c;
     --brand-navy-hover: #0e1b48;
@@ -44,6 +51,17 @@
     --canvas: #f3f5f9;
     --line: #e1e6ef;
     --line-soft: #eef1f5;
+    /* Stronger hairline (inputs, hollow lights) and the tinted outlines of the coloured buttons */
+    --line-strong: #d4dae5;
+    --brand-navy-line: #b9c2da;
+    --brand-green-line: #a8d8c1;
+    --brand-gold-line: #e9cf8b;
+    --brand-red-line: #e8b8ae;
+    /* Quiet surfaces: table heads and hovers, chips and pressed states */
+    --surface-subtle: #f7f8fb;
+    --surface-muted: #eceff5;
+    /* Lighter slate for hints and icons; still 4.5:1 on white */
+    --slate-light: #666f83;
     --font-sans: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
 
     /* Type scale of the approved mockup (U03-T01) */
@@ -188,12 +206,12 @@ a:hover {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
+    background: var(--line-strong);
     border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
+    background: var(--slate-light);
 }
 
 /* Shared "thin" scrollbar (4px, no hover) for dense table/list wrappers across the
@@ -227,7 +245,7 @@ a:hover {
 .sh-table-wrapper::-webkit-scrollbar-thumb,
 .sh-compliance-wrapper::-webkit-scrollbar-thumb,
 .ar-table-wrapper::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
+    background: var(--line-strong);
     border-radius: 3px;
 }
 
@@ -238,14 +256,14 @@ a:hover {
 
 /* Focus states */
 .btn:focus, .form-control:focus, .form-select:focus {
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    box-shadow: 0 0 0 3px rgba(20, 36, 92, 0.15);
 }
 
 /* Card hover effect — see components/cards.css for the live .metric-card:hover definition */
 
 /* Table row hover */
 .table tbody tr:hover {
-    background-color: #f8fafc;
+    background-color: var(--surface-subtle);
 }
 
 /* Text utilities */
@@ -263,11 +281,11 @@ kbd {
     font-size: 0.75rem;
     font-family: monospace;
     line-height: 1;
-    color: #1e293b;
-    background: #f1f5f9;
-    border: 1px solid #e2e8f0;
+    color: var(--ink);
+    background: var(--surface-muted);
+    border: 1px solid var(--line);
     border-radius: 4px;
-    box-shadow: 0 1px 0 #e2e8f0;
+    box-shadow: 0 1px 0 var(--line);
 }
 
 kbd .key {
@@ -285,7 +303,7 @@ kbd + kbd {
 }
 
 .shortcuts-table th {
-    background: #f8fafc;
+    background: var(--surface-subtle);
 }
 
 .shortcuts-table td:first-child {
@@ -330,11 +348,11 @@ kbd + kbd {
 }
 
 .btn:focus-visible {
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.4);
+    box-shadow: 0 0 0 3px rgba(20, 36, 92, 0.4);
 }
 
 .metric-card:focus-within {
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+    box-shadow: 0 0 0 3px rgba(20, 36, 92, 0.2);
 }
 
 .sidebar-menu-link:focus-visible {
@@ -346,7 +364,7 @@ kbd + kbd {
 .form-control:focus-visible,
 .form-select:focus-visible {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    box-shadow: 0 0 0 3px rgba(20, 36, 92, 0.15);
 }
 
 /* ================================================
@@ -379,8 +397,3 @@ kbd + kbd {
     }
 }
 
-/* Bootstrap's .text-warning (#ffc107) is about 1.6:1 on white; text and icons in warning colour
-   use a dark amber that reads at 4.5:1 or better (E13-T04 follow-up, found with E15-T06 data). */
-.text-warning {
-    color: #b45309 !important;
-}

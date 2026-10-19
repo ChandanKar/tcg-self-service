@@ -62,7 +62,7 @@
     position: sticky;
     top: 0;
     z-index: 1;
-    background: #f8fafc;
+    background: var(--surface-subtle);
 }
 
 /* Pagination bar — see components/pagination.css for .pagination-bar-wrap */

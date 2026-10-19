@@ -21,11 +21,11 @@
 
 .help-topic-link:hover,
 .help-topic-link:focus-visible {
-    background: var(--surface-muted, #f1f5f9);
+    background: var(--surface-muted);
 }
 
 .help-topic-link.active {
-    background: var(--primary-subtle, #e0ecff);
+    background: var(--brand-navy-tint);
     font-weight: 600;
 }
 

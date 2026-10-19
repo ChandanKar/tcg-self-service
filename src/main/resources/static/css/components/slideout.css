@@ -55,7 +55,7 @@
 
 .slideout-panel-header {
     padding: 1.5rem;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid var(--line);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -64,7 +64,7 @@
 .slideout-panel-header h3 {
     font-size: 1.25rem;
     font-weight: 700;
-    color: #1e293b;
+    color: var(--ink);
     margin: 0;
 }
 
@@ -72,14 +72,14 @@
     background: none;
     border: none;
     font-size: 1.5rem;
-    color: #64748b;
+    color: var(--slate);
     cursor: pointer;
     padding: 0;
     line-height: 1;
 }
 
 .slideout-panel-header .close-btn:hover {
-    color: #1e293b;
+    color: var(--ink);
 }
 
 .slideout-panel-content {

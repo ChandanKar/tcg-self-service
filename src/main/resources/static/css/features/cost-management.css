@@ -26,7 +26,7 @@
     margin-top: 0.15rem;
     font-size: var(--font-size-xs, 0.75rem);
     font-weight: 400;
-    color: var(--text-secondary, #64748b);
+    color: var(--text-secondary);
 }
 
 .cost-breakdown-layout {
@@ -48,7 +48,7 @@
 
 .cost-table-card {
     background: #fff;
-    border: 1px solid var(--border-color, #e2e8f0);
+    border: 1px solid var(--border-color);
     border-radius: var(--card-radius, 8px);
     box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.1));
     margin-bottom: var(--space-lg, 1.5rem);
@@ -67,7 +67,7 @@
 
 .cost-vm-cell {
     cursor: help;
-    border-bottom: 1px dotted var(--text-secondary, #64748b);
+    border-bottom: 1px dotted var(--text-secondary);
     width: fit-content;
 }
 
@@ -84,7 +84,7 @@
 }
 
 .cost-partial-icon {
-    color: var(--warning-color, #f59e0b);
+    color: var(--warning-color);
     font-size: var(--font-size-xs, 0.75rem);
 }
 
@@ -115,7 +115,7 @@
 
     .cost-report .cost-table-card {
         box-shadow: none;
-        border: 1px solid #cbd5e1;
+        border: 1px solid var(--line-strong);
     }
 }
 
@@ -130,9 +130,9 @@
     gap: 0.5rem;
     flex-wrap: wrap;
     padding: 1rem;
-    color: #92400e;
-    background: #fffbeb;
-    border: 1px solid #fcd34d;
+    color: var(--brand-gold-text);
+    background: var(--brand-gold-tint);
+    border: 1px solid var(--brand-gold-line);
     border-radius: 6px;
 }
 
@@ -141,8 +141,8 @@
 }
 
 .badge-approx {
-    background: #e0e7ff;
-    color: #3730a3;
+    background: var(--brand-navy-tint);
+    color: var(--brand-navy);
     font-weight: 600;
     cursor: help;
 }
@@ -163,14 +163,16 @@
 
 .commitments-panel .commitments-note {
     margin-top: 0.5rem;
-}
+}
+
 
 /* Rightsizing direction filter and alternatives (E30-T05) */
 .rightsizing-filter { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 10px; }
-.rightsizing-alternatives > td { background: var(--bs-tertiary-bg, #f6f8fa); padding: 8px 12px; }
+.rightsizing-alternatives > td { background: var(--bs-tertiary-bg); padding: 8px 12px; }
 .rightsizing-options-table { font-size: 0.85rem; }
 .rightsizing-options-table th { font-weight: 600; white-space: nowrap; }
-.rightsizing-agreement { font-weight: 500; }
+.rightsizing-agreement { font-weight: 500; }
+
 
 /* Apply dialog checks and progress (E30-T07) */
 .rs-checks .rs-check { display: flex; gap: 6px; align-items: baseline; padding: 2px 0; }

@@ -9,7 +9,7 @@
     right: 0;
     height: var(--topnav-height);
     background: white;
-    border-bottom: 1px solid var(--border-color, #e2e8f0);
+    border-bottom: 1px solid var(--border-color);
     /* Above Bootstrap's default .dropdown-menu z-index (1000, see vendor/bootstrap)
        so page-level dropdowns (e.g. a table row's "Actions" menu) never paint over
        the fixed navbar's own dropdowns (My Access, notifications). Matches
@@ -23,7 +23,7 @@
 .top-navbar .hamburger {
     font-size: 1.25rem;
     cursor: pointer;
-    color: var(--text-secondary, #64748b);
+    color: var(--text-secondary);
     margin-right: 1rem;
 }
 
@@ -44,7 +44,7 @@
 
 .top-navbar .user-icon {
     font-size: 1.5rem;
-    color: var(--text-secondary, #64748b);
+    color: var(--text-secondary);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -70,7 +70,7 @@
 }
 
 .top-navbar .topnav-brand-link:hover {
-    background: #f1f5f9;
+    background: var(--surface-muted);
 }
 
 .top-navbar .topnav-brand-link:focus-visible {
@@ -97,14 +97,14 @@
     position: relative;
     cursor: pointer;
     font-size: 1.25rem;
-    color: var(--text-secondary, #64748b);
+    color: var(--text-secondary);
 }
 
 .top-navbar .notification-bell .badge {
     position: absolute;
     top: -8px;
     right: -8px;
-    background: #ef4444;
+    background: var(--brand-red);
     color: white;
     border-radius: 50%;
     width: 20px;
@@ -126,7 +126,7 @@
 }
 
 .top-navbar .user-profile:hover {
-    background: #f1f5f9;
+    background: var(--surface-muted);
 }
 
 .top-navbar .user-avatar {
@@ -143,12 +143,12 @@
 
 .top-navbar .user-name {
     font-weight: 500;
-    color: #334155;
+    color: var(--ink);
 }
 
 .top-navbar .user-role {
     font-size: 0.875rem;
-    color: var(--text-caption, #64748b);
+    color: var(--text-caption);
 }
 
 /* User Profile Loading State */
@@ -156,7 +156,7 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    color: var(--text-secondary, #64748b);
+    color: var(--text-secondary);
     font-size: 0.875rem;
 }
 
@@ -190,7 +190,7 @@
 
 .dropdown-arrow {
     font-size: 0.75rem;
-    color: var(--text-secondary, #64748b);
+    color: var(--text-secondary);
     transition: transform 0.2s;
 }
 
@@ -207,25 +207,25 @@
     background: white;
     border-radius: 8px;
     box-shadow: 0 10px 40px rgba(0,0,0,0.15);
-    border: 1px solid var(--border-color, #e2e8f0);
+    border: 1px solid var(--border-color);
     z-index: 1001;
     overflow: hidden;
 }
 
 .dropdown-header {
     padding: 0.75rem 1rem;
-    background: var(--background-light, #f8fafc);
+    background: var(--background-light);
 }
 
 .dropdown-user-email {
     font-size: 0.875rem;
-    color: var(--text-secondary, #64748b);
+    color: var(--text-secondary);
     word-break: break-all;
 }
 
 .dropdown-divider {
     height: 1px;
-    background: var(--border-color, #e2e8f0);
+    background: var(--border-color);
     margin: 0;
 }
 
@@ -234,20 +234,20 @@
     align-items: center;
     gap: 0.75rem;
     padding: 0.75rem 1rem;
-    color: #334155;
+    color: var(--ink);
     text-decoration: none;
     transition: background 0.15s;
 }
 
 .dropdown-item:hover {
-    background: #f1f5f9;
-    color: #334155;
+    background: var(--surface-muted);
+    color: var(--ink);
 }
 
 .dropdown-item i {
     width: 16px;
     text-align: center;
-    color: var(--text-secondary, #64748b);
+    color: var(--text-secondary);
 }
 
 .dropdown-item-text {
@@ -258,15 +258,15 @@
 
 .dropdown-item-hint {
     font-size: 0.75rem;
-    color: var(--text-secondary, #64748b);
+    color: var(--text-secondary);
 }
 
 .dropdown-item.text-danger {
-    color: #ef4444;
+    color: var(--brand-red);
 }
 
 .dropdown-item.text-danger i {
-    color: #ef4444;
+    color: var(--brand-red);
 }
 
 /* Role Badges — see components/badges.css for .role-badge. Next to the name the role is a
@@ -288,19 +288,19 @@
     justify-content: center;
     min-height: 400px;
     text-align: center;
-    color: var(--text-secondary, #64748b);
+    color: var(--text-secondary);
 }
 
 .loading-state p,
 .error-state p {
     margin-top: 1rem;
-    color: var(--text-secondary, #64748b);
+    color: var(--text-secondary);
 }
 
 .empty-state {
     text-align: center;
     padding: 3rem 1rem;
-    color: var(--text-secondary, #64748b);
+    color: var(--text-secondary);
 }
 
 .empty-state i {
@@ -318,14 +318,14 @@
     font-size: 0.75rem;
     color: var(--text-secondary);
     padding: 0.25rem 0.75rem;
-    background: #f1f5f9;
+    background: var(--surface-muted);
     border-radius: 20px;
     cursor: pointer;
     transition: all 0.2s;
 }
 
 .sync-indicator:hover {
-    background: var(--border-color, #e2e8f0);
+    background: var(--border-color);
 }
 
 .sync-indicator.syncing i {
@@ -333,13 +333,13 @@
 }
 
 .sync-indicator.stale {
-    background: #fef3c7;
-    color: #92400e;
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
 }
 
 .sync-indicator.error {
-    background: #fee2e2;
-    color: #991b1b;
+    background: var(--brand-red-tint);
+    color: var(--brand-red-text);
 }
 
 .sync-indicator .sync-time {
@@ -380,7 +380,7 @@
     border: none;
     font-size: 1.25rem;
     cursor: pointer;
-    color: var(--text-secondary, #64748b);
+    color: var(--text-secondary);
     padding: 0.5rem;
     margin-right: 0.5rem;
     border-radius: 4px;
@@ -388,6 +388,6 @@
 }
 
 .hamburger-btn:hover {
-    background: #f1f5f9;
+    background: var(--surface-muted);
     color: var(--primary-color);
 }

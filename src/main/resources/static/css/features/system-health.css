@@ -41,7 +41,7 @@
     font-size: 0.68rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--text-caption, #64748b);
+    color: var(--text-caption);
     margin-bottom: 0.2rem;
     font-weight: 600;
 }
@@ -53,7 +53,7 @@
 }
 #system-health-view .metric-card .metric-subtitle {
     font-size: 0.68rem;
-    color: var(--text-caption, #64748b);
+    color: var(--text-caption);
     margin-top: 0.1rem;
 }
 
@@ -61,7 +61,7 @@
 #system-health-view .sh-summary-card .card-header {
     padding: 0.4rem 0.75rem;
     font-size: 0.8rem;
-    background: #f8fafc;
+    background: var(--surface-subtle);
 }
 #system-health-view .sh-summary-card .card-body {
     padding: 0.6rem 1rem;
@@ -75,7 +75,7 @@
     font-size: 0.68rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--text-caption, #64748b);
+    color: var(--text-caption);
     margin-top: 0.1rem;
 }
 
@@ -83,7 +83,7 @@
 #system-health-view .sh-table-card .card-header {
     padding: 0.4rem 0.75rem;
     font-size: 0.8rem;
-    background: #f8fafc;
+    background: var(--surface-subtle);
 }
 #system-health-view .sh-table-card .card-body {
     padding: 0;
@@ -117,7 +117,7 @@
     font-size: var(--table-header-font, 0.68rem);
     font-weight: 600;
     letter-spacing: 0.03em;
-    background: var(--table-header-bg, #f8fafc);
+    background: var(--table-header-bg);
     position: sticky;
     top: 0;
     z-index: 1;
@@ -127,7 +127,7 @@
 #system-health-view .sh-empty {
     padding: 1.5rem;
     text-align: center;
-    color: var(--text-caption, #64748b);
+    color: var(--text-caption);
     font-size: 0.8rem;
 }
 #system-health-view .sh-empty i {
@@ -141,7 +141,7 @@
 #system-health-view .sh-compliance-card .card-header {
     padding: 0.4rem 0.75rem;
     font-size: 0.8rem;
-    background: #f8fafc;
+    background: var(--surface-subtle);
 }
 #system-health-view .sh-compliance-card .card-body {
     padding: 0;
