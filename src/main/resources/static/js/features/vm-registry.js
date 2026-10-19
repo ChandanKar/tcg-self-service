@@ -547,7 +547,7 @@ const VmRegistry = (function() {
                     <table class="table table-sm table-hover mb-0 table-cards">
                         <thead class="table-light">
                             <tr>
-                                <th>VM Name</th><th>Purpose</th><th>Provider</th><th>Region</th><th>Instance ID</th>
+                                <th>VM Name</th><th>Purpose</th><th>Provider</th><th>Region</th>${Utils.raw(showInstanceIds() ? '<th>Instance ID</th>' : '')}
                                 <th>Private IP</th><th>Status</th><th class="text-center">Seq</th><th class="text-end">Actions</th>
                             </tr>
                         </thead>
@@ -720,7 +720,7 @@ const VmRegistry = (function() {
                     <td>${purposeCell}</td>
                     <td><i class="${providerIcons[vm.provider] || 'fas fa-cloud'}"></i> ${providerLabels[vm.provider] || vm.provider}</td>
                     <td>${Utils.escapeHtml(vm.region)}${accountNote(vm)}</td>
-                    <td>${vm.providerVmId ? `<code class="small">${Utils.escapeHtml(vm.providerVmId)}</code>` : '<span class="text-muted" title="Instance IDs are shown to administrators only">&mdash;</span>'}</td>
+                    ${showInstanceIds() ? `<td>${vm.providerVmId ? `<code class="small">${Utils.escapeHtml(vm.providerVmId)}</code>` : '<span class="text-muted">&mdash;</span>'}</td>` : ''}
                     <td><code class="small">${Utils.escapeHtml(vm.privateIp || '-')}</code></td>
                     <td>
                         <span class="status-badge ${statusConfig.class}">
@@ -825,7 +825,7 @@ const VmRegistry = (function() {
                                         <th>Purpose</th>
                                         <th>Provider</th>
                                         <th>Region</th>
-                                        <th>Instance ID</th>
+                                        ${showInstanceIds() ? '<th>Instance ID</th>' : ''}
                                         <th>Private IP</th>
                                         <th>Status</th>
                                         <th class="text-center">Seq</th>
@@ -1002,7 +1002,8 @@ const VmRegistry = (function() {
         $('#vmProvider').prop('disabled', false);
         $('#vmRegion').prop('readonly', false);
         $('#vmProviderVmId').prop('readonly', false);
-        showProviderVmIdField(true);
+        // Only administrators may type an instance ID; everyone else picks from the AWS list (U01-T02).
+        showProviderVmIdField(showInstanceIds());
 
         bootstrap.Modal.getOrCreateInstance(document.getElementById('registerVmModal')).show();
     }
@@ -1013,6 +1014,11 @@ const VmRegistry = (function() {
      */
     function showProviderVmIdField(show) {
         $('#vmProviderVmId').prop('required', show).closest('.col-md-4').toggle(show);
+    }
+
+    /** Instance IDs are for administrators only (U01-T05); the server leaves them out for everyone else. */
+    function showInstanceIds() {
+        return typeof Auth !== 'undefined' && typeof Auth.isAdmin === 'function' && Auth.isAdmin();
     }
 
     /**

@@ -1841,7 +1841,7 @@ const Environments = (function() {
                 </div>
                 <div class="vm-provider-line">
                     <span><i class="${providerConfig.icon}"></i> ${Utils.escapeHtml(providerLabel)}</span>
-                    ${vm.providerVmId ? `<code>${Utils.escapeHtml(vm.providerVmId)}</code>` : ''}
+                    ${vm.providerVmId ? `<span class="vm-instance-id">Instance ID <code>${Utils.escapeHtml(vm.providerVmId)}</code> <small class="text-muted">· Administrators only</small></span>` : ''}
                 </div>
             </div>
         `;
