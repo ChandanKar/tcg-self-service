@@ -40,6 +40,13 @@ async function open(page: Page, mine: any[] = [READY]) {
     posts.push({ destroy: route.request().postDataJSON() });
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...READY, status: 'DESTROYING' }) });
   });
+  // U02-T01: the router opens New environments only while the capabilities say provisioning is on.
+  await page.route(/\/api\/v1\/users\/me\/capabilities$/, async route => {
+    const real = await route.fetch();
+    const body = await real.json();
+    body.features = { ...(body.features || {}), templates: true };
+    await route.fulfill({ response: real, json: body });
+  });
   await signIn(page, 'admin');
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
   return posts;

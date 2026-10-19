@@ -121,8 +121,18 @@ public class EnvironmentController {
         }
 
         List<EnvironmentDTO> dtos = toDtosWithBatchedCounts(environments);
+        dtos.forEach(this::withViewerFlags);
 
         return ResponseEntity.ok(dtos);
+    }
+
+    /** What the signed-in viewer may do in the environment (U02-T02), on every DTO the app reads. */
+    private EnvironmentDTO withViewerFlags(EnvironmentDTO dto) {
+        String environmentId = dto.getEnvironmentId();
+        dto.setViewerCanOperate(securityService.canOperateInEnvironment(environmentId));
+        dto.setViewerCanAdminister(securityService.canAdministerEnvironment(environmentId));
+        dto.setViewerCanManageAccess(securityService.canManageEnvironmentAccess(environmentId));
+        return dto;
     }
 
     @GetMapping("/page")
@@ -156,7 +166,8 @@ public class EnvironmentController {
         Map<String, EnvironmentService.LockSummary> locks = environmentService.getLockSummaries(environmentIds);
 
         Map<String, String> accountNames = accountNames();
-        Page<EnvironmentDTO> dtos = environments.map(env -> withAccountName(toDtoWithCounts(env, counts, locks), accountNames));
+        Page<EnvironmentDTO> dtos = environments.map(env -> withViewerFlags(
+                withAccountName(toDtoWithCounts(env, counts, locks), accountNames)));
 
         return ResponseEntity.ok(dtos);
     }
@@ -293,8 +304,7 @@ public class EnvironmentController {
         if (leaseService.isFeatureEnabled()) {
             dto.setLeaseEnabled(Boolean.TRUE.equals(environment.getLeaseEnabled()));
         }
-        dto.setViewerCanOperate(securityService.canOperateInEnvironment(environmentId));
-        dto.setViewerCanAdminister(securityService.canAdministerEnvironment(environmentId));
+        withViewerFlags(dto);
 
         return ResponseEntity.ok(dto);
     }
@@ -314,7 +324,7 @@ public class EnvironmentController {
         if (leaseService.isFeatureEnabled()) {
             dto.setLeaseEnabled(Boolean.TRUE.equals(environment.getLeaseEnabled()));
         }
-        return ResponseEntity.ok(dto);
+        return ResponseEntity.ok(withViewerFlags(dto));
     }
 
     @GetMapping("/{environmentId}/insights")

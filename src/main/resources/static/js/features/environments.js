@@ -636,8 +636,8 @@ const Environments = (function() {
     function buildDetailHtml(env) {
         const totalVms = env.totalVms || 0;
         const runningVms = env.runningVms || 0;
-        // Older payloads (and faked ones) carry no viewer flags: keep the controls then.
-        const canOperate = env.viewerCanOperate !== false;
+        // The server sets the viewer flags on every environment it returns (U02-T02): no flag, no controls.
+        const canOperate = env.viewerCanOperate === true;
         const isEnvAdmin = typeof Auth !== 'undefined' && Auth.isEnvAdmin && Auth.isEnvAdmin();
         const envName = env.displayName || env.name;
 
@@ -685,7 +685,7 @@ const Environments = (function() {
             <div class="env-viewonly-note" role="note">
                 <i class="fas fa-eye" aria-hidden="true"></i>
                 <span>You have view-only access to this environment. To start or stop its VMs,
-                    <a href="#/request-access">request operator access</a>.</span>
+                    <a href="#/request-access?env=${encodeURIComponent(env.environmentId)}">ask for operator access</a>.</span>
             </div>`;
 
         // Groups: all open while the environment is small, otherwise the first one.
@@ -763,9 +763,13 @@ const Environments = (function() {
      * @param {boolean} expanded - whether the group starts open
      * @param {boolean} canOperate - the viewer may start/stop (otherwise no action buttons)
      */
-    function buildGroupCard(groupData, env, expanded, canOperate = true) {
+    function buildGroupCard(groupData, env, expanded, envCanOperate = false) {
         const group = groupData.group || groupData;
         const vms   = groupData.vms || [];
+        // An operator of only some groups gets Start/Stop on those groups alone (U02-T02).
+        const canOperate = typeof groupData.viewerCanOperate === 'boolean'
+            ? groupData.viewerCanOperate && envCanOperate
+            : envCanOperate;
 
         const runningCount = vms.filter(v => v.status === 'RUNNING').length || 0;
         const transitioningCount = vms.filter(v => isTransitionalStatus(v.status)).length || 0;

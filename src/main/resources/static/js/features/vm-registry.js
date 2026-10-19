@@ -229,7 +229,7 @@ const VmRegistry = (function() {
                     <button class="btn btn-sm btn-primary btn-action" title="${tooltip}" data-action="vr-manage-groups" data-env-id="${Utils.escapeHtml(env.environmentId)}">
                         <i class="fas fa-layer-group"></i> Groups
                     </button>
-                    <button type="button" class="btn btn-sm btn-warning btn-action" data-action="vr-edit-environment" data-env-id="${Utils.escapeHtml(env.environmentId)}" title="Edit ${tooltip}" aria-label="Edit ${tooltip}">
+                    ${env.viewerCanAdminister !== true ? '<span class="text-muted small ms-1">View only</span>' : `<button type="button" class="btn btn-sm btn-warning btn-action" data-action="vr-edit-environment" data-env-id="${Utils.escapeHtml(env.environmentId)}" title="Edit ${tooltip}" aria-label="Edit ${tooltip}">
                         <i class="fas fa-edit" aria-hidden="true"></i>
                     </button>
                     ${env.isActive
@@ -238,7 +238,7 @@ const VmRegistry = (function() {
                     </button>`
                         : `<button type="button" class="btn btn-sm btn-success btn-action" data-action="vr-reactivate-environment" data-env-id="${Utils.escapeHtml(env.environmentId)}" title="Reactivate ${tooltip}" aria-label="Reactivate ${tooltip}">
                         <i class="fas fa-rotate-left" aria-hidden="true"></i>
-                    </button>`}
+                    </button>`}`}
                 </td>
             </tr>
         `;
@@ -365,7 +365,9 @@ const VmRegistry = (function() {
         window.VmRegistryState.currentEnvironment = {
             environmentId,
             environmentName,
-            serviceType: envRecord?.serviceType || 'EC2'
+            serviceType: envRecord?.serviceType || 'EC2',
+            // U02-T02: change controls only where the server says this person administers the environment.
+            canAdminister: envRecord?.viewerCanAdminister === true
         };
         window.VmRegistryState.groupVmPages = {};
         window.VmRegistryState.reviewState = null;
@@ -449,7 +451,7 @@ const VmRegistry = (function() {
                 </div>
             `);
         } else {
-            $addGroupBtn.show();
+            $addGroupBtn.toggle(canAdministerCurrent());
             $('#cem-eks-groups-banner').remove();
         }
 
@@ -730,7 +732,7 @@ const VmRegistry = (function() {
                     </td>
                     <td class="text-center">${vm.sequencePosition || '-'}</td>
                     <td class="text-end text-nowrap td-actions">
-                        ${buildVmActions(vm, isEks)}
+                        ${canAdministerCurrent() ? buildVmActions(vm, isEks) : ''}
                     </td>
                 </tr>
             `;
@@ -781,7 +783,7 @@ const VmRegistry = (function() {
 
         const collapseId = `collapse-${group.groupId}`;
 
-        const actionBtns = isEks
+        const actionBtns = !canAdministerCurrent() ? '' : isEks
             ? `<button type="button" class="btn btn-sm btn-warning btn-action" data-action="vr-edit-group" data-group-id="${Utils.escapeHtml(group.groupId)}" title="Edit sequence / display name" aria-label="Edit sequence / display name">
                    <i class="fas fa-edit" aria-hidden="true"></i>
                </button>`
@@ -1014,6 +1016,11 @@ const VmRegistry = (function() {
      */
     function showProviderVmIdField(show) {
         $('#vmProviderVmId').prop('required', show).closest('.col-md-4').toggle(show);
+    }
+
+    /** Whether the person administers the environment open in the registry (U02-T02). */
+    function canAdministerCurrent() {
+        return window.VmRegistryState?.currentEnvironment?.canAdminister === true;
     }
 
     /** Instance IDs are for administrators only (U01-T05); the server leaves them out for everyone else. */

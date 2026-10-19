@@ -50,7 +50,7 @@ test.describe('Environment page by access level', () => {
     await open(page, envId);
 
     await expect(page.locator('.env-viewonly-note')).toContainText('view-only access');
-    await expect(page.locator('.env-viewonly-note a')).toHaveAttribute('href', '#/request-access');
+    await expect(page.locator('.env-viewonly-note a')).toHaveAttribute('href', /^#\/request-access\?env=/);
     await expect(page.locator('#btn-env-action')).toHaveCount(0);
     await expect(page.locator('[data-action="group-action"]')).toHaveCount(0);
     await expect(page.locator('[data-lock-action="acquire"]')).toHaveCount(0);

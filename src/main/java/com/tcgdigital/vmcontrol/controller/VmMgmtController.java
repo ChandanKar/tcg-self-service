@@ -115,6 +115,11 @@ public class VmMgmtController {
                 .toList();
         Map<String, String> privateIpsByVmId = inventoryService.getPrivateIpsByVmIds(allVmIds);
 
+        // U02-T02: Start/Stop per group. Environment-level operators (and admins) get every group; an
+        // operator of one group only gets that one.
+        com.tcgdigital.vmcontrol.model.AccessLevel envLevel = securityService.effectiveEnvLevel(environmentId);
+        boolean environmentOperator = securityService.canAdministerEnvironment(environmentId)
+                || (envLevel != null && envLevel != com.tcgdigital.vmcontrol.model.AccessLevel.VIEWER);
         List<VmGroupWithVmsDTO> result = new ArrayList<>();
         for (VmGroup group : groups) {
             VmRepository.GroupVmCounts counts = countsByGroup.get(group.getGroupId());
@@ -125,6 +130,8 @@ public class VmMgmtController {
 
             VmGroupWithVmsDTO dto = new VmGroupWithVmsDTO();
             dto.setGroup(VmGroupDTO.fromEntityWithCounts(group, vmCount, runningCount));
+            dto.setViewerCanOperate(environmentOperator
+                    || securityService.hasGroupAccessLevel(group.getGroupId(), com.tcgdigital.vmcontrol.model.AccessLevel.USER));
             dto.setVms(firstPage.getContent().stream()
                     .map(vm -> withPrivateIp(VmDTO.fromEntity(vm), privateIpsByVmId))
                     .toList());
@@ -454,6 +461,16 @@ public class VmMgmtController {
     public static class VmGroupWithVmsDTO {
         private VmGroupDTO group;
         private List<VmDTO> vms;
+        /** The signed-in viewer may start and stop this group's VMs (U02-T02). */
+        private boolean viewerCanOperate;
+
+        public boolean isViewerCanOperate() {
+            return viewerCanOperate;
+        }
+
+        public void setViewerCanOperate(boolean viewerCanOperate) {
+            this.viewerCanOperate = viewerCanOperate;
+        }
 
         public VmGroupDTO getGroup() {
             return group;

@@ -114,6 +114,12 @@ const AccessManagement = (function() {
         }
     }
 
+    /** Grant, edit and revoke follow the server's flag for each environment (U02-T02). */
+    function canManageAccessTo(environmentId) {
+        const env = environments.find(e => e.environmentId === environmentId);
+        return !!env && env.viewerCanManageAccess === true;
+    }
+
     /**
      * Fetch all environments
      */
@@ -304,9 +310,9 @@ const AccessManagement = (function() {
                         <option value="ENVIRONMENT">Environment</option>
                         <option value="GROUP">Group</option>
                     </select>
-                    <button class="btn btn-primary btn-sm" id="btn-grant-access">
+                    ${environments.some(e => e.viewerCanManageAccess === true) ? `<button class="btn btn-primary btn-sm" id="btn-grant-access">
                         <i class="fas fa-plus me-1"></i>Grant Access
-                    </button>
+                    </button>` : ''}
                 </div>
 
                 <!-- Stats Row -->
@@ -666,7 +672,7 @@ const AccessManagement = (function() {
                     <div>${grantedAbs}</div>
                     <div class="access-dates-expiry">${expiryLine}</div>
                 </td>
-                <td class="text-end text-nowrap td-actions">
+                <td class="text-end text-nowrap td-actions">${!canManageAccessTo(access.environmentId) ? '<span class="text-muted small">View only</span>' : `
                     <button type="button" class="btn btn-sm btn-action btn-outline-primary me-1" data-action="edit"
                             data-access-id="${access.accessId}"
                             title="Edit grant" aria-label="Edit grant">
@@ -678,7 +684,7 @@ const AccessManagement = (function() {
                             data-scope-name="${Utils.escapeHtml(isGroup ? (access.scopeName || 'this group') : 'the environment')}"
                             title="Revoke access" aria-label="Revoke access">
                         <i class="fas fa-user-minus" aria-hidden="true"></i>
-                    </button>
+                    </button>`}
                 </td>
             </tr>
         `;

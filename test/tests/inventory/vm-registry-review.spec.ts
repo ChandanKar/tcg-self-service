@@ -58,6 +58,7 @@ class FakeRegistry {
   async install(page: Page) {
     await page.route(/\/api\/v1\/environments(\?.*)?$/, route => route.request().method() === 'GET'
       ? this.json(route, [{ environmentId: ENV_ID, name: 'reg-e2e', displayName: 'Registry E2E', isActive: true,
+        viewerCanOperate: true, viewerCanAdminister: true, viewerCanManageAccess: true,
           serviceType: 'EC2', groupCount: 2, vmCount: this.vms.length, createdAt: new Date().toISOString() }])
       : route.continue());
     await page.route(new RegExp(`/api/v1/environments/${ENV_ID}/vms(/.*)?(\\?.*)?$`), route => this.handle(route));

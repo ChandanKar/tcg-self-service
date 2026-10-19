@@ -43,12 +43,21 @@ public class EnvironmentDTO {
     }
 
     /**
-     * What the signed-in viewer may do here, set only on the detail endpoint (null elsewhere):
-     * start/stop anything in it, and administer it (grants, settings). The page hides controls
-     * the viewer cannot use; the server still checks every action.
+     * What the signed-in viewer may do here (U02-T02: set on the list, page, detail and by-name
+     * endpoints): start/stop anything in it, administer it (settings, VMs, budgets) and manage who has
+     * access. The page hides controls the viewer cannot use; the server still checks every action.
      */
     private Boolean viewerCanOperate;
     private Boolean viewerCanAdminister;
+    private Boolean viewerCanManageAccess;
+
+    public Boolean getViewerCanManageAccess() {
+        return viewerCanManageAccess;
+    }
+
+    public void setViewerCanManageAccess(Boolean viewerCanManageAccess) {
+        this.viewerCanManageAccess = viewerCanManageAccess;
+    }
 
     public Boolean getViewerCanOperate() {
         return viewerCanOperate;
