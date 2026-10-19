@@ -185,10 +185,9 @@ const Environments = (function() {
         } catch (error) {
             if (!ContentRouter.isCurrent(t)) return;
             console.error('Failed to load environment:', error);
-            if (error.status === 403) {
-                showError('You do not have access to this environment. Please request access from an administrator.');
-            } else if (error.status === 404) {
-                showError('Environment not found.');
+            if (error.status === 403 || error.status === 404) {
+                // Same page for both, so it does not reveal whether the environment exists (U02-T01).
+                ContentRouter.showNoAccess('environment');
             } else {
                 showError('Failed to load environment details.');
             }

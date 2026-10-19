@@ -79,6 +79,79 @@ const ContentRouter = (function() {
         }
     ];
 
+    /**
+     * Who may open each page (U02-T01, side menu of the approved mockup): role null = everyone,
+     * ENV_ADMIN = environment admins and administrators, ADMIN = administrators. feature = the
+     * Capabilities switch the page needs. label = the page's name in "no access" messages.
+     * The server still checks every API call; this keeps people out of pages that cannot work for them.
+     */
+    const ROUTE_ACCESS = {
+        // Workspace
+        'dashboard':          { role: null, label: 'Home' },
+        'my-environments':    { role: null, label: 'Environments' },
+        'environment-detail': { role: null, label: 'Environment' },
+        'request-access':     { role: null, label: 'Request access' },
+        'approvals':          { role: null, label: 'Approvals' },
+        'activity-logs':      { role: null, label: 'My activity' },
+        'templates':          { role: null, feature: 'templates', label: 'New environments' },
+        'help':               { role: null, label: 'Help' },
+        'chat-action':        { role: null, label: 'Teams action' },
+        // Manage
+        'pending-requests':   { role: 'ENV_ADMIN', label: 'Access requests' },
+        'access-management':  { role: 'ENV_ADMIN', label: 'Access management' },
+        'vm-registry':        { role: 'ENV_ADMIN', label: 'VM registry' },
+        'automation-rules':   { role: 'ENV_ADMIN', label: 'Automation rules' },
+        'approval-policies':  { role: 'ENV_ADMIN', label: 'Approval policies' },
+        'budgets':            { role: 'ENV_ADMIN', label: 'Budgets' },
+        'audit-logs-all':     { role: 'ENV_ADMIN', label: 'Audit log' },
+        // Cost
+        'cost-management':    { role: 'ADMIN', label: 'Cost management' },
+        'savings':            { role: 'ADMIN', label: 'Savings' },
+        'waste':              { role: 'ADMIN', label: 'Waste' },
+        'chargeback':         { role: 'ADMIN', label: 'Chargeback' },
+        'cost-setup':         { role: 'ADMIN', label: 'Cost setup' },
+        // Administration
+        'user-management':    { role: 'ADMIN', label: 'Users' },
+        'teams':              { role: 'ADMIN', label: 'Teams' },
+        'aws-accounts':       { role: 'ADMIN', label: 'AWS accounts' },
+        'api-access':         { role: 'ADMIN', label: 'API access' },
+        'settings':           { role: 'ADMIN', label: 'Settings' },
+        'system-health':      { role: 'ADMIN', label: 'System health' }
+    };
+
+    /** Why the current person cannot open a page, or null when they can. */
+    function accessProblem(contentType) {
+        const rule = ROUTE_ACCESS[contentType];
+        if (!rule) {
+            return { kind: 'not-found', label: null };
+        }
+        const caps = typeof Capabilities !== 'undefined' ? Capabilities : null;
+        const admin = caps ? caps.isAdmin() : (typeof Auth !== 'undefined' && Auth.isAdmin());
+        const envAdmin = caps ? caps.isEnvAdmin() : (typeof Auth !== 'undefined' && Auth.isEnvAdmin());
+        if (rule.role === 'ADMIN' && !admin) {
+            return { kind: 'role-admin', label: rule.label };
+        }
+        if (rule.role === 'ENV_ADMIN' && !envAdmin) {
+            return { kind: 'role-env-admin', label: rule.label };
+        }
+        if (rule.feature && caps && !caps.has(rule.feature)) {
+            return { kind: 'feature-off', label: rule.label };
+        }
+        return null;
+    }
+
+    /** The access rule of a page (the side menu is built from the same table). */
+    function access(contentType) {
+        return ROUTE_ACCESS[contentType] || null;
+    }
+
+    /** Show a "no access" variant from inside a loader, e.g. an environment that answered 403/404. */
+    function showNoAccess(kind, opts = {}) {
+        if (typeof NoAccessPage !== 'undefined') {
+            NoAccessPage.render(kind, opts);
+        }
+    }
+
     // Old Environment Detail hash: only usable with an in-memory environment name (hidden
     // Favorites/Recents submenu); without one it redirects to the list.
     const LEGACY_ENV_DETAIL_HASH = '#/environment-detail';
@@ -185,7 +258,8 @@ const ContentRouter = (function() {
 
     /**
      * Resolve a hash path (without ?query) to { contentType, params }; the old Environment
-     * Detail hash resolves with legacy: true. Unknown paths fall back to the dashboard.
+     * Detail hash resolves with legacy: true. Unknown paths resolve to 'not-found' (U02-T01), which
+     * shows "This page doesn't exist" instead of quietly opening the dashboard.
      */
     function matchRoute(hashPath) {
         if (HASH_TO_CONTENT[hashPath]) {
@@ -200,7 +274,7 @@ const ContentRouter = (function() {
         if (hashPath === LEGACY_ENV_DETAIL_HASH) {
             return { contentType: 'environment-detail', params: {}, legacy: true };
         }
-        return { contentType: 'dashboard', params: {} };
+        return { contentType: 'not-found', params: {} };
     }
 
     /** The current hash's ?query as an object (e.g. { idle: '2' }). */
@@ -218,6 +292,12 @@ const ContentRouter = (function() {
     function loadContent(contentType, params = {}) {
         runLeaveHandlers();
         _navToken++;
+        // Pages this person cannot use say so, and their loader (and its requests) never runs (U02-T01).
+        const problem = accessProblem(contentType);
+        if (problem) {
+            showNoAccess(problem.kind, { label: problem.label });
+            return;
+        }
         const loader = getLoader(contentType);
         if (loader) {
             showLoading();
@@ -387,7 +467,12 @@ const ContentRouter = (function() {
         isCurrent,
         onLeave,
         reload,
-        query
+        query,
+        access,
+        showNoAccess,
+        // For the front-end tests: every routable page must have an access rule.
+        _routeKeys: () => Object.keys(ROUTES).concat(PARAM_ROUTES.map(r => r.contentType)),
+        _accessKeys: () => Object.keys(ROUTE_ACCESS)
     };
 })();
 

@@ -20,6 +20,10 @@ const Auth = (function() {
         try {
             currentUser = await loadCurrentUser();
             isInitialized = true;
+            // Role and switched-on features, before the router opens the first page (U02-T01).
+            if (typeof Capabilities !== 'undefined') {
+                await Capabilities.load();
+            }
 
             // Update UI with user info
             UserMenu.updateUserDisplay(currentUser);

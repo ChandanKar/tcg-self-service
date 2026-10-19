@@ -37,11 +37,7 @@ const UserManagement = (function() {
     function load() {
         pageToken = ContentRouter.token();
         ContentRouter.onLeave(() => $('#content-area').off('.userMgmt'));
-        if (!Auth.isAdmin()) {
-            $('#content-area').html('<div class="alert alert-danger m-3">Access denied. Admin only.</div>');
-            return;
-        }
-
+        // Who may open this page is decided by the router's access table (U02-T01).
         showLoading();
         fetchUsers();
     }
