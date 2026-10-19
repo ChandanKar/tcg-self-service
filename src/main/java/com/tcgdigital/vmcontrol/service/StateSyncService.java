@@ -417,10 +417,10 @@ public class StateSyncService {
         String currentName = vm.name();
         String currentDisplayName = vm.displayName();
 
-        // Check if name or displayName matches the providerVmId (instance ID)
+        // Not named yet: the name is the instance id (older rows) or the "unnamed-..." placeholder (U01-T06).
         boolean nameNeedsSync = providerVmId != null && (
-                providerVmId.equalsIgnoreCase(currentName) ||
-                providerVmId.equalsIgnoreCase(currentDisplayName)
+                com.tcgdigital.vmcontrol.service.support.UnnamedVmNames.isPlaceholder(currentName, providerVmId) ||
+                com.tcgdigital.vmcontrol.service.support.UnnamedVmNames.isPlaceholder(currentDisplayName, providerVmId)
         );
 
         if (!nameNeedsSync) {

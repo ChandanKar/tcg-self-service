@@ -46,6 +46,23 @@ class VmDiscoveryIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void anInstanceWithoutANameTagIsNotNamedAfterItsId() {
+        Environment env = discoveryEnvironment("Disc unnamed");
+        discoveryGroup(env);
+        String id = "i-0" + Long.toHexString(System.nanoTime());
+        awsReturnsNothingByDefault();
+        when(awsCloudProviderService.discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"), "tcg:environment", env.getName()))
+                .thenReturn(List.of(Instance.builder().instanceId(id).build()));
+
+        discoveryService.discoverAndRegisterVms();
+
+        Vm registered = vmRepository.findByProviderAndProviderVmId(com.tcgdigital.vmcontrol.model.CloudProvider.AWS, id).orElseThrow();
+        String placeholder = com.tcgdigital.vmcontrol.service.support.UnnamedVmNames.placeholderFor(id);
+        assertThat(registered.getName()).isEqualTo(placeholder).doesNotContain(id.substring(2, 8));
+        assertThat(registered.getDisplayName()).isEqualTo(placeholder);
+    }
+
+    @Test
     void anInactiveVmInTheDiscoveryGroupDoesNotBlockNewRegistrations() {
         Environment env = discoveryEnvironment("Disc");
         VmGroup group = discoveryGroup(env);

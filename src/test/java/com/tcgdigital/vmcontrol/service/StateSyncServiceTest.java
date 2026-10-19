@@ -241,6 +241,24 @@ class StateSyncServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void anUnnamedPlaceholderIsReplacedOnceTheInstanceGetsANameTag() {
+        // U01-T06: discovery names an untagged instance "unnamed-xxxxxx" instead of its instance id
+        String placeholder = com.tcgdigital.vmcontrol.service.support.UnnamedVmNames.placeholderFor(testVm.getProviderVmId());
+        testVm.setName(placeholder);
+        testVm.setDisplayName(placeholder);
+        testVm = vmRepository.save(testVm);
+        when(awsCloudProviderService.isAvailable()).thenReturn(true);
+        when(awsCloudProviderService.getVmStatus(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn(VmStatus.RUNNING);
+        when(awsCloudProviderService.getVmName(anyString(), org.mockito.ArgumentMatchers.any(com.tcgdigital.vmcontrol.service.CloudTarget.class))).thenReturn("web-07");
+
+        stateSyncService.syncVmState(testVm);
+
+        Vm updatedVm = vmRepository.findById(testVm.getVmId()).orElseThrow();
+        assertEquals("web-07", updatedVm.getDisplayName());
+        assertEquals("web-07", updatedVm.getName());
+    }
+
+    @Test
     void testSyncVmState_StripsMarkupFromCloudNameTag() {
         // Given - VM still named after its instance id, and the EC2 Name tag contains markup
         testVm.setName(testVm.getProviderVmId());

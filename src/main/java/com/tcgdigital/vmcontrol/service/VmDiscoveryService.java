@@ -238,11 +238,13 @@ public class VmDiscoveryService {
     private void registerInstanceByName(Instance instance, Environment env, VmGroup group, CloudTarget target) {
         String region = target.region();
         String nameTag = getNameTag(instance);
-        String displayName = nameTag != null ? nameTag : instance.instanceId();
+        // No Name tag: a placeholder, never the instance id (ids are for administrators only, U01-T06).
+        String displayName = nameTag != null ? nameTag
+                : com.tcgdigital.vmcontrol.service.support.UnnamedVmNames.placeholderFor(instance.instanceId());
         String slug = toSlug(displayName);
 
         if (vmRepository.existsByGroupGroupIdAndName(group.getGroupId(), slug)) {
-            slug = slug + "-" + instance.instanceId().substring(Math.max(0, instance.instanceId().length() - 4));
+            slug = slug + "-" + com.tcgdigital.vmcontrol.service.support.UnnamedVmNames.suffixFor(instance.instanceId());
         }
 
         // Keep the Name tag's number when it is free (the check covers inactive rows too).
@@ -375,11 +377,13 @@ public class VmDiscoveryService {
 
     private void registerInstanceByTag(Instance instance, Environment env, VmGroup group, String region) {
         String nameTag = getNameTag(instance);
-        String displayName = nameTag != null ? nameTag : instance.instanceId();
+        // No Name tag: a placeholder, never the instance id (ids are for administrators only, U01-T06).
+        String displayName = nameTag != null ? nameTag
+                : com.tcgdigital.vmcontrol.service.support.UnnamedVmNames.placeholderFor(instance.instanceId());
         String slug = toSlug(displayName);
 
         if (vmRepository.existsByGroupGroupIdAndName(group.getGroupId(), slug)) {
-            slug = slug + "-" + instance.instanceId().substring(Math.max(0, instance.instanceId().length() - 4));
+            slug = slug + "-" + com.tcgdigital.vmcontrol.service.support.UnnamedVmNames.suffixFor(instance.instanceId());
         }
 
         int seqPos = nextSequencePosition(group.getGroupId());
