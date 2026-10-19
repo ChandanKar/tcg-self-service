@@ -45,6 +45,13 @@ test.describe('My Environments list', () => {
     await expect(locked).toContainText('Riya Sharma');     // holder from the payload
     await expect(page.locator('#content-area tr', { hasText: 'billing' })).toContainText('Unlocked');
     expect(lockRequests).toEqual([]);
+    // U03-T03: the Running cell is a power strip with one light per VM.
+    const strip = locked.locator('td.col-running').getByRole('img', { name: '1 of 3 VMs running' });
+    await expect(strip).toBeVisible();
+    await expect(strip.locator('.pip')).toHaveCount(3);
+    await expect(strip.locator('.pip.on')).toHaveCount(1);
+    await expect(page.locator('#content-area tr', { hasText: 'billing' }).locator('td.col-running'))
+      .toContainText('0/0');
   });
 });
 

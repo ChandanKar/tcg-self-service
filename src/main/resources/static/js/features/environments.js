@@ -436,8 +436,6 @@ const Environments = (function() {
         const dataRows = envList.map(env => {
             const runningVms = env.runningVms || 0;
             const totalVms = env.vmCount || env.totalVms || 0;
-            const statusClass = runningVms === 0 ? 'stopped' :
-                               runningVms === totalVms ? 'running' : 'partial';
 
             let lockDisplay;
             if (env.lockStatus && env.lockStatus.isLocked) {
@@ -497,11 +495,7 @@ const Environments = (function() {
                     <td class="col-region" data-label="Region">${regionCell}</td>
                     <td class="col-groups text-center" data-label="Groups">${env.groupCount || 0}</td>
                     <td class="col-vms text-center" data-label="Total VMs">${totalVms}</td>
-                    <td class="col-running" data-label="Running">
-                        <span class="status-badge ${statusClass}">
-                            <i class="fas fa-circle"></i> ${runningVms}/${totalVms}
-                        </span>
-                    </td>
+                    <td class="col-running" data-label="Running">${PowerStrip.counts(runningVms, totalVms)}</td>
                     <td class="col-lock" data-label="Lock">${lockDisplay}</td>
                     <td class="col-actions td-actions">
                         <button type="button" class="btn btn-sm btn-outline-primary"

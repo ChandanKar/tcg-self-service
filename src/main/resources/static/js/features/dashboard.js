@@ -298,8 +298,6 @@ const Dashboard = (function() {
         return environments.map(env => {
             const running = env.runningVms || 0;
             const total = env.totalVms || 0;
-            // The running cell carries the running/total colour; the badge shows the lock (E11-T11).
-            const runningClass = total === 0 ? 'text-muted' : running === total ? 'text-success' : running === 0 ? 'text-muted' : 'text-warning';
             const searchText = `${env.displayName || ''} ${env.name || ''}`.toLowerCase();
             return `
                 <tr class="dashboard-env-row" data-name="${Utils.escapeHtml(searchText)}">
@@ -310,7 +308,7 @@ const Dashboard = (function() {
                         <small>${Utils.escapeHtml(env.name || '')}</small>
                     </td>
                     <td>${Utils.escapeHtml(env.serviceType || 'EC2')}</td>
-                    <td class="${runningClass}">${running}/${total}</td>
+                    <td>${PowerStrip.counts(running, total)}</td>
                     <td>${formatPercent(env.avgCpuUtilization)}</td>
                     <td>${formatGiB(env.allocatedStorageGib)}</td>
                     <td><span class="badge ${env.locked ? 'bg-warning text-dark' : 'text-bg-light border'}">${env.locked ? 'Locked' : 'Unlocked'}</span></td>

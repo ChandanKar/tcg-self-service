@@ -1,0 +1,125 @@
+/*
+ * Power strip: one light per VM, like the front of a server rack (js/ui/power-strip.js).
+ * Green = running, gold = starting or stopping, red = failed, white = stopped, hatched = not read
+ * from AWS yet. Groups are separated and run in start order, left to right. A compact strip over
+ * 24 VMs becomes a bar filled by the running share; the large strip keeps every light.
+ * Values follow PowerStrip.dc.html.
+ */
+.power-strip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    vertical-align: middle;
+    line-height: 1;
+}
+
+.power-strip-lights {
+    display: inline-flex;
+    align-items: center;
+}
+
+.power-strip-group {
+    display: inline-flex;
+    gap: 3px;
+}
+
+.power-strip-group + .power-strip-group {
+    margin-left: 5px;
+    padding-left: 8px;
+    border-left: 1px solid #d4dae5;
+}
+
+.pip {
+    display: inline-block;
+    box-sizing: border-box;
+    width: 7px;
+    height: 14px;
+    border-radius: 2px;
+    background: #fff;
+    border: 1px solid #b9c2d2;
+    flex-shrink: 0;
+}
+
+.pip.on {
+    background: var(--brand-green);
+    border-color: #0d7a4e;
+    box-shadow: 0 0 0 2px rgba(18, 145, 94, 0.16);
+}
+
+.pip.busy {
+    background: var(--brand-gold);
+    border-color: #b8860b;
+    animation: pip-pulse 1.1s ease-in-out infinite;
+}
+
+.pip.err {
+    background: var(--brand-red);
+    border-color: var(--brand-red-text);
+}
+
+.pip.unknown {
+    background: repeating-linear-gradient(135deg, #fff 0 2px, #d4dae5 2px 3px);
+}
+
+@keyframes pip-pulse {
+    50% { opacity: 0.45; }
+}
+
+/* Many VMs in a compact strip: one bar, filled by the running share. */
+.power-bar {
+    display: inline-block;
+    width: 80px;
+    height: 8px;
+    border-radius: 4px;
+    background: #e6eaf1;
+    overflow: hidden;
+}
+
+.power-bar > span {
+    display: block;
+    height: 100%;
+    background: var(--brand-green);
+}
+
+.power-strip-count {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--slate);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.power-strip-count b {
+    color: var(--ink);
+    font-weight: 500;
+}
+
+/* Large: the environment page */
+.power-strip-lg .pip {
+    width: 10px;
+    height: 20px;
+    border-radius: 3px;
+}
+
+.power-strip-lg .power-strip-count {
+    font-size: 15px;
+}
+
+/* Legend: a single light next to its meaning */
+.power-strip-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 20px;
+    font-size: var(--fs-caption);
+    color: var(--slate);
+}
+
+.power-strip-legend > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pip.busy { animation: none; }
+}

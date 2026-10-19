@@ -35,6 +35,11 @@ test.describe('Dashboard environments table', () => {
     const billing = page.locator('#dashboard-env-rows .dashboard-env-row', { hasText: 'Billing' });
     await expect(billing.locator('.badge')).toHaveText('Locked');
     await expect(billing.locator('.badge')).toHaveClass(/bg-warning/);
+    // U03-T03: the running cell is a power strip, one light per VM.
+    await expect(payments.getByRole('img', { name: '0 of 3 VMs running' })).toBeVisible();
+    await expect(payments.locator('.pip')).toHaveCount(3);
+    await expect(billing.getByRole('img', { name: '2 of 2 VMs running' })).toBeVisible();
+    await expect(billing.locator('.pip.on')).toHaveCount(2);
 
     await page.locator('#dashboard-env-search').fill('payments');
     await expect(payments).toBeVisible();
