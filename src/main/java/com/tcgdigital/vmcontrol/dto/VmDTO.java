@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.dto;
 
+import com.tcgdigital.vmcontrol.dto.json.AdminOnly;
 import com.tcgdigital.vmcontrol.model.CloudProvider;
 import com.tcgdigital.vmcontrol.model.Vm;
 import com.tcgdigital.vmcontrol.model.VmStatus;
@@ -24,7 +25,11 @@ public class VmDTO {
     private String privateIp;
     private CloudProvider provider;
     private String region;
+    /** The cloud id (i-..., db:..., cluster:..., EKS node group); administrators only (U01-T01). */
+    @AdminOnly
     private String providerVmId;
+    /** For AWS_RDS: INSTANCE or CLUSTER, so the UI never needs the id to label a database. */
+    private String rdsKind;
     private VmType vmType;
     private Integer sequencePosition;
     private List<String> dependsOnVmIds;
@@ -57,6 +62,7 @@ public class VmDTO {
         dto.setPurchaseOption(vm.getPurchaseOption() == null ? null : vm.getPurchaseOption().name());
         dto.setSpotExcluded(vm.isSpotExcluded());
         dto.setProviderVmId(vm.getProviderVmId());
+        dto.setRdsKind(rdsKindOf(vm.getProvider(), vm.getProviderVmId()));
         if (vm.getProvider() == com.tcgdigital.vmcontrol.model.CloudProvider.AWS_RDS && vm.getIntendedStoppedSince() != null) {
             // E33-T04: when AWS will start the stopped database again
             dto.setAwsAutoStartAt(java.sql.Timestamp.from(vm.getIntendedStoppedSince().toInstant()
@@ -75,6 +81,14 @@ public class VmDTO {
         dto.setCreatedAt(vm.getCreatedAt());
         dto.setUpdatedAt(vm.getUpdatedAt());
         return dto;
+    }
+
+    /** CLUSTER for an Aurora cluster (cluster:...), INSTANCE for a DB instance (db:...), null otherwise. */
+    static String rdsKindOf(CloudProvider provider, String providerVmId) {
+        if (provider != CloudProvider.AWS_RDS || providerVmId == null) {
+            return null;
+        }
+        return providerVmId.startsWith("cluster:") ? "CLUSTER" : "INSTANCE";
     }
 
     // Getters and Setters
@@ -172,6 +186,14 @@ public class VmDTO {
 
     public void setProviderVmId(String providerVmId) {
         this.providerVmId = providerVmId;
+    }
+
+    public String getRdsKind() {
+        return rdsKind;
+    }
+
+    public void setRdsKind(String rdsKind) {
+        this.rdsKind = rdsKind;
     }
 
     public VmType getVmType() {

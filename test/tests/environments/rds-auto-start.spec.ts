@@ -15,7 +15,8 @@ const AUTO_START = new Date(Date.now() + 3 * 86400_000).toISOString();
 function rdsVm(status: string, awsAutoStartAt: string | null) {
   return {
     vmId: 'vm-rds-e2e', groupId: 'g-rds', groupName: 'data', name: 'orders-db', displayName: 'Orders DB',
-    provider: 'AWS_RDS', region: 'ap-south-1', providerVmId: 'db:orders', vmType: 'DEV', sequencePosition: 1,
+    // providerVmId is left out, as the API does for non-administrators (U01-T01); rdsKind labels it.
+    provider: 'AWS_RDS', region: 'ap-south-1', rdsKind: 'INSTANCE', vmType: 'DEV', sequencePosition: 1,
     dependsOnVmIds: [], status, isActive: true, awsAutoStartAt,
   };
 }

@@ -98,6 +98,7 @@ class VmServiceTest {
         RegisterVmDTO dto = new RegisterVmDTO();
         dto.setGroupId("g-web");
         dto.setName(" Web 1 ");
+        dto.setProviderVmId("i-0new");
         when(vmRepository.existsByGroupGroupIdAndName("g-web", "web-1")).thenReturn(true);
 
         assertThatThrownBy(() -> service.registerVm(dto))
@@ -114,6 +115,48 @@ class VmServiceTest {
 
         assertThatThrownBy(() -> service.updateVm("vm-1", dto))
                 .isInstanceOf(ValidationException.class).hasMessageContaining("already exists");
+    }
+
+    // ---- provider ids are administrators only (U01-T01) ----
+
+    private RegisterVmDTO editOfVm1(String providerVmId) {
+        RegisterVmDTO dto = new RegisterVmDTO();
+        dto.setName("found-1");
+        dto.setDisplayName("Found 1");
+        dto.setProvider(CloudProvider.AWS);
+        dto.setRegion("ap-south-1");
+        dto.setSequencePosition(1);
+        dto.setProviderVmId(providerVmId);
+        return dto;
+    }
+
+    @Test
+    void registeringWithoutAProviderIdIsRefused() {
+        RegisterVmDTO dto = new RegisterVmDTO();
+        dto.setGroupId("g-web");
+        dto.setName("web-2");
+
+        assertThatThrownBy(() -> service.registerVm(dto))
+                .isInstanceOf(ValidationException.class).hasMessageContaining("Provider VM ID is required");
+    }
+
+    @Test
+    void anEditWithoutAProviderIdKeepsTheStoredOne() {
+        vm.setProviderVmId("i-0aaaaaaaaaaaaaaa1");
+
+        Vm saved = service.updateVm("vm-1", editOfVm1(""), "env-admin-1", false);
+
+        assertThat(saved.getProviderVmId()).isEqualTo("i-0aaaaaaaaaaaaaaa1");
+    }
+
+    @Test
+    void onlyAnAdministratorCanPointAVmAtAnotherInstance() {
+        vm.setProviderVmId("i-0aaaaaaaaaaaaaaa1");
+
+        assertThatThrownBy(() -> service.updateVm("vm-1", editOfVm1("i-0bbbbbbbbbbbbbbb2"), "env-admin-1", false))
+                .isInstanceOf(ValidationException.class).hasMessageContaining("Only an administrator");
+        assertThat(service.updateVm("vm-1", editOfVm1("i-0bbbbbbbbbbbbbbb2"), "admin-1", true).getProviderVmId())
+                .isEqualTo("i-0bbbbbbbbbbbbbbb2");
     }
 
     @Test

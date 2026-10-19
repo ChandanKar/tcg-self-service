@@ -121,6 +121,9 @@ public class VmService {
     /** Register a VM, audited as {@code actorUserId} (E11-T03; null for the system). */
     @Transactional
     public Vm registerVm(RegisterVmDTO dto, String actorUserId) {
+        if (dto.getProviderVmId() == null || dto.getProviderVmId().isBlank()) {
+            throw new ValidationException("Provider VM ID is required");
+        }
         requireRdsId(dto);
         // Verify group exists
         VmGroup group = groupRepository.findById(dto.getGroupId())
@@ -220,8 +223,23 @@ public class VmService {
     /** Update a VM, audited with its changed fields as {@code actorUserId} (E11-T03). */
     @Transactional
     public Vm updateVm(String vmId, RegisterVmDTO dto, String actorUserId) {
-        requireRdsId(dto);
+        return updateVm(vmId, dto, actorUserId, true);
+    }
+
+    /**
+     * Update a VM. The provider id is visible to administrators only (U01-T01), so a blank one keeps the
+     * stored id, and only a caller that may see ids ({@code mayChangeProviderVmId}) can point the VM at
+     * another instance.
+     */
+    @Transactional
+    public Vm updateVm(String vmId, RegisterVmDTO dto, String actorUserId, boolean mayChangeProviderVmId) {
         Vm vm = getVmById(vmId);
+        if (dto.getProviderVmId() == null || dto.getProviderVmId().isBlank()) {
+            dto.setProviderVmId(vm.getProviderVmId());
+        } else if (!dto.getProviderVmId().equals(vm.getProviderVmId()) && !mayChangeProviderVmId) {
+            throw new ValidationException("Only an administrator can change which instance a VM points to");
+        }
+        requireRdsId(dto);
         String groupId = vm.getGroup().getGroupId();
         com.tcgdigital.vmcontrol.service.support.AuditChanges changes = new com.tcgdigital.vmcontrol.service.support.AuditChanges()
                 .add("name", vm.getName(), normalizeName(dto.getName()))

@@ -806,7 +806,7 @@ const Environments = (function() {
                     <td data-label="Location">
                         <span><i class="${providerConfig.icon}" style="color:${providerConfig.color};"></i>
                         <span class="ms-1" style="font-size:0.8rem;">${Utils.escapeHtml(vm.region || '')}</span></span>
-                        ${vm.provider === 'AWS_RDS' ? `<span class="badge text-bg-light border ms-1 vm-rds-badge">${String(vm.providerVmId || '').startsWith('cluster:') ? 'Aurora cluster' : 'DB instance'}</span>` : ''}
+                        ${vm.provider === 'AWS_RDS' ? `<span class="badge text-bg-light border ms-1 vm-rds-badge">${vm.rdsKind === 'CLUSTER' ? 'Aurora cluster' : 'DB instance'}</span>` : ''}
                         ${vm.purchaseOption === 'SPOT' ? '<span class="badge text-bg-info ms-1 vm-spot-badge" title="Runs on Spot capacity: AWS can interrupt it">Spot</span>' : ''}
                     </td>
                     <td data-label="Status">
@@ -1841,7 +1841,7 @@ const Environments = (function() {
                 </div>
                 <div class="vm-provider-line">
                     <span><i class="${providerConfig.icon}"></i> ${Utils.escapeHtml(providerLabel)}</span>
-                    <code>${Utils.escapeHtml(vm.providerVmId || 'pending-provider-id')}</code>
+                    ${vm.providerVmId ? `<code>${Utils.escapeHtml(vm.providerVmId)}</code>` : ''}
                 </div>
             </div>
         `;

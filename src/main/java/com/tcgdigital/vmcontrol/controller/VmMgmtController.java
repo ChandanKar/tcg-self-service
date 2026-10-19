@@ -375,7 +375,7 @@ public class VmMgmtController {
         securityService.assertCanAdminister(environmentId);
 
 
-        Vm updated = vmService.updateVm(vmId, dto, userService.getCurrentUserId());
+        Vm updated = vmService.updateVm(vmId, dto, userService.getCurrentUserId(), userService.isCurrentUserAdmin());
         Map<String, String> privateIpsByVmId = inventoryService.getPrivateIpsByVmIds(List.of(vmId));
         return ResponseEntity.ok(withPrivateIp(VmDTO.fromEntity(updated), privateIpsByVmId));
     }

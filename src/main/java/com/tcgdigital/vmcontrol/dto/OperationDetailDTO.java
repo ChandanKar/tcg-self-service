@@ -23,6 +23,8 @@ public class OperationDetailDTO {
     private Timestamp startedAt;
     private Timestamp completedAt;
     private String errorMessage;
+    /** The AWS request or update id; administrators only (U01-T01). */
+    @com.tcgdigital.vmcontrol.dto.json.AdminOnly
     private String cloudOperationId;
 
     public OperationDetailDTO() {

@@ -718,7 +718,7 @@ const VmRegistry = (function() {
                     <td>${purposeCell}</td>
                     <td><i class="${providerIcons[vm.provider] || 'fas fa-cloud'}"></i> ${providerLabels[vm.provider] || vm.provider}</td>
                     <td>${Utils.escapeHtml(vm.region)}${accountNote(vm)}</td>
-                    <td><code class="small">${Utils.escapeHtml(vm.providerVmId)}</code></td>
+                    <td>${vm.providerVmId ? `<code class="small">${Utils.escapeHtml(vm.providerVmId)}</code>` : '<span class="text-muted" title="Instance IDs are shown to administrators only">&mdash;</span>'}</td>
                     <td><code class="small">${Utils.escapeHtml(vm.privateIp || '-')}</code></td>
                     <td>
                         <span class="status-badge ${statusConfig.class}">
@@ -999,8 +999,17 @@ const VmRegistry = (function() {
         $('#vmProvider').prop('disabled', false);
         $('#vmRegion').prop('readonly', false);
         $('#vmProviderVmId').prop('readonly', false);
+        showProviderVmIdField(true);
 
         bootstrap.Modal.getOrCreateInstance(document.getElementById('registerVmModal')).show();
+    }
+
+    /**
+     * Instance IDs reach administrators only (U01-T01): when editing a VM whose ID the server left out,
+     * hide the field so it is neither shown nor required; the server keeps the stored ID.
+     */
+    function showProviderVmIdField(show) {
+        $('#vmProviderVmId').prop('required', show).closest('.col-md-4').toggle(show);
     }
 
     /**
@@ -1037,7 +1046,8 @@ const VmRegistry = (function() {
         $('#vmRemarks').val(vm.remarks || '');
         $('#vmProvider').val(vm.provider);
         $('#vmRegion').val(vm.region);
-        $('#vmProviderVmId').val(vm.providerVmId);
+        $('#vmProviderVmId').val(vm.providerVmId || '');
+        showProviderVmIdField(!!vm.providerVmId);
         $('#vmSequencePosition').val(vm.sequencePosition);
         $('#registerVmModalLabel').text(`Edit VM "${vm.displayName}"`);
         $('#btnSubmitVm').html('<i class="fas fa-save"></i> Save Changes');

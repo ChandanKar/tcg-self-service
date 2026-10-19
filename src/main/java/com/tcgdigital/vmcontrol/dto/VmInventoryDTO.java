@@ -1,5 +1,6 @@
 package com.tcgdigital.vmcontrol.dto;
 
+import com.tcgdigital.vmcontrol.dto.json.AdminOnly;
 import com.tcgdigital.vmcontrol.model.VmInventorySnapshot;
 import com.tcgdigital.vmcontrol.model.VmVolumeSnapshot;
 
@@ -8,6 +9,8 @@ import java.util.List;
 
 public class VmInventoryDTO {
     private String vmId;
+    /** Administrators only (U01-T01). */
+    @AdminOnly
     private String providerVmId;
     private String instanceType;
     private Integer vcpuCount;
@@ -46,6 +49,8 @@ public class VmInventoryDTO {
     }
 
     public static class VolumeDTO {
+        /** The EBS volume id; administrators only (U01-T01). Device name, type and size stay visible. */
+        @AdminOnly
         private String volumeId;
         private String deviceName;
         private String volumeType;

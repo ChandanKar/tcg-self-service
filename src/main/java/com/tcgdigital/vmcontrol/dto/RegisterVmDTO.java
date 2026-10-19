@@ -43,7 +43,10 @@ public class RegisterVmDTO {
     @NotBlank(message = "Region is required")
     private String region;
 
-    @NotBlank(message = "Provider VM ID is required")
+    /**
+     * Required when a VM is registered (checked in VmService.registerVm). On an update a blank value keeps
+     * the stored id, because only administrators see it (U01-T01).
+     */
     private String providerVmId;
 
     private VmType vmType = VmType.DEV;
