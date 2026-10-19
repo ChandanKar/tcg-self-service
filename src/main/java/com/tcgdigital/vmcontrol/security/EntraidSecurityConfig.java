@@ -54,7 +54,7 @@ public class EntraidSecurityConfig {
             .authorizeHttpRequests(authorize -> authorize
                 // allow static resources, login page, health/error endpoints, oauth callback and CSP reports;
                 // the API description and Swagger UI need a session or an API token (E34-T04)
-                .requestMatchers("/", "/login", "/login.html", "/css/**", "/js/**", "/vendor/**", "/logo/**", "/images/**", "/static/**",
+                .requestMatchers("/", "/login", "/login.html", "/css/**", "/js/**", "/vendor/**", "/webfonts/**", "/logo/**", "/images/**", "/static/**",
                     "/error", "/login/**", "/oauth2/**", "/webjars/**",
                     "/api/auth/login", "/api/auth/options", SecurityHeaders.REPORT_PATH,
                     "/actuator/health", "/actuator/health/**").permitAll()

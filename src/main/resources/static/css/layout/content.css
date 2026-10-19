@@ -275,7 +275,7 @@
     margin-bottom: 0.15rem;
 }
 .content-header p {
-    color: #64748b;
+    color: var(--text-secondary);
     font-size: 0.75rem;
 }
 

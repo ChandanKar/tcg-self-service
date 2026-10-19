@@ -52,7 +52,7 @@
 }
 
 .btn-ghost.btn-outline-danger {
-    color: #dc2626;
+    color: var(--brand-red-text);
 }
 
 .btn-ghost.btn-outline-danger:hover:not(:disabled) {

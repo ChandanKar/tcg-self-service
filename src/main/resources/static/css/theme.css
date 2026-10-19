@@ -1,0 +1,75 @@
+/*
+ * VM Self-Service Platform - Theme
+ * Applies the visual identity (tokens in main.css) to Bootstrap and to the shared page parts:
+ * page headers, panels, tables, tabs, forms, buttons, badges, dialogs. Loaded after the
+ * component and feature sheets so one place decides how the common pieces look; feature sheets
+ * keep their layout rules.
+ */
+
+/* ── Bootstrap variables ───────────────────────────────────────────────── */
+:root {
+    --bs-body-font-family: var(--font-sans);
+    --bs-font-monospace: var(--font-mono);
+    --bs-body-color: var(--text-primary);
+    --bs-body-bg: var(--canvas);
+    --bs-primary: #14245c;
+    --bs-primary-rgb: 20, 36, 92;
+    --bs-success: #12915e;
+    --bs-success-rgb: 18, 145, 94;
+    --bs-warning: #d9a21b;
+    --bs-warning-rgb: 217, 162, 27;
+    --bs-danger: #c2412d;
+    --bs-danger-rgb: 194, 65, 45;
+    --bs-link-color: #2f4a9e;
+    --bs-link-color-rgb: 47, 74, 158;
+    --bs-link-hover-color: #14245c;
+    --bs-link-hover-color-rgb: 20, 36, 92;
+    --bs-border-color: var(--line);
+    --bs-border-radius: 7px;
+    --bs-border-radius-sm: 6px;
+    --bs-border-radius-lg: 10px;
+    --bs-secondary-color: var(--text-secondary);
+    --bs-tertiary-bg: #f7f8fb;
+    --bs-focus-ring-color: rgba(20, 36, 92, 0.22);
+}
+
+body {
+    background: var(--canvas);
+}
+
+.main-content {
+    background: var(--canvas);
+}
+
+/* Ids, times and numbers read in IBM Plex Mono */
+code, kbd, samp, pre, .mono {
+    font-family: var(--font-mono);
+}
+.mono, .tabular-nums {
+    font-variant-numeric: tabular-nums;
+}
+
+/* The brand fills fail 4.5:1 as text and under white text: text helpers use the darker shades
+   and coloured badges become the style guide's tinted chips (U03-T02 adds the full chip set). */
+.text-success { color: var(--brand-green-text) !important; }
+.text-warning { color: var(--brand-gold-text) !important; }
+.text-danger { color: var(--brand-red-text) !important; }
+
+.badge.bg-success,
+.badge.text-bg-success {
+    background: var(--brand-green-tint) !important;
+    color: var(--brand-green-text) !important;
+}
+.badge.bg-warning,
+.badge.text-bg-warning {
+    background: var(--brand-gold-tint) !important;
+    color: var(--brand-gold-text) !important;
+}
+.badge.bg-danger,
+.badge.text-bg-danger {
+    background: var(--brand-red-tint) !important;
+    color: var(--brand-red-text) !important;
+}
+
+/* U03-T01 ships the Bootstrap variables and page background only; the component sections
+   (buttons, inputs, chips, tables, cards, tabs, dialogs, toasts) follow in U03-T02. */
