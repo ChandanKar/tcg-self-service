@@ -72,9 +72,8 @@ const Environments = (function() {
     }
 
     // E33-T04: AWS starts a stopped RDS database again after seven days; whether the platform stops
-    // it again (rds.keep-stopped.enabled) is asked once and the notes are reworded when it answers.
+    // it again (rds.keep-stopped.enabled) comes from the capabilities (U02-T03).
     let rdsKeepStopped = null;
-    let rdsKeepStoppedAsked = false;
 
     function rdsAutoStartText(at) {
         const when = Utils.formatDate(at);
@@ -83,19 +82,15 @@ const Environments = (function() {
             : `AWS will restart it on ${when} and it will keep running until stopped`;
     }
 
+    /** Whether the server has switched the feature on (U02-T03); false while capabilities are unknown. */
+    function hasFeature(feature) {
+        return typeof Capabilities !== 'undefined' && Capabilities.has(feature);
+    }
+
     function rdsAutoStartNote(vm) {
         if (vm.provider !== 'AWS_RDS' || !vm.awsAutoStartAt || vm.status !== 'STOPPED') return '';
-        if (!rdsKeepStoppedAsked) {
-            rdsKeepStoppedAsked = true;
-            ApiClient.request('GET', Config.API.rds.status, null, { suppressGlobalError: true })
-                .done(r => {
-                    rdsKeepStopped = !!(r && r.keepStopped);
-                    document.querySelectorAll('.rds-auto-start').forEach(el => {
-                        el.textContent = rdsAutoStartText(el.dataset.at);
-                        el.classList.toggle('text-warning-emphasis', !rdsKeepStopped);
-                    });
-                });
-        }
+        // Whether the platform stops it again comes from the capabilities, not a request per page (U02-T03).
+        rdsKeepStopped = hasFeature('rdsKeepStopped');
         return Utils.html`<div class="small mt-1 rds-auto-start ${rdsKeepStopped ? 'text-muted' : 'text-warning-emphasis'}"
             data-at="${vm.awsAutoStartAt}">${rdsAutoStartText(vm.awsAutoStartAt)}</div>`;
     }
@@ -1006,18 +1001,17 @@ const Environments = (function() {
             Approvals.renderEnvBanner(env);
         }
 
-        // Teams channels (E24-T02): only for those who administer the environment.
-        if (typeof ChatChannels !== 'undefined') {
+        // Panels for switched-off features, or that the person cannot use, are not asked for at all (U02-T03).
+        // Teams channels (E24-T02) and webhooks (E34-T07): only for those who administer the environment.
+        if (typeof ChatChannels !== 'undefined' && hasFeature('chat') && env.viewerCanAdminister === true) {
             ChatChannels.renderEnvPanel(env);
         }
-
-        // Webhooks (E34-T07): only for those who administer the environment, while webhooks are on.
-        if (typeof WebhooksPanel !== 'undefined') {
+        if (typeof WebhooksPanel !== 'undefined' && hasFeature('webhooks') && env.viewerCanAdminister === true) {
             WebhooksPanel.renderEnvPanel(env);
         }
 
-        // Spot (E31-T08): renders nothing while Spot is off.
-        if (typeof SpotPanel !== 'undefined') {
+        // Spot (E31-T08)
+        if (typeof SpotPanel !== 'undefined' && hasFeature('spot')) {
             SpotPanel.render(env);
         }
 

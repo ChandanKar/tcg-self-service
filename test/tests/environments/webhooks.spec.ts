@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
+import { withFeatures } from '../../fixtures/capabilities';
 import { seedEnvironment } from '../../fixtures/seed';
 
 /**
@@ -34,6 +35,7 @@ async function open(page: Page, envId: string, enabled: boolean) {
   await page.route(/\/api\/v1\/webhooks\/w-1\/deliveries/, route => json(route, { content: [
     { id: 'd-1', eventId: 'e-1', eventType: 'environment.stopped', status: 'GAVE_UP', attempt: 6, responseCode: 500, error: 'HTTP 500',
       createdAt: new Date().toISOString() }], page: { totalElements: 1 } }));
+  await withFeatures(page, { webhooks: true }); // U02-T03: switched on for this page
   await signIn(page, 'admin');
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
   await page.evaluate(id => { location.hash = '#/environments/' + id; }, envId);

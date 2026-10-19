@@ -34,7 +34,8 @@ public class CapabilitiesService {
             new Switch("assistant", "assistant.chat.enabled", false),
             new Switch("jira", "jira.enabled", false),
             new Switch("budgetActions", "budgets.actions.enabled", false),
-            new Switch("quotas", "quotas.enabled", false)
+            new Switch("quotas", "quotas.enabled", false),
+            new Switch("awsOrganizations", "aws.organizations.enabled", false)
     };
 
     private final UserService userService;

@@ -161,6 +161,6 @@ test.describe('Chargeback page', () => {
   test('non-admins are refused', async ({ page }) => {
     test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
     await open(page, '#/chargeback', 'user');
-    await expect(page.locator('#content-area')).toContainText('Access denied', { timeout: 15_000 });
+    await expect(page.locator('#content-area')).toContainText('is for administrators', { timeout: 15_000 });
   });
 });

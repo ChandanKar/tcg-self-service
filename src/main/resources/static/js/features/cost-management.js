@@ -169,7 +169,7 @@ const CostManagement = (function() {
         reservationCoverage: { url: () => Config.API.costManagement.reservationsCoverage(TREND_DAYS), apply: d => { state.reservationCoverage = d || []; } },
         commitments: { url: () => Config.API.costManagement.commitmentInsights, apply: d => { state.commitments = d || null; } },
         // 404 while carbon is off: the panel stays hidden instead of showing an error
-        carbon: { url: () => Config.API.costManagement.carbon(state.carbonMonth), optional: true,
+        carbon: { url: () => Config.API.costManagement.carbon(state.carbonMonth), optional: true, feature: 'carbon',
             apply: d => { state.carbon = d && d.month ? d : null; } },
         forecast: { url: () => Config.API.costManagement.forecast(30, 14), apply: d => { state.forecast = d || null; } },
         idle: { url: () => Config.API.costManagement.idleWaste(state.idle.page, PAGE_SIZE), apply: d => { state.idle = mapPage(d); } },
@@ -191,7 +191,16 @@ const CostManagement = (function() {
     const ANOMALY_DAYS = 30;
 
     /** Fetch the given keys; resolves once all settled, recording failures in state.errors. */
-    function fetchKeys(keys) {
+    function fetchKeys(requested) {
+        // Data of switched-off features is not asked for (U02-T03); its panel stays hidden as on a 404.
+        const keys = requested.filter(key => {
+            const feature = REQUESTS[key].feature;
+            if (feature && (typeof Capabilities === 'undefined' || !Capabilities.has(feature))) {
+                REQUESTS[key].apply(null);
+                return false;
+            }
+            return true;
+        });
         return Promise.allSettled(keys.map(key => fetchJson(REQUESTS[key].url(),
                 REQUESTS[key].optional ? OPTIONAL_REQUEST : PANEL_REQUEST))).then(results => {
             results.forEach((result, i) => {

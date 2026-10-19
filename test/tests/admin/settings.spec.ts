@@ -101,6 +101,6 @@ test('non-admins see access denied and the API is not called', async ({ page }) 
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
   await expect(page.locator('#settings-link')).toBeHidden();
   await page.evaluate(() => { location.hash = '#/settings'; });
-  await expect(page.locator('#content-area')).toContainText('Access denied');
+  await expect(page.locator('#content-area')).toContainText('is for administrators');
   expect(called).toBe(false);
 });

@@ -39,7 +39,8 @@ const Templates = (function() {
 
     /** Shows the sidebar item only while the catalogue answers (provisioning on). */
     function probeNav() {
-        call('GET', Config.API.templates.list()).then(() => $('#templates-link').show()).catch(() => $('#templates-link').hide());
+        // From the capabilities, without asking the catalogue (U02-T03).
+        $('#templates-link').toggle(typeof Capabilities !== 'undefined' && Capabilities.has('templates'));
     }
 
     function load(params) {

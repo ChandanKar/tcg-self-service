@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
+import { withFeatures } from '../../fixtures/capabilities';
 import { seedEnvironment } from '../../fixtures/seed';
 
 /**
@@ -35,6 +36,7 @@ async function openEnv(page: Page, envId: string, body: any, status = 200) {
     puts.push(route.request().postDataJSON());
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ spotPolicy: 'ALLOWED' }) });
   });
+  await withFeatures(page, { spot: true }); // U02-T03: switched on for this page
   await signIn(page, 'admin');
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
   await page.evaluate(id => { location.hash = `#/environments/${id}`; }, envId);

@@ -44,11 +44,9 @@ const AwsAccounts = (function() {
                 <div id="aws-account-list"><div class="text-muted small"><i class="fas fa-spinner fa-spin"></i> Loading accounts…</div></div>
             </div>`);
         refresh();
-        // The import button only shows when Organizations discovery answers (it is off by default).
-        const token = pageToken;
-        call('GET', Config.API.awsAccounts.candidates).then(() => {
-            if (ContentRouter.isCurrent(token)) $('#aws-import-btn').prop('hidden', false);
-        }).catch(() => {});
+        // The import button only shows while Organizations discovery is on (off by default); the
+        // candidates are fetched when it is used, not on every visit (U02-T03).
+        $('#aws-import-btn').prop('hidden', !(typeof Capabilities !== 'undefined' && Capabilities.has('awsOrganizations')));
     }
 
     function refresh() {

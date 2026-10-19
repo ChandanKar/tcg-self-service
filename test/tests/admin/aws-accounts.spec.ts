@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
+import { withFeatures } from '../../fixtures/capabilities';
 
 /**
  * E28-T09: the AWS Accounts admin page. The account API is faked in the browser: the list with
@@ -77,6 +78,7 @@ test.describe('AWS accounts page', () => {
   });
 
   test('imports chosen organization accounts and reports the skipped ones', async ({ page }) => {
+    await withFeatures(page, { awsOrganizations: true }); // U02-T03: the import shows only while it is on
     let imported: any = null;
     await page.route(/\/api\/v1\/aws-accounts$/, r => r.fulfill({ json: [DEFAULT] }));
     await page.route(/\/aws-accounts\/organization-candidates$/, r => r.fulfill({ json: [
@@ -101,9 +103,10 @@ test.describe('AWS accounts page', () => {
 
 test('non-admins have no AWS Accounts link and are refused', async ({ page }) => {
   test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
+  await withFeatures(page, { awsOrganizations: true }); // U02-T03: switched on for this page
   await signIn(page, 'user');
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
   await expect(page.locator('#aws-accounts-link')).toBeHidden();
   await page.evaluate(() => { location.hash = '#/aws-accounts'; });
-  await expect(page.locator('#content-area')).toContainText('Access denied');
+  await expect(page.locator('#content-area')).toContainText('is for administrators');
 });

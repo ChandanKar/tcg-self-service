@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
+import { withFeatures } from '../../fixtures/capabilities';
 import { seedEnvironment } from '../../fixtures/seed';
 
 /**
@@ -11,6 +12,7 @@ import { seedEnvironment } from '../../fixtures/seed';
 declare const ContentRouter: any;
 
 async function openEnv(page: Page, envId: string, role: 'admin' | 'user' = 'admin') {
+  await withFeatures(page, { chat: true }); // U02-T03: switched on for this page
   await signIn(page, role);
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
   await page.evaluate(id => { location.hash = `#/environments/${id}`; }, envId);

@@ -228,6 +228,11 @@ const ApiAccess = (function() {
                     <div id="api-access-accounts"><div class="text-muted small"><i class="fas fa-spinner fa-spin"></i> Loading…</div></div>
                 </div></section>
             </div>`);
+        // While API tokens are off, say so without asking for the lists (U02-T03).
+        if (typeof Capabilities !== 'undefined' && !Capabilities.has('apiTokens')) {
+            $('#api-access-tokens, #api-access-accounts').html(off({ status: 404 }));
+            return;
+        }
         loadTokens();
         loadAccounts();
     }

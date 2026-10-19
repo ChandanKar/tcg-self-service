@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
+import { withFeatures } from '../../fixtures/capabilities';
 import { seedEnvironment } from '../../fixtures/seed';
 
 /**
@@ -29,6 +30,7 @@ async function open(page: Page, envId: string, vm: any, keepStopped: boolean) {
   }));
   await page.route(/\/api\/v1\/rds$/, route => route.fulfill({ status: 200, contentType: 'application/json',
     body: JSON.stringify({ enabled: true, keepStopped }) }));
+  await withFeatures(page, { rds: true, rdsKeepStopped: keepStopped }); // U02-T03: switched on for this page
   await signIn(page, 'admin');
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
   await page.evaluate(id => { location.hash = '#/environments/' + id; }, envId);

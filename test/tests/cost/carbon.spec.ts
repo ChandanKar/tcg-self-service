@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
+import { withFeatures } from '../../fixtures/capabilities';
 
 /**
  * E37-T03: carbon next to cost. The environment cost card shows last month's attributed emissions
@@ -38,6 +39,7 @@ async function mountCard(page: Page, carbon: { status: number; body: unknown }) 
     environmentId: ENV_ID, scope: 'FULL', monthStart: '2026-10-01', monthToDateEstimated: 63, monthToDateActual: null, actualDays: 0,
     changePercent: null, forecastMonthEnd: null, daily: [], topVms: [], savingsMtd: null, scheduleStatus: null, leaseStatus: null }));
   await page.route(new RegExp(`/environments/${ENV_ID}/carbon$`), r => json(r, carbon.body, carbon.status));
+  await withFeatures(page, { carbon: true }); // U02-T03: switched on for this page
   await signIn(page, 'user');
   await page.waitForFunction(() => typeof EnvCost !== 'undefined' && typeof ContentRouter !== 'undefined');
   await page.waitForLoadState('networkidle');
@@ -87,6 +89,7 @@ test.describe('Carbon footprint panel', () => {
       if (!enabled) return json(route, { error: 'Not Found', message: 'Carbon data is not enabled' }, 404);
       return json(route, month === '2026-08' ? fleet('2026-08', 0.5) : fleet('2026-09', 1));
     });
+    await withFeatures(page, { carbon: true }); // U02-T03: switched on for this page
     await signIn(page, 'admin');
     await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
     await page.evaluate(() => { location.hash = '#/cost-management'; });

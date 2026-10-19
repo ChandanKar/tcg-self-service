@@ -61,6 +61,7 @@ const EnvCost = (function() {
 
     /** Last full month's carbon and a 12-month sparkline (E37-T03); nothing while carbon is off or has no data. */
     function addCarbon($card, env, token) {
+        if (typeof Capabilities === 'undefined' || !Capabilities.has('carbon')) return; // U02-T03
         ApiClient.get(Config.API.environments.carbon(env.environmentId), { suppressGlobalError: true })
             .done(function(carbon) {
                 if (!ContentRouter.isCurrent(token) || !carbon || !carbon.latestMonth) return;

@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
+import { withFeatures } from '../../fixtures/capabilities';
 
 /**
  * E34-T05: API tokens in My Account (hidden while tokens are off; a new token is shown once and
@@ -46,6 +47,7 @@ async function setUp(page: Page, enabled: boolean) {
     return json(route, [{ userId: 'sa-1', name: 'ci-deployer', email: 'ci-deployer@service.local', role: 'USER',
       ownerUserId: 'u-9', ownerName: 'Pat', active: true, createdAt: new Date().toISOString(), activeTokens: 1 }]);
   });
+  await withFeatures(page, { apiTokens: true }); // U02-T03: switched on for this page
   await signIn(page, 'admin');
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined' && typeof MyAccount !== 'undefined');
   return calls;
