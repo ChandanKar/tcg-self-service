@@ -106,6 +106,18 @@ class NotificationServiceTest {
     // ---- Phase 1: env-admin recipient scoping ----
 
     @Test
+    void aFailureReasonNamingAnInstanceIsWrittenWithTheIdMasked() {
+        service.notifyOperationFailed("user-regular", "env-A", "Env A", "START",
+                "The instance i-0123456789abcdef0 is not in a state from which it can be started.");
+
+        ArgumentCaptor<com.tcgdigital.vmcontrol.model.Notification> saved =
+                ArgumentCaptor.forClass(com.tcgdigital.vmcontrol.model.Notification.class);
+        verify(notificationRepository).save(saved.capture());
+        assertFalse(saved.getValue().getMessage().contains("i-0123456789abcdef0"));
+        assertTrue(saved.getValue().getMessage().contains("The instance i-… is not in a state"));
+    }
+
+    @Test
     void broadcast_excludesEnvAdminForEnvironmentTheyDoNotAdminister() {
         service.notifyLockAcquiredForEnvironment("env-B", "Env B", "user-regular", null);
 

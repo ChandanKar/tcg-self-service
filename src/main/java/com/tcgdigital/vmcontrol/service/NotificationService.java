@@ -991,8 +991,9 @@ public class NotificationService {
         n.setNotificationId(UUID.randomUUID().toString());
         n.setUserId(userId);
         n.setType(type);
-        n.setTitle(title);
-        n.setMessage(message);
+        // Bell texts go to every member, so AWS ids are masked when they are written (U01-T04).
+        n.setTitle(com.tcgdigital.vmcontrol.service.support.ProviderIdRedactor.redact(title));
+        n.setMessage(com.tcgdigital.vmcontrol.service.support.ProviderIdRedactor.redact(message));
         n.setEntityType(entityType);
         n.setEntityId(entityId);
         return n;
@@ -1077,7 +1078,8 @@ public class NotificationService {
                 .toList();
         if (!addresses.isEmpty()) {
             String subject = "Environment stop notice: " + environmentName;
-            emailService.sendHtml(addresses, subject, EmailTemplates.eventEmail(subject, otherMessage), null, null,
+            emailService.sendHtml(addresses, subject, EmailTemplates.eventEmail(subject,
+                            com.tcgdigital.vmcontrol.service.support.ProviderIdRedactor.redact(otherMessage)), null, null,
                     "STOP_ENVIRONMENT_BROADCAST", environmentId, actorUserId);
         }
         return addresses.size();
@@ -1094,7 +1096,9 @@ public class NotificationService {
         if (addresses.isEmpty()) {
             return;
         }
-        emailService.sendHtml(addresses, subject, EmailTemplates.eventEmail(subject, bodyText), null, null);
+        String safeSubject = com.tcgdigital.vmcontrol.service.support.ProviderIdRedactor.redact(subject);
+        emailService.sendHtml(addresses, safeSubject, EmailTemplates.eventEmail(safeSubject,
+                com.tcgdigital.vmcontrol.service.support.ProviderIdRedactor.redact(bodyText)), null, null);
     }
 
     /**

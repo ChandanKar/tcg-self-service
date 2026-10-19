@@ -25,7 +25,11 @@ public class PlatformEvents {
 
     public void publish(PlatformEventType type, String environmentId, String environmentName, Map<String, Object> data) {
         try {
-            publisher.publishEvent(PlatformEvent.of(type, environmentId, environmentName, data));
+            // Webhook receivers are outside the platform: AWS ids never leave in a payload (U01-T04).
+            @SuppressWarnings("unchecked")
+            Map<String, Object> redacted = data == null ? null
+                    : (Map<String, Object>) com.tcgdigital.vmcontrol.service.support.ProviderIdRedactor.redactDeep(data);
+            publisher.publishEvent(PlatformEvent.of(type, environmentId, environmentName, redacted));
         } catch (Exception e) {
             log.warn("Could not publish {} for environment {}: {}", type.value(), environmentId, e.getMessage());
         }

@@ -134,4 +134,15 @@ class ChatDispatchServiceTest {
         ReflectionTestUtils.setField(service, "publicBaseUrl", "");
         assertThat(service.environmentLink("e")).isNull();
     }
+
+    @Test
+    void awsIdsAreMaskedInTheTitleTextAndFacts() {
+        ChatMessage out = ChatDispatchService.redacted(new ChatMessage("Start failed on i-0123456789abcdef0",
+                "Reason: The instance i-0123456789abcdef0 is not ready", ChatMessage.Severity.WARNING,
+                List.of(new ChatMessage.Field("VM", "web-01 (i-0123456789abcdef0)")), List.of(), "https://app/x"));
+
+        org.assertj.core.api.Assertions.assertThat(out.toString()).doesNotContain("i-0123456789abcdef0");
+        org.assertj.core.api.Assertions.assertThat(out.fields().get(0).value()).isEqualTo("web-01 (i-…)");
+        org.assertj.core.api.Assertions.assertThat(out.linkUrl()).isEqualTo("https://app/x");
+    }
 }

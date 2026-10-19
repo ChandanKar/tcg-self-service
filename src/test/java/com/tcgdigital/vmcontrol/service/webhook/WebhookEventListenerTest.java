@@ -74,6 +74,19 @@ class WebhookEventListenerTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void aPayloadNeverCarriesAnAwsId() {
+        subscribe(env.getEnvironmentId(), "operation.failed");
+
+        inTransaction(() -> platformEvents.publish(PlatformEventType.OPERATION_FAILED, env.getEnvironmentId(), env.getName(),
+                Map.of("operationId", "op-7", "errorMessage", "The instance i-0123456789abcdef0 is not ready",
+                        "vms", List.of(Map.of("name", "web-01", "providerVmId", "i-0123456789abcdef0")))), false);
+
+        List<WebhookDelivery> queued = deliveries.findAll();
+        assertThat(queued).hasSize(1);
+        assertThat(queued.get(0).getPayload()).doesNotContain("i-0123456789abcdef0").contains("i-…").contains("web-01");
+    }
+
+    @Test
     void aCommittedEventIsQueuedForTheEnvironmentsAndGlobalSubscriptionsThatWantIt() {
         WebhookSubscription mine = subscribe(env.getEnvironmentId(), "environment.stopped");
         WebhookSubscription global = subscribe(null, "environment.stopped,operation.failed");

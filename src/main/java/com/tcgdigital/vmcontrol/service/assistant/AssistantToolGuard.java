@@ -82,6 +82,22 @@ public class AssistantToolGuard {
         this.clock = clock;
     }
 
+    /** Who the caller is, for the administrators-only rule on AWS ids (U01-T04); absent in some unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.repository.UserRepository users;
+
+    void setUsers(com.tcgdigital.vmcontrol.repository.UserRepository users) {
+        this.users = users;
+    }
+
+    /** An administrator gets tool output as is; everyone else gets AWS ids and ARNs masked. */
+    private boolean isAdministrator(String userId) {
+        if (users == null || userId == null) {
+            return false;
+        }
+        return users.findById(userId).map(u -> u.isAdmin() && u.isActive()).orElse(false);
+    }
+
     @PreDestroy
     void shutdown() {
         executor.shutdownNow();
@@ -128,11 +144,19 @@ public class AssistantToolGuard {
             return failed(userId, tokenPrefix, tool, args, started, "The tool failed", "failed");
         }
 
+        boolean administrator = isAdministrator(userId);
+        if (!administrator) {
+            value = com.tcgdigital.vmcontrol.service.support.ProviderIdRedactor.redactDeep(value);
+        }
         String text;
         try {
             text = objectMapper.writeValueAsString(value);
         } catch (Exception e) {
             return failed(userId, tokenPrefix, tool, args, started, "The tool failed", "unserialisable result");
+        }
+        if (!administrator) {
+            // Values that are not maps, lists or strings (records, DTOs) are masked in their JSON text too.
+            text = com.tcgdigital.vmcontrol.service.support.ProviderIdRedactor.redact(text);
         }
         boolean truncated = text.length() > maxOutputChars;
         if (truncated) {
@@ -145,7 +169,7 @@ public class AssistantToolGuard {
     private Outcome failed(String userId, String tokenPrefix, AssistantTool tool, Map<String, Object> args, long started,
                            String message, String reason) {
         audit(userId, tokenPrefix, tool.name(), args, null, clock.millis() - started, reason);
-        return new Outcome(message, null, true, false, null);
+        return new Outcome(com.tcgdigital.vmcontrol.service.support.ProviderIdRedactor.redact(message), null, true, false, null);
     }
 
     private static final long FIRST_REJECTION = -1;

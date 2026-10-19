@@ -144,11 +144,26 @@ public class ChatDispatchService {
         if (!live("chat.enabled", enabled)) {
             return;
         }
+        ChatMessage safe = redacted(message);
         try {
-            afterCommit.run(() -> executor.execute(() -> deliver(environmentId, type, message, dedupKey)));
+            afterCommit.run(() -> executor.execute(() -> deliver(environmentId, type, safe, dedupKey)));
         } catch (RuntimeException e) {
             log.warn("Could not queue a {} chat message: {}", type, e.getClass().getSimpleName());
         }
+    }
+
+    /** Channel members are not all administrators: AWS ids are masked in the title, text and facts (U01-T04). */
+    static ChatMessage redacted(ChatMessage message) {
+        if (message == null) {
+            return null;
+        }
+        List<ChatMessage.Field> fields = message.fields() == null ? null : message.fields().stream()
+                .map(f -> new ChatMessage.Field(f.label(),
+                        com.tcgdigital.vmcontrol.service.support.ProviderIdRedactor.redact(f.value())))
+                .toList();
+        return new ChatMessage(com.tcgdigital.vmcontrol.service.support.ProviderIdRedactor.redact(message.title()),
+                com.tcgdigital.vmcontrol.service.support.ProviderIdRedactor.redact(message.text()),
+                message.severity(), fields, message.actions(), message.linkUrl());
     }
 
     /** The channels that get this event: the environment's subscribed ones, else the subscribed defaults. */

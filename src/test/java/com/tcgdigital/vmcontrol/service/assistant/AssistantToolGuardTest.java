@@ -66,6 +66,35 @@ class AssistantToolGuardTest {
         assertThat(details.getValue()).contains("Token AbCd1234", "search=pay", "rows 3");
     }
 
+    private void callerIsAdministrator(boolean admin) {
+        com.tcgdigital.vmcontrol.repository.UserRepository users = mock(com.tcgdigital.vmcontrol.repository.UserRepository.class);
+        com.tcgdigital.vmcontrol.model.User user = new com.tcgdigital.vmcontrol.model.User();
+        user.setUserId("u-1");
+        user.setAdmin(admin);
+        user.setIsActive(true);
+        org.mockito.Mockito.when(users.findById("u-1")).thenReturn(java.util.Optional.of(user));
+        guard.setUsers(users);
+    }
+
+    @Test
+    void someoneWhoIsNotAnAdministratorGetsAwsIdsMasked() {
+        callerIsAdministrator(false);
+        AssistantToolGuard.Outcome outcome = guard.invoke("u-1", "p", tool("get_environment", a -> Map.of(
+                "vms", List.of(Map.of("name", "web-01", "note", "runs on i-0123456789abcdef0")))), Map.of());
+
+        assertThat(outcome.text()).doesNotContain("i-0123456789abcdef0").contains("i-…").contains("web-01");
+        assertThat(outcome.structured().toString()).doesNotContain("i-0123456789abcdef0");
+    }
+
+    @Test
+    void anAdministratorGetsTheOutputAsIs() {
+        callerIsAdministrator(true);
+        AssistantToolGuard.Outcome outcome = guard.invoke("u-1", "p", tool("get_environment", a -> Map.of(
+                "note", "runs on i-0123456789abcdef0")), Map.of());
+
+        assertThat(outcome.text()).contains("i-0123456789abcdef0");
+    }
+
     @Test
     void theToolRunsAsTheCaller() {
         AtomicReference<String> seen = new AtomicReference<>();
