@@ -49,6 +49,12 @@ public class RegisterVmDTO {
      */
     private String providerVmId;
 
+    /**
+     * An instance picked from GET /api/ec2/instances (U01-T02), instead of providerVmId: it sets the
+     * provider, region, account and instance. Required for EC2 when the caller is not an administrator.
+     */
+    private String instanceRef;
+
     private VmType vmType = VmType.DEV;
 
     @NotNull(message = "Sequence position is required")
@@ -172,6 +178,14 @@ public class RegisterVmDTO {
 
     public String getAwsAccountRef() {
         return awsAccountRef;
+    }
+
+    public String getInstanceRef() {
+        return instanceRef;
+    }
+
+    public void setInstanceRef(String instanceRef) {
+        this.instanceRef = instanceRef;
     }
 
     public void setAwsAccountRef(String awsAccountRef) {

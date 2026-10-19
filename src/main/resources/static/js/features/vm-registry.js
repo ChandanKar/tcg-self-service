@@ -11,6 +11,8 @@ const VmRegistry = (function() {
     let _ec2FetchedInstances = [];
     // What the import panel browses (E33-T02): 'EC2' instances or 'RDS' databases, and the databases fetched
     let _importSource = 'EC2';
+    /** The reference of the EC2 instance picked from the list (U01-T02); registering sends it instead of the id. */
+    let _selectedInstanceRef = null;
     let _rdsFetched = [];
 
     /**
@@ -982,6 +984,7 @@ const VmRegistry = (function() {
 
         _ec2FetchedInstances = [];
         _rdsFetched = [];
+        _selectedInstanceRef = null;
         $('#importSourceEc2').prop('checked', true);
         setImportSource('EC2');
         probeRds();
@@ -1167,6 +1170,8 @@ const VmRegistry = (function() {
     function selectRdsDatabase(providerVmId) {
         const db = _rdsFetched.find(d => d.providerVmId === providerVmId);
         if (!db || db.registered) return;
+        _selectedInstanceRef = null;
+        showProviderVmIdField(true);
         $('#vmProvider').val('AWS_RDS').prop('disabled', true);
         $('#vmRegion').val($('#ec2Region').val()).prop('readonly', true);
         $('#vmProviderVmId').val(db.providerVmId).prop('readonly', true);
@@ -1198,25 +1203,17 @@ const VmRegistry = (function() {
                 </div>
             `);
 
-            const [instances, registeredIdsArray] = await Promise.all([
-                ApiClient.get(Config.API.ec2.listInstances(region, selectedAccountRef())),
-                ApiClient.get(Config.API.ec2.registeredIds)
-            ]);
+            // Each instance comes with its registration and a reference to register it by; the instance id
+            // is only in the list for administrators (U01-T02).
+            const instances = await ApiClient.get(Config.API.ec2.listInstances(region, selectedAccountRef()));
 
-            const registeredVmIds = new Set(registeredIdsArray);
-            const STALE_STATES = new Set(['terminated', 'shutting-down']);
-
-            _ec2FetchedInstances = instances.map(inst => {
-                const isRegistered = registeredVmIds.has(inst.instanceId);
-                const isStale = isRegistered && STALE_STATES.has(inst.state);
-                return {
-                    ...inst,
-                    _registered: isRegistered,
-                    _stale: isStale,
-                    _status: isStale ? 'stale' : isRegistered ? 'registered' : 'available',
-                    _name: (inst.tags && inst.tags.Name) || ''
-                };
-            });
+            _ec2FetchedInstances = instances.map(inst => ({
+                ...inst,
+                _registered: !!inst.registered,
+                _stale: !!inst.stale,
+                _status: inst.stale ? 'stale' : inst.registered ? 'registered' : 'available',
+                _name: inst.name || ''
+            }));
 
             renderEc2Instances(_ec2FetchedInstances);
             $('#ec2SearchFilter').show();
@@ -1283,11 +1280,12 @@ const VmRegistry = (function() {
                 <tr class="${rowClass}"
                     style="${rowBg} ${clickable ? 'cursor:pointer;' : ''}"
                     ${clickable ? 'data-action="vr-select-ec2"' : ''}
-                    data-instance-id="${Utils.escapeHtml(inst.instanceId)}"
+                    data-ref="${Utils.escapeHtml(inst.ref)}"
                     data-instance-name="${Utils.escapeHtml(inst._name || '')}">
                     <td>
                         <strong>${name}</strong>
-                        <div class="small text-muted">${Utils.escapeHtml(inst.instanceId)}</div>
+                        ${inst.instanceId ? `<div class="small text-muted">${Utils.escapeHtml(inst.instanceId)}</div>` : ''}
+                        ${inst.registered && inst.registeredEnvironmentName ? `<div class="small text-muted">In ${Utils.escapeHtml(inst.registeredEnvironmentName)}</div>` : ''}
                     </td>
                     <td>${Utils.escapeHtml(inst.instanceType || '-')}</td>
                     <td><span class="${stateClass}"><i class="fas fa-circle fa-xs me-1"></i>${inst.state}</span></td>
@@ -1312,7 +1310,7 @@ const VmRegistry = (function() {
                 <table class="table table-sm mb-0 table-cards">
                     <thead class="table-light sticky-top">
                         <tr>
-                            <th>Name / Instance ID</th>
+                            <th>Name</th>
                             <th>Type</th>
                             <th>State</th>
                             <th>Private IP</th>
@@ -1340,30 +1338,33 @@ const VmRegistry = (function() {
         const term = searchText.toLowerCase();
         const filtered = _ec2FetchedInstances.filter(inst =>
             (inst._name && inst._name.toLowerCase().includes(term)) ||
-            inst.instanceId.toLowerCase().includes(term) ||
+            (inst.instanceId && inst.instanceId.toLowerCase().includes(term)) ||
             (inst.privateIpAddress && inst.privateIpAddress.includes(term))
         );
         renderEc2Instances(filtered);
     }
 
-    function selectEc2Instance(instanceId) {
-        const inst = _ec2FetchedInstances.find(i => i.instanceId === instanceId);
+    function selectEc2Instance(ref) {
+        const inst = _ec2FetchedInstances.find(i => i.ref === ref);
         if (!inst || inst._registered) return;
 
         const region = $('#ec2Region').val();
-        const name = inst._name || inst.instanceId;
+        const name = inst._name || inst.instanceId || inst.privateIpAddress || 'ec2-instance';
+        _selectedInstanceRef = inst.ref;
 
         $('#vmProvider').val('AWS').prop('disabled', true);
         $('#vmRegion').val(region).prop('readonly', true);
-        $('#vmProviderVmId').val(inst.instanceId).prop('readonly', true);
+        // Administrators see the id; everyone else registers by the reference alone.
+        $('#vmProviderVmId').val(inst.instanceId || '').prop('readonly', true);
+        showProviderVmIdField(!!inst.instanceId);
         $('#vmName').val(name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-'));
         $('#vmDisplayName').val(name);
         $('#vmDescription').val(`${inst.instanceType || ''} | ${inst.privateIpAddress || ''} | ${inst.state || ''}`.trim());
 
         $('#ec2InstancesList .ec2-selectable-row').removeClass('table-success');
-        $(`#ec2InstancesList tr[data-instance-id="${instanceId}"]`).addClass('table-success');
+        $('#ec2InstancesList tr').filter(function () { return this.dataset.ref === ref; }).addClass('table-success');
         document.getElementById('registerVmForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
-        Notifications.success(`Selected: ${name} (${inst.instanceId})`);
+        Notifications.success(`Selected: ${name}`);
     }
 
     async function submitVm() {
@@ -1397,6 +1398,7 @@ const VmRegistry = (function() {
             provider: $('#vmProvider').val(),
             region: $('#vmRegion').val().trim(),
             providerVmId: $('#vmProviderVmId').val().trim(),
+            instanceRef: isEdit ? null : _selectedInstanceRef,
             awsAccountRef: isEdit ? null : selectedAccountRef(),
             sequencePosition: parseInt($('#vmSequencePosition').val()) || 1
         };
@@ -1542,7 +1544,7 @@ Actions.registerAll({
     'vr-edit-group': el => VmRegistry.editGroup(el.dataset.groupId),
     'vr-open-vm-form': el => VmRegistry.openVmForm(el.dataset.groupId),
     'vr-delete-group': el => VmRegistry.deleteGroup(el.dataset.groupId),
-    'vr-select-ec2': el => VmRegistry.selectEc2Instance(el.dataset.instanceId),
+    'vr-select-ec2': el => VmRegistry.selectEc2Instance(el.dataset.ref),
     'vr-select-rds': el => VmRegistry.selectRdsDatabase(el.dataset.id),
     'vr-open-group-form': () => VmRegistry.openGroupForm(),
     'vr-submit-group': () => Features.submitGroup(),

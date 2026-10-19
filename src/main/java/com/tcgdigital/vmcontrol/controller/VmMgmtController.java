@@ -344,7 +344,7 @@ public class VmMgmtController {
         securityService.assertCanAdminister(environmentId);
 
 
-        Vm created = vmService.registerVm(dto, userService.getCurrentUserId());
+        Vm created = vmService.registerVm(dto, userService.getCurrentUserId(), userService.isCurrentUserAdmin());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(VmDTO.fromEntity(created));
     }

@@ -279,6 +279,6 @@ class VmServiceTest {
 
         assertThatThrownBy(() -> service.registerVm(dto))
                 .isInstanceOf(ValidationException.class)
-                .hasMessage("Instance i-0gone was removed from the platform - reactivate it from the registry instead");
+                .hasMessage("This instance was removed from the platform - reactivate it from the registry instead");
     }
 }

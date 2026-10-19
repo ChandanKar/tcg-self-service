@@ -1,7 +1,11 @@
 package com.tcgdigital.vmcontrol.controller;
 
 import com.tcgdigital.vmcontrol.dto.Ec2InstanceInfo;
+import com.tcgdigital.vmcontrol.repository.VmRepository;
 import com.tcgdigital.vmcontrol.service.Ec2Service;
+import com.tcgdigital.vmcontrol.service.SecurityService;
+import com.tcgdigital.vmcontrol.service.UserService;
+import com.tcgdigital.vmcontrol.service.support.InstanceRefCodec;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,6 +40,14 @@ class Ec2ControllerTest {
 
     @Mock
     private Ec2Service ec2Service;
+    @Mock
+    private VmRepository vmRepository;
+    @Mock
+    private InstanceRefCodec instanceRefs;
+    @Mock
+    private UserService userService;
+    @Mock
+    private SecurityService securityService;
 
     @InjectMocks
     private Ec2Controller ec2Controller;
@@ -44,6 +56,9 @@ class Ec2ControllerTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(userService.getCurrentUserId()).thenReturn("env-admin-1");
+        lenient().when(instanceRefs.encode(any(), any(), any(), anyString(), any()))
+                .thenAnswer(call -> "ref-" + call.getArgument(3));
         mockMvc = MockMvcBuilders.standaloneSetup(ec2Controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
@@ -63,14 +78,15 @@ class Ec2ControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$", hasSize(2)))
-                .andExpect(jsonPath("$[0].instanceId", is("i-0123456789abcdef0")))
+                // U01-T02: offered by an opaque reference; the instance id is for administrators only
+                .andExpect(jsonPath("$[0].ref", is("ref-i-0123456789abcdef0")))
+                .andExpect(jsonPath("$[0].instanceId").doesNotExist())
                 .andExpect(jsonPath("$[0].instanceType", is("t2.micro")))
                 .andExpect(jsonPath("$[0].state", is("running")))
-                .andExpect(jsonPath("$[0].region", is(REGION)))
                 .andExpect(jsonPath("$[0].privateIpAddress", is("10.0.1.100")))
-                .andExpect(jsonPath("$[0].publicIpAddress", is("13.232.100.50")))
                 .andExpect(jsonPath("$[0].availabilityZone", is("ap-south-1a")))
-                .andExpect(jsonPath("$[1].instanceId", is("i-0987654321fedcba0")))
+                .andExpect(jsonPath("$[0].registered", is(false)))
+                .andExpect(jsonPath("$[1].ref", is("ref-i-0987654321fedcba0")))
                 .andExpect(jsonPath("$[1].instanceType", is("t3.medium")))
                 .andExpect(jsonPath("$[1].state", is("stopped")));
 
@@ -107,19 +123,16 @@ class Ec2ControllerTest {
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].instanceId", is("i-test123456")))
-                .andExpect(jsonPath("$[0].vpcId", is("vpc-ap-south-1-test")))
-                .andExpect(jsonPath("$[0].subnetId", is("subnet-ap-south-1a-test")))
-                .andExpect(jsonPath("$[0].imageId", is("ami-0123456789abcdef0")))
-                .andExpect(jsonPath("$[0].keyName", is("my-mumbai-keypair")))
+                .andExpect(jsonPath("$[0].name", is("TestServer")))
                 .andExpect(jsonPath("$[0].platform", is("linux")))
-                .andExpect(jsonPath("$[0].architecture", is("x86_64")))
-                .andExpect(jsonPath("$[0].tags.Name", is("TestServer")))
-                .andExpect(jsonPath("$[0].tags.Environment", is("Development")))
-                .andExpect(jsonPath("$[0].securityGroupIds", hasSize(2)))
-                .andExpect(jsonPath("$[0].ebsOptimized", is(true)))
-                .andExpect(jsonPath("$[0].coreCount", is(2)))
-                .andExpect(jsonPath("$[0].threadsPerCore", is(2)));
+                // network, image, key and security-group ids never reach the registration list (U01-T02)
+                .andExpect(jsonPath("$[0].instanceId").doesNotExist())
+                .andExpect(jsonPath("$[0].vpcId").doesNotExist())
+                .andExpect(jsonPath("$[0].subnetId").doesNotExist())
+                .andExpect(jsonPath("$[0].imageId").doesNotExist())
+                .andExpect(jsonPath("$[0].keyName").doesNotExist())
+                .andExpect(jsonPath("$[0].tags").doesNotExist())
+                .andExpect(jsonPath("$[0].securityGroupIds").doesNotExist());
 
         verify(ec2Service).listInstances(null, REGION);
     }

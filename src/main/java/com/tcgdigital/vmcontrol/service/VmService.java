@@ -121,8 +121,35 @@ public class VmService {
     /** Register a VM, audited as {@code actorUserId} (E11-T03; null for the system). */
     @Transactional
     public Vm registerVm(RegisterVmDTO dto, String actorUserId) {
-        if (dto.getProviderVmId() == null || dto.getProviderVmId().isBlank()) {
+        return registerVm(dto, actorUserId, true);
+    }
+
+    /** Resolves RegisterVmDTO.instanceRef (U01-T02); absent in unit tests that never send one. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.support.InstanceRefCodec instanceRefs;
+
+    /**
+     * Register a VM. People who may not see instance ids pick an EC2 instance from the list by its
+     * reference (U01-T02); only an administrator ({@code actorMaySeeProviderIds}) may type an EC2 id.
+     */
+    @Transactional
+    public Vm registerVm(RegisterVmDTO dto, String actorUserId, boolean actorMaySeeProviderIds) {
+        if (dto.getInstanceRef() != null && !dto.getInstanceRef().isBlank()) {
+            if (instanceRefs == null) {
+                throw new IllegalStateException("Instance references are not available");
+            }
+            com.tcgdigital.vmcontrol.service.support.InstanceRefCodec.InstanceRef ref =
+                    instanceRefs.decode(dto.getInstanceRef(), actorUserId);
+            dto.setProvider(ref.provider());
+            dto.setRegion(ref.region());
+            dto.setProviderVmId(ref.instanceId());
+            if (ref.accountRef() != null && !ref.accountRef().isBlank()) {
+                dto.setAwsAccountRef(ref.accountRef());
+            }
+        } else if (dto.getProviderVmId() == null || dto.getProviderVmId().isBlank()) {
             throw new ValidationException("Provider VM ID is required");
+        } else if (!actorMaySeeProviderIds && dto.getProvider() == CloudProvider.AWS) {
+            throw new ValidationException("Pick the instance from the AWS list.");
         }
         requireRdsId(dto);
         // Verify group exists
@@ -146,11 +173,12 @@ public class VmService {
         // Validate provider VM ID uniqueness (the unique index covers deleted and inactive rows)
         Optional<Vm> sameInstance = vmRepository.findByProviderAndProviderVmId(dto.getProvider(), dto.getProviderVmId());
         if (sameInstance.isPresent()) {
+            // Worded without the instance id, which only administrators see (U01-T02).
             if (!Boolean.TRUE.equals(sameInstance.get().getIsActive())) {
-                throw new ValidationException("Instance " + dto.getProviderVmId()
-                        + " was removed from the platform - reactivate it from the registry instead");
+                throw new ValidationException("This instance was removed from the platform - reactivate it from the registry instead");
             }
-            throw new ValidationException("VM with provider ID '" + dto.getProviderVmId() + "' is already registered");
+            throw new ValidationException("This instance is already registered in "
+                    + sameInstance.get().getGroup().getEnvironment().getName());
         }
 
         // Validate VM dependencies
