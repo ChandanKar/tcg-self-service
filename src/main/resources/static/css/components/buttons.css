@@ -2,29 +2,7 @@
  * Button Component Styles
  */
 
-.btn-primary {
-    background: var(--primary-color);
-    border-color: var(--primary-color);
-    transition: all 0.2s;
-}
-
-.btn-primary:hover {
-    background: var(--primary-dark);
-    border-color: var(--primary-dark);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
-}
-
-.btn-outline-primary {
-    color: var(--primary-color);
-    border-color: var(--primary-color);
-}
-
-.btn-outline-primary:hover {
-    background: var(--primary-color);
-    border-color: var(--primary-color);
-    transform: translateY(-1px);
-}
+/* Colours, sizes and radii of the button variants live in css/theme.css (U03-T02). */
 
 /* ================================================
    Ghost buttons — secondary/navigation actions (History, Back, Refresh, a "Cancel" that
@@ -34,63 +12,13 @@
    except when a text row action needs to keep its semantic color, in which case pair it
    with btn-outline-danger/success/warning as you would with .btn-action.
    ================================================ */
-/* Bootstrap's #6c757d is 4.48:1 on the page background; darken it (E13-T04). */
-.btn-outline-secondary {
-    --bs-btn-color: #5c636a;
-}
-
 .btn-ghost {
     background: transparent;
     border-color: transparent;
-    color: var(--text-secondary, #64748b);
 }
 
 .btn-ghost:hover:not(:disabled) {
-    background: var(--background-light, #f8fafc);
     border-color: transparent;
-    color: var(--text-primary, #1e293b);
-}
-
-.btn-ghost.btn-outline-danger {
-    color: var(--brand-red-text);
-}
-
-.btn-ghost.btn-outline-danger:hover:not(:disabled) {
-    background: rgba(239, 68, 68, 0.1);
-    border-color: transparent;
-    color: var(--danger-color, #ef4444);
-}
-
-.btn-ghost.btn-outline-success {
-    color: var(--text-caption, #64748b);
-}
-
-.btn-ghost.btn-outline-success:hover:not(:disabled) {
-    background: rgba(16, 185, 129, 0.1);
-    border-color: transparent;
-    color: var(--success-color, #10b981);
-}
-
-.btn-ghost.btn-outline-warning {
-    color: var(--text-caption, #64748b);
-}
-
-.btn-ghost.btn-outline-warning:hover:not(:disabled) {
-    background: rgba(245, 158, 11, 0.12);
-    border-color: transparent;
-    color: var(--warning-color, #f59e0b);
-}
-
-.btn-ghost.btn-primary,
-.btn-ghost.btn-outline-primary {
-    color: var(--text-caption, #64748b);
-}
-
-.btn-ghost.btn-primary:hover:not(:disabled),
-.btn-ghost.btn-outline-primary:hover:not(:disabled) {
-    background: rgba(37, 99, 235, 0.1);
-    border-color: transparent;
-    color: var(--primary-color, #2563eb);
     transform: none;
     box-shadow: none;
 }
@@ -98,7 +26,7 @@
 /* ================================================
    Row Action Buttons — icon-only (or short icon+label) view/edit/delete/start/stop
    controls repeated down a table column. Previously each was a fully bordered, tinted
-   btn-outline-*/solid-* pill, so a column of them read as a wall of colored buttons and
+   btn-outline-* or solid pill, so a column of them read as a wall of colored buttons and
    gave delete/stop the same visual weight as view. No border or fill at rest; color and a
    matching background tint appear only on hover — keyed off whichever Bootstrap variant
    class is paired with .btn-action, solid or outline alike (btn-danger and
@@ -116,50 +44,50 @@
     border-radius: 6px;
     background-color: transparent;
     border-color: transparent;
-    color: var(--text-caption, #64748b);
+    color: var(--slate);
     transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .btn-action.btn-danger,
 .btn-action.btn-outline-danger {
-    color: #e2a29e;
+    color: var(--brand-red-text);
 }
 
 .btn-action.btn-warning,
 .btn-action.btn-outline-warning {
-    color: #92400e;
+    color: var(--brand-gold-text);
 }
 
 .btn-action:hover:not(:disabled) {
-    background-color: var(--background-light, #f8fafc);
+    background-color: #eceff5;
     border-color: transparent;
-    color: #475569;
+    color: var(--ink);
     transform: none;
     box-shadow: none;
 }
 
 .btn-action.btn-primary:hover:not(:disabled),
 .btn-action.btn-outline-primary:hover:not(:disabled) {
-    background-color: rgba(37, 99, 235, 0.1);
-    color: var(--primary-color);
+    background-color: var(--brand-navy-tint);
+    color: var(--brand-navy);
 }
 
 .btn-action.btn-danger:hover:not(:disabled),
 .btn-action.btn-outline-danger:hover:not(:disabled) {
-    background-color: rgba(239, 68, 68, 0.1);
-    color: var(--danger-color);
+    background-color: var(--brand-red-tint);
+    color: var(--brand-red-text);
 }
 
 .btn-action.btn-warning:hover:not(:disabled),
 .btn-action.btn-outline-warning:hover:not(:disabled) {
-    background-color: rgba(245, 158, 11, 0.12);
-    color: #78350f;
+    background-color: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
 }
 
 .btn-action.btn-success:hover:not(:disabled),
 .btn-action.btn-outline-success:hover:not(:disabled) {
-    background-color: rgba(16, 185, 129, 0.1);
-    color: var(--success-color);
+    background-color: var(--brand-green-tint);
+    color: var(--brand-green-text);
 }
 
 .btn-action:disabled {
@@ -179,58 +107,14 @@
    the bright tokens fail WCAG AA against their own tint.
    ================================================ */
 .btn-tonal {
-    border-radius: var(--radius-btn, 6px);
+    border-radius: var(--radius-btn);
     border-color: transparent;
     font-weight: 600;
     transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
 }
 
-.btn-tonal.btn-primary,
-.btn-tonal.btn-outline-primary {
-    background-color: rgba(37, 99, 235, 0.12);
-    color: var(--primary-dark, #1e40af);
-}
-
-.btn-tonal.btn-success,
-.btn-tonal.btn-outline-success {
-    background-color: rgba(16, 185, 129, 0.12);
-    color: var(--status-running-text, #166534);
-}
-
-.btn-tonal.btn-danger,
-.btn-tonal.btn-outline-danger {
-    background-color: rgba(239, 68, 68, 0.12);
-    color: var(--status-error-text, #991b1b);
-}
-
-.btn-tonal.btn-warning,
-.btn-tonal.btn-outline-warning {
-    background-color: rgba(245, 158, 11, 0.12);
-    color: var(--status-stopping-text, #92400e);
-}
-
 .btn-tonal:hover:not(:disabled) {
     transform: translateY(-1px);
-}
-
-.btn-tonal.btn-primary:hover:not(:disabled),
-.btn-tonal.btn-outline-primary:hover:not(:disabled) {
-    background-color: rgba(37, 99, 235, 0.20);
-}
-
-.btn-tonal.btn-success:hover:not(:disabled),
-.btn-tonal.btn-outline-success:hover:not(:disabled) {
-    background-color: rgba(16, 185, 129, 0.20);
-}
-
-.btn-tonal.btn-danger:hover:not(:disabled),
-.btn-tonal.btn-outline-danger:hover:not(:disabled) {
-    background-color: rgba(239, 68, 68, 0.20);
-}
-
-.btn-tonal.btn-warning:hover:not(:disabled),
-.btn-tonal.btn-outline-warning:hover:not(:disabled) {
-    background-color: rgba(245, 158, 11, 0.20);
 }
 
 .btn-tonal:disabled {
@@ -264,7 +148,7 @@
 }
 
 .btn-icon:focus-visible {
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.4);
+    box-shadow: none;
 }
 
 .btn-icon-sm {

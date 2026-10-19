@@ -760,7 +760,7 @@ const DestructiveConfirm = (function() {
 
         // Update modal content (title and impact items are text, never HTML)
         const titleEl = document.getElementById('destructiveConfirmTitle');
-        titleEl.innerHTML = '<i class="fas fa-exclamation-triangle me-2" aria-hidden="true"></i>';
+        titleEl.innerHTML = '<i class="fas fa-exclamation-triangle me-2 text-danger" aria-hidden="true"></i>';
         titleEl.appendChild(document.createTextNode(title == null ? '' : String(title)));
         document.getElementById('destructive-message').textContent = message;
         document.getElementById('confirm-text-required').textContent = confirmText;

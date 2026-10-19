@@ -292,6 +292,9 @@ test.describe('Late responses never take over (all routes)', () => {
     await expect(header(page)).toContainText('User Management', { timeout: 10_000 });
     await goTo(page, 'dashboard');
     await expect(header(page)).toHaveText('Dashboard');
+    // The dashboard fills #content-area once its data arrives; with many environments that comes after
+    // the header, so add the stray link only when the page has settled or the render removes it.
+    await page.waitForLoadState('networkidle');
 
     await page.evaluate(() => {
       const a = document.createElement('a');

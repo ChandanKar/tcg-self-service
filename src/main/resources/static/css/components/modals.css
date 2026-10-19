@@ -2,24 +2,7 @@
  * Modal Component Styles
  */
 
-.modal-header {
-    border-bottom: 1px solid var(--border-color, #e2e8f0);
-    background: var(--background-light, #f8fafc);
-}
-
-.modal-footer {
-    border-top: 1px solid var(--border-color, #e2e8f0);
-    background: var(--background-light, #f8fafc);
-}
-
-.modal-title {
-    font-weight: 600;
-    color: var(--text-primary, #1e293b);
-}
-
-.modal-body {
-    padding: 1.5rem;
-}
+/* Dialog colours, radius, shadow, header and footer live in css/theme.css (U03-T02). */
 
 /* Custom modal sizes */
 .modal-lg-custom {
@@ -28,29 +11,6 @@
 
 .modal-xl-custom {
     max-width: 1140px;
-}
-
-/* Form styling in modals */
-.modal-body .form-label {
-    font-weight: 500;
-    color: #475569;
-    margin-bottom: 0.25rem;
-}
-
-.modal-body .form-text {
-    font-size: 0.75rem;
-    color: var(--text-caption, #64748b);
-}
-
-.modal-body .form-select,
-.modal-body .form-control {
-    border-color: var(--border-color, #e2e8f0);
-}
-
-.modal-body .form-select:focus,
-.modal-body .form-control:focus {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
 }
 
 /* Required field indicator */

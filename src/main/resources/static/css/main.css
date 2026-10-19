@@ -28,6 +28,8 @@
     --brand-navy-tint: #eceff8;
     --brand-green: #12915e;
     --brand-green-tint: #e3f4ec;
+    /* Start buttons: white text needs 4.5:1, which #12915e misses (4.0:1) */
+    --brand-green-button: #0e8656;
     --brand-gold: #d9a21b;
     --brand-gold-tint: #fbf3dc;
     --brand-red: #c2412d;
@@ -104,27 +106,27 @@
     --table-header-bg: #f7f8fb;
 
     /* Shadow Scale */
-    --shadow-sm: 0 1px 2px rgba(20, 36, 92, 0.06);
+    --shadow-sm: 0 1px 2px rgba(20, 36, 92, 0.05);
     --shadow-md: 0 6px 16px rgba(20, 36, 92, 0.08);
-    --shadow-lg: 0 24px 48px rgba(20, 36, 92, 0.18);
+    --shadow-lg: 0 24px 48px rgba(20, 36, 92, 0.25);
 
     /* Card Standards */
-    --card-radius: 10px;
-    --radius-btn: 7px;
+    --card-radius: 12px;
+    --radius-btn: 8px;
 
-    /* Status Badge Colors */
+    /* Status chip colours (style guide): running, waiting, failed, stopped */
     --status-running-bg: #e3f4ec;
     --status-running-text: #0b6b44;
-    --status-stopped-bg: #f3f4f6;
-    --status-stopped-text: #4b5563;
-    --status-starting-bg: #dbeafe;
-    --status-starting-text: #1e40af;
+    --status-stopped-bg: #eceff5;
+    --status-stopped-text: #4a5368;
+    --status-starting-bg: #fbf3dc;
+    --status-starting-text: #7a5000;
     --status-stopping-bg: #fbf3dc;
-    --status-stopping-text: #8a5a00;
-    --status-error-bg: #fee2e2;
-    --status-error-text: #991b1b;
-    --status-unknown-bg: #f3f4f6;
-    --status-unknown-text: #4b5563;
+    --status-stopping-text: #7a5000;
+    --status-error-bg: #fbeeeb;
+    --status-error-text: #a8331f;
+    --status-unknown-bg: #eceff5;
+    --status-unknown-text: #4a5368;
 
     /* Monospace Font */
     --font-mono: 'IBM Plex Mono', 'SF Mono', 'Consolas', monospace;

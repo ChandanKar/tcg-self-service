@@ -49,12 +49,354 @@ code, kbd, samp, pre, .mono {
     font-variant-numeric: tabular-nums;
 }
 
-/* The brand fills fail 4.5:1 as text and under white text: text helpers use the darker shades
-   and coloured badges become the style guide's tinted chips (U03-T02 adds the full chip set). */
+/* The brand fills fail 4.5:1 as text: text helpers use the darker shades. */
 .text-success { color: var(--brand-green-text) !important; }
 .text-warning { color: var(--brand-gold-text) !important; }
 .text-danger { color: var(--brand-red-text) !important; }
+.text-primary { color: var(--brand-navy) !important; }
 
+/* ── Links ─────────────────────────────────────────────────────────────── */
+a {
+    color: var(--bs-link-color);
+}
+a:hover {
+    color: var(--bs-link-hover-color);
+}
+
+/* ── Buttons ───────────────────────────────────────────────────────────────
+   38 px, radius 8, 14/500. One primary per screen (navy); green only for Start; red outline
+   only for Stop and remove; secondary is white with a navy outline. Sizes go through the
+   Bootstrap variables so buttons with their own size (.btn-action, .btn-icon) keep it. */
+.btn {
+    --bs-btn-padding-y: 8px;
+    --bs-btn-padding-x: 16px;
+    --bs-btn-font-size: var(--fs-body);
+    --bs-btn-line-height: 20px;
+    --bs-btn-font-weight: 500;
+    --bs-btn-border-radius: 8px;
+    --bs-btn-focus-box-shadow: none;
+}
+.btn-sm,
+.btn-group-sm > .btn {
+    --bs-btn-padding-y: 5px;
+    --bs-btn-padding-x: 12px;
+    --bs-btn-font-size: var(--fs-caption);
+    --bs-btn-line-height: 18px;
+    --bs-btn-border-radius: 7px;
+}
+.btn-xs {
+    --bs-btn-padding-y: 4px;
+    --bs-btn-padding-x: 10px;
+    --bs-btn-font-size: var(--fs-small);
+    --bs-btn-line-height: 18px;
+    --bs-btn-border-radius: 6px;
+}
+.btn-lg,
+.btn-group-lg > .btn {
+    --bs-btn-padding-y: 11px;
+    --bs-btn-padding-x: 20px;
+    --bs-btn-font-size: var(--fs-lead);
+    --bs-btn-line-height: 20px;
+    --bs-btn-border-radius: 8px;
+}
+
+.btn-primary {
+    --bs-btn-color: #fff;
+    --bs-btn-bg: var(--brand-navy);
+    --bs-btn-border-color: var(--brand-navy);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--brand-navy-hover);
+    --bs-btn-hover-border-color: var(--brand-navy-hover);
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: #0a1438;
+    --bs-btn-active-border-color: #0a1438;
+    --bs-btn-disabled-color: #fff;
+    --bs-btn-disabled-bg: #6b7598;
+    --bs-btn-disabled-border-color: #6b7598;
+}
+.btn-primary:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+/* Start. #12915E carries white text at 4.0:1, so the button uses the next shade (4.6:1). */
+.btn-success {
+    --bs-btn-color: #fff;
+    --bs-btn-bg: var(--brand-green-button);
+    --bs-btn-border-color: var(--brand-green-button);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: #0d7a4e;
+    --bs-btn-hover-border-color: #0d7a4e;
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: var(--brand-green-text);
+    --bs-btn-active-border-color: var(--brand-green-text);
+    --bs-btn-disabled-color: #fff;
+    --bs-btn-disabled-bg: #7fb99f;
+    --bs-btn-disabled-border-color: #7fb99f;
+}
+
+/* Secondary: white, navy outline */
+.btn-secondary,
+.btn-outline-secondary,
+.btn-outline-primary,
+.btn-light {
+    --bs-btn-color: var(--brand-navy);
+    --bs-btn-bg: #fff;
+    --bs-btn-border-color: #b9c2da;
+    --bs-btn-hover-color: var(--brand-navy);
+    --bs-btn-hover-bg: var(--brand-navy-tint);
+    --bs-btn-hover-border-color: #8e9bc2;
+    --bs-btn-active-color: var(--brand-navy);
+    --bs-btn-active-bg: #dfe4f2;
+    --bs-btn-active-border-color: #8e9bc2;
+    --bs-btn-disabled-color: #6b7598;
+    --bs-btn-disabled-bg: #fff;
+    --bs-btn-disabled-border-color: #d4dae5;
+}
+.btn-outline-primary:hover {
+    transform: none;
+}
+
+/* Stop and remove: white, red outline. A filled red button is not part of the style guide. */
+.btn-danger,
+.btn-outline-danger,
+.btn-stop {
+    --bs-btn-color: var(--brand-red-text);
+    --bs-btn-bg: #fff;
+    --bs-btn-border-color: #e8b8ae;
+    --bs-btn-hover-color: var(--brand-red-text);
+    --bs-btn-hover-bg: var(--brand-red-tint);
+    --bs-btn-hover-border-color: #d98a7a;
+    --bs-btn-active-color: var(--brand-red-text);
+    --bs-btn-active-bg: #f6ddd7;
+    --bs-btn-active-border-color: #d98a7a;
+    --bs-btn-disabled-color: #c98b7f;
+    --bs-btn-disabled-bg: #fff;
+    --bs-btn-disabled-border-color: #f0d3cc;
+}
+.btn-stop {
+    color: var(--bs-btn-color);
+    background-color: var(--bs-btn-bg);
+    border-color: var(--bs-btn-border-color);
+}
+
+.btn-outline-success {
+    --bs-btn-color: var(--brand-green-text);
+    --bs-btn-border-color: #a8d8c1;
+    --bs-btn-hover-color: var(--brand-green-text);
+    --bs-btn-hover-bg: var(--brand-green-tint);
+    --bs-btn-hover-border-color: #6fbf98;
+    --bs-btn-active-color: var(--brand-green-text);
+    --bs-btn-active-bg: #d2ecdf;
+    --bs-btn-active-border-color: #6fbf98;
+}
+
+.btn-warning {
+    --bs-btn-color: var(--ink);
+    --bs-btn-bg: var(--brand-gold);
+    --bs-btn-border-color: var(--brand-gold);
+    --bs-btn-hover-color: var(--ink);
+    --bs-btn-hover-bg: #c99212;
+    --bs-btn-hover-border-color: #c99212;
+}
+.btn-outline-warning {
+    --bs-btn-color: var(--brand-gold-text);
+    --bs-btn-border-color: #e9cf8b;
+    --bs-btn-hover-color: var(--brand-gold-text);
+    --bs-btn-hover-bg: var(--brand-gold-tint);
+    --bs-btn-hover-border-color: #d9b45a;
+}
+
+.btn:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: 2px;
+    box-shadow: none;
+}
+
+/* Ghost: no border or fill at rest, a quiet tint on hover */
+.btn-ghost {
+    color: var(--slate);
+}
+.btn-ghost:hover:not(:disabled) {
+    color: var(--ink);
+    background: #eceff5;
+}
+.btn-ghost.btn-outline-danger,
+.btn-ghost.btn-danger {
+    color: var(--brand-red-text);
+}
+.btn-ghost.btn-outline-danger:hover:not(:disabled),
+.btn-ghost.btn-danger:hover:not(:disabled) {
+    background: var(--brand-red-tint);
+    color: var(--brand-red-text);
+}
+.btn-ghost.btn-outline-success:hover:not(:disabled) {
+    background: var(--brand-green-tint);
+    color: var(--brand-green-text);
+}
+.btn-ghost.btn-outline-warning:hover:not(:disabled) {
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
+}
+.btn-ghost.btn-primary:hover:not(:disabled),
+.btn-ghost.btn-outline-primary:hover:not(:disabled) {
+    background: var(--brand-navy-tint);
+    color: var(--brand-navy);
+}
+
+/* Tonal: soft tints for the few state actions that must be recognised at rest */
+.btn-tonal.btn-primary,
+.btn-tonal.btn-outline-primary {
+    background-color: var(--brand-navy-tint);
+    color: var(--brand-navy);
+}
+.btn-tonal.btn-success,
+.btn-tonal.btn-outline-success {
+    background-color: var(--brand-green-tint);
+    color: var(--brand-green-text);
+}
+.btn-tonal.btn-danger,
+.btn-tonal.btn-outline-danger {
+    background-color: var(--brand-red-tint);
+    color: var(--brand-red-text);
+}
+.btn-tonal.btn-warning,
+.btn-tonal.btn-outline-warning {
+    background-color: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
+}
+.btn-tonal.btn-primary:hover:not(:disabled),
+.btn-tonal.btn-outline-primary:hover:not(:disabled) { background-color: #dfe4f2; }
+.btn-tonal.btn-success:hover:not(:disabled),
+.btn-tonal.btn-outline-success:hover:not(:disabled) { background-color: #d2ecdf; }
+.btn-tonal.btn-danger:hover:not(:disabled),
+.btn-tonal.btn-outline-danger:hover:not(:disabled) { background-color: #f6ddd7; }
+.btn-tonal.btn-warning:hover:not(:disabled),
+.btn-tonal.btn-outline-warning:hover:not(:disabled) { background-color: #f6e8c2; }
+
+/* ── Forms ─────────────────────────────────────────────────────────────── */
+.form-control,
+.form-select {
+    font-size: var(--fs-body);
+    line-height: 20px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+    padding-left: 12px;
+    border-color: #d4dae5;
+    border-radius: 8px;
+    color: var(--ink);
+}
+.form-control {
+    padding-right: 12px;
+}
+.form-control-sm,
+.form-select-sm {
+    font-size: var(--fs-caption);
+    line-height: 18px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    padding-left: 10px;
+    border-radius: 7px;
+}
+.form-control-sm {
+    padding-right: 10px;
+}
+.form-control-lg,
+.form-select-lg {
+    font-size: var(--fs-lead);
+    line-height: 22px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    padding-left: 14px;
+}
+.form-control-lg {
+    padding-right: 14px;
+}
+.form-control:focus,
+.form-select:focus,
+.modal-body .form-control:focus,
+.modal-body .form-select:focus {
+    border-color: #5a6fae;
+    box-shadow: 0 0 0 3px rgba(20, 36, 92, 0.14);
+}
+.form-control::placeholder {
+    color: #737c90;
+}
+.form-label,
+.modal-body .form-label {
+    font-weight: 500;
+    font-size: var(--fs-body);
+    color: var(--ink);
+}
+.form-text,
+.modal-body .form-text {
+    font-size: var(--fs-small);
+    color: var(--slate);
+}
+.form-check-input:checked {
+    background-color: var(--brand-navy);
+    border-color: var(--brand-navy);
+}
+.form-check-input:focus {
+    border-color: #5a6fae;
+    box-shadow: 0 0 0 3px rgba(20, 36, 92, 0.14);
+}
+
+/* ── Status chips ──────────────────────────────────────────────────────── */
+.chip,
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 0;
+    font-size: var(--fs-small);
+    font-weight: 500;
+    line-height: 18px;
+    white-space: nowrap;
+}
+.chip-running,
+.status-badge.running {
+    background: var(--brand-green-tint);
+    color: var(--brand-green-text);
+}
+.chip-waiting,
+.status-badge.partial,
+.status-badge.starting,
+.status-badge.stopping,
+.status-badge.pending,
+.status-badge.drift {
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
+}
+.chip-failed,
+.status-badge.error {
+    background: var(--brand-red-tint);
+    color: var(--brand-red-text);
+    border: 0;
+    font-weight: 500;
+}
+.chip-stopped,
+.status-badge.stopped,
+.status-badge.unknown {
+    background: #eceff5;
+    color: #4a5368;
+}
+.chip-admin,
+.status-badge.review {
+    background: var(--brand-navy-tint);
+    color: var(--brand-navy);
+}
+.status-badge i {
+    font-size: 0.6875rem;
+}
+
+/* Bootstrap badges read as the same chips */
+.badge {
+    font-weight: 500;
+    letter-spacing: 0.01em;
+}
 .badge.bg-success,
 .badge.text-bg-success {
     background: var(--brand-green-tint) !important;
@@ -70,6 +412,253 @@ code, kbd, samp, pre, .mono {
     background: var(--brand-red-tint) !important;
     color: var(--brand-red-text) !important;
 }
+.badge.bg-secondary,
+.badge.text-bg-secondary,
+.badge.bg-light,
+.badge.text-bg-light {
+    background: #eceff5 !important;
+    color: #4a5368 !important;
+}
+.badge.bg-primary,
+.badge.text-bg-primary,
+.badge.bg-info,
+.badge.text-bg-info {
+    background: var(--brand-navy-tint) !important;
+    color: var(--brand-navy) !important;
+}
 
-/* U03-T01 ships the Bootstrap variables and page background only; the component sections
-   (buttons, inputs, chips, tables, cards, tabs, dialogs, toasts) follow in U03-T02. */
+/* ── Tables: hairlines, 38 px rows, no zebra ───────────────────────────── */
+.table {
+    --bs-table-color: var(--ink);
+    --bs-table-hover-bg: #f7f8fb;
+    --bs-table-hover-color: var(--ink);
+    --bs-table-border-color: var(--line-soft);
+    color: var(--ink);
+}
+.table > thead > tr > th,
+.table thead th,
+.table-light th,
+.table-baseline th,
+.custom-table th {
+    background: #f7f8fb;
+    color: var(--slate);
+    font-size: 12.5px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+    border-bottom: 1px solid var(--line);
+}
+.table > :not(caption) > * > * {
+    border-bottom-color: var(--line-soft);
+}
+.table td,
+.table-baseline td,
+.custom-table td {
+    vertical-align: middle;
+    color: var(--ink);
+}
+.table > tbody > tr > td {
+    height: 38px;
+}
+.table-baseline tbody tr:hover,
+.custom-table tbody tr:hover {
+    background-color: #f7f8fb;
+}
+
+/* ── Cards and panels ──────────────────────────────────────────────────── */
+.card,
+.custom-table {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--card-radius);
+    box-shadow: var(--shadow-sm);
+}
+.card-header {
+    background: #fff;
+    border-bottom: 1px solid var(--line);
+    font-weight: 600;
+}
+.card-footer {
+    background: #fafbfd;
+    border-top: 1px solid var(--line);
+}
+.card-title {
+    font-size: var(--fs-card-title);
+    font-weight: 600;
+    color: var(--ink);
+}
+
+/* ── Tabs: an underline, not boxed folders ─────────────────────────────── */
+.nav-tabs {
+    --bs-nav-tabs-border-color: var(--line);
+    border-bottom: 1px solid var(--line);
+}
+.nav-tabs .nav-link {
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: none;
+    color: var(--slate);
+    font-size: var(--fs-body);
+    font-weight: 500;
+    padding: 10px 14px;
+    margin-bottom: -1px;
+}
+.nav-tabs .nav-link:hover,
+.nav-tabs .nav-link:focus {
+    color: var(--ink);
+    border-bottom-color: #c7cfe0;
+    isolation: auto;
+}
+.nav-tabs .nav-link.active,
+.nav-tabs .nav-item.show .nav-link {
+    color: var(--brand-navy);
+    background: none;
+    font-weight: 600;
+    border-bottom-color: var(--brand-navy);
+}
+.nav-tabs .nav-link:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: -2px;
+}
+
+/* ── Dialogs ───────────────────────────────────────────────────────────── */
+.modal {
+    --bs-modal-border-radius: 14px;
+    --bs-modal-inner-border-radius: 14px;
+}
+.modal-content {
+    border: 0;
+    border-radius: 14px;
+    box-shadow: 0 24px 48px rgba(20, 36, 92, 0.25);
+}
+.modal-backdrop {
+    --bs-backdrop-bg: #0a1430;
+    --bs-backdrop-opacity: 0.42;
+}
+.modal-header {
+    background: #fff;
+    border-bottom: 1px solid var(--line);
+    padding: 18px 24px;
+}
+.modal-title {
+    font-size: var(--fs-section);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+}
+.modal-header .btn-close {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    margin: -6px -8px -6px auto;
+    border-radius: 8px;
+    background-size: 12px;
+}
+.modal-header .btn-close:hover {
+    background-color: #eceff5;
+}
+.modal-body {
+    padding: 20px 24px;
+}
+.modal-footer {
+    background: #fafbfd;
+    border-top: 1px solid var(--line);
+    padding: 14px 24px;
+    gap: 10px;
+}
+.modal-footer > * {
+    margin: 0;
+}
+
+/* ── Toasts: white, coloured left edge ─────────────────────────────────── */
+.notification-toast {
+    background: #fff;
+    color: var(--ink);
+    font-size: var(--fs-body);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--brand-navy);
+    border-radius: 10px;
+    box-shadow: var(--shadow-md);
+}
+.notification-toast.toast-success { border-left-color: var(--brand-green); }
+.notification-toast.toast-error   { border-left-color: var(--brand-red); }
+.notification-toast.toast-warning { border-left-color: var(--brand-gold); }
+.notification-toast.toast-info    { border-left-color: var(--brand-navy); }
+.notification-toast.toast-success .toast-icon { color: var(--brand-green-text); }
+.notification-toast.toast-error   .toast-icon { color: var(--brand-red-text); }
+.notification-toast.toast-warning .toast-icon { color: var(--brand-gold-text); }
+.notification-toast.toast-info    .toast-icon { color: var(--brand-navy); }
+.notification-toast .toast-title {
+    font-size: var(--fs-body);
+    font-weight: 600;
+}
+.notification-toast .toast-message {
+    font-size: var(--fs-caption);
+    color: var(--slate);
+}
+.notification-toast .toast-close {
+    color: var(--slate);
+}
+
+/* ── Alerts: quiet tints with a coloured edge ──────────────────────────── */
+.alert {
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    border-left-width: 4px;
+    font-size: var(--fs-body);
+}
+.alert-info,
+.alert-primary {
+    background: var(--brand-navy-tint);
+    border-color: #d2d9ec;
+    border-left-color: var(--brand-navy);
+    color: #1c2d66;
+}
+.alert-success {
+    background: var(--brand-green-tint);
+    border-color: #c4e6d5;
+    border-left-color: var(--brand-green);
+    color: var(--brand-green-text);
+}
+.alert-warning {
+    background: var(--brand-gold-tint);
+    border-color: #f0dca6;
+    border-left-color: var(--brand-gold);
+    color: #5c3c00;
+}
+.alert-danger {
+    background: var(--brand-red-tint);
+    border-color: #f1cbc3;
+    border-left-color: var(--brand-red);
+    color: #8a2a19;
+}
+.alert-secondary,
+.alert-light {
+    background: #f7f8fb;
+    border-color: var(--line);
+    border-left-color: #b9c2d2;
+    color: var(--ink);
+}
+.alert .alert-link {
+    color: inherit;
+}
+
+/* ── Keys ──────────────────────────────────────────────────────────────── */
+kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 6px;
+    box-sizing: border-box;
+    border: 1px solid #d4dae5;
+    border-bottom-width: 2px;
+    border-radius: 6px;
+    background: #f7f8fb;
+    box-shadow: none;
+    font-size: 12.5px;
+    line-height: 1;
+    color: var(--ink);
+}

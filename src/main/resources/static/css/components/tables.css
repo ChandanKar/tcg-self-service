@@ -73,15 +73,6 @@
     background-color: #f8fafc;
 }
 
-/* Zebra striping */
-.custom-table tbody tr:nth-child(odd) {
-    background: #fafbfc;
-}
-
-.custom-table tbody tr:nth-child(odd):hover {
-    background-color: #f1f5f9;
-}
-
 /* ================================================
    Responsive Stacking Tables (TASK-013)
    Tables convert to card layout on mobile
