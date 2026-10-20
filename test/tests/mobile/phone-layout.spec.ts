@@ -127,7 +127,7 @@ test.describe('Phone layout (admin tables)', () => {
     ['#/request-access', '#ra-env-list'],
     ['#/pending-requests', '#content-area h1'],
     ['#/user-management', '#content-area table'],
-    ['#/activity-logs', '#al-action-type-filter'],
+    ['#/activity-logs', '#al-action-filter'],
     ['#/audit-logs-all', '#content-area table'],
     ['#/vm-registry', '#content-area table'],
   ] as const) {

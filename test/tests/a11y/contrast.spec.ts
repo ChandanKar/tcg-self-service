@@ -38,7 +38,7 @@ test.describe('Colour contrast', () => {
 
   for (const [name, hash, ready] of [
     ['Dashboard', '#/dashboard', '#content-area .dashboard-shell, #content-area h1'],
-    ['Activity Logs', '#/activity-logs', '#al-action-type-filter'],
+    ['Activity Logs', '#/activity-logs', '#al-action-filter'],
     ['VM Registry', '#/vm-registry', '#content-area h1'],
     ['Environments', '#/my-environments', '#env-list-search'],
   ] as const) {

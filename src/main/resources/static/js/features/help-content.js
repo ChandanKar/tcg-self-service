@@ -122,7 +122,7 @@ const HelpContent = (function() {
                     heading: 'What is recorded',
                     paragraphs: [
                         'Every start, stop, access change, lock and setting change is recorded with who did it and when.',
-                        'Activity Logs shows the environments you can see; All Logs (environment admins and admins) shows everything with filters and export.'
+                        'My activity lists what you did, as sentences by day, and exports it to CSV; All Logs (environment admins and admins) shows everything with filters and export.'
                     ]
                 }
             ]

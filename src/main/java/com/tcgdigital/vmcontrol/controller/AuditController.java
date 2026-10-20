@@ -133,6 +133,8 @@ public class AuditController {
             @Parameter(description = "Page size (max 500)") @RequestParam(defaultValue = "50") int size,
             @Parameter(description = "Filter by environment ID") @RequestParam(required = false) String environmentId,
             @Parameter(description = "Filter by action type") @RequestParam(required = false) AuditAction action,
+            @Parameter(description = "Filter by action group: OPERATIONS, LOCKS or ACCESS (action wins)")
+                @RequestParam(required = false) com.tcgdigital.vmcontrol.model.AuditActionCategory category,
             @Parameter(description = "From (ISO instant, inclusive)") @RequestParam(required = false)
                 @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) java.time.Instant from,
             @Parameter(description = "To (ISO instant, exclusive)") @RequestParam(required = false)
@@ -147,7 +149,7 @@ public class AuditController {
                 : startDate != null ? java.sql.Timestamp.valueOf(startDate.atStartOfDay()) : null;
         java.sql.Timestamp toTs = to != null ? java.sql.Timestamp.from(to)
                 : endDate != null ? java.sql.Timestamp.valueOf(endDate.plusDays(1).atStartOfDay()) : null;
-        Page<AuditLog> logs = auditService.getUserActivityLogs(userId, fromTs, toTs, environmentId, action,
+        Page<AuditLog> logs = auditService.getUserActivityLogs(userId, fromTs, toTs, environmentId, action, category,
                 com.tcgdigital.vmcontrol.controller.support.Paging.of(page, size, 500));
         Page<AuditLogDTO> dtos = logs.map(AuditLogDTO::fromEntity);
         return ResponseEntity.ok(dtos);

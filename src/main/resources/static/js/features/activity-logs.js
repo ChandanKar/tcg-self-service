@@ -1,544 +1,501 @@
 /**
- * VM Self-Service Platform - Activity Logs Module
- * Handles user's personal activity log viewing and filtering
+ * VM Self-Service Platform - My activity (U09-T04, MyActivity.dc.html)
+ * What you started, stopped, locked and requested, as plain sentences grouped by day: Time, What,
+ * Environment and a Done / Failed / Sent chip (a failure shows its reason under the sentence).
+ * Period buttons (24 hours, 7 days, 30 days, Dates…), Environment and Action group selects (the
+ * group is filtered on the server, so the pages count right), 10 to a page, Export CSV.
  */
 
 const ActivityLogs = (function() {
     'use strict';
 
-    /**
-     * Spring Data serializes Page<T> as { content: [...], page: { totalElements, totalPages,
-     * number, size } } — flatten that back onto the response so the rest of this module's
-     * data.totalPages/totalElements/number reads keep working regardless of shape.
-     */
-    function normalizePage(data) {
-        if (!data || !data.page) return data;
-        return {
-            ...data,
-            totalElements: data.page.totalElements ?? data.totalElements ?? 0,
-            totalPages: data.page.totalPages ?? data.totalPages ?? 0,
-            number: data.page.number ?? data.number ?? 0,
-            size: data.page.size ?? data.size
-        };
-    }
-
-    // Cache for filter state
-    // from/to are ISO instants (E11-T06); customStart/customEnd back the date inputs.
-    let currentFilters = {
-        from: '',
-        to: '',
-        customStart: '',
-        customEnd: '',
-        environmentId: '',
-        actionType: '',
-        timeRange: '7d',
-        page: 0,
-        size: 50
-    };
-
-    let userEnvironments = [];
-    let allActions = [];
-
-    const RANGE_HOURS = { '24h': 24, '7d': 24 * 7, '30d': 24 * 30 };
+    const PAGE_SIZE = 10;
     const EXPORT_PAGE_SIZE = 500;
     const EXPORT_MAX_ROWS = 10000;
+    const PERIODS = [['24h', '24 hours'], ['7d', '7 days'], ['30d', '30 days'], ['dates', 'Dates…']];
+    const RANGE_HOURS = { '24h': 24, '7d': 24 * 7, '30d': 24 * 30 };
+    const CATEGORIES = [['', 'All'], ['OPERATIONS', 'Start and stop'], ['LOCKS', 'Locks'], ['ACCESS', 'Access']];
+    const NS = '.myActivity';
 
-    /** An exact range ending now. */
-    function setPresetRange(range) {
-        const hours = RANGE_HOURS[range] || 24 * 7;
+    // ---- pure model (node tests: src/test/js/activity-describe.test.mjs) ----
+
+    const VERB = { START: ['start', 'Started'], STOP: ['stop', 'Stopped'], RESTART: ['restart', 'Restarted'] };
+    const LEVEL = { USER: 'operator', VIEWER: 'view-only', ENV_ADMIN: 'admin', ADMIN: 'admin' };
+
+    function after(text, marker) {
+        const s = String(text || '');
+        const i = s.indexOf(marker);
+        return i < 0 ? '' : s.slice(i + marker.length).trim();
+    }
+
+    function trimDot(s) {
+        return String(s || '').trim().replace(/\.$/, '');
+    }
+
+    function plural(n, one, many) {
+        return `${n} ${n === 1 ? one : (many || one + 's')}`;
+    }
+
+    function hoursText(minutes) {
+        const m = Number(minutes);
+        if (!m) return '';
+        if (m % 60 === 0) return plural(m / 60, 'hour');
+        return plural(m, 'minute');
+    }
+
+    /** "Name (email)" from describeUser, shortened to the name. */
+    function personName(s) {
+        return String(s || '').replace(/\s*\([^)]*@[^)]*\)\s*$/, '').trim();
+    }
+
+    function levelText(s) {
+        const key = String(s || '').trim().toUpperCase();
+        return LEVEL[key] || String(s || '').toLowerCase();
+    }
+
+    function quoted(s) {
+        const t = trimDot(s);
+        return t ? ` · "${t}"` : '';
+    }
+
+    function fallback(log) {
+        const label = log.actionDisplay || String(log.action || '').replace(/_/g, ' ').toLowerCase()
+            .replace(/^./, c => c.toUpperCase());
+        return log.targetName && log.targetName !== log.environmentName ? `${label} · ${log.targetName}` : label;
+    }
+
+    /**
+     * One audit row as a sentence: {text, note, result, tone}. result is Done, Failed or Sent (a
+     * request someone else decides; the row itself cannot say whether it is still waiting).
+     */
+    function describe(log) {
+        const a = log.action || '';
+        const d = log.details || '';
+        const failed = log.success === false;
+        const verb = VERB[String(log.targetName || '').toUpperCase()] || null;
+        let text = null;
+        const error = log.errorMessage || d;
+        let note = failed ? (after(error, 'Error:') || error || '') : '';
+        let sent = false;
+
+        switch (a) {
+            case 'OPERATION_STARTED': {
+                const trigger = after(d, 'started by the platform:').replace(/\s*\(on behalf of.*$/, '');
+                text = verb ? `Asked to ${verb[0]} VMs` : 'Asked to run an operation';
+                if (/^lease expired/i.test(trigger)) text = `The platform ${verb ? verb[1].toLowerCase() : 'ran'} VMs when the running time ended`;
+                else if (trigger) text = `The platform ${verb ? verb[1].toLowerCase() : 'ran'} VMs (${trimDot(trigger)})`;
+                break;
+            }
+            case 'OPERATION_COMPLETED': {
+                const m = /Total VMs:\s*(\d+),\s*Failed:\s*(\d+)/.exec(d);
+                const total = m ? Number(m[1]) : null;
+                const bad = m ? Number(m[2]) : 0;
+                const past = verb ? verb[1] : 'Finished';
+                if (total == null) text = `${past} VMs`;
+                else if (bad > 0) {
+                    text = `${past} ${total - bad} of ${plural(total, 'VM')}`;
+                    note = `${plural(bad, 'VM')} did not ${verb ? verb[0] : 'finish'} or ${bad === 1 ? 'was' : 'were'} skipped.`;
+                } else text = `${past} ${plural(total, 'VM')}`;
+                break;
+            }
+            case 'OPERATION_FAILED':
+                text = verb ? `${verb[1]} VMs` : 'Ran an operation';
+                break;
+            case 'OPERATION_CANCELLED':
+                text = verb ? `Cancelled the ${verb[0]}` : 'Cancelled an operation';
+                break;
+            case 'VM_START_COMPLETED': case 'VM_START_FAILED': text = `Started ${log.targetName || 'a VM'}`; break;
+            case 'VM_STOP_COMPLETED': case 'VM_STOP_FAILED': text = `Stopped ${log.targetName || 'a VM'}`; break;
+            case 'VM_START_REQUESTED': text = `Asked to start ${log.targetName || 'a VM'}`; break;
+            case 'VM_STOP_REQUESTED': text = `Asked to stop ${log.targetName || 'a VM'}`; break;
+            case 'VM_RESTART_REQUESTED': text = `Asked to restart ${log.targetName || 'a VM'}`; break;
+            case 'LOCK_ACQUIRED': text = 'Locked' + quoted(after(d, 'Reason:')); break;
+            case 'LOCK_RELEASED': text = 'Released lock'; break;
+            case 'LOCK_EXTENDED': {
+                const m = /Extended by (\d+) minutes/.exec(d);
+                text = m ? `Kept the lock ${hoursText(m[1])} longer` : 'Kept the lock longer';
+                break;
+            }
+            case 'LOCK_EXPIRED': text = 'Your lock ended'; break;
+            case 'LOCK_BROKEN': {
+                const holder = trimDot(after(d, 'Original holder:').split('. Reason:')[0]);
+                text = `Broke ${holder ? personName(holder) + "'s" : 'a'} lock` + quoted(after(d, 'Reason:'));
+                break;
+            }
+            case 'LEASE_STARTED': {
+                const m = /Runs for (\d+) minutes/.exec(d);
+                text = m ? `Started for ${hoursText(m[1])}` : 'Started, following the lock';
+                break;
+            }
+            case 'LEASE_EXTENDED': {
+                const m = /Extended by (\d+) minutes/.exec(d);
+                text = m ? `Kept it running ${hoursText(m[1])} longer` : 'Kept it running longer';
+                break;
+            }
+            case 'LEASE_ENDED': text = 'Ended the running time'; break;
+            case 'LEASE_EXTENSION_REQUESTED': {
+                const m = /extend by (\d+) minutes/.exec(d);
+                text = m ? `Asked to keep it running ${hoursText(m[1])} longer` : 'Asked to keep it running longer';
+                sent = true;
+                break;
+            }
+            case 'LEASE_EXTENSION_DECIDED': {
+                const m = /^(Approved|Denied) a (\d+)-minute extension/.exec(d);
+                text = m ? `${m[1]} keeping it running ${hoursText(m[2])} longer` : 'Decided an extension';
+                break;
+            }
+            case 'APPROVAL_REQUESTED': {
+                const type = /^(START|EXTEND)/.exec(d);
+                text = type && type[1] === 'EXTEND' ? 'Asked for approval to keep it running longer' : 'Asked for approval to start';
+                sent = true;
+                break;
+            }
+            case 'APPROVAL_APPROVED':
+                text = /waiting for the other approvers/.test(d) ? 'Approved a request (others still to decide)' : 'Approved a request';
+                break;
+            case 'APPROVAL_DENIED': text = 'Denied a request' + quoted(after(d, ':')); break;
+            case 'APPROVAL_CANCELLED': text = 'Cancelled a request'; break;
+            case 'APPROVAL_EXPIRED': text = 'A request expired'; break;
+            case 'ACCESS_REQUESTED': {
+                const level = levelText(after(d, 'Level:'));
+                text = level ? `Asked for ${level} access` : 'Asked for access';
+                sent = true;
+                break;
+            }
+            case 'ACCESS_GRANTED': {
+                const who = personName(after(d, 'Access granted to').split('. Level:')[0]);
+                const level = levelText(trimDot(after(d, 'Level:').split('. Approved by')[0]));
+                text = who ? `Gave ${who} ${level ? level + ' ' : ''}access` : 'Gave access';
+                break;
+            }
+            case 'ACCESS_DENIED': {
+                const who = personName(after(d, 'Access denied for').split('. Denied by')[0]);
+                text = (who ? `Turned down ${who}'s request` : 'Turned down a request') + quoted(after(d, 'Reason:'));
+                break;
+            }
+            case 'ACCESS_REVOKED': {
+                const who = personName(after(d, 'Access revoked for').split('. Revoked by')[0]);
+                text = who ? `Removed ${who}'s access` : 'Removed access';
+                break;
+            }
+            case 'ACCESS_LEVEL_CHANGED': {
+                const m = /Access level for (.*) changed (\S+) -> (\S+)/.exec(d);
+                text = m ? `Changed ${personName(m[1])}'s access to ${levelText(m[3])}` : 'Changed access';
+                break;
+            }
+            case 'IDLE_STOP_SNOOZED': {
+                const m = /snoozed for (\d+) h/.exec(d);
+                text = m ? `Paused idle auto-stop for ${plural(Number(m[1]), 'hour')}` : 'Resumed idle auto-stop';
+                break;
+            }
+            default:
+                text = fallback(log);
+        }
+
+        if (failed) return { text, note: trimDot(note) ? String(note).trim() : '', result: 'Failed', tone: 'bad' };
+        if (sent) return { text, note: '', result: 'Sent', tone: 'wait' };
+        return { text, note: a === 'OPERATION_COMPLETED' ? note : '', result: 'Done', tone: 'ok' };
+    }
+
+    function sameDay(a, b) {
+        return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    }
+
+    /** "Today", "Yesterday", then "Friday 17 October" (local dates; the year when it is not this one). */
+    function dayLabel(date, now) {
+        const d = new Date(date);
+        const n = now || new Date();
+        if (sameDay(d, n)) return 'Today';
+        const y = new Date(n.getFullYear(), n.getMonth(), n.getDate() - 1);
+        if (sameDay(d, y)) return 'Yesterday';
+        const opts = { weekday: 'long', day: 'numeric', month: 'long' };
+        if (d.getFullYear() !== n.getFullYear()) opts.year = 'numeric';
+        return d.toLocaleDateString('en-GB', opts).replace(',', '');
+    }
+
+    function timeText(date) {
+        const d = new Date(date);
+        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    }
+
+    /** Logs (newest first) as rows with a {day} row before each new local day. */
+    function rowsWithDays(logs, now) {
+        const out = [];
+        let last = null;
+        (logs || []).forEach(log => {
+            const label = log.createdAt ? dayLabel(log.createdAt, now) : '';
+            if (label !== last) { out.push({ day: label }); last = label; }
+            out.push({ log });
+        });
+        return out;
+    }
+
+    function shortDate(iso) {
+        const [y, m, d] = String(iso).split('-').map(Number);
+        return new Date(y, m - 1, d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    }
+
+    /** "9 actions in the last 7 days", "1 action from 1 Oct to 15 Oct". */
+    function countLine(total, period, start, end) {
+        const what = plural(total, 'action');
+        if (period === 'dates' && start && end) {
+            return start === end ? `${what} on ${shortDate(start)}` : `${what} from ${shortDate(start)} to ${shortDate(end)}`;
+        }
+        const label = (PERIODS.find(p => p[0] === period) || PERIODS[1])[1];
+        return `${what} in the last ${label}`;
+    }
+
+    // ---- page ----
+
+    const state = {
+        period: '7d', customStart: '', customEnd: '', from: '', to: '',
+        environmentId: '', category: '', page: 0
+    };
+    let environments = [];
+
+    function setPresetRange(period) {
+        const hours = RANGE_HOURS[period] || RANGE_HOURS['7d'];
         const now = new Date();
-        currentFilters.from = new Date(now.getTime() - hours * 3600 * 1000).toISOString();
-        currentFilters.to = now.toISOString();
+        state.from = new Date(now.getTime() - hours * 3600 * 1000).toISOString();
+        state.to = now.toISOString();
     }
 
     /** Local calendar days: from local midnight of start to local midnight after end. */
     function setCustomRange(startDate, endDate) {
         const [sy, sm, sd] = startDate.split('-').map(Number);
         const [ey, em, ed] = endDate.split('-').map(Number);
-        currentFilters.from = new Date(sy, sm - 1, sd).toISOString();
-        currentFilters.to = new Date(ey, em - 1, ed + 1).toISOString();
-        currentFilters.customStart = startDate;
-        currentFilters.customEnd = endDate;
+        state.from = new Date(sy, sm - 1, sd).toISOString();
+        state.to = new Date(ey, em - 1, ed + 1).toISOString();
+        state.customStart = startDate;
+        state.customEnd = endDate;
     }
 
-    function fetchActions() {
+    function normalizePage(data) {
+        if (!data || !data.page) return data || { content: [], totalElements: 0 };
+        return { ...data, totalElements: data.page.totalElements ?? 0, number: data.page.number ?? 0 };
+    }
+
+    function fetchLogs(page, size) {
+        const params = new URLSearchParams({ page, size });
+        if (state.from) params.append('from', state.from);
+        if (state.to) params.append('to', state.to);
+        if (state.environmentId) params.append('environmentId', state.environmentId);
+        if (state.category) params.append('category', state.category);
+        return new Promise((resolve, reject) => {
+            ApiClient.get(`${Config.API.audit.myLogs}?${params.toString()}`, { suppressGlobalError: true })
+                .done(data => resolve(normalizePage(data)))
+                .fail(xhr => reject(xhr));
+        });
+    }
+
+    function fetchEnvironments() {
         return new Promise(resolve => {
-            ApiClient.get(Config.API.audit.actions, { suppressGlobalError: true })
-                .done(data => resolve(Array.isArray(data) ? data : []))
+            ApiClient.get(Config.API.access.myEnvironments, { suppressGlobalError: true })
+                .done(data => {
+                    const byId = new Map();
+                    (Array.isArray(data) ? data : []).forEach(a => {
+                        if (a.environmentId && a.environmentName) byId.set(a.environmentId, a.environmentName);
+                    });
+                    resolve(Array.from(byId, ([id, name]) => ({ id, name }))
+                        .sort((x, y) => x.name.localeCompare(y.name)));
+                })
                 .fail(() => resolve([]));
         });
     }
 
-    /**
-     * Load activity logs page
-     */
+    function environmentOf(log) {
+        if (log.environmentName) return log.environmentName;
+        const type = String(log.targetType || '').toLowerCase();
+        if (type === 'environment' || type === 'environment_access' || type === 'lock') return log.targetName || '';
+        return '';
+    }
+
+    function pageMarkup() {
+        const periods = PERIODS.map(([key, label]) => Utils.html`<button type="button" class="activity-period"
+                data-al-period="${key}" aria-pressed="${state.period === key ? 'true' : 'false'}">${label}</button>`).join('');
+        const envOptions = ['<option value="">All</option>'].concat(environments.map(e => Utils.html`<option value="${e.id}"
+                ${state.environmentId === e.id ? 'selected' : ''}>${e.name}</option>`)).join('');
+        const catOptions = CATEGORIES.map(([key, label]) => Utils.html`<option value="${key}"
+                ${state.category === key ? 'selected' : ''}>${label}</option>`).join('');
+        const exportBtn = `<button type="button" class="btn btn-outline-secondary activity-export" id="al-export-logs-btn">
+                <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"
+                    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v10M5.5 8.5 10 13l4.5-4.5M4 17h12"></path></svg>
+                Export CSV</button>`;
+        return `<div class="activity-page">
+            ${PageHeader.markup({ title: 'My activity', summaryHtml: 'What you started, stopped, locked and requested.',
+                actionsHtml: exportBtn, helpPage: 'activity-logs', helpLabel: 'Activity logs' })}
+            <div class="activity-filters">
+                <div class="activity-periods" role="group" aria-label="Period">${periods}</div>
+                <label class="activity-select">Environment
+                    <select class="form-select form-select-sm" id="al-environment-filter">${envOptions}</select></label>
+                <label class="activity-select">Action
+                    <select class="form-select form-select-sm" id="al-action-filter">${catOptions}</select></label>
+                <div class="activity-dates" id="al-custom-date-range" ${state.period === 'dates' ? '' : 'hidden'}>
+                    <label>From <input type="date" class="form-control form-control-sm" id="al-start-date-input" value="${Utils.escapeHtml(state.customStart)}"></label>
+                    <label>To <input type="date" class="form-control form-control-sm" id="al-end-date-input" value="${Utils.escapeHtml(state.customEnd)}"></label>
+                    <button type="button" class="btn btn-primary btn-sm" id="al-apply-custom-range-btn">Show</button>
+                </div>
+            </div>
+            <div class="activity-card" id="al-results" aria-live="polite"></div>
+        </div>`;
+    }
+
+    function rowMarkup(log) {
+        const r = describe(log);
+        const note = r.note ? Utils.html`<div class="activity-note">${r.note}</div>` : '';
+        return Utils.html`<tr class="activity-row">
+                <td class="activity-time"><time datetime="${log.createdAt || ''}" title="${log.createdAt ? new Date(log.createdAt).toLocaleString() : ''}">${log.createdAt ? timeText(log.createdAt) : ''}</time></td>
+                <td class="activity-what">${r.text}` + note + Utils.html`</td>
+                <td class="activity-env">${environmentOf(log) || '—'}</td>
+                <td class="activity-result"><span class="activity-chip" data-tone="${r.tone}">${r.result}</span></td>
+            </tr>`;
+    }
+
+    function resultsMarkup(data) {
+        const logs = data.content || [];
+        const total = data.totalElements || 0;
+        if (!logs.length) {
+            const filtered = state.environmentId || state.category;
+            const when = countLine(0, state.period, state.customStart, state.customEnd).replace(/^0 actions /, '');
+            return filtered
+                ? Utils.html`<div class="activity-empty">
+                    <p class="activity-empty-title">No actions match these filters</p>
+                    <p>Nothing of this kind ${when}.</p>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="al-clear-filters-btn">Show all actions</button>
+                </div>`
+                : Utils.html`<div class="activity-empty">
+                    <p class="activity-empty-title">Nothing ${when}</p>
+                    <p>What you start, stop, lock or request shows up here.</p>
+                </div>`;
+        }
+        const body = rowsWithDays(logs).map(r => r.day !== undefined
+            ? Utils.html`<tr class="activity-day"><th colspan="4" scope="rowgroup">${r.day}</th></tr>`
+            : rowMarkup(r.log)).join('');
+        return `<div class="activity-table-wrap"><table class="activity-table">
+                <thead><tr><th scope="col" class="activity-time">Time</th><th scope="col">What</th>
+                    <th scope="col">Environment</th><th scope="col" class="activity-result">Result</th></tr></thead>
+                <tbody>${body}</tbody></table></div>
+            <div class="activity-foot">
+                <span class="activity-count" id="al-count">${Utils.escapeHtml(countLine(total, state.period, state.customStart, state.customEnd))}</span>
+                <div class="pagination-bar-wrap" id="al-pagination"></div>
+            </div>`;
+    }
+
+    function errorMarkup() {
+        return `<div class="activity-empty" role="alert">
+                <p class="activity-empty-title">Your activity didn't load</p>
+                <p>The server didn't answer. The filters still work.</p>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-action="activity-retry">Try again</button>
+            </div>`;
+    }
+
+    function drawResults(t) {
+        $('#al-results').attr('aria-busy', 'true');
+        return fetchLogs(state.page, PAGE_SIZE).then(data => {
+            if (!ContentRouter.isCurrent(t)) return;
+            $('#al-results').html(resultsMarkup(data)).attr('aria-busy', 'false');
+            if ((data.totalElements || 0) > PAGE_SIZE) {
+                Pagination.renderNumbered('#al-pagination', {
+                    page: data.number || 0, totalItems: data.totalElements, pageSize: PAGE_SIZE,
+                    itemLabel: 'actions', zeroIndexed: true, bindAncestor: '#content-area',
+                    onPageChange: p => { state.page = p; drawResults(ContentRouter.token()); }
+                });
+            }
+        }).catch(() => {
+            if (!ContentRouter.isCurrent(t)) return;
+            $('#al-results').html(errorMarkup()).attr('aria-busy', 'false');
+        });
+    }
+
+    function reload() {
+        state.page = 0;
+        return drawResults(ContentRouter.token());
+    }
+
+    function bind() {
+        $(document).off(NS)
+            .on('click' + NS, '#content-area [data-al-period]', function() {
+                const key = this.getAttribute('data-al-period');
+                state.period = key;
+                $('#content-area [data-al-period]').attr('aria-pressed', 'false');
+                this.setAttribute('aria-pressed', 'true');
+                const $dates = $('#al-custom-date-range');
+                if (key === 'dates') {
+                    $dates.prop('hidden', false);
+                    $('#al-start-date-input').trigger('focus');
+                    return;
+                }
+                $dates.prop('hidden', true);
+                setPresetRange(key);
+                reload();
+            })
+            .on('click' + NS, '#al-apply-custom-range-btn', function() {
+                const start = $('#al-start-date-input').val();
+                const end = $('#al-end-date-input').val();
+                if (!start || !end) { Notifications.show('Pick both dates.', 'warning'); return; }
+                if (start > end) { Notifications.show('The first date must be on or before the second.', 'warning'); return; }
+                setCustomRange(start, end);
+                reload();
+            })
+            .on('change' + NS, '#al-environment-filter', function() { state.environmentId = $(this).val(); reload(); })
+            .on('change' + NS, '#al-action-filter', function() { state.category = $(this).val(); reload(); })
+            .on('click' + NS, '#al-clear-filters-btn', function() {
+                state.environmentId = '';
+                state.category = '';
+                $('#al-environment-filter, #al-action-filter').val('');
+                reload();
+            })
+            .on('click' + NS, '#al-export-logs-btn', () => exportLogs());
+        ContentRouter.onLeave(() => $(document).off(NS));
+    }
+
     /** Router loader (see the page contract in core/router.js). */
     async function loadMyActivityLogs() {
         const t = ContentRouter.token();
-        try {
-            showLoading();
-
-            if (currentFilters.timeRange !== 'custom') {
-                setPresetRange(currentFilters.timeRange);
-            }
-            currentFilters.page = 0;
-
-            // Load environments, actions and logs in parallel
-            const [logs, environments, actions] = await Promise.all([
-                fetchActivityLogs(currentFilters),
-                fetchUserEnvironments(),
-                fetchActions()
-            ]);
-            if (!ContentRouter.isCurrent(t)) return;
-
-            userEnvironments = environments || [];
-            allActions = actions || [];
-
-            const html = buildActivityLogsHtml(logs);
-            $('#content-area').html(html);
-            bindActivityLogEvents();
-            renderActivityLogsPagination(logs);
-
-            console.log('Activity logs loaded successfully');
-        } catch (error) {
-            if (!ContentRouter.isCurrent(t)) return;
-            console.error('Failed to load activity logs:', error);
-            showError('Failed to load activity logs.');
-        }
+        if (state.period !== 'dates') setPresetRange(state.period);
+        state.page = 0;
+        Loading.showPage('Loading your activity…');
+        environments = await fetchEnvironments();
+        if (!ContentRouter.isCurrent(t)) return;
+        $('#content-area').html(pageMarkup());
+        bind();
+        await drawResults(t);
     }
 
-    /**
-     * Fetch user's activity logs with current filters
-     */
-    function fetchActivityLogs(filters) {
-        return new Promise((resolve, reject) => {
-            const params = new URLSearchParams();
-            params.append('page', filters.page);
-            params.append('size', filters.size);
-
-            if (filters.from) params.append('from', filters.from);
-            if (filters.to) params.append('to', filters.to);
-            if (filters.environmentId) params.append('environmentId', filters.environmentId);
-            if (filters.actionType) params.append('action', filters.actionType);
-
-            const url = `${Config.API.audit.myLogs}?${params.toString()}`;
-
-            ApiClient.get(url)
-                .done(function(data) {
-                    resolve(normalizePage(data));
-                })
-                .fail(function(xhr) {
-                    if (xhr.status === 404) {
-                        resolve({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 50 });
-                    } else {
-                        reject(xhr);
-                    }
-                });
-        });
-    }
-
-    /**
-     * Fetch user's accessible environments
-     */
-    function fetchUserEnvironments() {
-        return new Promise((resolve) => {
-            ApiClient.get(Config.API.access.myEnvironments)
-                .done(function(data) {
-                    // Extract unique environments from access records
-                    const envMap = new Map();
-                    if (Array.isArray(data)) {
-                        data.forEach(access => {
-                            if (access.environmentId && access.environmentName) {
-                                envMap.set(access.environmentId, access.environmentName);
-                            }
-                        });
-                    }
-                    resolve(Array.from(envMap, ([id, name]) => ({ id, name })));
-                })
-                .fail(() => {
-                    resolve([]);
-                });
-        });
-    }
-
-    /**
-     * Build activity logs page HTML
-     */
-    function buildActivityLogsHtml(data) {
-        const logs = data.content || [];
-
-        return `
-            <div class="activity-logs-container">
-                <!-- Header -->
-                <div class="content-header">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h1><i class="fas fa-clipboard-list"></i> My Activity Logs ${typeof HelpLink !== 'undefined' ? HelpLink.button('activity-logs', 'Activity logs') : ''}</h1>
-                            <p class="text-muted">Your start/stop, restart and lock operations across all environments</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Filter Bar: dropdowns only, no labels -->
-                <div class="activity-logs-filter-bar mb-2">
-                    <select class="form-select form-select-sm" id="al-time-range-filter">
-                        <option value="24h" ${currentFilters.timeRange === '24h' ? 'selected' : ''}>Last 24h</option>
-                        <option value="7d"  ${currentFilters.timeRange === '7d'  ? 'selected' : ''}>Last 7 days</option>
-                        <option value="30d" ${currentFilters.timeRange === '30d' ? 'selected' : ''}>Last 30 days</option>
-                        <option value="custom" ${currentFilters.timeRange === 'custom' ? 'selected' : ''}>Custom range</option>
-                    </select>
-                    <select class="form-select form-select-sm" id="al-environment-filter">
-                        <option value="">All Environments</option>
-                        ${userEnvironments.map(env => `<option value="${Utils.escapeHtml(env.id)}" ${currentFilters.environmentId === env.id ? 'selected' : ''}>${Utils.escapeHtml(env.name)}</option>`).join('')}
-                    </select>
-                    <select class="form-select form-select-sm" id="al-action-type-filter">
-                        <option value="">All Actions</option>
-                        ${allActions.map(a => Utils.html`<option value="${a}" ${currentFilters.actionType === a ? 'selected' : ''}>${formatActionName(a)}</option>`).join('')}
-                    </select>
-                    <select class="form-select form-select-sm" id="al-page-size-filter" title="Rows per fetch">
-                        <option value="50"    ${currentFilters.size === 50    ? 'selected' : ''}>50</option>
-                        <option value="100"   ${currentFilters.size === 100   ? 'selected' : ''}>100</option>
-                        <option value="500"   ${currentFilters.size === 500   ? 'selected' : ''}>500</option>
-                    </select>
-                    <button class="btn btn-outline-danger btn-ghost btn-sm" id="al-clear-filters-btn" title="Clear all filters">
-                        <i class="fas fa-times"></i> Clear
-                    </button>
-                    <button class="btn btn-ghost btn-sm" id="al-export-logs-btn" title="Export CSV">
-                        <i class="fas fa-download"></i> Export
-                    </button>
-                </div>
-
-                <!-- Custom Date Range (shown only when "Custom range" is selected) -->
-                <div id="al-custom-date-range" class="activity-logs-custom-range mb-2" style="display:${currentFilters.timeRange === 'custom' ? 'flex' : 'none'};">
-                    <input type="date" class="form-control form-control-sm" id="al-start-date-input" value="${Utils.escapeHtml(currentFilters.customStart)}" aria-label="From date">
-                    <input type="date" class="form-control form-control-sm" id="al-end-date-input"   value="${Utils.escapeHtml(currentFilters.customEnd)}" aria-label="To date">
-                    <button class="btn btn-primary btn-sm" id="al-apply-custom-range-btn">Apply</button>
-                </div>
-
-                <!-- Table Card: fills remaining space -->
-                <div class="card activity-logs-table-card">
-                    <div class="card-body activity-logs-card-body">
-                        <div class="activity-logs-table-wrapper">
-                            <table class="table table-hover mb-0 table-cards">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Timestamp</th>
-                                        <th>Environment</th>
-                                        <th>Action</th>
-                                        <th>Target</th>
-                                        <th>Result</th>
-                                        <th>Details</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${logs.length > 0 ? logs.map(log => buildActivityLogRow(log)).join('') : `
-                                        <tr>
-                                            <td colspan="6" class="text-center text-muted py-4">
-                                                <i class="fas fa-inbox fa-3x mb-2 d-block" style="opacity:0.5;"></i>
-                                                No activity found for the selected filters
-                                            </td>
-                                        </tr>
-                                    `}
-                                </tbody>
-                            </table>
-                        </div>
-                        <!-- Pagination: pinned to bottom of card -->
-                        <div class="pagination-bar-wrap" id="al-pagination"></div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    /**
-     * Render pagination controls into #al-pagination — called after the container has been
-     * inserted into the DOM (buildActivityLogsHtml leaves it empty for this).
-     */
-    function renderActivityLogsPagination(logs) {
-        Pagination.renderNumbered('#al-pagination', {
-            page: logs.number || 0,
-            totalItems: logs.totalElements || 0,
-            pageSize: currentFilters.size,
-            itemLabel: 'entries',
-            zeroIndexed: true,
-            bindAncestor: '#content-area',
-            onPageChange: (page) => {
-                currentFilters.page = page;
-                loadActivityLogs();
-            }
-        });
-    }
-
-    /**
-     * Build a single activity log row
-     */
-    function buildActivityLogRow(log) {
-        const timestamp = formatTimestamp(log.createdAt);
-        const actionBadgeClass = getActionBadgeClass(log.action);
-        const actionDisplay = Utils.escapeHtml(log.actionDisplay || formatActionName(log.action));
-        const resultIcon = log.success ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>';
-        const details = log.details ? log.details.substring(0, 50) + (log.details.length > 50 ? '...' : '') : '-';
-        const environment = Utils.escapeHtml(getEnvironmentDisplay(log));
-        const targetName = Utils.escapeHtml(log.targetName || '-');
-        const detailsTitle = Utils.escapeHtml(log.details || '');
-        const detailsText = Utils.escapeHtml(details);
-
-        return `
-            <tr>
-                <td>
-                    <div>${timestamp.relative}</div>
-                    <small class="text-muted">${timestamp.absolute}</small>
-                </td>
-                <td>${environment}</td>
-                <td>
-                    <span class="badge ${actionBadgeClass}">${actionDisplay}</span>
-                </td>
-                <td>${targetName}</td>
-                <td class="text-center">${resultIcon}</td>
-                <td title="${detailsTitle}">${detailsText}</td>
-            </tr>
-        `;
-    }
-
-    /**
-     * Bind event handlers for filter changes and pagination
-     */
-    function bindActivityLogEvents() {
-        // Time range filter
-        $('#al-time-range-filter').on('change', function() {
-            const value = $(this).val();
-            currentFilters.timeRange = value;
-            if (value === 'custom') {
-                $('#al-custom-date-range').show();
-            } else {
-                $('#al-custom-date-range').hide();
-                applyTimeRangeFilter(value);
-            }
-        });
-
-        // Environment filter
-        $('#al-environment-filter').on('change', function() {
-            currentFilters.environmentId = $(this).val();
-            currentFilters.page = 0;
-            loadActivityLogs();
-        });
-
-        // Action type filter
-        $('#al-action-type-filter').on('change', function() {
-            currentFilters.actionType = $(this).val();
-            currentFilters.page = 0;
-            loadActivityLogs();
-        });
-
-        // Page size
-        $('#al-page-size-filter').on('change', function() {
-            currentFilters.size = parseInt($(this).val());
-            currentFilters.page = 0;
-            loadActivityLogs();
-        });
-
-        // Clear all filters
-        $('#al-clear-filters-btn').on('click', function() {
-            setPresetRange('7d');
-            currentFilters.environmentId = '';
-            currentFilters.actionType = '';
-            currentFilters.timeRange = '7d';
-            currentFilters.page = 0;
-            loadActivityLogs();
-        });
-
-        // Custom date range
-        $('#al-apply-custom-range-btn').on('click', function() {
-            const startDate = $('#al-start-date-input').val();
-            const endDate = $('#al-end-date-input').val();
-            if (!startDate || !endDate) {
-                Notifications.show('Please select both start and end dates', 'warning');
-                return;
-            }
-            if (startDate > endDate) {
-                Notifications.show('Start date must be before end date', 'warning');
-                return;
-            }
-            setCustomRange(startDate, endDate);
-            currentFilters.page = 0;
-            loadActivityLogs();
-        });
-
-        // Export
-        $('#al-export-logs-btn').on('click', function() {
-            exportActivityLogs();
-        });
-    }
-
-    /**
-     * Apply time range filter
-     */
-    function applyTimeRangeFilter(range) {
-        if (!RANGE_HOURS[range]) return;
-        currentFilters.timeRange = range;
-        setPresetRange(range);
-        currentFilters.page = 0;
-        loadActivityLogs();
-    }
-
-    /**
-     * Reload activity logs with current filters
-     */
-    function loadActivityLogs() {
+    async function exportLogs() {
         const t = ContentRouter.token();
-        showLoading();
-        fetchActivityLogs(currentFilters)
-            .then(logs => {
-                if (!ContentRouter.isCurrent(t)) return;
-                const html = buildActivityLogsHtml(logs);
-                $('#content-area').html(html);
-                bindActivityLogEvents();
-                renderActivityLogsPagination(logs);
-            })
-            .catch(error => {
-                if (!ContentRouter.isCurrent(t)) return;
-                console.error('Error loading activity logs:', error);
-                showError('Failed to load activity logs.');
-            });
-    }
-
-    /**
-     * Export activity logs to CSV
-     */
-    async function exportActivityLogs() {
-        const t = ContentRouter.token();
-        const fileName = `activity-logs-${new Date().toISOString().split('T')[0]}.csv`;
-        const headers = ['Timestamp', 'Environment', 'Action', 'Target', 'Result', 'Details'];
+        const fileName = `my-activity-${new Date().toISOString().split('T')[0]}.csv`;
+        const headers = ['Time', 'What', 'Environment', 'Result', 'Note', 'Action', 'Target', 'Details'];
         const rows = [];
         try {
             // Page through (500 a page, at most 10,000 rows): the server caps the page size.
             for (let page = 0; rows.length < EXPORT_MAX_ROWS; page++) {
-                const data = await fetchActivityLogs({ ...currentFilters, page, size: EXPORT_PAGE_SIZE });
+                const data = await fetchLogs(page, EXPORT_PAGE_SIZE);
                 const logs = data.content || [];
-                logs.forEach(log => rows.push([
-                    log.createdAt,
-                    getEnvironmentDisplay(log),
-                    log.actionDisplay || log.action || '',
-                    log.targetName || '',
-                    log.success ? 'Success' : 'Failed',
-                    log.details || ''
-                ]));
-                if (page + 1 >= (data.totalPages || 0) || logs.length === 0) break;
+                logs.forEach(log => {
+                    const r = describe(log);
+                    rows.push([log.createdAt, r.text, environmentOf(log), r.result, r.note,
+                        log.action || '', log.targetName || '', log.details || '']);
+                });
+                const totalPages = Math.ceil((data.totalElements || 0) / EXPORT_PAGE_SIZE);
+                if (page + 1 >= totalPages || logs.length === 0) break;
             }
             if (!ContentRouter.isCurrent(t)) return;
-            Utils.downloadCsv(fileName, headers, rows.slice(0, EXPORT_MAX_ROWS));
-            Notifications.show('Activity logs exported successfully', 'success');
+            const list = rows.slice(0, EXPORT_MAX_ROWS);
+            Utils.downloadCsv(fileName, headers, list);
+            Notifications.show(`Exported ${plural(list.length, 'action')}.`, 'success');
         } catch (error) {
-            console.error('Error exporting logs:', error);
-            Notifications.show('Failed to export logs', 'danger');
+            Notifications.show("Couldn't export your activity. Try again.", 'danger');
         }
-    }
-
-    /**
-     * Helper: Format timestamp for display
-     */
-    function formatTimestamp(timestamp) {
-        if (!timestamp) return { relative: '-', absolute: '' };
-
-        const date = new Date(timestamp);
-        const now = new Date();
-        const diff = now - date;
-        const minutes = Math.floor(diff / 60000);
-        const hours = Math.floor(diff / 3600000);
-        const days = Math.floor(diff / 86400000);
-
-        let relative = '';
-        if (minutes < 60) {
-            relative = `${minutes}m ago`;
-        } else if (hours < 24) {
-            relative = `${hours}h ago`;
-        } else if (days < 7) {
-            relative = `${days}d ago`;
-        } else {
-            relative = date.toLocaleDateString();
-        }
-
-        const absolute = date.toLocaleString();
-
-        return { relative, absolute };
-    }
-
-    /**
-     * Helper: Get badge CSS class for action type
-     */
-    function getActionBadgeClass(action) {
-        if (!action) return 'bg-secondary';
-
-        const actionStr = action.toString().toLowerCase();
-        if (actionStr.includes('start')) return 'bg-success';
-        if (actionStr.includes('stop')) return 'bg-danger';
-        if (actionStr.includes('lock')) return 'text-bg-warning';
-        if (actionStr.includes('restart')) return 'bg-info';
-        if (actionStr.includes('failed')) return 'bg-danger';
-        if (actionStr.includes('cancelled')) return 'bg-secondary';
-
-        return 'bg-primary';
-    }
-
-    /**
-     * Helper: Format action enum name
-     */
-    function formatActionName(action) {
-        if (!action) return '';
-        return action.replace(/_/g, ' ').toLowerCase()
-            .split(' ')
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(' ');
-    }
-
-    function getEnvironmentDisplay(log) {
-        if (log.environmentName || log.environmentId) {
-            return log.environmentName || log.environmentId;
-        }
-        const targetType = (log.targetType || '').toLowerCase();
-        if (targetType === 'environment' || targetType === 'environment_access' || targetType === 'lock') {
-            return log.targetName || log.targetId || '-';
-        }
-        return '-';
-    }
-
-    /**
-     * Show loading state
-     */
-    function showLoading() {
-        $('#content-area').html(`
-            <div class="d-flex justify-content-center align-items-center" style="min-height: 400px;">
-                <div class="text-center">
-                    <div class="spinner-border text-primary mb-3" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <p class="text-muted">Loading activity logs...</p>
-                </div>
-            </div>
-        `);
-    }
-
-    /**
-     * Show error state
-     */
-    function showError(message) {
-        $('#content-area').html(`
-            <div class="d-flex justify-content-center align-items-center" style="min-height: 400px;">
-                <div class="text-center">
-                    <i class="fas fa-exclamation-triangle text-danger fa-3x mb-3"></i>
-                    <h5>Error</h5>
-                    <p class="text-muted">${message}</p>
-                    <button class="btn btn-primary" data-action="activity-retry">Retry</button>
-                </div>
-            </div>
-        `);
     }
 
     return {
-        loadMyActivityLogs
+        loadMyActivityLogs,
+        reload: () => drawResults(ContentRouter.token()),
+        model: { describe, dayLabel, rowsWithDays, countLine, hoursText }
     };
 })();
 
-window.ActivityLogs = ActivityLogs;
+if (typeof window !== 'undefined') window.ActivityLogs = ActivityLogs;
 
-Actions.register('activity-retry', () => ActivityLogs.loadMyActivityLogs());
+if (typeof Actions !== 'undefined') Actions.register('activity-retry', () => ActivityLogs.reload());

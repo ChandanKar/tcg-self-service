@@ -1,123 +1,263 @@
-/**
- * Activity Logs Feature Styles
- * Operations > Activity Logs — personal action history for all users.
- * Layout and typography synced to dashboard baseline.
+/*
+ * My activity (U09-T04, MyActivity.dc.html): period buttons, Environment and Action selects, then
+ * one table of sentences grouped by day (Time, What, Environment, Result) with a count line.
  */
 
-/* ── Container: fills #content-area exactly like .vm-registry-container ── */
-.activity-logs-container {
+.activity-page {
     display: flex;
     flex-direction: column;
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
-}
-.activity-logs-container > .content-header,
-.activity-logs-container > .activity-logs-filter-bar,
-.activity-logs-container > .activity-logs-custom-range {
-    flex-shrink: 0;
+    gap: 16px;
 }
 
-/* ── Filter Bar: single compact row, no labels ── */
-.activity-logs-filter-bar {
+.activity-page .content-header {
+    margin-bottom: 0;
+}
+
+.activity-export {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #fff;
+}
+
+.activity-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.activity-periods {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    background: #fff;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+}
+
+.activity-period {
+    border: 0;
+    border-radius: 6px;
+    padding: 6px 12px;
+    background: transparent;
+    font: inherit;
+    font-size: 13px;
+    color: var(--ink);
+}
+
+.activity-period[aria-pressed="true"] {
+    background: var(--brand-navy);
+    color: #fff;
+    font-weight: 500;
+}
+
+.activity-period:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: 2px;
+}
+
+.activity-dates,
+.activity-select {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
-    flex-wrap: nowrap;
-}
-.activity-logs-filter-bar .form-select {
-    font-size: 0.81rem;
-    padding: 0.25rem 1.75rem 0.25rem 0.5rem;
-    flex: 1;
-}
-#al-page-size-filter {
-    flex: 0 0 90px;
-    max-width: 90px;
-}
-.activity-logs-filter-bar .btn {
-    font-size: 0.81rem;
-    white-space: nowrap;
-    flex-shrink: 0;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--slate);
 }
 
-/* ── Custom Date Range ── */
-.activity-logs-custom-range {
+.activity-dates {
+    flex-basis: 100%;
+    flex-wrap: wrap;
+}
+
+.activity-dates label {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-}
-.activity-logs-custom-range .form-control {
-    font-size: 0.81rem;
-    max-width: 160px;
+    gap: 6px;
 }
 
-/* ── Table Card: fills remaining vertical space ── */
-.activity-logs-table-card {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
+.activity-dates .form-control {
+    width: 150px;
+}
+
+.activity-select .form-select {
+    width: auto;
+    min-width: 120px;
+    height: 36px;
+    font-size: 14px;
+    color: var(--ink);
+}
+
+.activity-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
     overflow: hidden;
 }
-.activity-logs-card-body {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    overflow: hidden;
-    padding: 0.4rem 0.6rem 0.3rem !important;
+
+.activity-table-wrap {
+    overflow-x: auto;
 }
 
-/* ── Scrollable Table Wrapper ── */
-.activity-logs-table-wrapper {
-    flex: 1;
-    overflow-y: auto;
-    min-height: 0;
-}
-/* Scrollbar — see main.css for the shared ::-webkit-scrollbar rules */
-
-/* Table typography — dashboard baseline (uses CSS variables) */
-.activity-logs-table-wrapper .table td,
-.activity-logs-table-wrapper .table th {
-    padding: var(--table-cell-padding, 0.28rem 0.55rem);
-    font-size: var(--table-body-font, 0.81rem);
-    vertical-align: middle;
-    line-height: 1.5;
-}
-.activity-logs-table-wrapper .table thead th {
-    font-size: var(--table-header-font, 0.7rem);
-    font-weight: 600;
-    letter-spacing: 0.03em;
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    background: var(--table-header-bg);
-}
-
-/* ── Fixed Column Widths ── */
-.activity-logs-table-wrapper .table {
-    table-layout: fixed;
+.activity-table {
     width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
 }
-.activity-logs-table-wrapper .table thead th:nth-child(1),
-.activity-logs-table-wrapper .table tbody td:nth-child(1) { width: 16%; }
-.activity-logs-table-wrapper .table thead th:nth-child(2),
-.activity-logs-table-wrapper .table tbody td:nth-child(2) { width: 16%; }
-.activity-logs-table-wrapper .table thead th:nth-child(3),
-.activity-logs-table-wrapper .table tbody td:nth-child(3) { width: 16%; }
-.activity-logs-table-wrapper .table thead th:nth-child(4),
-.activity-logs-table-wrapper .table tbody td:nth-child(4) { width: 16%; }
-.activity-logs-table-wrapper .table thead th:nth-child(5),
-.activity-logs-table-wrapper .table tbody td:nth-child(5) { width: 8%; text-align: center; }
-.activity-logs-table-wrapper .table thead th:nth-child(6),
-.activity-logs-table-wrapper .table tbody td:nth-child(6) { width: 28%; }
 
-/* Truncate overflowing text in fixed cells */
-.activity-logs-table-wrapper .table tbody td {
-    overflow: hidden;
-    text-overflow: ellipsis;
+.activity-table thead th {
+    padding: 10px 12px;
+    background: var(--surface-subtle);
+    color: var(--slate);
+    font-size: 12.5px;
+    font-weight: 500;
+    text-align: left;
+}
+
+.activity-table td {
+    padding: 8px 12px;
+    border-top: 1px solid var(--line-soft);
+    vertical-align: top;
+}
+
+.activity-table th:first-child,
+.activity-table td:first-child {
+    padding-left: 20px;
+}
+
+.activity-table th:last-child,
+.activity-table td:last-child {
+    padding-right: 20px;
+}
+
+.activity-table .activity-time {
+    width: 90px;
+}
+
+td.activity-time {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--slate);
+}
+
+.activity-table .activity-result {
+    text-align: right;
     white-space: nowrap;
-    max-width: 0;
 }
 
-/* Pagination — see components/pagination.css for .pagination-bar-wrap */
+.activity-env {
+    color: var(--ink);
+}
+
+.activity-day th {
+    padding: 10px 20px 4px;
+    background: #fafbfd;
+    border-top: 1px solid var(--line-soft);
+    color: var(--slate);
+    font-size: 12.5px;
+    font-weight: 600;
+    text-align: left;
+}
+
+.activity-note {
+    margin-top: 2px;
+    font-size: 13px;
+    color: var(--brand-red-text);
+}
+
+.activity-chip {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.activity-chip[data-tone="ok"] {
+    background: var(--brand-green-tint);
+    color: var(--brand-green-text);
+}
+
+.activity-chip[data-tone="bad"] {
+    background: var(--brand-red-tint);
+    color: var(--brand-red-text);
+}
+
+.activity-chip[data-tone="wait"] {
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
+}
+
+.activity-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 20px;
+    border-top: 1px solid var(--line-soft);
+    font-size: 13px;
+    color: var(--slate);
+}
+
+.activity-foot .pagination-bar-wrap:empty {
+    display: none;
+}
+
+.activity-empty {
+    padding: 32px 20px;
+    text-align: center;
+    color: var(--slate);
+}
+
+.activity-empty p {
+    margin: 0 0 8px;
+}
+
+.activity-empty-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+@media (max-width: 767.98px) {
+    .activity-table thead {
+        display: none;
+    }
+
+    .activity-table tr.activity-row {
+        display: grid;
+        grid-template-columns: 56px minmax(0, 1fr) auto;
+        border-top: 1px solid var(--line-soft);
+    }
+
+    .activity-table tr.activity-row td {
+        border-top: 0;
+    }
+
+    .activity-table td.activity-env {
+        grid-column: 2 / 4;
+        grid-row: 2;
+        padding-top: 0;
+        font-size: 13px;
+    }
+
+    .activity-table th:first-child,
+    .activity-table td:first-child {
+        padding-left: 12px;
+    }
+
+    .activity-table .activity-time {
+        width: auto;
+    }
+
+    .activity-select,
+    .activity-select .form-select {
+        flex: 1;
+    }
+
+    .activity-dates .form-control {
+        width: 140px;
+    }
+}

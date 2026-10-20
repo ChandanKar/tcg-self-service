@@ -184,6 +184,76 @@ class AuditFilterIntegrationTest extends SecuredWebTestBase {
                 .andExpect(jsonPath("$.content[?(@.targetName == '" + marker + "')].details").value(org.hamcrest.Matchers.contains("recent")));
     }
 
+    // ---- My activity action groups (U09-T04) ----
+
+    private void myRow(String action, String details) {
+        jdbcTemplate.update("INSERT INTO audit_log (audit_id, user_id, environment_id, action_type, target_type, target_id, "
+                        + "target_name, action_status, details, created_at) VALUES (?, ?, ?, ?, 'test', ?, ?, 'succeeded', ?, ?)",
+                UUID.randomUUID().toString(), operator.getUserId(), env1.getEnvironmentId(), action,
+                UUID.randomUUID().toString(), marker, details, Timestamp.from(Instant.now().minus(Duration.ofHours(1))));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions myActivity(String... params) throws Exception {
+        var request = get("/api/v1/audit/logs/my").with(asUser()).param("from", Instant.now().minus(Duration.ofDays(1)).toString());
+        for (int i = 0; i < params.length; i += 2) request = request.param(params[i], params[i + 1]);
+        return mockMvc.perform(request).andExpect(status().isOk());
+    }
+
+    @Test
+    void myActivityFiltersByActionGroupOnTheServer() throws Exception {
+        myRow("OPERATION_COMPLETED", "start");
+        myRow("VM_START_FAILED", "vm");
+        myRow("LEASE_EXTENDED", "lease");
+        myRow("LOCK_ACQUIRED", "lock");
+        myRow("LOCK_RELEASED", "unlock");
+        myRow("ACCESS_REQUESTED", "access");
+        myRow("ENVIRONMENT_UPDATED", "other");
+        String mine = "$.content[?(@.targetName == '" + marker + "')].details";
+
+        myActivity("category", "OPERATIONS").andExpect(jsonPath(mine)
+                .value(org.hamcrest.Matchers.containsInAnyOrder("start", "vm", "lease")));
+        myActivity("category", "LOCKS").andExpect(jsonPath(mine)
+                .value(org.hamcrest.Matchers.containsInAnyOrder("lock", "unlock")));
+        myActivity("category", "ACCESS").andExpect(jsonPath(mine)
+                .value(org.hamcrest.Matchers.contains("access")));
+        myActivity().andExpect(jsonPath(mine).value(org.hamcrest.Matchers.hasSize(7)));
+    }
+
+    @Test
+    void myActivityPagesCountOnlyTheGroup() throws Exception {
+        for (int i = 0; i < 3; i++) myRow("LOCK_ACQUIRED", "lock " + i);
+        myRow("ACCESS_REQUESTED", "access");
+        myActivity("category", "LOCKS", "environmentId", env1.getEnvironmentId(), "size", "2")
+                .andExpect(jsonPath("$.page.totalElements").value(3))
+                .andExpect(jsonPath("$.content.length()").value(2));
+    }
+
+    @Test
+    void anActionWinsOverTheGroup() throws Exception {
+        myRow("LOCK_ACQUIRED", "lock");
+        myRow("ACCESS_REQUESTED", "access");
+        myActivity("category", "LOCKS", "action", "ACCESS_REQUESTED")
+                .andExpect(jsonPath("$.content[?(@.targetName == '" + marker + "')].details")
+                        .value(org.hamcrest.Matchers.contains("access")));
+    }
+
+    @Test
+    void anUnknownGroupIsABadRequest() throws Exception {
+        mockMvc.perform(get("/api/v1/audit/logs/my").with(asUser()).param("category", "EVERYTHING"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void everyGroupHasActionsAndNoActionIsInTwoGroups() {
+        java.util.Set<com.tcgdigital.vmcontrol.model.AuditAction> seen = java.util.EnumSet.noneOf(com.tcgdigital.vmcontrol.model.AuditAction.class);
+        for (var category : com.tcgdigital.vmcontrol.model.AuditActionCategory.values()) {
+            org.assertj.core.api.Assertions.assertThat(category.actionNames()).isNotEmpty();
+            for (var action : category.actions()) {
+                org.assertj.core.api.Assertions.assertThat(seen.add(action)).as(action + " in two groups").isTrue();
+            }
+        }
+    }
+
     @Test
     void theActorBackfillUsesOnlyTheExplicitByUserPattern() throws Exception {
         String byActor = UUID.randomUUID().toString();

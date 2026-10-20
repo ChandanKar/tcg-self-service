@@ -43,6 +43,22 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, String> {
             @Param("action") String action,
             Pageable pageable);
 
+    /** {@link #findUserActivity} limited to a group of actions (U09-T04); {@code actions} is never empty. */
+    @Query("SELECT a FROM AuditLog a " +
+           "WHERE a.userId = :userId " +
+           "AND (:startTime IS NULL OR a.createdAt >= :startTime) " +
+           "AND (:endTime IS NULL OR a.createdAt < :endTime) " +
+           "AND (:environmentId IS NULL OR a.environmentId = :environmentId OR a.targetId = :environmentId) " +
+           "AND a.action IN :actions " +
+           "ORDER BY a.createdAt DESC")
+    Page<AuditLog> findUserActivityIn(
+            @Param("userId") String userId,
+            @Param("startTime") Timestamp startTime,
+            @Param("endTime") Timestamp endTime,
+            @Param("environmentId") String environmentId,
+            @Param("actions") java.util.Collection<String> actions,
+            Pageable pageable);
+
     /**
      * Find audit logs by environment.
      */

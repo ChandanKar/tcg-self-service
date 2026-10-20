@@ -287,6 +287,17 @@ public class AuditService {
                 pageable));
     }
 
+    /** My activity limited to one action group (U09-T04); a given {@code action} wins over the group. */
+    public Page<AuditLog> getUserActivityLogs(String userId, Timestamp start, Timestamp end, String environmentId,
+                                              AuditAction action, com.tcgdigital.vmcontrol.model.AuditActionCategory category,
+                                              Pageable pageable) {
+        if (action != null || category == null) {
+            return getUserActivityLogs(userId, start, end, environmentId, action, pageable);
+        }
+        return enrichEnvironmentInfo(auditLogRepository.findUserActivityIn(
+                userId, start, end, blankToNull(environmentId), category.actionNames(), pageable));
+    }
+
     /**
      * Get audit logs for a specific target.
      */
