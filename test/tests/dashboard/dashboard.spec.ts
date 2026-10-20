@@ -7,10 +7,10 @@ test.describe('Dashboard', () => {
     await loginAs(page, creds.user.username, creds.user.password);
   });
 
-  test('shows the environments overview table on load', async ({ page }) => {
-    const dashboard = page.locator('[data-view="dashboard"]');
-    await expect(dashboard).toBeVisible();
-    await expect(page.locator('#dashboard-environments-table')).toBeVisible();
+  test('a user lands on Home with their environments or the empty state (U06-T02)', async ({ page }) => {
+    await expect(page.locator('#dashboard-view.home-page')).toBeVisible();
+    await expect(page.locator('#dashboard-view .content-header h1')).toHaveText('Home');
+    await expect(page.locator('#home-envs-title, #home-empty-title')).toBeVisible();
   });
 
   test('global search box is present and accepts input', async ({ page }) => {

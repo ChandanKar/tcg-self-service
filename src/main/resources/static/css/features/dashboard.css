@@ -359,3 +359,206 @@
     color: var(--primary-color);
     text-decoration: underline;
 }
+
+/* ================================================
+   Home (U06-T02, Dashboard.dc.html): everyone but administrators. A normal page (it may grow),
+   unlike the administrator's fit-to-screen dashboard.
+   ================================================ */
+#dashboard-view.content-view.home-page {
+    height: auto;
+    overflow: visible;
+    gap: 20px;
+}
+
+#dashboard-view.home-page .content-header {
+    margin-bottom: 0;
+}
+
+/* "Needs you": quiet gold tiles, each one action */
+.needs-you {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.needs-you-tile {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--brand-gold-tint);
+    color: #5c3d00;
+    font: inherit;
+    font-size: var(--fs-body);
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.needs-you-tile:hover {
+    background: #f6e8c2;
+    color: #5c3d00;
+}
+
+.needs-you-tile:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: 2px;
+}
+
+.needs-you-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--brand-gold);
+    flex-shrink: 0;
+}
+
+.needs-you-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.needs-you-text b,
+.needs-you-action {
+    font-weight: 600;
+}
+
+/* Your environments */
+.home-envs {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.home-envs-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+}
+
+.home-envs-head h2 {
+    margin: 0;
+    font-size: var(--fs-section);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.home-envs-head a {
+    font-size: var(--fs-body);
+    text-decoration: none;
+}
+
+.home-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.home-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+    padding: 16px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--card-radius);
+    box-shadow: var(--shadow-sm);
+    color: var(--ink);
+    text-decoration: none;
+}
+
+.home-card:hover {
+    color: var(--ink);
+    border-color: var(--brand-navy-line);
+    box-shadow: var(--shadow-md);
+}
+
+.home-card:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: 2px;
+}
+
+.home-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.home-card-names {
+    min-width: 0;
+}
+
+.home-card-name {
+    font-size: var(--fs-card-title);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.home-card-slug {
+    margin-top: 2px;
+    font-size: var(--fs-small);
+    color: var(--slate);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.home-card-line {
+    min-height: 36px;
+    font-size: var(--fs-caption);
+    line-height: 1.4;
+    color: #3a4256;
+}
+
+.home-card-foot {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line-soft);
+    font-size: var(--fs-caption);
+    color: var(--slate);
+}
+
+.home-card-cost {
+    color: var(--ink);
+}
+
+.home-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 24px;
+}
+
+.home-empty h2 {
+    margin: 0;
+    font-size: var(--fs-section);
+    font-weight: 600;
+}
+
+.home-empty p {
+    margin: 0 0 8px;
+    color: var(--slate);
+}
+
+@media (max-width: 1100px) {
+    .home-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .needs-you,
+    .home-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

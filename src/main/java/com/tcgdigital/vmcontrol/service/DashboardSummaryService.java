@@ -344,6 +344,7 @@ public class DashboardSummaryService {
                 cost == null ? null : cost.nextStart(),
                 cost == null ? null : cost.nextStop(),
                 (int) vms.stream().filter(vm -> vm.getStatus() == VmStatus.STARTING || vm.getStatus() == VmStatus.STOPPING).count(),
+                countStatus(vms, VmStatus.STARTING),
                 (int) vms.stream().filter(vm -> vm.getStatus() == VmStatus.ERROR || vm.getStatus() == VmStatus.NOT_FOUND
                         || vm.getStatus() == VmStatus.TERMINATED).count(),
                 home.groupStates().get(id)

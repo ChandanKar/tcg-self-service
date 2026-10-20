@@ -83,8 +83,9 @@ public record DashboardSummaryDTO(
             java.time.Instant leaseEndsAt,
             java.time.Instant nextStart,
             java.time.Instant nextStop,
-            /** Starting or stopping, and failed (error, not found, terminated). */
+            /** Starting or stopping (of which startingVms are starting), and failed (error, not found, terminated). */
             Integer transitionalVms,
+            Integer startingVms,
             Integer failedVms,
             /** VM state counts per group in start order, for the power strip (U05-T03). */
             List<GroupStateCountsDTO> groupStates

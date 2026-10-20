@@ -1,6 +1,9 @@
 /**
  * VM Self-Service Platform - Dashboard Feature
- * Role-aware dashboard backed by /api/v1/dashboard/summary.
+ * Role-aware dashboard backed by /api/v1/dashboard/summary. Everyone but administrators gets Home
+ * (U06-T02, Dashboard.dc.html): a one-line summary, "Needs you" tiles and up to four environment
+ * cards with power strips, refreshed quietly every 30 s. Administrators keep the fleet dashboard
+ * until U14 replaces it.
  */
 const Dashboard = (function() {
     'use strict';
@@ -23,7 +26,7 @@ const Dashboard = (function() {
             if (!ContentRouter.isCurrent(t)) return;
             dashboardData = data;
             renderDashboard(dashboardData);
-            if (autoRefreshEnabled) {
+            if (autoRefreshEnabled || !isAdmin(data)) {
                 startAutoRefresh();
             }
         } catch (error) {
@@ -35,7 +38,7 @@ const Dashboard = (function() {
         }
     }
 
-    /** Auto-refresh tick: silent on errors, never renders after the user left, keeps the search. */
+    /** Auto-refresh tick: silent on errors, never renders after the user left, skips an unchanged summary. */
     async function silentRefresh() {
         if (isLoading) return;
         const t = ContentRouter.token();
@@ -47,11 +50,7 @@ const Dashboard = (function() {
             if (freshSignature === lastRenderSignature) {
                 return;
             }
-            const search = $('#dashboard-env-search').val();
             renderDashboard(dashboardData);
-            if (search) {
-                $('#dashboard-env-search').val(search).trigger('input');
-            }
         } catch (error) {
             console.warn('Silent dashboard refresh failed:', error && error.status);
         }
@@ -83,7 +82,7 @@ const Dashboard = (function() {
         RealTime.stopPolling('dashboard');
         disposeTooltips();
         disposeCharts();
-        $('#content-area').off('.dashboardJump .dashboardAutoRefresh .dashboardSearch');
+        $('#content-area').off('.dashboardJump .dashboardAutoRefresh');
         $(window).off('resize.dashboardCharts');
         isLoading = false;
     }
@@ -93,8 +92,8 @@ const Dashboard = (function() {
         $('#content-area').html(`
             <div class="content-view" id="dashboard-view">
                 <div class="content-header">
-                    <h1>Dashboard</h1>
-                    <p>Loading your fleet view</p>
+                    <h1>${pageTitle()}</h1>
+                    <p>Loading&hellip;</p>
                 </div>
                 <div class="loading-state">
                     <div class="spinner-border text-primary" role="status">
@@ -112,8 +111,7 @@ const Dashboard = (function() {
         $('#content-area').html(`
             <div class="content-view" id="dashboard-view">
                 <div class="content-header">
-                    <h1>Dashboard</h1>
-                    <p>Overview of your environments and VMs</p>
+                    <h1>${pageTitle()}</h1>
                 </div>
                 <div class="error-state">
                     <i class="fas fa-exclamation-triangle fa-3x text-warning"></i>
@@ -127,8 +125,18 @@ const Dashboard = (function() {
         `);
     }
 
+    /** Administrators see the Dashboard; everyone else Home (U06-T02). */
+    function pageTitle() {
+        return typeof Auth !== 'undefined' && Auth.isAdmin() ? 'Dashboard' : 'Home';
+    }
+
+    function isAdmin(data) {
+        return !!data && data.persona === 'ADMIN';
+    }
+
     function buildDashboardHtml(data) {
-        const admin = data.persona === 'ADMIN';
+        if (!isAdmin(data)) return buildHomeHtml(data);
+        const admin = true;
         const subtitle = admin ? 'Global AWS fleet overview' : 'Overview of your environments and VMs';
         return `
             <div class="content-view dashboard-persona ${admin ? 'dashboard-admin' : 'dashboard-user'}" id="dashboard-view">
@@ -153,7 +161,7 @@ const Dashboard = (function() {
 
                 <div class="dashboard-body" tabindex="0" role="region" aria-label="Dashboard">
                     ${buildMetricStrip(data)}
-                    ${admin ? buildAdminDashboard(data) : buildUserDashboard(data)}
+                    ${buildAdminDashboard(data)}
                 </div>
             </div>
         `;
@@ -167,18 +175,15 @@ const Dashboard = (function() {
         const summary = data.summary || {};
         const storage = data.storage || {};
         const coverage = data.coverage || {};
-        // Admin dashboard no longer has an Idle VMs panel to jump to (removed with the
-        // Global Utilization chart split) — only the non-admin dashboard's panel still exists.
-        const admin = data.persona === 'ADMIN';
-        const idleTarget = admin ? null : 'dashboard-idle-vms';
+        // Administrators only; Home has no tiles (U06-T02).
         return `
-            <div class="dashboard-kpi-grid${admin ? '' : ' dashboard-kpi-grid-4'}">
+            <div class="dashboard-kpi-grid">
                 ${buildKpi('Environments', summary.environments, 'fa-layer-group', 'Environments you can see')}
                 ${buildKpi('Total VMs', summary.totalVms, 'fa-server', 'Registered VMs in those environments')}
                 ${buildKpi('Running', summary.runningVms, 'fa-play-circle', `${percent(summary.runningVms, summary.totalVms)}% of your VMs`)}
-                ${buildKpi('Idle', summary.idleVms, 'fa-moon', 'Running VMs that have been barely used', idleTarget)}
-                ${admin ? buildKpi('Storage', formatGiB(storage.totalAllocatedStorageGib), 'fa-hard-drive', 'Allocated EBS storage') : ''}
-                ${admin ? buildKpi('Coverage', `${coverage.metricsPercent || 0}%`, 'fa-signal', 'Share of VMs with recent metric samples') : ''}
+                ${buildKpi('Idle', summary.idleVms, 'fa-moon', 'Running VMs that have been barely used')}
+                ${buildKpi('Storage', formatGiB(storage.totalAllocatedStorageGib), 'fa-hard-drive', 'Allocated EBS storage')}
+                ${buildKpi('Coverage', `${coverage.metricsPercent || 0}%`, 'fa-signal', 'Share of VMs with recent metric samples')}
             </div>
         `;
     }
@@ -197,26 +202,91 @@ const Dashboard = (function() {
         `;
     }
 
-    function buildUserDashboard(data) {
+    // ---------------------------------------------------------------- Home (U06-T02)
+
+    function money(value) {
+        if (value === null || value === undefined || value === '') return '—';
+        const amount = Number(value);
+        return Number.isFinite(amount)
+            ? '$' + amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+    }
+
+    function buildHomeHtml(data) {
+        const cards = data.environments || [];
+        const t = HomeModel.totals(cards);
+        const summary = cards.length
+            ? Utils.html`<span class="mono">${t.running}</span> of <span class="mono">${t.total}</span> VMs running across `
+                + Utils.escapeHtml(`${t.environments} environment${t.environments === 1 ? '' : 's'}`)
+                + Utils.html` · <span class="mono">${money(data.summary && data.summary.monthToDateCost)}</span> this month`
+            : 'Nothing to show yet.';
         return `
-            <div class="dashboard-layout dashboard-layout-user">
-                ${buildEnvironmentPanel(data.environments || [])}
-                <section class="dashboard-chart-panel">
-                    <div class="dashboard-panel-head">
-                        <h2>VM State</h2>
-                        <small>${data.summary?.totalVms || 0} VMs</small>
-                    </div>
-                    <div id="dash-vm-state" class="dashboard-chart"></div>
-                </section>
-                ${buildListPanel('Idle VMs', data.idleVms || [], 'idle')}
-                <section class="dashboard-chart-panel dashboard-full">
-                    <div class="dashboard-panel-head">
-                        <h2>Utilization Trend</h2>
-                        <small>Last 24h</small>
-                    </div>
-                    <div id="dash-util-trend" class="dashboard-chart"></div>
-                </section>
+            <div class="content-view page home-page" id="dashboard-view">
+                ${PageHeader.markup({
+                    title: 'Home',
+                    summaryHtml: summary,
+                    actionsHtml: '<a class="btn btn-secondary" href="#/request-access">Request access to an environment</a>',
+                })}
+                ${buildNeedsYou(data.needsYou || [])}
+                ${cards.length ? buildHomeCards(cards) : buildHomeEmpty()}
             </div>
+        `;
+    }
+
+    function buildNeedsYou(items) {
+        const now = new Date();
+        const tiles = items.map(item => HomeModel.needsYouItem(item, now)).filter(Boolean).map(tile => {
+            const text = Utils.html`<span class="needs-you-text">${tile.before}<b>${tile.environment}</b>${tile.middle}`
+                + Utils.html`<span class="mono">${tile.at}</span>${tile.after}</span>`
+                + Utils.html`<b class="needs-you-action">${tile.action}</b>`;
+            const dot = '<span class="needs-you-dot" aria-hidden="true"></span>';
+            return tile.href
+                ? Utils.html`<a class="needs-you-tile" href="${tile.href}">` + dot + text + '</a>'
+                : Utils.html`<button type="button" class="needs-you-tile" data-action="home-extend-access" data-access-id="${tile.extend}">`
+                    + dot + text + '</button>';
+        });
+        if (!tiles.length) return '';
+        return `<section class="needs-you" aria-label="Needs you">${tiles.join('')}</section>`;
+    }
+
+    function buildHomeCards(cards) {
+        const now = new Date();
+        const items = HomeModel.pickCards(cards, 4).map(card => {
+            const chip = HomeModel.chip(card);
+            const strip = PowerStrip.render(PowerStrip.fromGroupStates(card.groupStates || []), { large: true });
+            return Utils.html`<a class="home-card" href="#/environments/${encodeURIComponent(card.environmentId)}">
+                    <div class="home-card-head">
+                        <div class="home-card-names">
+                            <div class="home-card-name">${card.displayName || card.name}</div>
+                            <div class="home-card-slug mono">${card.name}</div>
+                        </div>
+                        <span class="chip chip-${chip.kind}">${chip.label}</span>
+                    </div>`
+                + strip
+                + Utils.html`<div class="home-card-line">${HomeModel.cardLine(card, now)}</div>
+                    <div class="home-card-foot">
+                        <span><span class="mono home-card-cost">${money(card.monthToDateCost)}</span> this month</span>
+                        <span class="home-card-access">${HomeModel.accessLabel(card.myAccess)}</span>
+                    </div>
+                </a>`;
+        });
+        return `
+            <section class="home-envs" aria-labelledby="home-envs-title">
+                <div class="home-envs-head">
+                    <h2 id="home-envs-title">Your environments</h2>
+                    <a href="#/my-environments">See all as a list</a>
+                </div>
+                <div class="home-grid">${items.join('')}</div>
+            </section>
+        `;
+    }
+
+    function buildHomeEmpty() {
+        return `
+            <section class="home-empty panel" aria-labelledby="home-empty-title">
+                <h2 id="home-empty-title">You have no environments yet.</h2>
+                <p>Ask for access and an environment admin will review your request.</p>
+                <a class="btn btn-primary" href="#/request-access">Request access to an environment</a>
+            </section>
         `;
     }
 
@@ -260,101 +330,6 @@ const Dashboard = (function() {
                 ${buildSchedulerHealthPanel(data.schedulerHealth || [], true)}
                 ${buildRiskCompliancePanel(data.riskCompliance || [])}
             </div>
-        `;
-    }
-
-    function buildEnvironmentPanel(environments) {
-        return `
-            <section class="dashboard-table-panel dashboard-wide">
-                <div class="dashboard-panel-head">
-                    <h2>Environments</h2>
-                    <input type="text" class="form-control form-control-sm" id="dashboard-env-search" placeholder="Search...">
-                </div>
-                <div class="dashboard-env-table">
-                    <table class="table table-hover mb-0">
-                        <thead>
-                            <tr>
-                                <th>Environment</th>
-                                <th>Type</th>
-                                <th>VMs</th>
-                                <th>CPU</th>
-                                <th>Storage</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="dashboard-env-rows">
-                            ${buildEnvironmentRows(environments)}
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-        `;
-    }
-
-    function buildEnvironmentRows(environments) {
-        if (!environments.length) {
-            return `<tr><td colspan="6" class="text-center text-muted py-4">No environments available</td></tr>`;
-        }
-        return environments.map(env => {
-            const running = env.runningVms || 0;
-            const total = env.totalVms || 0;
-            const searchText = `${env.displayName || ''} ${env.name || ''}`.toLowerCase();
-            return `
-                <tr class="dashboard-env-row" data-name="${Utils.escapeHtml(searchText)}">
-                    <td>
-                        ${env.environmentId
-                            ? `<a class="dashboard-env-link" href="#/environments/${encodeURIComponent(env.environmentId)}"><strong>${Utils.escapeHtml(env.displayName || env.name || '-')}</strong></a>`
-                            : `<strong>${Utils.escapeHtml(env.displayName || env.name || '-')}</strong>`}
-                        <small>${Utils.escapeHtml(env.name || '')}</small>
-                    </td>
-                    <td>${Utils.escapeHtml(env.serviceType || 'EC2')}</td>
-                    <td>${PowerStrip.counts(running, total)}</td>
-                    <td>${formatPercent(env.avgCpuUtilization)}</td>
-                    <td>${formatGiB(env.allocatedStorageGib)}</td>
-                    <td><span class="badge ${env.locked ? 'bg-warning text-dark' : 'text-bg-light border'}">${env.locked ? 'Locked' : 'Unlocked'}</span></td>
-                </tr>
-            `;
-        }).join('');
-    }
-
-    function buildListPanel(title, rows, type, prominent = false) {
-        const visibleRows = (type === 'low-utilization' || type === 'idle') ? rows : rows.slice(0, 4);
-        const panelId = type === 'low-utilization' ? 'dashboard-low-utilization'
-            : type === 'idle' ? 'dashboard-idle-vms'
-                : '';
-        const body = visibleRows.length ? visibleRows.map(row => {
-            if (type === 'recommendation') {
-                return `
-                    <div class="dashboard-list-row">
-                        <span class="dashboard-dot ${Utils.escapeHtml(row.tone || 'info')}"></span>
-                        <div>
-                            <strong>${Utils.escapeHtml(row.title || '-')}</strong>
-                            <small>${Utils.escapeHtml(row.description || '')}</small>
-                        </div>
-                        <em>${row.count ?? 0}</em>
-                    </div>
-                `;
-            }
-            return `
-                <div class="dashboard-list-row">
-                    <span class="dashboard-dot warning"></span>
-                    <div>
-                        <strong>${Utils.escapeHtml(row.name || '-')}</strong>
-                        <small>${Utils.escapeHtml(row.environmentName || '')}</small>
-                    </div>
-                    <em>${type === 'low-utilization' ? `${formatPercent(row.cpuUtilization)} / ${formatIdle(row.idleDurationMinutes)}` : formatIdle(row.idleDurationMinutes)}</em>
-                </div>
-            `;
-        }).join('') : `<div class="dashboard-empty-small">No items to show</div>`;
-
-        return `
-            <section class="dashboard-list-panel ${prominent ? 'dashboard-list-panel-prominent dashboard-wide' : ''} ${panelId ? 'dashboard-list-panel-scroll' : ''}" ${panelId ? `id="${panelId}"` : ''}>
-                <div class="dashboard-panel-head">
-                    <h2>${Utils.escapeHtml(title)}</h2>
-                    <small>${rows.length}</small>
-                </div>
-                <div ${prominent ? 'tabindex="0" role="region" aria-label="Scheduler health jobs"' : ''}>${body}</div>
-            </section>
         `;
     }
 
@@ -468,14 +443,6 @@ const Dashboard = (function() {
                 setAutoRefresh(!autoRefreshEnabled);
             });
 
-        $('#content-area').off('input.dashboardSearch', '#dashboard-env-search')
-            .on('input.dashboardSearch', '#dashboard-env-search', function() {
-                const term = ($(this).val() || '').toLowerCase().trim();
-                $('#dashboard-env-rows .dashboard-env-row').each(function() {
-                    const name = String($(this).attr('data-name') || '');
-                    $(this).toggle(!term || name.includes(term));
-                });
-            });
     }
 
     function initCharts(data) {
@@ -806,7 +773,8 @@ const Dashboard = (function() {
             idleVms: data.idleVms,
             schedulerHealth: data.schedulerHealth,
             riskCompliance: data.riskCompliance,
-            recommendations: data.recommendations
+            recommendations: data.recommendations,
+            needsYou: data.needsYou
         };
         return JSON.stringify(stable);
     }
@@ -865,11 +833,10 @@ const Dashboard = (function() {
     return {
         load,
         refresh,
-        getData,
-        _search: function(value) {
-            $('#dashboard-env-search').val(value || '').trigger('input');
-        }
+        getData
     };
 })();
 
 Actions.register('dashboard-refresh', () => Dashboard.refresh());
+// Home's "Ask for more time": My Account on the Access tab with that grant's extension form (U06-T02).
+Actions.register('home-extend-access', el => MyAccount.open('access', { extend: el.getAttribute('data-access-id') }));

@@ -99,7 +99,7 @@ test.describe('Help', () => {
   test('"?" without a page topic shows only All help topics and Keyboard shortcuts; shortcuts open the dialog', async ({ page }) => {
     test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
     await go(page, 'user', '#/dashboard');
-    await expect(page.locator('#content-area .content-header h1').first()).toHaveText('Dashboard', { timeout: 15_000 });
+    await expect(page.locator('#content-area .content-header h1').first()).toHaveText('Home', { timeout: 15_000 });
     await page.evaluate(() => { HelpContent.PAGE_TOPICS.dashboard = undefined; });
     await page.locator('#topbar-help-btn').click();
     const menu = page.getByRole('menu', { name: 'Help' });

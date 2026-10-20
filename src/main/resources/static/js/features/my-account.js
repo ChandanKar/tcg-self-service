@@ -44,7 +44,11 @@ const MyAccount = (function() {
      * Open the panel.
      * @param {string=} tab - 'overview' (default), 'access' or 'activity'
      */
-    function open(tab) {
+    /**
+     * Open the panel on a tab. opts.extend = an access id: once the grants have loaded, start the
+     * extension request for that grant (Home's "Ask for more time", U06-T02).
+     */
+    function open(tab, opts = {}) {
         state = {
             tab: TABS.some(t => t[0] === tab) ? tab : 'overview',
             profile: null,
@@ -76,7 +80,7 @@ const MyAccount = (function() {
             </div>
         `, { variant: 'my-account' });
         render();
-        loadAll();
+        loadAll(opts.extend);
         if (state.tab === 'cost') loadCost();
         if (state.tab === 'notifications') loadPrefs();
         if (window.ApiTokensUi) {
@@ -295,12 +299,15 @@ const MyAccount = (function() {
             });
     }
 
-    function loadAll() {
+    function loadAll(extendAccessId) {
         // Leases are fetched only when the profile says they are on, so nothing fails while off.
         load('profile', Config.API.users.myProfile).done(() => {
             if (state && state.profile && state.profile.leasesEnabled) loadLeases();
         });
-        load('grants', Config.API.access.myEnvironments);
+        const owner = state;
+        load('grants', Config.API.access.myEnvironments).done(() => {
+            if (extendAccessId && state === owner && findGrant(extendAccessId)) startExtension(extendAccessId);
+        });
         loadRequests();
         load('history', Config.API.access.myAccessHistory(30));
         loadActivity();

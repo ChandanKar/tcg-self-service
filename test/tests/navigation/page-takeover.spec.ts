@@ -36,14 +36,13 @@ test.describe('Dashboard lifecycle', () => {
     test.skip(!canSignIn('user'), 'No sign-in configured (TEST_DEV_USER_ID or TEST_USERNAME/TEST_PASSWORD in test/.env)');
   });
 
-  test('Auto On never repaints over another page and stops polling after leaving', async ({ page }) => {
+  test('Home polls quietly, never repaints over another page and stops polling after leaving (U06-T02)', async ({ page }) => {
     await page.clock.install();
     await signIn(page, 'user');
     await ready(page);
     await goTo(page, 'dashboard');
-    await expect(header(page)).toHaveText('Dashboard');
-    await page.locator('#dashboard-auto-refresh-toggle').click();
-    await expect(page.locator('#dashboard-auto-refresh-toggle')).toContainText('Auto On');
+    await expect(header(page)).toHaveText('Home');
+    await expect(page.locator('#dashboard-auto-refresh-toggle')).toHaveCount(0);
 
     await goTo(page, 'my-environments');
     await expect(header(page)).toHaveText('My Environments');
@@ -57,7 +56,7 @@ test.describe('Dashboard lifecycle', () => {
     expect(await resizeHandlers(page, 'dashboardCharts')).toBe(0);
   });
 
-  test('a silent refresh keeps the search box text and filter', async ({ page }) => {
+  test('a silent refresh re-renders Home in place without leaving the page', async ({ page }) => {
     await page.clock.install();
     let call = 0;
     await page.route(`**${SUMMARY}`, async (route) => {
@@ -65,7 +64,7 @@ test.describe('Dashboard lifecycle', () => {
       try {
         const response = await route.fetch();
         const body = await response.json();
-        // Change the data on refreshes so the dashboard re-renders.
+        // Change the data on refreshes so Home re-renders.
         if (call > 1) body.summary = { ...(body.summary || {}), _refreshMarker: call };
         await route.fulfill({ response, json: body });
       } catch {
@@ -77,14 +76,13 @@ test.describe('Dashboard lifecycle', () => {
     await signIn(page, 'user');
     await ready(page);
     await goTo(page, 'dashboard');
-    await expect(header(page)).toHaveText('Dashboard');
-    await page.locator('#dashboard-env-search').fill('prod');
-    await page.locator('#dashboard-auto-refresh-toggle').click();
+    await expect(header(page)).toHaveText('Home');
 
     const before = call;
     await page.clock.runFor(31_000);
     await expect.poll(() => call).toBeGreaterThan(before);
-    await expect(page.locator('#dashboard-env-search')).toHaveValue('prod');
+    await expect(page).toHaveURL(/#\/dashboard$/);
+    await expect(header(page)).toHaveText('Home');
   });
 
   test('a slow dashboard load that finishes after leaving does not render', async ({ page }) => {
@@ -100,7 +98,7 @@ test.describe('Dashboard lifecycle', () => {
     await page.waitForTimeout(2_500);
 
     await expect(page).toHaveURL(/#\/request-access$/);
-    await expect(header(page)).not.toHaveText('Dashboard');
+    await expect(header(page)).not.toHaveText('Home');
   });
 });
 
