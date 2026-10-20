@@ -721,10 +721,11 @@ const Environments = (function() {
                         ${headerOperationButtons(env)}`
                 })}
 
+                <div id="env-alerts" class="env-alerts"></div>
+
                 <div class="env-body${large ? ' env-body-wide' : ''}">
                     <div id="env-main" class="env-main">
                         ${viewOnly}
-                        <div id="env-approval-banner"></div>
                         ${large ? '' : buildStartOrder(env)}
                         <section id="env-vms" aria-labelledby="env-vms-title">
                             <h2 class="visually-hidden" id="env-vms-title">Groups and VMs</h2>
@@ -749,7 +750,6 @@ const Environments = (function() {
                                 <div id="env-budget-panel"></div>
                             </div>
                         </div>
-                        <div id="env-anomaly-panel"></div>
                     </aside>
                 </div>
             </div>`;
@@ -809,12 +809,21 @@ const Environments = (function() {
         const envName = env.displayName || env.name;
         console.log('bindDetailEvents called for environment:', envId, envName);
 
+        // One alert stack for the page (U07-T07): each source below sets or clears its own alert.
+        if (typeof EnvAlerts !== 'undefined') {
+            EnvAlerts.reset(envId);
+            EnvAlerts.set('lock', Locks.alertFor ? Locks.alertFor(env.lockStatus, envId, envName) : null, envId);
+            const vms = getEnvironmentVms(env);
+            EnvAlerts.set('drift', EnvAlerts.model.driftAlert(vms), envId);
+            EnvAlerts.set('sync', EnvAlerts.model.syncAlert(vms, Auth.isAdmin && Auth.isAdmin()), envId);
+        }
+
         // Cost card (E18): loads after the page, never blocks it.
         if (typeof EnvCost !== 'undefined') {
             EnvCost.render(env);
         }
 
-        // Cost anomalies of the last 90 days (E21-T04): nothing when there are none.
+        // A cost anomaly of the last 2 days becomes the Cost alert (E21-T04, U07-T07).
         if (typeof CostAnomalies !== 'undefined') {
             CostAnomalies.renderEnvPanel(env);
         }
@@ -829,7 +838,7 @@ const Environments = (function() {
             IdleStop.renderPanel(env);
         }
 
-        // A start or extension of mine waiting for approval (E25-T06).
+        // A start or extension of mine waiting for approval (E25-T06): the Approval alert.
         if (typeof Approvals !== 'undefined') {
             Approvals.renderEnvBanner(env);
         }
@@ -1991,6 +2000,8 @@ const Environments = (function() {
         loadDetail,
         setStateFilter,
         goToEnvPage,
+        /** VM details from the drift alert (U07-T07), on its History tab. */
+        openVm: vmId => currentEnvironment && showVmDetails(currentEnvironment.environmentId, vmId, '1h', 'history'),
         _search: function(val) {
             filterAndRenderEnvList((val || '').toLowerCase().trim());
         }
@@ -2008,3 +2019,4 @@ Actions.register('env-search', el => Environments._search(el.value), 'input');
 // The list's All / Running / Stopped switch and its pager past 15 (U06-T05).
 Actions.register('env-list-filter', el => Environments.setStateFilter(el.getAttribute('data-filter')));
 Actions.register('env-list-page', el => Environments.goToEnvPage(el.getAttribute('data-page')));
+Actions.register('env-alert-vm', el => Environments.openVm(el.getAttribute('data-vm-id')));

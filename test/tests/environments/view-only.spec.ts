@@ -245,3 +245,63 @@ test.describe('Large environment', () => {
   });
 });
 
+/** U07-T07: every alert in one stack under the header, most urgent first (EnvAlerts.dc.html). */
+test.describe('Environment alerts', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.user || !devIds.admin || !canSignIn('user'), 'Needs TEST_DEV_USER_ID and TEST_DEV_ADMIN_ID (dev mode)');
+  });
+
+  test('budget, lock, lease, drift and sync in order; red ones are alerts; nothing else on a quiet page', async ({ page, playwright }) => {
+    const envId = await environmentWithUserAt(playwright, 'USER');
+    const now = Date.now();
+    const iso = (min: number) => new Date(now + min * 60000).toISOString();
+    await page.route(/\/api\/v1\/environments\/[^/]+\/budget$/, (route: any) => route.fulfill({ json: {
+      budgetId: 'b', monthlyAmount: 300, month: '2026-10', spendToDate: 320, percentUsed: 107, startFrozenUntil: iso(24 * 60) } }));
+    await page.route(/\/api\/v1\/environments\/[^/]+\/lock$/, (route: any) => route.fulfill({ json: {
+      isLocked: true, lockedByUserId: 'rahul', lockedByDisplayName: 'Rahul Verma', lockedAt: iso(-90), lockReason: 'Load test prep',
+      expiresAt: iso(120), canAcquire: false, canRelease: false, canExtend: false, canBreak: false, lockExpiryEnabled: true } }));
+    await page.route(/\/api\/v1\/environments\/[^/]+\/lease$/, (route: any) => route.fulfill({ json: {
+      startedAt: iso(-60), endsAt: iso(12), permissions: { canExtend: true }, participants: [] } }));
+    await page.route(/\/api\/v1\/environments\/[^/]+\/lease-policy$/, (route: any) => route.fulfill({ json: {
+      enabled: true, effectiveDefaultMinutes: 120, effectiveMaxMinutes: 480, platformMaxMinutes: 720, canEdit: false } }));
+    await page.route(/\/api\/v1\/environments\/[^/]+\/vms(\?.*)?$/, (route: any) => route.fulfill({ json: [
+      { group: { groupId: 'g1', name: 'web', displayName: 'Web', sequencePosition: 1 }, vms: [
+        { vmId: 'v1', name: 'crm-web-01', provider: 'AWS', status: 'RUNNING', sequencePosition: 1, stateDriftDetected: true, lastStateSyncAt: iso(-120) },
+        { vmId: 'v2', name: 'crm-web-02', provider: 'AWS', status: 'STOPPED', sequencePosition: 2, lastStateSyncAt: iso(-125) }] }] }));
+    await signIn(page, 'user');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate((id: string) => { location.hash = '#/environments/' + id; }, envId);
+
+    const stack = page.locator('#env-alerts .env-alert');
+    await expect(stack).toHaveCount(5, { timeout: 15_000 });
+    expect(await stack.evaluateAll(els => els.map(e => e.getAttribute('data-kind')))).toEqual(['budget', 'lock', 'lease', 'drift', 'sync']);
+    await expect(stack.nth(0)).toHaveAttribute('role', 'alert');
+    await expect(stack.nth(1)).toHaveAttribute('role', 'alert');
+    await expect(stack.nth(2)).toHaveAttribute('role', 'status');
+    await expect(stack.nth(1)).toContainText('Locked by Rahul Verma');
+    await expect(stack.nth(1)).toContainText('“Load test prep”');
+    await expect(stack.nth(1)).toContainText('You can see it but not start or stop VMs.');
+    await expect(stack.nth(2)).toContainText(/Stops in 1[12] minutes\./);
+    await expect(stack.nth(2).getByRole('button', { name: 'Extend' })).toBeVisible();
+    await expect(stack.nth(3)).toContainText('1 VM changed outside the platform: crm-web-01 is not in the state the platform last set.');
+    await expect(stack.nth(4)).toContainText('VM states may be out of date. They were last read from AWS 2 hours ago');
+    await expect(stack.nth(4).getByRole('link')).toHaveCount(0); // System health is for administrators
+    await expect(page.locator('#btn-env-action')).toBeDisabled();
+
+    // Details opens that VM (faked here, so only the request is checked).
+    const asked = page.waitForRequest(r => /\/environments\/[^/]+\/vms\/v1$/.test(r.url()));
+    await stack.nth(3).getByRole('button', { name: 'Details' }).click();
+    await asked;
+  });
+
+  test('a quiet page has an empty stack that takes no space', async ({ page, playwright }) => {
+    const envId = await environmentWithUserAt(playwright, 'USER');
+    await signIn(page, 'user');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate((id: string) => { location.hash = '#/environments/' + id; }, envId);
+    await expect(page.locator('#env-detail-view .env-body')).toBeVisible({ timeout: 15_000 });
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('#env-alerts')).toBeEmpty();
+    await expect(page.locator('#env-alerts')).toBeHidden();
+  });
+});

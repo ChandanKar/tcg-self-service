@@ -158,13 +158,17 @@ const Approvals = (function() {
     let watched = new Set();
 
     /** Shows the user's pending request for this environment, and follows it until it is decided. */
+    /**
+     * My request waiting for approval on this environment, as the navy Approval alert (U07-T07):
+     * "Your start is waiting for Sanjay Rao. Asked 10 min ago." with Cancel request. Polled every
+     * 15 s while one waits; a decision shows a toast and reloads the page.
+     */
     function renderEnvBanner(env) {
-        const $slot = $('#env-approval-banner');
-        if (!$slot.length || !env) return;
+        if (!$('#env-alerts').length || !env || typeof EnvAlerts === 'undefined') return;
         bannerEnv = env;
         const nav = ContentRouter.token();
         call('GET', Config.API.approvals.list('mine')).then(list => {
-            if (!ContentRouter.isCurrent(nav) || !$('#env-approval-banner').length) return;
+            if (!ContentRouter.isCurrent(nav) || !$('#env-alerts').length) return;
             const mine = (list || []).filter(r => r.environmentId === env.environmentId);
             const pending = mine.find(r => r.status === 'PENDING');
             const justDecided = mine.find(r => watched.has(r.requestId) && r.status !== 'PENDING');
@@ -176,7 +180,7 @@ const Approvals = (function() {
                         + (justDecided.statusReason ? ` ${justDecided.statusReason}` : ''), ok ? 'success' : 'warning', 6000);
             }
             if (!pending) {
-                $slot.html('');
+                EnvAlerts.set('approval', null, env.environmentId);
                 if (typeof RealTime !== 'undefined' && RealTime.stopPolling) RealTime.stopPolling('approvalBanner');
                 if (justDecided && typeof Environments !== 'undefined' && Environments.loadDetail) {
                     Environments.loadDetail({ environmentId: env.environmentId });
@@ -185,16 +189,17 @@ const Approvals = (function() {
             }
             watched.add(pending.requestId);
             const waitingFor = pending.approvers.filter(a => !a.decision).map(a => a.name);
-            $slot.html(Utils.html`<div class="alert alert-info d-flex justify-content-between align-items-center gap-2 flex-wrap" role="status" id="approval-waiting">
-                <span><i class="fas fa-hourglass-half me-1" aria-hidden="true"></i>${what(pending)} is waiting for approval by
-                    ${waitingFor.join(', ') || 'the approvers'}.</span>
-                <span class="d-flex gap-2"><a class="btn btn-sm btn-ghost" href="#/approvals?tab=mine">Details</a>
-                    <button type="button" class="btn btn-sm btn-ghost" data-action="approval-cancel" data-id="${pending.requestId}"
-                        data-banner="1">Cancel</button></span></div>`);
+            const asked = pending.createdAt && Utils.formatRelativeTime ? ` Asked ${Utils.formatRelativeTime(pending.createdAt)}.` : '';
+            EnvAlerts.set('approval', {
+                tone: 'navy', id: 'approval-waiting',
+                title: pending.requestType === 'EXTEND' ? 'Your extension is waiting' : 'Your start is waiting',
+                detail: `for ${waitingFor.join(', ') || 'the approvers'}.${asked}`,
+                action: { label: 'Cancel request', dataAction: 'approval-cancel', data: { id: pending.requestId, banner: '1' } },
+            }, env.environmentId);
             if (typeof RealTime !== 'undefined' && RealTime.startPolling) {
                 RealTime.startPolling('approvalBanner', () => renderEnvBanner(bannerEnv), 15000, { pageScoped: true, immediate: false });
             }
-        }).catch(() => $slot.html(''));
+        }).catch(() => EnvAlerts.set('approval', null, env.environmentId));
     }
 
     return { load, probeNav, showTab, approve, deny, cancel, renderEnvBanner, refreshBanner: () => bannerEnv && renderEnvBanner(bannerEnv) };

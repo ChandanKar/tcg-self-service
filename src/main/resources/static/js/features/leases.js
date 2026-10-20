@@ -64,6 +64,7 @@ const Leases = (function() {
                         if (token !== renderToken) return;
                         current = { env, lease: lease || null, policy: policy || null, requests: requests || [] };
                         $section.html(buildFact(current));
+                        endingAlert(current);
                         startTimers(envId);
                         openExtendFromRoute();
                     });
@@ -134,6 +135,23 @@ const Leases = (function() {
                 ${notes.length ? Utils.raw(`<div class="env-fact-note">${notes.join(' · ')}</div>`) : ''}
                 ${requestRows ? Utils.raw(`<ul class="lease-requests" aria-label="Extension requests">${requestRows}</ul>`) : ''}
             </div>`;
+    }
+
+    /** The gold Lease alert when the lease ends within the hour (U07-T07): "Stops in 12 minutes." */
+    function endingAlert({ env, lease }) {
+        if (typeof EnvAlerts === 'undefined') return;
+        const endsAt = lease ? new Date(lease.endsAt).getTime() : NaN;
+        const left = Math.round((endsAt - Date.now()) / 60000);
+        if (Number.isNaN(endsAt) || left > 60) {
+            EnvAlerts.set('lease', null, env.environmentId);
+            return;
+        }
+        const inWords = left <= 0 ? 'Stopping now.' : `Stops in ${left} minute${left === 1 ? '' : 's'}.`;
+        EnvAlerts.set('lease', {
+            tone: 'gold', title: inWords,
+            detail: `The lease ends at ${clock(endsAt)}. You're reminded 60, 15 and 5 minutes before.`,
+            action: lease.permissions && lease.permissions.canExtend ? { label: 'Extend', dataAction: 'lease-extend' } : null,
+        }, env.environmentId);
     }
 
     function updateCountdown() {

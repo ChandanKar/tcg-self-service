@@ -63,7 +63,7 @@ test.describe('Approvals', () => {
     expect(posted[1]).toEqual({ url: '/api/v1/approval-requests/req-2/deny', body: { reason: 'Too long for a weekend' } });
   });
 
-  test('the environment page shows the waiting banner with Cancel', async ({ page, playwright }) => {
+  test('the environment page shows the waiting request as the Approval alert with Cancel request', async ({ page, playwright }) => {
     const envId = await seedEnvironment(playwright, 'Waiting env');
     let cancelled = false;
     await page.route(/\/api\/v1\/approval-requests\?view=mine$/, route => route.fulfill({ status: 200, contentType: 'application/json',
@@ -76,9 +76,12 @@ test.describe('Approvals', () => {
     });
     await go(page, `#/environments/${envId}`);
 
-    const banner = page.locator('#approval-waiting');
-    await expect(banner).toContainText('Start Waiting env is waiting for approval by Bob.', { timeout: 15_000 });
-    await banner.locator('[data-action="approval-cancel"]').click();
+    // U07-T07: a navy alert in the page's stack.
+    const banner = page.locator('#env-alerts #approval-waiting');
+    await expect(banner).toContainText('Your start is waiting for Bob.', { timeout: 15_000 });
+    await expect(banner).toHaveAttribute('role', 'status');
+    await expect(banner).toContainText('Approval');
+    await banner.getByRole('button', { name: 'Cancel request' }).click();
     await page.locator('#confirmBtn').click();
     await expect(page.locator('#approval-waiting')).toHaveCount(0, { timeout: 10_000 });
   });

@@ -30,35 +30,32 @@ test.describe('Cost anomalies', () => {
     test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
   });
 
-  test('an owner sees the environment anomaly and marks it planned', async ({ page, playwright }) => {
+  test('a recent anomaly is the Cost alert on the environment page, with Review for administrators', async ({ page, playwright }) => {
     const environmentId = await seedEnvironment(playwright, 'Anomaly env');
     test.skip(!environmentId, 'Could not seed an environment');
-    let sent: any = null;
-    await page.route(new RegExp(`/api/v1/environments/${environmentId}/cost-anomalies`), route => route.fulfill({
-      status: 200, contentType: 'application/json', body: JSON.stringify([anomaly({ environmentId })]),
-    }));
-    await page.route(/\/api\/v1\/cost-anomalies\/an-1\/feedback/, route => {
-      sent = route.request().postDataJSON();
-      return route.fulfill({ status: 200, contentType: 'application/json', body: '{"anomalyId":"an-1","feedback":"PLANNED_ACTIVITY"}' });
+    const asked: string[] = [];
+    await page.route(new RegExp(`/api/v1/environments/${environmentId}/cost-anomalies`), route => {
+      asked.push(route.request().url());
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([anomaly({ environmentId })]) });
     });
     await open(page, `#/environments/${environmentId}`);
 
-    const card = page.locator('.anomaly-env-card');
-    await expect(card).toContainText('$140.00', { timeout: 15_000 });
-    await expect(card).toContainText('BoxUsage:m5.large');
-    const planned = card.getByRole('button', { name: 'Planned' });
-    await planned.click();
-    await expect(planned).toHaveAttribute('aria-pressed', 'true');
-    expect(sent).toEqual({ value: 'PLANNED_ACTIVITY' });
+    // U07-T07: the last 2 days only; the 90-day table moves to Insights (U08-T08).
+    const alert = page.locator('#env-alerts [data-kind="cost"]');
+    await expect(alert).toContainText('Spend was 8× usual: $160.00 against about $20.00.', { timeout: 15_000 });
+    await expect(alert).toContainText('Top cause: Amazon Elastic Compute Cloud - Compute / BoxUsage:m5.large.');
+    await expect(alert.getByRole('link', { name: 'Review' })).toHaveAttribute('href', '#/cost-management');
+    expect(asked.every(u => u.includes('days=2'))).toBeTruthy();
+    await expect(page.locator('.anomaly-env-card')).toHaveCount(0);
   });
 
-  test('an environment without anomalies shows no panel', async ({ page, playwright }) => {
+  test('an environment without anomalies shows no Cost alert', async ({ page, playwright }) => {
     const environmentId = await seedEnvironment(playwright, 'Quiet env');
     test.skip(!environmentId, 'Could not seed an environment');
     await open(page, `#/environments/${environmentId}`);
     await expect(page.locator('#env-cost-card')).toBeVisible({ timeout: 15_000 });
     await page.waitForLoadState('networkidle');
-    await expect(page.locator('#env-anomaly-panel')).toBeEmpty();
+    await expect(page.locator('#env-alerts [data-kind="cost"]')).toHaveCount(0);
   });
 
   test('Cost Management lists anomalies across environments and filters them', async ({ page }) => {

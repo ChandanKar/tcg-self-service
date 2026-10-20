@@ -82,7 +82,7 @@ test.describe('Budgets', () => {
     await expect.poll(() => approved).toBe('POST');
   });
 
-  test('a frozen environment shows the banner with Lift freeze for owners', async ({ page, playwright }) => {
+  test('a frozen environment shows the red Budget alert with Lift freeze for owners', async ({ page, playwright }) => {
     const environmentId = await seedEnvironment(playwright, 'Frozen env');
     test.skip(!environmentId, 'Could not seed an environment');
     const until = new Date(Date.now() + 5 * 86_400_000).toISOString();
@@ -96,10 +96,33 @@ test.describe('Budgets', () => {
     }));
     await open(page, `#/environments/${environmentId}`);
 
-    const banner = page.locator('.budget-freeze-banner');
-    await expect(banner).toContainText('Starts are frozen until', { timeout: 15_000 });
+    // U07-T07: the first alert in the page's stack, role=alert.
+    const banner = page.locator('#env-alerts [data-kind="budget"]');
+    await expect(banner).toContainText('Starts are blocked.', { timeout: 15_000 });
+    await expect(banner).toContainText('passed its September budget of $100.00, so new starts are frozen until');
+    await expect(banner).toHaveAttribute('role', 'alert');
     await expect(banner.getByRole('button', { name: 'Lift freeze' })).toBeVisible();
     await expect(page.locator('.budget-env-card .budget-over')).toHaveCount(1);
+  });
+
+  test('while frozen, an operator cannot start: Start is disabled with the reason', async ({ page, playwright }) => {
+    test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
+    const environmentId = await seedEnvironment(playwright, 'Frozen operator env', { grantUser: true });
+    test.skip(!environmentId, 'Could not seed an environment');
+    await page.route(new RegExp(`/api/v1/environments/${environmentId}/budget$`), route => route.fulfill({
+      status: 200, contentType: 'application/json', body: JSON.stringify({
+        budgetId: 'b-frozen-2', scopeType: 'ENVIRONMENT', scopeId: environmentId, scopeName: 'Frozen operator env',
+        monthlyAmount: 300, thresholds: [100], forecastAlert: false, actionType: 'FREEZE_STARTS', enabled: true,
+        month: '2026-10', spendToDate: 310, percentUsed: 103, forecastMonthEnd: null, forecastPercent: null,
+        startFrozenUntil: new Date(Date.now() + 86_400_000).toISOString(),
+      }),
+    }));
+    await open(page, `#/environments/${environmentId}`, 'user');
+
+    await expect(page.locator('#env-alerts [data-kind="budget"]')).toContainText('An owner can lift it. Stops still work.', { timeout: 15_000 });
+    const start = page.locator('#btn-env-action');
+    await expect(start).toBeDisabled();
+    await expect(start).toHaveAttribute('title', 'Starts are blocked by the budget');
   });
 
   test('a member without a budget sees no budget panel', async ({ page, playwright }) => {

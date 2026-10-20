@@ -59,25 +59,37 @@ const CostAnomalies = (function() {
 
     let shown = [];
 
-    /** The last 90 days' anomalies under the cost card; nothing when there are none. */
+    /**
+     * The newest anomaly of the last 2 days as the gold Cost alert (U07-T07): "Spend was 3× usual:"
+     * with the amounts and the top cause; Review (Cost management) for administrators. The 90-day
+     * table moves to Insights (U08-T08).
+     */
     function renderEnvPanel(env) {
-        const $panel = $('#env-anomaly-panel');
-        if (!$panel.length || !env) return;
+        if (!env || typeof EnvAlerts === 'undefined') return;
         const token = ContentRouter.token();
-        ApiClient.get(Config.API.costAnomalies.forEnvironment(env.environmentId, 90), { suppressGlobalError: true })
+        ApiClient.get(Config.API.costAnomalies.forEnvironment(env.environmentId, 2), { suppressGlobalError: true })
             .done(list => {
                 if (!ContentRouter.isCurrent(token)) return;
                 shown = list || [];
-                if (!shown.length) {
-                    $panel.html('');
-                    return;
-                }
-                $panel.html(`<section class="card mb-3 anomaly-env-card" aria-labelledby="anomaly-env-title"><div class="card-body py-2">
-                    <h2 class="h6 mb-2" id="anomaly-env-title"><i class="fas fa-chart-area me-1" aria-hidden="true"></i>
-                        Cost anomalies (last 90 days)</h2>
-                    ${tableHtml(shown, false, '')}</div></section>`);
+                EnvAlerts.set('cost', alertFor(shown), env.environmentId);
             })
-            .fail(() => { if (ContentRouter.isCurrent(token)) $panel.html(''); });
+            .fail(() => { if (ContentRouter.isCurrent(token)) EnvAlerts.set('cost', null, env.environmentId); });
+    }
+
+    function alertFor(list) {
+        const newest = (list || []).slice().sort((a, b) => String(b.anomalyStart || '').localeCompare(String(a.anomalyStart || '')))[0];
+        if (!newest) return null;
+        const expected = newest.totalExpected === null || newest.totalExpected === undefined ? null : Number(newest.totalExpected);
+        const impact = Number(newest.totalImpact || 0);
+        const cause = newest.topCause ? ` Top cause: ${newest.topCause}.` : '';
+        const action = Auth.isAdmin && Auth.isAdmin() ? { label: 'Review', href: '#/cost-management' } : null;
+        if (expected && expected > 0) {
+            const actual = expected + impact;
+            const ratio = Math.round(actual / expected * 10) / 10;
+            return { tone: 'gold', title: `Spend was ${ratio}× usual:`,
+                detail: `${money(actual)} against about ${money(expected)}.${cause}`, action };
+        }
+        return { tone: 'gold', title: 'Spend was higher than usual:', detail: `${money(impact)} more than expected.${cause}`, action };
     }
 
     function giveFeedback(el) {

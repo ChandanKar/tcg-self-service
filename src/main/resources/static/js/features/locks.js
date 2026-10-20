@@ -386,6 +386,27 @@ const Locks = (function() {
     }
 
     /**
+     * The red alert for someone else's lock (U07-T07): "Locked by Rahul Verma" and "since 09:10,
+     * "Load test prep", until 14:30. You can see it but not start or stop VMs." with Lock history.
+     * Null when unlocked or the lock is the viewer's own.
+     */
+    function alertFor(lockStatus, envId, envName) {
+        if (!lockStatus || !lockStatus.isLocked || lockStatus.canRelease === true) return null;
+        const parts = [];
+        const lockedAtMs = toMillis(lockStatus.lockedAt);
+        const expiresAtMs = toMillis(lockStatus.expiresAt);
+        if (lockedAtMs !== null) parts.push(`since ${hhmm(lockedAtMs)}`);
+        if (lockStatus.lockReason) parts.push(`“${lockStatus.lockReason}”`);
+        if (expiresAtMs !== null) parts.push(`until ${hhmm(expiresAtMs)}`);
+        return {
+            tone: 'red',
+            title: `Locked by ${lockStatus.lockedByDisplayName || 'another user'}`,
+            detail: (parts.length ? parts.join(', ') + '. ' : '') + 'You can see it but not start or stop VMs.',
+            action: { label: 'Lock history', dataAction: 'lock-history', data: { 'env-id': envId, 'env-name': envName || '' } },
+        };
+    }
+
+    /**
      * Keep every .lock-countdown on the page current (every 30 s, stops when the user leaves the
      * page). When a watched countdown reaches zero, {@code onExpired} runs once so the caller can
      * re-fetch the status; a lock already overdue when shown never triggers it (no reload loop).
@@ -477,9 +498,11 @@ const Locks = (function() {
         showHistory,
         getStatus,
         buildLockFact,
+        alertFor,
         bindLockEvents,
         canOperate,
         showLockRequired
     };
 })();
 
+Actions.register('lock-history', el => Locks.showHistory(el.getAttribute('data-env-id'), el.getAttribute('data-env-name')));

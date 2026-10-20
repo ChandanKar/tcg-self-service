@@ -355,24 +355,20 @@ const Budgets = (function() {
                 ? (actionsResult.value || []).filter(r => r.environmentId === env.environmentId) : [];
             envPanel = { env, budget, actions, owner };
             $panel.html(envPanelHtml(env, budget, owner, actions));
+            freezeAlert(env, budget, owner);
         });
     }
 
     /**
      * The budget under the cost in "About this environment" (U07-T06): the meter, "$186 of $400",
-     * Edit or Set budget for the owner, and pending budget actions to decide. The start freeze stays
-     * here as one line until the environment's alert stack shows it (U07-T07).
+     * Edit or Set budget for the owner, and pending budget actions to decide. A start freeze is the
+     * red Budget alert at the top of the page (U07-T07).
      */
     function envPanelHtml(env, budget, owner, actions) {
         if (!budget) {
             return owner ? `<div class="budget-env-empty env-fact-note">No budget.
                 <button type="button" class="btn btn-link env-fact-action" data-action="budget-set-env">Set budget</button></div>` : '';
         }
-        const frozen = budget.startFrozenUntil ? Utils.html`
-            <div class="budget-freeze-banner env-fact-note" role="status">
-                Starts are frozen until ${day(budget.startFrozenUntil)} (budget exhausted).${Auth.isAdmin() ? '' : ' Stops still work.'}
-                ${Utils.raw(owner ? '<button type="button" class="btn btn-link env-fact-action" data-action="budget-lift-freeze">Lift freeze</button>' : '')}
-            </div>` : '';
         return Utils.html`
             <section class="budget-env-card" aria-label="Budget">
                 ${Utils.raw(bar(budget))}
@@ -380,9 +376,37 @@ const Budgets = (function() {
                     <span class="env-fact-note" id="env-budget-summary">${summary(budget)}</span>
                     ${Utils.raw(owner ? Utils.html`<button type="button" class="btn btn-link env-fact-action" data-action="budget-edit" data-id="${budget.budgetId}">Edit</button>` : '')}
                 </div>
-                ${Utils.raw(frozen)}
                 ${Utils.raw(owner && actions.length ? actions.map(actionRow).join('') : '')}
             </section>`;
+    }
+
+    const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
+        'October', 'November', 'December'];
+
+    /**
+     * The red "Starts are blocked." alert while the budget froze starts (U07-T07), with Lift freeze
+     * for the owner or Ask to lift (the Budgets page) for environment admins; Start is disabled for
+     * everyone but administrators, who are not held by the freeze.
+     */
+    function freezeAlert(env, budget, owner) {
+        if (typeof EnvAlerts === 'undefined') return;
+        if (!budget || !budget.startFrozenUntil) {
+            EnvAlerts.set('budget', null, env.environmentId);
+            return;
+        }
+        const name = env.displayName || env.name;
+        const month = /^\d{4}-\d{2}$/.test(budget.month || '') ? MONTHS[Number(budget.month.slice(5)) - 1] : 'monthly';
+        const action = owner ? { label: 'Lift freeze', dataAction: 'budget-lift-freeze' }
+            : (Auth.isEnvAdmin && Auth.isEnvAdmin() ? { label: 'Ask to lift', href: '#/budgets' } : null);
+        EnvAlerts.set('budget', {
+            tone: 'red', title: 'Starts are blocked.',
+            detail: `${name} passed its ${month} budget of ${money(budget.monthlyAmount)}, so new starts are frozen until `
+                + `${day(budget.startFrozenUntil)}.${owner ? '' : ' An owner can lift it.'}${Auth.isAdmin() ? '' : ' Stops still work.'}`,
+            action,
+        }, env.environmentId);
+        if (!Auth.isAdmin()) {
+            $('#btn-env-action[data-action-type="start"]').prop('disabled', true).attr('title', 'Starts are blocked by the budget');
+        }
     }
 
     function liftFreeze() {
