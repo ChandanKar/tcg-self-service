@@ -77,9 +77,108 @@
     flex-shrink: 0;
 }
 
+.env-about {
+    display: flex;
+    flex-direction: column;
+}
+
+.env-about > :empty {
+    display: none;
+}
+
 .env-aside-run {
     padding: 14px 18px;
     font-size: var(--fs-body);
+    color: var(--slate);
+}
+
+/* A fact in "About this environment" (U07-T05): label with its action, value, note */
+.env-fact {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 12px 18px;
+    border-top: 1px solid var(--line-soft);
+}
+
+.env-fact-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--slate);
+}
+
+.env-fact-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.env-fact-action,
+.env-fact-link {
+    padding: 0;
+    border: 0;
+    font-size: var(--fs-caption);
+    font-weight: 500;
+    text-decoration: none;
+    vertical-align: baseline;
+}
+
+.env-fact-link {
+    font-weight: 400;
+}
+
+.env-fact-value {
+    font-size: var(--fs-body);
+    color: var(--ink);
+}
+
+.env-fact-note {
+    font-size: 12.5px;
+    color: var(--slate);
+}
+
+.lock-fact.other .env-fact-value {
+    color: var(--brand-red-text);
+    font-weight: 500;
+}
+
+.lock-fact.expiring .lock-countdown,
+.lease-fact.lease-ending-soon .lease-countdown {
+    color: var(--brand-gold-text);
+    font-weight: 600;
+}
+
+.dialog-lead {
+    margin: 0 0 14px;
+    color: var(--slate);
+}
+
+.dialog-form .choice-chips {
+    margin-top: 4px;
+}
+
+.lease-extend-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin: 14px 0 8px;
+}
+
+.lease-extend-facts > div {
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--surface-subtle);
+}
+
+.lease-extend-facts > div:has(#lease-extend-cost[hidden]) {
+    display: none;
+}
+
+.lease-extend-label {
+    font-size: var(--fs-small);
     color: var(--slate);
 }
 

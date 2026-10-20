@@ -165,3 +165,53 @@
 .gap-action-buttons {
     gap: 0.5rem;
 }
+
+/* Choice chips (U07-T05, LockLease.dc.html): one of a few durations, as pressed buttons */
+.choice-chips {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+}
+
+.choice-chips legend {
+    float: none;
+    width: auto;
+    margin: 0 0 6px;
+    font-size: var(--fs-body);
+    font-weight: 500;
+}
+
+.choice-chips-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.choice-chip {
+    height: 34px;
+    padding: 0 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-btn);
+    background: #fff;
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--fs-caption);
+    cursor: pointer;
+}
+
+.choice-chip:hover {
+    border-color: var(--brand-navy-line);
+}
+
+.choice-chip[aria-pressed="true"] {
+    background: var(--brand-navy);
+    border-color: var(--brand-navy);
+    color: #fff;
+    font-weight: 500;
+}
+
+.choice-chip:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: 2px;
+}

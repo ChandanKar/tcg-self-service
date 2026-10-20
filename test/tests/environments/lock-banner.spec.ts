@@ -2,10 +2,11 @@ import { test, expect, type Page } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
 
 /**
- * E07-T05: the lock banner on the environment page. The lock API is faked in the browser and the
- * banner is mounted with Locks.buildLockBanner/bindLockEvents, so no real lock is taken: buttons
- * follow the server's per-viewer flags, someone else's lock is styled and explained, my lock shows
- * a countdown and Extend, and history rows show their own reason.
+ * E07-T05: the lock on the environment page, since U07-T05 the "Lock" fact in "About this
+ * environment" with chip dialogs (LockLease.dc.html). The lock API is faked in the browser and the
+ * fact is mounted with Locks.buildLockFact/bindLockEvents, so no real lock is taken: actions
+ * follow the server's per-viewer flags, someone else's lock is named, my lock shows a countdown
+ * and Extend, and history rows show their own reason.
  */
 
 declare const Locks: any;
@@ -33,23 +34,48 @@ async function mount(page: Page, lockStatus: Record<string, unknown>) {
     // Outside #content-area (the router cannot replace it), as a fixed overlay above the shell.
     document.body.insertAdjacentHTML('beforeend',
       `<div id="lock-e2e" style="position:fixed;top:0;left:0;right:0;z-index:20000;background:#fff">${
-        Locks.buildLockBanner(lockStatus, envId)}</div>`);
+        Locks.buildLockFact(lockStatus, envId)}</div>`);
     Locks.bindLockEvents(envId, 'Lock E2E', () => { (window as any).__lockUpdated = true; });
   }, { envId: ENV_ID, lockStatus });
 }
 
-test.describe('Lock banner', () => {
+test.describe('Lock fact', () => {
   test.beforeEach(() => {
     test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
   });
 
   test('an unlocked environment shows Acquire only when the viewer may acquire', async ({ page }) => {
     await mount(page, status({ canAcquire: false }));
-    await expect(page.locator('#lock-e2e .lock-banner.unlocked')).toBeVisible();
+    await expect(page.locator('#lock-e2e .lock-fact.unlocked .env-fact-value')).toHaveText('Not locked');
     await expect(page.locator('#lock-e2e [data-lock-action="acquire"]')).toHaveCount(0);
 
     await mount(page, status({ canAcquire: true }));
-    await expect(page.locator('#lock-e2e [data-lock-action="acquire"]')).toBeVisible();
+    await expect(page.locator('#lock-e2e [data-lock-action="acquire"]')).toHaveText('Lock');
+    await expect(page.locator('#lock-e2e .lock-fact')).toContainText("Lock it so others can't start or stop VMs");
+  });
+
+  test('the lock dialog: 2 hours and the reason are sent as expectedDurationMinutes and reason', async ({ page }) => {
+    const bodies: unknown[] = [];
+    await page.route(new RegExp(`/api/v1/environments/${ENV_ID}/lock/acquire$`), route => {
+      bodies.push(route.request().postDataJSON());
+      return route.fulfill({ status: 200, contentType: 'application/json',
+        body: JSON.stringify(status({ isLocked: true, canRelease: true })) });
+    });
+    await mount(page, status({ canAcquire: true, lockExpiryEnabled: true }));
+    await page.locator('#lock-e2e [data-lock-action="acquire"]').click();
+
+    const dialog = page.locator('#acquireLockModal');
+    await expect(dialog).toContainText('Lock Lock E2E');
+    const until = dialog.getByRole('group', { name: 'Until' });
+    await expect(until.getByRole('button')).toHaveText(['1 hour', '2 hours', 'End of day', 'Until I release it']);
+    await expect(until.getByRole('button', { name: '2 hours' })).toHaveAttribute('aria-pressed', 'true');
+    await until.getByRole('button', { name: 'Until I release it' }).click();
+    await expect(page.locator('#lockDurationHelp')).toContainText('until you release it or an admin breaks it');
+    await until.getByRole('button', { name: '2 hours' }).click();
+    await dialog.getByLabel('Why (others see this)').fill('Data migration rehearsal');
+    await page.locator('#confirmAcquireLock').click();
+    await expect(dialog).toBeHidden();
+    expect(bodies).toEqual([{ reason: 'Data migration rehearsal', expectedDurationMinutes: 120 }]);
   });
 
   test('with expiry on, the acquire dialog promises an automatic release and the warnings', async ({ page }) => {
@@ -62,22 +88,24 @@ test.describe('Lock banner', () => {
     await mount(page, status({ canAcquire: true, lockExpiryEnabled: false }));
     await page.locator('#lock-e2e [data-lock-action="acquire"]').click();
     await expect(page.locator('#lockDurationHelp')).toContainText('stays until you release it');
+    await expect(page.locator('#lockUntil').getByRole('button')).toHaveText(['Until I release it']);
   });
 
-  test("someone else's lock is styled as blocked, with Break only for those who may break it", async ({ page }) => {
+  test("someone else's lock is named and marked as blocking, with Break only for those who may break it", async ({ page }) => {
     const alice = { isLocked: true, lockedByUserId: 'alice', lockedByDisplayName: 'Alice <b>A</b>',
-      lockedAt: minutesFromNow(-5), expiresAt: minutesFromNow(42) };
+      lockedAt: minutesFromNow(-5), expiresAt: minutesFromNow(42), lockReason: 'deploy' };
     await mount(page, status(alice));
 
-    const banner = page.locator('#lock-e2e .lock-banner');
+    const banner = page.locator('#lock-e2e .lock-fact');
     await expect(banner).toHaveClass(/other/);
-    await expect(banner).toContainText('Held by Alice <b>A</b>');
-    await expect(banner).toContainText('operations are blocked for you');
+    await expect(banner.locator('.env-fact-value')).toHaveText('Locked by Alice <b>A</b>');
+    await expect(banner).toContainText('“deploy”');
+    await expect(banner).toContainText('starting and stopping are blocked for you');
     await expect(page.locator('#lock-e2e [data-lock-action="release"], #lock-e2e [data-lock-action="extend"], '
       + '#lock-e2e [data-lock-action="break"]')).toHaveCount(0);
 
     await mount(page, status({ ...alice, canBreak: true }));
-    await expect(page.locator('#lock-e2e [data-lock-action="break"]')).toBeVisible();
+    await expect(page.locator('#lock-e2e [data-lock-action="break"]')).toHaveText('Break');
   });
 
   test('my lock shows the countdown and Extend, which sends the chosen minutes', async ({ page }) => {
@@ -94,15 +122,15 @@ test.describe('Lock banner', () => {
     await mount(page, status({ isLocked: true, lockedByUserId: devIds.user, lockedByDisplayName: 'Me',
       lockedAt: minutesFromNow(-10), expiresAt: minutesFromNow(42), canRelease: true, canExtend: true }));
 
-    const banner = page.locator('#lock-e2e .lock-banner');
+    const banner = page.locator('#lock-e2e .lock-fact');
     await expect(banner).toHaveClass(/mine/);
     await expect(banner).not.toHaveClass(/expiring/);
-    await expect(banner).toContainText('Locked by you');
+    await expect(banner.locator('.env-fact-value')).toHaveText(/^Locked by you until \d\d:\d\d$/);
     await expect(page.locator('#lock-e2e .lock-countdown')).toHaveText(/Auto-releases in 42 min/);
     await expect(page.locator('#lock-e2e [data-lock-action="release"]')).toBeVisible();
 
     await page.locator('#lock-e2e [data-lock-action="extend"]').click();
-    await page.locator('#extendLockMinutes').selectOption('30');
+    await page.locator('#extendLockMinutes').getByRole('button', { name: '30 min' }).click();
     await page.locator('#confirmExtendLock').click();
     await expect(page.locator('body')).toContainText('A lock can last at most 1440 minutes');
     await expect(page.locator('#extendLockModal')).toBeVisible();
@@ -117,7 +145,7 @@ test.describe('Lock banner', () => {
     await mount(page, status({ isLocked: true, lockedByUserId: devIds.user, lockedByDisplayName: 'Me',
       lockedAt: minutesFromNow(-50), expiresAt: minutesFromNow(9), canRelease: true, canExtend: true }));
 
-    await expect(page.locator('#lock-e2e .lock-banner')).toHaveClass(/expiring/);
+    await expect(page.locator('#lock-e2e .lock-fact')).toHaveClass(/expiring/);
     await expect(page.locator('#lock-e2e .lock-countdown')).toHaveText(/Auto-releases in (9|10) min/);
   });
 

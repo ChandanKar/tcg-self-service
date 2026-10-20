@@ -74,6 +74,9 @@ test.describe('Keyboard shortcuts', () => {
 
   test('typing in a field never navigates', async ({ page }) => {
     await goTo(page, 'dashboard');
+    // Inject only after the page has rendered, or the render replaces the field (U06: Home).
+    await expect(page.locator('.dashboard-persona, .home-page')).toBeVisible({ timeout: 15_000 });
+    await page.waitForLoadState('networkidle');
     await page.evaluate(() => {
       const input = document.createElement('input');
       input.id = 'kb-test-input';

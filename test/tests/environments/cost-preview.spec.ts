@@ -79,7 +79,7 @@ test.describe('Cost preview in dialogs', () => {
         { effectiveMaxMinutes: 10_000 }, () => {});
     });
     const cost = page.locator('#lease-extend-cost');
-    await page.locator('#lease-extend-minutes').selectOption('120');
+    await page.locator('#lease-extend-minutes').getByRole('button', { name: '2 h', exact: true }).click(); // U07-T05 chips
     await expect(cost).toHaveText('Extra ~ $0.38 for 2 h');
     expect(asked.at(-1)).toContain('extension=true');
     expect(asked.at(-1)).toContain('hours=2');

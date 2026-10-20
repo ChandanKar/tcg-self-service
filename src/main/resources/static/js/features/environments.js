@@ -683,13 +683,12 @@ const Environments = (function() {
         // More than 12 VMs and groups: the group list with one group's VMs (EnvDetailLarge.dc.html).
         const large = useLargeLayout(env);
 
-        // Lock section
-        let lockSection = '';
+        // The Lock fact; its actions follow the server's per-viewer flags on lockStatus (E07-T05).
+        let lockFact = '';
         try {
-            // Buttons follow the server's per-viewer flags on lockStatus (E07-T05).
-            lockSection = (typeof Locks !== 'undefined' && Locks.buildLockBanner) ?
-                Locks.buildLockBanner(env.lockStatus, env.environmentId) : '';
-        } catch (e) { lockSection = ''; }
+            lockFact = (typeof Locks !== 'undefined' && Locks.buildLockFact) ?
+                Locks.buildLockFact(env.lockStatus, env.environmentId) : '';
+        } catch (e) { lockFact = ''; }
 
         const unknownVms = countVmsWithStatus(env, 'UNKNOWN');
         // "17 Nov", as on Home (HomeModel.day).
@@ -725,9 +724,7 @@ const Environments = (function() {
                 <div class="env-body${large ? ' env-body-wide' : ''}">
                     <div id="env-main" class="env-main">
                         ${viewOnly}
-                        ${lockSection}
                         <div id="env-approval-banner"></div>
-                        <div id="env-lease-section"></div>
                         ${large ? '' : buildStartOrder(env)}
                         <section id="env-vms" aria-labelledby="env-vms-title">
                             <h2 class="visually-hidden" id="env-vms-title">Groups and VMs</h2>
@@ -737,10 +734,14 @@ const Environments = (function() {
                         </section>
                     </div>
                     <aside id="env-aside" class="env-aside" aria-label="About this environment">
-                        <div class="panel env-aside-run">
-                            ${env.description ? Utils.html`<p class="env-aside-description">${env.description}</p>` : ''}
-                            <div><b class="mono">${runningVms}</b> of <b class="mono">${totalVms}</b> VMs running</div>
-                            ${unknownVms > 0 ? `<div class="env-aside-note" title="Not yet read from the cloud; it updates on the next sync">${unknownVms} with unknown status</div>` : ''}
+                        <div class="panel env-about">
+                            <div class="env-aside-run">
+                                ${env.description ? Utils.html`<p class="env-aside-description">${env.description}</p>` : ''}
+                                <div><b class="mono">${runningVms}</b> of <b class="mono">${totalVms}</b> VMs running</div>
+                                ${unknownVms > 0 ? `<div class="env-aside-note" title="Not yet read from the cloud; it updates on the next sync">${unknownVms} with unknown status</div>` : ''}
+                            </div>
+                            <div id="env-fact-lock">${lockFact}</div>
+                            <div id="env-fact-lease"></div>
                         </div>
                         <section id="env-cost-card" aria-label="Environment cost"></section>
                         <div id="env-budget-panel"></div>

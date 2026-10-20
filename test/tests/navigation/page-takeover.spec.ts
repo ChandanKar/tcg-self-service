@@ -217,6 +217,9 @@ test.describe('Logs and Access Requests lifecycle', () => {
     await expect(header(page)).toContainText('Request Environment Access', { timeout: 10_000 });
     await goTo(page, 'dashboard');
     await expect(header(page)).toHaveText('Dashboard');
+    // The loading header also reads "Dashboard": wait for the rendered page before injecting into it.
+    await expect(page.locator('.dashboard-persona')).toBeVisible({ timeout: 15_000 });
+    await page.waitForLoadState('networkidle');
 
     const leftover = await page.evaluate(() => {
       const events = ($ as any)._data(document.getElementById('content-area'), 'events') || {};

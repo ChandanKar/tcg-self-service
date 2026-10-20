@@ -1,61 +1,8 @@
 /*
- * Environment leases (E15-T06): the banner on the environment page.
+ * Environment leases (E15-T06): the Lease fact on the environment page (U07-T05) and its requests.
  */
-.lease-banner {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.5rem 0.75rem;
-    padding: 0.6rem 0.9rem;
-    margin-bottom: 0.75rem;
-    border: 1px solid var(--border-color);
-    border-left: 4px solid var(--primary-color);
-    border-radius: 8px;
-    background: var(--surface-subtle);
-    font-size: 0.875rem;
-    color: var(--text-primary);
-}
-
-.lease-banner > .fas {
-    color: var(--primary-color);
-}
-
-.lease-banner.lease-idle {
-    border-left-color: var(--text-caption);
-}
-
-.lease-banner.lease-idle > .fas {
-    color: var(--text-caption);
-}
-
-.lease-banner.lease-ending-soon {
-    border-left-color: var(--brand-gold-text);
-    background: var(--brand-gold-tint);
-}
-
-.lease-banner.lease-ending-soon > .fas {
-    color: var(--brand-gold-text);
-}
-
-.lease-text {
-    flex: 1 1 220px;
-    min-width: 0;
-}
-
-.lease-participants {
-    font-size: 0.78rem;
-    color: var(--text-caption);
-}
-
-.lease-actions {
-    display: flex;
-    gap: 0.4rem;
-    flex-wrap: wrap;
-}
-
 .lease-pill {
     display: inline-block;
-    margin-left: 0.4rem;
     padding: 0.1rem 0.5rem;
     border-radius: 999px;
     background: var(--brand-gold-tint);
@@ -66,7 +13,7 @@
 
 .lease-requests {
     list-style: none;
-    margin: -0.4rem 0 0.75rem;
+    margin: 6px 0 0;
     padding: 0;
 }
 
@@ -76,10 +23,9 @@
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 0.4rem;
-    padding: 0.4rem 0.9rem;
-    border: 1px solid var(--border-color);
-    border-top: 0;
-    font-size: 0.82rem;
+    padding: 6px 0;
+    border-top: 1px solid var(--line-soft);
+    font-size: var(--fs-caption);
 }
 
 .lease-request-actions {

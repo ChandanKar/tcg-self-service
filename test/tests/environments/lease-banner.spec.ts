@@ -2,7 +2,8 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
 
 /**
- * E15-T06: the lease banner on the environment page. Needs the app started with
+ * E15-T06: the lease on the environment page, since U07-T05 the "Lease" fact in "About this
+ * environment" with a chip dialog (LockLease.dc.html). Needs the app started with
  * LEASE_ENABLED=true; a lock with an expiry opens the lease, so no cloud call is involved.
  */
 
@@ -22,10 +23,10 @@ async function openEnvironment(page: Page, role: 'user' | 'admin') {
   await signIn(page, role);
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
   await page.evaluate(id => { location.hash = '#/environments/' + id; }, envId);
-  await expect(page.locator('#env-lease-section .lease-banner')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('#env-fact-lease .lease-fact')).toBeVisible({ timeout: 15_000 });
 }
 
-test.describe('Lease banner', () => {
+test.describe('Lease fact', () => {
   test.beforeAll(async ({ playwright }) => {
     if (!devIds.admin || !devIds.user) return;
     api = await context(playwright, devIds.admin);
@@ -54,14 +55,20 @@ test.describe('Lease banner', () => {
 
   test('a user sees the end time and extends within the maximum', async ({ page }) => {
     await openEnvironment(page, 'user');
-    const banner = page.locator('#env-lease-section .lease-banner');
-    await expect(banner).toContainText('Running until');
+    const banner = page.locator('#env-fact-lease .lease-fact');
+    await expect(banner.locator('.env-fact-value')).toContainText(/^Stops at \d\d:\d\d · /);
     await expect(banner.locator('.lease-countdown')).toContainText(/in (59|60|1 h) ?(min)?/);
+    await expect(banner).toContainText('more without approval');
     await expect(banner.locator('[data-action="lease-settings"]')).toHaveCount(0);
 
     await banner.locator('[data-action="lease-extend"]').click();
-    await page.locator('#lease-extend-minutes').selectOption('30');
+    const chips = page.locator('#lease-extend-minutes');
+    await expect(chips.getByRole('button')).toHaveText(['30 min', '1 h', '2 h', '8 h', '12 h']);
+    await chips.getByRole('button', { name: '30 min' }).click();
     await expect(page.locator('#lease-extend-preview')).not.toContainText('approval');
+    await expect(page.locator('#lease-extend-reason-wrap')).toBeHidden();
+    await expect(page.locator('#lease-extend-submit')).toHaveText('Extend by 30 min');
+    await expect(page.locator('#lease-extend-new-stop')).toHaveText(/^\d\d:\d\d( tomorrow)?$/);
     await page.locator('#lease-extend-submit').click();
     await expect(page.locator('#leaseExtendModal')).toBeHidden();
     await expect(banner.locator('.lease-countdown')).toContainText(/1 h (29|30) min/, { timeout: 10_000 });
@@ -69,19 +76,20 @@ test.describe('Lease banner', () => {
 
   test('beyond the maximum the owner approves from the same page', async ({ page, browser }) => {
     await openEnvironment(page, 'user');
-    const banner = page.locator('#env-lease-section .lease-banner');
+    const banner = page.locator('#env-fact-lease .lease-fact');
     await banner.locator('[data-action="lease-extend"]').click();
-    await page.locator('#lease-extend-minutes').selectOption('120');
+    await page.locator('#lease-extend-minutes').getByRole('button', { name: '2 h', exact: true }).click();
     await expect(page.locator('#lease-extend-preview')).toContainText('Needs owner approval');
+    await expect(page.locator('#lease-extend-submit')).toHaveText('Ask the owner');
     await page.locator('#lease-extend-reason').fill('Release rehearsal runs late');
     await page.locator('#lease-extend-submit').click();
-    await expect(page.locator('#env-lease-section .lease-pill')).toContainText('Pending approval', { timeout: 10_000 });
+    await expect(page.locator('#env-fact-lease .lease-pill')).toContainText('Waiting for approval', { timeout: 10_000 });
 
     const ownerPage = await browser.newPage();
     await openEnvironment(ownerPage, 'admin');
     await expect(ownerPage.locator('[data-action="lease-settings"]')).toBeVisible();
-    await ownerPage.locator('#env-lease-section [data-action="lease-approve"]').click();
-    await expect(ownerPage.locator('#env-lease-section .lease-pill')).toHaveCount(0, { timeout: 10_000 });
+    await ownerPage.locator('#env-fact-lease [data-action="lease-approve"]').click();
+    await expect(ownerPage.locator('#env-fact-lease .lease-pill')).toHaveCount(0, { timeout: 10_000 });
     await ownerPage.close();
   });
 

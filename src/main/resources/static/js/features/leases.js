@@ -2,12 +2,13 @@
  * Environment leases on the environment page (E15-T06): when the environment stops, a live
  * countdown, Extend (with owner approval beyond the maximum), pending requests for owners and the
  * owner's lease settings. Buttons follow the permissions the server sends; nothing renders while
- * the feature is off (the environment's leaseEnabled is null).
+ * the feature is off (the environment's leaseEnabled is null). Since U07-T05 it is the "Lease"
+ * fact in "About this environment" (#env-fact-lease) and the extend dialog uses chips.
  */
 const Leases = (function() {
     'use strict';
 
-    const EXTEND_OPTIONS = [30, 60, 120, 240];
+    const EXTEND_OPTIONS = [30, 60, 120, 480, 720];
     const POLICY_OPTIONS = [15, 30, 60, 120, 240, 480, 720, 1440, 2880, 4320];
     const ENDING_SOON_MS = 15 * 60 * 1000;
 
@@ -36,15 +37,17 @@ const Leases = (function() {
         return 'in ' + minutesLabel(Math.max(1, Math.round(left / 60000)));
     }
 
+    /** "20:00": 24-hour like the rest of the app, whatever the browser's locale. */
     function clock(ts) {
-        return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const d = new Date(ts);
+        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     }
 
     // ---------------------------------------------------------------- rendering
 
-    /** Load the lease and policy and render them into #env-lease-section. */
+    /** Load the lease and policy and render them into the Lease fact (#env-fact-lease). */
     function render(env) {
-        const $section = $('#env-lease-section');
+        const $section = $('#env-fact-lease');
         if (!$section.length || !env || env.leaseEnabled === null || env.leaseEnabled === undefined) {
             $section.empty();
             return;
@@ -60,70 +63,84 @@ const Leases = (function() {
                     .then(requests => {
                         if (token !== renderToken) return;
                         current = { env, lease: lease || null, policy: policy || null, requests: requests || [] };
-                        $section.html(buildSection(current));
+                        $section.html(buildFact(current));
                         startTimers(envId);
                         openExtendFromRoute();
                     });
             });
     }
 
-    function buildSection({ env, lease, policy, requests }) {
+    /** "14:30", or "Mon 14:30" when not today. */
+    function when(ms) {
+        const time = clock(ms);
+        return new Date(ms).toDateString() === new Date().toDateString() ? time
+            : `${new Date(ms).toLocaleDateString([], { weekday: 'short' })} ${time}`;
+    }
+
+    /**
+     * The "Lease" fact (EnvDetail.dc.html): "Stops at 20:00 · in 2 h 15 min" with Extend and
+     * "Up to 6 h more without approval"; without a lease, how long a start runs; the owner's
+     * settings and pending requests to approve.
+     */
+    function buildFact({ lease, policy, requests }) {
         const canEditPolicy = policy && policy.canEdit;
         const settings = canEditPolicy
-            ? Utils.html`<button type="button" class="btn btn-sm btn-ghost" data-action="lease-settings">
-                   <i class="fas fa-sliders-h" aria-hidden="true"></i> Lease settings</button>`
+            ? '<button type="button" class="btn btn-link env-fact-action" data-action="lease-settings">Settings</button>'
             : '';
 
         if (!lease) {
             if (!policy || (!policy.enabled && !canEditPolicy)) return '';
-            const text = policy.enabled
-                ? `Runs for ${minutesLabel(policy.effectiveDefaultMinutes)} when started (up to ${minutesLabel(policy.effectiveMaxMinutes)}).`
-                : 'Leases are off for this environment.';
-            return Utils.html`<div class="lease-banner lease-idle" role="status">
-                    <i class="fas fa-hourglass-start" aria-hidden="true"></i>
-                    <span class="lease-text">${text}</span>${Utils.raw(typeof HelpLink !== 'undefined' ? HelpLink.button('leases', 'Leases') : '')}
-                    ${Utils.raw(settings)}
+            const value = policy.enabled
+                ? `Runs ${minutesLabel(policy.effectiveDefaultMinutes)} when started`
+                : 'Off for this environment';
+            const note = policy.enabled ? `Up to ${minutesLabel(policy.effectiveMaxMinutes)} without approval` : '';
+            return Utils.html`<div class="env-fact lease-fact lease-idle">
+                    <div class="env-fact-head"><span>Lease</span><span class="env-fact-actions">${Utils.raw(settings)}</span></div>
+                    <div class="env-fact-value">${value}</div>
+                    ${note ? Utils.raw(Utils.html`<div class="env-fact-note">${note}</div>`) : ''}
                 </div>`;
         }
 
         const endsAt = new Date(lease.endsAt).getTime();
+        const startedAt = new Date(lease.startedAt).getTime();
         const soon = endsAt - Date.now() < ENDING_SOON_MS;
         const who = (lease.participants || []).map(p => p.displayName || p.userId).join(', ');
         const pending = lease.pendingExtension;
         const extend = lease.permissions && lease.permissions.canExtend
-            ? Utils.html`<button type="button" class="btn btn-sm btn-tonal btn-primary" data-action="lease-extend">
-                   <i class="fas fa-clock" aria-hidden="true"></i> Extend</button>`
+            ? '<button type="button" class="btn btn-link env-fact-action" data-action="lease-extend">Extend</button>'
             : '';
-        const pendingPill = pending
-            ? Utils.html`<span class="lease-pill" title="${pending.reason || ''}">Pending approval: +${minutesLabel(pending.minutes)}</span>`
-            : '';
+        // How much longer without the owner's OK: the maximum minus the lease's length so far.
+        let allowance = '';
+        if (policy && policy.effectiveMaxMinutes && !Number.isNaN(startedAt)) {
+            const more = Math.floor(policy.effectiveMaxMinutes - (endsAt - startedAt) / 60000);
+            allowance = more >= 15 ? `Up to ${minutesLabel(more)} more without approval` : 'Longer needs the owner\'s approval';
+        }
+        const notes = [];
+        if (pending) notes.push(Utils.html`<span class="lease-pill" title="${pending.reason || ''}">Waiting for approval: +${minutesLabel(pending.minutes)}</span>`);
+        else if (allowance) notes.push(Utils.escapeHtml(allowance));
+        if (who) notes.push(Utils.html`Kept running by ${who}`);
         const requestRows = (requests || []).map(r => Utils.html`
             <li class="lease-request">
                 <span><strong>${r.requesterName || r.requesterUserId}</strong> asks for +${minutesLabel(r.minutes)}${r.reason ? ': ' + r.reason : ''}</span>
                 <span class="lease-request-actions">
-                    <button type="button" class="btn btn-sm btn-tonal btn-success" data-action="lease-approve" data-request-id="${r.requestId}">Approve</button>
-                    <button type="button" class="btn btn-sm btn-tonal btn-danger" data-action="lease-deny" data-request-id="${r.requestId}">Deny</button>
+                    <button type="button" class="btn btn-sm btn-outline-success" data-action="lease-approve" data-request-id="${r.requestId}">Approve</button>
+                    <button type="button" class="btn btn-sm btn-danger" data-action="lease-deny" data-request-id="${r.requestId}">Deny</button>
                 </span>
             </li>`).join('');
 
-        return Utils.html`<div class="lease-banner ${soon ? 'lease-ending-soon' : ''}" role="status">
-                <i class="fas fa-hourglass-half" aria-hidden="true"></i>
-                <div class="lease-text">
-                    <strong>Running until ${clock(endsAt)}</strong>
-                    (<span class="lease-countdown" data-ends-at="${endsAt}">${untilLabel(endsAt)}</span>)
-                    ${Utils.raw(pendingPill)}
-                    ${who ? Utils.raw(Utils.html`<div class="lease-participants">Kept running by ${who}</div>`) : ''}
-                </div>
-                <div class="lease-actions">${Utils.raw(extend)}${Utils.raw(settings)}${Utils.raw(typeof HelpLink !== 'undefined' ? HelpLink.button('leases', 'Leases') : '')}</div>
-            </div>
-            ${requestRows ? Utils.raw(`<ul class="lease-requests" aria-label="Extension requests">${requestRows}</ul>`) : ''}`;
+        return Utils.html`<div class="env-fact lease-fact ${soon ? 'lease-ending-soon' : ''}">
+                <div class="env-fact-head"><span>Lease</span><span class="env-fact-actions">${Utils.raw(extend)}${Utils.raw(settings)}</span></div>
+                <div class="env-fact-value">Stops at <span class="mono">${when(endsAt)}</span> · <span class="lease-countdown" data-ends-at="${endsAt}">${untilLabel(endsAt)}</span></div>
+                ${notes.length ? Utils.raw(`<div class="env-fact-note">${notes.join(' · ')}</div>`) : ''}
+                ${requestRows ? Utils.raw(`<ul class="lease-requests" aria-label="Extension requests">${requestRows}</ul>`) : ''}
+            </div>`;
     }
 
     function updateCountdown() {
-        document.querySelectorAll('#env-lease-section .lease-countdown').forEach(el => {
+        document.querySelectorAll('#env-fact-lease .lease-countdown').forEach(el => {
             const endsAt = Number(el.dataset.endsAt);
             el.textContent = untilLabel(endsAt);
-            const banner = el.closest('.lease-banner');
+            const banner = el.closest('.lease-fact');
             if (banner) banner.classList.toggle('lease-ending-soon', endsAt - Date.now() < ENDING_SOON_MS);
         });
     }
@@ -150,20 +167,33 @@ const Leases = (function() {
 
     // ---------------------------------------------------------------- dialogs
 
-    /** Extend dialog; reusable from My Account (E15-T07). */
+    /**
+     * Extend dialog (LockLease.dc.html), reusable from My Account (E15-T07): "Extend by" chips
+     * (30 min to 12 h, within the platform's limit), the new stop time, what it costs, and a reason
+     * only when the new length needs the owner's approval.
+     */
     function showExtendDialog(envId, lease, policy, onDone) {
-        const options = EXTEND_OPTIONS.map(m => `<option value="${m}">${minutesLabel(m)}</option>`).join('');
+        const limit = policy && (policy.platformAbsoluteMaxMinutes || policy.platformMaxMinutes);
+        const values = EXTEND_OPTIONS.filter(m => !limit || m <= limit);
+        const endsAt = new Date(lease.endsAt).getTime();
+        const chips = ChoiceChips.markup({ id: 'lease-extend-minutes', legend: 'Extend by', selected: values.includes(120) ? 120 : values[0],
+            options: values.map(m => ({ value: m, label: minutesLabel(m) })) });
         Modals.show({
             id: 'leaseExtendModal',
-            title: 'Keep the environment running',
+            title: 'Keep it running longer',
             body: `
-                <label class="form-label" for="lease-extend-minutes">Extend by</label>
-                <select class="form-select" id="lease-extend-minutes">${options}</select>
-                <p class="small text-muted mt-2 mb-2" id="lease-extend-preview" aria-live="polite"></p>
-                <p class="small fw-semibold mb-2" id="lease-extend-cost" aria-live="polite" hidden></p>
+                <p class="dialog-lead">It stops at <span class="mono">${Utils.escapeHtml(when(endsAt))}</span>, ${Utils.escapeHtml(untilLabel(endsAt))}.
+                    You're reminded 60, 15 and 5 minutes before.</p>
+                ${chips}
+                <div class="lease-extend-facts">
+                    <div><div class="lease-extend-label">New stop time</div><div class="mono" id="lease-extend-new-stop"></div></div>
+                    <div><div class="lease-extend-label">Costs about</div><div id="lease-extend-cost" aria-live="polite">—</div></div>
+                </div>
+                <p class="small text-muted mb-2" id="lease-extend-preview" aria-live="polite"></p>
                 <div id="lease-extend-reason-wrap" hidden>
                     <label class="form-label" for="lease-extend-reason">Reason for the owner</label>
-                    <textarea class="form-control" id="lease-extend-reason" rows="2" maxlength="500"></textarea>
+                    <input type="text" class="form-control" id="lease-extend-reason" maxlength="500"
+                           placeholder="Longer than the maximum needs the owner's OK">
                 </div>
                 <div class="text-danger small mt-2" id="lease-extend-error" role="alert"></div>`,
             buttons: [
@@ -171,26 +201,29 @@ const Leases = (function() {
                 { text: 'Extend', class: 'btn-primary', id: 'lease-extend-submit' }
             ],
             onShow: function() {
+                const minutes = () => Number(ChoiceChips.value('lease-extend-minutes'));
                 const update = () => {
-                    const minutes = Number($('#lease-extend-minutes').val());
-                    const base = Math.max(Date.now(), new Date(lease.endsAt).getTime());
-                    const newEnd = base + minutes * 60000;
+                    const m = minutes();
+                    const base = Math.max(Date.now(), endsAt);
+                    const newEnd = base + m * 60000;
                     const total = (newEnd - new Date(lease.startedAt).getTime()) / 60000;
-                    const needsApproval = policy && total > policy.effectiveMaxMinutes;
-                    $('#lease-extend-preview').text(`Runs until ${clock(newEnd)}.` +
-                        (needsApproval ? ' Needs owner approval: longer than the maximum.' : ''));
+                    const needsApproval = !!(policy && total > policy.effectiveMaxMinutes);
+                    const tomorrow = new Date(newEnd).toDateString() !== new Date().toDateString();
+                    $('#lease-extend-new-stop').text(clock(newEnd) + (tomorrow ? ' tomorrow' : ''));
+                    $('#lease-extend-preview').text(needsApproval
+                        ? 'Needs owner approval: longer than the maximum.' : '');
                     $('#lease-extend-reason-wrap').prop('hidden', !needsApproval);
-                    $('#lease-extend-submit').text(needsApproval ? 'Ask the owner' : 'Extend');
+                    $('#lease-extend-submit').text(needsApproval ? 'Ask the owner' : `Extend by ${minutesLabel(m)}`);
                     return needsApproval;
                 };
                 // The extra cost of keeping the running VMs up that long (E25-T02).
                 const updateCost = () => {
                     if (typeof CostPreview === 'undefined') return;
-                    const minutes = Number($('#lease-extend-minutes').val());
-                    CostPreview.render($('#lease-extend-cost'), envId, null, Math.ceil(minutes / 60), true,
-                        () => $('#lease-extend-cost').length > 0 && Number($('#lease-extend-minutes').val()) === minutes);
+                    const m = minutes();
+                    CostPreview.render($('#lease-extend-cost'), envId, null, Math.ceil(m / 60), true,
+                        () => $('#lease-extend-cost').length > 0 && minutes() === m);
                 };
-                $('#lease-extend-minutes').on('change', () => { update(); updateCost(); });
+                $('#lease-extend-minutes').on('choice-change', () => { update(); updateCost(); });
                 update();
                 updateCost();
                 $('#lease-extend-submit').on('click', function() {
@@ -202,7 +235,7 @@ const Leases = (function() {
                     }
                     const $btn = $(this).prop('disabled', true);
                     ApiClient.post(Config.API.leases.extend(envId),
-                        { minutes: Number($('#lease-extend-minutes').val()), reason: reason || null },
+                        { minutes: minutes(), reason: reason || null },
                         { suppressGlobalError: true })
                         .done((data, _s, xhr) => {
                             Modals.hide('leaseExtendModal');

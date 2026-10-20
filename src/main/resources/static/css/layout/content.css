@@ -272,27 +272,6 @@ body.app-shell {
     font-size: 0.75rem;
 }
 
-/* Compact lock banner on detail page */
-#env-detail-view .lock-banner {
-    padding: 0.35rem 0.75rem;
-    margin-bottom: 0.5rem;
-    border-radius: 6px;
-}
-#env-detail-view .lock-info > i {
-    font-size: 0.9rem;
-    margin-top: 0;
-}
-#env-detail-view .lock-info strong {
-    font-size: 0.82rem;
-}
-#env-detail-view .lock-time {
-    font-size: 0.75rem;
-}
-#env-detail-view .lock-actions .btn {
-    padding: 0.15rem 0.5rem;
-    font-size: 0.75rem;
-}
-
 .group-card {
     border: 1px solid var(--line);
     border-radius: 8px;

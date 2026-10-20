@@ -6,64 +6,81 @@
 const Locks = (function() {
     'use strict';
 
+    const pad = n => String(n).padStart(2, '0');
+
+    /** "14:30" for a time today, "Mon 14:30" on another day. */
+    function hhmm(ms) {
+        const d = new Date(ms);
+        const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        return d.toDateString() === new Date().toDateString() ? time
+            : `${d.toLocaleDateString([], { weekday: 'short' })} ${time}`;
+    }
+
+    /** Minutes from now until 23:59 today (at least 15). */
+    function minutesToEndOfDay() {
+        const end = new Date();
+        end.setHours(23, 59, 0, 0);
+        return Math.max(15, Math.round((end.getTime() - Date.now()) / 60000));
+    }
+
     /**
-     * Acquire lock on an environment
+     * Lock the environment (LockLease.dc.html): why (others see it) and until when, as chips:
+     * 1 hour, 2 hours, End of day, Until I release it. Without the expiry sweep a lock only ends
+     * when released, so that is the one choice offered.
      */
-    function acquire(envId, onSuccess, expiryEnabled) {
-        // E07-T05: only promise an automatic release when the expiry sweep is on.
-        const durationHelp = expiryEnabled
-            ? 'The lock is released automatically at the end of this time. You will be warned 15 and 5 minutes before.'
-            : 'For your team\'s information; the lock stays until you release it.';
+    function acquire(envId, onSuccess, expiryEnabled, envName) {
+        const options = expiryEnabled
+            ? [{ value: 60, label: '1 hour' }, { value: 120, label: '2 hours' },
+               { value: minutesToEndOfDay(), label: 'End of day' }, { value: '', label: 'Until I release it' }]
+            : [{ value: '', label: 'Until I release it' }];
+        const help = value => !expiryEnabled
+            ? 'For your team\'s information; the lock stays until you release it.'
+            : value === ''
+                ? 'It stays locked until you release it or an admin breaks it.'
+                : 'It unlocks on its own at that time; you are warned 15 and 5 minutes before.';
+        const name = envName || 'this environment';
         Modals.show({
             id: 'acquireLockModal',
-            title: 'Acquire Environment Lock',
+            title: `Lock ${name}`,
             body: `
-                <form id="acquireLockForm">
+                <form id="acquireLockForm" class="dialog-form">
+                    <p class="dialog-lead">While it's locked, only you can start or stop its VMs. Schedules wait and retry.</p>
                     <div class="mb-3">
-                        <label class="form-label">Reason for acquiring lock</label>
-                        <textarea class="form-control" id="lockReason" rows="3"
-                                  placeholder="e.g., Deploying new version, Running maintenance..."></textarea>
-                        <div class="form-text">Optional but recommended for team visibility</div>
+                        <label class="form-label" for="lockReason">Why (others see this)</label>
+                        <input type="text" class="form-control" id="lockReason" maxlength="500"
+                               placeholder="e.g. Data migration rehearsal">
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Expected duration</label>
-                        <select class="form-select" id="lockDuration">
-                            <option value="">Until manually released</option>
-                            <option value="30">30 minutes</option>
-                            <option value="60">1 hour</option>
-                            <option value="120">2 hours</option>
-                            <option value="240">4 hours</option>
-                            <option value="480">8 hours</option>
-                        </select>
-                        <div class="form-text" id="lockDurationHelp">${Utils.escapeHtml(durationHelp)}</div>
-                    </div>
+                    ${ChoiceChips.markup({ id: 'lockUntil', legend: 'Until', options, selected: expiryEnabled ? 120 : '' })}
+                    <p class="form-text mt-2 mb-0" id="lockDurationHelp">${Utils.escapeHtml(help(expiryEnabled ? '120' : ''))}</p>
                 </form>
             `,
             buttons: [
                 { text: 'Cancel', class: 'btn-secondary', dismiss: true },
-                { text: 'Acquire Lock', class: 'btn-primary', id: 'confirmAcquireLock' }
+                { text: 'Lock environment', class: 'btn-primary', id: 'confirmAcquireLock' }
             ],
             onShow: function() {
+                $('#lockUntil').off('choice-change').on('choice-change', e => $('#lockDurationHelp').text(help(e.detail)));
+                $('#acquireLockForm').off('submit').on('submit', e => { e.preventDefault(); $('#confirmAcquireLock').trigger('click'); });
                 $('#confirmAcquireLock').off('click').on('click', function() {
                     const reason = $('#lockReason').val().trim();
-                    const durationMinutes = $('#lockDuration').val();
+                    const durationMinutes = ChoiceChips.value('lockUntil');
 
-                    $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Acquiring...');
+                    $(this).prop('disabled', true).text('Locking…');
 
                     const data = { reason };
                     if (durationMinutes) {
-                        data.expectedDurationMinutes = parseInt(durationMinutes);
+                        data.expectedDurationMinutes = parseInt(durationMinutes, 10);
                     }
 
                     ApiClient.post(Config.API.locks.acquire(envId), data)
                         .done(function(lock) {
                             Modals.hide('acquireLockModal');
-                            Notifications.success('Lock acquired successfully');
+                            Notifications.success('Locked');
                             if (onSuccess) onSuccess(lock);
                         })
                         .fail(function(xhr) {
-                            $('#confirmAcquireLock').prop('disabled', false).html('Acquire Lock');
-                            const msg = xhr.responseJSON?.message || 'Failed to acquire lock';
+                            $('#confirmAcquireLock').prop('disabled', false).text('Lock environment');
+                            const msg = xhr.responseJSON?.message || 'Could not lock the environment';
                             Notifications.error(msg);
                         });
                 });
@@ -94,23 +111,17 @@ const Locks = (function() {
     }
 
     /**
-     * Extend my lock (E07-T03/T05): 30, 60 or 120 more minutes; the server enforces the maximum.
+     * Extend my lock (E07-T03/T05): 30 min, 1 h or 2 h more, as chips; the server enforces the maximum.
      */
     function extend(envId, onSuccess) {
         Modals.show({
             id: 'extendLockModal',
-            title: 'Extend Lock',
+            title: 'Keep the lock longer',
             body: `
-                <form id="extendLockForm">
-                    <div class="mb-3">
-                        <label class="form-label" for="extendLockMinutes">Extend by</label>
-                        <select class="form-select" id="extendLockMinutes">
-                            <option value="30">30 minutes</option>
-                            <option value="60" selected>1 hour</option>
-                            <option value="120">2 hours</option>
-                        </select>
-                        <div class="form-text">Counted from the current expiry time.</div>
-                    </div>
+                <form id="extendLockForm" class="dialog-form">
+                    ${ChoiceChips.markup({ id: 'extendLockMinutes', legend: 'Extend by', selected: 60,
+                        options: [{ value: 30, label: '30 min' }, { value: 60, label: '1 h' }, { value: 120, label: '2 h' }] })}
+                    <p class="form-text mt-2 mb-0">Counted from the current end time.</p>
                 </form>
             `,
             buttons: [
@@ -119,7 +130,7 @@ const Locks = (function() {
             ],
             onShow: function() {
                 $('#confirmExtendLock').off('click').on('click', function() {
-                    const minutes = parseInt($('#extendLockMinutes').val(), 10);
+                    const minutes = parseInt(ChoiceChips.value('extendLockMinutes'), 10);
                     $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Extending...');
 
                     ApiClient.post(Config.API.locks.extend(envId), { minutes })
@@ -322,96 +333,57 @@ const Locks = (function() {
     const EXPIRING_SOON_MS = 15 * 60 * 1000;
 
     /**
-     * Build lock status banner HTML. Buttons come only from the server's per-viewer flags
-     * (canAcquire/canRelease/canExtend/canBreak, E07-T05).
+     * The "Lock" fact in "About this environment" (EnvDetail.dc.html, U07-T05): the value
+     * ("Not locked", "Locked by you until 14:30", "Locked by Alice"), a note (the reason, since
+     * when, the countdown, or what a lock is for) and the actions the server allows this viewer
+     * (canAcquire / canExtend / canRelease / canBreak, E07-T05), plus Lock history.
      */
-    function buildLockBanner(lockStatus, envId) {
-        if (!lockStatus) {
-            return '';
-        }
+    function buildLockFact(lockStatus, envId) {
+        if (!lockStatus) return '';
         const id = Utils.escapeHtml(envId);
-        const historyButton = `
-            <button class="btn btn-sm btn-ghost me-2" data-lock-action="history" data-env-id="${id}">
-                <i class="fas fa-history" aria-hidden="true"></i> Lock history
-            </button>`;
+        const action = (name, label) =>
+            `<button type="button" class="btn btn-link env-fact-action" data-lock-action="${name}" data-env-id="${id}"`
+            + (name === 'acquire' ? ` data-expiry-enabled="${lockStatus.lockExpiryEnabled ? 'true' : 'false'}"` : '')
+            + `>${label}</button>`;
+        const history = `<button type="button" class="btn btn-link env-fact-link" data-lock-action="history" data-env-id="${id}">Lock history</button>`;
 
-        if (lockStatus.isLocked) {
-            const isMyLock = lockStatus.canRelease === true;
-            const holder = lockStatus.lockedByDisplayName || 'another user';
-            const lockedAt = lockStatus.lockedAt ? Utils.formatRelativeTime(lockStatus.lockedAt) : '';
-            const reason = lockStatus.lockReason ?
-                `<br><small class="text-muted"><i class="fas fa-comment"></i> ${Utils.escapeHtml(lockStatus.lockReason)}</small>` : '';
-            const title = isMyLock
-                ? 'Locked by you'
-                : `Held by ${Utils.escapeHtml(holder)} &ndash; operations are blocked for you`;
-
-            const expiresAtMs = toMillis(lockStatus.expiresAt);
-            const expiring = expiresAtMs !== null && expiresAtMs - Date.now() < EXPIRING_SOON_MS;
-            const countdown = expiresAtMs !== null
-                ? `<span class="lock-countdown" data-expires-at="${expiresAtMs}" title="${Utils.escapeHtml(Utils.formatDate(expiresAtMs))}">`
-                    + `<i class="fas fa-hourglass-half"></i> ${Utils.escapeHtml(countdownText(expiresAtMs))}</span>`
-                : '';
-
-            let buttons = '';
-            if (lockStatus.canExtend) {
-                buttons += `
-                    <button class="btn btn-sm btn-tonal btn-primary" data-lock-action="extend" data-env-id="${id}">
-                        <i class="fas fa-clock"></i> Extend
-                    </button>`;
-            }
-            if (lockStatus.canRelease) {
-                buttons += `
-                    <button class="btn btn-sm btn-tonal btn-warning" data-lock-action="release" data-env-id="${id}">
-                        <i class="fas fa-unlock"></i> Release Lock
-                    </button>`;
-            }
-            if (lockStatus.canBreak) {
-                buttons += `
-                    <button class="btn btn-sm btn-tonal btn-danger" data-lock-action="break" data-env-id="${id}">
-                        <i class="fas fa-hammer"></i> Break Lock
-                    </button>`;
-            }
-
-            const classes = ['lock-banner', 'locked', isMyLock ? 'mine' : 'other'];
-            if (expiring) classes.push('expiring');
+        if (!lockStatus.isLocked) {
             return `
-                <div class="${classes.join(' ')}">
-                    <div class="lock-info">
-                        <i class="fas fa-lock"></i>
-                        <div>
-                            <strong>${title}</strong>
-                            ${lockedAt ? `<span class="lock-time">(${Utils.escapeHtml(lockedAt)})</span>` : ''}
-                            ${countdown}
-                            ${reason}
-                        </div>
-                    </div>
-                    <div class="lock-actions">
-                        ${historyButton}
-                        ${buttons}
-                    </div>
-                </div>
-            `;
+                <div class="env-fact lock-fact unlocked">
+                    <div class="env-fact-head"><span>Lock</span><span class="env-fact-actions">${lockStatus.canAcquire ? action('acquire', 'Lock') : ''}</span></div>
+                    <div class="env-fact-value">Not locked</div>
+                    <div class="env-fact-note">${lockStatus.canAcquire ? 'Lock it so others can\'t start or stop VMs. ' : ''}${history}</div>
+                </div>`;
         }
 
-        const acquireButton = lockStatus.canAcquire ? `
-            <button class="btn btn-sm btn-outline-secondary" data-lock-action="acquire" data-env-id="${id}"
-                    data-expiry-enabled="${lockStatus.lockExpiryEnabled ? 'true' : 'false'}">
-                <i class="fas fa-lock" aria-hidden="true"></i> Lock environment
-            </button>` : '';
-        // Unlocked is the normal state: a quiet line, with what a lock is for when the viewer may take one.
+        const isMyLock = lockStatus.canRelease === true;
+        const holder = lockStatus.lockedByDisplayName || 'another user';
+        const expiresAtMs = toMillis(lockStatus.expiresAt);
+        const lockedAtMs = toMillis(lockStatus.lockedAt);
+        const expiring = expiresAtMs !== null && expiresAtMs - Date.now() < EXPIRING_SOON_MS;
+        const value = isMyLock
+            ? 'Locked by you' + (expiresAtMs !== null ? ` until ${hhmm(expiresAtMs)}` : '')
+            : Utils.html`Locked by ${holder}`;
+        const parts = [];
+        if (lockStatus.lockReason) parts.push(Utils.html`“${lockStatus.lockReason}”`);
+        if (lockedAtMs !== null) parts.push(`since ${hhmm(lockedAtMs)}`);
+        if (!isMyLock) parts.push('starting and stopping are blocked for you');
+        const countdown = expiresAtMs !== null
+            ? `<span class="lock-countdown" data-expires-at="${expiresAtMs}" title="${Utils.escapeHtml(Utils.formatDate(expiresAtMs))}">`
+                + `${Utils.escapeHtml(countdownText(expiresAtMs))}</span>`
+            : '';
+        const actions = (lockStatus.canExtend ? action('extend', 'Extend') : '')
+            + (lockStatus.canRelease ? action('release', 'Release') : '')
+            + (lockStatus.canBreak ? action('break', 'Break') : '');
+        const classes = ['env-fact', 'lock-fact', 'locked', isMyLock ? 'mine' : 'other'];
+        if (expiring) classes.push('expiring');
         return `
-            <div class="lock-banner unlocked">
-                <div class="lock-info">
-                    <i class="fas fa-lock-open" aria-hidden="true"></i>
-                    <span><strong>Not locked.</strong>${lockStatus.canAcquire
-                        ? ' <span class="lock-hint">Lock it to stop others starting or stopping VMs while you work.</span>' : ''}</span>
-                </div>
-                <div class="lock-actions">
-                    ${historyButton}
-                    ${acquireButton}
-                </div>
-            </div>
-        `;
+            <div class="${classes.join(' ')}">
+                <div class="env-fact-head"><span>Lock</span><span class="env-fact-actions">${actions}</span></div>
+                <div class="env-fact-value">${value}</div>
+                <div class="env-fact-note">${parts.join(' · ')}${countdown ? (parts.length ? ' · ' : '') + countdown : ''}</div>
+                <div class="env-fact-note">${history}</div>
+            </div>`;
     }
 
     /**
@@ -435,8 +407,8 @@ const Locks = (function() {
                 const $el = $(this);
                 const expiresAtMs = Number($el.attr('data-expires-at'));
                 const remaining = expiresAtMs - Date.now();
-                $el.html(`<i class="fas fa-hourglass-half"></i> ${Utils.escapeHtml(countdownText(expiresAtMs))}`);
-                $el.closest('.lock-banner').toggleClass('expiring', remaining < EXPIRING_SOON_MS);
+                $el.text(countdownText(expiresAtMs));
+                $el.closest('.lock-fact').toggleClass('expiring', remaining < EXPIRING_SOON_MS);
                 if (remaining > 0) {
                     $el.data('armed', true);
                 } else if ($el.data('armed') && !$el.data('fired')) {
@@ -453,7 +425,7 @@ const Locks = (function() {
     function bindLockEvents(envId, envName, onUpdate) {
         // Acquire lock
         $('[data-lock-action="acquire"]').off('click').on('click', function() {
-            acquire(envId, onUpdate, $(this).attr('data-expiry-enabled') === 'true');
+            acquire(envId, onUpdate, $(this).attr('data-expiry-enabled') === 'true', envName);
         });
 
         // Extend my lock
@@ -505,7 +477,7 @@ const Locks = (function() {
         breakLock,
         showHistory,
         getStatus,
-        buildLockBanner,
+        buildLockFact,
         bindLockEvents,
         canOperate,
         showLockRequired
