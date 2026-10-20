@@ -1,221 +1,297 @@
 /*
- * Login Page Styles
+ * Sign-in page (U09-T01, Main.dc.html): the platform on a navy half with a rack of lights and the
+ * one-line pitch, and signing in on the canvas half, Microsoft first. Colours are the style-guide
+ * tokens of main.css; the page stacks with the sign-in half first under 768 px.
  */
 
 .login-page {
+    margin: 0;
     min-height: 100vh;
+    background: var(--canvas, #f3f5f9);
+    color: var(--ink);
+}
+
+.login-split {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* ---------- About the platform (left) ---------- */
+
+.login-about {
+    flex: 1 1 520px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 48px;
+    padding: 56px 64px;
+    background: var(--brand-navy);
+    color: #fff;
+}
+
+.login-about-logo {
+    height: 34px;
+    width: auto;
+    align-self: flex-start;
+}
+
+.login-about-body {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    max-width: 520px;
+}
+
+.login-rack {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.login-rack-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.login-rack-name {
+    width: 120px;
+    font-family: var(--font-mono);
+    font-size: var(--fs-small);
+    color: rgba(255, 255, 255, 0.62);
+}
+
+.login-rack-lights {
+    display: inline-flex;
+    gap: 4px;
+}
+
+.login-rack-lights > span {
+    display: inline-block;
+    width: 9px;
+    height: 18px;
+    border-radius: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.login-rack-lights > span.on {
+    border-color: transparent;
+    background: var(--brand-green);
+    box-shadow: 0 0 0 3px rgba(18, 145, 94, 0.22);
+}
+
+.login-rack-lights > span.busy {
+    border-color: transparent;
+    background: var(--brand-gold);
+}
+
+.login-rack-lights > span.gap {
+    width: 6px;
+    border: 0;
+}
+
+.login-pitch {
+    margin: 0;
+    font-size: 40px;
+    line-height: 1.15;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+}
+
+.login-pitch-sub {
+    margin: 0;
+    font-size: 16px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.78);
+}
+
+.login-about-foot {
+    margin: 0;
+    font-size: var(--fs-caption);
+    color: rgba(255, 255, 255, 0.55);
+}
+
+/* ---------- Sign in (right) ---------- */
+
+.login-panel {
+    flex: 1 1 480px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    background-attachment: fixed;
-    padding: 15px;
-    overflow-y: auto;
+    padding: 48px 24px;
 }
 
-.login-container {
+.login-box {
     width: 100%;
-    max-width: 420px;
-    margin: auto;
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
 }
 
-.login-card {
-    background: #ffffff;
-    border-radius: 12px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    padding: 32px 36px;
-    animation: slideIn 0.5s ease-out;
-}
-
-@keyframes slideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* Logo */
-.login-logo {
-    text-align: center;
-    margin-bottom: 16px;
-}
-
-.logo-img {
-    max-width: 160px;
-    height: auto;
-}
-
-/* Title */
 .login-title {
-    text-align: center;
-    font-size: 1.5rem;
+    margin: 0 0 6px;
+    font-size: 26px;
     font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 6px;
+    letter-spacing: -0.015em;
+    color: var(--ink);
 }
 
 .login-subtitle {
-    text-align: center;
-    color: var(--text-secondary);
-    font-size: 0.875rem;
-    margin-bottom: 24px;
+    margin: 0;
+    font-size: 15px;
+    color: var(--slate);
 }
 
-/* Login Form */
-.login-form {
-    margin-bottom: 18px;
-}
-
-.login-form .form-label {
+.login-microsoft {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    height: 48px;
+    border-radius: 8px;
+    background: var(--brand-navy);
+    color: #fff;
+    font-size: 15px;
     font-weight: 500;
-    color: var(--text-primary);
-    margin-bottom: 6px;
-    font-size: 0.9rem;
+    text-decoration: none;
 }
 
-.login-form .form-control {
-    padding: 10px 14px;
-    border: 2px solid var(--border-color);
-    border-radius: 6px;
-    font-size: 0.9rem;
-    transition: all 0.2s;
+.login-microsoft:hover,
+.login-microsoft:focus-visible {
+    background: var(--brand-navy-hover);
+    color: #fff;
 }
 
-.login-form .form-control:focus {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(20, 36, 92, 0.1);
+.login-microsoft:focus-visible,
+.login-submit:focus-visible,
+.login-field input:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: 2px;
 }
 
-/* Disabled form controls */
-.login-form .form-control:disabled {
-    background-color: var(--surface-subtle);
-    color: var(--slate-light);
-    cursor: not-allowed;
-    opacity: 0.7;
-}
-
-.btn-login {
-    width: 100%;
-    padding: 10px;
-    font-size: 0.95rem;
-    font-weight: 500;
-    border-radius: 6px;
-    margin-top: 6px;
-}
-
-/* Disabled button */
-.btn-login:disabled {
-    background-color: var(--line);
-    border-color: var(--line);
-    color: var(--slate-light);
-    cursor: not-allowed;
-    opacity: 0.7;
-}
-
-.btn-login:disabled:hover {
-    transform: none;
-    box-shadow: none;
-}
-
-/* Divider */
 .login-divider {
     display: flex;
     align-items: center;
-    text-align: center;
-    margin: 16px 0;
-    color: var(--text-secondary);
+    gap: 12px;
+    font-size: var(--fs-caption);
+    color: var(--slate);
 }
 
 .login-divider::before,
 .login-divider::after {
-    content: '';
+    content: "";
     flex: 1;
-    border-bottom: 1px solid var(--border-color);
+    height: 1px;
+    background: var(--line);
 }
 
-.login-divider span {
-    padding: 0 12px;
-    font-size: 0.8rem;
-    font-weight: 500;
-}
-
-/* Entra ID Button */
-.entraid-login {
-    margin-bottom: 18px;
-}
-
-.btn-entraid {
-    width: 100%;
-    padding: 10px;
-    font-size: 0.95rem;
-    font-weight: 500;
-    border-radius: 6px;
-    background: #0078d4;
-    color: #ffffff;
-    border: none;
+.login-form {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    transition: all 0.2s;
-    text-decoration: none;
+    flex-direction: column;
+    gap: 16px;
 }
 
-.btn-entraid:hover {
-    background: #106ebe;
-    color: #ffffff;
-    transform: translateY(-2px);
-    box-shadow: 0 8px 16px rgba(0, 120, 212, 0.3);
+.login-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: var(--fs-body);
+    font-weight: 500;
+    color: var(--ink);
 }
 
-.btn-entraid i {
-    font-size: 1.1rem;
+.login-field input {
+    height: 44px;
+    padding: 0 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    background: #fff;
+    font: inherit;
+    font-weight: 400;
+    color: var(--ink);
 }
 
-/* Footer */
-.login-footer {
-    text-align: center;
-    margin-top: 18px;
-    padding-top: 18px;
-    border-top: 1px solid var(--border-color);
-}
-
-.login-footer p {
+.login-error {
     margin: 0;
-    color: var(--text-secondary);
-    font-size: 0.8rem;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--brand-red-tint);
+    color: var(--brand-red-text);
+    font-size: var(--fs-body);
 }
 
-/* Responsive */
-@media (max-width: 576px) {
-    .login-card {
-        padding: 24px 20px;
+.login-note {
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--brand-green-tint);
+    color: var(--brand-green-text);
+    font-size: var(--fs-body);
+}
+
+.login-submit {
+    height: 44px;
+    border-radius: 8px;
+    border: 1px solid var(--brand-navy-line);
+    background: #fff;
+    color: var(--brand-navy);
+    font: inherit;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.login-submit:hover {
+    background: var(--brand-navy-tint);
+}
+
+.login-submit:disabled {
+    cursor: progress;
+    opacity: 0.7;
+}
+
+.login-help {
+    margin: 0;
+    font-size: var(--fs-caption);
+    color: var(--slate);
+}
+
+/* ---------- Narrow screens: sign-in first ---------- */
+
+@media (max-width: 767.98px) {
+    .login-split {
+        flex-direction: column;
     }
 
-    .login-title {
-        font-size: 1.35rem;
+    .login-panel {
+        order: -1;
+        flex: 0 0 auto;
+        padding: 32px 16px;
     }
 
-    .logo-img {
-        max-width: 140px;
+    .login-about {
+        flex: 0 0 auto;
+        gap: 28px;
+        padding: 32px 20px;
+    }
+
+    .login-pitch {
+        font-size: 28px;
     }
 }
 
-/* Success/error alerts on this page use Bootstrap's default .alert-success/.alert-danger
-   styling (loaded via vendor/bootstrap), matching how alerts look everywhere else in the app. */
-.alert-success i,
-.alert-danger i {
-    margin-right: 8px;
+@media (min-width: 768px) and (max-height: 900px) {
+    .login-about {
+        padding: 40px 56px;
+        gap: 32px;
+    }
+
+    .login-pitch {
+        font-size: 34px;
+    }
 }
-
-
-
-
-
-
-
-

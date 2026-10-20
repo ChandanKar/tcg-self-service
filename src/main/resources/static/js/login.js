@@ -1,13 +1,14 @@
 /**
- * Login page: Entra ID sign-in is always offered; the username/password form is shown unless
- * the server reports password login as disabled (GET /api/auth/options).
+ * Sign-in page: Sign in with Microsoft (Entra ID) is always offered first; the username form follows
+ * unless the server reports password login as disabled (GET /api/auth/options), when the form and
+ * its divider are hidden (U09-T01). Messages stay until the user acts: no timers (WCAG 2.2.1).
  * Loaded only by login.html, so it is not part of the dist bundle.
  */
 (function () {
     'use strict';
 
-    const SIGN_IN_LABEL = '<i class="fas fa-sign-in-alt" aria-hidden="true"></i> Sign In';
-    const SIGNING_IN_LABEL = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Signing in...';
+    const SIGN_IN_LABEL = 'Sign in';
+    const SIGNING_IN_LABEL = 'Signing in…';
     const DEFAULT_ERROR = 'Invalid username or password.';
 
     function show(el) {
@@ -35,14 +36,13 @@
         const submitBtn = document.getElementById('submitBtn');
         if (!submitBtn) return;
         submitBtn.disabled = isLoading;
-        submitBtn.innerHTML = isLoading ? SIGNING_IN_LABEL : SIGN_IN_LABEL;
+        submitBtn.textContent = isLoading ? SIGNING_IN_LABEL : SIGN_IN_LABEL;
     }
 
     function showLogoutMessage() {
         if (!new URLSearchParams(window.location.search).has('logout')) return;
-        const logoutMsg = document.getElementById('logoutMessage');
-        show(logoutMsg);
-        setTimeout(() => hide(logoutMsg), 5000);
+        // "You are signed out." stays until the user edits a field or signs in again.
+        show(document.getElementById('logoutMessage'));
     }
 
     /** Hide the password form only when the server says it is off; keep it on any error. */
@@ -75,7 +75,7 @@
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value;
         if (!username || !password) {
-            showError('Username and password are required');
+            showError('Enter your username and password.');
             return;
         }
 
@@ -97,12 +97,12 @@
                 return;
             }
             if (response.status === 404) {
-                showError('Password sign-in is not available. Use Sign in with Entra ID.');
+                showError('Signing in with a username is switched off. Use Sign in with Microsoft.');
                 return;
             }
             showError((await readMessage(response)) || DEFAULT_ERROR);
         } catch (error) {
-            showError('Login failed. Please try again.');
+            showError('Signing in did not work. Try again.');
         } finally {
             setButtonLoading(false);
         }
@@ -113,9 +113,9 @@
         const params = new URLSearchParams(window.location.search);
         if (params.has('expired')) {
             // CurrentUserRefreshFilter: session lifetime reached or account deactivated.
-            showError('Your session has ended. Please sign in again.');
+            showError('Your session ended. Sign in again to carry on.');
         } else if (params.has('error')) {
-            showError('Sign-in with Entra ID failed. If this keeps happening, contact an administrator.');
+            showError('Signing in with Microsoft did not work. If this keeps happening, ask your platform administrator.');
         }
     }
 
@@ -135,7 +135,10 @@
         if (loginForm) loginForm.addEventListener('submit', submitLogin);
         ['username', 'password'].forEach(function (id) {
             const field = document.getElementById(id);
-            if (field) field.addEventListener('input', hideError);
+            if (field) field.addEventListener('input', function () {
+                hideError();
+                hide(document.getElementById('logoutMessage'));
+            });
         });
     });
 })();

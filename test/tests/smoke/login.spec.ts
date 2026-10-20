@@ -6,22 +6,61 @@ test.describe('Login page', () => {
     await page.goto('/login');
   });
 
-  test('renders the username/password form and the Entra ID option', async ({ page }) => {
-    await expect(page).toHaveTitle(/Login/i);
-    await expect(page.locator('#loginForm')).toBeVisible();
-    await expect(page.locator('#username')).toBeVisible();
-    await expect(page.locator('#password')).toBeVisible();
-    await expect(page.locator('#submitBtn')).toBeVisible();
+  test('Sign in with Microsoft comes first, then the username form after "or with a username"', async ({ page }) => {
+    await expect(page).toHaveTitle(/Sign in/i);
+    // U09-T01: two sections, the platform and signing in.
+    await expect(page.getByRole('region', { name: 'About the platform' })).toBeVisible();
+    await expect(page.getByRole('img', { name: /A rack of environments/ })).toBeVisible();
+    const signIn = page.getByRole('region', { name: 'Sign in' });
+    await expect(signIn.getByRole('heading', { name: 'Sign in' })).toBeVisible();
 
-    // Microsoft Entra ID SSO button (see docs: dual-auth support).
-    await expect(page.locator('a.btn-entraid')).toBeVisible();
-    await expect(page.locator('a.btn-entraid')).toHaveAttribute('href', '/oauth2/authorization/azure');
+    const microsoft = page.getByRole('link', { name: 'Sign in with Microsoft' });
+    await expect(microsoft).toHaveAttribute('href', '/oauth2/authorization/azure');
+    await page.locator('body').focus();
+    await page.keyboard.press('Tab');
+    await expect(microsoft).toBeFocused();                       // the first thing to tab to
+    await expect(page.locator('#loginDivider')).toHaveText('or with a username');
+    await expect(page.getByLabel('Username')).toBeVisible();
+    await expect(page.getByLabel('Password')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
+    await expect(page.getByText('Trouble signing in? Ask your platform administrator to check your account.')).toBeVisible();
   });
 
   test('rejects an empty submission client-side', async ({ page }) => {
     await page.locator('#submitBtn').click();
-    // HTML5 `required` blocks submission; we should still be on /login.
+    await expect(page.locator('#errorMessage')).toHaveText('Enter your username and password.');
     await expect(page).toHaveURL(/\/login/);
+  });
+
+  test('with password sign-in off only Sign in with Microsoft shows', async ({ page }) => {
+    await page.route('**/api/auth/options', route => route.fulfill({ json: { passwordLoginEnabled: false } }));
+    await page.goto('/login');
+    await expect(page.getByRole('link', { name: 'Sign in with Microsoft' })).toBeVisible();
+    await expect(page.locator('#loginForm')).toBeHidden();
+    await expect(page.locator('#loginDivider')).toBeHidden();
+  });
+
+  test('an ended session and a sign-out say so until the user acts', async ({ page }) => {
+    await page.goto('/login?expired');
+    await expect(page.getByRole('alert')).toHaveText('Your session ended. Sign in again to carry on.');
+    await page.goto('/login?logout');
+    const note = page.getByRole('status').filter({ hasText: 'You are signed out.' });
+    await expect(note).toBeVisible();
+    await page.waitForTimeout(5_500);                            // no 5-second timer any more
+    await expect(note).toBeVisible();
+    await page.getByLabel('Username').fill('a');
+    await expect(note).toBeHidden();
+  });
+
+  test('fits a 1440x900 window without scrolling and puts signing in first at 390 px', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/login');
+    expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight
+      && document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.setViewportSize({ width: 390, height: 844 });
+    const signInTop = await page.getByRole('region', { name: 'Sign in' }).evaluate(el => el.getBoundingClientRect().top);
+    const aboutTop = await page.getByRole('region', { name: 'About the platform' }).evaluate(el => el.getBoundingClientRect().top);
+    expect(signInTop).toBeLessThan(aboutTop);
   });
 
   test('shows a generic error on invalid credentials (no user enumeration)', async ({ page }) => {

@@ -3,88 +3,69 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - VM Self-Service Platform</title>
+    <title>Sign in - VM Self-Service Platform</title>
 
-    <!-- Bootstrap CSS -->
+    <!-- Bootstrap CSS (utility classes such as d-none, which login.js toggles) -->
     <link href="vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
 
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-
-    <!-- Application CSS -->
+    <!-- Application CSS: self-hosted IBM Plex and the style-guide tokens (U03-T01), then this page -->
     <link rel="preload" href="webfonts/ibm-plex-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="css/main.css">
-    <link rel="stylesheet" href="css/login.css">
+    <link rel="stylesheet" href="css/main.css?v=202610212000">
+    <link rel="stylesheet" href="css/login.css?v=202610212000">
 </head>
 <body class="login-page">
-    <div class="login-container">
-        <div class="login-card">
-            <!-- Logo -->
-            <div class="login-logo">
-                <img src="logo/tcg_blue_logo.png" alt="TCG Digital - VM Self-Service Platform" class="logo-img">
+    <main class="login-split">
+        <!-- U09-T01 (Main.dc.html): what the platform is, on the left; signing in, on the right. -->
+        <section class="login-about" aria-label="About the platform">
+            <img src="logo/tcg_white_logo.png" alt="TCG Digital" class="login-about-logo">
+            <div class="login-about-body">
+                <div class="login-rack" role="img" aria-label="A rack of environments: lights show which VMs are running">
+                    <div class="login-rack-row"><span class="login-rack-name">payments-dev</span><span class="login-rack-lights" aria-hidden="true"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="gap"></span><span class="on"></span><span class="on"></span><span class="gap"></span><span class="on"></span></span></div>
+                    <div class="login-rack-row"><span class="login-rack-name">crm-uat</span><span class="login-rack-lights" aria-hidden="true"><span></span><span></span><span class="gap"></span><span></span><span></span><span></span><span class="gap"></span><span></span></span></div>
+                    <div class="login-rack-row"><span class="login-rack-name">analytics-qa</span><span class="login-rack-lights" aria-hidden="true"><span class="on"></span><span class="on"></span><span class="busy"></span><span class="gap"></span><span class="on"></span><span></span></span></div>
+                    <div class="login-rack-row"><span class="login-rack-name">hr-portal-stg</span><span class="login-rack-lights" aria-hidden="true"><span></span><span></span><span></span><span></span><span class="gap"></span><span></span><span></span></span></div>
+                    <div class="login-rack-row"><span class="login-rack-name">data-lake-dev</span><span class="login-rack-lights" aria-hidden="true"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></span></div>
+                </div>
+                <h1 class="login-pitch">Your cloud environments, on when you need them and off when you don't.</h1>
+                <p class="login-pitch-sub">Start and stop the environments you work on, see what they cost, and ask for access in one place.</p>
             </div>
+            <p class="login-about-foot">TCG Digital · Self-Service Platform</p>
+        </section>
 
-            <!-- Title -->
-            <h1 class="login-title">VM Self-Service Platform</h1>
-            <p class="login-subtitle">Sign in to manage your virtual machines</p>
-
-            <!-- Error Message Display -->
-            <div id="errorAlert" class="alert alert-danger d-none" role="alert">
-                <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
-                <span id="errorMessage"></span>
-            </div>
-
-            <!-- Login Form -->
-            <form class="login-form" id="loginForm">
-                <div class="form-group mb-2">
-                    <label for="username" class="form-label">Username</label>
-                    <input type="text" class="form-control" id="username" name="username"
-                           placeholder="Enter your username" required
-                           autocomplete="username">
+        <section class="login-panel" aria-label="Sign in">
+            <div class="login-box">
+                <div>
+                    <h2 class="login-title">Sign in</h2>
+                    <p class="login-subtitle">Use your TCG Digital Microsoft account.</p>
                 </div>
 
-                <div class="form-group mb-2">
-                    <label for="password" class="form-label">Password</label>
-                    <input type="password" class="form-control" id="password" name="password"
-                           placeholder="Enter your password" required
-                           autocomplete="current-password">
-                </div>
+                <!-- Signed out, or why the last sign-in did not work; each stays until the user acts. -->
+                <div id="logoutMessage" class="login-note d-none" role="status">You are signed out.</div>
 
-                <button type="submit" class="btn btn-primary btn-login" id="submitBtn">
-                    <i class="fas fa-sign-in-alt" aria-hidden="true"></i> Sign In
-                </button>
-            </form>
-
-            <!-- Divider -->
-            <div class="login-divider" id="loginDivider">
-                <span>OR</span>
-            </div>
-
-            <!-- Entra ID Login Button -->
-            <div class="entraid-login">
-                <a href="/oauth2/authorization/azure" class="btn btn-entraid">
-                    <i class="fab fa-microsoft"></i> Sign in with Entra ID
+                <a href="/oauth2/authorization/azure" class="login-microsoft btn-entraid">
+                    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" focusable="false"><rect x="1" y="1" width="7.5" height="7.5" fill="#F25022"></rect><rect x="9.5" y="1" width="7.5" height="7.5" fill="#7FBA00"></rect><rect x="1" y="9.5" width="7.5" height="7.5" fill="#00A4EF"></rect><rect x="9.5" y="9.5" width="7.5" height="7.5" fill="#FFB900"></rect></svg>
+                    Sign in with Microsoft
                 </a>
-            </div>
 
-            <!-- Logout Success Message -->
-            <div id="logoutMessage" class="alert alert-success d-none" role="status">
-                <i class="fas fa-check-circle"></i> You have been successfully logged out.
-            </div>
+                <div class="login-divider" id="loginDivider"><span>or with a username</span></div>
 
-            <!-- Footer -->
-            <div class="login-footer">
-                <p class="text-muted">
-                    <small>Powered by TCG Digital &copy; 2026</small>
-                </p>
-            </div>
-        </div>
-    </div>
+                <form class="login-form" id="loginForm" novalidate>
+                    <label class="login-field" for="username">Username
+                        <input type="text" id="username" name="username" required autocomplete="username">
+                    </label>
+                    <label class="login-field" for="password">Password
+                        <input type="password" id="password" name="password" required autocomplete="current-password">
+                    </label>
+                    <div id="errorAlert" class="login-error d-none" role="alert"><span id="errorMessage"></span></div>
+                    <button type="submit" class="login-submit" id="submitBtn">Sign in</button>
+                </form>
 
-    <!-- Bootstrap JS -->
-    <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+                <p class="login-help">Trouble signing in? Ask your platform administrator to check your account.</p>
+            </div>
+        </section>
+    </main>
 
     <!-- Login page behaviour (no inline script so a strict CSP can apply) -->
-    <script src="js/login.js?v=202610131500"></script>
+    <script src="js/login.js?v=202610212000"></script>
 </body>
 </html>
