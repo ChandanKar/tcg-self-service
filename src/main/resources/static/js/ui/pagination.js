@@ -142,5 +142,48 @@ const Pagination = (function() {
         `;
     }
 
-    return { renderNumbered, buildSimpleMarkup };
+    /**
+     * The pager of the new screens (U04-T02): "1–10 of 54" and Previous / Next (30 px), as in
+     * EnvDetailLarge.dc.html. Pure markup with data-action / data-page-key / data-page, like
+     * buildSimpleMarkup, so the caller registers one Actions handler.
+     *
+     * @param {object} opts
+     * @param {number} opts.page - 1-indexed current page
+     * @param {number} [opts.pageSize=Config.PAGE_SIZE or 10]
+     * @param {number} opts.totalItems
+     * @param {string} opts.action - Actions name; the button's dataset has pageKey and page (the target page)
+     * @param {string} [opts.key=''] - which list the pager belongs to (data-page-key)
+     * @param {string} [opts.emptyText='Nothing to show'] - shown, without buttons, when there are no items
+     */
+    function buildPager(opts) {
+        const size = opts.pageSize || (typeof Config !== 'undefined' && Config.PAGE_SIZE) || 10;
+        const total = Math.max(0, Number(opts.totalItems) || 0);
+        const esc = Utils.escapeHtml;
+        if (total === 0) {
+            return `<div class="pager"><span class="pager-range">${esc(opts.emptyText || 'Nothing to show')}</span></div>`;
+        }
+        const pages = Math.ceil(total / size);
+        const page = Math.min(Math.max(1, Number(opts.page) || 1), pages);
+        const first = (page - 1) * size + 1;
+        const last = Math.min(page * size, total);
+        const attrs = target => `data-action="${esc(opts.action)}" data-page-key="${esc(opts.key || '')}" data-page="${target}"`;
+        return `<div class="pager">
+                <span class="pager-range">${first}–${last} of ${total}</span>
+                <span class="pager-buttons">
+                    <button type="button" class="pager-btn" ${attrs(page - 1)} ${page <= 1 ? 'disabled' : ''}>Previous</button>
+                    <button type="button" class="pager-btn" ${attrs(page + 1)} ${page >= pages ? 'disabled' : ''}>Next</button>
+                </span>
+            </div>`;
+    }
+
+    /** The items of one page of a list held in the browser (1-indexed page, out-of-range pages clamp). */
+    function slice(list, page, pageSize) {
+        const items = Array.isArray(list) ? list : [];
+        const size = pageSize || (typeof Config !== 'undefined' && Config.PAGE_SIZE) || 10;
+        const pages = Math.max(1, Math.ceil(items.length / size));
+        const p = Math.min(Math.max(1, Number(page) || 1), pages);
+        return items.slice((p - 1) * size, p * size);
+    }
+
+    return { renderNumbered, buildSimpleMarkup, buildPager, slice };
 })();

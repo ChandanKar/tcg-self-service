@@ -633,8 +633,12 @@ const Config = (function() {
         'Australia/Sydney'
     ];
 
+    // Rows per page on the new screens: they fit 1440x900 by paging, not scrolling (U04-T02).
+    const PAGE_SIZE = 10;
+
     return {
         API_BASE_URL,
+        PAGE_SIZE,
         AUTH,
         API,
         UI,

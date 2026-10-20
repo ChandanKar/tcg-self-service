@@ -599,3 +599,252 @@ body.app-shell {
 .content-breadcrumb.compact .breadcrumb {
     font-size: 0.8rem;
 }
+
+/* ================================================
+   Layout primitives of the new screens (U04-T02)
+   Pages fit 1440x900 by paging at 10 rows, not by scrolling: .page stacks the header and panels,
+   .page-fill takes the height left, a .panel holds a list with a .panel-foot pager, and
+   .master-detail puts a 260 px list next to the detail (EnvDetailLarge.dc.html).
+   ================================================ */
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-height: 100%;
+}
+
+.page-fill {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.panel {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--card-radius);
+    overflow: hidden;
+    min-width: 0;
+}
+
+.panel-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.panel-head h2 {
+    margin: 0;
+    flex: 1;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.panel-foot {
+    border-top: 1px solid var(--line-soft);
+}
+
+/* Pager: "1–10 of 54" and Previous / Next */
+.pager {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    font-size: 13px;
+    color: var(--slate);
+}
+
+.pager-range {
+    font-variant-numeric: tabular-nums;
+}
+
+.pager-buttons {
+    display: flex;
+    gap: 6px;
+}
+
+.pager-btn {
+    height: 30px;
+    padding: 0 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: 7px;
+    background: #fff;
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.pager-btn:hover:not(:disabled) {
+    background: var(--surface-subtle);
+}
+
+.pager-btn:disabled {
+    border-color: var(--line);
+    color: var(--slate-light);
+    cursor: default;
+}
+
+.pager-btn:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: 2px;
+}
+
+/* List | detail */
+.master-detail {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    gap: 14px;
+    align-items: start;
+}
+
+.md-list {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--card-radius);
+    overflow: hidden;
+}
+
+.md-list-title {
+    padding: 10px 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--slate);
+}
+
+.md-list button {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    width: 100%;
+    border: 0;
+    border-top: 1px solid var(--line-soft);
+    padding: 10px 14px;
+    background: #fff;
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.md-list button:hover {
+    background: var(--surface-subtle);
+}
+
+.md-list button[aria-current="true"],
+.md-list button[aria-current="page"] {
+    background: var(--brand-navy-tint);
+    box-shadow: inset 3px 0 0 var(--brand-gold);
+}
+
+.md-list button:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: -2px;
+}
+
+/* Main column with a 320 px column on the right */
+.with-side-col {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 16px;
+    align-items: start;
+}
+
+.side-col {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+}
+
+/* Tabs (js/ui/tabs.js): an underline, navy when selected */
+.tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--line);
+    overflow-x: auto;
+}
+
+.tabs .tab {
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--slate);
+    padding: 10px 14px;
+    margin-bottom: -1px;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.tabs .tab:hover {
+    color: var(--ink);
+}
+
+.tabs .tab[aria-selected="true"] {
+    color: var(--brand-navy);
+    font-weight: 600;
+    border-bottom-color: var(--brand-navy);
+}
+
+.tabs .tab:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: -2px;
+}
+
+.tabs .tab-count {
+    margin-left: 6px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--slate);
+}
+
+/* Filter group (js/ui/filter-group.js) */
+.filter-group {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    background: #fff;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+}
+
+.filter-option {
+    border: 0;
+    background: transparent;
+    color: #3a4256;
+    font: inherit;
+    font-size: 13px;
+    padding: 5px 11px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.filter-option:hover {
+    background: var(--surface-subtle);
+}
+
+.filter-option[aria-pressed="true"] {
+    background: var(--brand-navy);
+    color: #fff;
+    font-weight: 500;
+}
+
+.filter-option:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: 1px;
+}
+
+.filter-option .filter-count {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    opacity: 0.85;
+}

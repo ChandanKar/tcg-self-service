@@ -88,9 +88,10 @@ const Slideout = (function() {
      * Supports either an existing panel id, or dynamic content as (title, html).
      * @param {string} panelIdOrTitle - Panel element ID or dynamic panel title
      * @param {string=} html - Optional dynamic panel body
-     * @param {{variant?: string, html?: boolean}=} options - Dynamic panels only: `variant` is set
-     *        as the panel's data-variant so a feature can restyle it (e.g. a narrower width);
-     *        `html: true` renders the title as markup (it is text by default)
+     * @param {{variant?: string, html?: boolean, width?: number, footer?: string}=} options - Dynamic
+     *        panels only: `variant` is set as the panel's data-variant so a feature can restyle it;
+     *        `html: true` renders the title as markup (it is text by default); `width` in px (default
+     *        720); `footer` is an action row kept at the bottom while the body scrolls (U04-T02)
      */
     function open(panelIdOrTitle, html, options) {
         if (typeof html === 'string') {
@@ -126,6 +127,16 @@ const Slideout = (function() {
         });
     }
 
+    /**
+     * Open the shared side panel.
+     * @param {string} title - text, or HTML with options.html
+     * @param {string} html - the body
+     * @param {object} [options]
+     * @param {string} [options.variant] - data-variant for page-specific styling
+     * @param {number} [options.width] - panel width in px (the new screens use 440-640); default 720
+     * @param {string} [options.footer] - HTML of an action row that stays at the bottom while the body scrolls
+     * @param {boolean} [options.html] - render the title as HTML
+     */
     function openDynamic(title, html, options = {}) {
         const panelId = 'dynamicSlideoutPanel';
         let $panel = $(`#${panelId}`);
@@ -139,6 +150,7 @@ const Slideout = (function() {
                         <button type="button" class="close-btn" aria-label="Close">&times;</button>
                     </div>
                     <div class="slideout-panel-content"></div>
+                    <div class="slideout-panel-footer" hidden></div>
                 </div>
             `);
             $('body').append($panel);
@@ -149,6 +161,11 @@ const Slideout = (function() {
         }
 
         $panel.attr('data-variant', options.variant || null);
+        if (options.width) $panel[0].style.setProperty('--slideout-width', `min(${Number(options.width)}px, 100vw)`);
+        else $panel[0].style.removeProperty('--slideout-width');
+        const $footer = $panel.find('.slideout-panel-footer');
+        $footer.html(options.footer || '').prop('hidden', !options.footer);
+        $panel.toggleClass('has-footer', !!options.footer);
         const $title = $panel.find('.slideout-panel-header h3');
         if (options.html === true) $title.html(title); else $title.text(title);
         $panel.find('.slideout-panel-content').html(html);

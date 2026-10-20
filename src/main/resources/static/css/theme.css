@@ -9,6 +9,9 @@
 /* ── Bootstrap variables ───────────────────────────────────────────────── */
 :root {
     --bs-body-font-family: var(--font-sans);
+    /* Body text 14 px, the style guide's type scale (Bootstrap's default is 16 px) */
+    --bs-body-font-size: var(--fs-body);
+    --bs-body-line-height: 1.5;
     --bs-font-monospace: var(--font-mono);
     --bs-body-color: var(--text-primary);
     --bs-body-bg: var(--canvas);

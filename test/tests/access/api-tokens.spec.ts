@@ -50,6 +50,9 @@ async function setUp(page: Page, enabled: boolean) {
   await withFeatures(page, { apiTokens: true }); // U02-T03: switched on for this page
   await signIn(page, 'admin');
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined' && typeof MyAccount !== 'undefined');
+  // Opening the first page closes any open panel; let it settle before opening My Account.
+  await expect(page.locator('#content-area h1').first()).toBeVisible({ timeout: 15_000 });
+  await page.waitForLoadState('networkidle');
   return calls;
 }
 

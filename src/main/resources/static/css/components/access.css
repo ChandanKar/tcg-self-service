@@ -65,16 +65,6 @@
     color: var(--slate);
 }
 
-/* Pending requests badge in sidebar */
-.sidebar-menu-link .pending-count {
-    background: var(--brand-red-text);
-    color: white;
-    font-size: 0.65rem;
-    padding: 0.125rem 0.375rem;
-    border-radius: 10px;
-    margin-left: auto;
-}
-
 /* Access expiration warning */
 .access-expiring-soon {
     color: var(--brand-gold);
