@@ -93,6 +93,26 @@ class ApprovalRequestServiceIntegrationTest extends SecuredWebTestBase {
         return executions.findAll().stream().filter(e -> env.getEnvironmentId().equals(e.getEnvironment().getEnvironmentId())).count();
     }
 
+    /** U09-T03: the approver reads what the requester wrote; extension notes too; blank or bad payloads give none. */
+    @Test
+    void theApproverSeesTheRequestersNote() throws Exception {
+        policy("ANY");
+        String body = mockMvc.perform(post("/api/v1/environments/" + env.getEnvironmentId() + "/operations").with(asUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"operationType\":\"START\",\"skipAlreadyInTargetState\":false,\"reason\":\"Overnight soak test\"}"))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        String id = JsonPath.read(body, "$.approvalRequestId");
+        mockMvc.perform(get("/api/v1/approval-requests").param("view", "to-review").with(as(approverA)))
+                .andExpect(jsonPath("$[?(@.requestId == '" + id + "')].requesterNote").value("Overnight soak test"));
+
+        assertThat(requestService.requesterNote("{\"leaseId\":\"l1\",\"minutes\":120,\"reason\":\" Release night \"}"))
+                .isEqualTo("Release night");
+        assertThat(requestService.requesterNote("{\"operationType\":\"START\",\"reason\":\"  \"}")).isNull();
+        assertThat(requestService.requesterNote("not json")).isNull();
+        assertThat(requestService.requesterNote(null)).isNull();
+    }
+
     @Test
     void anyOneApprovalStartsItOnceAsTheRequester() throws Exception {
         policy("ANY");

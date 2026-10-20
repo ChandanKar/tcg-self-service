@@ -584,7 +584,24 @@ public class ApprovalRequestService {
                 environmentName(r.getEnvironmentId()), r.getRequesterUserId(), userName(r.getRequesterUserId()), r.getScopeSummary(),
                 r.getEstimatedCost(), r.getRequestedHours(), reasons, r.getApproverMode().name(), r.getStatus().name(),
                 r.getStatusReason(), r.getCreatedAt(), r.getExpiresAt(), r.getDecidedAt(), r.getExecutionId(), approvers,
-                canDecide, pending && viewerId.equals(r.getRequesterUserId()));
+                canDecide, pending && viewerId.equals(r.getRequesterUserId()), requesterNote(r.getPayload()));
+    }
+
+    /**
+     * The requester's own note from the held payload (U09-T03): the "reason" of a start
+     * (StartOperationDTO) or of an extension (ExtensionPayload); null when blank or unreadable.
+     */
+    String requesterNote(String payload) {
+        if (payload == null || payload.isBlank()) {
+            return null;
+        }
+        try {
+            var reason = objectMapper.readTree(payload).path("reason");
+            String text = reason.isTextual() ? reason.asText().trim() : null;
+            return text == null || text.isEmpty() ? null : text;
+        } catch (JsonProcessingException | RuntimeException e) {
+            return null;
+        }
     }
 
     private ApprovalRequest request(String requestId) {

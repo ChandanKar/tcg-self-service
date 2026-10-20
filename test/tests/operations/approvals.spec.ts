@@ -36,31 +36,65 @@ test.describe('Approvals', () => {
   test('an approver approves one request and denies another with a reason', async ({ page }) => {
     const posted: any[] = [];
     await page.route(/\/api\/v1\/approval-requests\?view=to-review$/, route => route.fulfill({ status: 200, contentType: 'application/json',
-      body: JSON.stringify([request(), request({ requestId: 'req-2', environmentName: 'Data lab', requestType: 'EXTEND', scopeSummary: '+240 min (15 h in total)' })]) }));
+      body: JSON.stringify([request({ requesterNote: 'Overnight soak test' }),
+        request({ requestId: 'req-2', environmentName: 'Data lab', requestType: 'EXTEND', scopeSummary: '+240 min (15 h in total)', requestedHours: 4 }),
+        request({ requestId: 'req-3', environmentName: 'CRM UAT', approverMode: 'ALL', canDecide: true,
+          approvers: [{ userId: 'admin-001', name: 'Admin', decision: null, reason: null, decidedAt: null },
+            { userId: 'u-2', name: 'Bea', decision: 'APPROVED', reason: null, decidedAt: new Date().toISOString() }] })]) }));
+    await page.route(/\/api\/v1\/approval-requests\?view=mine$/, route => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
     await page.route(/\/api\/v1\/approval-requests\/[^/]+\/(approve|deny)$/, route => {
       posted.push({ url: new URL(route.request().url()).pathname, body: route.request().postDataJSON() });
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(request({ status: 'EXECUTED' })) });
     });
     await go(page, '#/approvals');
 
+    // U09-T03: decision cards (Approvals.dc.html), the tab with its count.
+    await expect(page.getByRole('tab', { name: 'To review · 3' })).toHaveAttribute('aria-selected', 'true', { timeout: 15_000 });
     const first = page.locator('.approval-card[data-request="req-1"]');
-    await expect(first).toContainText('Start Payments QA', { timeout: 15_000 });
-    await expect(first).toContainText('Asked by Ravi');
-    await expect(first).toContainText('$1.54');
-    await expect(first).toContainText('8 h is longer than 4 h');
-    await expect(page.locator('.approval-card[data-request="req-2"]')).toContainText('Keep Data lab running longer');
+    await expect(first.getByRole('heading')).toHaveText('Start Payments QA for 8 hours');
+    await expect(first.locator('.approval-who')).toHaveText(/^Ravi · asked \d+ min ago$/);
+    await expect(first.locator('.approval-chip')).toHaveText(/^Expires in 2[34] h/);
+    await expect(first.locator('.approval-note')).toHaveText('"Overnight soak test"');
+    await expect(first.locator('.approval-facts')).toContainText('8 h is longer than 4 h');
+    await expect(first.locator('.approval-facts')).toContainText('$1.54');
+    await expect(first.locator('.approval-facts')).toContainText('Any one of you or Bea');
+    await expect(first.locator('.approval-actions button')).toHaveText(['Deny…', 'Approve']);
+    await expect(page.locator('.approval-card[data-request="req-2"] h2')).toHaveText('Keep Data lab running 4 hours longer');
+    await expect(page.locator('.approval-card[data-request="req-3"] .approval-facts')).toContainText('You and Bea (both)');
 
-    await first.locator('[data-action="approval-approve"]').click();
-    await expect(page.locator('#confirmModal')).toContainText('It runs as Ravi');
-    await page.locator('#confirmBtn').click();
+    await first.getByRole('button', { name: 'Approve' }).click();
     await expect.poll(() => posted.length).toBe(1);
     expect(posted[0].url).toContain('/req-1/approve');
+    await expect(page.getByText('Approved. Payments QA is starting.')).toBeVisible();
+    await expect(page.locator('#confirmModal')).toHaveCount(0);
 
-    await page.locator('.approval-card[data-request="req-2"] [data-action="approval-deny"]').click();
+    await page.locator('.approval-card[data-request="req-2"]').getByRole('button', { name: 'Deny…' }).click();
+    await expect(page.locator('.modal.show .modal-title')).toHaveText('Deny this request?');
+    await page.locator('#promptSubmitBtn').click();
+    expect(posted).toHaveLength(1);                                   // a reason is required
     await page.locator('#promptInput').fill('Too long for a weekend');
     await page.locator('#promptSubmitBtn').click();
     await expect.poll(() => posted.length).toBe(2);
     expect(posted[1]).toEqual({ url: '/api/v1/approval-requests/req-2/deny', body: { reason: 'Too long for a weekend' } });
+  });
+
+  test('my requests are status lines with Cancel request while waiting', async ({ page }) => {
+    await page.route(/\/api\/v1\/approval-requests\?view=to-review$/, route => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
+    await page.route(/\/api\/v1\/approval-requests\?view=mine$/, route => route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify([request({ canDecide: false, canCancel: true, requestedHours: 6, requestType: 'EXTEND', environmentName: 'Analytics QA',
+        approvers: [{ userId: 'm', name: 'Meera Iyer', decision: null, reason: null, decidedAt: null }] }),
+        request({ requestId: 'req-9', status: 'EXECUTED', canDecide: false, requestedHours: 12, environmentName: 'Data Lake Dev', decidedAt: new Date().toISOString(),
+          approvers: [{ userId: 'm', name: 'Meera Iyer', decision: 'APPROVED', reason: null, decidedAt: new Date().toISOString() }] })]) }));
+    await go(page, '#/approvals?tab=mine');
+    await expect(page.getByText('Nothing waits for your approval.')).toBeHidden();
+    const rows = page.locator('.approval-row');
+    await expect(rows).toHaveCount(2, { timeout: 15_000 });
+    await expect(rows.nth(0)).toContainText('Keep Analytics QA running 6 hours longer · waiting for Meera Iyer');
+    await expect(rows.nth(0).getByRole('button', { name: 'Cancel request' })).toBeVisible();
+    await expect(rows.nth(1).locator('.approval-chip')).toHaveText('Started');
+    await expect(rows.nth(1)).toContainText(/Start Data Lake Dev for 12 hours · approved by Meera Iyer, started \w{3} \d\d:\d\d/);
+    await page.getByRole('tab', { name: 'To review' }).click();
+    await expect(page.getByText('Nothing waits for your approval.')).toBeVisible();
   });
 
   test('the environment page shows the waiting request as the Approval alert with Cancel request', async ({ page, playwright }) => {

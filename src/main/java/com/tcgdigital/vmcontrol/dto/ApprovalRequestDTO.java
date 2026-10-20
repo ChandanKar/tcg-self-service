@@ -27,7 +27,9 @@ public record ApprovalRequestDTO(
         /** The signed-in user may approve or deny it now. */
         boolean canDecide,
         /** The signed-in user asked for it and it is still pending. */
-        boolean canCancel) {
+        boolean canCancel,
+        /** What the requester wrote when asking (U09-T03); null when they wrote nothing. */
+        String requesterNote) {
 
     /** decision APPROVED/DENIED, or null while undecided. */
     public record Approver(String userId, String name, String decision, String reason, Timestamp decidedAt) {}
