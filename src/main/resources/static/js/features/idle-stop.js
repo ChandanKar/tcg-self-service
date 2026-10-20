@@ -1,7 +1,8 @@
 /**
- * Idle auto-stop panel on the environment page (E16-T05, G5): mode, what a dry run would have
- * saved, snooze, and the rule settings for environment admins. Renders nothing while the
- * feature flag (automation.idle-stop.enabled) is off.
+ * Idle auto-stop on the environment page (E16-T05, G5), since U07-T06 the "Idle auto-stop" fact in
+ * "About this environment" (#env-fact-idle): the mode and threshold, what a dry run would have
+ * saved, a snooze, and "Pause or review" opening snooze and the rule settings. Renders nothing
+ * while the feature flag (automation.idle-stop.enabled) is off; the page does not even ask then.
  */
 const IdleStop = (function() {
     'use strict';
@@ -12,8 +13,11 @@ const IdleStop = (function() {
     let saving = false;       // one rule Save in flight at a time
     let renderToken = 0;      // drops a late response for an environment no longer shown
 
+    /** "14:30", 24-hour like the rest of the app. */
     function time(ts) {
-        return ts ? new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+        if (!ts) return '';
+        const d = new Date(ts);
+        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     }
 
     function dateTime(ts) {
@@ -28,16 +32,16 @@ const IdleStop = (function() {
         return (status.rules || []).find(r => r.scopeType === 'ENVIRONMENT') || (status.rules || [])[0] || null;
     }
 
-    /** Fetch the status and render the panel into #env-idle-panel. */
+    /** Fetch the status and render the fact into #env-fact-idle. */
     function renderPanel(env) {
-        const $panel = $('#env-idle-panel');
+        const $panel = $('#env-fact-idle');
         if (!$panel.length || !env) return;
         const token = ++renderToken;
         ApiClient.get(Config.API.idleStop.status(env.environmentId), { suppressGlobalError: true })
             .done(function(status) {
                 if (token !== renderToken) return;
                 current = { env, status };
-                $panel.html(buildPanel(env, status));
+                $panel.html(buildFact(env, status));
                 if (typeof RealTime !== 'undefined' && RealTime.startPolling) {
                     RealTime.startPolling('idleStopPanel', () => refresh(), 60000, { pageScoped: true, immediate: false });
                 }
@@ -48,69 +52,93 @@ const IdleStop = (function() {
     }
 
     function refresh() {
-        if (current && $('#env-idle-panel').length) renderPanel(current.env);
+        if (current && $('#env-fact-idle').length) renderPanel(current.env);
     }
 
-    function buildPanel(env, status) {
-        if (!status.featureEnabled) return '';
-        const rule = envRule(status);
-        let badge;
-        if (status.production) badge = '<span class="badge bg-secondary">Production — excluded</span>';
-        else if (!rule || !rule.enabled) badge = '<span class="badge bg-secondary">Off</span>';
-        else if (rule.mode === 'ENFORCE') badge = '<span class="badge bg-success">On</span>';
-        else badge = '<span class="badge bg-info text-dark">Dry run</span>';
+    /** "Dry run · after 60 min idle", "On · after 60 min idle", "Off" or "Production — excluded". */
+    function modeText(status, rule) {
+        if (status.production) return 'Production — excluded';
+        if (!rule || !rule.enabled) return 'Off';
+        const after = rule.idleMinutes ? ` · after ${rule.idleMinutes} min idle` : '';
+        return (rule.mode === 'ENFORCE' ? 'On' : 'Dry run') + after;
+    }
 
+    /** The notes under the value: savings, snooze, and why the last check skipped. */
+    function noteLines(status, rule) {
         const lines = [];
-        const latest = status.latestEvent;
-        if (latest && latest.idleSince && (latest.outcome === 'WOULD_STOP' || latest.outcome === 'STOPPED')) {
-            lines.push(Utils.html`<div class="small">Idle since ${dateTime(latest.idleSince)}</div>`);
+        if (status.snoozedUntil) {
+            lines.push(Utils.html`<div class="env-fact-note" id="idle-snoozed">Snoozed until ${time(status.snoozedUntil)}${status.snoozedByDisplayName ? ' by ' + status.snoozedByDisplayName : ''}</div>`);
         }
-        if (latest && (latest.outcome === 'SKIPPED' || latest.outcome === 'SNOOZED') && latest.reason) {
-            lines.push(Utils.html`<div class="small text-muted">Last check: ${latest.reason}</div>`);
-        }
-        if (rule && rule.mode === 'DRY_RUN') {
-            lines.push(Utils.html`<div class="small" id="idle-would-have-saved">Would have saved
-                <strong>${money(status.wouldHaveSaved)}</strong> in the last ${status.days} days
-                (${status.wouldStopEpisodes} idle period${status.wouldStopEpisodes === 1 ? '' : 's'})</div>`);
-        } else if (rule && rule.mode === 'ENFORCE') {
-            lines.push(Utils.html`<div class="small" id="idle-saved">Saved about <strong>${money(status.savedEstimate)}</strong>
+        if (rule && rule.enabled && rule.mode === 'DRY_RUN') {
+            lines.push(Utils.html`<div class="env-fact-note" id="idle-would-have-saved"
+                title="${status.wouldStopEpisodes} idle period${status.wouldStopEpisodes === 1 ? '' : 's'}">Would have saved
+                <strong>${money(status.wouldHaveSaved)}</strong> in the last ${status.days} days</div>`);
+        } else if (rule && rule.enabled && rule.mode === 'ENFORCE') {
+            lines.push(Utils.html`<div class="env-fact-note" id="idle-saved">Saved about <strong>${money(status.savedEstimate)}</strong>
                 in ${status.days} days (${status.stoppedCount} automatic stop${status.stoppedCount === 1 ? '' : 's'})</div>`);
         }
+        const latest = status.latestEvent;
+        if (latest && (latest.outcome === 'SKIPPED' || latest.outcome === 'SNOOZED') && latest.reason) {
+            lines.push(Utils.html`<div class="env-fact-note">Last check: ${latest.reason}</div>`);
+        }
+        return lines.join('');
+    }
 
+    /** The fact; "Pause or review" for those who may snooze or change the rule. */
+    function buildFact(env, status) {
+        if (!status.featureEnabled) return '';
+        const rule = envRule(status);
+        const canAct = !status.production && (status.canAdminister || (status.canOperate && rule && rule.enabled));
+        const action = canAct
+            ? '<button type="button" class="btn btn-link env-fact-action" data-action="idle-review">Pause or review</button>' : '';
+        return Utils.html`
+            <div class="env-fact idle-fact" id="idle-stop-card">
+                <div class="env-fact-head"><span>Idle auto-stop</span><span class="env-fact-actions">${Utils.raw(action)}</span></div>
+                <div class="env-fact-value">${modeText(status, rule)}</div>
+                ${Utils.raw(noteLines(status, rule))}
+            </div>`;
+    }
+
+    /**
+     * "Pause or review": snooze for 1, 4 or 8 hours (or end the snooze) and, for those who
+     * administer the environment, the rule settings. U08-T09 replaces it with the full dialog.
+     */
+    function openReview() {
+        if (!current) return;
+        const { status } = current;
+        const rule = envRule(status);
         let actions = '';
         if (status.snoozedUntil) {
-            lines.push(Utils.html`<div class="small text-warning" id="idle-snoozed">
-                <i class="fas fa-bell-slash"></i> Snoozed until ${time(status.snoozedUntil)}${status.snoozedByDisplayName ? ' by ' + status.snoozedByDisplayName : ''}</div>`);
             if (status.canOperate) {
-                actions += '<button class="btn btn-sm btn-outline-secondary" data-action="idle-end-snooze">End snooze</button>';
+                actions += '<button type="button" class="btn btn-secondary" data-action="idle-end-snooze">End snooze</button>';
             }
         } else if (status.canOperate && rule && rule.enabled && !status.production) {
-            actions += [1, 4, 8].map(h =>
-                `<button class="btn btn-sm btn-outline-secondary me-1" data-action="idle-snooze" data-hours="${h}">Snooze ${h} h</button>`
-            ).join('');
+            actions += '<div class="idle-snooze-row"><span>Pause for</span>' + [1, 4, 8].map(h =>
+                `<button type="button" class="btn btn-secondary" data-action="idle-snooze" data-hours="${h}">${h} h</button>`).join('') + '</div>';
         }
         if (status.canAdminister && !status.production) {
-            actions += '<button class="btn btn-sm btn-outline-primary ms-1" data-action="idle-rule-settings"><i class="fas fa-sliders-h"></i> Rule settings</button>';
+            actions += '<button type="button" class="btn btn-link px-0" data-action="idle-rule-settings">Rule settings</button>';
         }
+        Modals.show({
+            id: 'idleStopReviewModal',
+            title: 'Idle auto-stop',
+            body: Utils.html`<p class="dialog-lead mb-2">${modeText(status, rule)}</p>`
+                + noteLines(status, rule)
+                + `<div class="idle-review-actions">${actions}</div>`,
+            buttons: [{ text: 'Close', class: 'btn-secondary', dismiss: true }]
+        });
+    }
 
-        return Utils.html`
-            <div class="card mb-3" id="idle-stop-card">
-                <div class="card-body py-2">
-                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                        <div>
-                            <strong>Idle auto-stop</strong> ${Utils.raw(badge)}${Utils.raw(typeof HelpLink !== 'undefined' ? HelpLink.button('idle-stop', 'Idle auto-stop') : '')}
-                            ${Utils.raw(lines.join(''))}
-                        </div>
-                        <div class="text-nowrap">${Utils.raw(actions)}</div>
-                    </div>
-                </div>
-            </div>`;
+    function closeReview() {
+        const el = document.getElementById('idleStopReviewModal');
+        if (el && typeof Modals !== 'undefined' && Modals.hide) Modals.hide('idleStopReviewModal');
     }
 
     function snooze(hours) {
         if (!current) return;
         ApiClient.post(Config.API.idleStop.snooze(current.env.environmentId), { hours: Number(hours) }, { suppressGlobalError: true })
             .done(function() {
+                closeReview();
                 Notifications.success(`Idle auto-stop snoozed for ${hours} h`);
                 refresh();
             })
@@ -123,6 +151,7 @@ const IdleStop = (function() {
         if (!current) return;
         ApiClient.delete(Config.API.idleStop.snooze(current.env.environmentId), { suppressGlobalError: true })
             .done(function() {
+                closeReview();
                 Notifications.success('Snooze ended');
                 refresh();
             })
@@ -139,6 +168,7 @@ const IdleStop = (function() {
     }
 
     function openRuleModal() {
+        closeReview();
         if (!current) return;
         const { env, status } = current;
         const rule = envRule(status);
@@ -253,7 +283,7 @@ const IdleStop = (function() {
             });
     }
 
-    return { renderPanel, refresh, snooze, endSnooze, openRuleModal, saveRule, deleteRule };
+    return { renderPanel, refresh, snooze, endSnooze, openReview, openRuleModal, saveRule, deleteRule };
 })();
 
 window.IdleStop = IdleStop;
@@ -261,6 +291,7 @@ window.IdleStop = IdleStop;
 Actions.registerAll({
     'idle-snooze': el => IdleStop.snooze(el.dataset.hours),
     'idle-end-snooze': () => IdleStop.endSnooze(),
+    'idle-review': () => IdleStop.openReview(),
     'idle-rule-settings': () => IdleStop.openRuleModal(),
     'idle-save-rule': () => IdleStop.saveRule(),
     'idle-delete-rule': () => IdleStop.deleteRule()

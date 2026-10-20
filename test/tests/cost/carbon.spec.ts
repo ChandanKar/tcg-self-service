@@ -56,15 +56,15 @@ test.describe('Carbon on the environment cost card', () => {
     test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
   });
 
-  test("shows last month's emissions with the caveat and a sparkline", async ({ page }) => {
+  test("shows last month's emissions in one line with the caveat", async ({ page }) => {
     await mountCard(page, { status: 200, body: ENV_CARBON });
 
+    // U07-T06: one note under the cost in "About this environment"; the trend lives in Insights.
     const line = page.locator('#env-carbon');
     await expect(line).toContainText('Carbon (Sep 2026)');
     await expect(page.locator('#env-carbon-kg')).toHaveText('21 kg CO₂e');
     await expect(line).toContainText('market-based');
-    await expect(line.locator('.fa-info-circle')).toHaveAttribute('title', /publishes monthly with a delay/);
-    await expect(line.locator('svg.env-carbon-spark polyline')).toHaveCount(1);
+    await expect(line).toHaveAttribute('title', /publishes monthly with a delay/);
   });
 
   test('is absent while carbon is off', async ({ page }) => {

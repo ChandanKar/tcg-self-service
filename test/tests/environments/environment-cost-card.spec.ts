@@ -31,8 +31,10 @@ async function mount(page: Page) {
   await page.waitForLoadState('networkidle');
   await page.evaluate(envId => {
     // A fixed overlay, above the app shell, so it is visible and clickable.
+    // U07-T06: the cost block and the Schedule fact of "About this environment".
     document.body.insertAdjacentHTML('beforeend',
-      '<section id="env-cost-card" style="position:fixed;top:0;left:0;right:0;z-index:20000;background:#fff"></section>');
+      '<div style="position:fixed;top:0;left:0;right:0;z-index:20000;background:#fff">'
+      + '<div id="env-fact-schedule"></div><section id="env-cost-card"></section></div>');
     EnvCost.render({ environmentId: envId });
   }, ENV_ID);
 }
@@ -42,7 +44,7 @@ test.describe('Environment cost card', () => {
     test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
   });
 
-  test('shows month to date, change, actuals, forecast, schedule, savings, top VMs and the trend', async ({ page }) => {
+  test('shows month to date, change, actuals, forecast, the schedule fact, savings and the daily bars', async ({ page }) => {
     await page.route(new RegExp(`/environments/${ENV_ID}/cost$`), r => r.fulfill({ json: FULL }));
     await mount(page);
 
@@ -51,13 +53,17 @@ test.describe('Environment cost card', () => {
     await expect(card.locator('.env-cost-change')).toContainText('25%');
     await expect(card).toContainText('Actual (3 days): $27.00');
     await expect(card).toContainText('If the current rate continues: $303.00');
-    await expect(card.locator('#env-cost-schedule')).toContainText('next stop');
+    await expect(page.locator('#env-fact-schedule #env-cost-schedule')).toContainText(/^Next stop \w{3} \d\d:\d\d$/);
+    await expect(page.locator('#env-fact-schedule')).toContainText('1 schedule rule');
     await expect(card).toContainText('Saved $4.50 this month (idle auto-stop)');
-    await expect(card).toContainText('web-1');
-    await expect(card.locator('#env-cost-trend svg')).toHaveCount(1);
+    // The last days as bars (10 in this data), summarised for screen readers; no top-VM list.
+    const bars = card.getByRole('img', { name: /^Daily cost for the last 10 days/ });
+    await expect(bars).toHaveCount(1);
+    await expect(bars.locator('rect')).toHaveCount(10);
+    await expect(card).not.toContainText('web-1');
   });
 
-  test('a group-only grant sees its groups without the trend', async ({ page }) => {
+  test('a group-only grant sees its groups without the bars', async ({ page }) => {
     await page.route(new RegExp(`/environments/${ENV_ID}/cost$`), r => r.fulfill({ json: {
       ...FULL, scope: 'GROUPS', monthToDateEstimated: 13, monthToDateActual: null, actualDays: 0,
       changePercent: null, forecastMonthEnd: null, daily: [], savingsMtd: null } }));

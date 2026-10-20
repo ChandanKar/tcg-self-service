@@ -2,10 +2,11 @@ import { test, expect, type Page, type Route } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
 
 /**
- * E16-T05: the idle auto-stop panel on the environment page. The idle-stop API is faked in the
- * browser and the panel is mounted with IdleStop.renderPanel, so no environment, rule or cloud
- * call is needed: dry-run savings, snooze and end snooze, a viewer sees no buttons, the flag off
- * renders nothing, and the settings modal saves once per click.
+ * E16-T05: idle auto-stop on the environment page, since U07-T06 the "Idle auto-stop" fact of
+ * "About this environment" with "Pause or review". The idle-stop API is faked in the browser and
+ * the fact is mounted with IdleStop.renderPanel, so no environment, rule or cloud call is needed:
+ * dry-run savings, snooze and end snooze, a viewer sees no action, the flag off renders nothing,
+ * and the settings modal saves once per click.
  */
 
 declare const IdleStop: any;
@@ -67,7 +68,7 @@ async function mount(page: Page, fake: FakeIdleStop, role: 'user' | 'admin' = 'u
   await page.evaluate(envId => {
     // Outside #content-area (the router cannot replace it), as a fixed overlay above the shell.
     document.body.insertAdjacentHTML('beforeend',
-      '<div id="env-idle-panel" style="position:fixed;top:0;left:0;right:0;z-index:20000;background:#fff"></div>');
+      '<div id="env-fact-idle" style="position:fixed;top:0;left:0;right:0;z-index:20000;background:#fff"></div>');
     IdleStop.renderPanel({ environmentId: envId, groups: [] });
   }, ENV_ID);
 }
@@ -80,7 +81,7 @@ test.describe('Idle auto-stop panel', () => {
   test('a dry run shows what it would have saved in the last 14 days', async ({ page }) => {
     await mount(page, new FakeIdleStop());
 
-    await expect(page.locator('#idle-stop-card')).toContainText('Dry run');
+    await expect(page.locator('#idle-stop-card .env-fact-value')).toHaveText('Dry run · after 60 min idle');
     await expect(page.locator('#idle-would-have-saved')).toContainText('$9.00');
     await expect(page.locator('#idle-would-have-saved')).toContainText('last 14 days');
   });
@@ -89,13 +90,19 @@ test.describe('Idle auto-stop panel', () => {
     const fake = new FakeIdleStop();
     await mount(page, fake);
 
-    await page.locator('[data-action="idle-snooze"][data-hours="4"]').click();
+    const review = page.getByRole('button', { name: 'Pause or review' });
+    await review.click();
+    await page.locator('#idleStopReviewModal [data-action="idle-snooze"][data-hours="4"]').click();
 
-    await expect(page.locator('#idle-snoozed')).toContainText('Snoozed until');
-    await expect(page.locator('[data-action="idle-snooze"]')).toHaveCount(0);
+    await expect(page.locator('#idleStopReviewModal')).toBeHidden();
+    await expect(page.locator('#idle-snoozed')).toContainText(/Snoozed until \d\d:\d\d by Test User 1/);
     expect(fake.snoozes).toEqual([4]);
-    await page.locator('[data-action="idle-end-snooze"]').click();
-    await expect(page.locator('[data-action="idle-snooze"]')).toHaveCount(3);
+    await review.click();
+    await expect(page.locator('#idleStopReviewModal [data-action="idle-snooze"]')).toHaveCount(0);
+    await page.locator('#idleStopReviewModal [data-action="idle-end-snooze"]').click();
+    await expect(page.locator('#idleStopReviewModal')).toBeHidden();
+    await review.click();
+    await expect(page.locator('#idleStopReviewModal [data-action="idle-snooze"]')).toHaveCount(3);
   });
 
   test('a viewer sees the panel without snooze or settings buttons', async ({ page }) => {
@@ -122,7 +129,8 @@ test.describe('Idle auto-stop panel', () => {
     fake.status.canAdminister = true;
     await mount(page, fake, 'user'); // a non-admin env admin view: the 14-day gate applies
 
-    await page.locator('[data-action="idle-rule-settings"]').click();
+    await page.getByRole('button', { name: 'Pause or review' }).click();
+    await page.locator('#idleStopReviewModal [data-action="idle-rule-settings"]').click();
     await expect(page.locator('#idleStopRuleModal')).toBeVisible();
     await expect(page.locator('#idleMode option[value="ENFORCE"]')).toBeDisabled();
     await page.locator('#idleMinutes').fill('90');

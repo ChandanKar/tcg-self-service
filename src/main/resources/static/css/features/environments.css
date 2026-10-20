@@ -1621,32 +1621,62 @@
     }
 }
 
-/* Cost card on the environment page (E18-T03) */
-.env-cost-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
-    gap: 1rem;
-    align-items: start;
+/* Cost in "About this environment" (E18-T03, U07-T06): month to date, 14 daily bars, budget */
+.env-cost-block {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
 }
+
 .env-cost-mtd {
-    font-size: 1.5rem;
-    font-weight: 700;
-    line-height: 1.2;
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--ink);
 }
+
 .env-cost-change {
-    font-size: 0.75rem;
+    font-size: var(--fs-small);
     font-weight: 600;
-    margin-left: 0.25rem;
+    margin-left: 4px;
 }
 .env-cost-change.up { color: var(--status-error-text); }
 .env-cost-change.down { color: var(--status-running-text); }
-.env-cost-trend {
-    height: 70px;
+
+.env-cost-bars {
+    display: block;
     width: 100%;
+    height: 54px;
+    margin: 6px 0 2px;
 }
-@media (max-width: 767.98px) {
-    .env-cost-grid {
-        grid-template-columns: minmax(0, 1fr);
-    }
+
+.env-cost-bar { fill: var(--brand-navy); }
+.env-cost-bar.weekend { fill: var(--brand-navy-line); }
+.env-cost-bar.today { fill: var(--brand-gold); }
+
+.env-cost-fact .budget-env-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 8px;
 }
+
+.budget-env-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.env-carbon,
+.env-eks-workloads {
+    margin-top: 4px;
+}
+
+.idle-snooze-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 12px 0 8px;
+}
+
 

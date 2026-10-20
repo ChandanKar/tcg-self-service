@@ -345,14 +345,14 @@ const Locks = (function() {
             `<button type="button" class="btn btn-link env-fact-action" data-lock-action="${name}" data-env-id="${id}"`
             + (name === 'acquire' ? ` data-expiry-enabled="${lockStatus.lockExpiryEnabled ? 'true' : 'false'}"` : '')
             + `>${label}</button>`;
-        const history = `<button type="button" class="btn btn-link env-fact-link" data-lock-action="history" data-env-id="${id}">Lock history</button>`;
+        const history = `<button type="button" class="btn btn-link env-fact-link" data-lock-action="history" data-env-id="${id}" aria-label="Lock history">History</button>`;
 
         if (!lockStatus.isLocked) {
             return `
                 <div class="env-fact lock-fact unlocked">
-                    <div class="env-fact-head"><span>Lock</span><span class="env-fact-actions">${lockStatus.canAcquire ? action('acquire', 'Lock') : ''}</span></div>
+                    <div class="env-fact-head"><span>Lock</span><span class="env-fact-actions">${history}${lockStatus.canAcquire ? action('acquire', 'Lock') : ''}</span></div>
                     <div class="env-fact-value">Not locked</div>
-                    <div class="env-fact-note">${lockStatus.canAcquire ? 'Lock it so others can\'t start or stop VMs. ' : ''}${history}</div>
+                    ${lockStatus.canAcquire ? '<div class="env-fact-note">Lock it so others can\'t start or stop VMs</div>' : ''}
                 </div>`;
         }
 
@@ -379,10 +379,9 @@ const Locks = (function() {
         if (expiring) classes.push('expiring');
         return `
             <div class="${classes.join(' ')}">
-                <div class="env-fact-head"><span>Lock</span><span class="env-fact-actions">${actions}</span></div>
+                <div class="env-fact-head"><span>Lock</span><span class="env-fact-actions">${history}${actions}</span></div>
                 <div class="env-fact-value">${value}</div>
                 <div class="env-fact-note">${parts.join(' · ')}${countdown ? (parts.length ? ' · ' : '') + countdown : ''}</div>
-                <div class="env-fact-note">${history}</div>
             </div>`;
     }
 

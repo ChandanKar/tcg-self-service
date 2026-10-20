@@ -38,7 +38,7 @@ const Budgets = (function() {
         const pct = Number(b.percentUsed || 0);
         const tone = pct >= 100 ? 'over' : pct >= 90 ? 'danger' : pct >= 75 ? 'warn' : 'ok';
         return Utils.html`<div class="budget-bar budget-${tone}" role="progressbar" aria-valuemin="0" aria-valuemax="100"
-                aria-valuenow="${Math.min(100, Math.round(pct))}" aria-label="${pct}% of the budget used">
+                aria-valuenow="${Math.min(100, Math.round(pct))}" aria-label="${pct}% of the monthly budget used">
             <span style="width:${Math.min(100, pct)}%"></span></div>`;
     }
 
@@ -358,29 +358,30 @@ const Budgets = (function() {
         });
     }
 
+    /**
+     * The budget under the cost in "About this environment" (U07-T06): the meter, "$186 of $400",
+     * Edit or Set budget for the owner, and pending budget actions to decide. The start freeze stays
+     * here as one line until the environment's alert stack shows it (U07-T07).
+     */
     function envPanelHtml(env, budget, owner, actions) {
         if (!budget) {
-            return owner ? `<div class="budget-env-empty small text-muted mb-3"><i class="fas fa-wallet me-1" aria-hidden="true"></i>No budget.
-                <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-action="budget-set-env">Set budget</button></div>` : '';
+            return owner ? `<div class="budget-env-empty env-fact-note">No budget.
+                <button type="button" class="btn btn-link env-fact-action" data-action="budget-set-env">Set budget</button></div>` : '';
         }
         const frozen = budget.startFrozenUntil ? Utils.html`
-            <div class="alert alert-warning d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2 budget-freeze-banner" role="status">
-                <span><i class="fas fa-snowflake me-1" aria-hidden="true"></i>Starts are frozen until ${day(budget.startFrozenUntil)} (budget exhausted).
-                ${Auth.isAdmin() ? '' : 'Stops still work.'}</span>
-                ${Utils.raw(owner ? '<button type="button" class="btn btn-sm btn-ghost" data-action="budget-lift-freeze">Lift freeze</button>' : '')}
+            <div class="budget-freeze-banner env-fact-note" role="status">
+                Starts are frozen until ${day(budget.startFrozenUntil)} (budget exhausted).${Auth.isAdmin() ? '' : ' Stops still work.'}
+                ${Utils.raw(owner ? '<button type="button" class="btn btn-link env-fact-action" data-action="budget-lift-freeze">Lift freeze</button>' : '')}
             </div>` : '';
         return Utils.html`
-            <section class="card mb-3 budget-env-card" aria-label="Budget">
-                <div class="card-body py-2">
-                    ${Utils.raw(frozen)}
-                    <div class="d-flex justify-content-between align-items-center gap-2">
-                        <span class="small text-muted text-uppercase">Budget this month</span>
-                        ${Utils.raw(owner ? Utils.html`<button type="button" class="btn btn-link btn-sm p-0" data-action="budget-edit" data-id="${budget.budgetId}">Edit</button>` : '')}
-                    </div>
-                    ${Utils.raw(bar(budget))}
-                    <div class="small" id="env-budget-summary">${summary(budget)}</div>
-                    ${Utils.raw(owner && actions.length ? actions.map(actionRow).join('') : '')}
+            <section class="budget-env-card" aria-label="Budget">
+                ${Utils.raw(bar(budget))}
+                <div class="budget-env-line">
+                    <span class="env-fact-note" id="env-budget-summary">${summary(budget)}</span>
+                    ${Utils.raw(owner ? Utils.html`<button type="button" class="btn btn-link env-fact-action" data-action="budget-edit" data-id="${budget.budgetId}">Edit</button>` : '')}
                 </div>
+                ${Utils.raw(frozen)}
+                ${Utils.raw(owner && actions.length ? actions.map(actionRow).join('') : '')}
             </section>`;
     }
 

@@ -1,14 +1,13 @@
 /**
- * Cost card on the environment detail page (E18-T03, G7): month to date with the change against
- * last month, actuals, a run-rate forecast, a 30-day trend, the top VMs, the next scheduled
- * stop/start and savings. Loads after the page renders and never blocks it; a late response for
- * an environment no longer shown is dropped. With carbon data on (E37-T03), last month's attributed
- * emissions and a 12-month sparkline follow.
+ * Cost on the environment page (E18-T03, G7), since U07-T06 part of "About this environment"
+ * (EnvDetail.dc.html): the cost block (#env-cost-card) with month to date and the change against
+ * last month, the last 14 days as bars (weekends lighter, today gold), actuals, a run-rate forecast
+ * and savings; and the Schedule fact (#env-fact-schedule) from the same response. Loads after the
+ * page renders and never blocks it; a late response for an environment no longer shown is
+ * dropped. With carbon data on (E37-T03), last month's attributed emissions follow in one line.
  */
 const EnvCost = (function() {
     'use strict';
-
-    let chart = null;
 
     function money(amount) {
         return amount === null || amount === undefined ? '—' : Utils.formatCurrency(Number(amount));
@@ -23,43 +22,38 @@ const EnvCost = (function() {
         return `in ${Math.round(hours / 24)} days`;
     }
 
+    const pad = n => String(n).padStart(2, '0');
+
+    /** "Mon 20:00", 24-hour like the rest of the app. */
     function when(ts) {
-        return new Date(ts).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+        const d = new Date(ts);
+        return `${d.toLocaleDateString([], { weekday: 'short' })} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
     }
 
-    function disposeChart() {
-        if (chart) {
-            chart.dispose();
-            chart = null;
-        }
-    }
-
-    /** Load and render into #env-cost-card. */
+    /** Load and render the cost block (#env-cost-card) and the Schedule fact (#env-fact-schedule). */
     function render(env) {
         const $card = $('#env-cost-card');
         if (!$card.length || !env) return;
         const token = ContentRouter.token();
-        disposeChart();
-        $card.html('<div class="env-cost-loading text-muted small"><i class="fas fa-spinner fa-spin"></i> Loading cost…</div>');
+        $card.html('<div class="env-cost-loading env-fact-note"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Loading cost…</div>');
         ApiClient.get(Config.API.environments.cost(env.environmentId), { suppressGlobalError: true })
             .done(function(cost) {
                 if (!ContentRouter.isCurrent(token)) return; // navigated away meanwhile
                 $card.html(buildCard(cost));
-                drawTrend(cost);
+                $('#env-fact-schedule').html(scheduleFact(cost));
                 addWorkloads($card, env, cost);
                 if (cost.scope !== 'GROUPS') addCarbon($card, env, token);
-                ContentRouter.onLeave(disposeChart);
             })
             .fail(function() {
                 if (!ContentRouter.isCurrent(token)) return;
-                $card.html(`<div class="env-cost-error small" role="alert">Couldn't load the cost.
+                $card.html(`<div class="env-cost-error env-fact-note" role="alert">Couldn't load the cost.
                     <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-action="env-cost-retry">Retry</button></div>`);
                 $card.data('env', env);
             });
         $card.data('env', env);
     }
 
-    /** Last full month's carbon and a 12-month sparkline (E37-T03); nothing while carbon is off or has no data. */
+    /** Last full month's carbon in one line (E37-T03); nothing while carbon is off or has no data. */
     function addCarbon($card, env, token) {
         if (typeof Capabilities === 'undefined' || !Capabilities.has('carbon')) return; // U02-T03
         ApiClient.get(Config.API.environments.carbon(env.environmentId), { suppressGlobalError: true })
@@ -68,12 +62,9 @@ const EnvCost = (function() {
                 const kg = carbon.latestMbmKg !== null && carbon.latestMbmKg !== undefined ? carbon.latestMbmKg : carbon.latestLbmKg;
                 const basis = carbon.latestMbmKg !== null && carbon.latestMbmKg !== undefined ? 'market-based' : 'location-based';
                 const label = new Date(carbon.latestMonth + '-01T00:00:00Z').toLocaleDateString([], { month: 'short', year: 'numeric', timeZone: 'UTC' });
-                $card.find('.env-cost-card .card-body').append(Utils.html`
-                    <div class="env-carbon border-top mt-2 pt-2 d-flex align-items-center gap-2 small" id="env-carbon">
-                        <i class="fas fa-leaf text-success" aria-hidden="true"></i>
-                        <span>Carbon (${label}): <strong id="env-carbon-kg">${formatKg(kg)} kg CO₂e</strong> (${basis})</span>
-                        <i class="fas fa-info-circle text-muted" tabindex="0" role="img" aria-label="${carbon.coverageNote}" title="${carbon.coverageNote}"></i>
-                        ${Utils.raw(sparkline(carbon.months || []))}
+                $card.find('.env-cost-block').append(Utils.html`
+                    <div class="env-carbon env-fact-note" id="env-carbon" title="${carbon.coverageNote}">
+                        Carbon (${label}): <strong id="env-carbon-kg">${formatKg(kg)} kg CO₂e</strong> (${basis})
                     </div>`);
             });
     }
@@ -83,21 +74,11 @@ const EnvCost = (function() {
         return n >= 100 ? Math.round(n).toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 1 });
     }
 
-    /** An inline SVG polyline of the monthly kg (gaps for months without data count as zero). */
-    function sparkline(months) {
-        const values = months.map(m => Number(m.mbmKg !== null && m.mbmKg !== undefined ? m.mbmKg : (m.lbmKg || 0)));
-        if (values.filter(v => v > 0).length < 2) return '';
-        const w = 96, h = 22, max = Math.max(...values) || 1;
-        const points = values.map((v, i) => `${(i * w / (values.length - 1)).toFixed(1)},${(h - 2 - v / max * (h - 4)).toFixed(1)}`).join(' ');
-        return `<svg class="env-carbon-spark ms-auto" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img"
-                     aria-label="Carbon, last 12 months"><polyline fill="none" stroke="currentColor" stroke-width="1.5" points="${points}"/></svg>`;
-    }
-
     /** EKS environments seen whole get a Workloads section, loaded when first opened (E26-T05). */
     function addWorkloads($card, env, cost) {
         if (String(env.serviceType || '').toUpperCase() !== 'EKS' || cost.scope === 'GROUPS' || typeof EksWorkloads === 'undefined') return;
-        $card.find('.env-cost-card .card-body').append(`
-            <div class="env-eks-workloads border-top mt-2 pt-2">
+        $card.find('.env-cost-block').append(`
+            <div class="env-eks-workloads">
                 <button type="button" class="btn btn-link btn-sm p-0" id="env-eks-workloads-toggle"
                         data-action="env-eks-workloads-toggle" aria-expanded="false" aria-controls="env-eks-workloads">
                     <i class="fas fa-dharmachakra"></i> Workloads
@@ -130,72 +111,74 @@ const EnvCost = (function() {
             title="Against the same days last month">${up ? '▲' : '▼'} ${Math.abs(Number(change))}%</span>`;
     }
 
-    function scheduleLine(cost) {
+    /**
+     * The Schedule fact: "None" and "Started and stopped by hand" (with Set one up for environment
+     * admins), else the next stop and start and how many schedule rules apply.
+     */
+    function scheduleFact(cost) {
         const s = cost.scheduleStatus;
         if (!s || s.ruleCount === 0) {
-            return Auth.isEnvAdmin && Auth.isEnvAdmin()
-                ? '<div class="small">No schedule — <a href="#/automation-rules" class="text-decoration-underline">set one up</a></div>'
-                : '<div class="small text-muted">No schedule</div>';
+            const setUp = Auth.isEnvAdmin && Auth.isEnvAdmin()
+                ? '<a class="env-fact-action" href="#/automation-rules">Set one up</a>' : '';
+            return `<div class="env-fact schedule-fact">
+                    <div class="env-fact-head"><span>Schedule</span><span class="env-fact-actions">${setUp}</span></div>
+                    <div class="env-fact-value" id="env-cost-schedule">None</div>
+                    <div class="env-fact-note">Started and stopped by hand</div>
+                </div>`;
         }
         const parts = [];
-        if (s.nextStop) parts.push(Utils.html`next stop ${when(s.nextStop)} (${relative(s.nextStop)})`);
+        if (s.nextStop) parts.push(Utils.html`next stop ${when(s.nextStop)}`);
         if (s.nextStart) parts.push(Utils.html`next start ${when(s.nextStart)}`);
-        return Utils.html`<div class="small" id="env-cost-schedule"><i class="fas fa-clock"></i>
-            ${s.ruleCount} schedule${s.ruleCount === 1 ? '' : 's'}${parts.length ? ' · ' : ''}${Utils.raw(parts.join(' · '))}</div>`;
+        const value = parts.length ? parts.join(' · ') : 'Nothing planned';
+        return Utils.html`<div class="env-fact schedule-fact">
+                <div class="env-fact-head"><span>Schedule</span></div>
+                <div class="env-fact-value" id="env-cost-schedule">${Utils.raw(value.charAt(0).toUpperCase() + value.slice(1))}</div>
+                <div class="env-fact-note">${s.ruleCount} schedule rule${s.ruleCount === 1 ? '' : 's'}${s.nextStop ? ' · stops ' + relative(s.nextStop) : ''}</div>
+            </div>`;
+    }
+
+    /** The last 14 days as bars: weekends lighter, today gold; a summary for screen readers. */
+    function dailyBars(daily) {
+        const days = (daily || []).slice(-14);
+        if (!days.length) return '';
+        const values = days.map(d => Number(d.estimated) || 0);
+        const max = Math.max(...values, 0.01);
+        const today = new Date().toISOString().slice(0, 10);
+        const w = 20, h = 54;
+        const bars = days.map((d, i) => {
+            const v = values[i];
+            const bh = Math.max(2, Math.round(v / max * (h - 4)));
+            const date = String(d.date).slice(0, 10);
+            const dow = new Date(date + 'T00:00:00Z').getUTCDay();
+            const kind = date === today ? 'today' : (dow === 0 || dow === 6) ? 'weekend' : 'weekday';
+            return `<rect class="env-cost-bar ${kind}" x="${i * w}" y="${h - bh}" width="${w - 5}" height="${bh}" rx="2"><title>${Utils.escapeHtml(date)}: ${Utils.escapeHtml(money(v))}</title></rect>`;
+        }).join('');
+        const label = `Daily cost for the last ${days.length} days, from ${money(Math.min(...values))} to ${money(Math.max(...values))} a day`;
+        return `<svg class="env-cost-bars" id="env-cost-trend" viewBox="0 0 ${days.length * w} ${h}" preserveAspectRatio="none"
+                    role="img" aria-label="${Utils.escapeHtml(label)}">${bars}</svg>`;
     }
 
     function buildCard(cost) {
         const groups = cost.scope === 'GROUPS';
-        const lines = [];
+        const notes = [];
         if (!groups && cost.actualDays > 0) {
-            lines.push(Utils.html`<div class="small">Actual (${cost.actualDays} day${cost.actualDays === 1 ? '' : 's'}): <strong>${money(cost.monthToDateActual)}</strong></div>`);
+            notes.push(Utils.html`Actual (${cost.actualDays} day${cost.actualDays === 1 ? '' : 's'}): <strong>${money(cost.monthToDateActual)}</strong>`);
         }
         if (!groups && cost.forecastMonthEnd !== null && cost.forecastMonthEnd !== undefined) {
-            lines.push(Utils.html`<div class="small" title="${cost.forecastBasis || ''}">If the current rate continues: <strong>${money(cost.forecastMonthEnd)}</strong> this month</div>`);
+            notes.push(Utils.html`<span title="${cost.forecastBasis || ''}">If the current rate continues: <strong>${money(cost.forecastMonthEnd)}</strong> this month</span>`);
         }
-        lines.push(scheduleLine(cost));
-        if (cost.leaseStatus && cost.leaseStatus.endsAt) {
-            lines.push(Utils.html`<div class="small"><i class="fas fa-hourglass-half"></i> Lease ends ${relative(cost.leaseStatus.endsAt)}</div>`);
-        }
-        if (cost.savingsMtd && Number(cost.savingsMtd) > 0) {
-            lines.push(Utils.html`<div class="small text-success">Saved ${money(cost.savingsMtd)} this month${cost.savingsSource ? ' (' + cost.savingsSource + ')' : ''}</div>`);
-        }
-        const top = (cost.topVms || []).filter(v => Number(v.mtdCost) > 0);
-        const topHtml = top.length === 0 ? '' : Utils.html`
-            <div class="env-cost-top">
-                <div class="small text-muted text-uppercase mb-1">Top VMs this month</div>
-                ${Utils.raw(top.map(v => Utils.html`<div class="d-flex justify-content-between small">
-                    <span class="text-truncate me-2">${v.name}</span><span>${money(v.mtdCost)}</span></div>`).join(''))}
-            </div>`;
-
+        const saved = cost.savingsMtd && Number(cost.savingsMtd) > 0
+            ? Utils.html`<div class="env-fact-note env-cost-saved">Saved ${money(cost.savingsMtd)} this month${cost.savingsSource ? ' (' + cost.savingsSource + ')' : ''}</div>`
+            : '';
         return Utils.html`
-            <div class="card mb-3 env-cost-card">
-                <div class="card-body py-2">
-                    <div class="env-cost-grid">
-                        <div>
-                            <div class="small text-muted text-uppercase">Cost this month${groups ? ' — your groups only' : ''}</div>
-                            <div class="env-cost-mtd" id="env-cost-mtd">${money(cost.monthToDateEstimated)} ${Utils.raw(changeBadge(cost.changePercent))}</div>
-                            ${Utils.raw(lines.join(''))}
-                        </div>
-                        ${groups ? '' : Utils.raw('<div class="env-cost-trend" id="env-cost-trend" role="img" aria-label="Daily cost, last 30 days"></div>')}
-                        ${Utils.raw(topHtml)}
-                    </div>
-                </div>
+            <div class="env-cost-block">
+                <div class="env-fact-head"><span>Cost this month${groups ? ' — your groups only' : ''}</span></div>
+                <div class="env-cost-mtd mono" id="env-cost-mtd">${money(cost.monthToDateEstimated)} ${Utils.raw(changeBadge(cost.changePercent))}</div>
+                ${groups ? '' : Utils.raw(dailyBars(cost.daily))}
+                ${groups || !(cost.daily || []).length ? '' : Utils.raw('<div class="env-fact-note">Last 14 days</div>')}
+                ${Utils.raw(notes.map(n => `<div class="env-fact-note">${n}</div>`).join(''))}
+                ${Utils.raw(saved)}
             </div>`;
-    }
-
-    function drawTrend(cost) {
-        const el = document.getElementById('env-cost-trend');
-        if (!el || !window.echarts || !(cost.daily || []).length) return;
-        chart = echarts.init(el, null, { renderer: 'svg' });
-        chart.setOption({
-            grid: { left: 4, right: 4, top: 6, bottom: 4 },
-            xAxis: { type: 'category', show: false, data: cost.daily.map(d => d.date) },
-            yAxis: { type: 'value', show: false },
-            tooltip: { trigger: 'axis', valueFormatter: v => money(v) },
-            series: [{ type: 'line', data: cost.daily.map(d => Number(d.estimated)), smooth: true, symbol: 'none',
-                areaStyle: { opacity: 0.15 } }]
-        });
     }
 
     return { render, retry, toggleWorkloads };

@@ -742,11 +742,14 @@ const Environments = (function() {
                             </div>
                             <div id="env-fact-lock">${lockFact}</div>
                             <div id="env-fact-lease"></div>
+                            <div id="env-fact-schedule"></div>
+                            <div id="env-fact-idle"></div>
+                            <div class="env-fact env-cost-fact">
+                                <section id="env-cost-card" aria-label="Environment cost"></section>
+                                <div id="env-budget-panel"></div>
+                            </div>
                         </div>
-                        <section id="env-cost-card" aria-label="Environment cost"></section>
-                        <div id="env-budget-panel"></div>
                         <div id="env-anomaly-panel"></div>
-                        <div id="env-idle-panel"></div>
                     </aside>
                 </div>
             </div>`;
@@ -821,8 +824,8 @@ const Environments = (function() {
             Budgets.renderEnvPanel(env);
         }
 
-        // Idle auto-stop panel (E16): renders nothing while the feature is off.
-        if (typeof IdleStop !== 'undefined') {
+        // Idle auto-stop fact (E16): not even asked for while the feature is off (U02-T03).
+        if (typeof IdleStop !== 'undefined' && hasFeature('idleStop')) {
             IdleStop.renderPanel(env);
         }
 
