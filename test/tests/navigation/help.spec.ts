@@ -3,7 +3,8 @@ import { signIn, canSignIn, devIds } from '../../fixtures/auth';
 
 /**
  * E29-T07/T08: the Help page. Topic list and deep links, search, topics hidden by role, the header
- * '?' buttons, and every page help link pointing at a topic that exists.
+ * '?' buttons, and every page help link pointing at a topic that exists. U09-T07 (Help.dc.html):
+ * search in the header, topics in groups, the current one marked, the power-strip legend.
  */
 
 declare const ContentRouter: any;
@@ -29,7 +30,26 @@ test.describe('Help', () => {
       expect(text.toLowerCase()).not.toContain('getting started');
     }
     await page.locator('#help-search').fill('zzzz-no-such-thing');
-    await expect(page.locator('#help-no-results')).toBeVisible();
+    await expect(page.locator('#help-no-results')).toHaveText('No topic matches "zzzz-no-such-thing".');
+  });
+
+  test('topics in groups, search in the header, the current topic marked and the legend (U09-T07)', async ({ page }) => {
+    test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
+    await go(page, 'user', '#/help/locks');
+    await expect(page.locator('#help-topic-title')).toHaveText('Starting, stopping and locks', { timeout: 15_000 });
+    await expect(page.locator('.content-header #help-search')).toBeVisible();
+    await expect(page.getByRole('searchbox', { name: 'Search help' })).toBeVisible();
+    const nav = page.getByRole('navigation', { name: 'Help topics' });
+    await expect(nav.locator('.help-group-title')).toHaveText(['Using environments', 'Access', 'Cost and more']);
+    const using = nav.getByRole('group', { name: 'Using environments' });
+    await expect(using.locator('.help-topic-link').first()).toHaveText('Getting started and roles');
+    await expect(nav.locator('[aria-current="page"]')).toHaveText('Starting, stopping and locks');
+    await expect(page.locator('.help-legend')).toContainText("Green is running, gold is starting or stopping, hollow is stopped, striped means the state hasn't been read from AWS yet.");
+    await expect(page.locator('.help-legend .pip')).toHaveCount(4);
+
+    await nav.getByRole('link', { name: 'Requesting and managing access' }).click();
+    await expect(page).toHaveURL(/#\/help\/access$/);
+    await expect(page.locator('.help-legend')).toHaveCount(0);
   });
 
   test('a user does not see admin topics; an admin does', async ({ page }) => {
@@ -45,13 +65,14 @@ test.describe('Help', () => {
     test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
     await go(page, 'admin', '#/help');
     await expect(page.locator('.help-topic-link', { hasText: 'Automation rules administration' })).toHaveCount(1, { timeout: 15_000 });
+    await expect(page.locator('.help-group-title')).toHaveText(['Using environments', 'Access', 'Cost and more', 'Manage', 'Administration']);
 
     await page.evaluate(() => { location.hash = '#/my-environments'; });
     const help = page.locator('.content-header .help-link').first();
     await expect(help).toHaveAttribute('aria-label', 'Help: Environments', { timeout: 15_000 });
     await help.click();
     // U02-T04: My Environments opens the Environments topic (it used to open Locks)
-    await expect(page.locator('#help-topic-title')).toHaveText('Environments, groups and start order');
+    await expect(page.locator('#help-topic-title')).toHaveText('Environments and start order');
   });
 
   test('every page help link resolves to an existing topic', async ({ page }) => {

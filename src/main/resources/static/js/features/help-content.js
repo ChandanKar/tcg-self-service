@@ -2,6 +2,8 @@
  * In-app help topics (E29-T07). Plain text only: help.js renders every string escaped.
  * roles: null for everyone, or the roles that see the topic ('ADMIN', 'ENV_ADMIN').
  * optional: the feature can be switched off, so the topic says it may not be available (E29-T08).
+ * group: where the topic is listed (GROUPS: using, access, cost, manage, admin; U09-T07).
+ * legend: the topic shows the power-strip legend.
  * PAGE_TOPICS maps a page's help button to its topic; every id there must exist below.
  */
 const HelpContent = (function() {
@@ -10,6 +12,7 @@ const HelpContent = (function() {
     const TOPICS = [
         {
             id: 'getting-started',
+            group: 'using',
             title: 'Getting started and roles',
             roles: null,
             keywords: ['roles', 'viewer', 'user', 'admin', 'environment admin', 'sign in', 'start'],
@@ -41,6 +44,7 @@ const HelpContent = (function() {
         },
         {
             id: 'access',
+            group: 'access',
             title: 'Requesting and managing access',
             roles: null,
             keywords: ['request', 'access', 'approve', 'expire', 'extend', 'grant', 'group'],
@@ -70,7 +74,9 @@ const HelpContent = (function() {
         },
         {
             id: 'environments',
-            title: 'Environments, groups and start order',
+            group: 'using',
+            legend: true,
+            title: 'Environments and start order',
             roles: null,
             keywords: ['environment', 'group', 'order', 'sequence', 'dependency', 'eks', 'node group', 'region'],
             sections: [
@@ -91,6 +97,8 @@ const HelpContent = (function() {
         },
         {
             id: 'locks',
+            group: 'using',
+            legend: true,
             title: 'Starting, stopping and locks',
             roles: null,
             keywords: ['start', 'stop', 'restart', 'lock', 'break lock', 'operation', 'stuck', 'cancel'],
@@ -114,6 +122,7 @@ const HelpContent = (function() {
         },
         {
             id: 'activity-logs',
+            group: 'using',
             title: 'Activity and audit logs',
             roles: null,
             keywords: ['activity', 'audit', 'log', 'history', 'who', 'export'],
@@ -129,6 +138,7 @@ const HelpContent = (function() {
         },
         {
             id: 'costs',
+            group: 'cost',
             title: 'Costs and rightsizing',
             roles: null,
             keywords: ['cost', 'spend', 'estimate', 'actual', 'rightsizing', 'idle', 'forecast', 'commitment'],
@@ -150,6 +160,7 @@ const HelpContent = (function() {
         },
         {
             id: 'notifications',
+            group: 'access',
             title: 'Notifications and preferences',
             roles: null,
             keywords: ['notification', 'bell', 'email', 'preferences', 'mute', 'turn off'],
@@ -171,6 +182,7 @@ const HelpContent = (function() {
         },
         {
             id: 'automation-rules',
+            group: 'manage',
             title: 'Automation rules administration',
             roles: ['ENV_ADMIN'],
             keywords: ['automation', 'schedule', 'calendar', 'holiday', 'override', 'rule'],
@@ -193,6 +205,7 @@ const HelpContent = (function() {
         },
         {
             id: 'leases',
+            group: 'using',
             title: 'Leases and extensions',
             roles: null,
             optional: true,
@@ -217,6 +230,7 @@ const HelpContent = (function() {
         },
         {
             id: 'idle-stop',
+            group: 'using',
             title: 'Idle auto-stop and snooze',
             roles: null,
             optional: true,
@@ -240,6 +254,7 @@ const HelpContent = (function() {
         },
         {
             id: 'savings',
+            group: 'admin',
             title: 'Savings and efficiency score',
             roles: ['ADMIN'],
             optional: false,
@@ -262,6 +277,7 @@ const HelpContent = (function() {
         },
         {
             id: 'budgets',
+            group: 'manage',
             title: 'Budgets and alerts',
             roles: ['ENV_ADMIN'],
             optional: false,
@@ -285,6 +301,7 @@ const HelpContent = (function() {
         },
         {
             id: 'chargeback',
+            group: 'admin',
             title: 'Teams and chargeback',
             roles: ['ADMIN'],
             optional: true,
@@ -307,6 +324,7 @@ const HelpContent = (function() {
         },
         {
             id: 'teams',
+            group: 'admin',
             title: 'Teams',
             roles: ['ADMIN'],
             optional: false,
@@ -334,6 +352,7 @@ const HelpContent = (function() {
         },
         {
             id: 'vm-registry',
+            group: 'manage',
             title: 'VM registry',
             roles: ['ENV_ADMIN', 'ADMIN'],
             optional: false,
@@ -363,6 +382,7 @@ const HelpContent = (function() {
         },
         {
             id: 'chat-actions',
+            group: 'cost',
             title: 'Microsoft Teams actions and Jira tickets',
             roles: null,
             optional: true,
@@ -391,6 +411,7 @@ const HelpContent = (function() {
         },
         {
             id: 'approvals',
+            group: 'access',
             title: 'Approvals and quotas',
             roles: null,
             optional: true,
@@ -420,6 +441,7 @@ const HelpContent = (function() {
         },
         {
             id: 'settings',
+            group: 'admin',
             title: 'Settings',
             roles: ['ADMIN'],
             optional: false,
@@ -437,6 +459,7 @@ const HelpContent = (function() {
         },
         {
             id: 'faq',
+            group: 'cost',
             title: 'FAQ and troubleshooting',
             roles: null,
             keywords: ['403', 'forbidden', 'stuck', 'missing', 'error', 'not found', 'help'],
@@ -509,7 +532,11 @@ const HelpContent = (function() {
         return TOPICS.find(t => t.id === id) || null;
     }
 
-    return { all, find, PAGE_TOPICS };
+    /** The Help page's groups, in order (Help.dc.html). */
+    const GROUPS = [['using', 'Using environments'], ['access', 'Access'], ['cost', 'Cost and more'],
+        ['manage', 'Manage'], ['admin', 'Administration']];
+
+    return { all, find, PAGE_TOPICS, GROUPS };
 })();
 
 window.HelpContent = HelpContent;

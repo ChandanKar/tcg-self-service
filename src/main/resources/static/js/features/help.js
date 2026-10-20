@@ -1,11 +1,15 @@
 /**
- * Help page (E29-T07), #/help and #/help/<topic>: the topic list with search, and the chosen
- * topic. Topics meant for some roles are hidden from others. Content is static (help-content.js).
- * HelpLink renders the '?' button page headers use to open their topic.
+ * Help page (E29-T07, U09-T07 Help.dc.html), #/help and #/help/<topic>: search in the header,
+ * topics in groups (Using environments, Access, Cost and more, and Manage / Administration for
+ * those roles) with the current one marked, and the chosen topic. Topics meant for some roles are
+ * hidden from others, and so is a group with nothing to show. The start/stop and environments
+ * topics end with the power-strip legend. Content is static (help-content.js). HelpLink renders
+ * the '?' button page headers use to open their topic.
  */
 const Help = (function() {
     'use strict';
 
+    const LEGEND = "Green is running, gold is starting or stopping, hollow is stopped, striped means the state hasn't been read from AWS yet.";
     let query = '';
     let current = null;
 
@@ -25,21 +29,29 @@ const Help = (function() {
         return HelpContent.all().filter(visible).filter(t => !q || text(t).includes(q));
     }
 
+    /** The visible topics by group, in the groups' order; empty groups left out. */
+    function grouped(list) {
+        return HelpContent.GROUPS.map(([key, name]) => ({ key, name, topics: list.filter(t => (t.group || 'cost') === key) }))
+            .filter(g => g.topics.length);
+    }
+
     function load(params) {
         const id = params && params.topic;
         const topic = id ? HelpContent.find(id) : null;
         current = topic && visible(topic) ? topic : (id ? 'missing' : null);
+        const search = `<label class="help-search">
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="5.5"></circle><path d="m13.5 13.5 3.5 3.5"></path></svg>
+                <span class="visually-hidden">Search help</span>
+                <input type="search" id="help-search" placeholder="Search help" data-action-input="help-search" autocomplete="off">
+            </label>`;
         $('#content-area').html(`
             <div class="content-view help-page" id="help-view">
-                ${PageHeader.markup({ title: 'Help', summaryHtml: 'How the platform works, in short articles.' })}
+                ${PageHeader.markup({ title: 'Help', actionsHtml: search,
+                    summaryHtml: 'How the platform works, in short articles. Every "?" in the app opens the matching one.' })}
                 <div class="help-layout">
-                    <nav class="help-nav" aria-label="Help topics">
-                        <label class="visually-hidden" for="help-search">Search help</label>
-                        <input type="search" class="form-control form-control-sm mb-2" id="help-search" placeholder="Search help…"
-                               data-action-input="help-search" autocomplete="off">
-                        <ul class="help-topic-list list-unstyled mb-0" id="help-topic-list"></ul>
-                    </nav>
-                    <article class="help-topic card" id="help-topic" aria-live="polite"></article>
+                    <nav class="help-nav" aria-label="Help topics" id="help-topic-list"></nav>
+                    <article class="help-topic" id="help-topic" aria-live="polite"></article>
                 </div>
             </div>`);
         $('#help-search').val(query);
@@ -48,33 +60,48 @@ const Help = (function() {
     }
 
     function drawList() {
-        const list = topics();
-        $('#help-topic-list').html(list.length ? list.map(t => Utils.html`<li>
-                <a href="#/help/${t.id}" class="help-topic-link${current && current.id === t.id ? ' active' : ''}"
-                   ${current && current.id === t.id ? Utils.raw('aria-current="page"') : ''} data-topic="${t.id}">${t.title}</a>
-            </li>`).join('')
-            : '<li class="small text-muted" id="help-no-results">No topic matches your search.</li>');
+        const groups = grouped(topics());
+        const q = query.trim();
+        $('#help-topic-list').html(groups.length ? groups.map(g => Utils.html`
+            <div class="help-group" role="group" aria-labelledby="help-group-${g.key}">
+                <div class="help-group-title" id="help-group-${g.key}">${g.name}</div>
+                ${Utils.raw(g.topics.map(t => {
+                    const here = current && current.id === t.id;
+                    return Utils.html`<a href="#/help/${t.id}" class="help-topic-link${here ? ' active' : ''}"
+                        ${here ? Utils.raw('aria-current="page"') : ''} data-topic="${t.id}">${t.title}</a>`;
+                }).join(''))}
+            </div>`).join('')
+            : Utils.html`<p class="help-no-results" id="help-no-results">No topic matches "${q}".</p>`);
+    }
+
+    function legendHtml() {
+        const pip = cls => `<span class="pip${cls ? ' ' + cls : ''}"></span>`;
+        return `<div class="help-legend">
+                <span class="power-strip" aria-hidden="true"><span class="power-strip-lights"><span class="power-strip-group">${
+                    ['on', 'busy', '', 'unknown'].map(pip).join('')}</span></span></span>
+                <span>${Utils.escapeHtml(LEGEND)}</span>
+            </div>`;
     }
 
     function drawTopic() {
         const $t = $('#help-topic');
         if (current === 'missing') {
-            $t.html('<div class="card-body"><h2 class="h5">Topic not found</h2><p class="text-muted mb-0">Pick a topic from the list.</p></div>');
+            $t.html('<h2 class="help-topic-title">Topic not found</h2><p class="help-muted">Pick a topic from the list.</p>');
             return;
         }
         if (!current) {
-            $t.html('<div class="card-body"><h2 class="h5">Choose a topic</h2><p class="text-muted mb-0">Pick a topic from the list, or search for what you need.</p></div>');
+            $t.html('<h2 class="help-topic-title">Choose a topic</h2><p class="help-muted">Pick a topic from the list, or search for what you need.</p>');
             return;
         }
-        $t.html(Utils.html`<div class="card-body">
-            <h2 class="h4 mb-3" id="help-topic-title">${current.title}</h2>
-            ${Utils.raw(current.optional ? '<p class="small text-muted help-optional"><i class="fas fa-info-circle" aria-hidden="true"></i> This feature may be switched off in your organisation.</p>' : '')}
+        $t.html(Utils.html`
+            <h2 class="help-topic-title" id="help-topic-title">${current.title}</h2>
+            ${Utils.raw(current.optional ? '<p class="help-optional">This feature may be switched off in your organisation.</p>' : '')}
             ${Utils.raw(current.sections.map(s => Utils.html`<section class="help-section">
-                <h3 class="h6">${s.heading}</h3>
+                <h3>${s.heading}</h3>
                 ${Utils.raw((s.paragraphs || []).map(p => Utils.html`<p>${p}</p>`).join(''))}
                 ${Utils.raw(s.steps && s.steps.length ? Utils.html`<ol>${Utils.raw(s.steps.map(st => Utils.html`<li>${st}</li>`).join(''))}</ol>` : '')}
             </section>`).join(''))}
-        </div>`);
+            ${Utils.raw(current.legend ? legendHtml() : '')}`);
     }
 
     function search(value) {
@@ -82,7 +109,7 @@ const Help = (function() {
         drawList();
     }
 
-    return { load, search, visible };
+    return { load, search, visible, model: { grouped }, LEGEND };
 })();
 
 /** The '?' button in page headers (E29-T07). */
