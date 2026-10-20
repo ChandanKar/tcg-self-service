@@ -45,6 +45,9 @@ class MonitoringControllerIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private OperationExecutionRepository executionRepository;
+
     private Environment testEnvironment;
     private VmGroup testGroup;
     private Vm testVm;
@@ -125,6 +128,39 @@ class MonitoringControllerIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.content", hasSize(greaterThanOrEqualTo(1))))
                 .andExpect(jsonPath("$.content[0].vmId").value(testVm.getVmId()))
                 .andExpect(jsonPath("$.content[0].newStatus").value("RUNNING"));
+    }
+
+    /** U08-T07: a change made by a run names the person and the run (trigger, rule name, type, size). */
+    @Test
+    void historyNamesThePersonAndTheRunBehindAChange() throws Exception {
+        OperationExecution run = new OperationExecution();
+        run.setExecutionId(UUID.randomUUID().toString());
+        run.setEnvironment(testEnvironment);
+        run.setOperationType(OperationType.STOP);
+        run.setStatus(ExecutionStatus.COMPLETED);
+        run.setInitiatedByUserId("admin-001");
+        run.setTriggerSource(OperationTriggerSource.SCHEDULE);
+        run.setTriggerName("Office hours");
+        run.setTotalTargets(5);
+        run.setStartedAt(java.sql.Timestamp.from(java.time.Instant.now()));
+        executionRepository.saveAndFlush(run);
+        try {
+            stateSyncService.recordStateChange(testVm, VmStatus.RUNNING, VmStatus.STOPPED, "operation", "admin-001",
+                    run.getExecutionId(), "STOP operation completed");
+            String admin = userRepository.findById("admin-001").orElseThrow().getDisplayName();
+            String entry = "$.content[?(@.operationId == '" + run.getExecutionId() + "')]";
+            mockMvc.perform(get("/api/v1/monitoring/vms/" + testVm.getVmId() + "/history").header("X-User-Id", "admin-001"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath(entry + ".triggerSource", contains("SCHEDULE")))
+                    .andExpect(jsonPath(entry + ".triggerName", contains("Office hours")))
+                    .andExpect(jsonPath(entry + ".operationType", contains("STOP")))
+                    .andExpect(jsonPath(entry + ".operationTargets", contains(5)))
+                    .andExpect(jsonPath(entry + ".changedByUsername", contains(admin)))
+                    .andExpect(jsonPath(entry + ".drift", contains(false)));
+        } finally {
+            stateHistoryRepository.deleteAll();
+            executionRepository.deleteById(run.getExecutionId());
+        }
     }
 
     @Test

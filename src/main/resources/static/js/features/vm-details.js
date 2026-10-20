@@ -236,6 +236,7 @@ const VmDetails = (function() {
         const tab = TABS.some(t => t[0] === opts.tab) ? opts.tab : 'overview';
         const win = WINDOWS.some(w => w[0] === opts.window) ? opts.window : '24h';
         state = { envId, vmId, env: opts.env || null, vm: null, inventory: undefined, metrics: undefined, advice: undefined,
+            week: undefined, idleStop: undefined, history: undefined, loading: {},
             tab, window: win, onDone: opts.onDone || null, token };
         ApiClient.get(Config.API.vms.get(envId, vmId))
             .done(vm => {
@@ -248,6 +249,7 @@ const VmDetails = (function() {
                 keep('inventory', ApiClient.get(Config.API.vms.inventory(envId, vmId), { suppressGlobalError: true }));
                 keep('advice', ApiClient.get(Config.API.vms.advice(envId, vmId), { suppressGlobalError: true }));
                 loadMetrics();
+                ensureTab(state.tab);
             })
             .fail(() => Notifications.error('Could not load the VM details'));
     }
@@ -259,6 +261,23 @@ const VmDetails = (function() {
         ApiClient.get(Config.API.vms.metrics(envId, vmId, key, period), { suppressGlobalError: true })
             .done(data => { if (state && state.token === token && state.window === key) { state.metrics = data || null; render(); } })
             .fail(() => { if (state && state.token === token && state.window === key) { state.metrics = null; render(); } });
+    }
+
+    /** Idle and History read their data the first time they are shown (U08-T07). */
+    function ensureTab(key) {
+        if (!state || state.loading[key]) return;
+        const { envId, vmId, token } = state;
+        const keep = (field, request) => request
+            .done(data => { if (state && state.token === token) { state[field] = data || null; render(); } })
+            .fail(() => { if (state && state.token === token) { state[field] = null; render(); } });
+        if (key === 'idle') {
+            state.loading.idle = true;
+            keep('week', ApiClient.get(Config.API.vms.metrics(envId, vmId, '7d', 3600), { suppressGlobalError: true }));
+            keep('idleStop', ApiClient.get(Config.API.idleStop.status(envId), { suppressGlobalError: true }));
+        } else if (key === 'history') {
+            state.loading.history = true;
+            keep('history', ApiClient.get(`${Config.API.monitoring.vmHistory(vmId)}?page=0&size=6`, { suppressGlobalError: true }));
+        }
     }
 
     function show() {
@@ -312,7 +331,7 @@ const VmDetails = (function() {
                 ${Tabs.panel({ id: 'vm-tabs', key: 'idle', active: state.tab }, idleHtml())}
                 ${Tabs.panel({ id: 'vm-tabs', key: 'history', active: state.tab }, historyHtml())}
             </div>`);
-        Tabs.bind($root[0], key => { state.tab = key; });
+        Tabs.bind($root[0], key => { state.tab = key; ensureTab(key); });
         const newBody = $root.find('.vm-panel-body')[0];
         if (newBody) newBody.scrollTop = scroll;
         if (focusedId) { const el = document.getElementById(focusedId); if (el) el.focus(); }
@@ -379,23 +398,38 @@ const VmDetails = (function() {
     function idleHtml() {
         if (state.metrics === undefined) return loading;
         const line = idleLine(state.metrics);
-        return Utils.html`<div class="vm-idle-now" data-idle="${String(line.idle)}"><span class="vm-idle-dot" aria-hidden="true"></span>
-            <b>${line.text}</b>${Utils.raw(line.note ? Utils.html`<span class="vm-panel-note-inline"> · ${line.note}</span>` : '')}</div>
-            <p class="vm-panel-note">Idle means under 5% CPU with little network and disk use.</p>`;
+        const now = Utils.html`<div class="vm-idle-now" data-idle="${String(line.idle)}"><span class="vm-idle-dot" aria-hidden="true"></span>
+            <b>${line.text}</b>${Utils.raw(line.note ? Utils.html`<span class="vm-panel-note-inline"> · ${line.note}</span>` : '')}</div>`;
+        let chart;
+        if (state.week === undefined) chart = loading;
+        else if (state.week === null) chart = '<p class="vm-panel-empty">Idle hours are not available right now.</p>';
+        else {
+            const days = VmDetailsModel.idleHoursPerDay(state.week.series || [], 5);
+            const bars = days.map((d, i) => {
+                const h = Math.round(d.hours / 24 * 90);
+                return `<rect class="vm-idle-bar${d.today ? ' today' : ''}" x="${i * 80}" y="${90 - h}" width="64" height="${Math.max(h, d.sampled ? 1 : 0)}" rx="3"></rect>`;
+            }).join('');
+            chart = Utils.html`<div class="vm-panel-note">Idle hours per day, last 7 days (idle means under 5% CPU for the hour)</div>
+                <svg class="vm-idle-chart" viewBox="0 0 544 90" preserveAspectRatio="none" role="img" aria-label="${VmDetailsModel.idleLabel(days)}">${Utils.raw(bars)}</svg>
+                <div class="vm-idle-days" aria-hidden="true">${Utils.raw(days.map(d => Utils.html`<span${Utils.raw(d.today ? ' class="today"' : '')}>${d.label}</span>`).join(''))}</div>`;
+        }
+        let rule = '';
+        if (state.idleStop !== undefined && state.idleStop !== null) {
+            const canReview = state.idleStop.featureEnabled !== false && typeof IdleStop !== 'undefined' && IdleStop.openReview && state.env;
+            rule = Utils.html`<div class="vm-idle-rule"><span>${VmDetailsModel.idleStopLine(state.idleStop, state.vm.groupId)}</span>
+                ${Utils.raw(canReview ? '<button type="button" class="btn btn-link btn-sm p-0" data-vm-idle-review>Idle auto-stop</button>' : '')}</div>`;
+        }
+        return now + chart + rule;
     }
 
     function historyHtml() {
-        const items = [];
-        const vm = state.vm;
-        const since = toDate(vm.stateSince);
-        const word = { RUNNING: 'Started', STOPPED: 'Stopped', ERROR: 'Failed to start', TERMINATED: 'Terminated' }[vm.status];
-        if (since && word) items.push({ time: since, text: word });
-        if (state.inventory && state.inventory.lastRefreshedAt) items.push({ time: toDate(state.inventory.lastRefreshedAt), text: 'Details read from AWS' });
-        const latest = latestOf(state.metrics);
-        if (latest && latest.sampleTime) items.push({ time: toDate(latest.sampleTime), text: 'Latest use measured' });
-        if (!items.length) return '<p class="vm-panel-empty">Nothing recorded yet.</p>';
-        items.sort((a, b) => b.time - a.time);
-        return `<ol class="vm-history">${items.map(i => Utils.html`<li><span class="mono">${ago(i.time)}</span><span>${i.text}</span></li>`).join('')}</ol>`;
+        if (state.history === undefined) return loading;
+        if (state.history === null) return '<p class="vm-panel-empty" role="alert">History is not available right now.</p>';
+        const items = (state.history.content || []).map(i => VmDetailsModel.historyText(i));
+        if (!items.length) return '<p class="vm-panel-empty">No starts, stops or changes recorded yet.</p>';
+        return `<ol class="vm-history">${items.map(i => Utils.html`<li><span class="mono">${i.time}</span>
+            <span class="vm-history-dot" data-tone="${i.tone}" aria-hidden="true"></span>
+            <span>${i.text}${Utils.raw(i.by ? Utils.html`<span class="vm-panel-note">${i.by}</span>` : '')}</span></li>`).join('')}</ol>`;
     }
 
     function operate(op) {
@@ -424,6 +458,7 @@ const VmDetails = (function() {
                 $(`${PANEL} [data-vm-window="${key}"]`).trigger('focus');
             })
             .on('click', `${PANEL} [data-vm-op]`, function() { operate(this.getAttribute('data-vm-op')); })
+            .on('click', `${PANEL} [data-vm-idle-review]`, () => { Slideout.close(); IdleStop.openReview(); })
             // Another panel in the same slot must not keep this one's header extras.
             .on('slideout:opened', (e, panel) => {
                 if (panel && panel.getAttribute('data-variant') !== 'vm-details') $(panel).find('.vm-head-extra').remove();

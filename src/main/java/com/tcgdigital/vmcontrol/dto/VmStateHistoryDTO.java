@@ -23,6 +23,15 @@ public class VmStateHistoryDTO {
     @com.tcgdigital.vmcontrol.dto.json.RedactProviderIds private String details;
     private Timestamp changedAt;
     private boolean isDrift;
+    /**
+     * For a change made by a run (U08-T07): what started the run (MANUAL, SCHEDULE, LEASE, …), the
+     * rule's name, START/STOP and how many VMs it covered, so the VM's history can say
+     * 'Schedule "Office hours"' or 'Priya Nair, as part of "Start 5 VMs"'. Null otherwise.
+     */
+    private String triggerSource;
+    private String triggerName;
+    private String operationType;
+    private Integer operationTargets;
 
     public VmStateHistoryDTO() {
     }
@@ -41,6 +50,33 @@ public class VmStateHistoryDTO {
         dto.setChangedAt(history.getChangedAt());
         dto.setDrift("state_sync".equals(history.getChangeSource()));
         return dto;
+    }
+
+    /** Fill the person's name and the run's trigger, type and size (U08-T07). */
+    public void describeRun(String username, com.tcgdigital.vmcontrol.model.OperationExecution run) {
+        this.changedByUsername = username;
+        if (run != null) {
+            this.triggerSource = run.getTriggerSource() == null ? null : run.getTriggerSource().name();
+            this.triggerName = run.getTriggerName();
+            this.operationType = run.getOperationType() == null ? null : run.getOperationType().name();
+            this.operationTargets = run.getTotalTargets();
+        }
+    }
+
+    public String getTriggerSource() {
+        return triggerSource;
+    }
+
+    public String getTriggerName() {
+        return triggerName;
+    }
+
+    public String getOperationType() {
+        return operationType;
+    }
+
+    public Integer getOperationTargets() {
+        return operationTargets;
     }
 
     // Getters and Setters

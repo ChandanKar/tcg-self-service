@@ -239,8 +239,37 @@ public class MonitoringController {
         }
         Page<VmStateHistory> history = stateSyncService.getVmStateHistory(vmId, page, size);
         Page<VmStateHistoryDTO> dtos = history.map(VmStateHistoryDTO::fromEntity);
+        describeRuns(dtos.getContent());
         return ResponseEntity.ok(dtos);
     }
+
+    /**
+     * Name who made each change and which run it was part of (U08-T07): one query for the people
+     * and one for the runs on the page.
+     */
+    private void describeRuns(java.util.List<VmStateHistoryDTO> items) {
+        java.util.Set<String> userIds = new java.util.HashSet<>();
+        java.util.Set<String> runIds = new java.util.HashSet<>();
+        for (VmStateHistoryDTO item : items) {
+            if (item.getChangedByUserId() != null) userIds.add(item.getChangedByUserId());
+            if (item.getOperationId() != null) runIds.add(item.getOperationId());
+        }
+        java.util.Map<String, String> names = new java.util.HashMap<>();
+        if (!userIds.isEmpty()) {
+            userRepository.findAllById(userIds).forEach(u -> names.put(u.getUserId(), u.getDisplayName()));
+        }
+        java.util.Map<String, com.tcgdigital.vmcontrol.model.OperationExecution> runs = new java.util.HashMap<>();
+        if (!runIds.isEmpty() && executionRepository != null) {
+            executionRepository.findAllById(runIds).forEach(r -> runs.put(r.getExecutionId(), r));
+        }
+        for (VmStateHistoryDTO item : items) {
+            item.describeRun(item.getChangedByUserId() == null ? null : names.get(item.getChangedByUserId()),
+                    item.getOperationId() == null ? null : runs.get(item.getOperationId()));
+        }
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.repository.OperationExecutionRepository executionRepository;
 
     @GetMapping("/state-changes")
     @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")

@@ -138,4 +138,57 @@ test.describe('Instance ID in VM details', () => {
     await openDetails(page, 'admin', envId, vmId);
     await expect(panel.locator('.vm-advice').getByRole('link', { name: 'Resize safely…' })).toHaveAttribute('href', '#/cost-management');
   });
+
+  test('U08-T07: Idle shows 7 days of idle hours; History reads the changes, including one outside the platform', async ({ page, playwright }) => {
+    const { envId, vmId } = await environmentWithVm(playwright);
+    const now = new Date();
+    const series: any[] = [];
+    for (let d = 6; d >= 0; d--) {
+      for (let h = 0; h < 24; h++) {
+        const t = new Date(now.getFullYear(), now.getMonth(), now.getDate() - d, h, 0);
+        if (t > now) continue;
+        series.push({ sampleTime: t.toISOString(), cpuUtilization: d >= 5 ? 2 : (h >= 8 && h < 20 ? 30 : 2) });
+      }
+    }
+    await page.route(url => url.pathname.endsWith(`/vms/${vmId}/metrics`) && url.searchParams.get('window') === '7d',
+      route => route.fulfill({ json: { periodSeconds: 3600, series } }));
+    const at = (daysAgo: number, h: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysAgo, h, 0).toISOString();
+    let historyFails = false;
+    await page.route(new RegExp(`/monitoring/vms/${vmId}/history`), route => historyFails
+      ? route.fulfill({ status: 500, body: '' })
+      : route.fulfill({ json: { content: [
+        { newStatus: 'RUNNING', changeSource: 'operation', operationId: 'r1', changedAt: at(0, 0), changedByUsername: 'Priya Nair',
+          triggerSource: 'MANUAL', operationType: 'START', operationTargets: 5, drift: false },
+        { newStatus: 'STOPPED', changeSource: 'operation', operationId: 'r2', changedAt: at(1, 19), triggerSource: 'SCHEDULE',
+          triggerName: 'Office hours', drift: false },
+        { newStatus: 'STOPPED', changeSource: 'state_sync', changedAt: at(3, 11), drift: true }] } }));
+
+    await openDetails(page, 'user', envId, vmId);
+    const panel = page.locator('#dynamicSlideoutPanel[data-variant="vm-details"]');
+    await panel.getByRole('tab', { name: 'Idle' }).click();
+    const chart = panel.getByRole('img', { name: /^Idle hours per day, last 7 days: / });
+    await expect(chart).toBeVisible({ timeout: 10_000 });
+    const label = await chart.getAttribute('aria-label');
+    expect(label!.replace(/^.*: /, '').split(', ')).toHaveLength(7);
+    expect(label!.split(': ')[1].split(', ').slice(0, 2)).toEqual(['24', '24']);
+    await expect(panel.locator('.vm-idle-rule')).toContainText('Idle auto-stop');
+
+    await panel.getByRole('tab', { name: 'History' }).click();
+    const rows = panel.locator('.vm-history li');
+    await expect(rows).toHaveCount(3);
+    await expect(rows.nth(0)).toContainText('Started');
+    await expect(rows.nth(0)).toContainText('Priya Nair, as part of "Start 5 VMs"');
+    await expect(rows.nth(1)).toContainText('Schedule "Office hours"');
+    await expect(rows.nth(2)).toContainText('State changed outside the platform (stopped in the AWS console)');
+    await expect(rows.nth(2)).toContainText('Found by the 11:00 sync');
+
+    // A failing history says so; the rest of the panel keeps working.
+    historyFails = true;
+    await panel.locator('.close-btn').click();
+    await page.locator(`[data-action="vm-details"][data-vm-id="${vmId}"]`).first().click();
+    await panel.getByRole('tab', { name: 'History' }).click();
+    await expect(panel.getByRole('tabpanel', { name: 'History' })).toContainText('History is not available right now.');
+    await panel.getByRole('tab', { name: 'Overview' }).click();
+    await expect(panel.locator('.vm-panel-fields')).toBeVisible();
+  });
 });
