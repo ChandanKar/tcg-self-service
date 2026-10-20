@@ -95,8 +95,19 @@ public class ApprovalPolicyService {
     public record ApprovalContext(String environmentId, String teamId, String requesterId, String operationType,
                                   List<Target> targets, int requestedHours, CostPreviewDTO preview) {}
 
-    /** A matched policy and why it matched. */
-    public record PolicyMatch(String policyId, String name, String approverMode, List<String> reasons) {}
+    /**
+     * A matched policy and why it matched; approverNames are filled for the dry run (U08-T01) so the
+     * start dialog can say "Needs Sanjay Rao".
+     */
+    public record PolicyMatch(String policyId, String name, String approverMode, List<String> reasons, List<String> approverNames) {
+        public PolicyMatch(String policyId, String name, String approverMode, List<String> reasons) {
+            this(policyId, name, approverMode, reasons, List.of());
+        }
+
+        public PolicyMatch withApproverNames(List<String> names) {
+            return new PolicyMatch(policyId, name, approverMode, reasons, names == null ? List.of() : List.copyOf(names));
+        }
+    }
 
     /**
      * ALLOW (no matches) or REQUIRE_APPROVAL with the matched policies; blocked when a team quota

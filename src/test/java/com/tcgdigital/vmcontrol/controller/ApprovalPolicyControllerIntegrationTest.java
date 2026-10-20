@@ -136,4 +136,19 @@ class ApprovalPolicyControllerIntegrationTest extends SecuredWebTestBase {
         mockMvc.perform(post(URL + "/evaluate").with(asViewer()).contentType(MediaType.APPLICATION_JSON).content(dry))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    void theDryRunNamesWhoWouldApprove() throws Exception {
+        Environment env = newEnvironment("Named");
+        newVm(newGroup(env, "app"), "app-1", VmStatus.STOPPED);
+        create(body(env.getEnvironmentId(), null, "Long runs", "\"maxRuntimeHours\":12,\"approvers\":[{\"type\":\"USER\",\"approverId\":\""
+                + operator.getUserId() + "\"}]"), asAdmin());
+        ReflectionTestUtils.setField(target(), "enabled", true);
+
+        // U08-T01: "Needs <name>" in the start dialog.
+        mockMvc.perform(post(URL + "/evaluate").with(asAdmin()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"environmentId\":\"" + env.getEnvironmentId() + "\",\"hours\":24}"))
+                .andExpect(jsonPath("$.outcome").value("REQUIRE_APPROVAL"))
+                .andExpect(jsonPath("$.matches[0].approverNames[0]").value(operator.getDisplayName()));
+    }
 }

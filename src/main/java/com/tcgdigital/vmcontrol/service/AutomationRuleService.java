@@ -549,6 +549,7 @@ public class AutomationRuleService {
         StartOperationDTO dto = new StartOperationDTO();
         dto.setOperationType(operationType);
         dto.setReason("Automation rule: " + rule.getName() + " (" + triggerLabel + ")");
+        dto.setTriggerName(rule.getName());
         dto.setSkipAlreadyInTargetState(Boolean.TRUE.equals(rule.getSkipIfAlreadyInTargetState()));
         dto.setContinueOnFailure(true);
         if (rule.getScopeType() == AutomationScopeType.GROUP) {

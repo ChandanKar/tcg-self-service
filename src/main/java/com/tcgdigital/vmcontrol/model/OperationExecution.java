@@ -74,6 +74,19 @@ public class OperationExecution {
     @Column(name = "trigger_source", nullable = false, length = 20)
     private OperationTriggerSource triggerSource = OperationTriggerSource.MANUAL;
 
+    /** What started it by name, e.g. the schedule rule "Nightly batch" (U08-T01); null for manual runs. */
+    @Column(name = "trigger_name", length = 200)
+    private String triggerName;
+
+    public String getTriggerName() {
+        return triggerName;
+    }
+
+    public void setTriggerName(String triggerName) {
+        this.triggerName = triggerName == null || triggerName.isBlank() ? null
+                : (triggerName.length() > 200 ? triggerName.substring(0, 200) : triggerName);
+    }
+
     public OperationTriggerSource getTriggerSource() {
         return triggerSource;
     }

@@ -29,6 +29,10 @@ public class ApprovalPolicyController {
     private final SecurityService securityService;
     private final UserService userService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.context.annotation.Lazy
+    private com.tcgdigital.vmcontrol.service.ApprovalRequestService approvalRequestService;
+
     public ApprovalPolicyController(ApprovalPolicyService policyService, SecurityService securityService, UserService userService) {
         this.policyService = policyService;
         this.securityService = securityService;
@@ -89,7 +93,11 @@ public class ApprovalPolicyController {
             throw new ValidationException("environmentId is required");
         }
         securityService.assertCanView(request.environmentId());
-        return policyService.evaluate(policyService.context(request.environmentId(), request.groupId(), request.vmId(),
-                request.hours(), Boolean.TRUE.equals(request.extension()), userService.getCurrentUserId()));
+        String requester = userService.getCurrentUserId();
+        ApprovalPolicyService.ApprovalDecision decision = policyService.evaluate(policyService.context(request.environmentId(),
+                request.groupId(), request.vmId(), request.hours(), Boolean.TRUE.equals(request.extension()), requester));
+        // Name who would approve, for "Needs Sanjay Rao" (U08-T01).
+        return approvalRequestService == null ? decision
+                : approvalRequestService.withApproverNames(decision, request.environmentId(), requester);
     }
 }

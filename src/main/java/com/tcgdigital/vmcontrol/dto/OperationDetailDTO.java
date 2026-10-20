@@ -20,6 +20,9 @@ public class OperationDetailDTO {
     private Integer statusChecksPassed;
     private Integer statusChecksTotal;
     private Integer sequencePosition;
+    /** The step's VM group, for progress per group (U08-T01); null when the VM is gone. */
+    private String groupId;
+    private String groupName;
     private Timestamp startedAt;
     private Timestamp completedAt;
     @com.tcgdigital.vmcontrol.dto.json.RedactProviderIds private String errorMessage;
@@ -47,7 +50,28 @@ public class OperationDetailDTO {
         dto.setCompletedAt(detail.getCompletedAt());
         dto.setErrorMessage(detail.getErrorMessage());
         dto.setCloudOperationId(detail.getCloudOperationId());
+        if (detail.getVm() != null && detail.getVm().getGroup() != null) {
+            var group = detail.getVm().getGroup();
+            dto.setGroupId(group.getGroupId());
+            dto.setGroupName(group.getDisplayName() != null ? group.getDisplayName() : group.getName());
+        }
         return dto;
+    }
+
+    public String getGroupId() {
+        return groupId;
+    }
+
+    public void setGroupId(String groupId) {
+        this.groupId = groupId;
+    }
+
+    public String getGroupName() {
+        return groupName;
+    }
+
+    public void setGroupName(String groupName) {
+        this.groupName = groupName;
     }
 
     // Getters and Setters

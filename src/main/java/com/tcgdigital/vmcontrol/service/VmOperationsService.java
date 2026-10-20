@@ -256,6 +256,7 @@ public class VmOperationsService {
         execution.setStatus(ExecutionStatus.PENDING);
         execution.setInitiatedByUserId(userId);
         execution.setTriggerSource(source);
+        execution.setTriggerName(dto.getTriggerName());
         execution.setTotalTargets(plan.size());
 
         execution = executionRepository.save(execution);
@@ -374,6 +375,24 @@ public class VmOperationsService {
      */
     public List<OperationExecution> getRecentExecutions(String environmentId) {
         return executionRepository.findTop20ByEnvironmentEnvironmentIdOrderByStartedAtDesc(environmentId);
+    }
+
+    /**
+     * One page of an environment's runs as DTOs, newest first, each with what it covered
+     * (scopeLabel) and who started it (U08-T01). Built in one read-only transaction so the steps
+     * behind the scope label can be read; without the steps themselves.
+     */
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<com.tcgdigital.vmcontrol.dto.OperationExecutionDTO> getExecutionsPage(
+            String environmentId, org.springframework.data.domain.Pageable pageable,
+            java.util.function.Function<String, String> displayNameOf) {
+        return executionRepository.findByEnvironmentEnvironmentIdOrderByStartedAtDesc(environmentId, pageable)
+                .map(execution -> {
+                    var dto = com.tcgdigital.vmcontrol.dto.OperationExecutionDTO.fromEntity(execution,
+                            displayNameOf.apply(execution.getInitiatedByUserId()));
+                    dto.setScopeLabel(com.tcgdigital.vmcontrol.dto.OperationExecutionDTO.scopeLabelOf(execution));
+                    return dto;
+                });
     }
 
     /**

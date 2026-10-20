@@ -264,6 +264,23 @@ public class ApprovalRequestService {
                 approverIds.stream().map(this::userName).toList(), cost);
     }
 
+    /**
+     * The decision with each match's approvers named (U08-T01): who would have to approve this
+     * start or extension, for the dry run and the start dialog.
+     */
+    @Transactional(readOnly = true)
+    public ApprovalPolicyService.ApprovalDecision withApproverNames(ApprovalPolicyService.ApprovalDecision decision,
+                                                                    String environmentId, String requesterId) {
+        if (decision == null || decision.matches().isEmpty()) {
+            return decision;
+        }
+        List<ApprovalPolicyService.PolicyMatch> named = decision.matches().stream()
+                .map(m -> m.withApproverNames(approvers(new ApprovalPolicyService.ApprovalDecision(true, List.of(m)),
+                        environmentId, requesterId).stream().map(this::userName).toList()))
+                .toList();
+        return new ApprovalPolicyService.ApprovalDecision(decision.requiresApproval(), named, decision.blocked(), decision.warnings());
+    }
+
     /** USER ids, TEAM members and environment admins of the matched policies; never the requester. */
     Set<String> approvers(ApprovalPolicyService.ApprovalDecision decision, String environmentId, String requesterId) {
         Set<String> ids = new LinkedHashSet<>();

@@ -88,6 +88,22 @@ public class VmOperationsController {
         return response.body(OperationExecutionDTO.fromEntity(execution));
     }
 
+    @GetMapping("/page")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "List operations, paginated",
+            description = "One page of the environment's runs, newest first (U08-T01: History), each with "
+                    + "triggerName and scopeLabel. Requires access to the environment. Size at most 50."
+    )
+    public ResponseEntity<org.springframework.data.domain.Page<OperationExecutionDTO>> listOperationsPage(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        securityService.assertCanView(environmentId);
+        org.springframework.data.domain.Pageable pageable = com.tcgdigital.vmcontrol.controller.support.Paging.of(page, size, 50);
+        return ResponseEntity.ok(operationsService.getExecutionsPage(environmentId, pageable, this::resolveDisplayName));
+    }
+
     @GetMapping
     @PreAuthorize("isAuthenticated()")
     @Operation(

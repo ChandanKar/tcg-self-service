@@ -224,5 +224,67 @@ class VmOperationsControllerIntegrationTest extends AbstractIntegrationTest {
                             "Expected 200 (cancelled) or 400 (already completed), got " + status);
                 });
     }
-}
 
+    // ---------------------------------------------------------------- U08-T01: History page, group names
+
+    @Autowired
+    private com.tcgdigital.vmcontrol.repository.OperationExecutionRepository executionRepository;
+
+    @Autowired
+    private com.tcgdigital.vmcontrol.repository.OperationDetailRepository detailRepository;
+
+    private com.tcgdigital.vmcontrol.model.OperationExecution run(int minutesAgo) {
+        com.tcgdigital.vmcontrol.model.OperationExecution e = new com.tcgdigital.vmcontrol.model.OperationExecution();
+        e.setExecutionId(UUID.randomUUID().toString());
+        e.setEnvironment(environmentRepository.findById(environmentId).orElseThrow());
+        e.setOperationType(OperationType.START);
+        e.setStatus(com.tcgdigital.vmcontrol.model.ExecutionStatus.COMPLETED);
+        e.setInitiatedByUserId("user-001");
+        e.setStartedAt(java.sql.Timestamp.from(java.time.Instant.now().minusSeconds(60L * minutesAgo)));
+        e.setTotalTargets(1);
+        return executionRepository.saveAndFlush(e);
+    }
+
+    @Test
+    void theHistoryPagesRunsNewestFirstWithWhatTheyCovered() throws Exception {
+        for (int i = 0; i < 23; i++) run(100 - i);
+        com.tcgdigital.vmcontrol.model.OperationExecution newest = run(1);
+        com.tcgdigital.vmcontrol.model.OperationDetail step = new com.tcgdigital.vmcontrol.model.OperationDetail();
+        step.setDetailId(UUID.randomUUID().toString());
+        step.setExecution(newest);
+        step.setVm(vmRepository.findById(vmId).orElseThrow());
+        step.setTargetType("vm");
+        step.setTargetId(vmId);
+        step.setTargetName("Test VM");
+        step.setAction("start");
+        step.setSequencePosition(1);
+        step.setStatus("completed");
+        detailRepository.saveAndFlush(step);
+
+        mockMvc.perform(get("/api/v1/environments/" + environmentId + "/operations/page?page=0&size=7")
+                        .header("X-User-Id", "user-001"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(7)))
+                .andExpect(jsonPath("$.page.totalElements").value(24))
+                .andExpect(jsonPath("$.content[0].executionId").value(newest.getExecutionId()))
+                .andExpect(jsonPath("$.content[0].scopeLabel").value("Test VM"))
+                .andExpect(jsonPath("$.content[0].triggerName").value(nullValue()))
+                .andExpect(jsonPath("$.content[0].details").value(nullValue()));
+        mockMvc.perform(get("/api/v1/environments/" + environmentId + "/operations/page?size=500")
+                        .header("X-User-Id", "user-001"))
+                .andExpect(jsonPath("$.content", hasSize(24)))
+                .andExpect(jsonPath("$.page.size").value(50));
+
+        mockMvc.perform(get("/api/v1/environments/" + environmentId + "/operations/" + newest.getExecutionId())
+                        .header("X-User-Id", "user-001"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.details[0].groupId").value(groupId))
+                .andExpect(jsonPath("$.details[0].groupName").value("Test Group"));
+    }
+
+    @Test
+    void theHistoryPageNeedsAccessToTheEnvironment() throws Exception {
+        mockMvc.perform(get("/api/v1/environments/" + environmentId + "/operations/page").header("X-User-Id", "dev-user-001"))
+                .andExpect(status().isForbidden());
+    }
+}

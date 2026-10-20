@@ -28,6 +28,10 @@ public interface OperationExecutionRepository extends JpaRepository<OperationExe
      */
     List<OperationExecution> findTop20ByEnvironmentEnvironmentIdOrderByStartedAtDesc(String environmentId);
 
+    /** One page of an environment's runs, newest first (U08-T01: History). */
+    org.springframework.data.domain.Page<OperationExecution> findByEnvironmentEnvironmentIdOrderByStartedAtDesc(
+            String environmentId, org.springframework.data.domain.Pageable pageable);
+
     /**
      * Find executions by status.
      */

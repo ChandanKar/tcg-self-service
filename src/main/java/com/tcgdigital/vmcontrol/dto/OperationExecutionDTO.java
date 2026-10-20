@@ -21,6 +21,11 @@ public class OperationExecutionDTO {
     private String initiatedByUserId;
     /** What started the operation (E17-T01): MANUAL, SCHEDULE, LEASE, IDLE_STOP, ... */
     private com.tcgdigital.vmcontrol.model.OperationTriggerSource triggerSource;
+    /** The rule (or other source) that started it by name; null for manual runs (U08-T01). */
+    private String triggerName;
+    /** "whole environment", "Application group" or one VM's name; set where the steps are read (U08-T01). */
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    private String scopeLabel;
 
     public com.tcgdigital.vmcontrol.model.OperationTriggerSource getTriggerSource() {
         return triggerSource;
@@ -52,6 +57,7 @@ public class OperationExecutionDTO {
         dto.setStatus(execution.getStatus());
         dto.setInitiatedByUserId(execution.getInitiatedByUserId());
         dto.setTriggerSource(execution.getTriggerSource());
+        dto.setTriggerName(execution.getTriggerName());
         dto.setStartedAt(execution.getStartedAt());
         dto.setCompletedAt(execution.getCompletedAt());
         dto.setErrorMessage(execution.getErrorMessage());
@@ -80,6 +86,52 @@ public class OperationExecutionDTO {
         OperationExecutionDTO dto = fromEntity(execution);
         dto.setInitiatedByDisplayName(displayName);
         return dto;
+    }
+
+    public String getTriggerName() {
+        return triggerName;
+    }
+
+    public void setTriggerName(String triggerName) {
+        this.triggerName = triggerName;
+    }
+
+    public String getScopeLabel() {
+        return scopeLabel;
+    }
+
+    public void setScopeLabel(String scopeLabel) {
+        this.scopeLabel = scopeLabel;
+    }
+
+    /**
+     * What a run covered, from its steps: one VM's name, "<group> group" when every step is in one
+     * group of an environment with several, else "whole environment"; null without steps.
+     */
+    public static String scopeLabelOf(OperationExecution execution) {
+        List<com.tcgdigital.vmcontrol.model.OperationDetail> steps = execution.getDetails();
+        if (steps == null || steps.isEmpty()) {
+            return null;
+        }
+        if (steps.size() == 1 && steps.get(0).getVm() != null) {
+            var vm = steps.get(0).getVm();
+            return vm.getDisplayName() != null ? vm.getDisplayName() : vm.getName();
+        }
+        java.util.Set<String> groups = new java.util.LinkedHashSet<>();
+        String groupName = null;
+        for (var step : steps) {
+            if (step.getVm() != null && step.getVm().getGroup() != null) {
+                var group = step.getVm().getGroup();
+                if (groups.add(group.getGroupId())) {
+                    groupName = group.getDisplayName() != null ? group.getDisplayName() : group.getName();
+                }
+            }
+        }
+        int groupsInEnvironment = execution.getEnvironment().getGroups() == null ? 0 : execution.getEnvironment().getGroups().size();
+        if (groups.size() == 1 && groupsInEnvironment > 1) {
+            return groupName + " group";
+        }
+        return "whole environment";
     }
 
     public static OperationExecutionDTO fromEntityWithDetails(OperationExecution execution) {

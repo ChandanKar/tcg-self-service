@@ -128,6 +128,11 @@ class AutomationRuleScheduleIntegrationTest extends AbstractIntegrationTest {
 
         tickAt(20, 1, 40); // the next tick does not fire again
         assertThat(stopRuns()).isEqualTo(1);
+
+        // U08-T01: the run says what started it, by name.
+        var run = executions.findTop20ByEnvironmentEnvironmentIdOrderByStartedAtDesc(env.getEnvironmentId()).get(0);
+        assertThat(run.getTriggerSource()).isEqualTo(com.tcgdigital.vmcontrol.model.OperationTriggerSource.SCHEDULE);
+        assertThat(run.getTriggerName()).isEqualTo("Stop at eight");
     }
 
     @Test

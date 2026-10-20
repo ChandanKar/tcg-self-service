@@ -16,6 +16,23 @@ public class StartOperationDTO {
     private String reason;
 
     /**
+     * The name of what started the run when the platform starts it, e.g. a schedule rule's name
+     * (U08-T01). Never read from a request body: API callers cannot set it.
+     */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private String triggerName;
+
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public String getTriggerName() {
+        return triggerName;
+    }
+
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public void setTriggerName(String triggerName) {
+        this.triggerName = triggerName;
+    }
+
+    /**
      * Optional: specific VM IDs to operate on.
      * If null/empty, all VMs in environment will be affected.
      */
