@@ -184,7 +184,69 @@ const HomeModel = (function() {
         };
     }
 
-    return { chip, cardLine, accessLabel, pickCards, needsYouItem, totals, when, day, inTime };
+    // ---------------------------------------------------------------- Your recent activity (U06-T03)
+
+    const LEVEL_WORDS = { ADMIN: 'Admin', USER: 'Operator', VIEWER: 'View only' };
+
+    /** One activity line: "Started Payments Dev (5 VMs)", "Asked for Operator access to CRM UAT". */
+    function activityText(item) {
+        const env = item.environmentName || 'an environment';
+        const where = item.scopeName ? `${item.scopeName} in ${env}` : env;
+        const level = LEVEL_WORDS[item.accessLevel] ? `${LEVEL_WORDS[item.accessLevel]} ` : '';
+        if (item.kind === 'OPERATION') {
+            const verb = { START: 'Started', STOP: 'Stopped', RESTART: 'Restarted' }[item.event] || 'Changed';
+            const count = n(item.totalTargets);
+            return count ? `${verb} ${env} (${plural(count, 'VM')})` : `${verb} ${env}`;
+        }
+        switch (item.event) {
+            case 'REQUESTED': return `Asked for ${level}access to ${where}`;
+            case 'APPROVED': return `Access to ${where} approved`;
+            case 'DENIED': return `Request for ${where} declined`;
+            case 'CANCELLED': return `Request for ${where} cancelled`;
+            case 'EXTENDED': return `Access to ${where} extended`;
+            case 'GRANTED': return `Given ${level}access to ${where}`;
+            case 'UPDATED': return `Access to ${where} changed to ${level.trim() || 'a new level'}`;
+            case 'REVOKED': return `Access to ${where} removed`;
+            case 'EXPIRED': return `Access to ${where} ended`;
+            default: return `Access to ${where} changed`;
+        }
+    }
+
+    /** The result column: {label, kind} with kind done | failed | waiting, or null when there is none. */
+    function resultLabel(item) {
+        if (item.kind === 'OPERATION') {
+            switch (item.status) {
+                case 'COMPLETED': return { label: 'Done', kind: 'done' };
+                case 'FAILED': return { label: 'Failed', kind: 'failed' };
+                case 'PARTIAL_SUCCESS': return { label: 'Partly done', kind: 'failed' };
+                case 'CANCELLED': return { label: 'Cancelled', kind: 'waiting' };
+                default: return { label: 'In progress', kind: 'waiting' };
+            }
+        }
+        if (item.event === 'DENIED') return { label: 'Declined', kind: 'failed' };
+        if (item.event === 'REQUESTED') return { label: 'Waiting', kind: 'waiting' };
+        return null;
+    }
+
+    /** "08:02" today, "Fri" within the past week, else "16 Oct". */
+    function activityTime(value, now = new Date()) {
+        const d = toDate(value);
+        if (!d) return '';
+        if (sameDay(d, now)) return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        const days = (now.getTime() - d.getTime()) / 86400000;
+        return days < 7 ? DAYS[d.getDay()] : day(d);
+    }
+
+    /** Running VMs that are barely used, the busiest-wasting first (longest idle), at most max. */
+    function idleRows(idleVms, max = 2) {
+        return (Array.isArray(idleVms) ? idleVms : [])
+            .filter(vm => vm.status === 'RUNNING')
+            .sort((a, b) => n(b.idleDurationMinutes) - n(a.idleDurationMinutes))
+            .slice(0, max);
+    }
+
+    return { chip, cardLine, accessLabel, pickCards, needsYouItem, totals, when, day, inTime,
+        activityText, resultLabel, activityTime, idleRows };
 })();
 
 if (typeof window !== 'undefined') window.HomeModel = HomeModel;

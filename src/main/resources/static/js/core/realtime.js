@@ -139,6 +139,9 @@ const RealTime = (function() {
      */
     function startPolling(key, callback, interval, options = {}) {
         stopPolling(key);
+        // After a 401 nothing polls again until the page is reloaded, including a page that
+        // finishes loading after the session was lost (Home's 30 s refresh, U06).
+        if (sessionLost) return;
 
         const timer = { id: null, callback, interval: interval || INTERVALS[key] || 30000, lastRun: 0 };
         timers[key] = timer;

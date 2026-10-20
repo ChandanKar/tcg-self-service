@@ -177,6 +177,7 @@ const Environments = (function() {
             const html = buildDetailHtml(env);
             $('#content-area').html(html);
             bindDetailEvents(env);
+            openVmFromRoute(env);
         } catch (error) {
             if (!ContentRouter.isCurrent(t)) return;
             console.error('Failed to load environment:', error);
@@ -187,6 +188,18 @@ const Environments = (function() {
                 showError('Failed to load environment details.');
             }
         }
+    }
+
+    /** Home's "Review" links here with vm=<id> (U06-T03): open that VM's details once, then drop the parameter. */
+    function openVmFromRoute(env) {
+        const q = ContentRouter.query ? ContentRouter.query() : {};
+        if (!q.vm) return;
+        if (window.history && window.history.replaceState) {
+            const [path, search = ''] = window.location.hash.split('?');
+            const rest = search.split('&').filter(part => part && !part.startsWith('vm='));
+            window.history.replaceState(null, '', rest.length ? `${path}?${rest.join('&')}` : path);
+        }
+        showVmDetails(env.environmentId, q.vm);
     }
 
     /**

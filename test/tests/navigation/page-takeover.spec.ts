@@ -9,6 +9,7 @@ import { delayRoute } from '../../fixtures/mock-api';
 
 declare const ContentRouter: any;
 declare const $: any;
+declare const RealTime: any;
 
 const SUMMARY = '/api/v1/dashboard/summary';
 
@@ -76,7 +77,9 @@ test.describe('Dashboard lifecycle', () => {
     await signIn(page, 'user');
     await ready(page);
     await goTo(page, 'dashboard');
-    await expect(header(page)).toHaveText('Home');
+    // The loading header also reads "Home": wait for the rendered page, which starts the 30 s poll.
+    await expect(page.locator('.home-page')).toBeVisible({ timeout: 15_000 });
+    await page.waitForFunction(() => RealTime.activePolls().includes('dashboard'));
 
     const before = call;
     await page.clock.runFor(31_000);

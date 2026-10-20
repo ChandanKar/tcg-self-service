@@ -72,6 +72,7 @@ const Dashboard = (function() {
         disposeCharts();
         $('#content-area').html(buildDashboardHtml(data));
         bindEvents();
+        if (!isAdmin(data)) loadRecentActivity();
         initCharts(data);
         initTooltips();
         $(window).off('resize.dashboardCharts').on('resize.dashboardCharts', resizeCharts);
@@ -228,8 +229,87 @@ const Dashboard = (function() {
                 })}
                 ${buildNeedsYou(data.needsYou || [])}
                 ${cards.length ? buildHomeCards(cards) : buildHomeEmpty()}
+                ${buildHomeLower(data.idleVms || [])}
             </div>
         `;
+    }
+
+    // ---------------------------------------------------------------- Home's lower panels (U06-T03)
+
+    let recentCache = null; // {at, items} or {at, error}
+    const RECENT_FRESH_MS = 60000;
+
+    function buildHomeLower(idleVms) {
+        const rows = HomeModel.idleRows(idleVms, 2);
+        const idle = rows.length ? `
+            <section class="home-panel home-idle" aria-labelledby="home-idle-title">
+                <h2 id="home-idle-title">Running but barely used</h2>
+                <p class="home-panel-sub">CPU, network and disk have been nearly idle. Stopping them saves money.</p>
+                ${rows.map(vm => {
+                    const cpu = vm.cpuUtilization === null || vm.cpuUtilization === undefined
+                        ? '' : `${Number(vm.cpuUtilization).toFixed(1)}%`;
+                    const rate = vm.hourlyRate === null || vm.hourlyRate === undefined
+                        ? '' : Utils.html`<span class="mono home-idle-rate">${money(vm.hourlyRate)}/h</span>`;
+                    return Utils.html`<div class="home-row">
+                            <span class="home-row-main"><b>${vm.name}</b> <span class="home-row-sub">· ${vm.environmentName}${cpu ? ' · CPU' : ''}</span>`
+                        + (cpu ? Utils.html` <span class="mono">${cpu}</span>` : '') + '</span>'
+                        + rate
+                        + Utils.html`<a class="home-row-link" href="#/environments/${encodeURIComponent(vm.environmentId)}?vm=${encodeURIComponent(vm.vmId)}"
+                                aria-label="Review ${vm.name}">Review</a>
+                        </div>`;
+                }).join('')}
+            </section>` : '';
+        return `
+            <div class="home-lower${idle ? '' : ' home-lower-single'}">
+                ${idle}
+                <section class="home-panel home-recent" aria-labelledby="home-recent-title">
+                    <div class="home-panel-head">
+                        <h2 id="home-recent-title">Your recent activity</h2>
+                        <button type="button" class="btn btn-link home-panel-link" data-action="home-all-activity">All activity</button>
+                    </div>
+                    <div id="home-recent-body" aria-live="polite"><p class="home-panel-sub">Loading&hellip;</p></div>
+                </section>
+            </div>
+        `;
+    }
+
+    /** Fill "Your recent activity" from the last four entries; reused for a minute across quiet refreshes. */
+    function loadRecentActivity() {
+        if (recentCache && Date.now() - recentCache.at < RECENT_FRESH_MS) {
+            fillRecent(recentCache);
+            return;
+        }
+        const t = ContentRouter.token();
+        ApiClient.get(Config.API.users.myActivity(4), { suppressGlobalError: true })
+            .done(items => {
+                recentCache = { at: Date.now(), items: Array.isArray(items) ? items.slice(0, 4) : [] };
+                if (ContentRouter.isCurrent(t)) fillRecent(recentCache);
+            })
+            .fail(() => {
+                if (ContentRouter.isCurrent(t)) fillRecent({ error: true });
+            });
+    }
+
+    function fillRecent(state) {
+        const $body = $('#home-recent-body');
+        if (!$body.length) return;
+        if (state.error) {
+            $body.html('<p class="home-panel-sub">Activity is not available right now.</p>');
+            return;
+        }
+        if (!state.items.length) {
+            $body.html('<p class="home-panel-sub">Nothing yet. Starts, stops and access changes show up here.</p>');
+            return;
+        }
+        const now = new Date();
+        $body.html(state.items.map(item => {
+            const result = HomeModel.resultLabel(item);
+            return Utils.html`<div class="home-row">
+                    <span class="mono home-row-time">${HomeModel.activityTime(item.occurredAt, now)}</span>
+                    <span class="home-row-main">${HomeModel.activityText(item)}</span>`
+                + (result ? Utils.html`<span class="home-result home-result-${result.kind}">${result.label}</span>` : '')
+                + '</div>';
+        }).join(''));
     }
 
     function buildNeedsYou(items) {
@@ -839,4 +919,5 @@ const Dashboard = (function() {
 
 Actions.register('dashboard-refresh', () => Dashboard.refresh());
 // Home's "Ask for more time": My Account on the Access tab with that grant's extension form (U06-T02).
+Actions.register('home-all-activity', () => MyAccount.open('activity'));
 Actions.register('home-extend-access', el => MyAccount.open('access', { extend: el.getAttribute('data-access-id') }));

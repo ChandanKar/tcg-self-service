@@ -1,5 +1,6 @@
 // Run with: node --test "src/test/js/**/*.test.mjs"
 // U06-T02: Home's card words and order (chip, status line, access, card choice, needs-you tiles).
+// U06-T03: the recent-activity lines, results and times; the barely-used rows.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -103,4 +104,54 @@ test('header totals across cards', () => {
     const H = load();
     assert.deepEqual({ ...H.totals([card({ totalVms: 7, runningVms: 5 }), card({ totalVms: 3, runningVms: 0 })]) },
         { running: 5, total: 10, environments: 2 });
+});
+
+test('activity lines: operations with their VM count, access events in words', () => {
+    const H = load();
+    const op = o => Object.assign({ kind: 'OPERATION', environmentName: 'Payments Dev', totalTargets: 5 }, o);
+    assert.equal(H.activityText(op({ event: 'START' })), 'Started Payments Dev (5 VMs)');
+    assert.equal(H.activityText(op({ event: 'STOP', totalTargets: 1 })), 'Stopped Payments Dev (1 VM)');
+    assert.equal(H.activityText(op({ event: 'RESTART', totalTargets: 0 })), 'Restarted Payments Dev');
+    const acc = o => Object.assign({ kind: 'ACCESS', environmentName: 'CRM UAT', accessLevel: 'USER' }, o);
+    assert.equal(H.activityText(acc({ event: 'REQUESTED' })), 'Asked for Operator access to CRM UAT');
+    assert.equal(H.activityText(acc({ event: 'REQUESTED', scopeName: 'Web' })), 'Asked for Operator access to Web in CRM UAT');
+    assert.equal(H.activityText(acc({ event: 'APPROVED' })), 'Access to CRM UAT approved');
+    assert.equal(H.activityText(acc({ event: 'DENIED' })), 'Request for CRM UAT declined');
+    assert.equal(H.activityText(acc({ event: 'EXTENDED' })), 'Access to CRM UAT extended');
+    assert.equal(H.activityText(acc({ event: 'GRANTED', accessLevel: 'VIEWER' })), 'Given View only access to CRM UAT');
+    assert.equal(H.activityText(acc({ event: 'UPDATED', accessLevel: 'ADMIN' })), 'Access to CRM UAT changed to Admin');
+    assert.equal(H.activityText(acc({ event: 'REVOKED' })), 'Access to CRM UAT removed');
+    assert.equal(H.activityText(acc({ event: 'EXPIRED' })), 'Access to CRM UAT ended');
+});
+
+test('activity results: Done, Failed, Partly done, In progress; Declined and Waiting; none otherwise', () => {
+    const H = load();
+    const r = o => { const x = H.resultLabel(o); return x && `${x.label}/${x.kind}`; };
+    assert.equal(r({ kind: 'OPERATION', status: 'COMPLETED' }), 'Done/done');
+    assert.equal(r({ kind: 'OPERATION', status: 'FAILED' }), 'Failed/failed');
+    assert.equal(r({ kind: 'OPERATION', status: 'PARTIAL_SUCCESS' }), 'Partly done/failed');
+    assert.equal(r({ kind: 'OPERATION', status: 'IN_PROGRESS' }), 'In progress/waiting');
+    assert.equal(r({ kind: 'ACCESS', event: 'DENIED' }), 'Declined/failed');
+    assert.equal(r({ kind: 'ACCESS', event: 'REQUESTED' }), 'Waiting/waiting');
+    assert.equal(r({ kind: 'ACCESS', event: 'APPROVED' }), null);
+});
+
+test('activity times: 08:02 today, the weekday within a week, else the date', () => {
+    const H = load();
+    assert.equal(H.activityTime(at(0, 8, 2), NOW), '08:02');
+    assert.equal(H.activityTime(at(-4, 9, 0), NOW), 'Fri');
+    assert.equal(H.activityTime(at(-9, 9, 0), NOW), '11 Oct');
+    assert.equal(H.activityTime(null, NOW), '');
+});
+
+test('barely-used rows: running only, longest idle first, at most two', () => {
+    const H = load();
+    const rows = H.idleRows([
+        { vmId: 'a', status: 'RUNNING', idleDurationMinutes: 40 },
+        { vmId: 'b', status: 'STOPPED', idleDurationMinutes: 900 },
+        { vmId: 'c', status: 'RUNNING', idleDurationMinutes: 300 },
+        { vmId: 'd', status: 'RUNNING', idleDurationMinutes: 90 },
+    ]);
+    assert.deepEqual(rows.map(v => v.vmId), ['c', 'd']);
+    assert.equal(H.idleRows(null).length, 0);
 });

@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
 
 /**
@@ -6,6 +6,8 @@ import { signIn, canSignIn, devIds } from '../../fixtures/auth';
  * environment cards with name, slug, state chip, power strip, status line, cost and access; "Needs
  * you" tiles for a lease ending (Extend lease) and access ending (Ask for more time); no page
  * scrollbar at 1440x900; an empty state without environments.
+ * U06-T03: "Running but barely used" (Review opens the VM on its environment) and "Your recent
+ * activity" from /users/me/activity, with a message when it cannot load.
  */
 
 declare const ContentRouter: any;
@@ -30,7 +32,15 @@ function summary(now: Date) {
       summary: { environments: 5, totalVms: 26, runningVms: 8, stoppedVms: 16, idleVms: 0, driftedVms: 0, lockedEnvironments: 2,
         pendingAccessRequests: 0, monthToDateCost: 412.8 },
       utilization: {}, storage: {}, coverage: {}, utilizationTrend: [], vmStatusCounts: {}, regionCounts: {}, providerCounts: {},
-      volumeTypeCounts: {}, topBusyVms: [], idleVms: [], schedulerHealth: [], riskCompliance: [], recommendations: [],
+      volumeTypeCounts: {}, topBusyVms: [], schedulerHealth: [],
+      idleVms: [
+        { vmId: 'vm-cache', name: 'pay-cache', environmentId: 'env-pay', environmentName: 'Payments Dev', status: 'RUNNING',
+          cpuUtilization: 3.9, idleDurationMinutes: 360, hourlyRate: 0.0704, groupName: 'Application' },
+        { vmId: 'vm-report', name: 'report-worker', environmentId: 'env-ana', environmentName: 'Analytics QA', status: 'RUNNING',
+          cpuUtilization: 0.6, idleDurationMinutes: 120, hourlyRate: null, groupName: 'App' },
+        { vmId: 'vm-off', name: 'old-box', environmentId: 'env-crm', environmentName: 'CRM UAT', status: 'STOPPED',
+          cpuUtilization: 0, idleDurationMinutes: 900, hourlyRate: 0.1, groupName: 'All' },
+      ], riskCompliance: [], recommendations: [],
       generatedAt: now.toISOString(),
       environments: [
         card({ environmentId: 'env-pay', name: 'payments-dev', displayName: 'Payments Dev', totalVms: 7, runningVms: 5,
@@ -57,9 +67,25 @@ function summary(now: Date) {
   };
 }
 
-async function openHome(page: Page, body: unknown) {
+function activity(now: Date) {
+  const minutesAgo = (m: number) => new Date(now.getTime() - m * 60_000).toISOString();
+  return [
+    { kind: 'OPERATION', event: 'START', status: 'COMPLETED', environmentId: 'env-pay', environmentName: 'Payments Dev',
+      totalTargets: 5, occurredAt: minutesAgo(1) },
+    { kind: 'ACCESS', event: 'REQUESTED', environmentId: 'env-crm', environmentName: 'CRM UAT', accessLevel: 'USER',
+      occurredAt: minutesAgo(2) },
+    { kind: 'OPERATION', event: 'STOP', status: 'COMPLETED', environmentId: 'env-crm', environmentName: 'CRM UAT',
+      totalTargets: 6, occurredAt: minutesAgo(3) },
+    { kind: 'OPERATION', event: 'START', status: 'FAILED', environmentId: 'env-ana', environmentName: 'Analytics QA',
+      totalTargets: 1, occurredAt: minutesAgo(4) },
+  ];
+}
+
+async function openHome(page: Page, body: unknown, recent: unknown = []) {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.route(/\/api\/v1\/dashboard\/summary$/, r => r.fulfill({ json: body }));
+  await page.route(/\/api\/v1\/users\/me\/activity/, r => recent === 'fail'
+    ? r.fulfill({ status: 500, json: { message: 'boom' } }) : r.fulfill({ json: recent }));
   await signIn(page, 'user');
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
   await expect(page.locator('#content-area .content-header h1').first()).toHaveText('Home', { timeout: 15_000 });
@@ -71,8 +97,9 @@ test.describe('Home', () => {
   });
 
   test('the header line, four cards and the needs-you tiles fit 1440x900', async ({ page }) => {
-    const { body } = summary(new Date());
-    await openHome(page, body);
+    const now = new Date();
+    const { body } = summary(now);
+    await openHome(page, body, activity(now));
 
     await expect(page.locator('.page-summary')).toHaveText('7 of 26 VMs running across 5 environments · $412.80 this month');
     await expect(page.getByRole('link', { name: 'Request access to an environment' })).toHaveAttribute('href', '#/request-access');
@@ -81,7 +108,64 @@ test.describe('Home', () => {
     await expect(cards.nth(0)).toContainText('Analytics QA'); // locked by me first
     await expect(page.locator('.home-card', { hasText: 'ZZ Archive' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'See all as a list' })).toHaveAttribute('href', '#/my-environments');
+    await expect(page.locator('.home-recent .home-row')).toHaveCount(4);
     expect(await page.locator('#mainContent').evaluate(el => el.scrollHeight <= el.clientHeight)).toBeTruthy();
+  });
+
+  test('running but barely used: running VMs only, CPU, price per hour, Review opens the VM', async ({ page }) => {
+    const { body } = summary(new Date());
+    await openHome(page, body);
+
+    const idle = page.getByRole('region', { name: 'Running but barely used' });
+    const rows = idle.locator('.home-row');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0)).toContainText('pay-cache · Payments Dev · CPU 3.9%');
+    await expect(rows.nth(0).locator('.home-idle-rate')).toHaveText('$0.07/h');
+    await expect(rows.nth(1).locator('.home-idle-rate')).toHaveCount(0); // no price known
+    await expect(idle).not.toContainText('old-box');
+    await expect(rows.nth(0).getByRole('link', { name: 'Review pay-cache' }))
+      .toHaveAttribute('href', '#/environments/env-pay?vm=vm-cache');
+  });
+
+  test('without barely-used VMs the activity panel takes the row', async ({ page }) => {
+    const { body } = summary(new Date());
+    await openHome(page, { ...body, idleVms: [] });
+
+    await expect(page.getByRole('region', { name: 'Running but barely used' })).toHaveCount(0);
+    await expect(page.locator('.home-lower')).toHaveClass(/home-lower-single/);
+  });
+
+  test('recent activity: time, words and result; Failed in red; All activity opens My Account', async ({ page }) => {
+    const now = new Date();
+    const { body } = summary(now);
+    await openHome(page, body, activity(now));
+
+    const recent = page.getByRole('region', { name: 'Your recent activity' });
+    const rows = recent.locator('.home-row');
+    await expect(rows).toHaveCount(4);
+    await expect(rows.nth(0)).toContainText('Started Payments Dev (5 VMs)');
+    await expect(rows.nth(0).locator('.home-result')).toHaveText('Done');
+    await expect(rows.nth(0).locator('.home-row-time')).toHaveText(/^\d\d:\d\d$|^\w{3}$/);
+    await expect(rows.nth(1)).toContainText('Asked for Operator access to CRM UAT');
+    await expect(rows.nth(1).locator('.home-result')).toHaveText('Waiting');
+    const failed = rows.nth(3).locator('.home-result');
+    await expect(failed).toHaveText('Failed');
+    expect(await failed.evaluate(el => getComputedStyle(el).color)).toBe('rgb(168, 51, 31)');
+
+    await recent.getByRole('button', { name: 'All activity' }).click();
+    await expect(page.locator('#ma-tab-activity')).toHaveAttribute('aria-selected', 'true');
+  });
+
+  test('recent activity that cannot load says so', async ({ page }) => {
+    const { body } = summary(new Date());
+    await openHome(page, body, 'fail');
+    await expect(page.locator('#home-recent-body')).toHaveText('Activity is not available right now.');
+  });
+
+  test('no recent activity says what will appear', async ({ page }) => {
+    const { body } = summary(new Date());
+    await openHome(page, body, []);
+    await expect(page.locator('#home-recent-body')).toContainText('Nothing yet.');
   });
 
   test('a card shows name, slug, chip, power strip, line, cost and access', async ({ page }) => {
@@ -141,4 +225,41 @@ test.describe('Home', () => {
     await expect(page.locator('.dashboard-kpi-grid')).toBeVisible();
     await expect(page.locator('.home-card')).toHaveCount(0);
   });
+
+  test('Review: the environment opens with that VM\'s details, and the link is dropped from the address', async ({ page, playwright }) => {
+    test.skip(!devIds.admin, 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+    const { envId, vmId } = await environmentWithVm(playwright);
+    await signIn(page, 'user');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate(([e, v]) => { location.hash = `#/environments/${e}?vm=${v}`; }, [envId, vmId]);
+
+    await expect(page.locator('.vm-provider-line')).toBeVisible({ timeout: 15_000 });
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe(`#/environments/${envId}`);
+  });
 });
+
+/** An environment with one registered VM (a made-up instance id; nothing in AWS is touched), viewable by the user. */
+async function environmentWithVm(playwright: any): Promise<{ envId: string; vmId: string }> {
+  const admin: APIRequestContext = await playwright.request.newContext({
+    baseURL: process.env.BASE_URL || 'http://localhost:8080',
+    extraHTTPHeaders: { 'X-User-Id': devIds.admin, 'Content-Type': 'application/json' },
+  });
+  const stamp = Date.now();
+  const instance = 'i-0' + Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+  const env = await (await admin.post('/api/v1/environments', {
+    data: { name: `home-review-${stamp}`, displayName: `Home Review ${stamp}`, cloudProvider: 'AWS' },
+  })).json();
+  const group = await (await admin.post(`/api/v1/environments/${env.environmentId}/groups`, {
+    data: { name: 'web', displayName: 'Web', sequencePosition: 1 },
+  })).json();
+  const vm = await (await admin.post(`/api/v1/environments/${env.environmentId}/vms`, {
+    data: { groupId: group.groupId, name: 'web-01', displayName: 'Web 01', provider: 'AWS', region: 'ap-south-1',
+      providerVmId: instance, sequencePosition: 1 },
+  })).json();
+  const user = await (await admin.get(`/api/v1/users/${devIds.user}`)).json();
+  await admin.post(`/api/v1/environments/${env.environmentId}/access`, {
+    data: { userEmail: user.email, accessLevel: 'VIEWER', durationDays: 1 },
+  });
+  await admin.dispose();
+  return { envId: env.environmentId, vmId: vm.vmId };
+}
