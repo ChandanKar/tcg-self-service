@@ -29,7 +29,9 @@ test('request lines: waiting with who decides, approved with who and when, denie
     assert.equal(approved.action.label, 'Open CRM UAT');
     const denied = plain(M.requestLine({ status: 'DENIED', requestedAccessLevel: 'USER', environmentName: 'Billing Prod Mirror',
         reviewDecisionNotes: 'Production mirror is limited to the billing team' }, now));
-    assert.deepEqual([denied.chip, denied.extra, denied.action.kind], ['Denied', '"Production mirror is limited to the billing team"', 'again']);
+    assert.deepEqual([denied.chip, denied.extra, denied.action.kind], ['Declined', 'declined: "Production mirror is limited to the billing team"', 'again']);
+    assert.equal(M.requestLine({ status: 'DENIED', reviewedByUserName: 'Sanjay Rao', reviewDecisionNotes: 'Not this sprint' }, now).extra,
+        'declined by Sanjay Rao: "Not this sprint"');
     const group = plain(M.requestLine({ status: 'PENDING', requestedAccessLevel: 'VIEWER', environmentName: 'HR', scopeType: 'GROUP',
         scopeName: 'Web', createdAt: '2026-10-20T11:55:00Z', reviewerNames: ['A', 'B'] }, now));
     assert.equal(`${group.level}${group.what} · ${group.extra}`, 'View only, Web group · sent 5 min ago to A and B');

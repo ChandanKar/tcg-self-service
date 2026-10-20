@@ -248,6 +248,20 @@ const AccessRequests = (function() {
             </article>`;
     }
 
+    /** "Meera's", for the decline dialog's title. */
+    function firstNameOf(req) {
+        return req.requesterDisplayName ? req.requesterDisplayName.trim().split(/\s+/)[0] : nameOf(req);
+    }
+
+    /** The decline dialog's subtitle: 'Use CRM UAT for 14 days · "Regression run for 4.2"'. */
+    function declineSubtitle(req) {
+        const env = req.environmentName || 'the environment';
+        const what = req.extension
+            ? `Use ${env} for ${describeRequest(req).duration}`
+            : `Use ${env}${req.durationDays ? ` for ${describeRequest(req).duration}` : ' with no end'}`;
+        return req.businessJustification ? `${what} · "${req.businessJustification}"` : what;
+    }
+
     /** Takes a decided request off the page and the sidebar badge. */
     function dropRequest(requestId) {
         pendingList = pendingList.filter(r => r.requestId !== requestId);
@@ -268,7 +282,7 @@ const AccessRequests = (function() {
             })
             .on('click' + NS, '#access-requests-view [data-action="deny"]', function() {
                 const request = pendingList.find(r => r.requestId === String($(this).data('request-id')));
-                if (request) showDenyModal(request, () => dropRequest(request.requestId));
+                if (request) showDeclineDialog(request, () => dropRequest(request.requestId));
             });
     }
 
@@ -295,53 +309,60 @@ const AccessRequests = (function() {
     }
 
     /**
-     * Deny dialog (U10-T08 turns it into the decline dialog).
+     * Decline dialog (U10-T08, AccessChange.dc.html): the reason is required and the requester
+     * sees it with the decision; "Decline request" stays off until there is one.
      *
      * @param {object} request - the pending request
-     * @param {function=} onDone - called after the request was denied
+     * @param {function=} onDone - called once the request is declined (or found already decided)
      */
-    function showDenyModal(request, onDone) {
-        const requestId = request.requestId;
+    function showDeclineDialog(request, onDone) {
+        const first = firstNameOf(request);
         Modals.show({
-            id: 'denyRequestModal',
-            title: 'Deny Access Request',
-            body: `
-                <form id="denyRequestForm">
-                    <div class="mb-3">
-                        <label class="form-label">Reason for Denial <span class="text-danger">*</span></label>
-                        <textarea class="form-control" id="denyReason" rows="3" required
-                                  placeholder="Explain why this request is being denied..."></textarea>
-                        <div class="form-text">This will be visible to the requester</div>
-                    </div>
-                </form>
-            `,
+            id: 'declineRequestModal',
+            title: `Decline ${first}'s request`,
+            body: Utils.html`
+                <p class="acd-sub">${declineSubtitle(request)}</p>
+                <form id="ar-decline-form" class="acd-form" novalidate>
+                    <label class="acd-field" for="ar-decline-reason">Reason
+                        <span class="acd-hint">${first} sees this with the decision</span></label>
+                    <textarea class="form-control" id="ar-decline-reason" rows="3" maxlength="500" required></textarea>
+                    <div class="acd-error" id="ar-decline-error" role="alert"></div>
+                </form>`,
             buttons: [
-                { text: 'Cancel', class: 'btn-secondary', dismiss: true },
-                { text: 'Deny Request', class: 'btn-danger', id: 'confirmDeny' }
+                { text: 'Cancel', class: 'btn-outline-secondary', dismiss: true },
+                { text: 'Decline request', class: 'btn-danger', id: 'ar-decline', disabled: true }
             ],
             onShow: function() {
-                $('#confirmDeny').off('click').on('click', function() {
-                    const reason = $('#denyReason').val().trim();
-
-                    if (!reason) {
-                        $('#denyReason').addClass('is-invalid');
+                $('#ar-decline-reason').trigger('focus');
+            }
+        });
+        const modal = document.getElementById('declineRequestModal');
+        $('#ar-decline-reason').on('input', function() {
+            $('#ar-decline').prop('disabled', !$(this).val().trim());
+        });
+        $('#ar-decline-form').on('submit', e => e.preventDefault());
+        $('#ar-decline').on('click', function() {
+            const reason = $('#ar-decline-reason').val().trim();
+            if (!reason) return;
+            $('#ar-decline-error').text('');
+            $(this).prop('disabled', true).text('Declining…');
+            ApiClient.post(Config.API.access.denyRequest(request.requestId), { notes: reason }, { suppressGlobalError: true })
+                .done(() => {
+                    Modals.hideWhenReady(modal);
+                    Notifications.success('Request declined.');
+                    if (onDone) onDone();
+                })
+                .fail(xhr => {
+                    if (xhr.status === 409) {
+                        Modals.hideWhenReady(modal);
+                        Notifications.warning('Someone else already reviewed this request');
+                        if (onDone) onDone();
                         return;
                     }
-
-                    $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Denying...');
-
-                    ApiClient.post(Config.API.access.denyRequest(requestId), { notes: reason })
-                        .done(function() {
-                            Modals.hide('denyRequestModal');
-                            Notifications.success('Request declined.');
-                            if (onDone) onDone();
-                        })
-                        .fail(function(xhr) {
-                            $('#confirmDeny').prop('disabled', false).html('Deny Request');
-                            Notifications.error(xhr.responseJSON?.message || 'Failed to deny request');
-                        });
+                    $('#ar-decline-error').text((xhr.responseJSON && xhr.responseJSON.message)
+                        || "The request wasn't declined. Try again.");
+                    $(this).prop('disabled', false).text('Decline request');
                 });
-            }
         });
     }
 
@@ -575,7 +596,8 @@ const AccessRequests = (function() {
         showManageAccessModal,
         describeRequest,
         updatePendingBadge,
-        model: { nameOf, initials, oldestFirst, askedText, describeRequest, approveOptions, approveBody, envOptions, cardHtml }
+        model: { nameOf, initials, oldestFirst, askedText, describeRequest, approveOptions, approveBody, envOptions, cardHtml,
+            firstNameOf, declineSubtitle }
     };
 })();
 

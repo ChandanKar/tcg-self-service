@@ -108,5 +108,11 @@ class AccessReviewConcurrencyIntegrationTest extends AbstractIntegrationTest {
         assertThat(environmentAccessRepository.findAll())
                 .filteredOn(ea -> ea.getUser().getUserId().equals(requester.getUserId())).isEmpty();
         assertThat(notificationsOfType(requester, NotificationType.ACCESS_REQUEST_DENIED)).isEqualTo(1);
+        // U10-T08: the requester sees why.
+        assertThat(notificationRepository.findByUserIdOrderByCreatedAtDesc(requester.getUserId(), PageRequest.of(0, 50)))
+                .filteredOn(n -> n.getType() == NotificationType.ACCESS_REQUEST_DENIED)
+                .extracting(n -> n.getMessage())
+                .containsExactly("Your request to use " + (env.getDisplayName() != null ? env.getDisplayName() : env.getName())
+                        + " was declined: Not needed");
     }
 }

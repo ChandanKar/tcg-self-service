@@ -368,8 +368,9 @@ public class EnvironmentAccessController {
     @PostMapping("/access-requests/{requestId}/deny")
     @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(
-            summary = "Deny access request",
-            description = "Denies a pending access request"
+            summary = "Decline access request",
+            description = "Declines a pending access request. The reason (notes, 1-500 characters) is required: "
+                    + "the requester sees it with the decision."
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -377,17 +378,21 @@ public class EnvironmentAccessController {
                     description = "Request denied successfully",
                     content = @Content(schema = @Schema(implementation = EnvironmentAccessRequestDTO.class))
             ),
-            @ApiResponse(responseCode = "400", description = "Request is not pending"),
+            @ApiResponse(responseCode = "400", description = "No reason given, or the reason is over 500 characters"),
             @ApiResponse(responseCode = "403", description = "Access denied"),
-            @ApiResponse(responseCode = "404", description = "Request not found")
+            @ApiResponse(responseCode = "404", description = "Request not found"),
+            @ApiResponse(responseCode = "409", description = "Request was already reviewed")
     })
     public ResponseEntity<EnvironmentAccessRequestDTO> denyRequest(
             @Parameter(description = "Request ID") @PathVariable String requestId,
             @Valid @RequestBody(required = false) ReviewAccessRequestDTO dto) {
         securityService.assertCanAdminister(accessService.getAccessRequest(requestId).getEnvironment().getEnvironmentId());
 
+        String reason = dto != null && dto.getNotes() != null ? dto.getNotes().trim() : "";
+        if (reason.isEmpty()) {
+            throw new ValidationException("Add a reason so the person knows what to do next");
+        }
         String reviewerUserId = userService.getCurrentUserId();
-        String reason = dto != null ? dto.getNotes() : null;
         EnvironmentAccessRequest request = accessService.denyRequest(requestId, reviewerUserId, reason);
 
         return ResponseEntity.ok(EnvironmentAccessRequestDTO.fromEntity(request));

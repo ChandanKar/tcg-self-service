@@ -64,3 +64,12 @@ test('the environment filter lists environments with waiting requests', () => {
     assert.deepEqual(plain(M.envOptions(list)),
         [{ value: '', label: 'All (3 waiting)' }, { value: 'e1', label: 'Analytics QA' }, { value: 'e2', label: 'CRM UAT' }]);
 });
+
+test('the decline dialog names the person and what they asked for', () => {
+    assert.equal(M.firstNameOf({ requesterDisplayName: 'Meera Iyer' }), 'Meera');
+    assert.equal(M.firstNameOf({ requesterEmail: 'm@x.com' }), 'm@x.com');
+    const req = { environmentName: 'CRM UAT', durationDays: 14, businessJustification: 'Regression run for 4.2' };
+    assert.equal(M.declineSubtitle(req), 'Use CRM UAT for 14 days · "Regression run for 4.2"');
+    assert.equal(M.declineSubtitle({ ...req, extension: true, durationDays: 7 }), 'Use CRM UAT for 7 more days · "Regression run for 4.2"');
+    assert.equal(M.declineSubtitle({ environmentName: 'CRM UAT' }), 'Use CRM UAT with no end');
+});

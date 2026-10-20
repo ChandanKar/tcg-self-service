@@ -228,19 +228,47 @@ test.describe('Reviewing access requests', () => {
     expect(await requestStatus(playwright, s.newRequestId)).toBe('DENIED');
   });
 
-  test('Deny… asks for a reason, then the card goes', async ({ page, playwright }) => {
+  test('Deny… opens the decline dialog; the reason is required and the requester gets it (U10-T08)', async ({ page, playwright }) => {
     const s = await seed(playwright);
     await goTo(page, '#/pending-requests');
     const card = cardOf(page, s.newRequestId);
     await card.locator('[data-action="deny"]').click();
-    await expect(page.locator('#denyRequestModal')).toBeVisible();
+
+    const dialog = page.locator('#declineRequestModal');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator('.modal-title')).toHaveText("Decline Test's request");
+    await expect(dialog.locator('.acd-sub')).toHaveText(/^Use Review E2E \d+ for 30 days · "Joining the release team"$/);
+    await expect(dialog.locator('#ar-decline-reason')).toBeFocused();
+    await expect(dialog.locator('#ar-decline')).toBeDisabled();
+    await dialog.locator('#ar-decline-reason').fill('   ');
+    await expect(dialog.locator('#ar-decline')).toBeDisabled();
     expect(await requestStatus(playwright, s.newRequestId)).toBe('PENDING');
 
-    await page.locator('#denyReason').fill('The release team is full this sprint.');
-    await page.locator('#confirmDeny').click();
+    const reason = 'CRM UAT is frozen until the 4.1 sign-off.';
+    await dialog.locator('#ar-decline-reason').fill(reason);
+    await dialog.locator('#ar-decline').click();
     await expect(page.getByText('Request declined.')).toBeVisible({ timeout: 10_000 });
+    await expect(dialog).toBeHidden();
     await expect(card).toHaveCount(0);
     expect(await requestStatus(playwright, s.newRequestId)).toBe('DENIED');
+
+    const requester = await api(playwright, SECOND_USER);
+    const envName = (await (await requester.get(`/api/v1/access-requests/${s.newRequestId}`)).json()).environmentName;
+    await expect.poll(async () => {
+      const body = await (await requester.get('/api/v1/notifications')).json();
+      return (Array.isArray(body) ? body : (body.content || [])).map((n: any) => n.message);
+    }, { timeout: 10_000 }).toContain(`Your request to use ${envName} was declined: ${reason}`);
+    await requester.dispose();
+  });
+
+  test('declining without a reason is refused by the server', async ({ playwright }) => {
+    const s = await seed(playwright);
+    const admin = await api(playwright, devIds.admin);
+    const res = await admin.post(`/api/v1/access-requests/${s.newRequestId}/deny`, { data: { notes: ' ' } });
+    expect(res.status()).toBe(400);
+    expect((await res.json()).message).toBe('Add a reason so the person knows what to do next');
+    await admin.dispose();
+    expect(await requestStatus(playwright, s.newRequestId)).toBe('PENDING');
   });
 });
 

@@ -209,6 +209,30 @@ class NotificationServiceTest {
     }
 
     @Test
+    void aDeclinedRequestTellsTheRequesterWhy() {
+        settingValues.put("notification.email.access-request-denied.enabled", "false");
+
+        service.notifyAccessRequestDenied("user-regular", "CRM UAT", "env-crm",
+                " CRM UAT is frozen until the 4.1 sign-off. ");
+
+        verify(notificationRepository).save(argThat(n -> "user-regular".equals(n.getUserId())
+                && "Request declined: CRM UAT".equals(n.getTitle())
+                && n.getMessage().equals("Your request to use CRM UAT was declined: CRM UAT is frozen until the 4.1 sign-off.")));
+        verifyNoInteractions(emailService);
+    }
+
+    @Test
+    void aDeclinedRequestEmailCarriesTheReasonWhenEmailsAreOn() {
+        settingValues.put("notification.email.access-request-denied.enabled", "true");
+        when(userRepository.findById("user-regular")).thenReturn(Optional.of(regularUser));
+
+        service.notifyAccessRequestDenied("user-regular", "CRM UAT", "env-crm", "Not this sprint");
+
+        verify(emailService).sendHtml(eq(List.of("regular@tcg.com")), eq("Request declined: CRM UAT"),
+                contains("Not this sprint"), eq(null), eq(null));
+    }
+
+    @Test
     void aBulkGrantIsOneMessageAndNoEmailUnlessAsked() {
         service.notifyBulkAccessGranted("user-regular",
                 List.of("Operator on Env A until 20 Nov", "View only on Env B, no end date"), false, "user-admin");

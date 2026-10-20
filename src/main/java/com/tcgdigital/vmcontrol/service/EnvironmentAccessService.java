@@ -344,10 +344,12 @@ public class EnvironmentAccessService {
                 request.getEnvironment().getEnvironmentId(), request.getEnvironment().getName(), reason);
 
         String requesterId = request.getRequester().getUserId();
-        String environmentName = request.getEnvironment().getName();
+        // The requester knows the environment by the name the app shows (U10-T08).
+        String environmentName = request.getEnvironment().getDisplayName() != null
+                ? request.getEnvironment().getDisplayName() : request.getEnvironment().getName();
         String environmentId = request.getEnvironment().getEnvironmentId();
         sideEffectAfterCommit("notify access request denied", requestId, () ->
-                notificationService.notifyAccessRequestDenied(requesterId, environmentName, environmentId));
+                notificationService.notifyAccessRequestDenied(requesterId, environmentName, environmentId, reason));
 
         return request;
     }

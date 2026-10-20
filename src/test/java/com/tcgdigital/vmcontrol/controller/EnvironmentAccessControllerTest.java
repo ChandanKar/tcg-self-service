@@ -296,6 +296,39 @@ class EnvironmentAccessControllerTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("Declining needs a reason (U10-T08)")
+    void denyRequest_withoutAReason_is400() throws Exception {
+        EnvironmentAccessRequest request = requestRepository.save(EnvironmentAccessRequest.create(
+                testEnvironment, testUser, AccessLevel.USER, "Release testing", null));
+
+        for (String body : new String[] {"{}", "{\"notes\":\"   \"}"}) {
+            mockMvc.perform(post("/api/v1/access-requests/{requestId}/deny", request.getRequestId())
+                            .with(asAdmin()).contentType(APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("Add a reason so the person knows what to do next"));
+        }
+        mockMvc.perform(post("/api/v1/access-requests/{requestId}/deny", request.getRequestId()).with(asAdmin()))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(get("/api/v1/access-requests/{requestId}", request.getRequestId()))
+                .andExpect(jsonPath("$.status").value("PENDING"));
+    }
+
+    @Test
+    @DisplayName("Declining with a reason keeps it on the request (U10-T08)")
+    void denyRequest_withAReason_keepsIt() throws Exception {
+        EnvironmentAccessRequest request = requestRepository.save(EnvironmentAccessRequest.create(
+                testEnvironment, testUser, AccessLevel.USER, "Release testing", null));
+
+        mockMvc.perform(post("/api/v1/access-requests/{requestId}/deny", request.getRequestId())
+                        .with(asAdmin()).contentType(APPLICATION_JSON)
+                        .content("{\"notes\":\" CRM UAT is frozen until the 4.1 sign-off. \"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DENIED"))
+                .andExpect(jsonPath("$.reviewDecisionNotes").value("CRM UAT is frozen until the 4.1 sign-off."));
+    }
+
+    @Test
     @DisplayName("Should cancel request and verify status")
     void cancelRequest_verifyStatus() throws Exception {
         // Create a pending request

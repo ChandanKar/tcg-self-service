@@ -283,9 +283,11 @@ public class NotificationService {
         }
     }
 
-    public void notifyAccessRequestDenied(String userId, String environmentName, String environmentId) {
-        String title = "Request denied: " + environmentName;
-        String message = "Your access request for environment \"" + environmentName + "\" has been denied.";
+    /** The requester learns the decision and the reviewer's reason (U10-T08). */
+    public void notifyAccessRequestDenied(String userId, String environmentName, String environmentId, String reason) {
+        String title = "Request declined: " + environmentName;
+        String message = "Your request to use " + environmentName + " was declined"
+                + (reason == null || reason.isBlank() ? "." : ": " + reason.trim());
         create(userId, NotificationType.ACCESS_REQUEST_DENIED, title, message, "ENVIRONMENT", environmentId);
         if (setting("notification.email.access-request-denied.enabled", false)) {
             sendEventEmailToUser(userId, NotificationType.ACCESS_REQUEST_DENIED, title, message);

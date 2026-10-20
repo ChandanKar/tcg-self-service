@@ -92,10 +92,13 @@ const RequestAccess = (function() {
                 return { chip: 'Approved', tone: 'ok', level, env, what,
                     extra: `approved${req.reviewedByUserName ? ` by ${req.reviewedByUserName}` : ''}${req.reviewedAt ? ` on ${day(req.reviewedAt)}` : ''}`,
                     action: { kind: 'open', label: `Open ${env}` } };
-            case 'DENIED':
-                return { chip: 'Denied', tone: 'no', level, env, what,
-                    extra: req.reviewDecisionNotes ? `"${req.reviewDecisionNotes}"` : `denied${req.reviewedByUserName ? ` by ${req.reviewedByUserName}` : ''}`,
+            case 'DENIED': {
+                // U10-T08: who declined it and the reason they gave.
+                const by = `declined${req.reviewedByUserName ? ` by ${req.reviewedByUserName}` : ''}`;
+                return { chip: 'Declined', tone: 'no', level, env, what,
+                    extra: req.reviewDecisionNotes ? `${by}: "${req.reviewDecisionNotes}"` : by,
                     action: { kind: 'again', label: 'Request again' } };
+            }
             case 'CANCELLED':
                 return { chip: 'Cancelled', tone: 'off', level, env, what, extra: `cancelled ${day(req.reviewedAt || req.createdAt)}`.trim(),
                     action: { kind: 'again', label: 'Request again' } };
