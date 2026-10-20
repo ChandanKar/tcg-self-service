@@ -123,7 +123,7 @@ test.describe('Reviewing access requests', () => {
     await expect(row).toBeVisible({ timeout: 10_000 });
     await expect(row.locator('[data-col="scope"]')).toHaveText(`Group ${s.groupName}`);
     await expect(row.locator('[data-col="duration"]')).toHaveText('30 days requested');
-    await expect(row.locator('[data-col="current"]')).toContainText(`USER until ${await day(page, s.currentExpiresAt)}`);
+    await expect(row.locator('[data-col="current"]')).toContainText(`Operator until ${await day(page, s.currentExpiresAt)}`);
     await expect(row.locator('.ra-extension-pill')).toHaveText('Extension');
 
     const fresh = page.locator('#pending-requests-table tr', {

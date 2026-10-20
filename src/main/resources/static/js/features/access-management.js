@@ -460,9 +460,9 @@ const AccessManagement = (function() {
                                 <div class="mb-3">
                                     <label class="form-label">Access Level</label>
                                     <select class="form-select" id="grant-access-level" required>
-                                        <option value="VIEWER">Viewer - View only</option>
-                                        <option value="USER" selected>User - Can perform operations</option>
-                                        <option value="ADMIN">Admin - Full control</option>
+                                        <option value="VIEWER">View only - See state, cost, history</option>
+                                        <option value="USER" selected>Operator - Start, stop and lock</option>
+                                        <option value="ADMIN">Admin - Also grant access and edit</option>
                                     </select>
                                 </div>
                                 <div class="mb-3">
@@ -585,14 +585,6 @@ const AccessManagement = (function() {
         return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
     }
 
-    /** Short relative hint for an expiry cell: "in 5d" / "today" / "3d ago". */
-    function relativeShort(ts) {
-        const days = Math.round((new Date(ts).getTime() - Date.now()) / 864e5);
-        if (days < 0) return `${-days}d ago`;
-        if (days === 0) return 'today';
-        return `in ${days}d`;
-    }
-
     /**
      * Render access table rows for current page
      */
@@ -636,15 +628,17 @@ const AccessManagement = (function() {
             : '<i class="fas fa-circle-arrow-right me-1" aria-hidden="true"></i>Direct';
 
         const grantedAbs = access.grantedAt ? formatAbsDate(access.grantedAt) : '-';
+        // U10-T03: one wording for when access ends (AccessLevels.endsText).
+        const ends = AccessLevels.endsText(access.expiresAt);
         let expiryLine;
         if (!access.expiresAt) {
-            expiryLine = '<span class="text-muted">Expires Never</span>';
-        } else if (effStatus === 'EXPIRED') {
-            expiryLine = `<span class="text-danger">Expired ${formatAbsDate(access.expiresAt)}</span>`;
-        } else if (effStatus === 'EXPIRING') {
-            expiryLine = `<span class="text-warning fw-semibold">Expires ${formatAbsDate(access.expiresAt)} &middot; ${relativeShort(access.expiresAt)}</span>`;
+            expiryLine = '<span class="text-muted">No end</span>';
+        } else if (effStatus === 'EXPIRED' || ends.ended) {
+            expiryLine = `<span class="text-danger">${Utils.escapeHtml(ends.text)}</span>`;
+        } else if (ends.soon) {
+            expiryLine = `<span class="text-warning fw-semibold">Ends ${Utils.escapeHtml(ends.text)}</span>`;
         } else {
-            expiryLine = `<span class="text-muted">Expires ${formatAbsDate(access.expiresAt)}</span>`;
+            expiryLine = `<span class="text-muted">Ends ${Utils.escapeHtml(ends.text)}</span>`;
         }
 
         const scopeChip = isGroup
@@ -664,7 +658,7 @@ const AccessManagement = (function() {
                 </td>
                 <td title="${Utils.escapeHtml(access.environmentName || access.environmentId || '')}">${Utils.escapeHtml(access.environmentName || access.environmentId || '-')}</td>
                 <td>${scopeChip}</td>
-                <td><span class="access-level-badge ${levelClass}">${access.accessLevel}</span></td>
+                <td><span class="access-level-badge ${levelClass}">${Utils.escapeHtml(AccessLevels.label(access.accessLevel))}</span></td>
                 <td>${statusBadge}</td>
                 <td class="access-src">${source}</td>
                 <td class="text-muted">${Utils.escapeHtml(access.grantedByUserName || 'System')}</td>
@@ -759,7 +753,7 @@ const AccessManagement = (function() {
                     </div>
                 </div>
                 <div class="access-request-actions">
-                    <span class="access-level-badge ${levelClass}">${request.requestedAccessLevel}</span>
+                    <span class="access-level-badge ${levelClass}">${Utils.escapeHtml(AccessLevels.label(request.requestedAccessLevel))}</span>
                     <div class="access-action-buttons">
                         <button class="btn btn-sm btn-tonal btn-success" data-action="approve" data-request-id="${request.requestId}">
                             <i class="fas fa-check"></i> Approve
@@ -1526,12 +1520,7 @@ const AccessManagement = (function() {
     }
 
     function getLevelClass(level) {
-        const classes = {
-            'ADMIN': 'level-admin',
-            'USER': 'level-user',
-            'VIEWER': 'level-viewer'
-        };
-        return classes[level] || 'level-user';
+        return AccessLevels.chipClass(level);
     }
 
     function getInitials(name) {

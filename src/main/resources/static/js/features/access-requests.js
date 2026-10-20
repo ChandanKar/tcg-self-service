@@ -110,8 +110,8 @@ const AccessRequests = (function() {
                     <strong>${Utils.escapeHtml(req.environmentName || 'Unknown')}</strong>
                 </td>
                 <td data-label="Access level">
-                    <span class="badge bg-${Config.ACCESS_LEVELS[req.requestedAccessLevel]?.color || 'secondary'}">
-                        ${Utils.escapeHtml(req.requestedAccessLevel)}
+                    <span class="access-level-badge ${AccessLevels.chipClass(req.requestedAccessLevel)}">
+                        ${Utils.escapeHtml(AccessLevels.label(req.requestedAccessLevel))}
                     </span>
                 </td>
                 <td class="ra-wrap" data-col="scope" data-label="Scope">${Utils.escapeHtml(describeRequest(req).scope)}</td>
@@ -197,12 +197,12 @@ const AccessRequests = (function() {
      * what the requester holds today. Shared with Access Management's pending list.
      */
     function describeRequest(req) {
-        const level = req.currentAccessLevel;
+        const level = req.currentAccessLevel ? AccessLevels.label(req.currentAccessLevel) : null;
         return {
             scope: req.scopeType === 'GROUP' ? `Group ${req.scopeName || req.scopeId}` : 'Whole environment',
             duration: req.durationDays ? `${req.durationDays} days requested` : 'No end date requested',
             current: !level ? 'None'
-                : req.currentExpiresAt ? `${level} until ${formatDay(req.currentExpiresAt)}` : `${level}, no expiry`,
+                : req.currentExpiresAt ? `${level} until ${formatDay(req.currentExpiresAt)}` : `${level}, no end`,
             extension: !!req.extension
         };
     }
@@ -238,7 +238,7 @@ const AccessRequests = (function() {
                     ${row('Requester', Utils.escapeHtml(request.requesterDisplayName || request.requesterEmail || 'Unknown'))}
                     ${row('Environment', Utils.escapeHtml(request.environmentName || 'Unknown'))}
                     ${row('Scope', Utils.escapeHtml(d.scope))}
-                    ${row('Access level', Utils.escapeHtml(request.requestedAccessLevel || ''))}
+                    ${row('Access level', Utils.escapeHtml(AccessLevels.label(request.requestedAccessLevel)))}
                     ${row('Duration', Utils.escapeHtml(d.duration))}
                     ${row('Current access', currentAccessHtml(request))}
                 </dl>
@@ -428,8 +428,8 @@ const AccessRequests = (function() {
                     <br><small class="text-muted">${Utils.escapeHtml(access.userEmail || '')}</small>
                 </td>
                 <td>
-                    <span class="badge bg-${Config.ACCESS_LEVELS[access.accessLevel]?.color || 'secondary'}">
-                        ${access.accessLevel}
+                    <span class="access-level-badge ${AccessLevels.chipClass(access.accessLevel)}">
+                        ${Utils.escapeHtml(AccessLevels.label(access.accessLevel))}
                     </span>
                 </td>
                 <td>${access.grantedAt ? Utils.formatRelativeTime(access.grantedAt) : '-'}</td>
