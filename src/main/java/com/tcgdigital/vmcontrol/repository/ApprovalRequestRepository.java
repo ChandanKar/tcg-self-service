@@ -39,4 +39,10 @@ public interface ApprovalRequestRepository extends JpaRepository<ApprovalRequest
     @Query("SELECT r FROM ApprovalRequest r WHERE r.status = com.tcgdigital.vmcontrol.model.ApprovalRequest.Status.PENDING "
             + "AND r.expiresAt < :now")
     List<ApprovalRequest> findExpired(@Param("now") Timestamp now);
+
+    /** How many approval requests are in a status (U05-T04). */
+    long countByStatus(ApprovalRequest.Status status);
+
+    /** The longest-waiting approval request in a status (U05-T04). */
+    java.util.Optional<ApprovalRequest> findTopByStatusOrderByCreatedAtAsc(ApprovalRequest.Status status);
 }

@@ -27,7 +27,9 @@ const Config = (function() {
 
         // Dashboard
         dashboard: {
-            summary: `${API_BASE_URL}/dashboard/summary`
+            summary: `${API_BASE_URL}/dashboard/summary`,
+            // Admin Home's "Needs attention" and health line (U05-T04); administrators only
+            attention: `${API_BASE_URL}/dashboard/attention`
         },
 
         // User Management

@@ -135,4 +135,14 @@ public interface OperationExecutionRepository extends JpaRepository<OperationExe
     @Query("SELECT e FROM OperationExecution e WHERE e.environment.environmentId = :environmentId " +
            "AND (e.status = 'pending' OR e.status = 'in_progress')")
     List<OperationExecution> findActiveForUpdate(@Param("environmentId") String environmentId);
+
+    /** Failed or partly failed runs started since a moment, newest first, with their environment (U05-T04). */
+    @Query("SELECT e FROM OperationExecution e JOIN FETCH e.environment "
+            + "WHERE (e.status = 'failed' OR e.status = 'partial_success') AND e.startedAt >= :since ORDER BY e.startedAt DESC")
+    List<OperationExecution> findFailedSinceWithEnvironment(@Param("since") java.sql.Timestamp since);
+
+    /** Runs still in progress whose last sign of life is older than a moment: stuck (U05-T04). */
+    @Query("SELECT COUNT(e) FROM OperationExecution e WHERE e.status = 'in_progress' "
+            + "AND COALESCE(e.lastHeartbeatAt, e.startedAt) < :before")
+    long countStuckBefore(@Param("before") java.sql.Timestamp before);
 }

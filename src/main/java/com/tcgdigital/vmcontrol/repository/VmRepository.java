@@ -439,6 +439,12 @@ public interface VmRepository extends JpaRepository<Vm, String> {
            "AND v.isActive = true AND v.stateDriftDetected = true")
     long countDriftInEnvironment(@Param("envId") String envId);
 
+    /** Active VMs with drift flagged, across every environment (U05-T04). */
+    long countByIsActiveTrueAndStateDriftDetectedTrue();
+
+    /** Discovered VMs not yet reviewed, across every environment (U05-T04). */
+    long countByIsActiveTrueAndDiscoveryPendingTrue();
+
     @Query("SELECT COUNT(v) FROM Vm v WHERE v.group.environment.environmentId = :envId " +
            "AND v.isActive = true AND v.discoveryPending = true")
     long countPendingInEnvironment(@Param("envId") String envId);

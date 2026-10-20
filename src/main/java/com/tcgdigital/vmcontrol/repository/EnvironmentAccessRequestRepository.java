@@ -75,6 +75,9 @@ public interface EnvironmentAccessRequestRepository extends JpaRepository<Enviro
      */
     long countByStatus(AccessRequestStatus status);
 
+    /** The longest-waiting request in a status (U05-T04: "oldest waiting 2 days"). */
+    java.util.Optional<EnvironmentAccessRequest> findTopByStatusOrderByCreatedAtAsc(AccessRequestStatus status);
+
     /**
      * Decide a request only if it is still PENDING; returns 0 when another reviewer (or the
      * requester cancelling) got there first. The status check and the write are one statement,
