@@ -87,11 +87,14 @@ class EnvironmentViewerCapabilitiesTest extends SecuredWebTestBase {
         grant.setExpiresAt(ends);
         environmentAccessRepository.saveAndFlush(grant);
 
-        mockMvc.perform(get("/api/v1/environments/" + env.getEnvironmentId()).with(asViewer()))
+        String body = mockMvc.perform(get("/api/v1/environments/" + env.getEnvironmentId()).with(asViewer()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.viewerAccessLevel").value("VIEWER"))
-                .andExpect(jsonPath("$.viewerAccessEndsAt").value(org.hamcrest.Matchers.startsWith(
-                        ends.toLocalDateTime().toLocalDate().toString())));
+                .andReturn().getResponse().getContentAsString();
+        // Compare instants: the JSON is UTC, so its date differs from the local one around midnight.
+        String endsAt = com.jayway.jsonpath.JsonPath.read(body, "$.viewerAccessEndsAt");
+        org.assertj.core.api.Assertions.assertThat(java.time.OffsetDateTime.parse(endsAt).toInstant())
+                .isEqualTo(ends.toInstant());
     }
 
     @Test
