@@ -23,6 +23,12 @@ public class VmDTO {
     private String purpose;
     private String remarks;
     private String privateIp;
+    /**
+     * Instance type from the inventory snapshot (t3.medium; an RDS instance's DB class such as
+     * db.t3.medium), null until the inventory sync has read the VM (U05-T02). Not sensitive: visible
+     * to everyone who can view the environment.
+     */
+    private String instanceType;
     private CloudProvider provider;
     private String region;
     /** The cloud id (i-..., db:..., cluster:..., EKS node group); administrators only (U01-T01). */
@@ -168,6 +174,14 @@ public class VmDTO {
 
     public void setPrivateIp(String privateIp) {
         this.privateIp = privateIp;
+    }
+
+    public String getInstanceType() {
+        return instanceType;
+    }
+
+    public void setInstanceType(String instanceType) {
+        this.instanceType = instanceType;
     }
 
     public CloudProvider getProvider() {

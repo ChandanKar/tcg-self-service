@@ -1,10 +1,13 @@
 package com.tcgdigital.vmcontrol.service;
 
+import com.tcgdigital.vmcontrol.model.CloudProvider;
 import com.tcgdigital.vmcontrol.model.Environment;
 import com.tcgdigital.vmcontrol.model.Vm;
 import com.tcgdigital.vmcontrol.model.VmGroup;
+import com.tcgdigital.vmcontrol.model.VmInventorySnapshot;
 import com.tcgdigital.vmcontrol.model.VmStateHistory;
 import com.tcgdigital.vmcontrol.model.VmStatus;
+import com.tcgdigital.vmcontrol.repository.VmInventorySnapshotRepository;
 import com.tcgdigital.vmcontrol.repository.VmStateHistoryRepository;
 import com.tcgdigital.vmcontrol.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
@@ -20,12 +23,28 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** U05-T01: when each listed VM entered its current status, from the state history (MySQL). */
+/**
+ * U05-T01/T02: when each listed VM entered its current status (state history) and its instance type
+ * (inventory snapshot), against MySQL.
+ */
 class VmListDetailsServiceTest extends AbstractIntegrationTest {
 
     @Autowired private VmListDetailsService detailsService;
     @Autowired private VmStateHistoryRepository historyRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private VmInventorySnapshotRepository inventoryRepository;
+
+    private void snapshot(Vm vm, CloudProvider provider, String instanceType, String privateIp) {
+        VmInventorySnapshot snapshot = new VmInventorySnapshot();
+        snapshot.setInventoryId(UUID.randomUUID().toString());
+        snapshot.setVm(vm);
+        snapshot.setProvider(provider);
+        snapshot.setProviderVmId(vm.getProviderVmId());
+        snapshot.setInstanceType(instanceType);
+        snapshot.setPrivateIp(privateIp);
+        snapshot.setLastRefreshedAt(Timestamp.from(Instant.now()));
+        inventoryRepository.saveAndFlush(snapshot);
+    }
 
     private static final Instant DAY = Instant.now().truncatedTo(ChronoUnit.DAYS).minus(1, ChronoUnit.DAYS);
 
@@ -80,6 +99,24 @@ class VmListDetailsServiceTest extends AbstractIntegrationTest {
 
         assertThat(details.get(running.getVmId()).stateSince().toInstant()).isEqualTo(at(7, 0));
         assertThat(details.get(stopped.getVmId()).stateSince().toInstant()).isEqualTo(at(19, 45));
+    }
+
+    @Test
+    void theInstanceTypeComesFromTheInventorySnapshot() {
+        VmGroup group = newGroup(newEnvironment("Sizes"), "data");
+        Vm ec2 = newVm(group, "api-01", VmStatus.RUNNING);
+        Vm rds = newVm(group, "orders-db", VmStatus.RUNNING);
+        Vm unread = newVm(group, "new-01", VmStatus.STOPPED);
+        snapshot(ec2, CloudProvider.AWS, "t3.medium", "10.0.1.15");
+        snapshot(rds, CloudProvider.AWS, "db.t3.medium", null);
+
+        Map<String, VmListDetailsService.Details> details = detailsService.detailsFor(List.of(ec2, rds, unread));
+
+        assertThat(details.get(ec2.getVmId()).instanceType()).isEqualTo("t3.medium");
+        assertThat(details.get(ec2.getVmId()).privateIp()).isEqualTo("10.0.1.15");
+        assertThat(details.get(rds.getVmId()).instanceType()).isEqualTo("db.t3.medium");
+        assertThat(details.get(unread.getVmId()).instanceType()).isNull();
+        assertThat(details.get(unread.getVmId()).privateIp()).isNull();
     }
 
     @Test

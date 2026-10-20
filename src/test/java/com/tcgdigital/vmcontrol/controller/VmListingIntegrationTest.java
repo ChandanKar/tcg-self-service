@@ -22,13 +22,14 @@ import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-/** U05-T01: the VM endpoints say when each VM entered its current status (stateSince). */
+/** U05-T01/T02: the VM endpoints carry stateSince and instanceType. */
 @AutoConfigureMockMvc
 class VmListingIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private VmStateHistoryRepository historyRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private com.tcgdigital.vmcontrol.repository.VmInventorySnapshotRepository inventoryRepository;
 
     private static final Instant SINCE = Instant.now().truncatedTo(ChronoUnit.SECONDS).minus(3, ChronoUnit.HOURS);
 
@@ -74,6 +75,24 @@ class VmListingIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[?(@.vmId == '" + f.withHistory().getVmId() + "')].stateSince",
                         contains(startsWith(iso(SINCE).substring(0, 16)))));
+    }
+
+    @Test
+    void theListingCarriesTheInstanceTypeForEveryoneWhoCanView() throws Exception {
+        Fixture f = fixture();
+        com.tcgdigital.vmcontrol.model.VmInventorySnapshot snapshot = new com.tcgdigital.vmcontrol.model.VmInventorySnapshot();
+        snapshot.setInventoryId(UUID.randomUUID().toString());
+        snapshot.setVm(f.withHistory());
+        snapshot.setProvider(com.tcgdigital.vmcontrol.model.CloudProvider.AWS);
+        snapshot.setProviderVmId(f.withHistory().getProviderVmId());
+        snapshot.setInstanceType("r6g.xlarge");
+        snapshot.setLastRefreshedAt(Timestamp.from(Instant.now()));
+        inventoryRepository.saveAndFlush(snapshot);
+
+        mockMvc.perform(get("/api/v1/environments/" + f.env().getEnvironmentId() + "/vms").header("X-User-Id", "admin-001"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].vms[?(@.vmId == '" + f.withHistory().getVmId() + "')].instanceType", contains("r6g.xlarge")))
+                .andExpect(jsonPath("$[0].vms[?(@.vmId == '" + f.without().getVmId() + "')].instanceType", contains(nullValue())));
     }
 
     @Test
