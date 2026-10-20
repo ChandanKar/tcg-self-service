@@ -19,7 +19,6 @@ import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import com.tcgdigital.vmcontrol.repository.OperationExecutionRepository;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
 import com.tcgdigital.vmcontrol.repository.VmGroupRepository;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,8 +42,6 @@ public class MyAccountService {
     /** How far back the activity feed looks for expired / revoked grants. */
     private static final int ENDED_ACCESS_LOOKBACK_DAYS = 90;
 
-    @Value("${entraid.enabled:false}")
-    private boolean entraIdEnabled;
 
     private final UserRepository userRepository;
     private final EnvironmentRepository environmentRepository;
@@ -102,7 +99,7 @@ public class MyAccountService {
                 user.getCompanyName(),
                 user.isAdmin(),
                 user.isEnvAdmin(),
-                entraIdEnabled ? "ENTRA_ID" : "LOCAL",
+                authMethodOfThisSession(),
                 user.getLastLoginAt(),
                 user.getPreviousLoginAt(),
                 user.getCreatedAt(),
@@ -225,5 +222,16 @@ public class MyAccountService {
         }
         String name = user.getDisplayName();
         return name != null && !name.isBlank() ? name : user.getEmail();
+    }
+
+    /**
+     * How this session signed in (U05-T05): a Microsoft (OAuth2) sign-in is ENTRA_ID, anything else
+     * (username and password, or the dev header) is LOCAL, whatever the global Entra switch says.
+     */
+    static String authMethodOfThisSession() {
+        org.springframework.security.core.Authentication auth =
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        return auth instanceof org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken
+                ? "ENTRA_ID" : "LOCAL";
     }
 }

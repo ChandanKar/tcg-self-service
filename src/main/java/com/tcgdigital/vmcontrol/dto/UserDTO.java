@@ -35,6 +35,39 @@ public class UserDTO {
     }
     /** Whether a password is set (the hash itself is never exposed). */
     private boolean hasPassword;
+    /**
+     * Whether the person signs in with Microsoft (U05-T05): linked to Entra ID, or onboarded by hand
+     * without a password (they are expected to sign in with Microsoft). Never for service accounts.
+     */
+    private boolean signsInWithMicrosoft;
+    /** MICROSOFT, PASSWORD, MICROSOFT_AND_PASSWORD, or NONE for service accounts (they use API tokens). */
+    private String signInMethod;
+
+    public boolean isSignsInWithMicrosoft() {
+        return signsInWithMicrosoft;
+    }
+
+    public void setSignsInWithMicrosoft(boolean signsInWithMicrosoft) {
+        this.signsInWithMicrosoft = signsInWithMicrosoft;
+    }
+
+    public String getSignInMethod() {
+        return signInMethod;
+    }
+
+    public void setSignInMethod(String signInMethod) {
+        this.signInMethod = signInMethod;
+    }
+
+    /** How a person signs in, from the account itself (not from the current session). */
+    static String signInMethodOf(User user) {
+        if (user.isServiceAccount()) return "NONE";
+        boolean microsoft = user.getAzureAdObjectId() != null;
+        boolean password = user.getPassword() != null && !user.getPassword().isBlank();
+        if (microsoft && password) return "MICROSOFT_AND_PASSWORD";
+        if (password) return "PASSWORD";
+        return "MICROSOFT"; // linked to Entra, or onboarded without a password and expected to use Microsoft
+    }
 
     public UserDTO() {
     }
@@ -58,6 +91,9 @@ public class UserDTO {
         dto.setUsername(user.getUsername());
         dto.setHasPassword(user.getPassword() != null && !user.getPassword().isBlank());
         dto.setServiceAccount(user.isServiceAccount());
+        String method = signInMethodOf(user);
+        dto.setSignInMethod(method);
+        dto.setSignsInWithMicrosoft(method.startsWith("MICROSOFT"));
         return dto;
     }
 

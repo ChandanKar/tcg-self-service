@@ -95,6 +95,27 @@ class MyAccountServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("authMethod is how this session signed in, not the global Entra switch (U05-T05)")
+    void profile_authMethodFollowsTheSession() {
+        var principal = new org.springframework.security.oauth2.core.user.DefaultOAuth2User(
+                java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_USER")),
+                java.util.Map.of("oid", "x", "name", "Plain User"), "name");
+        var context = org.springframework.security.core.context.SecurityContextHolder.getContext();
+        var before = context.getAuthentication();
+        try {
+            context.setAuthentication(new org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken(
+                    principal, principal.getAuthorities(), "azure"));
+            assertThat(myAccountService.getProfile(user.getUserId()).authMethod()).isEqualTo("ENTRA_ID");
+
+            context.setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                    "plain", null, java.util.List.of()));
+            assertThat(myAccountService.getProfile(user.getUserId()).authMethod()).isEqualTo("LOCAL");
+        } finally {
+            context.setAuthentication(before);
+        }
+    }
+
+    @Test
     @DisplayName("Profile lists environments the user administers")
     void profile_listsAdministeredEnvironments() {
         accessService.grantAccess(environment.getEnvironmentId(), admin.getUserId(),

@@ -7,7 +7,7 @@ import java.util.List;
  * Response of {@code GET /api/v1/users/me/profile}: the signed-in user's own account, as shown
  * on the Overview tab of the My Account panel.
  *
- * @param authMethod               {@code ENTRA_ID} or {@code LOCAL}
+ * @param authMethod               how this session signed in: {@code ENTRA_ID} (Microsoft) or {@code LOCAL} (username or dev)
  * @param previousLoginAt          the sign-in before the current one; null until the user has
  *                                 signed in twice since it started being recorded
  * @param onboardedByName          display name of the admin who onboarded this user; null for

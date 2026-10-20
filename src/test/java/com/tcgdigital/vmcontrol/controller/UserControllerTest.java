@@ -74,7 +74,10 @@ class UserControllerTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/api/v1/users"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(2)))
-                .andExpect(jsonPath("$[*].email", containsInAnyOrder("test@example.com", "admin@example.com")));
+                .andExpect(jsonPath("$[*].email", containsInAnyOrder("test@example.com", "admin@example.com")))
+                // U05-T05: how each person signs in
+                .andExpect(jsonPath("$[*].signInMethod", containsInAnyOrder("MICROSOFT", "MICROSOFT")))
+                .andExpect(jsonPath("$[*].signsInWithMicrosoft", containsInAnyOrder(true, true)));
     }
 
     @Test
