@@ -24,3 +24,35 @@ export function countRequests(page: Page, urlGlob: string | RegExp): { get(): nu
   });
   return { get: () => count };
 }
+
+/** A Spring Data page body ({content, page}) as /environments/page returns it. */
+export function pageBody<T>(content: T[], totalElements = content.length, number = 0, size = 15) {
+  return { content, page: { size, number, totalElements, totalPages: Math.ceil(totalElements / size) } };
+}
+
+/**
+ * Fakes GET /environments/page (U06-T04/T05): `respond` gets the request URL and returns the page
+ * body plus the X-Total-Vms / X-Running-Vms totals. Returns the URLs seen, newest last.
+ */
+export async function fakeEnvironmentPage(
+  page: Page,
+  respond: (url: URL) => { body: unknown; vms?: number; running?: number },
+): Promise<URL[]> {
+  const seen: URL[] = [];
+  await page.route(/\/api\/v1\/environments\/page(\?.*)?$/, (route: Route) => {
+    const url = new URL(route.request().url());
+    seen.push(url);
+    const { body, vms = 0, running = 0 } = respond(url);
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body),
+      headers: { 'X-Total-Vms': String(vms), 'X-Running-Vms': String(running) } });
+  });
+  return seen;
+}
+
+/** Per-group state counts (U05-T03) for a faked list row or Home card. */
+export function groupStates(name: string, sequencePosition: number,
+  s: Partial<Record<'running' | 'busy' | 'stopped' | 'problem' | 'unknown', number>>) {
+  const counts = { running: 0, busy: 0, stopped: 0, problem: 0, unknown: 0, ...s };
+  return { groupId: `g-${name}-${sequencePosition}`, name, sequencePosition,
+    total: Object.values(counts).reduce((a, b) => a + b, 0), ...counts };
+}

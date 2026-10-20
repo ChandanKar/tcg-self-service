@@ -381,6 +381,16 @@
     gap: 12px;
 }
 
+.needs-you-more {
+    grid-column: 1 / -1;
+    justify-self: end;
+    margin-top: -6px;
+    padding: 0;
+    border: 0;
+    font-size: var(--fs-caption);
+    text-decoration: none;
+}
+
 .needs-you-tile {
     display: flex;
     align-items: center;

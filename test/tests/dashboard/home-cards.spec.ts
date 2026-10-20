@@ -208,6 +208,19 @@ test.describe('Home', () => {
     await expect(page.locator('#ma-tab-access')).toHaveAttribute('aria-selected', 'true');
   });
 
+  test('needs-you shows two tiles and counts the rest, which open My Account on Access', async ({ page }) => {
+    const now = new Date();
+    const { body } = summary(now);
+    const ending = (i: number) => ({ kind: 'ACCESS_ENDING', environmentId: `env-${i}`, environmentName: `Env ${i}`,
+      at: new Date(now.getTime() + (i + 1) * 86_400_000).toISOString(), referenceId: `acc-${i}` });
+    await openHome(page, { ...body, needsYou: [...body.needsYou, ending(1), ending(2), ending(3)] });
+
+    await expect(page.locator('.needs-you-tile')).toHaveCount(2);
+    const more = page.getByRole('button', { name: '3 more ending soon' });
+    await more.click();
+    await expect(page.locator('#ma-tab-access')).toHaveAttribute('aria-selected', 'true');
+  });
+
   test('without environments: the empty state asks for access; no needs-you section', async ({ page }) => {
     const { body } = summary(new Date());
     await openHome(page, { ...body, environments: [], needsYou: [], summary: { ...body.summary, monthToDateCost: 0 } });

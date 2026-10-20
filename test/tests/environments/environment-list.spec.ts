@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
+import { fakeEnvironmentPage, pageBody } from '../../fixtures/mock-api';
 
 /**
  * E10-T05: the list takes the lock holder from the list payload (no lock request per row).
@@ -29,22 +30,9 @@ const ENVS = [
     groupStates: [] },
 ];
 
-function pageBody(content: any[], totalElements = content.length, number = 0, size = 15) {
-  return { content, page: { size, number, totalElements, totalPages: Math.ceil(totalElements / size) } };
-}
-
-/** Fake /environments/page; returns the request URLs it saw. */
-async function fakeList(page: Page, respond: (url: URL) => { body: any; vms?: number; running?: number }) {
-  const seen: URL[] = [];
-  await page.route(/\/api\/v1\/environments\/page(\?.*)?$/, route => {
-    const url = new URL(route.request().url());
-    seen.push(url);
-    const { body, vms = 3, running = 1 } = respond(url);
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body),
-      headers: { 'X-Total-Vms': String(vms), 'X-Running-Vms': String(running) } });
-  });
-  return seen;
-}
+/** Fake /environments/page with 3 VMs, 1 running unless the response says otherwise. */
+const fakeList = (page: Page, respond: (url: URL) => { body: any; vms?: number; running?: number }) =>
+  fakeEnvironmentPage(page, url => ({ vms: 3, running: 1, ...respond(url) }));
 
 async function openList(page: Page, role: 'user' | 'admin' = 'user') {
   await signIn(page, role);

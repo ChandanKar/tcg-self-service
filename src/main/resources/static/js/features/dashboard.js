@@ -312,9 +312,13 @@ const Dashboard = (function() {
         }).join(''));
     }
 
+    // Two tiles as in Dashboard.dc.html; the rest are counted in a link to My account (U06-T06).
+    const NEEDS_YOU_TILES = 2;
+
     function buildNeedsYou(items) {
         const now = new Date();
-        const tiles = items.map(item => HomeModel.needsYouItem(item, now)).filter(Boolean).map(tile => {
+        const all = items.map(item => HomeModel.needsYouItem(item, now)).filter(Boolean);
+        const tiles = all.slice(0, NEEDS_YOU_TILES).map(tile => {
             const text = Utils.html`<span class="needs-you-text">${tile.before}<b>${tile.environment}</b>${tile.middle}`
                 + Utils.html`<span class="mono">${tile.at}</span>${tile.after}</span>`
                 + Utils.html`<b class="needs-you-action">${tile.action}</b>`;
@@ -325,7 +329,11 @@ const Dashboard = (function() {
                     + dot + text + '</button>';
         });
         if (!tiles.length) return '';
-        return `<section class="needs-you" aria-label="Needs you">${tiles.join('')}</section>`;
+        const rest = all.length - tiles.length;
+        const more = rest > 0
+            ? `<button type="button" class="btn btn-link needs-you-more" data-action="home-needs-more">${rest} more ending soon</button>`
+            : '';
+        return `<section class="needs-you" aria-label="Needs you">${tiles.join('')}${more}</section>`;
     }
 
     function buildHomeCards(cards) {
@@ -920,4 +928,5 @@ const Dashboard = (function() {
 Actions.register('dashboard-refresh', () => Dashboard.refresh());
 // Home's "Ask for more time": My Account on the Access tab with that grant's extension form (U06-T02).
 Actions.register('home-all-activity', () => MyAccount.open('activity'));
+Actions.register('home-needs-more', () => MyAccount.open('access'));
 Actions.register('home-extend-access', el => MyAccount.open('access', { extend: el.getAttribute('data-access-id') }));
