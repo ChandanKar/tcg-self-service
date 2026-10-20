@@ -4,11 +4,14 @@ import { signIn, canSignIn, devIds } from '../../fixtures/auth';
 /**
  * E04-T06 (H15): editing a grant keeps its expiry unless the admin picks another one. The
  * modal used to reset Duration to "Permanent", so saving a notes-only edit cleared the expiry.
+ * U10-T05 (AccessChange.dc.html): changing is the "Change access for <name>" dialog (level cards,
+ * Ends: keep / 30 / 90 days / no end date, a note) and revoking the "Remove <name>'s access?" one.
  *
  * Needs dev-mode identities (TEST_DEV_USER_ID / TEST_DEV_ADMIN_ID) to seed a grant through the API.
  */
 
 declare const AccessManagement: any;
+declare const AccessChangeDialogs: any;
 declare const ContentRouter: any;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -37,16 +40,16 @@ async function openEdit(page: Page) {
   const edit = page.locator(`[data-action="edit"][data-access-id="${accessId}"]`);
   await expect(edit).toBeVisible({ timeout: 10_000 });
   await edit.click();
-  await expect(page.locator('#grantAccessModal')).toBeVisible();
+  await expect(page.locator('#accessChangeModal')).toBeVisible();
 }
 
-/** Save the modal and return the PATCH body it sent. */
+/** Save the Change access dialog and return the PATCH body it sent. */
 async function saveAndCapture(page: Page): Promise<any> {
   const [request] = await Promise.all([
     page.waitForRequest(r => r.method() === 'PATCH' && r.url().includes(`/access-grants/${accessId}`)),
-    page.locator('#btn-confirm-grant').click(),
+    page.locator('#acd-save').click(),
   ]);
-  await expect(page.locator('#grantAccessModal')).toBeHidden({ timeout: 10_000 });
+  await expect(page.locator('#accessChangeModal')).toBeHidden({ timeout: 10_000 });
   return request.postDataJSON();
 }
 
@@ -73,10 +76,15 @@ test.describe.serial('Edit grant: expiry is kept unless changed', () => {
       'Needs TEST_DEV_USER_ID and TEST_DEV_ADMIN_ID (dev mode) to seed a grant');
   });
 
-  test('opens with "Keep current expiry" selected and shows the current expiry', async ({ page }) => {
+  test('opens on the current level and "Keep <date>", with what the grant is today', async ({ page }) => {
     await openEdit(page);
-    await expect(page.locator('#grant-duration')).toHaveValue('keep');
-    await expect(page.locator('#grant-current-expiry')).toContainText('Currently expires');
+    const dialog = page.locator('#accessChangeModal');
+    await expect(dialog.locator('.modal-title')).toHaveText(/^Change access for /);
+    await expect(dialog.locator('.acd-sub')).toHaveText(/ · View only · ends \d{1,2} \w{3}/);
+    await expect(dialog.getByRole('radio', { name: /View only/ })).toBeChecked();
+    await expect(dialog.locator('.acd-level b')).toHaveText(['View only', 'Operator', 'Admin']);
+    await expect(page.locator('#acd-ends')).toHaveValue('keep');
+    await expect(page.locator('#acd-ends option').first()).toHaveText(/^Keep \d{1,2} \w{3}/);
   });
 
   test('a notes-only edit sends no expiry change and keeps the expiry', async ({ page, playwright }) => {
@@ -84,49 +92,95 @@ test.describe.serial('Edit grant: expiry is kept unless changed', () => {
     expect(before).toBeTruthy();
 
     await openEdit(page);
-    await page.locator('#grant-notes').fill('Moved to the payments team');
+    await page.locator('#acd-note').fill('Moved to the payments team');
     const body = await saveAndCapture(page);
 
-    expect(body.durationDays).toBeNull();
-    expect(body.clearExpiry).toBeNull();
+    expect(body).toEqual({ accessLevel: 'VIEWER', notes: 'Moved to the payments team' });
     const after = await storedGrant(playwright);
     expect(after.expiresAt).toBe(before);
     expect(after.notes).toBe('Moved to the payments team');
   });
 
-  test('"30 days from today" sets the expiry 30 days from now', async ({ page, playwright }) => {
+  test('a new level and "90 days from today" are sent and the row follows', async ({ page, playwright }) => {
     await openEdit(page);
-    await page.locator('#grant-duration').selectOption('30');
+    await page.locator('#accessChangeModal').getByRole('radio', { name: /Operator/ }).check();
+    await page.locator('#acd-ends').selectOption('90');
     const body = await saveAndCapture(page);
 
-    expect(body.durationDays).toBe(30);
-    expect(body.clearExpiry).toBeNull();
+    expect(body).toEqual({ accessLevel: 'USER', durationDays: 90 });
     const after = await storedGrant(playwright);
-    expect(Math.abs(new Date(after.expiresAt).getTime() - (Date.now() + 30 * DAY_MS))).toBeLessThan(5 * 60_000);
+    expect(after.accessLevel).toBe('USER');
+    expect(Math.abs(new Date(after.expiresAt).getTime() - (Date.now() + 90 * DAY_MS))).toBeLessThan(5 * 60_000);
+    await expect(page.locator(`tr[data-access-id="${accessId}"] .access-level-badge`)).toHaveText('Operator');
   });
 
-  test('"Permanent" clears the expiry, and the next edit says it is permanent', async ({ page, playwright }) => {
+  test('"No end date" clears the expiry, and the next change offers "Keep no end date"', async ({ page, playwright }) => {
     await openEdit(page);
-    await page.locator('#grant-duration').selectOption('permanent');
+    await page.locator('#acd-ends').selectOption('none');
     const body = await saveAndCapture(page);
 
     expect(body.clearExpiry).toBe(true);
     expect((await storedGrant(playwright)).expiresAt).toBeNull();
 
     await page.locator(`[data-action="edit"][data-access-id="${accessId}"]`).click();
-    await expect(page.locator('#grant-current-expiry')).toHaveText('Currently permanent');
-    await expect(page.locator('#grant-duration')).toHaveValue('keep');
+    await expect(page.locator('#acd-ends option').first()).toHaveText('Keep no end date');
+    await expect(page.locator('#acd-ends option[value="none"]')).toHaveCount(0);
+    await expect(page.locator('#acd-ends')).toHaveValue('keep');
   });
 
-  test('a new grant defaults to Permanent and cannot pick "Keep current expiry"', async ({ page }) => {
+  test('saving without a change sends nothing', async ({ page }) => {
+    await openEdit(page);
+    let patched = false;
+    page.on('request', r => { if (r.method() === 'PATCH') patched = true; });
+    await page.locator('#acd-save').click();
+    await expect(page.locator('#accessChangeModal')).toBeHidden();
+    expect(patched).toBe(false);
+  });
+
+  test('one\'s own access cannot be changed: the notice and no Save', async ({ page }) => {
+    await signIn(page, 'admin');
+    await page.waitForFunction(() => typeof AccessChangeDialogs !== 'undefined');
+    await page.evaluate(() => AccessChangeDialogs.openChange({ accessId: 'x', userDisplayName: 'Test Admin',
+      environmentName: 'Analytics QA', accessLevel: 'ADMIN', scopeType: 'ENVIRONMENT' }, null, { mine: true }));
+    await expect(page.locator('#accessChangeModal .acd-self')).toHaveText("You can't change your own access; another admin has to.");
+    await expect(page.locator('#acd-save')).toBeDisabled();
+  });
+
+  test('a new grant defaults to Permanent and has no "Keep current expiry"', async ({ page }) => {
     await signIn(page, 'admin');
     await page.waitForFunction(() => typeof AccessManagement !== 'undefined');
     await page.evaluate((id) => AccessManagement.openForEnvironment(id), envId);
     await expect(page.locator('#grantAccessModal')).toBeVisible({ timeout: 10_000 });
 
     await expect(page.locator('#grant-duration')).toHaveValue('permanent');
-    await expect(page.locator('#grant-duration option[value="keep"]')).toBeDisabled();
-    await expect(page.locator('#grant-current-expiry')).toHaveText('');
+    await expect(page.locator('#grant-duration option[value="keep"]')).toHaveCount(0);
+  });
+
+  test('Remove access: Keep access sends nothing; Remove access revokes the grant', async ({ page, playwright }) => {
+    await signIn(page, 'admin');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined' && typeof AccessManagement !== 'undefined');
+    await page.evaluate(() => { location.hash = '#/access-management'; });
+    await page.locator('#filter-environment').selectOption(envId);
+    const revoke = page.locator(`[data-action="revoke"][data-access-id="${accessId}"]`);
+    await expect(revoke).toBeVisible({ timeout: 10_000 });
+
+    let deleted = 0;
+    page.on('request', r => { if (r.method() === 'DELETE') deleted++; });
+    await revoke.click();
+    const dialog = page.locator('#accessRemoveModal');
+    await expect(dialog).toHaveAttribute('role', 'alertdialog');
+    await expect(dialog.locator('.modal-title')).toHaveText(/^Remove .+'s access\?$/);
+    await expect(dialog).toContainText('can no longer see or use');
+    await expect(dialog).toContainText('To give access back, grant it again.');
+    await dialog.getByRole('button', { name: 'Keep access' }).click();
+    await expect(dialog).toBeHidden();
+    expect(deleted).toBe(0);
+
+    await revoke.click();
+    await page.locator('#accessRemoveModal').getByRole('button', { name: 'Remove access' }).click();
+    await expect(page.locator('#accessRemoveModal')).toBeHidden({ timeout: 10_000 });
+    await expect(page.locator(`tr[data-access-id="${accessId}"]`)).toHaveCount(0);
+    expect((await storedGrant(playwright))).toBeUndefined();
   });
 });
 
@@ -170,6 +224,11 @@ test.describe('Access management list', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, 'admin');
     await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    // Let the first page finish opening, or the router can load Access management twice.
+    await expect(page.locator('#content-area h1').first()).toBeVisible({ timeout: 15_000 });
+    await page.waitForLoadState('networkidle');
+    lists.length = 0;
+    summaries = 0;
     await page.evaluate(() => { location.hash = '#/access-management'; });
     await expect(page.locator('#access-table-body tr')).toHaveCount(10, { timeout: 15_000 });
     return { lists, summaries: () => summaries, perEnvironment: () => perEnvironment };

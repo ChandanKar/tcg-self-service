@@ -3,9 +3,9 @@
  * level, and until when. One paged list from the server (GET /access-grants, 10 a page) with
  * search, environment and status filters (Active, Ending within 7 days), the header counts from
  * /access-grants/summary (the "end within 7 days" count picks the Ending filter), a History tab
- * of ended grants, and Change / Revoke per row (not on your own access). Waiting access requests
- * are a link to Access requests. The grant / change dialog and the revoke confirmation are
- * unchanged here (U10-T05 and U10-T06 replace them).
+ * of ended grants, and Change / Revoke per row (not on your own access), which open the Change
+ * access and Remove access dialogs (U10-T05). Waiting access requests are a link to Access
+ * requests. The Grant access modal is unchanged here (U10-T06 replaces it).
  */
 const AccessManagement = (function() {
     'use strict';
@@ -204,8 +204,7 @@ const AccessManagement = (function() {
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label" for="grant-duration">Expiry</label>
-                                    <select class="form-select" id="grant-duration" aria-describedby="grant-current-expiry">
-                                        <option value="keep">Keep current expiry</option>
+                                    <select class="form-select" id="grant-duration">
                                         <option value="permanent">Permanent (no expiry)</option>
                                         <option value="7">7 days from today</option>
                                         <option value="30">30 days from today</option>
@@ -213,7 +212,6 @@ const AccessManagement = (function() {
                                         <option value="180">180 days from today</option>
                                         <option value="365">1 year from today</option>
                                     </select>
-                                    <div class="form-text" id="grant-current-expiry"></div>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Notes (optional)</label>
@@ -316,8 +314,6 @@ const AccessManagement = (function() {
             actions = Utils.html`<button type="button" class="am-link" data-action="edit" data-access-id="${row.accessId}"
                     aria-label="Change ${row.userDisplayName || row.userEmail}'s access to ${row.environmentName}">Change</button>
                 <button type="button" class="am-link am-danger" data-action="revoke" data-access-id="${row.accessId}"
-                    data-user-name="${row.userDisplayName || row.userEmail}"
-                    data-scope-name="${row.scopeType === 'GROUP' ? (row.scopeName || 'this group') : 'the environment'}"
                     aria-label="Revoke ${row.userDisplayName || row.userEmail}'s access to ${row.environmentName}">Revoke</button>`;
         }
         return Utils.html`<tr data-access-id="${row.accessId}">
@@ -391,11 +387,12 @@ const AccessManagement = (function() {
             })
             .on('click' + NS, '#am-retry', () => refreshList())
             .on('click' + NS, '#access-table-body [data-action="revoke"]', function() {
-                handleRevokeAccess($(this).data('access-id'), $(this).data('user-name'), $(this).data('scope-name'));
+                const access = rows.find(a => a.accessId === $(this).data('access-id'));
+                if (access) AccessChangeDialogs.openRemove(access, refreshAccessData);
             })
             .on('click' + NS, '#access-table-body [data-action="edit"]', function() {
                 const access = rows.find(a => a.accessId === $(this).data('access-id'));
-                if (access) showGrantAccessModal(access);
+                if (access) AccessChangeDialogs.openChange(access, refreshAccessData, { mine: isMe(access) });
             });
     }
 
@@ -496,16 +493,8 @@ const AccessManagement = (function() {
     }
 
     /**
-     * Open the Grant / Edit Access modal. Pass a grant object to edit an existing one.
-     */
-    /** "Keep current expiry" only makes sense when editing an existing grant. */
-    function setKeepExpiryOption(editing) {
-        $('#grant-duration option[value="keep"]').prop('hidden', !editing).prop('disabled', !editing);
-    }
-
-    /**
-     * The expiry choice as request fields: a number of days from today, permanent (clear the
-     * expiry), or keep (send neither, so the server leaves the expiry alone).
+     * The expiry choice as request fields: a number of days from today, or permanent (clear the
+     * expiry).
      */
     function expiryChoice(value) {
         return {
@@ -514,57 +503,30 @@ const AccessManagement = (function() {
         };
     }
 
-    function showGrantAccessModal(editAccess) {
-        const editing = !!editAccess;
-        $('#grant-access-id').val(editing ? editAccess.accessId : '');
-        $('#grant-modal-title').html(`<i class="fas fa-user-${editing ? 'pen' : 'plus'} me-2"></i>${editing ? 'Edit Access' : 'Grant Access'}`);
-        $('#btn-confirm-grant-label').text(editing ? 'Save changes' : 'Grant Access');
-
-        // Scope selector + group search are only meaningful for a NEW grant.
-        $('#grant-scope-block, #grant-group-filter').toggle(!editing);
-        $('#grant-user-search, #grant-environment-search').prop('disabled', editing);
-
-        if (editing) {
-            grantUserPick = { source: 'app', email: editAccess.userEmail, displayName: editAccess.userDisplayName };
-            grantUserAutocomplete && grantUserAutocomplete.setValue(
-                `${editAccess.userDisplayName || editAccess.userEmail} (${editAccess.userEmail})`, editAccess.userEmail);
-            grantEnvironmentAutocomplete && grantEnvironmentAutocomplete.setValue(
-                editAccess.environmentName || editAccess.environmentId, editAccess.environmentId);
-            const isGroup = editAccess.scopeType === 'GROUP';
-            $('#grant-scope-env').prop('checked', !isGroup);
-            $('#grant-scope-group').prop('checked', isGroup);
-            document.getElementById('grant-group-checklist').hidden = !isGroup;
-            if (isGroup) loadGroupsForGrant(editAccess.environmentId, [editAccess.scopeId], true);
-            $('#grant-access-level').val(editAccess.accessLevel || 'USER');
-            // Editing keeps the expiry unless the admin picks another one (H15).
-            setKeepExpiryOption(true);
-            $('#grant-duration').val('keep');
-            $('#grant-current-expiry').text(editAccess.expiresAt
-                ? `Currently expires ${Utils.formatDate(editAccess.expiresAt)}`
-                : 'Currently permanent');
-            $('#grant-notes').val(editAccess.notes || '');
-        } else {
-            grantUserPick = null;
-            grantUserAutocomplete && grantUserAutocomplete.reset();
-            const preselected = selectedEnvironmentId && environments.find(env => env.environmentId === selectedEnvironmentId);
-            if (grantEnvironmentAutocomplete) {
-                preselected
-                    ? grantEnvironmentAutocomplete.setValue(preselected.displayName || preselected.name, preselected.environmentId)
-                    : grantEnvironmentAutocomplete.reset();
-            }
-            $('#grant-scope-env').prop('checked', true);
-            $('#grant-scope-group').prop('checked', false);
-            document.getElementById('grant-group-checklist').hidden = true;
-            $('#grant-group-list').html('<li class="text-muted small p-2">Pick an environment first.</li>');
-            $('#grant-group-selall').prop('checked', false);
-            $('#grant-group-filter').val('');
-            $('#grant-access-level').val('USER');
-            setKeepExpiryOption(false);
-            $('#grant-duration').val('permanent');
-            $('#grant-current-expiry').text('');
-            $('#grant-notes').val('');
+    /** Open the Grant access modal for a new grant (changing one is AccessChangeDialogs, U10-T05). */
+    function showGrantAccessModal() {
+        $('#grant-access-id').val('');
+        $('#grant-modal-title').html('<i class="fas fa-user-plus me-2"></i>Grant Access');
+        $('#btn-confirm-grant-label').text('Grant Access');
+        $('#grant-scope-block, #grant-group-filter').show();
+        $('#grant-user-search, #grant-environment-search').prop('disabled', false);
+        grantUserPick = null;
+        grantUserAutocomplete && grantUserAutocomplete.reset();
+        const preselected = selectedEnvironmentId && environments.find(env => env.environmentId === selectedEnvironmentId);
+        if (grantEnvironmentAutocomplete) {
+            preselected
+                ? grantEnvironmentAutocomplete.setValue(preselected.displayName || preselected.name, preselected.environmentId)
+                : grantEnvironmentAutocomplete.reset();
         }
-
+        $('#grant-scope-env').prop('checked', true);
+        $('#grant-scope-group').prop('checked', false);
+        document.getElementById('grant-group-checklist').hidden = true;
+        $('#grant-group-list').html('<li class="text-muted small p-2">Pick an environment first.</li>');
+        $('#grant-group-selall').prop('checked', false);
+        $('#grant-group-filter').val('');
+        $('#grant-access-level').val('USER');
+        $('#grant-duration').val('permanent');
+        $('#grant-notes').val('');
         bootstrap.Modal.getOrCreateInstance(document.getElementById('grantAccessModal')).show();
     }
 
@@ -768,8 +730,8 @@ const AccessManagement = (function() {
      * Handle grant / edit access form submission.
      */
     async function handleGrantAccess() {
-        const accessId = $('#grant-access-id').val();
-        const editing = !!accessId;
+        const editing = false; // changing a grant is AccessChangeDialogs (U10-T05)
+        const accessId = null;
         const envId = $('#grant-environment').val();
         const accessLevel = $('#grant-access-level').val();
         const { durationDays, clearExpiry } = expiryChoice($('#grant-duration').val());
@@ -833,29 +795,6 @@ const AccessManagement = (function() {
         } finally {
             $btn.prop('disabled', false).find('#btn-confirm-grant-label').text(origLabel);
         }
-    }
-
-    /**
-     * Handle revoke access (by grant id — works for environment and group scopes).
-     */
-    async function handleRevokeAccess(accessId, userName, scopeName) {
-        Modals.confirm('Revoke Access',
-            `Revoke access for <strong>${Utils.escapeHtml(userName || 'this user')}</strong> on <strong>${Utils.escapeHtml(scopeName || 'this scope')}</strong>?`,
-            async function() {
-            try {
-                await new Promise((resolve, reject) => {
-                    ApiClient.delete(Config.API.access.revokeGrant(accessId))
-                        .done(resolve)
-                        .fail(reject);
-                });
-
-                showToast('Access revoked', 'success');
-                await refreshAccessData();
-            } catch (error) {
-                console.error('Revoke access failed:', error);
-                showToast(error.responseJSON?.message || 'Failed to revoke access', 'danger');
-            }
-        }, { confirmText: 'Revoke', confirmClass: 'btn-danger', html: true });
     }
 
     /** Reload the list and the counts after a grant, change or revoke. */

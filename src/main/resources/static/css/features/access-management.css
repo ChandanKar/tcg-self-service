@@ -628,3 +628,103 @@ button.am-stat {
         padding-right: 0 !important;
     }
 }
+
+/* ===== Change access / Remove access (U10-T05, AccessChange.dc.html) ===== */
+
+.acd-sub {
+    margin: -4px 0 14px;
+    font-size: 13.5px;
+    color: var(--slate);
+}
+
+.acd-form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.acd-levels {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0 0 8px;
+    padding: 0;
+    border: 0;
+}
+
+.acd-levels legend {
+    float: none;
+    margin-bottom: 4px;
+    font-size: 13.5px;
+    font-weight: 500;
+}
+
+.acd-level {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    cursor: pointer;
+}
+
+.acd-level:has(input:checked) {
+    border: 1.5px solid var(--brand-navy);
+    background: #f5f7fc;
+}
+
+.acd-level:has(input:focus-visible) {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: 2px;
+}
+
+.acd-level input {
+    margin-top: 4px;
+    accent-color: var(--brand-navy);
+}
+
+.acd-level b {
+    display: block;
+    font-weight: 600;
+}
+
+.acd-level-desc {
+    font-size: 13px;
+    color: var(--slate);
+}
+
+.acd-field {
+    margin-top: 6px;
+    font-size: 13.5px;
+    font-weight: 500;
+}
+
+.acd-hint {
+    font-weight: 400;
+    color: var(--slate);
+}
+
+.acd-self {
+    margin: 8px 0 0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
+    font-size: 13.5px;
+}
+
+.acd-error {
+    font-size: 13.5px;
+    color: var(--brand-red-text);
+}
+
+.acd-error:empty {
+    display: none;
+}
+
+.acd-remove-text {
+    margin: 0 0 6px;
+    font-size: 14.5px;
+    line-height: 1.5;
+}
