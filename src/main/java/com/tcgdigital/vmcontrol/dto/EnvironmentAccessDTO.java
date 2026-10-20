@@ -33,6 +33,8 @@ public class EnvironmentAccessDTO {
     private Timestamp grantedAt;
     private Timestamp expiresAt;
     private Timestamp revokedAt;
+    /** When a grant that is no longer in force ended: its revocation, else its expiry (U10-T01). */
+    private Timestamp endedAt;
     private String notes;
 
     public EnvironmentAccessDTO() {
@@ -60,6 +62,11 @@ public class EnvironmentAccessDTO {
         dto.setExpiresAt(access.getExpiresAt());
         dto.setRevokedAt(access.getRevokedAt());
         dto.setNotes(access.getNotes());
+        if (access.getStatus() == AccessStatus.REVOKED && access.getRevokedAt() != null) {
+            dto.setEndedAt(access.getRevokedAt());
+        } else if (access.getExpiresAt() != null && access.getExpiresAt().getTime() <= System.currentTimeMillis()) {
+            dto.setEndedAt(access.getExpiresAt());
+        }
 
         if (access.getEnvironment() != null) {
             dto.setEnvironmentId(access.getEnvironment().getEnvironmentId());
@@ -94,6 +101,14 @@ public class EnvironmentAccessDTO {
     }
 
     // Getters and Setters
+    public Timestamp getEndedAt() {
+        return endedAt;
+    }
+
+    public void setEndedAt(Timestamp endedAt) {
+        this.endedAt = endedAt;
+    }
+
     public String getAccessId() {
         return accessId;
     }

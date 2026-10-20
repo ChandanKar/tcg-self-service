@@ -101,6 +101,43 @@ public class AccessGrantController {
         return ResponseEntity.status(HttpStatus.CREATED).body(toDtos(grants));
     }
 
+    /**
+     * One paged list of grants across the environments the caller manages (U10-T01): status
+     * ACTIVE (default), ENDING (within 7 days) or ENDED (in the last access.history-days), an
+     * optional environment and a search. An environment outside the caller's scope is a 404.
+     */
+    @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(summary = "List grants with status filters and search")
+    public org.springframework.data.domain.Page<EnvironmentAccessDTO> list(
+            @RequestParam(required = false) String environmentId,
+            @RequestParam(defaultValue = "ACTIVE") EnvironmentAccessService.GrantBucket status,
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        List<String> allowed = scope(environmentId);
+        org.springframework.data.domain.Page<EnvironmentAccess> grants = accessService.searchGrants(allowed, environmentId,
+                status, search, com.tcgdigital.vmcontrol.controller.support.Paging.of(page, size, 100));
+        List<EnvironmentAccessDTO> rows = toDtos(grants.getContent());
+        return new org.springframework.data.domain.PageImpl<>(rows, grants.getPageable(), grants.getTotalElements());
+    }
+
+    @GetMapping("/summary")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(summary = "Counts for the grants list header")
+    public com.tcgdigital.vmcontrol.dto.AccessGrantSummaryDTO summary(@RequestParam(required = false) String environmentId) {
+        return accessService.grantSummary(scope(environmentId), environmentId);
+    }
+
+    /** The environments the caller manages (null = all); 404 for one outside them. */
+    private List<String> scope(String environmentId) {
+        List<String> allowed = securityService.administeredEnvironmentIdsOrAll();
+        if (environmentId != null && !environmentId.isBlank() && allowed != null && !allowed.contains(environmentId)) {
+            throw new com.tcgdigital.vmcontrol.exception.ResourceNotFoundException("Environment", environmentId);
+        }
+        return allowed;
+    }
+
     @PatchMapping("/{accessId}")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Change a grant's level or expiry")

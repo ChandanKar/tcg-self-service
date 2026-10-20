@@ -812,6 +812,60 @@ public class EnvironmentAccessService {
                 .toList();
     }
 
+    /** The status buckets of the grants list (U10-T01). */
+    public enum GrantBucket { ACTIVE, ENDING, ENDED }
+
+    /** How long ended grants stay in the grants list (U10-T01). */
+    @org.springframework.beans.factory.annotation.Value("${access.history-days:90}")
+    private int historyDays = 90;
+
+    private static final java.util.List<String> NO_ENVIRONMENT = java.util.List.of("-");
+
+    /**
+     * Grants in the environments {@code allowed} (null = every environment, empty = none), by
+     * bucket, optionally one environment and a search over person, email, environment and group.
+     */
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<EnvironmentAccess> searchGrants(java.util.List<String> allowed,
+            String environmentId, GrantBucket bucket, String search, org.springframework.data.domain.Pageable pageable) {
+        if (allowed != null && allowed.isEmpty()) {
+            return org.springframework.data.domain.Page.empty(pageable);
+        }
+        long now = System.currentTimeMillis();
+        String q = search == null || search.isBlank() ? null
+                : "%" + search.trim().toLowerCase(java.util.Locale.ROOT).replace("%", "").replace("_", "") + "%";
+        return accessRepository.searchGrants(allowed != null, allowed != null ? allowed : NO_ENVIRONMENT,
+                blankToNull(environmentId), (bucket == null ? GrantBucket.ACTIVE : bucket).name(),
+                new Timestamp(now), new Timestamp(now + TimeUnit.DAYS.toMillis(7)),
+                new Timestamp(now - TimeUnit.DAYS.toMillis(historyDays)), q, pageable);
+    }
+
+    /** Header counts for the grants list: in force now, per level, and ending within 7 days. */
+    @Transactional(readOnly = true)
+    public com.tcgdigital.vmcontrol.dto.AccessGrantSummaryDTO grantSummary(java.util.List<String> allowed, String environmentId) {
+        if (allowed != null && allowed.isEmpty()) {
+            return new com.tcgdigital.vmcontrol.dto.AccessGrantSummaryDTO(0, 0, 0, 0, 0);
+        }
+        long now = System.currentTimeMillis();
+        java.util.List<String> ids = allowed != null ? allowed : NO_ENVIRONMENT;
+        long admins = 0, operators = 0, viewers = 0;
+        for (Object[] row : accessRepository.countActiveByLevel(allowed != null, ids, blankToNull(environmentId), new Timestamp(now))) {
+            long count = ((Number) row[1]).longValue();
+            switch ((AccessLevel) row[0]) {
+                case ADMIN -> admins += count;
+                case USER -> operators += count;
+                case VIEWER -> viewers += count;
+            }
+        }
+        long ending = accessRepository.countEnding(allowed != null, ids, blankToNull(environmentId), new Timestamp(now),
+                new Timestamp(now + TimeUnit.DAYS.toMillis(7)));
+        return new com.tcgdigital.vmcontrol.dto.AccessGrantSummaryDTO(admins + operators + viewers, admins, operators, viewers, ending);
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
     /** When a grant ended: its revocation if revoked, else its expiry. */
     public static Timestamp endedAt(EnvironmentAccess access) {
         return access.getStatus() == AccessStatus.REVOKED && access.getRevokedAt() != null

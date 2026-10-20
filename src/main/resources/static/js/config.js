@@ -63,6 +63,9 @@ const Config = (function() {
         // Environment Access
         access: {
             myEnvironments: `${API_BASE_URL}/users/me/access`,
+            // U10-T01: one paged list of grants (status ACTIVE | ENDING | ENDED, search, environmentId) and its header counts
+            grants: (params) => `${API_BASE_URL}/access-grants${params ? '?' + new URLSearchParams(params).toString() : ''}`,
+            grantsSummary: (params) => `${API_BASE_URL}/access-grants/summary${params ? '?' + new URLSearchParams(params).toString() : ''}`,
             myAccessHistory: (days = 30) => `${API_BASE_URL}/users/me/access/history?days=${days}`,
             environmentAccess: (envId) => `${API_BASE_URL}/environments/${envId}/access`,
             grantAccess: (envId) => `${API_BASE_URL}/environments/${envId}/access`,

@@ -302,4 +302,68 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
     /** Grants on one scope in a status, expired or not (group delete revokes every ACTIVE one, M2). */
     List<EnvironmentAccess> findByScopeTypeAndScopeIdAndStatus(AccessScopeType scopeType, String scopeId,
                                                                com.tcgdigital.vmcontrol.model.AccessStatus status);
+    /**
+     * Grants across the environments a reviewer may manage (U10-T01), by status bucket: ACTIVE
+     * (in force now), ENDING (in force and ending by {@code soon}), ENDED (revoked or expired since
+     * {@code since}). {@code restricted=false} means every environment ({@code allowed} is then
+     * ignored but must not be empty). {@code q} is a lower-case LIKE pattern or null. ENDING is
+     * ordered by end, ENDED by when it ended (newest first), ACTIVE by person.
+     */
+    @Query(value = "SELECT ea FROM EnvironmentAccess ea JOIN FETCH ea.user JOIN FETCH ea.environment LEFT JOIN FETCH ea.grantedBy " +
+           "WHERE (:restricted = false OR ea.environment.environmentId IN :allowed) " +
+           "AND (:environmentId IS NULL OR ea.environment.environmentId = :environmentId) " +
+           "AND ((:bucket = 'ACTIVE' AND ea.status = 'ACTIVE' AND (ea.expiresAt IS NULL OR ea.expiresAt > :now)) " +
+           "  OR (:bucket = 'ENDING' AND ea.status = 'ACTIVE' AND ea.expiresAt > :now AND ea.expiresAt <= :soon) " +
+           "  OR (:bucket = 'ENDED' AND ((ea.status = 'REVOKED' AND ea.revokedAt >= :since) " +
+           "      OR (ea.status <> 'REVOKED' AND ea.expiresAt IS NOT NULL AND ea.expiresAt <= :now AND ea.expiresAt >= :since)))) " +
+           "AND (:q IS NULL OR LOWER(ea.user.displayName) LIKE :q OR LOWER(ea.user.email) LIKE :q " +
+           "  OR LOWER(ea.environment.displayName) LIKE :q OR LOWER(ea.environment.name) LIKE :q " +
+           "  OR (ea.scopeType = 'GROUP' AND EXISTS (SELECT 1 FROM VmGroup g WHERE g.groupId = ea.scopeId AND LOWER(g.displayName) LIKE :q))) " +
+           "ORDER BY CASE WHEN :bucket = 'ENDING' THEN ea.expiresAt END ASC, " +
+           "  CASE WHEN :bucket = 'ENDED' THEN COALESCE(ea.revokedAt, ea.expiresAt) END DESC, " +
+           "  ea.user.displayName ASC, ea.environment.displayName ASC",
+           countQuery = "SELECT COUNT(ea) FROM EnvironmentAccess ea " +
+           "WHERE (:restricted = false OR ea.environment.environmentId IN :allowed) " +
+           "AND (:environmentId IS NULL OR ea.environment.environmentId = :environmentId) " +
+           "AND ((:bucket = 'ACTIVE' AND ea.status = 'ACTIVE' AND (ea.expiresAt IS NULL OR ea.expiresAt > :now)) " +
+           "  OR (:bucket = 'ENDING' AND ea.status = 'ACTIVE' AND ea.expiresAt > :now AND ea.expiresAt <= :soon) " +
+           "  OR (:bucket = 'ENDED' AND ((ea.status = 'REVOKED' AND ea.revokedAt >= :since) " +
+           "      OR (ea.status <> 'REVOKED' AND ea.expiresAt IS NOT NULL AND ea.expiresAt <= :now AND ea.expiresAt >= :since)))) " +
+           "AND (:q IS NULL OR LOWER(ea.user.displayName) LIKE :q OR LOWER(ea.user.email) LIKE :q " +
+           "  OR LOWER(ea.environment.displayName) LIKE :q OR LOWER(ea.environment.name) LIKE :q " +
+           "  OR (ea.scopeType = 'GROUP' AND EXISTS (SELECT 1 FROM VmGroup g WHERE g.groupId = ea.scopeId AND LOWER(g.displayName) LIKE :q)))")
+    Page<EnvironmentAccess> searchGrants(
+            @Param("restricted") boolean restricted,
+            @Param("allowed") Collection<String> allowed,
+            @Param("environmentId") String environmentId,
+            @Param("bucket") String bucket,
+            @Param("now") Timestamp now,
+            @Param("soon") Timestamp soon,
+            @Param("since") Timestamp since,
+            @Param("q") String q,
+            Pageable pageable);
+
+    /** Grants in force now in the reviewer's environments, counted per access level (U10-T01). */
+    @Query("SELECT ea.accessLevel, COUNT(ea) FROM EnvironmentAccess ea " +
+           "WHERE (:restricted = false OR ea.environment.environmentId IN :allowed) " +
+           "AND (:environmentId IS NULL OR ea.environment.environmentId = :environmentId) " +
+           "AND ea.status = 'ACTIVE' AND (ea.expiresAt IS NULL OR ea.expiresAt > :now) " +
+           "GROUP BY ea.accessLevel")
+    List<Object[]> countActiveByLevel(
+            @Param("restricted") boolean restricted,
+            @Param("allowed") Collection<String> allowed,
+            @Param("environmentId") String environmentId,
+            @Param("now") Timestamp now);
+
+    /** Grants in force now that end by {@code soon}, in the reviewer's environments (U10-T01). */
+    @Query("SELECT COUNT(ea) FROM EnvironmentAccess ea " +
+           "WHERE (:restricted = false OR ea.environment.environmentId IN :allowed) " +
+           "AND (:environmentId IS NULL OR ea.environment.environmentId = :environmentId) " +
+           "AND ea.status = 'ACTIVE' AND ea.expiresAt > :now AND ea.expiresAt <= :soon")
+    long countEnding(
+            @Param("restricted") boolean restricted,
+            @Param("allowed") Collection<String> allowed,
+            @Param("environmentId") String environmentId,
+            @Param("now") Timestamp now,
+            @Param("soon") Timestamp soon);
 }
