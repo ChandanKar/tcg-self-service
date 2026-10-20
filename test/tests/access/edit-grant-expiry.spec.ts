@@ -129,3 +129,101 @@ test.describe.serial('Edit grant: expiry is kept unless changed', () => {
     await expect(page.locator('#grant-current-expiry')).toHaveText('');
   });
 });
+
+/**
+ * U10-T04 (AccessManagement.dc.html): the grants list is one paged request to /access-grants plus
+ * /access-grants/summary (no request per environment), with the counts, the Ending filter, the
+ * History tab, Change / Revoke per row and "Your access" on one's own row. The API is faked.
+ */
+test.describe('Access management list', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+  });
+
+  const soon = new Date(Date.now() + 2 * DAY_MS).toISOString();
+  const later = new Date(Date.now() + 60 * DAY_MS).toISOString();
+  const grant = (i: number, extra: Record<string, unknown> = {}) => ({
+    accessId: `a-${i}`, userId: `u-${i}`, userDisplayName: `Person ${i}`, userEmail: `person${i}@example.com`,
+    environmentId: 'env-am', environmentName: 'Analytics QA', accessLevel: i % 3 === 0 ? 'ADMIN' : 'USER',
+    status: 'ACTIVE', scopeType: i === 2 ? 'GROUP' : 'ENVIRONMENT', scopeId: i === 2 ? 'g-1' : 'env-am',
+    scopeName: i === 2 ? 'Application' : 'Analytics QA', grantedByUserName: 'Sanjay Rao',
+    expiresAt: i === 1 ? soon : i === 4 ? null : later, ...extra,
+  });
+
+  async function fake(page: Page) {
+    const lists: URLSearchParams[] = [];
+    let summaries = 0;
+    let perEnvironment = 0;
+    await page.route(/\/api\/v1\/environments(\?.*)?$/, route => route.fulfill({ json: [
+      { environmentId: 'env-am', name: 'analytics-qa', displayName: 'Analytics QA', viewerCanManageAccess: true }] }));
+    await page.route(/\/api\/v1\/environments\/[^/]+\/access$/, route => { perEnvironment++; return route.fulfill({ json: [] }); });
+    await page.route(/\/api\/v1\/access-grants\/summary/, route => { summaries++; return route.fulfill({ json:
+      { total: 29, admins: 6, operators: 18, viewers: 5, endingWithin7Days: 3 } }); });
+    await page.route(/\/api\/v1\/access-grants\?/, route => {
+      const p = new URL(route.request().url()).searchParams;
+      lists.push(p);
+      const page = Number(p.get('page') || 0);
+      const rows = Array.from({ length: 29 }, (_, i) => grant(i + 1, i === 5 ? { userId: devIds.admin } : {}))
+        .slice(page * 10, page * 10 + 10);
+      return route.fulfill({ json: { content: rows, page: { size: 10, number: page, totalElements: 29, totalPages: 3 } } });
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page, 'admin');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate(() => { location.hash = '#/access-management'; });
+    await expect(page.locator('#access-table-body tr')).toHaveCount(10, { timeout: 15_000 });
+    return { lists, summaries: () => summaries, perEnvironment: () => perEnvironment };
+  }
+
+  test('one paged request and the counts; rows read Person, Environment, Level, Part, Granted by, Ends', async ({ page }) => {
+    const calls = await fake(page);
+    expect(calls.lists).toHaveLength(1);
+    expect(calls.lists[0].get('status')).toBe('ACTIVE');
+    expect(calls.lists[0].get('size')).toBe('10');
+    expect(calls.summaries()).toBe(1);
+    expect(calls.perEnvironment()).toBe(0);
+
+    await expect(page.locator('#content-area h1')).toHaveText('Access management');
+    await expect(page.locator('#am-stats')).toHaveText(/29 grants\s*6 admins\s*18 operators\s*5 view only\s*3 end within 7 days/);
+    await expect(page.locator('#access-table-head th')).toHaveText(['Person', 'Environment', 'Level', 'Part', 'Granted by', 'Ends', 'Actions']);
+    const first = page.locator('#access-table-body tr').first();
+    await expect(first.locator('td').nth(2)).toHaveText('Operator');
+    await expect(first.locator('.am-ends')).toHaveClass(/soon/);
+    await expect(page.locator('#access-table-body tr').nth(1).locator('td').nth(3)).toHaveText('Application group');
+    await expect(page.locator('#access-table-body tr').nth(3).locator('.am-ends')).toHaveText('No end');
+    await expect(first.getByRole('button', { name: /^Change Person 1's access/ })).toBeVisible();
+    await expect(first.getByRole('button', { name: /^Revoke Person 1's access/ })).toBeVisible();
+    // One's own grant cannot be changed here.
+    const mine = page.locator('#access-table-body tr').nth(5);
+    await expect(mine.locator('.am-own')).toHaveText('Your access');
+    await expect(mine.locator('[data-action="edit"]')).toHaveCount(0);
+
+    // Fits 1440x900 without a page scrollbar.
+    expect(await page.evaluate(() => {
+      const main = document.getElementById('mainContent')!;
+      return main.scrollHeight <= main.clientHeight + 1 && document.documentElement.scrollHeight <= window.innerHeight;
+    })).toBe(true);
+  });
+
+  test('the Ending count, the History tab, paging and search ask the server', async ({ page }) => {
+    const calls = await fake(page);
+
+    await page.locator('#am-ending').click();
+    await expect.poll(() => calls.lists.at(-1)?.get('status')).toBe('ENDING');
+    await expect(page.locator('#filter-status')).toHaveValue('ENDING');
+
+    await page.getByRole('tab', { name: 'History' }).click();
+    await expect.poll(() => calls.lists.at(-1)?.get('status')).toBe('ENDED');
+    await expect(page.locator('#access-table-head th').last()).toHaveText('Ended');
+    await expect(page.locator('#filter-status')).toBeHidden();
+
+    await page.getByRole('tab', { name: 'Grants' }).click();
+    await page.locator('#access-pagination').getByRole('button', { name: /^(2|Page 2|Go to page 2)$/ }).first().click();
+    await expect.poll(() => calls.lists.at(-1)?.get('page')).toBe('1');
+
+    await page.locator('#access-search').fill('priya');
+    await expect.poll(() => calls.lists.at(-1)?.get('search')).toBe('priya');
+    expect(calls.lists.at(-1)?.get('page')).toBe('0');
+    expect(calls.perEnvironment()).toBe(0);
+  });
+});

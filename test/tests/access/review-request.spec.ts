@@ -99,9 +99,11 @@ async function goTo(page: Page, hash: string) {
   await page.evaluate((h) => { location.hash = h; }, hash);
 }
 
+/** U10-T04: waiting requests left Access management for their own page (Access requests). */
 async function openAccessManagementPending(page: Page) {
   await goTo(page, '#/access-management');
-  await page.locator('#pending-tab').click();
+  await page.locator('#am-pending-link').click();
+  await expect(page).toHaveURL(/#\/pending-requests$/);
 }
 
 const day = (page: Page, ms: number) => page.evaluate((t) =>
@@ -134,12 +136,12 @@ test.describe('Reviewing access requests', () => {
     await expect(fresh.locator('.ra-extension-pill')).toHaveCount(0);
   });
 
-  test('Access Management: Approve opens a dialog and approves nothing until confirmed; Escape cancels',
+  test('Access management links to the waiting requests; Approve opens a dialog and approves nothing until confirmed; Escape cancels',
     async ({ page, playwright }) => {
       const s = await seed(playwright);
       await openAccessManagementPending(page);
 
-      const card = page.locator(`.access-request-card[data-request-id="${s.extensionRequestId}"]`);
+      const card = page.locator('#pending-requests-table tr', { has: page.locator(`[data-request-id="${s.extensionRequestId}"]`) });
       await expect(card).toBeVisible({ timeout: 10_000 });
       await expect(card.locator('[data-col="scope"]')).toHaveText(`Group ${s.groupName}`);
       await expect(card.locator('[data-col="duration"]')).toHaveText('30 days requested');
@@ -163,7 +165,7 @@ test.describe('Reviewing access requests', () => {
     const s = await seed(playwright);
     await openAccessManagementPending(page);
 
-    const card = page.locator(`.access-request-card[data-request-id="${s.newRequestId}"]`);
+    const card = page.locator('#pending-requests-table tr', { has: page.locator(`[data-request-id="${s.newRequestId}"]`) });
     await card.locator('[data-action="approve"]').click();
     await page.locator('#approveDuration').selectOption('none');
     await page.locator('#confirmApprove').click();
@@ -199,7 +201,7 @@ test.describe('Reviewing access requests', () => {
     const s = await seed(playwright);
     await openAccessManagementPending(page);
 
-    const card = page.locator(`.access-request-card[data-request-id="${s.newRequestId}"]`);
+    const card = page.locator('#pending-requests-table tr', { has: page.locator(`[data-request-id="${s.newRequestId}"]`) });
     await card.locator('[data-action="approve"]').click();
     await expect(page.locator('#approveRequestModal')).toBeVisible();
 

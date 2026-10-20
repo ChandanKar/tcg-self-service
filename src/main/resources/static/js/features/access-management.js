@@ -1,31 +1,31 @@
 /**
- * Access Management Feature Module
- * Admin view for managing user access to environments
- * Handles: view access, grant/revoke access, approve/deny requests
+ * Access management (U10-T04, AccessManagement.dc.html): who can use which environment, at what
+ * level, and until when. One paged list from the server (GET /access-grants, 10 a page) with
+ * search, environment and status filters (Active, Ending within 7 days), the header counts from
+ * /access-grants/summary (the "end within 7 days" count picks the Ending filter), a History tab
+ * of ended grants, and Change / Revoke per row (not on your own access). Waiting access requests
+ * are a link to Access requests. The grant / change dialog and the revoke confirmation are
+ * unchanged here (U10-T05 and U10-T06 replace them).
  */
 const AccessManagement = (function() {
     'use strict';
 
-    // Constants
     const PAGE_SIZE = 10;
-    const STATUS_LABEL = {
-        ACTIVE: 'Active', EXPIRING: 'Expiring', EXPIRED: 'Expired',
-        PENDING: 'Pending', REVOKED: 'Revoked'
-    };
+    const NS = '.accessMgmt';
 
     // State
     let environments = [];
-    let allAccess = [];
-    let filteredAccess = [];
-    let pendingRequests = [];
-    let activityLogs = [];
+    let rows = [];
+    let total = 0;
+    let summary = null;
+    let pendingCount = 0;
+    let tab = 'grants';
     let selectedEnvironmentId = '';
-    let currentPage = 1;
     let currentSearch = '';
-    let currentStatusFilter = '';
-    let currentScopeFilter = '';
+    let currentStatus = 'ACTIVE';
+    let currentPage = 0;
 
-    // Autocomplete instances for the Grant Access modal (initialized in bindEvents)
+    // Autocomplete instances for the Grant Access modal (initialized in bindModalEvents)
     let grantEnvironmentAutocomplete = null;
     let grantUserAutocomplete = null;
 
@@ -39,9 +39,6 @@ const AccessManagement = (function() {
     // Set by openForEnvironment() before navigating here; consumed once the view renders.
     let pendingOpenEnvId = null;
 
-    /**
-     * Initialize and load Access Management view
-     */
     // Navigation token of the current visit (see the page contract in core/router.js).
     let pageToken = null;
 
@@ -49,368 +46,108 @@ const AccessManagement = (function() {
         return pageToken !== null && ContentRouter.isCurrent(pageToken);
     }
 
+    function call(url) {
+        return new Promise((resolve, reject) => {
+            ApiClient.get(url, { suppressGlobalError: true }).done(resolve).fail(reject);
+        });
+    }
+
     /** Router loader. */
-    function load() {
+    async function load() {
         pageToken = ContentRouter.token();
         ContentRouter.onLeave(teardown);
         if (!Auth.isEnvAdmin()) {
             $('#content-area').html('<div class="alert alert-danger m-3">Access denied. Admin or Env Admin only.</div>');
             return;
         }
-
-        showLoading();
-        fetchInitialData();
-    }
-
-    /** Runs when the user leaves Access Management: drop the autocomplete outside-click handlers. */
-    function teardown() {
-        $(document).off('.accessAutocomplete');
-    }
-
-    /**
-     * Show loading state
-     */
-    function showLoading() {
-        $('#content-area').html(`
-            <div class="d-flex justify-content-center align-items-center" style="height: 200px;">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-            </div>
-        `);
-    }
-
-    /**
-     * Fetch initial data: environments, pending requests, and activity logs
-     */
-    async function fetchInitialData() {
+        tab = 'grants';
+        currentPage = 0;
+        Loading.showPage('Loading access…');
         try {
-            const [envList, requests] = await Promise.all([
-                fetchEnvironments(),
-                fetchPendingRequests()
+            const [envList, pending] = await Promise.all([
+                call(Config.API.environments.list),
+                call(Config.API.access.pendingRequests).catch(() => [])
             ]);
             if (!isActive()) return;
-
-            environments = envList || [];
-            pendingRequests = requests || [];
-
-            [allAccess, activityLogs] = await Promise.all([
-                fetchAccessForSelection(selectedEnvironmentId),
-                fetchActivityLogsForSelection(selectedEnvironmentId)
-            ]);
-            if (!isActive()) return;
-            filteredAccess = [...allAccess];
-
-            currentPage = 1;
+            environments = Array.isArray(envList) ? envList : [];
+            pendingCount = Array.isArray(pending) ? pending.length : 0;
+            if (selectedEnvironmentId && !environments.some(e => e.environmentId === selectedEnvironmentId)) {
+                selectedEnvironmentId = '';
+            }
             render();
+            await refreshList();
+            applyPendingOpen();
         } catch (error) {
             if (!isActive()) return;
-            console.error('Failed to load access management data:', error);
-            if (error.status === 403) {
-                showError('Access denied. You do not have permission to manage access.');
-            } else {
-                showError('Failed to load data. Please try again.');
-            }
+            showError(error && error.status === 403
+                ? 'You do not have permission to manage access.' : "Access didn't load. Try again in a moment.");
         }
     }
 
-    /** Grant, edit and revoke follow the server's flag for each environment (U02-T02). */
+    /** Runs when the user leaves Access management. */
+    function teardown() {
+        $(document).off('.accessAutocomplete');
+        $(document).off(NS);
+    }
+
+    function showError(message) {
+        $('#content-area').html(Utils.html`<div class="content-view"><div class="content-header"><h1>Access management</h1></div>
+            <div class="alert alert-danger" role="alert">${message}</div></div>`);
+    }
+
+    /** Grant, change and revoke follow the server's flag for each environment (U02-T02). */
     function canManageAccessTo(environmentId) {
         const env = environments.find(e => e.environmentId === environmentId);
         return !!env && env.viewerCanManageAccess === true;
     }
 
-    /**
-     * Fetch all environments
-     */
-    function fetchEnvironments() {
-        return new Promise((resolve, reject) => {
-            ApiClient.get(Config.API.environments.list)
-                .done(resolve)
-                .fail(reject);
-        });
+    function isMe(row) {
+        return typeof Auth !== 'undefined' && Auth.getUserId && row.userId === Auth.getUserId();
     }
 
-    /**
-     * Fetch access list for an environment
-     */
-    function fetchEnvironmentAccess(envId) {
-        return new Promise((resolve, reject) => {
-            ApiClient.get(Config.API.access.environmentAccess(envId))
-                .done(resolve)
-                .fail(function(xhr) {
-                    if (xhr.status === 404) {
-                        resolve([]);
-                    } else {
-                        reject(xhr);
-                    }
-                });
-        });
-    }
+    // ---- page ----
 
-    /**
-     * Fetch access list for the current environment selection.
-     * Empty selection means all environments.
-     */
-    async function fetchAccessForSelection(envId) {
-        if (envId) {
-            return fetchEnvironmentAccess(envId);
-        }
-
-        const accessLists = await Promise.all(
-            environments.map(env => fetchEnvironmentAccess(env.environmentId))
-        );
-        return accessLists.flat();
-    }
-
-    /**
-     * Fetch activity logs for an environment (access-related events only, latest 25)
-     */
-    function fetchActivityLogs(envId) {
-        if (!envId) return Promise.resolve([]);
-        return new Promise((resolve) => {
-            ApiClient.get(`${Config.API.audit.byEnvironment(envId)}?page=0&size=25`)
-                .done(function(data) {
-                    const entries = (data && data.content) ? data.content : (Array.isArray(data) ? data : []);
-                    resolve(filterAccessActivity(entries));
-                })
-                .fail(function() {
-                    resolve([]);
-                });
-        });
-    }
-
-    /**
-     * Fetch access-related activity for the current environment selection.
-     * Empty selection means all access-related activity visible to the admin.
-     */
-    function fetchActivityLogsForSelection(envId) {
-        if (envId) {
-            return fetchActivityLogs(envId);
-        }
-
-        return new Promise((resolve) => {
-            ApiClient.get(`${Config.API.audit.allLogs}?page=0&size=50`)
-                .done(function(data) {
-                    const entries = (data && data.content) ? data.content : (Array.isArray(data) ? data : []);
-                    resolve(filterAccessActivity(entries));
-                })
-                .fail(function() {
-                    resolve([]);
-                });
-        });
-    }
-
-    function filterAccessActivity(entries) {
-        const accessActions = ['ACCESS_REQUESTED', 'ACCESS_GRANTED', 'ACCESS_REVOKED', 'ACCESS_DENIED'];
-        return entries.filter(e => accessActions.includes(e.action));
-    }
-
-    /**
-     * Fetch pending access requests
-     */
-    function fetchPendingRequests() {
-        return new Promise((resolve, reject) => {
-            ApiClient.get(Config.API.access.pendingRequests)
-                .done(resolve)
-                .fail(function(xhr) {
-                    if (xhr.status === 404) {
-                        resolve([]);
-                    } else {
-                        reject(xhr);
-                    }
-                });
-        });
-    }
-
-    /**
-     * Show error state
-     */
-    function showError(message) {
-        $('#content-area').html(`
-            <div class="content-view">
-                <div class="content-header">
-                    <h1>Access Management</h1>
-                </div>
-                <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-circle me-2"></i>${Utils.escapeHtml(message)}
-                </div>
-            </div>
-        `);
-    }
-
-    /**
-     * Render the complete view
-     */
     function render() {
-        const html = buildViewHtml();
-        $('#content-area').html(html);
-        renderAccessTable();
-        renderAccessPagination();
-        renderPendingRequestsTable();
-        renderActivityLogsTable();
-        bindEvents();
-        applyPendingOpen();
-    }
-
-    /**
-     * Build main view HTML structure
-     */
-    function buildViewHtml() {
-        const stats = calculateStats();
-        const envOptions = environments.map(env =>
-            `<option value="${env.environmentId}" ${env.environmentId === selectedEnvironmentId ? 'selected' : ''}>
-                ${Utils.escapeHtml(env.displayName || env.name)}
-            </option>`
-        ).join('');
-
-        const envName = getSelectedEnvironmentName();
-
-        return `
-            <div class="content-view" id="access-management-view">
-                <!-- Header -->
-                <div class="content-header">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <h1>Access Management</h1>
-                            <p>Grant or revoke user access to environments</p>
-                        </div>
-                        <div class="header-actions">
-                            <button type="button" class="btn btn-ghost btn-sm" id="btn-refresh-access" title="Refresh" aria-label="Refresh">
-                                <i class="fas fa-sync-alt" aria-hidden="true"></i>
-                            </button>
-                        </div>
-                    </div>
+        const canGrant = environments.some(e => e.viewerCanManageAccess === true);
+        const waiting = pendingCount > 0
+            ? `<a class="am-waiting" href="#/pending-requests" id="am-pending-link">${pendingCount} access request${pendingCount === 1 ? '' : 's'} waiting</a>` : '';
+        const grantBtn = canGrant ? `<button type="button" class="btn btn-primary" id="btn-grant-access">
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"></path></svg>
+                Grant access</button>` : '';
+        const envOptions = ['<option value="">All environments</option>'].concat(environments.map(env =>
+            Utils.html`<option value="${env.environmentId}" ${env.environmentId === selectedEnvironmentId ? 'selected' : ''}>${env.displayName || env.name}</option>`)).join('');
+        $('#content-area').html(`
+            <div class="content-view am-page" id="access-management-view">
+                ${PageHeader.markup({ title: 'Access management',
+                    summaryHtml: 'Who can use which environment, at what level, and until when.',
+                    actionsHtml: waiting + grantBtn, helpPage: 'access-management', helpLabel: 'Access management' })}
+                <div class="am-stats" id="am-stats" aria-live="polite"></div>
+                <div class="am-tabs" role="tablist" aria-label="Access">
+                    <button type="button" role="tab" class="am-tab" id="access-tab-grants" aria-selected="${tab === 'grants'}" aria-controls="am-panel" data-am-tab="grants">Grants</button>
+                    <button type="button" role="tab" class="am-tab" id="access-tab-history" aria-selected="${tab === 'history'}" aria-controls="am-panel" data-am-tab="history">History</button>
                 </div>
-
-                <!-- Filters Bar -->
-                <div class="access-filters-bar">
-                    <div class="search-input-wrapper">
-                        <div class="input-group input-group-sm">
-                            <span class="input-group-text"><i class="fas fa-search"></i></span>
-                            <input type="text" class="form-control" id="access-search"
-                                   placeholder="Search by name or email..." value="${Utils.escapeHtml(currentSearch)}">
-                            <button class="btn btn-primary" type="button" id="btn-access-search" title="Search" aria-label="Search">
-                                <i class="fas fa-arrow-right" aria-hidden="true"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <select class="form-select form-select-sm" id="filter-environment">
-                        <option value="">All Environments</option>
-                        ${envOptions}
+                <div class="am-filters">
+                    <label class="am-search">
+                        <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="5.5"></circle><path d="m13.5 13.5 3.5 3.5"></path></svg>
+                        <span class="visually-hidden">Search people</span>
+                        <input type="search" id="access-search" placeholder="Name or email" autocomplete="off" value="${Utils.escapeHtml(currentSearch)}">
+                    </label>
+                    <select class="form-select" id="filter-environment" aria-label="Environment">${envOptions}</select>
+                    <select class="form-select" id="filter-status" aria-label="Status" ${tab === 'history' ? 'hidden' : ''}>
+                        <option value="ACTIVE" ${currentStatus === 'ACTIVE' ? 'selected' : ''}>Active</option>
+                        <option value="ENDING" ${currentStatus === 'ENDING' ? 'selected' : ''}>Ending within 7 days</option>
                     </select>
-                    <select class="form-select form-select-sm" id="filter-status">
-                        <option value="">Any status</option>
-                        <option value="ACTIVE">Active</option>
-                        <option value="EXPIRING">Expiring &le; 7d</option>
-                        <option value="EXPIRED">Expired</option>
-                    </select>
-                    <select class="form-select form-select-sm" id="filter-scope">
-                        <option value="">Any scope</option>
-                        <option value="ENVIRONMENT">Environment</option>
-                        <option value="GROUP">Group</option>
-                    </select>
-                    ${environments.some(e => e.viewerCanManageAccess === true) ? `<button class="btn btn-primary btn-sm" id="btn-grant-access">
-                        <i class="fas fa-plus me-1"></i>Grant Access
-                    </button>` : ''}
                 </div>
-
-                <!-- Stats Row -->
-                <div class="access-stats-row">${buildStatsRowHtml(stats)}</div>
-
-                <!-- Tabs -->
-                <ul class="nav nav-tabs access-tabs" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="grants-tab" data-bs-toggle="tab"
-                                data-bs-target="#grants-pane" type="button" role="tab">
-                            Grants <span class="access-tab-count" id="grants-tab-count">${allAccess.length}</span>
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="pending-tab" data-bs-toggle="tab"
-                                data-bs-target="#pending-pane" type="button" role="tab">
-                            Pending Requests
-                            <span class="access-tab-count${pendingRequests.length ? ' warn' : ''}" id="pending-tab-count">${pendingRequests.length}</span>
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="activity-tab" data-bs-toggle="tab"
-                                data-bs-target="#activity-pane" type="button" role="tab">
-                            Activity Log
-                        </button>
-                    </li>
-                </ul>
-
-                <div class="tab-content access-tab-content">
-                    <!-- Grants -->
-                    <div class="tab-pane fade show active" id="grants-pane" role="tabpanel" aria-labelledby="grants-tab">
-                        <section class="access-panel">
-                            <div class="access-panel-header">
-                                <div>
-                                    <h5><i class="fas fa-users me-2"></i>Environment &amp; Group Access</h5>
-                                    <p id="access-scope-label">${Utils.escapeHtml(envName)}</p>
-                                </div>
-                                <span class="access-panel-count">${filteredAccess.length} grants</span>
-                            </div>
-                            <div class="access-table-shell">
-                                <div class="access-table-wrapper">
-                                    <table class="table table-hover access-table access-grants-table mb-0 table-cards">
-                                        <colgroup>
-                                            <col style="width: 19%;"><col style="width: 13%;"><col style="width: 11%;">
-                                            <col style="width: 8%;"><col style="width: 10%;"><col style="width: 9%;">
-                                            <col style="width: 10%;"><col style="width: 12%;"><col style="width: 8%;">
-                                        </colgroup>
-                                        <thead>
-                                            <tr>
-                                                <th>User</th>
-                                                <th>Environment</th>
-                                                <th>Scope</th>
-                                                <th>Level</th>
-                                                <th>Status</th>
-                                                <th>Source</th>
-                                                <th>Granted by</th>
-                                                <th>Granted / Expires</th>
-                                                <th class="text-end">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="access-table-body">
-                                            <!-- Populated by renderAccessTable() -->
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <div id="access-pagination" class="pagination-bar-wrap"></div>
-                            </div>
-                        </section>
+                <div class="am-card" id="am-panel" role="tabpanel" aria-labelledby="access-tab-${tab}">
+                    <div class="am-table-wrap">
+                        <table class="am-table" id="access-table">
+                            <thead id="access-table-head"></thead>
+                            <tbody id="access-table-body"></tbody>
+                        </table>
                     </div>
-
-                    <!-- Pending Requests -->
-                    <div class="tab-pane fade" id="pending-pane" role="tabpanel" aria-labelledby="pending-tab">
-                        <section class="access-panel">
-                            <div class="access-panel-header">
-                                <div>
-                                    <h5><i class="fas fa-clipboard-check me-2"></i>Pending Requests</h5>
-                                    <p>Access requests awaiting your review</p>
-                                </div>
-                            </div>
-                            <div id="pending-table-body" class="access-request-list"></div>
-                        </section>
-                    </div>
-
-                    <!-- Activity -->
-                    <div class="tab-pane fade" id="activity-pane" role="tabpanel" aria-labelledby="activity-tab">
-                        <section class="access-panel">
-                            <div class="access-panel-header">
-                                <div>
-                                    <h5><i class="fas fa-history me-2"></i>Activity Log</h5>
-                                    <p>Recent access events &mdash; <span class="access-activity-scope">${Utils.escapeHtml(envName)}</span></p>
-                                </div>
-                            </div>
-                            <div id="activity-log-body" class="access-activity-list"></div>
-                        </section>
-                    </div>
+                    <div class="pagination-bar-wrap" id="access-pagination"></div>
                 </div>
             </div>
-
             <!-- Grant Access Modal -->
             <div class="modal fade" id="grantAccessModal" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog">
@@ -494,435 +231,176 @@ const AccessManagement = (function() {
                     </div>
                 </div>
             </div>
-
-            <!-- Deny Request Modal -->
-            <div class="modal fade" id="denyRequestModal" tabindex="-1" aria-hidden="true">
-                <div class="modal-dialog modal-sm">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title"><i class="fas fa-times-circle me-2 text-danger"></i>Deny Request</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body">
-                            <input type="hidden" id="deny-request-id">
-                            <div class="mb-3">
-                                <label class="form-label">Reason for denial</label>
-                                <textarea class="form-control" id="deny-reason" rows="3"
-                                          placeholder="Enter reason..."></textarea>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-                            <button type="button" class="btn btn-danger btn-sm" id="btn-confirm-deny">
-                                <i class="fas fa-times me-1"></i>Deny
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
+        `);
+        bindEvents();
+        bindModalEvents();
     }
 
-    /**
-     * Calculate statistics
-     */
-    function calculateStats() {
-        return {
-            totalAccess: allAccess.length,
-            admins: allAccess.filter(a => a.accessLevel === 'ADMIN').length,
-            users: allAccess.filter(a => a.accessLevel === 'USER').length,
-            viewers: allAccess.filter(a => a.accessLevel === 'VIEWER').length,
-            environmentScope: allAccess.filter(a => a.scopeType !== 'GROUP').length,
-            groupScope: allAccess.filter(a => a.scopeType === 'GROUP').length,
-            expiringSoon: allAccess.filter(a => getEffectiveStatus(a) === 'EXPIRING').length,
-            pending: pendingRequests.length
-        };
+    function drawStats() {
+        const s = summary || { total: 0, admins: 0, operators: 0, viewers: 0, endingWithin7Days: 0 };
+        const n = (value, label) => `<span class="am-stat"><b>${value}</b> ${label}</span>`;
+        const ending = s.endingWithin7Days > 0
+            ? `<button type="button" class="am-stat am-stat-soon" id="am-ending" aria-label="Show the ${s.endingWithin7Days} grants that end within 7 days"><b>${s.endingWithin7Days}</b> end within 7 days</button>`
+            : n(0, 'end within 7 days');
+        $('#am-stats').html(n(s.total, s.total === 1 ? 'grant' : 'grants') + n(s.admins, s.admins === 1 ? 'admin' : 'admins')
+            + n(s.operators, s.operators === 1 ? 'operator' : 'operators') + n(s.viewers, 'view only') + ending);
     }
 
-    /**
-     * Build the inline stats strip. Counts are grants (a user with access to N environments
-     * shows as N grants), not distinct users.
-     */
-    function buildStatsRowHtml(stats) {
-        return `
-            <div class="access-stat-item"><span class="stat-value">${stats.totalAccess}</span><span class="stat-label">grants</span></div>
-            <span class="access-stat-sep">|</span>
-            <div class="access-stat-item"><span class="stat-value text-danger">${stats.admins}</span><span class="stat-label">Admin</span></div>
-            <div class="access-stat-item"><span class="stat-value text-primary">${stats.users}</span><span class="stat-label">User</span></div>
-            <div class="access-stat-item"><span class="stat-value text-secondary">${stats.viewers}</span><span class="stat-label">Viewer</span></div>
-            <span class="access-stat-sep">|</span>
-            <div class="access-stat-item"><span class="stat-value">${stats.environmentScope}</span><span class="stat-label">environment</span></div>
-            <div class="access-stat-item"><span class="stat-value">${stats.groupScope}</span><span class="stat-label">group</span></div>
-            <span class="access-stat-sep">|</span>
-            <div class="access-stat-item">
-                <i class="fas fa-triangle-exclamation text-warning" aria-hidden="true"></i>
-                <span class="stat-value text-warning">${stats.expiringSoon}</span><span class="stat-label">expiring &le; 7d</span>
-            </div>`;
-    }
-
-    /**
-     * Reduce a grant's raw status + expiry to one display state:
-     * ACTIVE | EXPIRING (active, expires within 7 days) | EXPIRED | PENDING | REVOKED.
-     */
-    function getEffectiveStatus(access) {
-        const s = access.status || 'ACTIVE';
-        if (s === 'REVOKED') return 'REVOKED';
-        if (s === 'PENDING') return 'PENDING';
-        if (access.expiresAt) {
-            const ms = new Date(access.expiresAt).getTime() - Date.now();
-            if (s === 'EXPIRED' || ms <= 0) return 'EXPIRED';
-            if (ms <= 7 * 864e5) return 'EXPIRING';
-        } else if (s === 'EXPIRED') {
-            return 'EXPIRED';
+    /** Fetch the current page and the counts from the server, then draw them. */
+    async function refreshList() {
+        const token = pageToken;
+        const params = { page: currentPage, size: PAGE_SIZE, status: tab === 'history' ? 'ENDED' : currentStatus };
+        if (selectedEnvironmentId) params.environmentId = selectedEnvironmentId;
+        if (currentSearch.trim()) params.search = currentSearch.trim();
+        const summaryParams = selectedEnvironmentId ? { environmentId: selectedEnvironmentId } : null;
+        $('#access-table-body').attr('aria-busy', 'true');
+        try {
+            const [page, counts] = await Promise.all([
+                call(Config.API.access.grants(params)),
+                call(Config.API.access.grantsSummary(summaryParams))
+            ]);
+            if (!ContentRouter.isCurrent(token)) return;
+            rows = (page && page.content) || [];
+            total = page && page.page ? page.page.totalElements : (page && page.totalElements) || rows.length;
+            summary = counts;
+            drawStats();
+            drawTable();
+        } catch (error) {
+            if (!ContentRouter.isCurrent(token)) return;
+            rows = [];
+            total = 0;
+            $('#access-table-body').html('<tr><td colspan="7" class="am-empty" role="alert">The grants didn\'t load. <button type="button" class="am-link" id="am-retry">Try again</button></td></tr>');
+        } finally {
+            $('#access-table-body').attr('aria-busy', 'false');
         }
-        return 'ACTIVE';
     }
 
-    /** "12 Aug 2025" — an absolute date is clearer than "3 months ago" for a governance table. */
-    function formatAbsDate(ts) {
-        const d = new Date(ts);
-        if (isNaN(d.getTime())) return '-';
-        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    function partText(row) {
+        return row.scopeType === 'GROUP' ? `${row.scopeName || row.scopeId} group` : 'Whole';
     }
 
-    /**
-     * Render access table rows for current page
-     */
-    function renderAccessTable() {
-        const startIndex = (currentPage - 1) * PAGE_SIZE;
-        const endIndex = startIndex + PAGE_SIZE;
-        const pageAccess = filteredAccess.slice(startIndex, endIndex);
-        $('.access-panel-count').text(`${filteredAccess.length} grant${filteredAccess.length !== 1 ? 's' : ''}`);
-
-        if (pageAccess.length === 0) {
-            const anyFilter = currentSearch || currentStatusFilter || currentScopeFilter;
-            $('#access-table-body').html(`
-                <tr>
-                    <td colspan="9" class="text-center text-muted py-4">
-                        <i class="fas fa-users-slash fa-2x mb-2 d-block opacity-50"></i>
-                        ${anyFilter ? 'No grants match your filters' : 'No grants for this selection'}
-                    </td>
-                </tr>
-            `);
-            return;
-        }
-
-        const rows = pageAccess.map(access => buildAccessRow(access)).join('');
-        $('#access-table-body').html(rows);
-    }
-
-    /**
-     * Build a single access row
-     */
-    function buildAccessRow(access) {
-        const levelClass = getLevelClass(access.accessLevel);
-        const initials = getInitials(access.userDisplayName || access.userEmail);
-        const isGroup = access.scopeType === 'GROUP';
-
-        const effStatus = getEffectiveStatus(access);
-        const statusBadge = `<span class="access-status-badge status-${effStatus.toLowerCase()}">${STATUS_LABEL[effStatus] || effStatus}</span>`;
-
-        const requested = access.initiation === 'REQUEST';
-        const source = requested
-            ? '<i class="fas fa-inbox me-1" aria-hidden="true"></i>Requested'
-            : '<i class="fas fa-circle-arrow-right me-1" aria-hidden="true"></i>Direct';
-
-        const grantedAbs = access.grantedAt ? formatAbsDate(access.grantedAt) : '-';
-        // U10-T03: one wording for when access ends (AccessLevels.endsText).
-        const ends = AccessLevels.endsText(access.expiresAt);
-        let expiryLine;
-        if (!access.expiresAt) {
-            expiryLine = '<span class="text-muted">No end</span>';
-        } else if (effStatus === 'EXPIRED' || ends.ended) {
-            expiryLine = `<span class="text-danger">${Utils.escapeHtml(ends.text)}</span>`;
-        } else if (ends.soon) {
-            expiryLine = `<span class="text-warning fw-semibold">Ends ${Utils.escapeHtml(ends.text)}</span>`;
+    function drawTable() {
+        const history = tab === 'history';
+        $('#access-table-head').html(`<tr><th scope="col">Person</th><th scope="col">Environment</th><th scope="col">Level</th>
+            <th scope="col">Part</th><th scope="col">Granted by</th><th scope="col">${history ? 'Ended' : 'Ends'}</th>
+            ${history ? '' : '<th scope="col" class="am-actions"><span class="visually-hidden">Actions</span></th>'}</tr>`);
+        if (!rows.length) {
+            const filtered = currentSearch.trim() || selectedEnvironmentId || (!history && currentStatus !== 'ACTIVE');
+            $('#access-table-body').html(`<tr><td colspan="${history ? 6 : 7}" class="am-empty">${history
+                ? 'No grants ended in the last 90 days.' : filtered ? 'No grants match these filters.' : 'Nobody has access yet.'}</td></tr>`);
         } else {
-            expiryLine = `<span class="text-muted">Ends ${Utils.escapeHtml(ends.text)}</span>`;
+            $('#access-table-body').html(rows.map(history ? historyRow : grantRow).join(''));
         }
-
-        const scopeChip = isGroup
-            ? `<span class="access-scope-chip access-scope-chip--group" title="Group scope"><i class="fas fa-layer-group me-1"></i>${Utils.escapeHtml(access.scopeName || access.scopeId)}</span>`
-            : `<span class="access-scope-chip">Environment</span>`;
-
-        return `
-            <tr data-access-id="${access.accessId}">
-                <td>
-                    <div class="user-cell">
-                        <div class="user-avatar-sm">${initials}</div>
-                        <div class="user-info">
-                            <div class="user-name">${Utils.escapeHtml(access.userDisplayName || 'Unknown')}</div>
-                            <div class="user-email">${Utils.escapeHtml(access.userEmail || '')}</div>
-                        </div>
-                    </div>
-                </td>
-                <td title="${Utils.escapeHtml(access.environmentName || access.environmentId || '')}">${Utils.escapeHtml(access.environmentName || access.environmentId || '-')}</td>
-                <td>${scopeChip}</td>
-                <td><span class="access-level-badge ${levelClass}">${Utils.escapeHtml(AccessLevels.label(access.accessLevel))}</span></td>
-                <td>${statusBadge}</td>
-                <td class="access-src">${source}</td>
-                <td class="text-muted">${Utils.escapeHtml(access.grantedByUserName || 'System')}</td>
-                <td class="access-dates">
-                    <div>${grantedAbs}</div>
-                    <div class="access-dates-expiry">${expiryLine}</div>
-                </td>
-                <td class="text-end text-nowrap td-actions">${!canManageAccessTo(access.environmentId) ? '<span class="text-muted small">View only</span>' : `
-                    <button type="button" class="btn btn-sm btn-action btn-outline-primary me-1" data-action="edit"
-                            data-access-id="${access.accessId}"
-                            title="Edit grant" aria-label="Edit grant">
-                        <i class="fas fa-pen" aria-hidden="true"></i>
-                    </button>
-                    <button type="button" class="btn btn-sm btn-action btn-outline-danger" data-action="revoke"
-                            data-access-id="${access.accessId}"
-                            data-user-name="${Utils.escapeHtml(access.userDisplayName || access.userEmail)}"
-                            data-scope-name="${Utils.escapeHtml(isGroup ? (access.scopeName || 'this group') : 'the environment')}"
-                            title="Revoke access" aria-label="Revoke access">
-                        <i class="fas fa-user-minus" aria-hidden="true"></i>
-                    </button>`}
-                </td>
-            </tr>
-        `;
-    }
-
-    /**
-     * Render access pagination
-     */
-    function renderAccessPagination() {
         Pagination.renderNumbered('#access-pagination', {
-            page: currentPage,
-            totalItems: filteredAccess.length,
-            pageSize: PAGE_SIZE,
-            itemLabel: 'users',
-            onPageChange: (target) => {
-                currentPage = target;
-                renderAccessTable();
-                renderAccessPagination();
-            }
+            page: currentPage, totalItems: total, pageSize: PAGE_SIZE, itemLabel: 'grants', zeroIndexed: true,
+            bindAncestor: '#content-area',
+            onPageChange: (p) => { currentPage = p; refreshList(); }
         });
     }
 
-    /**
-     * Render pending requests table
-     */
-    function renderPendingRequestsTable() {
-        if (pendingRequests.length === 0) {
-            $('#pending-table-body').html(`
-                <div class="access-empty-panel">
-                    <i class="fas fa-inbox"></i>
-                    <p>No pending access requests</p>
-                </div>
-            `);
-            return;
+    function personCell(row) {
+        return Utils.html`<td class="am-cell-person"><div class="am-person">${row.userDisplayName || row.userEmail || 'Unknown'}</div>
+            <div class="am-email">${row.userEmail || ''}</div></td>`;
+    }
+
+    function levelCell(row) {
+        return Utils.html`<td data-label="Level"><span class="access-level-badge ${AccessLevels.chipClass(row.accessLevel)}">${AccessLevels.label(row.accessLevel)}</span></td>`;
+    }
+
+    function grantRow(row) {
+        const ends = AccessLevels.endsText(row.expiresAt);
+        let actions = '';
+        if (isMe(row)) {
+            actions = '<span class="am-own" title="You can\'t change your own access">Your access</span>';
+        } else if (canManageAccessTo(row.environmentId)) {
+            actions = Utils.html`<button type="button" class="am-link" data-action="edit" data-access-id="${row.accessId}"
+                    aria-label="Change ${row.userDisplayName || row.userEmail}'s access to ${row.environmentName}">Change</button>
+                <button type="button" class="am-link am-danger" data-action="revoke" data-access-id="${row.accessId}"
+                    data-user-name="${row.userDisplayName || row.userEmail}"
+                    data-scope-name="${row.scopeType === 'GROUP' ? (row.scopeName || 'this group') : 'the environment'}"
+                    aria-label="Revoke ${row.userDisplayName || row.userEmail}'s access to ${row.environmentName}">Revoke</button>`;
         }
+        return Utils.html`<tr data-access-id="${row.accessId}">
+            ${Utils.raw(personCell(row))}
+            <td data-label="Environment">${row.environmentName || row.environmentId || ''}</td>
+            ${Utils.raw(levelCell(row))}
+            <td data-label="Part">${partText(row)}</td>
+            <td data-label="Granted by">${row.grantedByUserName || 'System'}</td>
+            <td class="am-ends${ends.soon ? ' soon' : ''}" data-label="Ends">${ends.text}</td>
+            <td class="am-actions">${Utils.raw(actions)}</td>
+        </tr>`;
+    }
 
-        const rows = pendingRequests.map(req => buildPendingRow(req)).join('');
-        $('#pending-table-body').html(rows);
+    function historyRow(row) {
+        const when = row.endedAt ? AccessLevels.endsText(row.endedAt).text.replace(/^Ended /, '') : '';
+        const how = row.status === 'REVOKED' ? 'Removed' : 'Ended';
+        return Utils.html`<tr data-access-id="${row.accessId}">
+            ${Utils.raw(personCell(row))}
+            <td data-label="Environment">${row.environmentName || row.environmentId || ''}</td>
+            ${Utils.raw(levelCell(row))}
+            <td data-label="Part">${partText(row)}</td>
+            <td data-label="Granted by">${row.grantedByUserName || 'System'}</td>
+            <td class="am-ends" data-label="Ended">${how} ${when}</td>
+        </tr>`;
+    }
+
+    function setTab(next) {
+        if (tab === next) return;
+        tab = next;
+        currentPage = 0;
+        $('[data-am-tab]').each(function() { this.setAttribute('aria-selected', String(this.getAttribute('data-am-tab') === tab)); });
+        $('#am-panel').attr('aria-labelledby', `access-tab-${tab}`);
+        $('#filter-status').prop('hidden', tab === 'history');
+        refreshList();
     }
 
     /**
-     * Build a single pending request row
-     */
-    function buildPendingRow(request) {
-        const levelClass = getLevelClass(request.requestedAccessLevel);
-        const initials = getInitials(request.requesterDisplayName || request.requesterEmail);
-        const requestedDate = request.createdAt ? Utils.formatRelativeTime(request.createdAt) : '-';
-        const justification = request.businessJustification || '-';
-        const facts = AccessRequests.describeRequest(request);
-
-        return `
-            <div class="access-request-card" data-request-id="${request.requestId}">
-                <div class="access-request-main">
-                    <div class="user-cell">
-                        <div class="user-avatar-sm">${initials}</div>
-                        <div class="user-info">
-                            <div class="user-name">${Utils.escapeHtml(request.requesterDisplayName || 'Unknown')}</div>
-                            <div class="user-email">${Utils.escapeHtml(request.requesterEmail || '')}</div>
-                        </div>
-                    </div>
-                    <div class="access-request-meta">
-                        <span>${Utils.escapeHtml(request.environmentName || 'Unknown')}</span>
-                        <span>${requestedDate}</span>
-                    </div>
-                    <div class="access-request-facts">
-                        <span class="ra-scope-chip" data-col="scope">${Utils.escapeHtml(facts.scope)}</span>
-                        <span data-col="duration">${Utils.escapeHtml(facts.duration)}</span>
-                        <span data-col="current">Current: ${AccessRequests.currentAccessHtml(request)}</span>
-                    </div>
-                    <div class="access-request-justification" title="${Utils.escapeHtml(justification)}">
-                        ${Utils.escapeHtml(justification)}
-                    </div>
-                </div>
-                <div class="access-request-actions">
-                    <span class="access-level-badge ${levelClass}">${Utils.escapeHtml(AccessLevels.label(request.requestedAccessLevel))}</span>
-                    <div class="access-action-buttons">
-                        <button class="btn btn-sm btn-tonal btn-success" data-action="approve" data-request-id="${request.requestId}">
-                            <i class="fas fa-check"></i> Approve
-                        </button>
-                        <button type="button" class="btn btn-sm btn-outline-danger" data-action="deny" data-request-id="${request.requestId}" title="Deny" aria-label="Deny">
-                            <i class="fas fa-times" aria-hidden="true"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    /**
-     * Render activity log table
-     */
-    function renderActivityLogsTable() {
-        if (!activityLogs || activityLogs.length === 0) {
-            $('#activity-log-body').html(`
-                <div class="access-empty-panel">
-                    <i class="fas fa-history"></i>
-                    <p>No access activity recorded</p>
-                </div>
-            `);
-            return;
-        }
-        const rows = activityLogs.map(log => buildActivityRow(log)).join('');
-        $('#activity-log-body').html(rows);
-    }
-
-    /**
-     * Build a single activity log row
-     */
-    function buildActivityRow(log) {
-        const when = log.createdAt ? Utils.formatRelativeTime(log.createdAt) : '-';
-        const action = Utils.escapeHtml(log.actionDisplay || (log.action || '').replace(/_/g, ' '));
-        const performedBy = Utils.escapeHtml(log.userDisplayName || log.userEmail || 'System');
-        const details = Utils.escapeHtml(log.details || '-');
-        const badgeClass = getActionBadgeClass(log.action);
-        return `
-            <div class="access-activity-item">
-                <div class="access-activity-marker"></div>
-                <div class="access-activity-content">
-                    <div class="access-activity-topline">
-                        <span class="badge ${badgeClass}">${action}</span>
-                        <span>${when}</span>
-                    </div>
-                    <div class="access-activity-by"><i class="fas fa-user-circle me-1" aria-hidden="true"></i>${performedBy}</div>
-                    <div class="access-activity-details">${details}</div>
-                </div>
-            </div>
-        `;
-    }
-
-    function getActionBadgeClass(action) {
-        if (!action) return 'bg-secondary';
-        const s = String(action);
-        if (s.includes('GRANTED') || s.includes('APPROVED')) return 'bg-success';
-        if (s.includes('REVOKED') || s.includes('DENIED')) return 'bg-danger';
-        if (s.includes('REQUESTED')) return 'bg-warning text-dark';
-        return 'bg-secondary';
-    }
-
-    /**
-     * Apply search filter
-     */
-    function applyFilters() {
-        const search = currentSearch.toLowerCase().trim();
-
-        filteredAccess = allAccess.filter(access => {
-            if (search) {
-                const name = (access.userDisplayName || '').toLowerCase();
-                const email = (access.userEmail || '').toLowerCase();
-                if (!name.includes(search) && !email.includes(search)) return false;
-            }
-            if (currentScopeFilter) {
-                const isGroup = access.scopeType === 'GROUP';
-                if (currentScopeFilter === 'GROUP' && !isGroup) return false;
-                if (currentScopeFilter === 'ENVIRONMENT' && isGroup) return false;
-            }
-            if (currentStatusFilter && getEffectiveStatus(access) !== currentStatusFilter) return false;
-            return true;
-        });
-
-        currentPage = 1;
-        renderAccessTable();
-        renderAccessPagination();
-    }
-
-    /**
-     * Bind event handlers
+     * Bind the page's events; delegated on the document under one namespace, removed on leave.
      */
     function bindEvents() {
-        // Refresh button
-        $('#btn-refresh-access').off('click').on('click', function() {
-            const $btn = $(this);
-            $btn.find('i').addClass('fa-spin');
-            fetchInitialData().finally(() => {
-                $btn.find('i').removeClass('fa-spin');
-            });
-        });
-
-        // Search — filters the loaded grants live (300ms debounce) as you type;
-        // the button and Enter apply it immediately.
-        $('#access-search').off('input').on('input', Utils.debounce(function() {
-            currentSearch = $(this).val();
-            applyFilters();
-        }, 300));
-        $('#access-search').off('keypress').on('keypress', function(e) {
-            if (e.which === 13) {
+        $(document).off(NS)
+            .on('click' + NS, '[data-am-tab]', function() { setTab(this.getAttribute('data-am-tab')); })
+            .on('keydown' + NS, '[data-am-tab]', function(e) {
+                if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
                 e.preventDefault();
-                currentSearch = $(this).val();
-                applyFilters();
-            }
-        });
-        $('#btn-access-search').off('click').on('click', function() {
-            currentSearch = $('#access-search').val();
-            applyFilters();
-        });
+                const next = tab === 'grants' ? 'history' : 'grants';
+                setTab(next);
+                $(`#access-tab-${next}`).trigger('focus');
+            })
+            .on('input' + NS, '#access-search', Utils.debounce(function() {
+                currentSearch = this.value;
+                currentPage = 0;
+                refreshList();
+            }, 300))
+            .on('change' + NS, '#filter-environment', function() {
+                selectedEnvironmentId = this.value;
+                currentPage = 0;
+                refreshList();
+            })
+            .on('change' + NS, '#filter-status', function() {
+                currentStatus = this.value;
+                currentPage = 0;
+                refreshList();
+            })
+            .on('click' + NS, '#am-ending', function() {
+                if (tab !== 'grants') setTab('grants');
+                currentStatus = 'ENDING';
+                $('#filter-status').val('ENDING');
+                currentPage = 0;
+                refreshList();
+            })
+            .on('click' + NS, '#am-retry', () => refreshList())
+            .on('click' + NS, '#access-table-body [data-action="revoke"]', function() {
+                handleRevokeAccess($(this).data('access-id'), $(this).data('user-name'), $(this).data('scope-name'));
+            })
+            .on('click' + NS, '#access-table-body [data-action="edit"]', function() {
+                const access = rows.find(a => a.accessId === $(this).data('access-id'));
+                if (access) showGrantAccessModal(access);
+            });
+    }
 
-        // Status / scope filters
-        $('#filter-status').off('change').on('change', function() {
-            currentStatusFilter = $(this).val();
-            applyFilters();
-        });
-        $('#filter-scope').off('change').on('change', function() {
-            currentScopeFilter = $(this).val();
-            applyFilters();
-        });
-
-        // Environment filter
-        $('#filter-environment').off('change').on('change', async function() {
-            selectedEnvironmentId = $(this).val();
-            currentPage = 1;
-            currentSearch = '';
-            currentStatusFilter = '';
-            currentScopeFilter = '';
-            $('#access-search').val('');
-            $('#filter-status').val('');
-            $('#filter-scope').val('');
-
-            try {
-                [allAccess, activityLogs] = await Promise.all([
-                    fetchAccessForSelection(selectedEnvironmentId),
-                    fetchActivityLogsForSelection(selectedEnvironmentId)
-                ]);
-                if (!isActive()) return;
-                filteredAccess = [...allAccess];
-            } catch (error) {
-                if (!isActive()) return;
-                console.error('Failed to fetch access:', error);
-                allAccess = [];
-                filteredAccess = [];
-                activityLogs = [];
-            }
-
-            // Update section headers
-            const envName = getSelectedEnvironmentName();
-            $('#access-scope-label').text(envName);
-            $('.access-activity-scope').text(envName);
-
-            // Update stats + tab counts
-            updateStatsDisplay(calculateStats());
-            updatePendingTabBadge();
-
-            applyFilters();
-            renderActivityLogsTable();
-        });
-
+    /** The grant / change dialog's controls (kept from E04 until U10-T05 / U10-T06). */
+    function bindModalEvents() {
         // Grant Access button
         $('#btn-grant-access').off('click').on('click', showGrantAccessModal);
 
@@ -980,42 +458,6 @@ const AccessManagement = (function() {
             }
         });
 
-        // Revoke access
-        $('#access-table-body').off('click', '[data-action="revoke"]').on('click', '[data-action="revoke"]', function() {
-            handleRevokeAccess($(this).data('access-id'), $(this).data('user-name'), $(this).data('scope-name'));
-        });
-
-        // Edit grant
-        $('#access-table-body').off('click', '[data-action="edit"]').on('click', '[data-action="edit"]', function() {
-            const access = allAccess.find(a => a.accessId === $(this).data('access-id'));
-            if (access) showGrantAccessModal(access);
-        });
-
-        // Approve request
-        // Approve request - confirm in a dialog with the full request (M20)
-        $('#pending-table-body').off('click', '[data-action="approve"]').on('click', '[data-action="approve"]', function() {
-            const request = pendingRequests.find(r => r.requestId === $(this).data('request-id'));
-            if (request) AccessRequests.showApproveModal(request, refreshAfterReview);
-        });
-
-        // Deny request - show modal
-        $('#pending-table-body').off('click', '[data-action="deny"]').on('click', '[data-action="deny"]', function() {
-            const requestId = $(this).data('request-id');
-            $('#deny-request-id').val(requestId);
-            $('#deny-reason').val('');
-            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('denyRequestModal'));
-            modal.show();
-        });
-
-        // Confirm deny
-        $('#btn-confirm-deny').off('click').on('click', handleDenyRequest);
-    }
-
-    /**
-     * Update stats display
-     */
-    function updateStatsDisplay(stats) {
-        $('.access-stats-row').html(buildStatsRowHtml(stats));
     }
 
     /**
@@ -1322,19 +764,6 @@ const AccessManagement = (function() {
         $('#btn-confirm-grant-label').text(mode === 'onboard' ? 'Onboard & grant' : 'Grant Access');
     }
 
-    async function refreshAccessData() {
-        [allAccess, activityLogs] = await Promise.all([
-            fetchAccessForSelection(selectedEnvironmentId),
-            fetchActivityLogsForSelection(selectedEnvironmentId)
-        ]);
-        if (!isActive()) return;
-        filteredAccess = [...allAccess];
-        updateStatsDisplay(calculateStats());
-        updatePendingTabBadge();
-        applyFilters();
-        renderActivityLogsTable();
-    }
-
     /**
      * Handle grant / edit access form submission.
      */
@@ -1429,98 +858,9 @@ const AccessManagement = (function() {
         }, { confirmText: 'Revoke', confirmClass: 'btn-danger', html: true });
     }
 
-    /**
-     * Reload pending requests, grants and activity after a request was approved (or turned
-     * out to be already reviewed).
-     */
-    async function refreshAfterReview() {
-        try {
-            [pendingRequests, allAccess, activityLogs] = await Promise.all([
-                fetchPendingRequests(),
-                fetchAccessForSelection(selectedEnvironmentId),
-                fetchActivityLogsForSelection(selectedEnvironmentId)
-            ]);
-            if (!isActive()) return;
-            filteredAccess = [...allAccess];
-
-            // Update stats
-            const stats = calculateStats();
-            updateStatsDisplay(stats);
-
-            // Update pending badge
-            updatePendingTabBadge();
-
-            renderPendingRequestsTable();
-            renderActivityLogsTable();
-            applyFilters();
-        } catch (error) {
-            if (!isActive()) return;
-            console.error('Refreshing access data failed:', error);
-            showToast('The list could not be refreshed. Reload the page.', 'warning');
-        }
-    }
-
-    /**
-     * Handle deny request
-     */
-    async function handleDenyRequest() {
-        const requestId = $('#deny-request-id').val();
-        const reason = $('#deny-reason').val().trim();
-
-        const $btn = $('#btn-confirm-deny');
-        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Denying...');
-
-        try {
-            await new Promise((resolve, reject) => {
-                ApiClient.post(Config.API.access.denyRequest(requestId), { notes: reason })
-                    .done(resolve)
-                    .fail(reject);
-            });
-
-            bootstrap.Modal.getInstance(document.getElementById('denyRequestModal')).hide();
-            showToast('Request denied', 'success');
-
-            // Refresh pending requests and activity logs
-            [pendingRequests, activityLogs] = await Promise.all([
-                fetchPendingRequests(),
-                fetchActivityLogsForSelection(selectedEnvironmentId)
-            ]);
-
-            // Update stats
-            const stats = calculateStats();
-            updateStatsDisplay(stats);
-
-            // Update pending badge
-            updatePendingTabBadge();
-
-            renderPendingRequestsTable();
-            renderActivityLogsTable();
-        } catch (error) {
-            console.error('Deny request failed:', error);
-            const message = error.responseJSON?.message || 'Failed to deny request';
-            showToast(message, 'danger');
-        } finally {
-            $btn.prop('disabled', false).html('<i class="fas fa-times me-1"></i>Deny');
-        }
-    }
-
-    // ============= Helper Functions =============
-
-    function getSelectedEnvironmentName() {
-        if (!selectedEnvironmentId) {
-            return 'All Environments';
-        }
-        const selectedEnv = environments.find(e => e.environmentId === selectedEnvironmentId);
-        return selectedEnv ? (selectedEnv.displayName || selectedEnv.name) : 'Select Environment';
-    }
-
-    function updatePendingTabBadge() {
-        $('#pending-tab-count').text(pendingRequests.length).toggleClass('warn', pendingRequests.length > 0);
-        $('#grants-tab-count').text(allAccess.length);
-    }
-
-    function getLevelClass(level) {
-        return AccessLevels.chipClass(level);
+    /** Reload the list and the counts after a grant, change or revoke. */
+    async function refreshAccessData() {
+        await refreshList();
     }
 
     function getInitials(name) {
@@ -1530,14 +870,6 @@ const AccessManagement = (function() {
             return (parts[0][0] + parts[1][0]).toUpperCase();
         }
         return name.substring(0, 2).toUpperCase();
-    }
-
-    function isWithinDays(dateStr, days) {
-        const date = new Date(dateStr);
-        const now = new Date();
-        const diff = date.getTime() - now.getTime();
-        const daysDiff = diff / (1000 * 60 * 60 * 24);
-        return daysDiff > 0 && daysDiff <= days;
     }
 
     function showToast(message, type = 'info') {
@@ -1562,4 +894,3 @@ const AccessManagement = (function() {
 
 // Make AccessManagement available globally
 window.AccessManagement = AccessManagement;
-

@@ -21,217 +21,9 @@
     margin-bottom: 0;
 }
 
-
-
 #access-management-view .header-actions {
     display: flex;
     gap: 0.5rem;
-}
-
-/* ============================================
-   Filters Bar
-   ============================================ */
-#access-management-view .access-filters-bar {
-    display: flex;
-    gap: 0.75rem;
-    padding: 0.75rem;
-    background: var(--sidebar-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    margin-bottom: 0;
-    align-items: center;
-    box-sizing: border-box;
-}
-
-/* Search Input Wrapper - 40% */
-#access-management-view .access-filters-bar .search-input-wrapper {
-    flex: 0 0 calc(40% - 0.5rem);
-    min-width: 0;
-}
-
-#access-management-view .access-filters-bar .input-group {
-    display: flex;
-    flex-wrap: nowrap;
-    width: 100%;
-}
-
-#access-management-view .access-filters-bar .input-group-text {
-    padding: 0.4rem 0.6rem;
-    font-size: 0.8rem;
-    background: var(--background-light);
-    border-color: var(--border-color);
-    display: flex;
-    align-items: center;
-}
-
-#access-management-view .access-filters-bar .input-group .form-control {
-    font-size: 0.81rem;
-    padding: 0.4rem 0.6rem;
-    border-color: var(--border-color);
-}
-
-/* Environment Filter - 35% */
-#access-management-view .access-filters-bar > select.form-select {
-    flex: 0 0 calc(35% - 0.5rem);
-    min-width: 0;
-    font-size: 0.81rem;
-    padding: 0.4rem 2rem 0.4rem 0.6rem;
-    border-color: var(--border-color);
-    box-sizing: border-box;
-}
-
-/* Grant Button */
-#access-management-view .access-filters-bar > .btn {
-    flex-shrink: 0;
-    font-size: 0.81rem;
-    padding: 0.4rem 0.75rem;
-}
-
-/* ============================================
-   Stats Row - Inline like dashboard metrics
-   ============================================ */
-.access-stats-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem 1rem;
-    padding: 0.5rem 0.75rem;
-    margin-bottom: 0;
-}
-
-.access-stat-item {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    font-size: 0.81rem;
-}
-
-.access-stat-item .stat-label {
-    color: var(--text-secondary);
-}
-
-.access-stat-item .stat-value {
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.access-stat-sep {
-    color: var(--border-color);
-    user-select: none;
-}
-
-/* ============================================
-   Tabs — Grants / Pending Requests / Activity Log
-   ============================================ */
-.access-tabs {
-    border-bottom: 1px solid var(--border-color);
-    margin-bottom: 0;
-}
-
-.access-tabs .nav-link {
-    font-size: 0.82rem;
-    color: var(--text-secondary);
-    padding: 0.5rem 0.85rem;
-    border: none;
-    border-bottom: 2px solid transparent;
-    background: none;
-}
-
-.access-tabs .nav-link:hover {
-    color: var(--text-primary);
-    border-bottom-color: var(--border-color);
-}
-
-.access-tabs .nav-link.active {
-    color: var(--text-primary);
-    font-weight: 600;
-    border-bottom-color: var(--primary-color);
-}
-
-.access-tab-count {
-    display: inline-block;
-    margin-left: 0.35rem;
-    font-size: 0.68rem;
-    font-weight: 700;
-    padding: 0.05rem 0.4rem;
-    border-radius: 999px;
-    background: var(--status-stopped-bg);
-    color: var(--status-stopped-text);
-}
-
-.access-tabs .nav-link.active .access-tab-count {
-    background: var(--status-starting-bg);
-    color: var(--status-starting-text);
-}
-
-.access-tab-count.warn {
-    background: var(--status-stopping-bg);
-    color: var(--status-stopping-text);
-}
-
-.access-tab-content {
-    margin-top: 0.75rem;
-}
-
-/* ============================================
-   Panels
-   ============================================ */
-.access-panel {
-    min-width: 0;
-    background: var(--sidebar-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-.access-panel-header {
-    min-height: 54px;
-    padding: 0.65rem 0.75rem;
-    border-bottom: 1px solid var(--border-color);
-    background: var(--background-light);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-}
-
-.access-panel-header h5 {
-    font-size: 0.875rem;
-    font-weight: 600;
-    margin: 0;
-    color: var(--text-primary);
-}
-
-.access-panel-header p {
-    margin: 0.1rem 0 0;
-    font-size: 0.72rem;
-    color: var(--text-secondary);
-}
-
-.access-panel-count {
-    flex-shrink: 0;
-    font-size: 0.72rem;
-    color: var(--text-secondary);
-    background: var(--sidebar-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 999px;
-    padding: 0.15rem 0.5rem;
-}
-
-.access-table-shell {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-}
-
-/* Content-height, capped so long lists scroll inside the card. Must NOT rely on
-   `flex: 1` to get its height — the grants panel now sits in a plain tab pane with
-   no fixed height, and a flex-fill child collapses to 0 there. */
-.access-table-wrapper {
-    overflow: auto;
-    max-height: 60vh;
 }
 
 /* Scrollbar — see main.css for the shared ::-webkit-scrollbar rules */
@@ -278,19 +70,14 @@
     border-bottom: none;
 }
 
-/* ============================================
-   User Cell with Avatar (same as User Mgmt)
-   ============================================ */
-.access-table .user-cell,
-.access-request-card .user-cell {
+.access-table .user-cell {
     display: flex;
     align-items: center;
     gap: 0.6rem;
     min-width: 0;
 }
 
-.access-table .user-avatar-sm,
-.access-request-card .user-avatar-sm {
+.access-table .user-avatar-sm {
     width: 32px;
     height: 32px;
     border-radius: 50%;
@@ -304,14 +91,12 @@
     flex-shrink: 0;
 }
 
-.access-table .user-cell .user-info,
-.access-request-card .user-cell .user-info {
+.access-table .user-cell .user-info {
     min-width: 0;
     overflow: hidden;
 }
 
-.access-table .user-cell .user-name,
-.access-request-card .user-cell .user-name {
+.access-table .user-cell .user-name {
     font-weight: 600;
     color: var(--text-primary);
     font-size: 0.81rem;
@@ -321,8 +106,7 @@
     white-space: nowrap;
 }
 
-.access-table .user-cell .user-email,
-.access-request-card .user-cell .user-email {
+.access-table .user-cell .user-email {
     font-size: 0.70rem;
     color: var(--text-secondary);
     line-height: 1.3;
@@ -360,213 +144,6 @@
 .access-table .btn-group-sm .btn {
     font-size: 0.75rem;
     padding: 0.25rem 0.5rem;
-}
-
-.access-actions-cell {
-    white-space: normal;
-}
-
-.access-action-buttons {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 0.35rem;
-    flex-wrap: wrap;
-}
-
-.access-action-buttons .btn {
-    min-height: 26px;
-}
-
-/* Row-action icon buttons — see components/buttons.css for .btn-action.
-   Column widths come from the table's own <colgroup>, so the Actions column
-   always keeps its share (the old nth-child rules summed to 100% and left it 0). */
-
-.access-grants-table td {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.access-grants-table td.access-dates,
-.access-grants-table td:last-child {
-    white-space: normal;
-}
-
-/* ---- Status badge (grants table) ---- */
-.access-status-badge {
-    display: inline-block;
-    padding: 0.2rem 0.55rem;
-    border-radius: 999px;
-    font-size: var(--table-header-font, 0.7rem);
-    font-weight: 600;
-}
-.access-status-badge.status-active   { background: var(--status-running-bg); color: var(--status-running-text); }
-.access-status-badge.status-expiring { background: var(--status-stopping-bg); color: var(--status-stopping-text); }
-.access-status-badge.status-expired  { background: var(--status-error-bg);   color: var(--status-error-text); }
-.access-status-badge.status-pending  { background: var(--brand-navy-tint); color: var(--brand-navy); }
-.access-status-badge.status-revoked  { background: var(--status-stopped-bg); color: var(--status-stopped-text); }
-
-/* ---- Source cell ---- */
-.access-src {
-    color: var(--text-secondary);
-    white-space: nowrap;
-}
-.access-src i {
-    opacity: 0.7;
-}
-
-/* ---- Granted / Expires stacked cell ---- */
-.access-dates {
-    line-height: 1.3;
-}
-.access-dates-expiry {
-    font-size: 0.7rem;
-}
-
-/* ============================================
-   Review lists (Pending Requests / Activity Log tab panes)
-   ============================================ */
-.access-request-list,
-.access-activity-list {
-    max-height: 620px;
-    overflow-y: auto;
-    padding: 0.65rem;
-}
-
-.access-request-card {
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 0.65rem;
-    background: var(--sidebar-bg);
-    margin-bottom: 0.55rem;
-    min-width: 0;
-}
-
-.access-request-main {
-    min-width: 0;
-}
-
-.access-request-meta {
-    display: flex;
-    justify-content: space-between;
-    gap: 0.5rem;
-    margin-top: 0.45rem;
-    color: var(--text-secondary);
-    font-size: 0.72rem;
-}
-
-.access-request-meta span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.access-request-justification {
-    margin-top: 0.4rem;
-    color: var(--text-secondary);
-    font-size: 0.75rem;
-    line-height: 1.35;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-
-.access-request-actions {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 0.5rem;
-    margin-top: 0.6rem;
-}
-
-.access-activity-scope {
-    padding: 0.5rem 0.65rem 0;
-    color: var(--text-secondary);
-    font-size: 0.72rem;
-}
-
-.access-activity-item {
-    display: flex;
-    gap: 0.6rem;
-    padding: 0.65rem 0.7rem;
-    margin-bottom: 0.55rem;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    background: var(--sidebar-bg);
-}
-
-.access-activity-marker {
-    flex-shrink: 0;
-    width: 8px;
-    height: 8px;
-    margin-top: 0.4rem;
-    border-radius: 50%;
-    background: var(--primary-color);
-}
-
-.access-activity-content {
-    min-width: 0;
-    flex: 1;
-}
-
-.access-activity-topline {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    gap: 0.4rem 0.5rem;
-    align-items: center;
-    font-size: 0.72rem;
-    color: var(--text-secondary);
-}
-
-.access-activity-by,
-.access-activity-details {
-    overflow-wrap: break-word;
-    word-break: break-word;
-    white-space: normal;
-}
-
-.access-activity-by {
-    margin-top: 0.3rem;
-    font-size: 0.73rem;
-    color: var(--text-secondary);
-    font-weight: 600;
-}
-
-.access-activity-by i {
-    color: var(--text-secondary);
-    opacity: 0.7;
-}
-
-.access-activity-details {
-    margin-top: 0.25rem;
-    font-size: 0.76rem;
-    color: var(--text-primary);
-    line-height: 1.45;
-}
-
-.access-empty-panel {
-    height: 100%;
-    min-height: 180px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 0.45rem;
-    color: var(--text-secondary);
-    text-align: center;
-}
-
-.access-empty-panel i {
-    font-size: 1.75rem;
-    opacity: 0.55;
-}
-
-.access-empty-panel p {
-    margin: 0;
-    font-size: 0.82rem;
 }
 
 /* ============================================
@@ -699,66 +276,12 @@
 /* ============================================
    Responsive Adjustments
    ============================================ */
-@media (max-width: 992px) {
-    #access-management-view .access-filters-bar {
-        flex-wrap: wrap;
-    }
-
-    #access-management-view .access-filters-bar .search-input-wrapper {
-        flex: 1 1 100%;
-        margin-bottom: 0.5rem;
-    }
-
-    #access-management-view .access-filters-bar > select.form-select {
-        flex: 1 1 calc(50% - 2rem);
-    }
-
-    .access-stats-row {
-        flex-wrap: wrap;
-        gap: 0.5rem 1rem;
-    }
-
-    .access-stat-item {
-        flex: 0 0 auto;
-    }
-}
 
 @media (max-width: 768px) {
-    /* Drop Scope, Source and Granted-by on narrow screens; keep User / Env / Level / Status / Dates / Actions. */
-    .access-grants-table th:nth-child(3),
-    .access-grants-table td:nth-child(3),
-    .access-grants-table th:nth-child(6),
-    .access-grants-table td:nth-child(6),
-    .access-grants-table th:nth-child(7),
-    .access-grants-table td:nth-child(7) {
-        display: none;
-    }
 
     .justification-cell {
         max-width: 120px;
     }
-}
-
-/* ---- Scope chip (access table) ---- */
-.access-scope-chip {
-    display: inline-block;
-    font-size: 0.72rem;
-    font-weight: 600;
-    letter-spacing: .02em;
-    padding: 2px 8px;
-    border-radius: 6px;
-    background: var(--surface-subtle);
-    border: 1px solid var(--border-color);
-    color: var(--slate);
-    white-space: nowrap;
-    max-width: 220px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.access-scope-chip--group {
-    color: var(--bs-link-color);
-    border-color: rgba(47, 107, 255, 0.4);
-    background: rgba(47, 107, 255, 0.08);
 }
 
 /* ---- Group checklist in the Grant / Edit Access modal ---- */
@@ -818,3 +341,290 @@
     white-space: nowrap;
 }
 
+/* ===== Access management (U10-T04, AccessManagement.dc.html) ===== */
+
+.am-page {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.am-page .content-header {
+    margin-bottom: 0;
+}
+
+.am-waiting {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 0 12px;
+    border-radius: 8px;
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.am-waiting:hover {
+    text-decoration: underline;
+}
+
+.am-stats {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 22px;
+    font-size: 14px;
+    color: var(--slate);
+}
+
+.am-stat b {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    color: var(--ink);
+}
+
+button.am-stat {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 14px;
+}
+
+.am-stat-soon,
+.am-stat-soon b {
+    color: var(--brand-gold-text);
+}
+
+.am-stat-soon:hover {
+    text-decoration: underline;
+}
+
+.am-tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--line);
+}
+
+.am-tab {
+    padding: 10px 14px;
+    margin-bottom: -1px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: none;
+    font: inherit;
+    font-size: 14px;
+    color: var(--slate);
+}
+
+.am-tab[aria-selected="true"] {
+    color: var(--brand-navy);
+    font-weight: 600;
+    border-bottom-color: var(--brand-navy);
+}
+
+.am-tab:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: -2px;
+}
+
+.am-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.am-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 300px;
+    max-width: 100%;
+    height: 38px;
+    padding: 0 12px;
+    background: #fff;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    color: var(--slate);
+}
+
+.am-search:focus-within {
+    border-color: var(--brand-navy);
+}
+
+.am-search input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    font: inherit;
+    font-size: 14px;
+    color: var(--ink);
+}
+
+.am-filters .form-select {
+    width: auto;
+    min-width: 180px;
+    height: 38px;
+    font-size: 14px;
+}
+
+.am-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.am-table-wrap {
+    overflow-x: auto;
+}
+
+.am-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.am-table th {
+    padding: 10px 14px;
+    background: var(--surface-subtle);
+    color: var(--slate);
+    font-size: 12.5px;
+    font-weight: 500;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.am-table td {
+    padding: 5px 14px;
+    border-top: 1px solid var(--line-soft);
+    vertical-align: middle;
+}
+
+.am-table th:first-child,
+.am-table td:first-child {
+    padding-left: 20px;
+}
+
+.am-person {
+    font-weight: 500;
+    line-height: 1.3;
+    color: var(--ink);
+}
+
+.am-email {
+    font-size: 12.5px;
+    line-height: 1.25;
+    color: var(--slate);
+}
+
+.am-ends {
+    white-space: nowrap;
+    color: #3a4256;
+}
+
+.am-ends.soon {
+    color: var(--brand-gold-text);
+    font-weight: 500;
+}
+
+.am-actions {
+    text-align: right;
+    white-space: nowrap;
+    padding-right: 20px !important;
+}
+
+.am-link {
+    min-height: 32px;
+    padding: 0 6px;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    color: #2f4a9e;
+}
+
+.am-link:hover {
+    text-decoration: underline;
+}
+
+.am-link.am-danger {
+    color: var(--brand-red-text);
+}
+
+.am-own {
+    font-size: 13px;
+    color: var(--slate);
+}
+
+.am-empty {
+    padding: 28px 20px !important;
+    text-align: center;
+    color: var(--slate);
+}
+
+.am-card .pagination-bar-wrap {
+    border-top: 1px solid var(--line-soft);
+}
+
+.am-card .pagination-bar-wrap:empty {
+    display: none;
+}
+
+@media (max-width: 767.98px) {
+    .am-search,
+    .am-filters .form-select {
+        width: 100%;
+    }
+
+    /* One card per grant on a phone: no sideways scrolling (each cell says what it is). */
+    .am-table,
+    .am-table tbody,
+    .am-table tr,
+    .am-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .am-table thead {
+        display: none;
+    }
+
+    .am-table tr {
+        padding: 10px 16px;
+        border-top: 1px solid var(--line-soft);
+    }
+
+    .am-table td,
+    .am-table td:first-child {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 2px 0;
+        border: 0;
+        text-align: right;
+        overflow-wrap: anywhere;
+    }
+
+    .am-table td[data-label]::before {
+        content: attr(data-label);
+        color: var(--slate);
+        text-align: left;
+    }
+
+    .am-table td.am-cell-person {
+        display: block;
+        text-align: left;
+    }
+
+    .am-table td.am-actions {
+        justify-content: flex-end;
+        padding-right: 0 !important;
+    }
+}
