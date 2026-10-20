@@ -50,6 +50,8 @@ public class MyAccountService {
     private final OperationExecutionRepository executionRepository;
     private final VmGroupRepository vmGroupRepository;
     private final EnvironmentAccessService accessService;
+    private final com.tcgdigital.vmcontrol.repository.TeamMemberRepository teamMemberRepository;
+    private final com.tcgdigital.vmcontrol.repository.TeamRepository teamRepository;
 
     public MyAccountService(UserRepository userRepository,
                             EnvironmentRepository environmentRepository,
@@ -57,7 +59,9 @@ public class MyAccountService {
                             EnvironmentAccessRequestRepository requestRepository,
                             OperationExecutionRepository executionRepository,
                             VmGroupRepository vmGroupRepository,
-                            EnvironmentAccessService accessService) {
+                            EnvironmentAccessService accessService,
+                            com.tcgdigital.vmcontrol.repository.TeamMemberRepository teamMemberRepository,
+                            com.tcgdigital.vmcontrol.repository.TeamRepository teamRepository) {
         this.userRepository = userRepository;
         this.environmentRepository = environmentRepository;
         this.accessRepository = accessRepository;
@@ -65,6 +69,8 @@ public class MyAccountService {
         this.executionRepository = executionRepository;
         this.vmGroupRepository = vmGroupRepository;
         this.accessService = accessService;
+        this.teamMemberRepository = teamMemberRepository;
+        this.teamRepository = teamRepository;
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -108,7 +114,18 @@ public class MyAccountService {
                 administered,
                 accessService.getExtensionWindowDays(),
                 accessService.getRequestMaxDurationDays(),
-                leaseService != null && leaseService.isFeatureEnabled());
+                leaseService != null && leaseService.isFeatureEnabled(),
+                teamNames(userId));
+    }
+
+    /** The active teams the user belongs to, by display name (U09-T05, the Profile tab). */
+    private List<String> teamNames(String userId) {
+        return teamRepository.findAllById(teamMemberRepository.findTeamIdsByUserId(userId)).stream()
+                .filter(team -> !Boolean.FALSE.equals(team.getIsActive()))
+                .map(team -> team.getDisplayName() != null && !team.getDisplayName().isBlank()
+                        ? team.getDisplayName() : team.getName())
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .toList();
     }
 
     /**

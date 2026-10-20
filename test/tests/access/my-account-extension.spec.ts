@@ -59,19 +59,26 @@ test.describe('My Account: request an extension', () => {
     await expect(page.locator('#content-area h1').first()).toBeVisible({ timeout: 15_000 });
     await page.evaluate(() => MyAccount.open('access'));
 
+    // U09-T05: a grant ending within the window says so in gold and offers "Request an extension".
+    const grantCard = page.locator(`.ma-grant[data-access-id="${accessId}"]`);
+    await expect(grantCard.locator('.ma-grant-until.soon')).toHaveText(/^Ends \d{1,2} \w{3}( \d{4})? — in 3 days$/, { timeout: 10_000 });
     const extend = page.locator(`[data-ma-action="extend"][data-access-id="${accessId}"]`);
-    await expect(extend).toBeVisible({ timeout: 10_000 });
+    await expect(extend).toHaveText('Request an extension');
     await extend.click();
 
-    const formatted = (ms: number) => page.evaluate((t) =>
-      new Date(t).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }), ms);
+    const formatted = (ms: number) => page.evaluate((t) => {
+      const d = new Date(t);
+      const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };
+      if (d.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
+      return d.toLocaleDateString('en-GB', opts);
+    }, ms);
 
     // Default 30 days, counted from the current expiry (3 days away), not from today.
     const preview = page.locator('#ma-extend-new-expiry');
-    await expect(preview).toHaveText(`New expiry if approved now: ${await formatted(expiresAt + 30 * DAY_MS)}`);
+    await expect(preview).toHaveText(`If approved now it ends ${await formatted(expiresAt + 30 * DAY_MS)}.`);
 
     await page.locator('#ma-extend-days').selectOption('7');
-    await expect(preview).toHaveText(`New expiry if approved now: ${await formatted(expiresAt + 7 * DAY_MS)}`);
+    await expect(preview).toHaveText(`If approved now it ends ${await formatted(expiresAt + 7 * DAY_MS)}.`);
 
     await page.locator('#ma-extend-reason').fill('Release testing runs one more week.');
     await page.locator('.ma-extend button[type="submit"]').click();

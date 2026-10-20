@@ -56,7 +56,8 @@ test.describe('Lease fact', () => {
   test('a user sees the end time and extends within the maximum', async ({ page }) => {
     await openEnvironment(page, 'user');
     const banner = page.locator('#env-fact-lease .lease-fact');
-    await expect(banner.locator('.env-fact-value')).toContainText(/^Stops at \d\d:\d\d · /);
+    // A weekday comes first when the lease ends on another day (a run just before midnight).
+    await expect(banner.locator('.env-fact-value')).toContainText(/^Stops at (\w{3} )?\d\d:\d\d · /);
     await expect(banner.locator('.lease-countdown')).toContainText(/in (59|60|1 h) ?(min)?/);
     await expect(banner).toContainText('more without approval');
     await expect(banner.locator('[data-action="lease-settings"]')).toHaveCount(0);

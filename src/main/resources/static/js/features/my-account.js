@@ -1,35 +1,111 @@
 /**
- * VM Self-Service Platform - My Account panel
- * Slide-out opened from the user menu, with four tabs:
- *   Overview - who you are, how you sign in, at-a-glance counts, recent activity
- *   Access   - your grants (scope, level, expiry), pending requests, recently ended access
- *   Activity - your own VM operations and access history
- *   Cost     - month-to-date cost of your environments (E18-T04), loaded on first open
- *   Notifications - which events reach you in the bell and by email (E29-T06)
- *   API tokens - your personal API tokens (E34-T05), shown only while tokens are on
+ * VM Self-Service Platform - My account panel (U09-T05, MyAccount.dc.html)
+ * Slide-out opened from the user menu. The header names you (initials, name, "email · role");
+ * four tabs:
+ *   Access        - what you can use: one card per grant (level, until when, who granted it,
+ *                   Request an extension when it ends soon), requests waiting for a decision,
+ *                   environments kept running for you, and "Show N ended grants"
+ *   Cost          - month to date across your environments, one line each, your teams' quotas
+ *   Notifications - which events reach you in the app and by email (E29-T06)
+ *   Profile       - how you signed in, role, teams, keyboard shortcuts, Sign out
+ *   API tokens    - your personal API tokens (E34-T05), shown only while tokens are on
+ * open('overview') opens Access; open('activity') goes to the My activity page.
  */
 
 const MyAccount = (function() {
     'use strict';
 
-    const LEVELS = {
-        VIEWER: { label: 'View only', badge: 'level-viewer', help: 'See VMs, status and schedules' },
-        USER: { label: 'Start & stop', badge: 'level-user', help: 'Everything above, plus start and stop VMs' },
-        ADMIN: { label: 'Manage access', badge: 'level-admin', help: 'Everything above, plus grant access and approve requests' }
-    };
-    const TABS = [['overview', 'Overview'], ['access', 'Access'], ['activity', 'Activity'], ['cost', 'Cost'],
-        ['notifications', 'Notifications'], ['api-tokens', 'API tokens']];
-
-    /** The tabs shown: API tokens only once the token list answered (E34-T05). */
-    function visibleTabs() {
-        return TABS.filter(([id]) => id !== 'api-tokens' || (state && state.tokensEnabled));
-    }
+    const LEVELS = { USER: 'Operator', VIEWER: 'View only', ADMIN: 'Environment admin' };
+    const TABS = [['access', 'Access'], ['cost', 'Cost'], ['notifications', 'Notifications'], ['profile', 'Profile'],
+        ['api-tokens', 'API tokens']];
     const EXTENSION_DAYS = [7, 14, 30, 60, 90];
     const DEFAULT_EXTENSION_DAYS = 30;
     const DAY_MS = 24 * 60 * 60 * 1000;
     const ROOT = '#dynamicSlideoutPanel .my-account';
+    const PANEL = '#dynamicSlideoutPanel';
 
     let state = null;
+
+    // ============= Pure model (node tests: src/test/js/my-account.test.mjs) =============
+
+    function initials(name) {
+        if (!name || !String(name).trim()) return '?';
+        const parts = String(name).trim().split(/\s+/);
+        return (parts.length >= 2 ? parts[0][0] + parts[parts.length - 1][0] : parts[0].substring(0, 2)).toUpperCase();
+    }
+
+    /** "17 Nov", with the year when it is not this year. */
+    function shortDate(ts, now) {
+        const d = new Date(ts);
+        const n = now || new Date();
+        const opts = { day: 'numeric', month: 'short' };
+        if (d.getFullYear() !== n.getFullYear()) opts.year = 'numeric';
+        return d.toLocaleDateString('en-GB', opts);
+    }
+
+    function daysBetween(ts, now) {
+        return Math.ceil((new Date(ts).getTime() - (now || new Date()).getTime()) / DAY_MS);
+    }
+
+    /** "Operator", "View only", "Operator, Application group only". */
+    function levelText(item) {
+        const label = LEVELS[item && item.accessLevel] || LEVELS[item && item.requestedAccessLevel] || 'View only';
+        return item && item.scopeType === 'GROUP' && item.scopeName ? `${label}, ${item.scopeName} group only` : label;
+    }
+
+    /**
+     * When a grant ends: "No end date", "Until 17 Nov (29 days)", or within the extension window
+     * {soon: true} "Ends 22 Oct — in 3 days" / "Ends 21 Oct — tomorrow" / "Ends today".
+     */
+    function untilText(grant, windowDays, now) {
+        if (!grant || !grant.expiresAt) return { text: 'No end date', soon: false };
+        const days = daysBetween(grant.expiresAt, now);
+        const date = shortDate(grant.expiresAt, now);
+        if (days <= 0) return { text: 'Ends today', soon: true };
+        if (days <= windowDays) return { text: `Ends ${date} — ${days === 1 ? 'tomorrow' : `in ${days} days`}`, soon: true };
+        return { text: `Until ${date} (${days} days)`, soon: false };
+    }
+
+    function roleText(profile) {
+        if (!profile) return '';
+        if (profile.admin) return 'Administrator';
+        if (profile.envAdmin) return 'Environment admin';
+        return 'User';
+    }
+
+    /** The Role row: "Environment admin for Payments Dev and CRM UAT". */
+    function roleDetail(profile) {
+        const role = roleText(profile);
+        const envs = (profile && profile.administeredEnvironments || []).map(e => e.name).filter(Boolean);
+        if (role === 'Environment admin' && envs.length) return `${role} for ${joinNames(envs)}`;
+        return role;
+    }
+
+    function joinNames(names) {
+        if (names.length <= 1) return names.join('');
+        return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+    }
+
+    function signInText(profile) {
+        return profile && profile.authMethod === 'ENTRA_ID' ? 'Microsoft (Entra ID)' : 'Username and password';
+    }
+
+    /** Month to date over the environments whose cost is shown (group-only grants have none). */
+    function costTotal(environments) {
+        return (environments || []).filter(e => e.scope !== 'GROUPS')
+            .reduce((sum, e) => sum + Number(e.monthToDateEstimated || 0), 0);
+    }
+
+    function endedText(grant, now) {
+        if (grant.status === 'REVOKED' && grant.revokedAt) return `Removed ${shortDate(grant.revokedAt, now)}`;
+        return grant.expiresAt ? `Ended ${shortDate(grant.expiresAt, now)}` : 'Ended';
+    }
+
+    // ============= Panel =============
+
+    function visibleTabs() {
+        return TABS.filter(([id]) => id !== 'api-tokens' || (state && state.tokensEnabled));
+    }
 
     function init() {
         bindEvents();
@@ -38,29 +114,32 @@ const MyAccount = (function() {
         $(document).off('slideout:closed.myAccount').on('slideout:closed.myAccount', function() {
             state = null;
         });
+        // Another panel in the same slot must not keep this one's header.
+        $(document).off('slideout:opened.myAccount').on('slideout:opened.myAccount', (e, panel) => {
+            if (panel && panel.getAttribute('data-variant') !== 'my-account') $(panel).find('.ma-head-extra').remove();
+        });
     }
 
     /**
-     * Open the panel.
-     * @param {string=} tab - 'overview' (default), 'access' or 'activity'
-     */
-    /**
-     * Open the panel on a tab. opts.extend = an access id: once the grants have loaded, start the
-     * extension request for that grant (Home's "Ask for more time", U06-T02).
+     * Open the panel on a tab ('access' by default). opts.extend = an access id: once the grants
+     * have loaded, start the extension request for that grant (Home's "Ask for more time", U06-T02).
      */
     function open(tab, opts = {}) {
+        if (tab === 'activity') {
+            if (typeof Slideout !== 'undefined') Slideout.close();
+            ContentRouter.navigate('activity-logs');
+            return;
+        }
         state = {
-            tab: TABS.some(t => t[0] === tab) ? tab : 'overview',
+            tab: TABS.some(t => t[0] === tab) ? tab : 'access',
             profile: null,
             grants: null,
             requests: null,
             history: null,
-            activity: null,
             cost: null,
             costRequested: false,
             leases: [],
             errors: {},
-            filter: 'all',
             showEnded: false,
             extendingId: null,
             extendDraft: null,
@@ -73,12 +152,12 @@ const MyAccount = (function() {
             prefMessage: null,
             tokensEnabled: false
         };
-        Slideout.open('My Account', `
+        Slideout.open('My account', `
             <div class="my-account">
-                <div class="ma-tabs" role="tablist" aria-label="My Account sections"></div>
+                <div class="ma-tabs" role="tablist" aria-label="My account"></div>
                 <div class="ma-body" role="tabpanel" tabindex="0"></div>
             </div>
-        `, { variant: 'my-account' });
+        `, { variant: 'my-account', width: 520 });
         render();
         loadAll(opts.extend);
         if (state.tab === 'cost') loadCost();
@@ -121,42 +200,32 @@ const MyAccount = (function() {
         });
         const rows = groups.map(g => Utils.html`
             <tr class="ma-pref-group"><th colspan="3" scope="colgroup">${g.name}</th></tr>
-            ${Utils.raw(g.items.map(p => {
-                const inAppId = `ma-pref-${p.type}-inApp`;
-                const emailId = `ma-pref-${p.type}-email`;
-                return Utils.html`<tr data-pref-row="${p.type}">
+            ${Utils.raw(g.items.map(p => Utils.html`<tr data-pref-row="${p.type}">
                     <th scope="row" class="ma-pref-label">${p.label}</th>
-                    <td data-label="In-app">
-                        <div class="form-check form-switch m-0">
-                            <input class="form-check-input" type="checkbox" role="switch" id="${inAppId}" data-ma-pref="inApp"
-                                   data-type="${p.type}" aria-label="In-app for ${p.label}" ${prefValue(p, 'inApp') ? 'checked' : ''}
-                                   ${p.inAppLocked ? 'disabled' : ''}>
-                            ${Utils.raw(p.inAppLocked ? '<span class="small text-muted ma-pref-required" title="You always get this one in the bell">Required</span>' : '')}
-                        </div>
+                    <td class="ma-pref-cell">
+                        <input class="form-check-input" type="checkbox" id="ma-pref-${p.type}-inApp" data-ma-pref="inApp"
+                               data-type="${p.type}" aria-label="${p.label}, in app" ${prefValue(p, 'inApp') ? 'checked' : ''}
+                               ${p.inAppLocked ? 'disabled' : ''}>
+                        ${Utils.raw(p.inAppLocked ? '<span class="ma-pref-note" title="You always get this one in the app">Always</span>' : '')}
                     </td>
-                    <td data-label="Email">
-                        <div class="form-check form-switch m-0" ${p.emailAvailable ? '' : Utils.raw('title="Email is off for this event platform-wide"')}>
-                            <input class="form-check-input" type="checkbox" role="switch" id="${emailId}" data-ma-pref="email"
-                                   data-type="${p.type}" aria-label="Email for ${p.label}" ${prefValue(p, 'email') ? 'checked' : ''}
-                                   ${p.emailAvailable ? '' : 'disabled'}>
-                            ${Utils.raw(p.emailAvailable ? '' : '<span class="small text-muted">Not emailed</span>')}
-                        </div>
+                    <td class="ma-pref-cell" ${p.emailAvailable ? '' : Utils.raw('title="Email is off for this event for everyone"')}>
+                        <input class="form-check-input" type="checkbox" id="ma-pref-${p.type}-email" data-ma-pref="email"
+                               data-type="${p.type}" aria-label="${p.label}, email" ${prefValue(p, 'email') ? 'checked' : ''}
+                               ${p.emailAvailable ? '' : 'disabled'}>
+                        ${Utils.raw(p.emailAvailable ? '' : '<span class="ma-pref-note">Not emailed</span>')}
                     </td>
-                </tr>`;
-            }).join(''))}`).join('');
+                </tr>`).join(''))}`).join('');
         const message = state.prefMessage
-            ? Utils.html`<span class="small ${state.prefMessage.ok ? 'text-success' : 'text-danger'}" role="status">${state.prefMessage.text}</span>` : '';
+            ? Utils.html`<span class="ma-pref-message ${state.prefMessage.ok ? 'ok' : 'bad'}" role="status">${state.prefMessage.text}</span>` : '';
         return Utils.html`
             <div class="ma-prefs">
-                <p class="small text-muted">Choose what reaches you. Some bell notifications are required; email only goes out
-                    for events your organisation emails. <button type="button" class="ma-link ma-help-link" data-ma-action="help" data-help-topic="notifications">Help</button></p>
-                <div class="table-responsive">
-                    <table class="table table-sm ma-pref-table">
-                        <thead><tr><th scope="col">Event</th><th scope="col">In-app</th><th scope="col">Email</th></tr></thead>
-                        <tbody>${Utils.raw(rows)}</tbody>
-                    </table>
-                </div>
-                <div class="d-flex gap-2 align-items-center ma-pref-actions">
+                <table class="ma-pref-table">
+                    <thead><tr><th scope="col">Tell me when</th><th scope="col">In app</th><th scope="col">Email</th></tr></thead>
+                    <tbody>${Utils.raw(rows)}</tbody>
+                </table>
+                <p class="ma-hint">Some messages always reach you in the app. Email goes out only for the events your organisation emails.
+                    <button type="button" class="ma-link" data-ma-action="help" data-help-topic="notifications">Help</button></p>
+                <div class="ma-pref-actions">
                     <button type="button" class="btn btn-primary btn-sm" data-ma-action="prefs-save" id="ma-prefs-save"
                             ${prefChanged() && !state.prefSaving ? '' : 'disabled'}>${state.prefSaving ? 'Saving…' : 'Save'}</button>
                     ${Utils.raw(message)}
@@ -201,6 +270,8 @@ const MyAccount = (function() {
             });
     }
 
+    // ============= Cost (E18-T04) =============
+
     /** The Cost tab is loaded the first time it is shown. */
     function loadCost() {
         if (!state || state.costRequested) return;
@@ -208,8 +279,6 @@ const MyAccount = (function() {
         load('cost', Config.API.users.myCost);
         load('quotas', Config.API.teams.myQuotaUsage); // E25-T08
     }
-
-    // ============= Cost (E18-T04) =============
 
     function money(amount) {
         return Utils.formatCurrency(Number(amount || 0));
@@ -219,8 +288,8 @@ const MyAccount = (function() {
     function sparklineSvg(points, name) {
         const values = (points || []).map(Number);
         if (values.length < 2) return '';
-        const w = 84;
-        const h = 22;
+        const w = 72;
+        const h = 20;
         const max = Math.max(...values, 0.01);
         const step = w / (values.length - 1);
         const coords = values.map((v, i) => `${(i * step).toFixed(1)},${(h - 2 - (v / max) * (h - 4)).toFixed(1)}`).join(' ');
@@ -234,35 +303,22 @@ const MyAccount = (function() {
 
     function costRowHtml(env) {
         const name = env.displayName || env.name;
-        const change = env.changePercent === null || env.changePercent === undefined ? ''
-            : Utils.html`<span class="ma-cost-change ${Number(env.changePercent) > 0 ? 'up' : 'down'}"
-                title="Against the same days last month">${Number(env.changePercent) > 0 ? '▲' : '▼'} ${Math.abs(Number(env.changePercent))}%</span>`;
-        const schedule = env.nextStop
-            ? Utils.html`Next stop ${new Date(env.nextStop).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })}`
-            : (env.scheduleRuleCount > 0 ? 'Scheduled' : 'No schedule');
+        const value = env.scope === 'GROUPS'
+            ? Utils.html`<span class="ma-cost-hint">${env.hint || 'Shown for whole environments only'}</span>`
+            : Utils.html`${Utils.raw(sparklineSvg(env.sparkline, name))}<span class="ma-cost-mtd">${money(env.monthToDateEstimated)}</span>`;
         return Utils.html`
-            <article class="ma-card ma-cost-row" data-env-id="${env.environmentId}">
-                <div class="ma-card-top">
-                    <button type="button" class="ma-env-link" data-ma-action="open-env" data-env-id="${env.environmentId}"
-                            data-env-name="${name}">${name} <i class="fas fa-arrow-right" aria-hidden="true"></i></button>
-                    ${env.owner ? Utils.raw('<span class="badge bg-primary">Owner</span>') : ''}
-                </div>
-                ${env.scope === 'GROUPS'
-                    ? Utils.raw(Utils.html`<div class="ma-card-meta text-muted">${env.hint || ''}</div>`)
-                    : Utils.raw(Utils.html`<div class="ma-cost-figures">
-                        <span class="ma-cost-mtd">${money(env.monthToDateEstimated)}</span> ${Utils.raw(change)}
-                        ${Utils.raw(sparklineSvg(env.sparkline, name))}
-                      </div>`)}
-                <div class="ma-card-meta">${env.runningVmCount}/${env.totalVmCount} VMs running · ${schedule}</div>
-            </article>`;
+            <div class="ma-cost-row" data-env-id="${env.environmentId}">
+                <button type="button" class="ma-env-link" data-ma-action="open-env" data-env-id="${env.environmentId}">${name}</button>
+                <span class="ma-cost-value">${Utils.raw(value)}</span>
+            </div>`;
     }
 
     /** My teams' monthly quotas (E25-T08); nothing when none of my teams has one. */
     function quotaCardsHtml() {
         const teams = Array.isArray(state.quotas) ? state.quotas : [];
         if (!teams.length || typeof CostPreview === 'undefined') return '';
-        return teams.map(t => Utils.html`<article class="ma-card ma-quota-card" data-team="${t.teamId}">
-                <div class="ma-card-top"><strong>${t.teamName}</strong><span class="small text-muted">team quota this month</span></div>
+        return teams.map(t => Utils.html`<article class="ma-quota-card" data-team="${t.teamId}">
+                <div class="ma-quota-head"><strong>${t.teamName}</strong><span>team quota this month</span></div>
                 ${Utils.raw(t.quotas.map(q => CostPreview.quotaBar(q)).join(''))}</article>`).join('');
     }
 
@@ -271,14 +327,20 @@ const MyAccount = (function() {
         if (!state.cost) return loadingHtml();
         const list = state.cost.environments || [];
         if (list.length === 0) {
-            return `<div class="ma-empty">You don't have access to any environments yet.
-                        <button type="button" class="btn btn-primary btn-sm mt-2" data-ma-action="request-access">Request access</button></div>`;
+            return `<div class="ma-empty"><p>You can't use any environment yet, so there is no cost to show.</p>
+                        <button type="button" class="btn btn-primary btn-sm" data-ma-action="request-access">Request access</button></div>`;
         }
         const capped = state.cost.capped
-            ? Utils.html`<div class="ma-card-meta text-muted mb-2">Showing the ${state.cost.limit} highest of ${state.cost.totalEnvironments} environments.</div>`
+            ? Utils.html`<p class="ma-hint">The ${state.cost.limit} highest of ${state.cost.totalEnvironments} environments.</p>`
             : '';
-        return `${quotaCardsHtml()}<div class="ma-cost-intro text-muted small mb-2">Month to date, estimated from daily snapshots.</div>
-                ${capped}${list.map(costRowHtml).join('')}`;
+        return `<div class="ma-cost">
+                <div class="ma-cost-label">Month to date across the environments you can use</div>
+                <div class="ma-cost-total" id="ma-cost-total">${Utils.escapeHtml(money(costTotal(list)))}</div>
+                <div class="ma-cost-list">${list.map(costRowHtml).join('')}</div>
+                ${capped}
+                <p class="ma-hint">Estimated from daily snapshots.</p>
+                ${quotaCardsHtml()}
+            </div>`;
     }
 
     // ============= Data =============
@@ -310,7 +372,6 @@ const MyAccount = (function() {
         });
         loadRequests();
         load('history', Config.API.access.myAccessHistory(30));
-        loadActivity();
     }
 
     /** Running environments the user keeps alive (E15-T07); an error just hides the section. */
@@ -328,18 +389,15 @@ const MyAccount = (function() {
         return load('requests', Config.API.access.myRequests);
     }
 
-    function loadActivity() {
-        return load('activity', Config.API.users.myActivity(25));
-    }
-
     function retryFailed() {
         const urls = {
             profile: Config.API.users.myProfile,
             grants: Config.API.access.myEnvironments,
             requests: Config.API.access.myRequests,
             history: Config.API.access.myAccessHistory(30),
-            activity: Config.API.users.myActivity(25),
-            cost: Config.API.users.myCost
+            cost: Config.API.users.myCost,
+            quotas: Config.API.teams.myQuotaUsage,
+            prefs: Config.API.users.notificationPreferences
         };
         Object.keys(state.errors).forEach(key => {
             delete state.errors[key];
@@ -369,16 +427,8 @@ const MyAccount = (function() {
         return options.includes(DEFAULT_EXTENSION_DAYS) ? DEFAULT_EXTENSION_DAYS : options[options.length - 1];
     }
 
-    function daysUntil(ts) {
-        return Math.ceil((new Date(ts).getTime() - Date.now()) / DAY_MS);
-    }
-
     function isExpiring(grant) {
-        return !!grant.expiresAt && daysUntil(grant.expiresAt) <= windowDays();
-    }
-
-    function expiringGrants() {
-        return (state.grants || []).filter(isExpiring);
+        return !!grant.expiresAt && daysBetween(grant.expiresAt) <= windowDays();
     }
 
     function pendingRequests() {
@@ -389,7 +439,7 @@ const MyAccount = (function() {
         return pendingRequests().find(r => r.scopeType === grant.scopeType && r.scopeId === grant.scopeId);
     }
 
-    /** Expiring soonest first, then permanent / far-off grants by environment name. */
+    /** Ending soonest first, then the rest by environment name. */
     function sortGrants(grants) {
         return grants.slice().sort((a, b) => {
             const ea = isExpiring(a), eb = isExpiring(b);
@@ -397,20 +447,6 @@ const MyAccount = (function() {
             if (ea && eb) return new Date(a.expiresAt) - new Date(b.expiresAt);
             return (a.environmentName || '').localeCompare(b.environmentName || '');
         });
-    }
-
-    function roleInfo(profile) {
-        if (profile.admin) return { label: 'Administrator', cls: 'role-badge-admin' };
-        if (profile.envAdmin) return { label: 'Environment Admin', cls: 'role-badge-env-admin' };
-        return { label: 'User', cls: 'role-badge-user' };
-    }
-
-    function levelOf(level) {
-        return LEVELS[level] || LEVELS.VIEWER;
-    }
-
-    function scopeText(item) {
-        return item.scopeType === 'GROUP' ? `Group: ${Utils.escapeHtml(item.scopeName)}` : 'Entire environment';
     }
 
     function findGrant(accessId) {
@@ -436,6 +472,7 @@ const MyAccount = (function() {
             }
         } catch (e) { selection = null; }
 
+        renderHeader();
         $root.find('.ma-tabs').html(tabsHtml());
         $body.attr('aria-labelledby', `ma-tab-${state.tab}`).html(bodyHtml());
         if (state.tab === 'api-tokens' && window.ApiTokensUi) ApiTokensUi.mount(document.getElementById('ma-api-tokens'));
@@ -452,118 +489,45 @@ const MyAccount = (function() {
         }
     }
 
+    /** Initials, the name as the dialog's title, and "email · role" under it. */
+    function renderHeader() {
+        const $header = $(`${PANEL} .slideout-panel-header`);
+        const p = state.profile;
+        $header.find('.ma-head-extra').remove();
+        $header.find('#dynamicSlideoutTitle').text(p && p.displayName ? p.displayName : 'My account');
+        if (!p) return;
+        $header.prepend(Utils.html`<span class="ma-avatar ma-head-extra" aria-hidden="true">${initials(p.displayName)}</span>`);
+        $header.find('#dynamicSlideoutTitle').after(Utils.html`<div class="ma-head-sub ma-head-extra">${[p.email, roleText(p)].filter(Boolean).join(' · ')}</div>`);
+    }
+
     /** Reload the open panel's data in place (keeps the tab, drafts and focus). */
     function refresh() {
         if (state && $(ROOT).length) loadAll();
     }
 
     function tabsHtml() {
-        const expiring = state.grants ? expiringGrants().length : 0;
         return visibleTabs().map(([id, label]) => {
             const selected = state.tab === id;
-            const count = id === 'access' && expiring > 0
-                ? `<span class="ma-tab-count" title="${expiring} expiring soon">${expiring}</span>` : '';
             return `<button type="button" role="tab" id="ma-tab-${id}" class="ma-tab${selected ? ' active' : ''}"
-                        aria-selected="${selected}" tabindex="${selected ? 0 : -1}" data-ma-tab="${id}">${label}${count}</button>`;
+                        aria-selected="${selected}" tabindex="${selected ? 0 : -1}" data-ma-tab="${id}">${label}</button>`;
         }).join('');
     }
 
     function bodyHtml() {
-        if (state.tab === 'access') return accessHtml();
-        if (state.tab === 'activity') return activityHtml();
         if (state.tab === 'cost') return costHtml();
         if (state.tab === 'notifications') return notificationsHtml();
+        if (state.tab === 'profile') return profileHtml();
         if (state.tab === 'api-tokens') return '<div id="ma-api-tokens" class="ma-api-tokens"></div>';
-        return overviewHtml();
+        return accessHtml();
     }
 
     function loadingHtml() {
-        return '<div class="ma-loading"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Loading…</div>';
+        return '<div class="ma-loading" role="status">Loading…</div>';
     }
 
     function errorHtml(what) {
         return `<div class="ma-error" role="alert">Couldn't load ${what}.
                     <button type="button" class="ma-link" data-ma-action="retry">Try again</button></div>`;
-    }
-
-    // ----- Overview -----
-
-    function overviewHtml() {
-        if (state.errors.profile) return errorHtml('your profile');
-        const p = state.profile;
-        if (!p) return loadingHtml();
-
-        const role = roleInfo(p);
-        const entra = p.authMethod === 'ENTRA_ID';
-        const grants = state.grants || [];
-        const envCount = new Set(grants.map(g => g.environmentId)).size;
-        const expiring = expiringGrants().length;
-        const pending = pendingRequests().length;
-
-        return `
-            <div class="ma-identity">
-                <span class="ma-avatar" aria-hidden="true">${Utils.escapeHtml(initials(p.displayName))}</span>
-                <div class="ma-identity-text">
-                    <div class="ma-name">${Utils.escapeHtml(p.displayName)}</div>
-                    <div class="ma-email">${Utils.escapeHtml(p.email)}</div>
-                    <div class="ma-chips">
-                        <span class="role-badge ${role.cls}">${role.label}</span>
-                        <span class="ma-chip"><i class="fas ${entra ? 'fa-shield-alt' : 'fa-key'}" aria-hidden="true"></i>
-                            ${entra ? 'Microsoft Entra ID' : 'Username &amp; password'}</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="ma-stats">
-                ${statTileHtml(state.grants ? envCount : '–', envCount === 1 ? 'Environment' : 'Environments', '')}
-                ${statTileHtml(state.grants ? expiring : '–', `Expiring in ${windowDays()} days`, expiring > 0 ? 'warn' : '')}
-                ${statTileHtml(state.requests ? pending : '–', pending === 1 ? 'Request pending' : 'Requests pending', '')}
-            </div>
-
-            <h4 class="ma-section-title">Account details</h4>
-            <dl class="ma-details">
-                ${p.companyName ? detailRow('Company', Utils.escapeHtml(p.companyName)) : ''}
-                ${detailRow('Sign-in method', entra ? 'Microsoft Entra ID (single sign-on)' : 'Username and password')}
-                ${detailRow('Previous sign-in', p.previousLoginAt
-                    ? formatDateTime(p.previousLoginAt) : '<span class="ma-muted">Not recorded yet</span>')}
-                ${p.onboardedAt ? detailRow('Onboarded',
-                    formatDate(p.onboardedAt) + (p.onboardedByName ? ` by ${Utils.escapeHtml(p.onboardedByName)}` : '')) : ''}
-                ${detailRow('Member since', p.createdAt ? formatDate(p.createdAt) : '—')}
-            </dl>
-            ${entra ? `<p class="ma-note"><i class="fas fa-info-circle" aria-hidden="true"></i>
-                Your name and email come from Microsoft Entra ID. To change them, contact your IT administrator.</p>` : ''}
-
-            <div class="ma-section-head">
-                <h4 class="ma-section-title">Recent activity</h4>
-                <button type="button" class="ma-link" data-ma-tab="activity">View all</button>
-            </div>
-            ${recentActivityHtml()}
-        `;
-    }
-
-    function statTileHtml(value, label, modifier) {
-        return `<button type="button" class="ma-stat ${modifier}" data-ma-tab="access">
-                    <span class="ma-stat-value">${value}</span>
-                    <span class="ma-stat-label">${label}</span>
-                </button>`;
-    }
-
-    function detailRow(label, valueHtml) {
-        return `<dt>${label}</dt><dd>${valueHtml}</dd>`;
-    }
-
-    function recentActivityHtml() {
-        if (state.errors.activity) return errorHtml('your activity');
-        if (!state.activity) return loadingHtml();
-        if (!state.activity.length) return '<p class="ma-muted">Nothing yet.</p>';
-        return `<ul class="ma-recent">${state.activity.slice(0, 3).map(item => {
-            const d = describe(item);
-            return `<li>
-                        <span class="ma-dot ${d.pill.cls}" aria-hidden="true"></span>
-                        <span class="ma-recent-text">${Utils.escapeHtml(d.title)} <span class="ma-muted">· ${d.where}</span></span>
-                        <time class="ma-muted" datetime="${Utils.escapeHtml(item.occurredAt)}" title="${formatDateTime(item.occurredAt)}">${Utils.formatRelativeTime(item.occurredAt)}</time>
-                    </li>`;
-        }).join('')}</ul>`;
     }
 
     // ----- Access -----
@@ -572,20 +536,13 @@ const MyAccount = (function() {
         if (state.errors.grants) return errorHtml('your access');
         if (!state.grants) return loadingHtml();
         const grants = sortGrants(state.grants);
-
-        return `
-            ${roleBannerHtml()}
-            ${leasesSectionHtml()}
-            <div class="ma-access-head">
-                <p class="ma-summary">${accessSummary(grants)}</p>
-                <button type="button" class="btn btn-primary btn-sm" data-ma-action="request-access">
-                    <i class="fas fa-plus" aria-hidden="true"></i> Request access</button>
-            </div>
-            ${grants.length ? grants.map(grantCardHtml).join('') : emptyAccessHtml()}
-            ${pendingSectionHtml()}
-            ${endedSectionHtml()}
-            ${levelsLegendHtml()}
-        `;
+        return `<div class="ma-access">
+                ${leasesSectionHtml()}
+                ${pendingSectionHtml()}
+                ${grants.length ? `<div class="ma-grants">${grants.map(grantCardHtml).join('')}</div>` : emptyAccessHtml()}
+                ${endedSectionHtml()}
+                ${grants.length ? '<button type="button" class="ma-link ma-more" data-ma-action="request-access">Ask for another environment</button>' : ''}
+            </div>`;
     }
 
     function leasesSectionHtml() {
@@ -596,7 +553,7 @@ const MyAccount = (function() {
             const mins = Math.max(0, Math.round((endsAt.getTime() - Date.now()) / 60000));
             const left = mins >= 60 ? `${Math.floor(mins / 60)} h${mins % 60 ? ' ' + (mins % 60) + ' min' : ''}` : `${mins} min`;
             const extend = l.permissions && l.permissions.canExtend
-                ? Utils.html`<button type="button" class="btn btn-sm ma-btn-warn" data-ma-action="lease-extend"
+                ? Utils.html`<button type="button" class="btn btn-sm btn-outline-secondary" data-ma-action="lease-extend"
                         data-env-id="${l.environmentId}">Extend</button>`
                 : '';
             return Utils.html`<li class="ma-lease">
@@ -624,91 +581,48 @@ const MyAccount = (function() {
             });
     }
 
-    function roleBannerHtml() {
-        const p = state.profile;
-        if (!p) return '';
-        let text = '';
-        if (p.admin) {
-            text = 'As an Administrator you can view and manage every environment. The list below shows only access assigned to you directly.';
-        } else if (p.envAdmin && p.administeredEnvironments.length) {
-            const names = p.administeredEnvironments.map(e => Utils.escapeHtml(e.name)).join(', ');
-            text = `You are an Environment Admin for ${names}, so you can grant access and approve requests there.`;
-        }
-        return text ? `<div class="ma-banner"><i class="fas fa-shield-alt" aria-hidden="true"></i><span>${text}</span></div>` : '';
-    }
-
-    function accessSummary(grants) {
-        if (!grants.length) return 'No active access';
-        const envCount = new Set(grants.map(g => g.environmentId)).size;
-        let text = `Access to ${envCount} environment${envCount === 1 ? '' : 's'}`;
-        const expiring = expiringGrants().length;
-        if (expiring) text += ` · <strong>${expiring} expiring soon</strong>`;
-        return text;
-    }
-
     function emptyAccessHtml() {
         return `<div class="ma-empty">
-                    <i class="fas fa-lock" aria-hidden="true"></i>
-                    <p class="ma-empty-title">You don't have access to any environments yet</p>
-                    <p>Request access to an environment and its admins will review it. You'll get a notification when they decide.</p>
+                    <p class="ma-empty-title">You can't use any environment yet</p>
+                    <p>Ask for one and its admins decide. You get a message when they do.</p>
+                    <button type="button" class="btn btn-primary btn-sm" data-ma-action="request-access">Request access</button>
                 </div>`;
     }
 
-    function expiryText(grant) {
-        if (!grant.expiresAt) return 'No expiry';
-        const days = daysUntil(grant.expiresAt);
-        const date = formatDate(grant.expiresAt);
-        if (days <= 0) return `Expires today · ${date}`;
-        if (days === 1) return `Expires tomorrow · ${date}`;
-        if (isExpiring(grant)) return `Expires in ${days} days · ${date}`;
-        return `Expires ${date} · in ${days} days`;
-    }
-
     function grantCardHtml(g) {
-        const level = levelOf(g.accessLevel);
-        const expiring = isExpiring(g);
-        const via = g.initiation === 'REQUEST' ? 'via request' : 'granted directly';
-        const by = g.grantedByUserName ? `Granted by ${Utils.escapeHtml(g.grantedByUserName)} · ` : '';
-
+        const until = untilText(g, windowDays());
+        const by = g.grantedByUserName ? `Granted by ${g.grantedByUserName}` : `Granted ${shortDate(g.grantedAt)}`;
+        const updated = g.lastModifiedAt
+            ? Utils.html`<span class="ma-updated"> · Updated by ${g.lastModifiedByUserName || 'an admin'} on ${shortDate(g.lastModifiedAt)}</span>`
+            : '';
         let action = '';
-        if (expiring) {
+        if (isExpiring(g)) {
             action = pendingRequestFor(g)
-                ? '<span class="ma-pill info">Extension requested</span>'
-                : `<button type="button" class="btn btn-sm ma-btn-warn" data-ma-action="extend" data-access-id="${Utils.escapeHtml(g.accessId)}"
-                        aria-expanded="${state.extendingId === g.accessId}">Request extension</button>`;
+                ? '<span class="ma-pill">Extension requested</span>'
+                : Utils.html`<button type="button" class="ma-link ma-extend-link" data-ma-action="extend" data-access-id="${g.accessId}"
+                        aria-expanded="${state.extendingId === g.accessId ? 'true' : 'false'}">Request an extension</button>`;
         }
-
-        return `
-            <article class="ma-card${expiring ? ' expiring' : ''}">
-                <div class="ma-card-top">
-                    <button type="button" class="ma-env-link" data-ma-action="open-env"
-                            data-env-id="${Utils.escapeHtml(g.environmentId)}" data-env-name="${Utils.escapeHtml(g.environmentName)}">
-                        ${Utils.escapeHtml(g.environmentName)} <i class="fas fa-arrow-right" aria-hidden="true"></i></button>
-                    <span class="access-level-badge ${level.badge}">${level.label}</span>
+        return Utils.html`
+            <article class="ma-card ma-grant${until.soon ? ' expiring' : ''}" data-access-id="${g.accessId}">
+                <div class="ma-grant-top">
+                    <button type="button" class="ma-env-link" data-ma-action="open-env" data-env-id="${g.environmentId}">${g.environmentName}</button>
+                    <span class="ma-grant-level">${levelText(g)}</span>
                 </div>
-                <div class="ma-card-meta">
-                    <span><i class="fas fa-layer-group" aria-hidden="true"></i> ${scopeText(g)}</span>
-                    <span class="ma-expiry${expiring ? ' warn' : ''}"><i class="fas fa-clock" aria-hidden="true"></i> ${expiryText(g)}</span>
-                </div>
-                ${g.notes ? `<p class="ma-card-notes">${Utils.escapeHtml(g.notes)}</p>` : ''}
-                <div class="ma-card-foot">
-                    <span class="ma-muted">${by}${via} · ${formatDate(g.grantedAt)}${g.lastModifiedAt
-                        ? `<span class="ma-updated"> · Updated by ${Utils.escapeHtml(g.lastModifiedByUserName || 'an admin')} on ${formatDate(g.lastModifiedAt)}</span>`
-                        : ''}</span>
-                    ${action}
-                </div>
-                ${state.extendingId === g.accessId ? extendFormHtml(g) : ''}
-            </article>
-        `;
+                <div class="ma-grant-until${until.soon ? ' soon' : ''}">${until.text}</div>
+                <div class="ma-grant-by">${by}${Utils.raw(updated)}</div>
+                ${g.notes ? Utils.raw(Utils.html`<p class="ma-grant-notes">${g.notes}</p>`) : ''}
+                ${Utils.raw(action)}
+                ${Utils.raw(state.extendingId === g.accessId ? extendFormHtml(g) : '')}
+            </article>`;
     }
 
     /**
-     * An approved extension adds the days to the current expiry, or to the approval time if the
+     * An approved extension adds the days to the current end, or to the approval time if the
      * grant has already lapsed (server: EnvironmentAccessService.applyExpiry).
      */
     function newExpiryText(g, days) {
         const base = Math.max(Date.now(), g.expiresAt ? new Date(g.expiresAt).getTime() : 0);
-        return `New expiry if approved now: ${formatDate(base + days * DAY_MS)}`;
+        return `If approved now it ends ${shortDate(base + days * DAY_MS)}.`;
     }
 
     function extendFormHtml(g) {
@@ -721,15 +635,15 @@ const MyAccount = (function() {
                     <label for="ma-extend-days">Extend by</label>
                     <select id="ma-extend-days" class="form-select form-select-sm">${options}</select>
                 </div>
-                <p class="ma-muted ma-extend-new-expiry" id="ma-extend-new-expiry">${Utils.escapeHtml(newExpiryText(g, draft.days))}</p>
-                <label for="ma-extend-reason" class="form-label">Reason</label>
+                <p class="ma-hint ma-extend-new-expiry" id="ma-extend-new-expiry">${Utils.escapeHtml(newExpiryText(g, draft.days))}</p>
+                <label for="ma-extend-reason" class="form-label">Why you need it longer</label>
                 <textarea id="ma-extend-reason" class="form-control form-control-sm" rows="2"
                           minlength="10" maxlength="1000" required>${Utils.escapeHtml(draft.reason)}</textarea>
                 <div class="ma-extend-error" role="alert">${draft.error ? Utils.escapeHtml(draft.error) : ''}</div>
                 <div class="ma-extend-actions">
                     <button type="button" class="btn btn-light btn-sm" data-ma-action="extend-cancel">Cancel</button>
                     <button type="submit" class="btn btn-primary btn-sm"${state.extendSending ? ' disabled' : ''}>
-                        ${state.extendSending ? '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Sending…' : 'Send request'}</button>
+                        ${state.extendSending ? 'Sending…' : 'Send request'}</button>
                 </div>
             </form>
         `;
@@ -737,170 +651,69 @@ const MyAccount = (function() {
 
     function pendingSectionHtml() {
         if (state.errors.requests) {
-            return `<h4 class="ma-section-title">Pending requests</h4>${errorHtml('your requests')}`;
+            return `<section class="ma-pendings"><h3 class="ma-section-title">Waiting for a decision</h3>${errorHtml('your requests')}</section>`;
         }
         const pending = pendingRequests();
         if (!pending.length) return '';
-
-        return `
-            <h4 class="ma-section-title">Pending requests (${pending.length})</h4>
-            ${pending.map(r => {
-                const id = Utils.escapeHtml(r.requestId);
-                const actions = state.cancellingId === r.requestId
-                    ? `<div class="ma-confirm" role="group" aria-label="Confirm cancel">
-                           <span>Cancel this request?</span>
-                           <button type="button" id="ma-cancel-yes" class="btn btn-danger btn-sm" data-ma-action="cancel-confirm" data-request-id="${id}">Yes, cancel</button>
-                           <button type="button" class="btn btn-light btn-sm" data-ma-action="cancel-keep">Keep</button>
-                       </div>`
-                    : `<button type="button" class="btn btn-outline-danger btn-sm" data-ma-action="cancel" data-request-id="${id}">Cancel request</button>`;
-                return `
-                    <div class="ma-pending">
-                        <div class="ma-pending-text">
-                            <div class="ma-row-title">${Utils.escapeHtml(r.environmentName)}
-                                <span class="ma-muted">· ${levelOf(r.requestedAccessLevel).label} · ${scopeText(r)}</span></div>
-                            <div class="ma-muted">Submitted ${formatDate(r.createdAt)}${r.durationDays ? ` · for ${r.durationDays} days` : ''} · Waiting for an environment admin</div>
-                        </div>
-                        ${actions}
-                    </div>`;
-            }).join('')}
-        `;
+        const rows = pending.map(r => {
+            const actions = state.cancellingId === r.requestId
+                ? Utils.html`<div class="ma-confirm" role="group" aria-label="Confirm cancel">
+                       <span>Cancel this request?</span>
+                       <button type="button" id="ma-cancel-yes" class="btn btn-danger btn-sm" data-ma-action="cancel-confirm" data-request-id="${r.requestId}">Yes, cancel</button>
+                       <button type="button" class="btn btn-light btn-sm" data-ma-action="cancel-keep">Keep</button>
+                   </div>`
+                : Utils.html`<button type="button" class="ma-link" data-ma-action="cancel" data-request-id="${r.requestId}">Cancel request</button>`;
+            return Utils.html`
+                <div class="ma-pending">
+                    <div class="ma-pending-text">
+                        <div><b>${r.environmentName}</b> · ${levelText(r)}${r.durationDays ? `, ${r.durationDays} days` : ''}</div>
+                        <div class="ma-hint">Sent ${shortDate(r.createdAt)}</div>
+                    </div>
+                    ${Utils.raw(actions)}
+                </div>`;
+        }).join('');
+        return `<section class="ma-pendings"><h3 class="ma-section-title">Waiting for a decision</h3>${rows}</section>`;
     }
 
     function endedSectionHtml() {
         const ended = state.history || [];
         if (!ended.length) return '';
-
-        const rows = state.showEnded ? ended.map(g => `
+        const rows = state.showEnded ? ended.map(g => Utils.html`
             <div class="ma-ended-row">
                 <div>
-                    <div class="ma-row-title">${Utils.escapeHtml(g.environmentName)}
-                        <span class="ma-muted">· ${levelOf(g.accessLevel).label} · ${scopeText(g)}</span></div>
-                    <div class="ma-muted">${g.status === 'REVOKED' && g.revokedAt
-                        ? `Revoked ${formatDate(g.revokedAt)}` : `Expired ${formatDate(g.expiresAt)}`}</div>
+                    <div><b>${g.environmentName}</b> · ${levelText(g)}</div>
+                    <div class="ma-hint">${endedText(g)}</div>
                 </div>
-                <button type="button" class="btn btn-outline-primary btn-sm" data-ma-action="request-again"
-                        data-env-id="${Utils.escapeHtml(g.environmentId)}" data-env-name="${Utils.escapeHtml(g.environmentName)}"
-                        data-scope-type="${Utils.escapeHtml(g.scopeType || 'ENVIRONMENT')}"
-                        data-group-id="${g.scopeType === 'GROUP' ? Utils.escapeHtml(g.scopeId) : ''}"
-                        data-group-name="${g.scopeType === 'GROUP' ? Utils.escapeHtml(g.scopeName || '') : ''}"
-                        data-level="${Utils.escapeHtml(g.accessLevel || '')}">Request again</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-ma-action="request-again"
+                        data-env-id="${g.environmentId}" data-env-name="${g.environmentName}"
+                        data-scope-type="${g.scopeType || 'ENVIRONMENT'}"
+                        data-group-id="${g.scopeType === 'GROUP' ? g.scopeId : ''}"
+                        data-group-name="${g.scopeType === 'GROUP' ? (g.scopeName || '') : ''}"
+                        data-level="${g.accessLevel || ''}">Request again</button>
             </div>`).join('') : '';
-
-        return `
-            <div class="ma-ended">
-                <button type="button" class="ma-disclosure" data-ma-action="toggle-ended" aria-expanded="${state.showEnded}">
-                    <i class="fas fa-chevron-right${state.showEnded ? ' open' : ''}" aria-hidden="true"></i>
-                    Recently expired or revoked (${ended.length})
-                </button>
+        const label = state.showEnded ? 'Hide ended grants' : `Show ${ended.length} ended grant${ended.length === 1 ? '' : 's'}`;
+        return `<div class="ma-ended">
+                <button type="button" class="ma-link" data-ma-action="toggle-ended" aria-expanded="${state.showEnded}">${label}</button>
                 ${rows}
-            </div>
-        `;
+            </div>`;
     }
 
-    function levelsLegendHtml() {
-        return `
-            <div class="ma-legend">
-                <div class="ma-legend-title">What the access levels mean</div>
-                <dl>
-                    ${Object.values(LEVELS).map(l =>
-                        `<dt><span class="access-level-badge ${l.badge}">${l.label}</span></dt><dd>${l.help}</dd>`).join('')}
-                </dl>
-            </div>
-        `;
-    }
+    // ----- Profile -----
 
-    // ----- Activity -----
-
-    function activityHtml() {
-        if (state.errors.activity) return errorHtml('your activity');
-        if (!state.activity) return loadingHtml();
-
-        const filters = [['all', 'All'], ['ops', 'VM operations'], ['access', 'Access changes']];
-        const items = state.activity.filter(i =>
-            state.filter === 'all' || (state.filter === 'ops' ? i.kind === 'OPERATION' : i.kind === 'ACCESS'));
-
-        const list = items.length ? `<ul class="ma-activity">${items.map(activityItemHtml).join('')}</ul>`
-            : '<p class="ma-muted ma-activity-empty">Nothing here yet.</p>';
-
-        return `
-            <div class="ma-filters" role="group" aria-label="Filter activity">
-                ${filters.map(([id, label]) =>
-                    `<button type="button" class="ma-filter${state.filter === id ? ' active' : ''}" aria-pressed="${state.filter === id}"
-                             data-ma-action="filter" data-filter="${id}">${label}</button>`).join('')}
-            </div>
-            ${list}
-            <button type="button" class="ma-link" data-ma-action="activity-logs">View full history in Activity Logs →</button>
-        `;
-    }
-
-    function activityItemHtml(item) {
-        const d = describe(item);
-        return `
-            <li class="ma-activity-item">
-                <span class="ma-activity-icon ${d.pill.cls}" aria-hidden="true"><i class="fas ${d.icon}"></i></span>
-                <div class="ma-activity-text">
-                    <div class="ma-row-title">${Utils.escapeHtml(d.title)}</div>
-                    <div class="ma-muted">${d.where}</div>
-                    ${d.detail ? `<div class="ma-activity-detail">${Utils.escapeHtml(d.detail)}</div>` : ''}
-                </div>
-                <div class="ma-activity-side">
-                    <span class="ma-pill ${d.pill.cls}">${d.pill.label}</span>
-                    <time class="ma-muted" datetime="${Utils.escapeHtml(item.occurredAt)}" title="${formatDateTime(item.occurredAt)}">${Utils.formatRelativeTime(item.occurredAt)}</time>
-                </div>
-            </li>
-        `;
-    }
-
-    /** Title, location, icon and status pill for one activity entry. Strings in `where` are already escaped. */
-    function describe(item) {
-        if (item.kind === 'OPERATION') {
-            const verb = { START: 'Started', STOP: 'Stopped', RESTART: 'Restarted' }[item.event] || item.event;
-            const n = item.totalTargets || 0;
-            const status = {
-                COMPLETED: ['Completed', 'ok'],
-                PARTIAL_SUCCESS: ['Partial', 'warn'],
-                FAILED: ['Failed', 'err'],
-                CANCELLED: ['Cancelled', 'muted'],
-                IN_PROGRESS: ['In progress', 'info'],
-                PENDING: ['Queued', 'info']
-            }[item.status] || [item.status, 'muted'];
-            let detail = '';
-            if (item.status === 'PARTIAL_SUCCESS') {
-                detail = `${item.completedTargets || 0} of ${n} succeeded${item.note ? ': ' + item.note : ''}`;
-            } else if (item.status === 'FAILED') {
-                detail = item.note || '';
-            }
-            return {
-                title: `${verb} ${n} VM${n === 1 ? '' : 's'}`,
-                where: Utils.escapeHtml(item.environmentName),
-                icon: { START: 'fa-play', STOP: 'fa-stop', RESTART: 'fa-redo' }[item.event] || 'fa-server',
-                pill: { label: status[0], cls: status[1] },
-                detail: detail
-            };
-        }
-
-        const by = item.actorName ? ` by ${item.actorName}` : '';
-        const access = {
-            REQUESTED: ['Requested access', 'fa-paper-plane', 'Submitted', 'info'],
-            APPROVED: [`Request approved${by}`, 'fa-check', 'Approved', 'ok'],
-            DENIED: [`Request denied${by}`, 'fa-times', 'Denied', 'err'],
-            CANCELLED: ['Request cancelled', 'fa-ban', 'Cancelled', 'muted'],
-            GRANTED: [`Access granted${by}`, 'fa-key', 'Granted', 'ok'],
-            EXTENDED: [`Access extended${by}`, 'fa-calendar-plus', 'Extended', 'ok'],
-            UPDATED: [`Access updated${by}`, 'fa-pen', 'Updated', 'info'],
-            REVOKED: ['Access revoked', 'fa-ban', 'Revoked', 'err'],
-            EXPIRED: ['Access expired', 'fa-hourglass-end', 'Expired', 'muted']
-        }[item.event] || [item.event, 'fa-key', item.event, 'muted'];
-        const where = Utils.escapeHtml(item.environmentName)
-            + (item.scopeName ? ` › ${Utils.escapeHtml(item.scopeName)}` : '')
-            + (item.accessLevel ? ` · ${levelOf(item.accessLevel).label}` : '');
-        return {
-            title: access[0],
-            where: where,
-            icon: access[1],
-            pill: { label: access[2], cls: access[3] },
-            detail: item.note || ''
-        };
+    function profileHtml() {
+        if (state.errors.profile) return errorHtml('your profile');
+        const p = state.profile;
+        if (!p) return loadingHtml();
+        const teams = p.teamNames && p.teamNames.length ? p.teamNames.join(', ') : 'None';
+        const row = (label, value) => Utils.html`<div class="ma-profile-row"><span class="ma-profile-label">${label}</span><span>${value}</span></div>`;
+        return `<div class="ma-profile">
+                ${row('Signed in with', signInText(p))}
+                ${row('Role', roleDetail(p))}
+                ${row(p.teamNames && p.teamNames.length > 1 ? 'Teams' : 'Team', teams)}
+                ${row('Previous sign-in', p.previousLoginAt ? new Date(p.previousLoginAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Not recorded yet')}
+                <div class="ma-profile-row"><span class="ma-profile-label">Keyboard shortcuts</span><span><kbd>?</kbd> to see them</span></div>
+                <button type="button" class="ma-link ma-sign-out" data-ma-action="sign-out">Sign out</button>
+            </div>`;
     }
 
     // ============= Events =============
@@ -981,8 +794,9 @@ const MyAccount = (function() {
                     level: $btn.attr('data-level') || ''
                 }).filter(([, v]) => v)).toString();
                 break;
-            case 'activity-logs':
-                leaveTo('activity-logs');
+            case 'sign-out':
+                Slideout.close();
+                Auth.logout();
                 break;
             case 'extend':
                 startExtension($btn.data('access-id'));
@@ -1008,10 +822,6 @@ const MyAccount = (function() {
                 state.showEnded = !state.showEnded;
                 render();
                 break;
-            case 'filter':
-                state.filter = $btn.data('filter');
-                render();
-                break;
         }
     }
 
@@ -1026,7 +836,7 @@ const MyAccount = (function() {
         state.extendingId = accessId;
         state.extendDraft = {
             days: defaultExtensionDays(),
-            reason: `Extension: my access expires on ${formatDate(grant.expiresAt)}. `,
+            reason: `Extension: my access ends on ${shortDate(grant.expiresAt)}. `,
             error: null
         };
         render();
@@ -1046,7 +856,7 @@ const MyAccount = (function() {
 
         const reason = (draft.reason || '').trim();
         if (reason.length < 10) {
-            draft.error = 'Please give a reason of at least 10 characters.';
+            draft.error = 'Say why in at least 10 characters.';
             render();
             return;
         }
@@ -1065,15 +875,14 @@ const MyAccount = (function() {
         }, { suppressGlobalError: true })
             .done(() => {
                 if (state !== owner) return;
-                Notifications.success('Extension requested. You will be notified when it is reviewed.');
+                Notifications.success('Extension requested. You get a message when it is decided.');
                 state.extendingId = null;
                 state.extendDraft = null;
                 loadRequests();
-                loadActivity();
             })
             .fail(xhr => {
                 if (state !== owner) return;
-                draft.error = xhr.responseJSON?.message || 'Could not send the request. Please try again.';
+                draft.error = (xhr.responseJSON && xhr.responseJSON.message) || 'Could not send the request. Try again.';
             })
             .always(() => {
                 if (state !== owner) return;
@@ -1087,37 +896,17 @@ const MyAccount = (function() {
         ApiClient.delete(Config.API.access.cancelRequest(requestId), { suppressGlobalError: true })
             .done(() => {
                 if (state !== owner) return;
-                Notifications.success('Request cancelled');
+                Notifications.success('Request cancelled.');
                 state.cancellingId = null;
                 loadRequests();
-                loadActivity();
             })
-            .fail(xhr => Notifications.error(xhr.responseJSON?.message || 'Failed to cancel request'));
-    }
-
-    // ============= Formatting =============
-
-    function initials(name) {
-        if (!name) return '?';
-        const parts = name.trim().split(/\s+/);
-        return (parts.length >= 2 ? parts[0][0] + parts[parts.length - 1][0] : name.substring(0, 2)).toUpperCase();
-    }
-
-    function formatDate(ts) {
-        if (!ts) return '—';
-        return new Date(ts).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-    }
-
-    function formatDateTime(ts) {
-        if (!ts) return '—';
-        return new Date(ts).toLocaleString(undefined, {
-            year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
-        });
+            .fail(xhr => Notifications.error((xhr.responseJSON && xhr.responseJSON.message) || 'Could not cancel the request.'));
     }
 
     return {
         init,
         open,
-        refresh
+        refresh,
+        model: { initials, levelText, untilText, roleText, roleDetail, signInText, costTotal, endedText, shortDate }
     };
 })();

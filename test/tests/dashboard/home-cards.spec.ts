@@ -135,7 +135,7 @@ test.describe('Home', () => {
     await expect(page.locator('.home-lower')).toHaveClass(/home-lower-single/);
   });
 
-  test('recent activity: time, words and result; Failed in red; All activity opens My Account', async ({ page }) => {
+  test('recent activity: time, words and result; Failed in red; All activity opens My activity', async ({ page }) => {
     const now = new Date();
     const { body } = summary(now);
     await openHome(page, body, activity(now));
@@ -153,7 +153,8 @@ test.describe('Home', () => {
     expect(await failed.evaluate(el => getComputedStyle(el).color)).toBe('rgb(168, 51, 31)');
 
     await recent.getByRole('button', { name: 'All activity' }).click();
-    await expect(page.locator('#ma-tab-activity')).toHaveAttribute('aria-selected', 'true');
+    await expect(page).toHaveURL(/#\/activity-logs$/);
+    await expect(page.locator('#content-area h1')).toHaveText('My activity');
   });
 
   test('recent activity that cannot load says so', async ({ page }) => {

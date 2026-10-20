@@ -5,7 +5,7 @@ import java.util.List;
 
 /**
  * Response of {@code GET /api/v1/users/me/profile}: the signed-in user's own account, as shown
- * on the Overview tab of the My Account panel.
+ * on the Profile tab of the My account panel.
  *
  * @param authMethod               how this session signed in: {@code ENTRA_ID} (Microsoft) or {@code LOCAL} (username or dev)
  * @param previousLoginAt          the sign-in before the current one; null until the user has
@@ -16,6 +16,7 @@ import java.util.List;
  * @param extensionWindowDays      a grant expiring within this many days can be extended
  * @param requestMaxDurationDays   the longest duration a request or extension may ask for
  * @param leasesEnabled            environment leases are switched on (E15-T07): My Account loads them
+ * @param teamNames                the active teams the user belongs to, by name (U09-T05)
  */
 public record MyProfileDTO(
         String userId,
@@ -33,7 +34,8 @@ public record MyProfileDTO(
         List<EnvironmentRef> administeredEnvironments,
         int extensionWindowDays,
         int requestMaxDurationDays,
-        boolean leasesEnabled
+        boolean leasesEnabled,
+        List<String> teamNames
 ) {
     public record EnvironmentRef(String environmentId, String name) {}
 }

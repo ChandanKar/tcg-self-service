@@ -128,6 +128,35 @@ class MyAccountServiceTest extends AbstractIntegrationTest {
                 .containsExactly("My Account Env");
     }
 
+    private void team(String displayName, boolean active, User... members) {
+        entityManager.flush();
+        String teamId = UUID.randomUUID().toString();
+        jdbcTemplate.update("INSERT INTO team (team_id, name, display_name, is_active, created_at, updated_at) "
+                + "VALUES (?, ?, ?, ?, NOW(), NOW())", teamId, "t-" + teamId.substring(0, 8), displayName, active);
+        for (User member : members) {
+            jdbcTemplate.update("INSERT INTO team_member (team_id, user_id, source, synced_at) VALUES (?, ?, 'MANUAL', NOW())",
+                    teamId, member.getUserId());
+        }
+    }
+
+    @Test
+    @DisplayName("U09-T05: the profile names the user's active teams, sorted")
+    void profile_namesTheActiveTeams() {
+        team("Payments", true, user);
+        team("Analytics", true, user, admin);
+        team("Old team", false, user);
+        team("Not mine", true, admin);
+
+        assertThat(myAccountService.getProfile(user.getUserId()).teamNames()).containsExactly("Analytics", "Payments");
+        assertThat(myAccountService.getProfile(admin.getUserId()).teamNames()).containsExactly("Analytics", "Not mine");
+    }
+
+    @Test
+    @DisplayName("U09-T05: a user in no team gets an empty list")
+    void profile_noTeams() {
+        assertThat(myAccountService.getProfile(user.getUserId()).teamNames()).isEmpty();
+    }
+
     @Test
     @DisplayName("H6: environments where the user is only VIEWER or USER are not listed as administered")
     void profile_doesNotListViewerOrUserEnvironmentsAsAdministered() {

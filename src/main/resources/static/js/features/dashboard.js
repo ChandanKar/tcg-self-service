@@ -927,6 +927,6 @@ const Dashboard = (function() {
 
 Actions.register('dashboard-refresh', () => Dashboard.refresh());
 // Home's "Ask for more time": My Account on the Access tab with that grant's extension form (U06-T02).
-Actions.register('home-all-activity', () => MyAccount.open('activity'));
+Actions.register('home-all-activity', () => ContentRouter.navigate('activity-logs'));
 Actions.register('home-needs-more', () => MyAccount.open('access'));
 Actions.register('home-extend-access', el => MyAccount.open('access', { extend: el.getAttribute('data-access-id') }));

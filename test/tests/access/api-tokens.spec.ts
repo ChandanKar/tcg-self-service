@@ -63,7 +63,7 @@ test.describe('API tokens', () => {
 
   test('the My Account tab is hidden while tokens are off', async ({ page }) => {
     await setUp(page, false);
-    await page.evaluate(() => MyAccount.open('overview'));
+    await page.evaluate(() => MyAccount.open('access'));
     await expect(page.locator('#ma-tab-notifications')).toBeVisible();
     await page.waitForTimeout(500);
     await expect(page.locator('#ma-tab-api-tokens')).toHaveCount(0);
@@ -71,7 +71,7 @@ test.describe('API tokens', () => {
 
   test('a new token is shown once and is gone from the page after its dialog closes', async ({ page }) => {
     const calls = await setUp(page, true);
-    await page.evaluate(() => MyAccount.open('overview'));
+    await page.evaluate(() => MyAccount.open('access'));
     await page.locator('#ma-tab-api-tokens').click();
     await expect(page.locator('#my-api-tokens tr[data-token="t-1"]')).toContainText('old-ci');
 

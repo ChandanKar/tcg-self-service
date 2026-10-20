@@ -29,7 +29,7 @@ async function newEnvironment(admin: APIRequestContext, label: string): Promise<
   return { id: (await res.json()).environmentId, name };
 }
 
-async function openMyAccount(page: Page, tab: 'access' | 'activity') {
+async function openMyAccount(page: Page, tab: 'access') {
   await signIn(page, 'user');
   await page.waitForFunction(() => typeof MyAccount !== 'undefined');
   // Opening the first page closes any open panel; wait for it, or the panel can be shut right away.
@@ -54,7 +54,7 @@ test.describe('My Account: who granted, who changed, and requesting again', () =
       'Needs TEST_DEV_USER_ID and TEST_DEV_ADMIN_ID (dev mode) to seed grants');
   });
 
-  test('an edit by another admin keeps "Granted by" and adds "Updated by" plus an Updated event',
+  test('an edit by another admin keeps "Granted by" and adds "Updated by"',
     async ({ page, playwright }) => {
       const admin = await api(playwright, devIds.admin);
       const env = await newEnvironment(admin, 'History Edit');
@@ -79,16 +79,13 @@ test.describe('My Account: who granted, who changed, and requesting again', () =
       await openMyAccount(page, 'access');
       const card = page.locator('.ma-card', { hasText: env.name });
       await expect(card).toBeVisible({ timeout: 10_000 });
-      await expect(card.locator('.ma-card-foot')).toContainText(`Granted by ${adminName}`);
+      await expect(card.locator('.ma-grant-by')).toContainText(`Granted by ${adminName}`);
       await expect(card.locator('.ma-updated')).toContainText('Updated by Carol E2E on');
-
-      await page.locator('[data-ma-tab="activity"]').first().click();
-      const updated = page.locator('.ma-activity-item', { hasText: env.name }).filter({ hasText: 'Access updated by Carol E2E' });
-      await expect(updated).toBeVisible({ timeout: 10_000 });
-      await expect(updated.locator('.ma-pill')).toHaveText('Updated');
+      await expect(card.locator('.ma-grant-level')).toHaveText('View only');
+      await expect(card.locator('.ma-grant-until')).toHaveText('No end date');
     });
 
-  test('an approved extension appears as "Access extended" by the reviewer', async ({ page, playwright }) => {
+  test('an approved extension keeps the original granter on the card', async ({ page, playwright }) => {
     const admin = await api(playwright, devIds.admin);
     const env = await newEnvironment(admin, 'History Extend');
     await admin.post(`/api/v1/environments/${env.id}/access`, { data: { userEmail, accessLevel: 'USER', durationDays: 3 } });
@@ -103,15 +100,12 @@ test.describe('My Account: who granted, who changed, and requesting again', () =
     expect(approved.ok()).toBeTruthy();
     await admin.dispose();
 
-    await openMyAccount(page, 'activity');
-    const extended = page.locator('.ma-activity-item', { hasText: env.name }).filter({ hasText: `Access extended by ${adminName}` });
-    await expect(extended).toBeVisible({ timeout: 10_000 });
-    await expect(extended.locator('.ma-pill')).toHaveText('Extended');
-    // The card still names the original granter, not the reviewer as an editor.
-    await page.locator('[data-ma-tab="access"]').first().click();
+    // The card still names the original granter, not the reviewer as an editor, and now runs 10 days.
+    await openMyAccount(page, 'access');
     const card = page.locator('.ma-card', { hasText: env.name });
-    await expect(card.locator('.ma-card-foot')).toContainText(`Granted by ${adminName}`);
+    await expect(card.locator('.ma-grant-by')).toContainText(`Granted by ${adminName}`, { timeout: 10_000 });
     await expect(card.locator('.ma-updated')).toHaveCount(0);
+    await expect(card.locator('.ma-grant-until')).toHaveText(/^Until \d{1,2} \w{3}( \d{4})? \(10 days\)$/);
   });
 
   test('"Request again" on an ended group grant preselects the same group and level', async ({ page, playwright }) => {
@@ -128,7 +122,7 @@ test.describe('My Account: who granted, who changed, and requesting again', () =
     await admin.dispose();
 
     await openMyAccount(page, 'access');
-    await page.locator('[data-ma-action="toggle-ended"]').click();
+    await page.getByRole('button', { name: /^Show \d+ ended grants?$/ }).click();
     const row = page.locator('.ma-ended-row', { hasText: env.name });
     await row.locator('[data-ma-action="request-again"]').click();
 

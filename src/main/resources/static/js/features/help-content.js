@@ -34,7 +34,7 @@ const HelpContent = (function() {
                     steps: [
                         'Open Environments to see the environments you can use.',
                         'If one you need is missing, open Request Access and ask for it.',
-                        'Open My Account (user menu) to see your access, activity, cost and notification choices.'
+                        'Open My Account (user menu) to see your access, cost, notification choices and profile; My activity lists what you did.'
                     ]
                 }
             ]

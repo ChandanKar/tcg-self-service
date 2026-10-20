@@ -50,7 +50,14 @@ test.describe('Slide-out dialogs', () => {
     const panel = page.locator('#dynamicSlideoutPanel');
     await expect(panel).toHaveAttribute('role', 'dialog');
     await expect(panel).toHaveAttribute('aria-modal', 'true');
-    await expect(page.locator('#dynamicSlideoutTitle')).toHaveText('My Account');
+    // U09-T05: the dialog is named after the person, with "email · role" under the name.
+    const me = await (await page.request.get('/api/v1/users/me/profile', { headers: { 'X-User-Id': devIds.user } })).json();
+    await expect(page.locator('#dynamicSlideoutTitle')).toHaveText(me.displayName);
+    const role = me.admin ? 'Administrator' : me.envAdmin ? 'Environment admin' : 'User';
+    await expect(panel.locator('.ma-head-sub')).toHaveText(`${me.email} · ${role}`);
+    await expect(panel.locator('.ma-avatar')).toHaveAttribute('aria-hidden', 'true');
+    await expect(panel.getByRole('tab')).toHaveText(['Access', 'Cost', 'Notifications', 'Profile']);
+    await expect(panel.getByRole('tab', { name: 'Access' })).toHaveAttribute('aria-selected', 'true');
     await expect.poll(() => page.evaluate(() =>
       !!document.getElementById('dynamicSlideoutPanel')?.contains(document.activeElement))).toBe(true);
 
@@ -80,6 +87,27 @@ test.describe('Slide-out dialogs', () => {
     await reason.press('Escape');
     await expect(page.locator('#dynamicSlideoutPanel')).toHaveClass(/show/);
     await expect(reason).toHaveValue('Need one more week of testing');
+  });
+
+  test('old tab names still work: Overview opens Access, Activity goes to My activity', async ({ page }) => {
+    await page.evaluate(() => MyAccount.open('overview'));
+    await expect(page.locator('#ma-tab-access')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('#ma-tab-overview, #ma-tab-activity')).toHaveCount(0);
+    await page.evaluate(() => MyAccount.open('activity'));
+    await expect(page).toHaveURL(/#\/activity-logs$/);
+    await expect(page.locator('#dynamicSlideoutPanel')).not.toHaveClass(/show/);
+  });
+
+  test('Profile: signed in with, role, team, shortcuts and Sign out', async ({ page }) => {
+    await page.route(/\/api\/v1\/users\/me\/profile$/, async route => {
+      const real = await (await route.fetch()).json();
+      await route.fulfill({ json: { ...real, admin: false, envAdmin: false, authMethod: 'ENTRA_ID', teamNames: ['Payments'] } });
+    });
+    await page.evaluate(() => MyAccount.open('profile'));
+    const profile = page.locator('#dynamicSlideoutPanel .ma-profile');
+    await expect(profile.locator('.ma-profile-row')).toHaveText([
+      /^Signed in withMicrosoft \(Entra ID\)$/, /^RoleUser$/, /^TeamPayments$/, /^Previous sign-in/, /^Keyboard shortcuts\?\s*to see them$/]);
+    await expect(profile.getByRole('button', { name: 'Sign out' })).toBeVisible();
   });
 
   test('closed panels are not in the Tab order', async ({ page }) => {

@@ -4,7 +4,8 @@ import { signIn, canSignIn, devIds } from '../../fixtures/auth';
 /**
  * E29-T06: My Account > Notifications. The preferences API is faked: every type with its two
  * switches, required bells locked, email greyed out where it is not sent, Save sends only the
- * changed rows, and the bell's footer link opens the tab.
+ * changed rows, and the bell's footer link opens the tab. U09-T05 (MyAccount.dc.html): a "Tell me
+ * when / In app / Email" grid of checkboxes named after the event and the channel.
  */
 
 declare const MyAccount: any;
@@ -47,7 +48,14 @@ test.describe('Notification preferences', () => {
     const table = page.locator('.ma-pref-table');
     await expect(table.locator('tr[data-pref-row]')).toHaveCount(3);
     await expect(page.locator('#ma-pref-OPERATION_FAILED-inApp')).toBeDisabled();
-    await expect(table.locator('tr[data-pref-row="OPERATION_FAILED"]')).toContainText('Required');
+    await expect(table.locator('tr[data-pref-row="OPERATION_FAILED"]')).toContainText('Always');
+    await expect(table.locator('thead th')).toHaveText(['Tell me when', 'In app', 'Email']);
+    await expect(page.getByRole('checkbox', { name: 'Access expiring, in app' })).toBeChecked();
+    await expect(page.getByRole('checkbox', { name: 'Access expiring, email' })).toBeChecked();
+    // No unnamed switches: every checkbox names its event and channel.
+    const names = await table.locator('input[type="checkbox"]').evaluateAll(els => els.map(e => e.getAttribute('aria-label')));
+    expect(names.every(n => /, (in app|email)$/.test(n || ''))).toBe(true);
+    await expect(table.locator('[role="switch"]')).toHaveCount(0);
     await expect(page.locator('#ma-pref-OPERATION_COMPLETED-email')).toBeDisabled();
     await expect(page.locator('#ma-prefs-save')).toBeDisabled();
 

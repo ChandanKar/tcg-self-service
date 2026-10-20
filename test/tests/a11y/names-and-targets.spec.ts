@@ -127,10 +127,11 @@ test.describe('Touch targets and caret (phone)', () => {
   }
 
   test('My Account controls are at least 44px', async ({ page }) => {
-    await page.evaluate(() => MyAccount.open('activity'));
+    await page.evaluate(() => MyAccount.open('access'));
     await expect(page.locator('#dynamicSlideoutPanel')).toHaveClass(/show/);
     await settle(page);
-    expect(await smallTargets(page, '#dynamicSlideoutPanel .ma-filter, #dynamicSlideoutPanel .ma-link')).toEqual([]);
+    await expect(page.locator(`[data-ma-action="extend"][data-access-id="${accessId}"]`)).toBeVisible();
+    expect(await smallTargets(page, '#dynamicSlideoutPanel .ma-tab, #dynamicSlideoutPanel .ma-link')).toEqual([]);
   });
 
   test('bell controls are at least 44px', async ({ page }) => {

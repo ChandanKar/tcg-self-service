@@ -2,9 +2,11 @@ import { test, expect, type Page } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
 
 /**
- * E18-T04: My Account > Cost lists the month-to-date cost of my environments. /users/me/cost is
- * faked in the browser: owners first, sparklines, the group-only hint, the empty state, a failed
- * load with Retry (other tabs unaffected) and keyboard navigation onto the tab.
+ * E18-T04: My account > Cost lists the month-to-date cost of my environments. /users/me/cost is
+ * faked in the browser: the total, one line per environment with its sparkline, the group-only
+ * hint, the empty state, a failed load with Retry (other tabs unaffected) and keyboard navigation
+ * onto the tab. U09-T05 (MyAccount.dc.html): "Month to date across the environments you can use"
+ * and the total over the environments with a cost.
  */
 
 declare const MyAccount: any;
@@ -40,19 +42,18 @@ test.describe('My Account cost tab', () => {
     test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
   });
 
-  test('lists my environments, owners first, with cost, change and a sparkline', async ({ page }) => {
+  test('the month-to-date total, then one line per environment with its cost and a sparkline', async ({ page }) => {
     await page.route(/\/api\/v1\/users\/me\/cost$/, r => r.fulfill({ json: COST }));
     await open(page, 'cost');
 
+    await expect(page.locator('.my-account .ma-cost-label')).toHaveText('Month to date across the environments you can use');
+    await expect(page.locator('#ma-cost-total')).toHaveText('$420.50');
     const rows = page.locator('.my-account .ma-cost-row');
     await expect(rows).toHaveCount(3);
     await expect(rows.nth(0)).toContainText('Payments');
-    await expect(rows.nth(0)).toContainText('Owner');
-    await expect(rows.nth(0)).toContainText('$120.50');
-    await expect(rows.nth(0)).toContainText('12%');
+    await expect(rows.nth(0).locator('.ma-cost-mtd')).toHaveText('$120.50');
     await expect(rows.nth(0).locator('svg.ma-spark')).toHaveAttribute('aria-label', /Payments: daily cost over 14 days, rising/);
-    await expect(rows.nth(1)).toContainText('$300.00');
-    await expect(rows.nth(1)).toContainText('No schedule');
+    await expect(rows.nth(1).locator('.ma-cost-mtd')).toHaveText('$300.00');
     await expect(rows.nth(2)).toContainText('some groups only');
     await expect(rows.nth(2).locator('svg')).toHaveCount(0);
   });
@@ -60,7 +61,7 @@ test.describe('My Account cost tab', () => {
   test('the tab loads on first open only', async ({ page }) => {
     let calls = 0;
     await page.route(/\/api\/v1\/users\/me\/cost$/, r => { calls++; return r.fulfill({ json: COST }); });
-    await open(page, 'overview');
+    await open(page, 'access');
     await page.waitForTimeout(500);
     expect(calls).toBe(0);
 
@@ -80,8 +81,8 @@ test.describe('My Account cost tab', () => {
     await open(page, 'cost');
 
     await expect(page.locator('.my-account .ma-error')).toContainText("Couldn't load your environments' cost");
-    await page.locator('#ma-tab-activity').click();
-    await expect(page.locator('#ma-tab-activity')).toHaveAttribute('aria-selected', 'true');
+    await page.locator('#ma-tab-profile').click();
+    await expect(page.locator('#ma-tab-profile')).toHaveAttribute('aria-selected', 'true');
     await page.locator('#ma-tab-cost').click();
     await page.locator('.my-account [data-ma-action="retry"]').click();
     await expect(page.locator('.my-account .ma-cost-row')).toHaveCount(3);
@@ -91,15 +92,15 @@ test.describe('My Account cost tab', () => {
     await page.route(/\/api\/v1\/users\/me\/cost$/, r => r.fulfill({ json: { ...COST, environments: [], totalEnvironments: 0 } }));
     await open(page, 'cost');
 
-    await expect(page.locator('.my-account .ma-empty')).toContainText("You don't have access to any environments yet");
+    await expect(page.locator('.my-account .ma-empty')).toContainText("You can't use any environment yet");
     await expect(page.locator('.my-account [data-ma-action="request-access"]')).toBeVisible();
   });
 
-  test('ArrowRight from Activity moves to Cost', async ({ page }) => {
+  test('ArrowRight from Access moves to Cost', async ({ page }) => {
     await page.route(/\/api\/v1\/users\/me\/cost$/, r => r.fulfill({ json: COST }));
-    await open(page, 'activity');
+    await open(page, 'access');
 
-    await page.locator('#ma-tab-activity').focus();
+    await page.locator('#ma-tab-access').focus();
     await page.keyboard.press('ArrowRight');
 
     await expect(page.locator('#ma-tab-cost')).toBeFocused();
