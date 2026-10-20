@@ -88,8 +88,8 @@ class AccessReviewConcurrencyIntegrationTest extends AbstractIntegrationTest {
                 .filteredOn(ea -> ea.getStatus() == AccessStatus.ACTIVE)
                 .hasSize(1);
         // reset-test-data.sql empties audit_log before each test, so every ACCESS_GRANTED row is ours.
-        assertThat(auditLogRepository.findByActionOrderByCreatedAtDesc("ACCESS_GRANTED", PageRequest.of(0, 50))
-                .getTotalElements()).isEqualTo(1);
+        awaitAsync(() -> assertThat(auditLogRepository.findByActionOrderByCreatedAtDesc("ACCESS_GRANTED", PageRequest.of(0, 50))
+                .getTotalElements()).isEqualTo(1));
         // Written after commit, in its own transaction, exactly once.
         assertThat(notificationsOfType(requester, NotificationType.ACCESS_REQUEST_APPROVED)).isEqualTo(1);
     }

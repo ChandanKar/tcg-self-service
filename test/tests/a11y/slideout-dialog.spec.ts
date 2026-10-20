@@ -70,6 +70,9 @@ test.describe('Slide-out dialogs', () => {
     await page.evaluate(() => MyAccount.open('access'));
     const extend = page.locator(`[data-ma-action="extend"][data-access-id="${accessId}"]`);
     await expect(extend).toBeVisible({ timeout: 10_000 });
+    // The panel slides in and its lists load after it opens; click once it has settled.
+    await expect(page.locator('#dynamicSlideoutPanel')).toHaveClass(/show/);
+    await page.waitForLoadState('networkidle');
     await extend.click();
 
     const reason = page.locator('#ma-extend-reason');

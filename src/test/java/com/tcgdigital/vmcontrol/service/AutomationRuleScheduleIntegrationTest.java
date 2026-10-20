@@ -160,8 +160,9 @@ class AutomationRuleScheduleIntegrationTest extends AbstractIntegrationTest {
         assertThat(locked.getLastRunDetail()).startsWith("Environment locked by");
         assertThat(lastStopFiredOn()).isNull(); // retried on the next tick
         tickAt(20, 1, 10); // still locked: the same skip is not audited again
-        assertThat(auditLogs.findByActionOrderByCreatedAtDesc("AUTOMATION_RULE_SKIPPED", PageRequest.of(0, 20))
-                .getContent()).filteredOn(a -> rule.getRuleId().equals(a.getTargetId())).hasSize(1);
+        // The skip is audited after the commit, on another thread: wait for the one row.
+        awaitAsync(() -> assertThat(auditLogs.findByActionOrderByCreatedAtDesc("AUTOMATION_RULE_SKIPPED", PageRequest.of(0, 20))
+                .getContent()).filteredOn(a -> rule.getRuleId().equals(a.getTargetId())).hasSize(1));
 
         lockService.releaseLock(env.getEnvironmentId(), holder.getUserId());
         tickAt(20, 5, 10);

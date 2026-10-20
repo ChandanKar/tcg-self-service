@@ -166,8 +166,9 @@ class OperationRecoveryServiceTest extends AbstractIntegrationTest {
                 .singleElement()
                 .satisfies(d -> assertThat(d.getErrorMessage()).startsWith("Interrupted"));
         assertThat(after.getFailedTargets()).isEqualTo(1);
-        assertThat(auditLogs.findByActionOrderByCreatedAtDesc("OPERATION_FAILED", PageRequest.of(0, 10)).getContent())
-                .anySatisfy(a -> assertThat(a.getTargetId()).isEqualTo(interrupted.getExecutionId()));
+        // AuditWriter writes the row after the commit, on another thread: wait for it.
+        awaitAsync(() -> assertThat(auditLogs.findByActionOrderByCreatedAtDesc("OPERATION_FAILED", PageRequest.of(0, 10)).getContent())
+                .anySatisfy(a -> assertThat(a.getTargetId()).isEqualTo(interrupted.getExecutionId())));
 
         assertThat(operationsService.startOperation(env.getEnvironmentId(), user.getUserId(), startAll())).isNotNull();
     }
