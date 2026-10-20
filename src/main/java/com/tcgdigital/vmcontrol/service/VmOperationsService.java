@@ -367,7 +367,38 @@ public class VmOperationsService {
         OperationExecution execution = getExecutionForEnvironment(environmentId, executionId);
         // Force load details
         execution.getDetails().size();
+        attachStepVms(List.of(execution));
         return execution;
+    }
+
+    /**
+     * Steps keep only their target's id; OperationDetail.vm is transient. Put each VM step's VM
+     * (with its group loaded) on it, for the step's group and the run's scope label (U08-T01).
+     */
+    private void attachStepVms(java.util.Collection<OperationExecution> executions) {
+        java.util.Set<String> vmIds = new java.util.HashSet<>();
+        for (OperationExecution execution : executions) {
+            for (var step : execution.getDetails()) {
+                if ("vm".equalsIgnoreCase(step.getTargetType()) && step.getTargetId() != null) {
+                    vmIds.add(step.getTargetId());
+                }
+            }
+        }
+        if (vmIds.isEmpty()) {
+            return;
+        }
+        Map<String, Vm> vms = new HashMap<>();
+        for (Vm vm : vmRepository.findAllById(vmIds)) {
+            org.hibernate.Hibernate.initialize(vm.getGroup());
+            vms.put(vm.getVmId(), vm);
+        }
+        for (OperationExecution execution : executions) {
+            for (var step : execution.getDetails()) {
+                if ("vm".equalsIgnoreCase(step.getTargetType())) {
+                    step.setVm(vms.get(step.getTargetId()));
+                }
+            }
+        }
     }
 
     /**
@@ -386,7 +417,9 @@ public class VmOperationsService {
     public org.springframework.data.domain.Page<com.tcgdigital.vmcontrol.dto.OperationExecutionDTO> getExecutionsPage(
             String environmentId, org.springframework.data.domain.Pageable pageable,
             java.util.function.Function<String, String> displayNameOf) {
-        return executionRepository.findByEnvironmentEnvironmentIdOrderByStartedAtDesc(environmentId, pageable)
+        var page = executionRepository.findByEnvironmentEnvironmentIdOrderByStartedAtDesc(environmentId, pageable);
+        attachStepVms(page.getContent());
+        return page
                 .map(execution -> {
                     var dto = com.tcgdigital.vmcontrol.dto.OperationExecutionDTO.fromEntity(execution,
                             displayNameOf.apply(execution.getInitiatedByUserId()));

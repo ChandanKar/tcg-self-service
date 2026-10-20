@@ -252,7 +252,7 @@ class VmOperationsControllerIntegrationTest extends AbstractIntegrationTest {
         com.tcgdigital.vmcontrol.model.OperationDetail step = new com.tcgdigital.vmcontrol.model.OperationDetail();
         step.setDetailId(UUID.randomUUID().toString());
         step.setExecution(newest);
-        step.setVm(vmRepository.findById(vmId).orElseThrow());
+        // Only the target id is stored (OperationDetail.vm is transient); the VM is looked up from it.
         step.setTargetType("vm");
         step.setTargetId(vmId);
         step.setTargetName("Test VM");
