@@ -616,13 +616,23 @@ const Environments = (function() {
     // Debounced so a fresh server request doesn't fire on every keystroke.
     const filterAndRenderEnvList = Utils.debounce(doSearchEnvList, 300);
 
-    /** "payments-dev · AWS EC2 · ap-south-1 · Payments team" under the name (EnvDetail.dc.html). */
+    /** An EKS environment: node groups instead of VMs (U07-T08, EksEnv.dc.html). */
+    function isEks(env) {
+        return String(env && env.serviceType || '').toUpperCase() === 'EKS';
+    }
+
+    /**
+     * "payments-dev · AWS EC2 · ap-south-1 · Payments team" under the name (EnvDetail.dc.html);
+     * "AWS EKS · cluster partner-qa-eks · ap-south-1" for EKS (EksEnv.dc.html).
+     */
     function detailMetaHtml(env) {
         let envMeta = {};
         try { envMeta = JSON.parse(env.metadata || '{}') || {}; } catch (e) { /* no metadata */ }
         const type = `${(envMeta.defaultCloudProvider || 'AWS').toUpperCase()} ${(env.serviceType || 'EC2').toUpperCase()}`;
         const regions = env.regions || [];
-        const parts = [Utils.html`<span class="mono">${env.name}</span>`, Utils.escapeHtml(type)];
+        const parts = isEks(env)
+            ? [Utils.escapeHtml(type) + (env.eksClusterName ? Utils.html` · cluster <span class="mono">${env.eksClusterName}</span>` : '')]
+            : [Utils.html`<span class="mono">${env.name}</span>`, Utils.escapeHtml(type)];
         if (regions.length) {
             parts.push(Utils.html`<span class="mono">${regions[0]}</span>` + (regions.length > 1
                 ? Utils.html` <span title="${regions.join(', ')}">+${regions.length - 1}</span>` : ''));
@@ -644,7 +654,7 @@ const Environments = (function() {
         const running = env.runningVms || 0;
         const stopped = countVmsWithStatus(env, 'STOPPED');
         const stop = running > 0
-            ? '<button type="button" class="btn btn-danger" id="btn-env-action-stop" data-action-type="stop">Stop all</button>'
+            ? `<button type="button" class="btn btn-danger" id="btn-env-action-stop" data-action-type="stop">${isEks(env) ? 'Scale all to 0' : 'Stop all'}</button>`
             : '';
         const startLabel = running === 0 ? 'Start all' : `Start the ${stopped} stopped`;
         const start = running === 0 || stopped > 0
@@ -681,7 +691,9 @@ const Environments = (function() {
         const isEnvAdmin = typeof Auth !== 'undefined' && Auth.isEnvAdmin && Auth.isEnvAdmin();
         const envName = env.displayName || env.name;
         // More than 12 VMs and groups: the group list with one group's VMs (EnvDetailLarge.dc.html).
-        const large = useLargeLayout(env);
+        const eks = isEks(env);
+        const large = !eks && useLargeLayout(env);
+        const nodes = eks ? EnvVmTable.nodeTotals(env) : null;
 
         // The Lock fact; its actions follow the server's per-viewer flags on lockStatus (E07-T05).
         let lockFact = '';
@@ -726,19 +738,27 @@ const Environments = (function() {
                 <div class="env-body${large ? ' env-body-wide' : ''}">
                     <div id="env-main" class="env-main">
                         ${viewOnly}
-                        ${large ? '' : buildStartOrder(env)}
+                        ${large || eks ? '' : buildStartOrder(env)}
                         <section id="env-vms" aria-labelledby="env-vms-title">
                             <h2 class="visually-hidden" id="env-vms-title">Groups and VMs</h2>
-                            <div id="env-vms-body">${large
+                            <div id="env-vms-body">${eks
+                                ? EnvVmTable.renderEks(env, vmTableOptions(env))
+                                : large
                                 ? EnvVmTable.renderLarge(env, largeStateFor(env), vmTableOptions(env))
                                 : EnvVmTable.render(env, vmTableOptions(env))}</div>
+                        </section>
+                        <section class="panel env-eks-namespaces" id="env-eks-namespaces-section" aria-labelledby="env-eks-namespaces-title" hidden>
+                            <h2 id="env-eks-namespaces-title">Cost by namespace</h2>
+                            <div id="env-eks-namespaces"></div>
                         </section>
                     </div>
                     <aside id="env-aside" class="env-aside" aria-label="About this environment">
                         <div class="panel env-about">
                             <div class="env-aside-run">
                                 ${env.description ? Utils.html`<p class="env-aside-description">${env.description}</p>` : ''}
-                                <div><b class="mono">${runningVms}</b> of <b class="mono">${totalVms}</b> VMs running</div>
+                                <div>${eks
+                                    ? `<b class="mono">${nodes.running}</b> of <b class="mono">${nodes.total}</b> nodes running`
+                                    : `<b class="mono">${runningVms}</b> of <b class="mono">${totalVms}</b> VMs running`}</div>
                                 ${unknownVms > 0 ? `<div class="env-aside-note" title="Not yet read from the cloud; it updates on the next sync">${unknownVms} with unknown status</div>` : ''}
                             </div>
                             <div id="env-fact-lock">${lockFact}</div>

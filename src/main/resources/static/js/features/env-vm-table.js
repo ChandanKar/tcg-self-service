@@ -333,9 +333,88 @@ const EnvVmTable = (function() {
             </div>`;
     }
 
+    // ---------------------------------------------------------------- EKS (U07-T08, EksEnv.dc.html)
+
+    /** "On-demand" or "Spot, falls back to on-demand". */
+    function capacityText(capacityType) {
+        return capacityType === 'SPOT' ? 'Spot, falls back to on-demand' : 'On-demand';
+    }
+
+    /** The node groups in start order, each with its node-group VM (one per group in this model). */
+    function eksRows(env) {
+        return sortedGroups(env).flatMap(gd => (gd.vms || []).map(vm => ({ gd, vm })));
+    }
+
+    /** {running, total} nodes across node groups: total is what they run when started. */
+    function nodeTotals(env) {
+        return eksRows(env).reduce((t, { vm }) => {
+            const ng = vm.eksNodeGroup || {};
+            return { running: t.running + (ng.currentNodes || 0), total: t.total + (ng.desiredWhenRunning || 0) };
+        }, { running: 0, total: 0 });
+    }
+
+    /**
+     * Node groups instead of VMs: name, a light per node, node size, "3 / 3" running of when
+     * started, capacity, and Scale to 0 / Start for the group; viewers read "Running" or
+     * "Scaled to 0" instead of a button.
+     */
+    function renderEks(env, opts = {}) {
+        const rows = eksRows(env);
+        if (!rows.length) {
+            return '<div class="panel env-vms-empty">No node groups registered for this cluster yet.</div>';
+        }
+        const body = rows.map(({ gd, vm }) => {
+            const group = gd.group || gd;
+            const ng = vm.eksNodeGroup || {};
+            const name = vm.displayName || vm.name;
+            const total = ng.desiredWhenRunning || 0;
+            const running = ng.currentNodes || 0;
+            const lights = Array.from({ length: Math.max(total, running) }, (_, i) =>
+                isTransitional(vm.status) ? 'B' : (i < running ? 'R' : 'S'));
+            const strip = lights.length ? PowerStrip.render([{ name, lights }], { showCount: false }) : '<span class="text-muted">—</span>';
+            const canOperate = !!opts.canOperate && (typeof gd.viewerCanOperate === 'boolean' ? gd.viewerCanOperate : true);
+            let action;
+            if (isTransitional(vm.status)) {
+                action = Utils.html`<span class="env-eks-state">${vm.status === 'STARTING' ? 'Scaling up…' : 'Scaling to 0…'}</span>`;
+            } else if (!canOperate) {
+                action = Utils.html`<span class="env-eks-state">${vm.status === 'RUNNING' ? 'Running' : 'Scaled to 0'}</span>`;
+            } else if (vm.status === 'RUNNING') {
+                action = Utils.html`<button type="button" class="btn btn-sm btn-danger" data-group-id="${group.groupId}" data-action="group-action" data-action-type="stop" aria-label="Scale ${name} to 0">Scale to 0</button>`;
+            } else {
+                action = Utils.html`<button type="button" class="btn btn-sm btn-outline-success" data-group-id="${group.groupId}" data-action="group-action" data-action-type="start" aria-label="Start ${name}">Start</button>`;
+            }
+            return Utils.html`
+                <tr class="env-vm-row env-eks-row" data-vm-id="${vm.vmId}">
+                    <td class="td-primary env-vm-name" data-label="Node group">${name}</td>
+                    <td class="env-eks-nodes" data-label="Nodes">` + strip + Utils.html`</td>
+                    <td class="env-vm-size" data-label="Size"><span class="mono">${ng.instanceType || '—'}</span></td>
+                    <td class="env-eks-count" data-label="Running / when started"><span class="mono">${running} / ${total}</span></td>
+                    <td class="env-eks-capacity" data-label="Capacity">${capacityText(ng.capacityType)}</td>
+                    <td class="td-actions env-vm-actions">` + action + '</td></tr>';
+        }).join('');
+        return `
+            <div class="panel env-vms-panel table-cards-wrap">
+                <h2 class="env-eks-title">Node groups <span>· start top to bottom</span></h2>
+                <table class="table mb-0 env-vm-table env-eks-table table-cards">
+                    <thead>
+                        <tr>
+                            <th scope="col">Node group</th>
+                            <th scope="col">Nodes</th>
+                            <th scope="col">Size</th>
+                            <th scope="col">Running / when started</th>
+                            <th scope="col">Capacity</th>
+                            <th scope="col"><span class="visually-hidden">Action</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>${body}</tbody>
+                </table>
+            </div>`;
+    }
+
     return {
-        render, renderLarge, defaultGroupId,
-        model: { state, cpu, vmAction, groupActions, orderText, countByState, filterVms, pageOf, groupNote, defaultGroupId },
+        render, renderLarge, renderEks, nodeTotals, defaultGroupId, capacityText,
+        model: { state, cpu, vmAction, groupActions, orderText, countByState, filterVms, pageOf, groupNote, defaultGroupId,
+            capacityText, nodeTotals },
     };
 })();
 

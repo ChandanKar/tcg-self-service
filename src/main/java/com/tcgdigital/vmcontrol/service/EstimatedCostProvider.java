@@ -192,7 +192,6 @@ public class EstimatedCostProvider implements CostDataProvider {
      * Vm.metadata by EksSyncService directly from the EKS DescribeNodegroup response. Nodes run
      * on plain EC2 hardware, so the standard AWS pricing reference applies per node.
      */
-    private static final ObjectMapper EKS_JSON = new ObjectMapper();
     private static final BigDecimal HOURS_PER_DAY = BigDecimal.valueOf(24);
 
     /**
@@ -226,36 +225,17 @@ public class EstimatedCostProvider implements CostDataProvider {
         return fees;
     }
 
-    /** An EKS node group's node type and count from its Vm metadata (E26-T02); 1 node when unknown. */
+    /**
+     * An EKS node group's node type and count from its Vm metadata (E26-T02); 1 node when unknown,
+     * since a node group is costed at least one node. The parsing is shared with VmDTO (U07-T08).
+     */
     static EksNodeInfo eksNodeInfo(String metadata) {
-        if (metadata == null || metadata.isBlank()) {
-            return new EksNodeInfo(null, 1);
-        }
-        try {
-            return parseEksNodeInfo(EKS_JSON.readTree(metadata));
-        } catch (Exception e) {
-            return new EksNodeInfo(null, 1);
-        }
+        com.tcgdigital.vmcontrol.model.EksNodeGroupInfo info = com.tcgdigital.vmcontrol.model.EksNodeGroupInfo.parse(metadata);
+        return new EksNodeInfo(info.instanceType(), Math.max(info.desiredSize(), 1), info.diskSizeGib());
     }
 
     EksNodeInfo resolveEksNodeInfo(Vm vm) {
-        String metadata = vm.getMetadata();
-        if (metadata == null || metadata.isBlank()) {
-            return new EksNodeInfo(null, 1);
-        }
-        try {
-            return parseEksNodeInfo(objectMapper.readTree(metadata));
-        } catch (Exception e) {
-            log.debug("Could not parse EKS node group metadata for VM {}: {}", vm.getVmId(), e.getMessage());
-            return new EksNodeInfo(null, 1);
-        }
-    }
-
-    private static EksNodeInfo parseEksNodeInfo(JsonNode node) {
-        String instanceType = node.hasNonNull("instanceType") ? node.get("instanceType").asText() : null;
-        int desiredSize = node.hasNonNull("desiredSize") ? node.get("desiredSize").asInt() : 1;
-        int diskSizeGib = node.hasNonNull("diskSizeGib") ? Math.max(node.get("diskSizeGib").asInt(), 0) : 0;
-        return new EksNodeInfo(instanceType, Math.max(desiredSize, 1), diskSizeGib);
+        return eksNodeInfo(vm.getMetadata());
     }
 
     /**

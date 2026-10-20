@@ -558,6 +558,41 @@
     }
 }
 
+/* EKS node groups (U07-T08, EksEnv.dc.html) */
+.env-eks-title {
+    margin: 0;
+    padding: 12px 18px;
+    font-size: 15px;
+    font-weight: 600;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.env-eks-title span {
+    font-weight: 400;
+    color: var(--slate);
+}
+
+.env-eks-table .env-vm-row td.env-vm-name {
+    padding-left: 18px;
+}
+
+.env-eks-count,
+.env-eks-capacity,
+.env-eks-state {
+    color: #3a4256;
+    font-size: var(--fs-caption);
+}
+
+.env-eks-namespaces {
+    padding: 14px 18px;
+}
+
+.env-eks-namespaces h2 {
+    margin: 0 0 8px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
 .env-settings {
     display: flex;
     flex-direction: column;

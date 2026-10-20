@@ -4,7 +4,7 @@ import { signIn, canSignIn, devIds } from '../../fixtures/auth';
 /**
  * E26-T05: namespace and workload cost of an EKS environment, from Split Cost Allocation Data.
  * The workload endpoints are faked: on Cost Management (admin, environment picker) and in the
- * environment cost card (Workloads section, EKS only).
+ * environment page (U07-T08: "Cost by namespace", EKS only, shown with the page for whole-environment views).
  */
 
 declare const ContentRouter: any;
@@ -84,13 +84,14 @@ test.describe('EKS workloads', () => {
     await page.waitForLoadState('networkidle');
     await page.evaluate(([envId, type]) => {
       document.body.insertAdjacentHTML('beforeend',
-        '<section id="env-cost-card" style="position:fixed;top:0;left:0;right:0;z-index:20000;background:#fff"></section>');
+        '<div style="position:fixed;top:0;left:0;right:0;z-index:20000;background:#fff"><section id="env-cost-card"></section>'
+        + '<section id="env-eks-namespaces-section" hidden><div id="env-eks-namespaces"></div></section></div>');
       EnvCost.render({ environmentId: envId, serviceType: type });
     }, [ENV_ID, serviceType]);
     await expect(page.locator('#env-cost-mtd')).toContainText('$63.00');
   }
 
-  test('an EKS environment card opens its workloads; empty data explains how to turn it on', async ({ page }) => {
+  test('an EKS environment page shows its cost by namespace; empty data explains how to turn it on', async ({ page }) => {
     test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
     let calls = 0;
     await page.route(new RegExp(`/environments/${ENV_ID}/eks-workload-cost\\?days=7$`), r => {
@@ -99,24 +100,22 @@ test.describe('EKS workloads', () => {
     });
     await mountCard(page, 'EKS');
 
-    expect(calls).toBe(0); // loaded only when opened
-    await page.locator('#env-eks-workloads-toggle').click();
-    await expect(page.locator('#env-eks-workloads .eks-workloads-empty')).toContainText('Split Cost Allocation Data');
-    await page.locator('#env-eks-workloads-toggle').click();
-    await expect(page.locator('#env-eks-workloads')).toBeHidden();
+    await expect(page.locator('#env-eks-namespaces-section')).toBeVisible();
+    await expect(page.locator('#env-eks-namespaces .eks-workloads-empty')).toContainText('Split Cost Allocation Data');
+    await expect(page.locator('#env-cost-card .env-eks-fee')).toContainText('runs even when nodes are at 0');
     expect(calls).toBe(1);
   });
 
   test('EC2 environments and group-only views get no workloads section', async ({ page }) => {
     test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
     await mountCard(page, 'EC2');
-    await expect(page.locator('#env-eks-workloads-toggle')).toHaveCount(0);
+    await expect(page.locator('#env-eks-namespaces-section')).toBeHidden();
 
     await page.unroute(new RegExp(`/environments/${ENV_ID}/cost$`));
     await page.route(new RegExp(`/environments/${ENV_ID}/cost$`), r => r.fulfill({ json: {
       environmentId: ENV_ID, scope: 'GROUPS', monthToDateEstimated: 13, daily: [], topVms: [], scheduleStatus: { ruleCount: 0 } } }));
     await page.evaluate(envId => EnvCost.render({ environmentId: envId, serviceType: 'EKS' }), ENV_ID);
     await expect(page.locator('#env-cost-mtd')).toContainText('$13.00');
-    await expect(page.locator('#env-eks-workloads-toggle')).toHaveCount(0);
+    await expect(page.locator('#env-eks-namespaces-section')).toBeHidden();
   });
 });

@@ -94,7 +94,36 @@ public class VmDTO {
         dto.setDeletedAt(vm.getDeletedAt());
         dto.setCreatedAt(vm.getCreatedAt());
         dto.setUpdatedAt(vm.getUpdatedAt());
+        if (vm.getProvider() == CloudProvider.AWS_EKS) {
+            dto.setEksNodeGroup(EksNodeGroupDTO.of(vm));
+        }
         return dto;
+    }
+
+    /**
+     * An EKS node group's nodes (U07-T08): the instance type, how many nodes it runs when started,
+     * how many run now (that number while RUNNING, else 0) and the capacity type (SPOT or ON_DEMAND).
+     */
+    public record EksNodeGroupDTO(String instanceType, int desiredWhenRunning, int currentNodes, String capacityType) {
+        static EksNodeGroupDTO of(Vm vm) {
+            com.tcgdigital.vmcontrol.model.EksNodeGroupInfo info =
+                    com.tcgdigital.vmcontrol.model.EksNodeGroupInfo.parse(vm.getMetadata());
+            boolean running = vm.getStatus() == VmStatus.RUNNING;
+            String capacity = vm.getPurchaseOption() == com.tcgdigital.vmcontrol.model.PurchaseOption.SPOT ? "SPOT" : "ON_DEMAND";
+            return new EksNodeGroupDTO(info.instanceType(), info.desiredSize(), running ? info.desiredSize() : 0, capacity);
+        }
+    }
+
+    /** Set only for EKS node groups (provider AWS_EKS); left out for everything else. */
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    private EksNodeGroupDTO eksNodeGroup;
+
+    public EksNodeGroupDTO getEksNodeGroup() {
+        return eksNodeGroup;
+    }
+
+    public void setEksNodeGroup(EksNodeGroupDTO eksNodeGroup) {
+        this.eksNodeGroup = eksNodeGroup;
     }
 
     /** CLUSTER for an Aurora cluster (cluster:...), INSTANCE for a DB instance (db:...), null otherwise. */

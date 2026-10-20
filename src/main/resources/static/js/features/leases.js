@@ -83,7 +83,7 @@ const Leases = (function() {
      * "Up to 6 h more without approval"; without a lease, how long a start runs; the owner's
      * settings and pending requests to approve.
      */
-    function buildFact({ lease, policy, requests }) {
+    function buildFact({ env, lease, policy, requests }) {
         const canEditPolicy = policy && policy.canEdit;
         const settings = canEditPolicy
             ? '<button type="button" class="btn btn-link env-fact-action" data-action="lease-settings">Settings</button>'
@@ -119,6 +119,9 @@ const Leases = (function() {
         const notes = [];
         if (pending) notes.push(Utils.html`<span class="lease-pill" title="${pending.reason || ''}">Waiting for approval: +${minutesLabel(pending.minutes)}</span>`);
         else if (allowance) notes.push(Utils.escapeHtml(allowance));
+        if (String(env && env.serviceType || '').toUpperCase() === 'EKS') {
+            notes.push('Node groups scale to 0 in reverse order');
+        }
         if (who) notes.push(Utils.html`Kept running by ${who}`);
         const requestRows = (requests || []).map(r => Utils.html`
             <li class="lease-request">

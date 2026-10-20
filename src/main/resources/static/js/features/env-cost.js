@@ -39,9 +39,9 @@ const EnvCost = (function() {
         ApiClient.get(Config.API.environments.cost(env.environmentId), { suppressGlobalError: true })
             .done(function(cost) {
                 if (!ContentRouter.isCurrent(token)) return; // navigated away meanwhile
-                $card.html(buildCard(cost));
+                $card.html(buildCard(cost, env));
                 $('#env-fact-schedule').html(scheduleFact(cost));
-                addWorkloads($card, env, cost);
+                mountNamespaces(env, cost);
                 if (cost.scope !== 'GROUPS') addCarbon($card, env, token);
             })
             .fail(function() {
@@ -74,29 +74,19 @@ const EnvCost = (function() {
         return n >= 100 ? Math.round(n).toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 1 });
     }
 
-    /** EKS environments seen whole get a Workloads section, loaded when first opened (E26-T05). */
-    function addWorkloads($card, env, cost) {
-        if (String(env.serviceType || '').toUpperCase() !== 'EKS' || cost.scope === 'GROUPS' || typeof EksWorkloads === 'undefined') return;
-        $card.find('.env-cost-block').append(`
-            <div class="env-eks-workloads">
-                <button type="button" class="btn btn-link btn-sm p-0" id="env-eks-workloads-toggle"
-                        data-action="env-eks-workloads-toggle" aria-expanded="false" aria-controls="env-eks-workloads">
-                    <i class="fas fa-dharmachakra"></i> Workloads
-                </button>
-                <div id="env-eks-workloads" class="mt-2" data-eks-workloads hidden></div>
-            </div>`);
+    function isEks(env) {
+        return String(env && env.serviceType || '').toUpperCase() === 'EKS';
     }
 
-    function toggleWorkloads(el) {
-        const env = $('#env-cost-card').data('env');
-        const $box = $('#env-eks-workloads');
-        if (!env || !$box.length) return;
-        const open = el.getAttribute('aria-expanded') !== 'true';
-        el.setAttribute('aria-expanded', String(open));
-        $box.prop('hidden', !open);
-        if (open && !$box.data('eksUrlFor')) {
-            EksWorkloads.mount($box, d => Config.API.environments.eksWorkloadCost(env.environmentId, d));
-        }
+    /**
+     * EKS environments seen whole show their cost by namespace on the page (E26-T05, U07-T08,
+     * EksEnv.dc.html); group-only views do not (the cost scope says which).
+     */
+    function mountNamespaces(env, cost) {
+        const $section = $('#env-eks-namespaces-section');
+        if (!$section.length || !isEks(env) || cost.scope === 'GROUPS' || typeof EksWorkloads === 'undefined') return;
+        $section.prop('hidden', false);
+        EksWorkloads.mount($('#env-eks-namespaces'), d => Config.API.environments.eksWorkloadCost(env.environmentId, d));
     }
 
     function retry() {
@@ -158,7 +148,7 @@ const EnvCost = (function() {
                     role="img" aria-label="${Utils.escapeHtml(label)}">${bars}</svg>`;
     }
 
-    function buildCard(cost) {
+    function buildCard(cost, env) {
         const groups = cost.scope === 'GROUPS';
         const notes = [];
         if (!groups && cost.actualDays > 0) {
@@ -178,13 +168,14 @@ const EnvCost = (function() {
                 ${groups || !(cost.daily || []).length ? '' : Utils.raw('<div class="env-fact-note">Last 14 days</div>')}
                 ${Utils.raw(notes.map(n => `<div class="env-fact-note">${n}</div>`).join(''))}
                 ${Utils.raw(saved)}
+                ${isEks(env) && !groups ? Utils.raw('<div class="env-fact-note env-eks-fee">Includes the EKS cluster fee, which runs even when nodes are at 0</div>') : ''}
             </div>`;
     }
 
-    return { render, retry, toggleWorkloads };
+    return { render, retry };
 })();
 
 window.EnvCost = EnvCost;
 
 Actions.register('env-cost-retry', () => EnvCost.retry());
-Actions.register('env-eks-workloads-toggle', el => EnvCost.toggleWorkloads(el));
+

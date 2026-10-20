@@ -105,3 +105,16 @@ test('group note and the group chosen first (the first with a problem)', () => {
     env.groups[0].vms = [{ status: 'STOPPED' }];
     assert.equal(M.defaultGroupId(env), 'db');
 });
+
+// U07-T08: EKS node groups
+test('EKS capacity in words and node totals across node groups', () => {
+    const M = load();
+    assert.equal(M.capacityText('SPOT'), 'Spot, falls back to on-demand');
+    assert.equal(M.capacityText('ON_DEMAND'), 'On-demand');
+    const env = { groups: [
+        { group: { groupId: 'g1', sequencePosition: 1 }, vms: [{ eksNodeGroup: { currentNodes: 3, desiredWhenRunning: 3 } }] },
+        { group: { groupId: 'g2', sequencePosition: 2 }, vms: [{ eksNodeGroup: { currentNodes: 0, desiredWhenRunning: 2 } }] },
+        { group: { groupId: 'g3', sequencePosition: 3 }, vms: [{}] },
+    ] };
+    assert.deepEqual({ ...M.nodeTotals(env) }, { running: 3, total: 5 });
+});

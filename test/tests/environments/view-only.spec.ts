@@ -305,3 +305,60 @@ test.describe('Environment alerts', () => {
     await expect(page.locator('#env-alerts')).toBeHidden();
   });
 });
+
+/** U07-T08: an EKS environment shows node groups (EksEnv.dc.html), faked here. */
+test.describe('EKS environment', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.user || !devIds.admin || !canSignIn('user'), 'Needs TEST_DEV_USER_ID and TEST_DEV_ADMIN_ID (dev mode)');
+  });
+
+  const ng = (gid: string, seq: number, name: string, status: string, running: number, total: number, type: string, cap = 'ON_DEMAND') => ({
+    group: { groupId: gid, name, displayName: name, sequencePosition: seq },
+    vms: [{ vmId: `v-${gid}`, name, provider: 'AWS_EKS', region: 'ap-south-1', status, sequencePosition: 1,
+      eksNodeGroup: { instanceType: type, desiredWhenRunning: total, currentNodes: running, capacityType: cap } }],
+  });
+
+  async function open(page: any, envId: string, groups: any[]) {
+    await page.route(/\/api\/v1\/environments\/[^/?]+$/, async (route: any) => {
+      const real = await route.fetch();
+      const body = await real.json();
+      await route.fulfill({ response: real, json: { ...body, serviceType: 'EKS', eksClusterName: 'partner-qa-eks' } });
+    });
+    await page.route(/\/api\/v1\/environments\/[^/]+\/vms(\?.*)?$/, (route: any) => route.fulfill({ json: groups }));
+    await signIn(page, 'user');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate((id: string) => { location.hash = '#/environments/' + id; }, envId);
+    await expect(page.locator('.env-eks-table')).toBeVisible({ timeout: 15_000 });
+  }
+
+  test('an operator: node groups with nodes, size, running of when started, capacity and Scale to 0 / Start', async ({ page, playwright }) => {
+    const envId = await environmentWithUserAt(playwright, 'USER');
+    await open(page, envId, [
+      ng('g-sys', 1, 'system-nodes', 'RUNNING', 3, 3, 'm6i.large'),
+      ng('g-app', 2, 'app-nodes', 'RUNNING', 2, 2, 'c6i.xlarge', 'SPOT'),
+      ng('g-batch', 3, 'batch-nodes', 'STOPPED', 0, 2, 'c6i.2xlarge'),
+    ]);
+
+    await expect(page.locator('.env-meta')).toContainText('AWS EKS · cluster partner-qa-eks');
+    await expect(page.locator('#btn-env-action-stop')).toHaveText('Scale all to 0');
+    await expect(page.getByRole('region', { name: 'Start order' })).toHaveCount(0);
+    const rows = page.locator('.env-eks-row');
+    await expect(rows).toHaveCount(3);
+    await expect(rows.nth(0).locator('.env-eks-count')).toHaveText('3 / 3');
+    await expect(rows.nth(0).locator('.pip.on')).toHaveCount(3);
+    await expect(rows.nth(0).getByRole('button', { name: 'Scale system-nodes to 0' })).toHaveText('Scale to 0');
+    await expect(rows.nth(1).locator('.env-eks-capacity')).toHaveText('Spot, falls back to on-demand');
+    await expect(rows.nth(2).locator('.env-eks-count')).toHaveText('0 / 2');
+    await expect(rows.nth(2).getByRole('button', { name: 'Start batch-nodes' })).toHaveText('Start');
+    await expect(page.getByRole('complementary', { name: 'About this environment' })).toContainText('5 of 7 nodes running');
+  });
+
+  test('a viewer on a cluster scaled to 0 reads "Scaled to 0" without actions', async ({ page, playwright }) => {
+    const envId = await environmentWithUserAt(playwright, 'VIEWER');
+    await open(page, envId, [ng('g-sys', 1, 'system-nodes', 'STOPPED', 0, 3, 'm6i.large'), ng('g-batch', 2, 'batch-nodes', 'STOPPED', 0, 2, 'c6i.2xlarge')]);
+
+    await expect(page.locator('.env-eks-row .env-eks-state')).toHaveText(['Scaled to 0', 'Scaled to 0']);
+    await expect(page.locator('.env-eks-row').getByRole('button')).toHaveCount(0);
+    await expect(page.locator('#btn-env-action-stop, #btn-env-action')).toHaveCount(0);
+  });
+});
