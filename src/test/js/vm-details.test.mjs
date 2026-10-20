@@ -46,6 +46,20 @@ test('stats and Overview, in the board order; disk use is not collected', () => 
     assert.equal(M.purchaseText('SPOT'), 'Spot');
 });
 
+test('advice: cost this month, purchase from the advice, and the rightsizing note', () => {
+    const M = load();
+    const now = new Date('2026-10-20T08:00:00Z');
+    const fields = plain(M.overview(vmRow, inventory, now, { monthToDateCost: 38.2, purchaseOption: 'SPOT' }));
+    assert.equal(fields.find(f => f.label === 'Cost this month').value, '$38.20');
+    assert.equal(fields.find(f => f.label === 'Purchase').value, 'Spot');
+    assert.deepEqual(plain(M.rightsizingNote({ recommendedType: 'm6i.medium', direction: 'SCALE_DOWN', cpuPeak: 18, memoryPeak: 41,
+        monthlySavings: 31.0, optimizerAgrees: true })), { title: 'Could be one size smaller: m6i.medium',
+        text: 'CPU peaked at 18% and memory at 41%. Saves about $31 a month. AWS Compute Optimizer agrees.', kind: 'SCALE_DOWN' });
+    assert.equal(M.rightsizingNote({ recommendedType: 'm6i.xlarge', direction: 'SCALE_UP', cpuPeak: 97, monthlySavings: -70 }).text,
+        'CPU peaked at 97%. Costs about $70 more a month.');
+    assert.equal(M.rightsizingNote(null), null);
+});
+
 test('Use tiles: CPU with its peak, memory needs the agent, rates per second over the period', () => {
     const M = load();
     const series = [10, 58, 31].map((c, i) => ({ cpuUtilization: c, networkInBytes: 300 * 1024 * 1024 * (i + 1), diskReadBytes: 0 }));

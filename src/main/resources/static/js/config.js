@@ -127,6 +127,8 @@ const Config = (function() {
             metrics: (envId, vmId, window = '1h', period = 300) =>
                 `${API_BASE_URL}/environments/${envId}/vms/${vmId}/metrics?window=${encodeURIComponent(window)}&period=${encodeURIComponent(period)}`,
             utilizationSummary: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}/utilization-summary`,
+            // Cost this month, purchase type and the recommended size, for anyone who can view the VM (U08-T06)
+            advice: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}/advice`,
             // state: 'running', 'stopped' or 'problems' (U05-T06); all when left out
             groupPage: (envId, groupId, page = 0, size = 25, state = '') =>
                 `${API_BASE_URL}/environments/${envId}/vms/${groupId}/page?page=${page}&size=${size}`

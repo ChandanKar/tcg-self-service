@@ -4,7 +4,8 @@
  * Start or Stop for people who can operate, four quick stats (Size, CPU now, IP address, Disk used)
  * and the tabs Overview, Use, Storage, Idle and History. Use switches between 1 h, 6 h, 24 h and
  * 7 days and re-reads only the metrics. The instance ID and volume IDs show only when the server
- * sends them, which it does for administrators only (U01-T01). The words and numbers are pure
+ * sends them, which it does for administrators only (U01-T01). Cost this month, the purchase type
+ * and "Could be one size smaller: m6i.medium" come from the VM's advice (U08-T06). The words and numbers are pure
  * (VmDetails.model), tested in src/test/js/vm-details.test.mjs.
  */
 const VmDetails = (function() {
@@ -105,8 +106,13 @@ const VmDetails = (function() {
         return o ? o.charAt(0) + o.slice(1).toLowerCase().replace(/_/g, ' ') : '—';
     }
 
-    /** The Overview list, in the board's order. Cost this month arrives with U08-T06. */
-    function overview(vm, inventory, now = new Date()) {
+    function money(value) {
+        const n = num(value);
+        return n === null || !Number.isFinite(n) ? '—' : `$${n.toFixed(2)}`;
+    }
+
+    /** The Overview list, in the board's order; cost and purchase type from the advice when it came. */
+    function overview(vm, inventory, now = new Date(), advice = null) {
         const inv = inventory || {};
         const memory = num(inv.memoryMib);
         const cpus = num(inv.vcpuCount);
@@ -119,12 +125,33 @@ const VmDetails = (function() {
             { label: 'Region / zone', value: zone, mono: true },
             { label: 'Private IP', value: inv.privateIp || vm.privateIp || '—', mono: true },
             { label: 'Public IP', value: inv.publicIp || 'None', mono: !!inv.publicIp },
-            { label: 'Purchase', value: purchaseText(vm.purchaseOption) },
+            { label: 'Purchase', value: purchaseText((advice && advice.purchaseOption) || vm.purchaseOption) },
             { label: 'Purpose', value: vm.purpose || '—', note: vm.remarks || '' },
             { label: 'Launched', value: day(inv.launchTime), mono: true },
             { label: 'State read from AWS', value: ago(vm.lastStateSyncAt, now) },
-            { label: 'Cost this month', value: '—', mono: true }
+            { label: 'Cost this month', value: money(advice && advice.monthToDateCost), mono: true,
+                note: advice && advice.priceApproximate ? 'Approximate price' : '' }
         ];
+    }
+
+    /**
+     * The rightsizing note: {title, text, kind} such as "Could be one size smaller: m6i.medium" and
+     * "CPU peaked at 18% and memory at 41%. Saves about $31 a month. AWS Compute Optimizer agrees.";
+     * null without a recommendation.
+     */
+    function rightsizingNote(r) {
+        if (!r || !r.recommendedType) return null;
+        const title = r.direction === 'SCALE_UP' ? `Needs a bigger size: ${r.recommendedType}`
+            : r.direction === 'MODERNIZE' ? `A newer generation fits: ${r.recommendedType}`
+                : `Could be one size smaller: ${r.recommendedType}`;
+        const parts = [];
+        const cpu = num(r.cpuPeak), memory = num(r.memoryPeak);
+        if (cpu !== null) parts.push(`CPU peaked at ${Math.round(cpu)}%${memory !== null ? ` and memory at ${Math.round(memory)}%` : ''}.`);
+        const savings = num(r.monthlySavings);
+        if (savings !== null && savings > 0) parts.push(`Saves about $${Math.round(savings)} a month.`);
+        else if (savings !== null && savings < 0) parts.push(`Costs about $${Math.round(-savings)} more a month.`);
+        if (r.optimizerAgrees) parts.push('AWS Compute Optimizer agrees.');
+        return { title, text: parts.join(' '), kind: r.direction || 'SCALE_DOWN' };
     }
 
     /** The values of one field over the window, oldest first, without gaps. */
@@ -208,7 +235,7 @@ const VmDetails = (function() {
         const token = Date.now() + Math.random();
         const tab = TABS.some(t => t[0] === opts.tab) ? opts.tab : 'overview';
         const win = WINDOWS.some(w => w[0] === opts.window) ? opts.window : '24h';
-        state = { envId, vmId, env: opts.env || null, vm: null, inventory: undefined, metrics: undefined,
+        state = { envId, vmId, env: opts.env || null, vm: null, inventory: undefined, metrics: undefined, advice: undefined,
             tab, window: win, onDone: opts.onDone || null, token };
         ApiClient.get(Config.API.vms.get(envId, vmId))
             .done(vm => {
@@ -219,6 +246,7 @@ const VmDetails = (function() {
                     .done(data => { if (state && state.token === token) { state[key] = data || null; render(); } })
                     .fail(() => { if (state && state.token === token) { state[key] = null; render(); } });
                 keep('inventory', ApiClient.get(Config.API.vms.inventory(envId, vmId), { suppressGlobalError: true }));
+                keep('advice', ApiClient.get(Config.API.vms.advice(envId, vmId), { suppressGlobalError: true }));
                 loadMetrics();
             })
             .fail(() => Notifications.error('Could not load the VM details'));
@@ -295,13 +323,25 @@ const VmDetails = (function() {
     function overviewHtml() {
         if (state.inventory === undefined) return loading;
         const vm = state.vm;
-        const fields = overview(vm, state.inventory).map(f => Utils.html`<div class="vm-panel-field"><dt>${f.label}</dt>
+        const fields = overview(vm, state.inventory, new Date(), state.advice || null).map(f => Utils.html`<div class="vm-panel-field"><dt>${f.label}</dt>
             <dd class="${f.mono ? 'mono' : ''}">${f.value}${Utils.raw(f.note ? Utils.html`<span class="vm-panel-note">${f.note}</span>` : '')}</dd></div>`).join('');
         // The server sends the instance ID to administrators only (U01-T01).
         const id = vm.providerVmId || (state.inventory && state.inventory.providerVmId);
         const instance = id ? Utils.html`<div class="vm-instance-id"><span>Instance ID <span class="vm-panel-note-inline">· Administrators only</span></span>
             <span class="mono">${id}</span></div>` : '';
-        return `<dl class="vm-panel-fields">${fields}</dl>${instance}`;
+        return `<dl class="vm-panel-fields">${fields}</dl>${instance}${adviceHtml()}`;
+    }
+
+    /** The rightsizing note; administrators get "Resize safely…", everyone else who to ask. */
+    function adviceHtml() {
+        const note = rightsizingNote(state.advice && state.advice.rightsizing);
+        if (!note) return '';
+        const admin = typeof Auth !== 'undefined' && Auth.isAdmin && Auth.isAdmin();
+        const action = admin
+            ? '<a class="vm-advice-action" href="#/cost-management">Resize safely…</a>'
+            : '<span class="vm-advice-hint">Ask an administrator to resize</span>';
+        return Utils.html`<div class="vm-advice" data-kind="${note.kind}"><b>${note.title}</b>
+            <span>${note.text}</span><span>${Utils.raw(action)}</span></div>`;
     }
 
     function useHtml() {
@@ -390,7 +430,7 @@ const VmDetails = (function() {
             });
     }
 
-    return { open, model: { kicker, stats, overview, tiles, points, volumes, idleLine, purchaseText, bytes, ago, day } };
+    return { open, model: { kicker, stats, overview, rightsizingNote, tiles, points, volumes, idleLine, purchaseText, money, bytes, ago, day } };
 })();
 
 if (typeof window !== 'undefined') window.VmDetails = VmDetails;

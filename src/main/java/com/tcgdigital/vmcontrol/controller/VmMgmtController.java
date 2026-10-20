@@ -60,12 +60,15 @@ public class VmMgmtController {
     private final VmListDetailsService detailsService;
     private final EnvironmentService environmentService;
 
+    private final com.tcgdigital.vmcontrol.service.VmAdviceService adviceService;
+
     public VmMgmtController(VmService vmService, VmGroupService groupService,
                              SecurityService securityService, UserService userService,
                              VmInventoryService inventoryService,
                              VmMetricsService metricsService,
                              VmListDetailsService detailsService,
-                             EnvironmentService environmentService) {
+                             EnvironmentService environmentService,
+                             com.tcgdigital.vmcontrol.service.VmAdviceService adviceService) {
         this.vmService = vmService;
         this.groupService = groupService;
         this.securityService = securityService;
@@ -74,6 +77,7 @@ public class VmMgmtController {
         this.metricsService = metricsService;
         this.detailsService = detailsService;
         this.environmentService = environmentService;
+        this.adviceService = adviceService;
     }
 
     @GetMapping
@@ -277,6 +281,23 @@ public class VmMgmtController {
 
         Vm vm = vmService.getVmById(vmId);
         return ResponseEntity.ok(detailsService.toDto(vm));
+    }
+
+    /**
+     * What the VM costs this month and the size the platform recommends for it (U08-T06), for
+     * everyone who can see the VM; the same access checks as {@link #getVm}.
+     */
+    @GetMapping("/{vmId}/advice")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Get a VM's cost this month and rightsizing advice")
+    public ResponseEntity<com.tcgdigital.vmcontrol.dto.VmAdviceDTO> getVmAdvice(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId,
+            @Parameter(description = "VM ID") @PathVariable String vmId) {
+        securityService.assertSameEnvironment(envOfVm(vmId), environmentId);
+        if (!securityService.canViewEnvironment(environmentId) || !canSeeVm(vmId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        return ResponseEntity.ok(adviceService.advice(vmId));
     }
 
     @GetMapping("/{vmId}/inventory")

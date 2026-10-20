@@ -118,4 +118,24 @@ test.describe('Instance ID in VM details', () => {
     await expect(panel).not.toHaveClass(/show/);
     await expect(details).toBeFocused();
   });
+
+  test('U08-T06: cost this month and the rightsizing note; administrators resize, others are told to ask', async ({ page, playwright }) => {
+    const { envId, vmId } = await environmentWithVm(playwright);
+    const advice = { monthToDateCost: 38.2, hourlyRate: 0.096, priceApproximate: false, purchaseOption: 'ON_DEMAND',
+      rightsizing: { currentType: 'm6i.large', recommendedType: 'm6i.medium', direction: 'SCALE_DOWN', monthlySavings: 31,
+        cpuPeak: 18, memoryPeak: 41, source: 'cpu-threshold-rule', optimizerAgrees: true } };
+    await page.route(new RegExp(`/vms/${vmId}/advice$`), route => route.fulfill({ json: advice }));
+    await openDetails(page, 'user', envId, vmId);
+    const panel = page.locator('#dynamicSlideoutPanel[data-variant="vm-details"]');
+    await expect(panel.locator('.vm-panel-field').filter({ hasText: 'Cost this month' }).locator('dd')).toHaveText('$38.20');
+    const note = panel.locator('.vm-advice');
+    await expect(note).toContainText('Could be one size smaller: m6i.medium');
+    await expect(note).toContainText('CPU peaked at 18% and memory at 41%. Saves about $31 a month. AWS Compute Optimizer agrees.');
+    await expect(note).toContainText('Ask an administrator to resize');
+    await expect(note.getByRole('link')).toHaveCount(0);
+
+    await page.locator('#dynamicSlideoutPanel .close-btn').click();
+    await openDetails(page, 'admin', envId, vmId);
+    await expect(panel.locator('.vm-advice').getByRole('link', { name: 'Resize safely…' })).toHaveAttribute('href', '#/cost-management');
+  });
 });

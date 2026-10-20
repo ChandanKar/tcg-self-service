@@ -1910,6 +1910,36 @@
     font-size: var(--fs-caption);
 }
 
+.vm-advice {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 16px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--brand-navy-tint);
+    font-size: var(--fs-caption);
+    color: var(--ink);
+}
+
+.vm-advice b {
+    font-size: var(--fs-body);
+    font-weight: 600;
+}
+
+.vm-advice[data-kind="SCALE_UP"] {
+    background: var(--brand-gold-tint);
+}
+
+.vm-advice-action {
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.vm-advice-hint {
+    color: var(--slate);
+}
+
 .vm-windows {
     display: inline-flex;
     gap: 2px;
