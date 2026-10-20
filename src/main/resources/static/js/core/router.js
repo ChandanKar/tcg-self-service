@@ -171,7 +171,7 @@ const ContentRouter = (function() {
             'dashboard':          () => Dashboard.load(),
             'my-environments':    () => Environments.loadList(),
             'environment-detail': (params) => Environments.loadDetail(params),
-            'request-access':     () => AccessRequests.loadRequestAccessPage(),
+            'request-access':     () => RequestAccess.load(),
             'pending-requests':   () => AccessRequests.loadPendingRequestsPage(),
             'activity-logs':      () => ActivityLogs.loadMyActivityLogs(),
             // load() returns nothing, so `load() || fallback()` loaded these pages twice (two

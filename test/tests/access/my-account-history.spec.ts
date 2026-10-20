@@ -132,16 +132,17 @@ test.describe('My Account: who granted, who changed, and requesting again', () =
     const row = page.locator('.ma-ended-row', { hasText: env.name });
     await row.locator('[data-ma-action="request-again"]').click();
 
-    const dialog = page.locator('#requestAccessModal');
-    await expect(dialog).toBeVisible({ timeout: 10_000 });
-    await expect(dialog.locator('#reqScopeGroup')).toBeChecked();
-    await expect(dialog.locator('#reqGroupId')).toHaveValue(group.groupId);
-    await expect(dialog.locator('#reqGroupId option:checked')).toContainText(groupName);
-    await expect(dialog.locator('#accessLevel')).toHaveValue('USER');
+    // U09-T02: the one request form on Request access, with the ended grant's group and level.
+    await expect(page).toHaveURL(/#\/request-access\?env=/);
+    const form = page.locator('#ra-form-card');
+    await expect(form.locator('#ra-form-title')).toHaveText(`Request access to ${env.name}`, { timeout: 10_000 });
+    await expect(form.locator('#ra-group')).toHaveValue(group.groupId);
+    await expect(form.locator('#ra-group option:checked')).toContainText(groupName);
+    await expect(form.getByRole('radio', { name: /Operator/ })).toBeChecked();
 
-    await dialog.locator('#requestReason').fill('Back on the web release team');
-    await page.locator('#submitRequest').click();
-    await expect(dialog).toBeHidden({ timeout: 10_000 });
+    await form.getByLabel('Why you need it').fill('Back on the web release team');
+    await form.getByRole('button', { name: 'Send request' }).click();
+    await expect(page.getByRole('tab', { name: /^Your requests/ })).toHaveAttribute('aria-selected', 'true', { timeout: 10_000 });
 
     const requester = await api(playwright, devIds.user);
     const mine = await (await requester.get('/api/v1/access-requests/my')).json();

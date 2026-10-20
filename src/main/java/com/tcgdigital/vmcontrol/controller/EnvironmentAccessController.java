@@ -289,6 +289,14 @@ public class EnvironmentAccessController {
         String currentUserId = userService.getCurrentUserId();
         List<EnvironmentAccessRequest> requests = accessService.getRequestsByUser(currentUserId);
         List<EnvironmentAccessRequestDTO> dtos = toRequestDtos(requests);
+        // Waiting requests say who decides them (U09-T02).
+        List<String> waitingEnvs = dtos.stream().filter(d -> d.getStatus() == com.tcgdigital.vmcontrol.model.AccessRequestStatus.PENDING)
+                .map(EnvironmentAccessRequestDTO::getEnvironmentId).distinct().toList();
+        if (!waitingEnvs.isEmpty()) {
+            var reviewers = accessService.reviewerNames(waitingEnvs, currentUserId);
+            dtos.stream().filter(d -> d.getStatus() == com.tcgdigital.vmcontrol.model.AccessRequestStatus.PENDING)
+                    .forEach(d -> d.setReviewerNames(reviewers.get(d.getEnvironmentId())));
+        }
 
         return ResponseEntity.ok(dtos);
     }

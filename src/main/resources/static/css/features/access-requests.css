@@ -11,31 +11,6 @@
     width: 100%;
 }
 
-/* ── Compact search bar ── */
-.ra-search-bar {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-}
-.ra-search-bar .input-group {
-    max-width: 360px;
-}
-.ra-search-bar .input-group-text {
-    font-size: 0.81rem;
-    padding: 0.25rem 0.5rem;
-    background: var(--surface-subtle);
-    border-color: var(--line);
-}
-.ra-search-bar .form-control {
-    font-size: 0.81rem;
-    padding: 0.25rem 0.5rem;
-    border-color: var(--line);
-}
-.ra-search-bar .form-control:focus {
-    border-color: var(--brand-navy-line);
-    box-shadow: 0 0 0 2px rgba(20, 36, 92,0.15);
-}
-
 /* ── Card header density ── */
 .request-access-container .card-header h5,
 .request-access-container .card-header .card-title {
@@ -188,45 +163,6 @@
     min-width: 72px;
 }
 
-/* ── Env card: fixed height, table scrolls, pagination pinned ── */
-.ra-env-card-body {
-    display: flex;
-    flex-direction: column;
-    height: 396px;
-    overflow: hidden;
-    padding: 0 !important;
-}
-.ra-env-table-wrapper {
-    flex: 1;
-    overflow-y: auto;
-    min-height: 0;
-}
-/* Scrollbar — see main.css for the shared ::-webkit-scrollbar rules */
-/* Table + tbody fill wrapper so filler row can expand */
-.ra-env-table-wrapper #env-list-table {
-    table-layout: fixed;
-    width: 100%;
-    height: 100%;
-    margin-bottom: 0;
-}
-.ra-env-table-wrapper #env-list-table tbody {
-    height: 100%;
-}
-.ra-env-table-wrapper .table thead th {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    background: var(--surface-subtle);
-}
-/* Filler row: expands to fill leftover vertical space */
-.ra-env-filler-row { height: 100%; }
-.ra-env-filler-row td {
-    border: none !important;
-    background: transparent !important;
-    padding: 0 !important;
-    pointer-events: none;
-}
-
 /* Pagination — see components/pagination.css for .pagination-bar-wrap */
 
 /* ── Empty state ── */
@@ -242,11 +178,6 @@
 .ra-empty-state p {
     font-size: 0.875rem;
     margin-bottom: 0;
-}
-
-.ra-empty-row td {
-    height: 100%;
-    border-bottom: none;
 }
 
 /* E04-T07: what a reviewer is approving — scope, duration, current access (M20) */
@@ -280,4 +211,313 @@
 
 .ra-approve-summary dd {
     margin-bottom: 0.25rem;
+}
+
+/* Request access: environments on the left, the form on the right; your requests (U09-T02, RequestAccess.dc.html) */
+.ra-page {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.ra-page .content-header {
+    margin-bottom: 0;
+}
+
+.ra-split {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 20px;
+}
+
+.ra-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    min-width: 0;
+}
+
+.ra-list-card {
+    flex: 1 1 460px;
+}
+
+.ra-card-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.ra-card-head h2,
+.ra-card-title,
+.ra-form-card h2 {
+    margin: 0;
+    font-size: var(--fs-card-title);
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.ra-card-title {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.ra-search input {
+    height: 36px;
+    width: 220px;
+    max-width: 100%;
+    padding: 0 10px;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    font: inherit;
+    font-size: var(--fs-body);
+}
+
+.ra-env {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+    padding: 8px 20px;
+    border: 0;
+    border-top: 1px solid var(--line-soft);
+    background: #fff;
+    font: inherit;
+    color: var(--ink);
+    text-align: left;
+    cursor: pointer;
+}
+
+.ra-env:first-child {
+    border-top: 0;
+}
+
+.ra-env:hover {
+    background: var(--surface-subtle);
+}
+
+.ra-env[aria-pressed="true"] {
+    background: var(--brand-navy-tint);
+    box-shadow: inset 3px 0 0 var(--brand-navy);
+}
+
+.ra-env:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: -2px;
+}
+
+.ra-env-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.ra-env-name {
+    display: block;
+    font-size: var(--fs-body);
+    font-weight: 600;
+}
+
+.ra-env-desc {
+    display: block;
+    margin-top: 1px;
+    font-size: var(--fs-small);
+    color: var(--slate);
+}
+
+.ra-tag {
+    font-size: var(--fs-caption);
+    color: var(--slate);
+    white-space: nowrap;
+}
+
+.ra-tag[data-tag="wait"] {
+    color: var(--brand-gold-text);
+    font-weight: 500;
+}
+
+.ra-empty {
+    margin: 0;
+    padding: 20px;
+    color: var(--slate);
+}
+
+.ra-form-card {
+    flex: 1 1 380px;
+    max-width: 460px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 20px;
+}
+
+.ra-form-card .ra-empty {
+    padding: 0;
+}
+
+.ra-form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.ra-levels {
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.ra-levels legend {
+    margin-bottom: 8px;
+    padding: 0;
+    font-size: var(--fs-body);
+    font-weight: 500;
+}
+
+.ra-level {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    font-size: var(--fs-body);
+    cursor: pointer;
+}
+
+.ra-level:has(input:checked) {
+    border-color: var(--brand-navy);
+    background: var(--surface-subtle);
+}
+
+.ra-level:has(input:disabled) {
+    cursor: default;
+    opacity: 0.7;
+}
+
+.ra-level input {
+    margin-top: 3px;
+}
+
+.ra-level b {
+    font-weight: 500;
+}
+
+.ra-level span span {
+    display: block;
+    font-size: var(--fs-caption);
+    color: var(--slate);
+}
+
+.ra-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: var(--fs-body);
+    font-weight: 500;
+}
+
+.ra-field .form-select,
+.ra-field .form-control {
+    font-weight: 400;
+}
+
+.ra-hint {
+    font-size: var(--fs-caption);
+    font-weight: 400;
+    color: var(--slate);
+}
+
+.ra-error {
+    font-size: var(--fs-caption);
+    font-weight: 400;
+    color: var(--brand-red-text);
+}
+
+.ra-error:empty {
+    display: none;
+}
+
+.ra-send {
+    height: 42px;
+}
+
+.ra-waiting {
+    margin: 0;
+    font-size: var(--fs-body);
+}
+
+.ra-request {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 20px;
+    border-top: 1px solid var(--line-soft);
+    font-size: var(--fs-body);
+}
+
+.ra-request:first-child {
+    border-top: 0;
+}
+
+.ra-request-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.ra-request-text b {
+    font-weight: 600;
+}
+
+.ra-chip {
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: var(--fs-small);
+    font-weight: 500;
+    background: var(--surface-muted);
+    color: var(--status-stopped-text);
+}
+
+.ra-chip[data-tone="wait"] {
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
+}
+
+.ra-chip[data-tone="ok"] {
+    background: var(--brand-green-tint);
+    color: var(--brand-green-text);
+}
+
+.ra-chip[data-tone="no"] {
+    background: var(--brand-red-tint);
+    color: var(--brand-red-text);
+}
+
+.ra-row-action {
+    font-size: var(--fs-body);
+    text-decoration: none;
+}
+
+.ra-page .pagination-bar-wrap:empty {
+    display: none;
+}
+
+@media (max-width: 767.98px) {
+    .ra-form-card {
+        max-width: none;
+    }
+
+    .ra-search input {
+        width: 100%;
+    }
+
+    .ra-card-head label {
+        flex: 1 1 100%;
+    }
 }

@@ -124,7 +124,7 @@ test.describe('Phone layout (admin tables)', () => {
   // E13-T06: every data table is a card list on a phone, with its row actions on screen.
   for (const [hash, ready] of [
     ['#/access-management', '#content-area table'],
-    ['#/request-access', '#content-area table'],
+    ['#/request-access', '#ra-env-list'],
     ['#/pending-requests', '#content-area h1'],
     ['#/user-management', '#content-area table'],
     ['#/activity-logs', '#al-action-type-filter'],

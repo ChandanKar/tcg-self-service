@@ -140,7 +140,7 @@ test.describe('Environments lifecycle', () => {
     await expect(page).toHaveURL(/#\/request-access$/);
     await expect(page.locator('#env-detail-view')).toHaveCount(0);
     // (Request Access lists requestable environments, so the name itself may appear there.)
-    await expect(header(page)).toContainText('Request Environment Access');
+    await expect(header(page)).toContainText('Request access');
   });
 
   test('a slow Environment Detail load finishing after leaving does not render', async ({ page }) => {
@@ -152,7 +152,7 @@ test.describe('Environments lifecycle', () => {
 
     await expect(page.locator('#env-detail-view')).toHaveCount(0);
     // (Request Access lists requestable environments, so the name itself may appear there.)
-    await expect(header(page)).toContainText('Request Environment Access');
+    await expect(header(page)).toContainText('Request access');
   });
 
   test("leaving Environments removes its delegated handlers, so other pages' [data-action=view] are untouched", async ({ page }) => {
@@ -214,7 +214,7 @@ test.describe('Logs and Access Requests lifecycle', () => {
     await signIn(page, 'admin');
     await ready(page);
     await goTo(page, 'request-access');
-    await expect(header(page)).toContainText('Request Environment Access', { timeout: 10_000 });
+    await expect(header(page)).toContainText('Request access', { timeout: 10_000 });
     await goTo(page, 'dashboard');
     await expect(header(page)).toHaveText('Dashboard');
     // The loading header also reads "Dashboard": wait for the rendered page before injecting into it.

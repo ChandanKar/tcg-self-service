@@ -234,7 +234,18 @@ class EnvironmentAccessControllerTest extends AbstractIntegrationTest {
         requestRepository.save(request);
 
         mockMvc.perform(get("/api/v1/access-requests/my"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                // U09-T02: a waiting request names who decides it; without an environment admin, the platform's.
+                .andExpect(jsonPath("$[0].reviewerNames[0]").value("Platform administrators"));
+
+        User sanjay = User.fromAzureAd("sanjay-oid", "sanjay@example.com", "Sanjay Rao");
+        sanjay.setEnvAdmin(true);
+        sanjay = userRepository.save(sanjay);
+        accessRepository.save(EnvironmentAccess.create(testEnvironment, sanjay, AccessLevel.ADMIN, adminUser));
+        mockMvc.perform(get("/api/v1/access-requests/my"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].reviewerNames", hasSize(1)))
+                .andExpect(jsonPath("$[0].reviewerNames[0]").value("Sanjay Rao"));
     }
 
     @Test

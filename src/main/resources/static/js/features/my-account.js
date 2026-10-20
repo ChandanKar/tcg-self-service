@@ -971,14 +971,15 @@ const MyAccount = (function() {
                 leaveTo('environment-detail', { environmentId: String($btn.data('env-id')) });
                 break;
             case 'request-again':
-                // Same scope and level as the grant that ended (LOW-ACC-4).
-                leaveTo('request-access');
-                AccessRequests.showRequestAccessModal($btn.data('env-id'), $btn.data('env-name'), {
-                    scopeType: $btn.attr('data-scope-type'),
-                    groupId: $btn.attr('data-group-id') || null,
-                    groupName: $btn.attr('data-group-name') || null,
-                    accessLevel: $btn.attr('data-level') || null
-                });
+                // Same scope and level as the grant that ended (LOW-ACC-4), on the one request form (U09-T02).
+                Slideout.close();
+                window.location.hash = '#/request-access?' + new URLSearchParams(Object.entries({
+                    env: String($btn.data('env-id')),
+                    name: String($btn.data('env-name') || ''),
+                    group: $btn.attr('data-scope-type') === 'GROUP' ? ($btn.attr('data-group-id') || '') : '',
+                    groupName: $btn.attr('data-group-name') || '',
+                    level: $btn.attr('data-level') || ''
+                }).filter(([, v]) => v)).toString();
                 break;
             case 'activity-logs':
                 leaveTo('activity-logs');

@@ -34,6 +34,20 @@ public class EnvironmentAccessRequestDTO {
     private Timestamp reviewedAt;
     private String reviewDecisionNotes;
     private Timestamp createdAt;
+    /**
+     * Who can decide a waiting request (U09-T02): up to 3 environment admins by name, or
+     * "Platform administrators"; filled for the requester's own list only, else null.
+     */
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    private java.util.List<String> reviewerNames;
+
+    public java.util.List<String> getReviewerNames() {
+        return reviewerNames;
+    }
+
+    public void setReviewerNames(java.util.List<String> reviewerNames) {
+        this.reviewerNames = reviewerNames;
+    }
 
     public EnvironmentAccessRequestDTO() {
     }

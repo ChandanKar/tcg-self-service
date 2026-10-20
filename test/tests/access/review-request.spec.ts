@@ -215,3 +215,93 @@ test.describe('Reviewing access requests', () => {
     expect(await requestStatus(playwright, s.newRequestId)).toBe('DENIED');
   });
 });
+
+/**
+ * U09-T02: the requester's side. Request access lists the environments one can ask for with the form
+ * beside them (no dialog); the request carries its length and shows under Your requests with who
+ * decides it; it can be cancelled there.
+ */
+test.describe('Request access (requester)', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.admin || !devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID and TEST_DEV_ADMIN_ID (dev mode)');
+  });
+
+  async function freshEnv(playwright: any, label: string): Promise<{ id: string; name: string }> {
+    const admin = await api(playwright, devIds.admin);
+    const stamp = Date.now();
+    const name = `${label} ${stamp}`;
+    const env = await (await admin.post('/api/v1/environments', {
+      data: { name: `${label.toLowerCase().replace(/\W+/g, '-')}-${stamp}`, displayName: name, description: 'For the request form', cloudProvider: 'AWS' },
+    })).json();
+    await admin.dispose();
+    return { id: env.environmentId, name };
+  }
+
+  test('pick, fill the form beside the list, send 30 days, see it waiting with its reviewer, cancel it', async ({ page, playwright }) => {
+    const env = await freshEnv(playwright, 'Ask Form');
+    const posted: any[] = [];
+    page.on('request', r => { if (r.method() === 'POST' && r.url().endsWith(`/environments/${env.id}/access-requests`)) posted.push(r.postDataJSON()); });
+    await signIn(page, 'user');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate(id => { location.hash = `#/request-access?env=${id}`; }, env.id);
+
+    await expect(page.locator('#content-area h1')).toContainText('Request access', { timeout: 15_000 });
+    await expect(page.getByRole('tab', { name: 'Request', exact: true })).toHaveAttribute('aria-selected', 'true');
+    const row = page.locator(`[data-ra-env="${env.id}"]`);
+    await expect(row).toHaveAttribute('aria-pressed', 'true');
+    await expect(row).toContainText('For the request form · 0 VMs');
+    const form = page.locator('#ra-form-card');
+    await expect(form.locator('#ra-form-title')).toHaveText(`Request access to ${env.name}`);
+    await expect(page.locator('#requestAccessModal')).toHaveCount(0);
+    await expect(form.getByRole('radio', { name: /Operator/ })).toBeChecked();
+    await expect(form.getByLabel('For')).toHaveValue('30');
+
+    await form.getByRole('button', { name: 'Send request' }).click();
+    await expect(form.locator('#ra-reason-error')).toHaveText('Say a little more: at least 10 characters.');
+    expect(posted).toHaveLength(0);
+
+    await form.getByLabel('Why you need it').fill('Regression testing for release 4.2');
+    await form.getByLabel('For').selectOption('30');
+    await form.getByRole('button', { name: 'Send request' }).click();
+    await expect.poll(() => posted.length).toBe(1);
+    expect(posted[0]).toMatchObject({ accessLevel: 'USER', durationDays: 30, scopeType: 'ENVIRONMENT' });
+
+    await expect(page.getByRole('tab', { name: /^Your requests · \d+$/ })).toHaveAttribute('aria-selected', 'true', { timeout: 10_000 });
+    const mine = page.locator('.ra-request', { hasText: env.name });
+    await expect(mine.locator('.ra-chip')).toHaveText('Waiting');
+    await expect(mine).toContainText(`Operator on ${env.name}, 30 days · sent`);
+    await expect(mine).toContainText(/ago to .+/);
+
+    await mine.getByRole('button', { name: 'Cancel request' }).click();
+    await page.locator('#confirmBtn').click();
+    await expect(page.locator('.ra-request', { hasText: env.name }).locator('.ra-chip')).toHaveText('Cancelled', { timeout: 10_000 });
+  });
+
+  test('a search with no match says so and clears', async ({ page }) => {
+    await signIn(page, 'user');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate(() => { location.hash = '#/request-access'; });
+    const search = page.getByLabel('Search environments');
+    await expect(search).toBeVisible({ timeout: 15_000 });
+    await search.fill('zz-no-such-environment-zz');
+    await expect(page.locator('#ra-env-list')).toContainText('No environments match "zz-no-such-environment-zz".');
+    await page.getByRole('button', { name: 'Clear search' }).click();
+    await expect(page.locator('#ra-env-list .ra-env').first()).toBeVisible();
+    await expect(page.locator('#ra-env-list .ra-env')).toHaveCount(await page.locator('#ra-env-list .ra-env').count());
+    expect(await page.locator('#ra-env-list .ra-env').count()).toBeLessThanOrEqual(10);
+  });
+
+  test('10 environments to a page with a pager, and no page scrollbar at 1440x900', async ({ page, playwright }) => {
+    for (let i = 0; i < 11; i++) await freshEnv(playwright, `Fill ${i}`);   // more than a page, whatever is there
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page, 'user');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate(() => { location.hash = '#/request-access'; });
+    await expect(page.locator('#ra-env-list .ra-env')).toHaveCount(10, { timeout: 15_000 });
+    await expect(page.locator('#ra-env-pager')).toContainText('Showing 1–10');
+    expect(await page.evaluate(() => {
+      const el = document.getElementById('mainContent') || document.documentElement;
+      return el.scrollHeight <= el.clientHeight + 1 && document.documentElement.scrollHeight <= window.innerHeight + 1;
+    })).toBe(true);
+  });
+});

@@ -248,6 +248,30 @@ public class EnvironmentAccessService {
     /**
      * Get all access requests by a user.
      */
+    /** Names shown when an environment has no admin of its own: the platform administrators decide. */
+    public static final String PLATFORM_ADMINISTRATORS = "Platform administrators";
+
+    /**
+     * Who can decide a request on each environment (U09-T02): up to 3 environment admins holding
+     * an ADMIN grant on it (never the requester), by display name; "Platform administrators" when
+     * there are none.
+     */
+    @Transactional(readOnly = true)
+    public java.util.Map<String, List<String>> reviewerNames(java.util.Collection<String> environmentIds, String requesterId) {
+        java.util.Map<String, List<String>> names = new java.util.LinkedHashMap<>();
+        Timestamp now = new Timestamp(System.currentTimeMillis());
+        for (String environmentId : new java.util.LinkedHashSet<>(environmentIds)) {
+            List<String> admins = accessRepository.findActiveEnvAdminGrantHolders(environmentId, now).stream()
+                    .filter(u -> !u.getUserId().equals(requesterId))
+                    .map(u -> u.getDisplayName() != null ? u.getDisplayName() : u.getEmail())
+                    .distinct()
+                    .limit(3)
+                    .toList();
+            names.put(environmentId, admins.isEmpty() ? List.of(PLATFORM_ADMINISTRATORS) : admins);
+        }
+        return names;
+    }
+
     public List<EnvironmentAccessRequest> getRequestsByUser(String userId) {
         return requestRepository.findByRequester_UserIdOrderByCreatedAtDesc(userId);
     }
