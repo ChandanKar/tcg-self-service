@@ -137,7 +137,7 @@ test.describe('Touch targets and caret (phone)', () => {
   test('bell controls are at least 44px', async ({ page }) => {
     await page.locator('#notification-bell-wrapper button').first().click();
     await settle(page);
-    expect(await smallTargets(page, '#notification-bell-wrapper .notification-read-btn')).toEqual([]);
+    expect(await smallTargets(page, '#notification-dropdown .notification-mark-all-btn, #notification-dropdown .notification-dropdown-footer > *')).toEqual([]);
   });
 
   test('re-rendering My Account keeps the caret in the reason box', async ({ page }) => {

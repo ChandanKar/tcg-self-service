@@ -37,227 +37,158 @@
     pointer-events: none;
 }
 
-/* Dropdown panel */
+/* Popover (U09-T06, Notifications.dc.html): a dialog of the newest notifications. */
 .notification-dropdown {
     position: absolute;
     top: calc(100% + 8px);
     right: 0;
-    width: min(440px, calc(100vw - 24px));
+    width: min(400px, calc(100vw - 24px));
     background: #fff;
     border: 1px solid var(--line);
-    border-radius: 8px;
-    box-shadow: 0 18px 44px rgba(20, 27, 45, 0.18);
+    border-radius: 12px;
+    box-shadow: 0 16px 40px rgba(20, 36, 92, 0.18);
     z-index: 3000;
     overflow: hidden;
+}
+
+.notification-dropdown:focus {
+    outline: none;
 }
 
 .notification-dropdown-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid var(--line);
-    background: var(--surface-subtle);
+    gap: 12px;
+    padding: 6px 18px;
+    min-height: 52px;
+    border-bottom: 1px solid var(--line-soft);
 }
 
 .notification-dropdown-title {
+    margin: 0;
+    font-size: 16px;
     font-weight: 600;
-    font-size: 0.875rem;
     color: var(--ink);
 }
 
-.notification-mark-all-btn {
-    background: none;
-    border: none;
-    color: var(--primary-color);
-    font-size: 0.78rem;
-    cursor: pointer;
+.notification-mark-all-btn,
+.notification-settings-link,
+.notification-activity-link {
+    min-height: 44px;
     padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 13px;
+    color: #2f4a9e;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
 }
 
-.notification-mark-all-btn:hover {
+.notification-mark-all-btn:hover,
+.notification-settings-link:hover,
+.notification-activity-link:hover {
+    color: var(--brand-navy);
     text-decoration: underline;
 }
 
-/* Scrollable list */
 .notification-list {
-    max-height: min(520px, calc(100vh - 120px));
+    max-height: min(480px, calc(100vh - 200px));
     overflow-y: auto;
-    background: #fff;
 }
 
-/* Empty state */
 .notification-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 2rem 1rem;
-    color: var(--text-caption);
-    font-size: 0.875rem;
-    gap: 0.5rem;
+    margin: 0;
+    padding: 24px 18px;
+    font-size: 14px;
+    color: var(--slate);
 }
 
-.notification-empty i {
-    font-size: 1.5rem;
-}
-
-/* Individual item */
 .notification-item {
     display: flex;
-    align-items: flex-start;
-    gap: 0.75rem;
-    padding: 0.8rem 1rem;
-    border-bottom: 1px solid var(--surface-muted);
-    cursor: default;
-    transition: background 0.1s;
+    gap: 12px;
+    width: 100%;
+    padding: 14px 18px;
+    border: 0;
+    border-top: 1px solid var(--line-soft);
     background: #fff;
+    font: inherit;
+    color: var(--ink);
+    text-align: left;
 }
 
-.notification-item:last-child {
-    border-bottom: none;
+.notification-list .notification-item:first-of-type {
+    border-top: 0;
+}
+
+.notification-item.unread {
+    background: #fafbff;
 }
 
 .notification-item:hover {
     background: var(--surface-subtle);
 }
 
-.notification-item.unread {
-    background: var(--brand-navy-tint);
+.notification-item:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: -2px;
 }
 
-.notification-item.unread:hover {
-    background: var(--brand-navy-tint);
-}
-
-.notification-item-icon {
+.notification-dot {
     flex-shrink: 0;
-    width: 32px;
-    height: 32px;
+    width: 8px;
+    height: 8px;
+    margin-top: 6px;
     border-radius: 50%;
-    background: var(--brand-navy-tint);
-    color: var(--brand-navy);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.8rem;
+    background: #b9c2d2;
 }
 
-.notification-item.unread .notification-item-icon {
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.7);
+.notification-item[data-tone="read"] .notification-dot {
+    background: var(--line);
 }
 
-.notification-item.tone-success .notification-item-icon {
-    background: var(--brand-green-tint);
-    color: var(--brand-green-text);
+.notification-item[data-tone="gold"] .notification-dot {
+    background: #d9a21b;
 }
 
-.notification-item.tone-warning .notification-item-icon {
-    background: var(--brand-gold-tint);
-    color: var(--brand-gold-text);
-}
-
-.notification-item.tone-danger .notification-item-icon {
-    background: var(--brand-red-tint);
-    color: var(--brand-red-text);
-}
-
-.notification-item.tone-info .notification-item-icon {
-    background: var(--brand-navy-tint);
-    color: var(--brand-navy);
+.notification-item[data-tone="red"] .notification-dot {
+    background: var(--brand-red);
 }
 
 .notification-item-body {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
 }
 
 .notification-item-title {
-    font-size: 0.84rem;
+    font-size: 14px;
+}
+
+.notification-item.unread .notification-item-title {
     font-weight: 600;
-    color: var(--ink);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    padding-right: 0.25rem;
 }
 
 .notification-item-msg {
-    font-size: 0.79rem;
+    font-size: 13px;
     color: var(--slate);
-    margin-top: 2px;
-    line-height: 1.35;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+    overflow-wrap: anywhere;
 }
 
 .notification-item-time {
-    font-size: 0.7rem;
-    color: var(--text-caption);
-    margin-top: 4px;
-}
-
-.notification-read-btn {
-    flex-shrink: 0;
-    background: none;
-    border: 1px solid var(--line-strong);
+    font-family: var(--font-mono);
+    font-size: 12px;
     color: var(--slate);
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 0.65rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.15s, color 0.15s;
-    margin-top: 2px;
 }
 
-.notification-read-btn:hover {
-    background: var(--brand-green);
-    border-color: var(--brand-green);
-    color: #fff;
-}
-
-@media (max-width: 520px) {
-    .notification-dropdown {
-        position: fixed;
-        top: 58px;
-        right: 12px;
-        left: 12px;
-        width: auto;
-    }
-}
-
-/* Items that open their entity (E11-T10). */
-.notification-item.linked {
-    cursor: pointer;
-}
-
-.notification-item.linked:hover {
-    background: var(--surface-muted);
-}
-
-.notification-item.linked:focus-visible {
-    outline: 2px solid var(--brand-navy);
-    outline-offset: -2px;
-}
-
-/* Footer link to notification preferences (E29-T06). */
 .notification-dropdown-footer {
-    border-top: 1px solid var(--border-color);
-    padding: 0.4rem 0.75rem;
-    text-align: right;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 18px;
+    border-top: 1px solid var(--line-soft);
 }
-.notification-settings-link {
-    background: none;
-    border: none;
-    color: var(--brand-navy);
-    font-size: 0.8rem;
-    padding: 0.2rem 0;
-    cursor: pointer;
-}
-.notification-settings-link:hover,
-.notification-settings-link:focus-visible { text-decoration: underline; }

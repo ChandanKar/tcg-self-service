@@ -192,7 +192,6 @@ button.mobile-nav-item {
     /* Small icon and text controls (E13-T10) */
     .btn-link,
     .ma-link,
-    .notification-read-btn,
     .toast-close,
     .close-btn {
         min-height: 44px;

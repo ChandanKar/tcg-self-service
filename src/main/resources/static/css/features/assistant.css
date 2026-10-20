@@ -1,16 +1,263 @@
-/* Ask panel (E36-T05) */
-.assistant-panel { display: flex; flex-direction: column; gap: 12px; height: 100%; }
-.assistant-thread { flex: 1 1 auto; min-height: 200px; max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-.assistant-msg { display: flex; flex-direction: column; max-width: 92%; }
-.assistant-msg-user { align-self: flex-end; align-items: flex-end; }
-.assistant-msg-answer { align-self: flex-start; }
-.assistant-bubble { padding: 8px 12px; border-radius: 10px; background: var(--bs-tertiary-bg); overflow-wrap: anywhere; }
-.assistant-msg-user .assistant-bubble { background: var(--bs-primary-bg-subtle); }
-.assistant-msg-failed .assistant-bubble { background: var(--bs-danger-bg-subtle); }
-.assistant-bubble p { margin: 0 0 6px; }
-.assistant-bubble p:last-child, .assistant-bubble ul:last-child { margin-bottom: 0; }
-.assistant-bubble ul { margin: 0 0 6px; padding-left: 1.2em; }
-.assistant-tools { font-size: 0.8rem; margin-top: 4px; color: var(--bs-secondary-color); }
-.assistant-tools summary { cursor: pointer; }
-.assistant-tools ul { margin: 4px 0 0; padding-left: 1.2em; overflow-wrap: anywhere; }
-.assistant-form { display: flex; flex-direction: column; gap: 6px; }
+/*
+ * Ask panel (E36-T05, U09-T06 AskPanel.dc.html): a one-line scope note under the title, questions
+ * in navy bubbles on the right, answers as text on the left with "Open <environment>" links,
+ * suggestion chips, a one-line input with Ask, and "Start over".
+ */
+
+.dynamic-slideout-panel[data-variant="ask"] .slideout-panel-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 12px;
+    padding: 14px 18px;
+    border-bottom-color: var(--line-soft);
+}
+
+.dynamic-slideout-panel[data-variant="ask"] .slideout-panel-header h3 {
+    grid-column: 1;
+    font-size: 17px;
+}
+
+.dynamic-slideout-panel[data-variant="ask"] .slideout-panel-header .close-btn {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+}
+
+.ask-head-sub {
+    grid-column: 1;
+    font-size: 12.5px;
+    color: var(--slate);
+}
+
+.dynamic-slideout-panel[data-variant="ask"] .slideout-panel-content {
+    padding: 0;
+}
+
+.assistant-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.assistant-thread {
+    flex: 1 1 auto;
+    min-height: 160px;
+    overflow-y: auto;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.assistant-intro {
+    margin: 0;
+    font-size: 14px;
+    color: var(--slate);
+}
+
+.assistant-msg {
+    display: flex;
+    flex-direction: column;
+    max-width: 92%;
+    font-size: 14px;
+    line-height: 1.55;
+}
+
+.assistant-msg-user {
+    align-self: flex-end;
+    max-width: 80%;
+}
+
+.assistant-msg-answer {
+    align-self: flex-start;
+}
+
+.assistant-bubble {
+    overflow-wrap: anywhere;
+    color: var(--ink);
+}
+
+.assistant-msg-user .assistant-bubble {
+    padding: 9px 13px;
+    border-radius: 12px 12px 4px 12px;
+    background: var(--brand-navy);
+    color: #fff;
+    line-height: 1.4;
+}
+
+.assistant-msg-failed .assistant-bubble {
+    padding: 9px 13px;
+    border-radius: 10px;
+    background: var(--brand-red-tint);
+    color: var(--brand-red-text);
+}
+
+.assistant-bubble p {
+    margin: 0 0 6px;
+}
+
+.assistant-bubble p:last-child,
+.assistant-bubble ul:last-child {
+    margin-bottom: 0;
+}
+
+.assistant-bubble ul {
+    margin: 6px 0;
+    padding-left: 18px;
+}
+
+.assistant-env-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+}
+
+.assistant-env-link,
+.assistant-start-over {
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    color: #2f4a9e;
+}
+
+.assistant-env-link:hover,
+.assistant-start-over:hover {
+    color: var(--brand-navy);
+    text-decoration: underline;
+}
+
+.assistant-start-over {
+    min-height: 0;
+    font-size: inherit;
+    font-weight: 400;
+    color: var(--slate);
+    text-decoration: underline;
+}
+
+.assistant-start-over:disabled {
+    text-decoration: none;
+    opacity: 0.6;
+}
+
+.assistant-tools {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--slate);
+}
+
+.assistant-tools summary {
+    cursor: pointer;
+}
+
+.assistant-tools ul {
+    margin: 4px 0 0;
+    padding-left: 1.2em;
+    overflow-wrap: anywhere;
+}
+
+.assistant-refused {
+    color: var(--brand-red-text);
+}
+
+.assistant-busy {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--slate);
+}
+
+.assistant-dots {
+    display: inline-flex;
+    gap: 3px;
+}
+
+.assistant-dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #9aa4b8;
+    animation: assistant-dot 1.2s infinite ease-in-out;
+}
+
+.assistant-dots span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.assistant-dots span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes assistant-dot {
+    0%, 80%, 100% { opacity: 0.3; }
+    40% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .assistant-dots span {
+        animation: none;
+    }
+}
+
+.assistant-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px 18px 0;
+}
+
+.assistant-chips:empty {
+    display: none;
+}
+
+.assistant-chip {
+    padding: 5px 10px;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    background: #fff;
+    font: inherit;
+    font-size: 12.5px;
+    color: var(--ink);
+}
+
+.assistant-chip:hover {
+    border-color: var(--brand-navy);
+    color: var(--brand-navy);
+}
+
+.assistant-form {
+    display: flex;
+    gap: 8px;
+    padding: 12px 18px 0;
+}
+
+.assistant-form .form-control {
+    flex: 1;
+    height: 40px;
+}
+
+.assistant-form .btn {
+    height: 40px;
+    padding: 0 16px;
+}
+
+.assistant-error {
+    padding: 4px 18px 0;
+    font-size: 13px;
+    color: var(--brand-red-text);
+}
+
+.assistant-error:empty {
+    display: none;
+}
+
+.assistant-foot {
+    margin: 0;
+    padding: 8px 18px 14px;
+    font-size: 12px;
+    color: var(--slate);
+}

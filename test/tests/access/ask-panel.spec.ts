@@ -5,16 +5,22 @@ import { signIn, canSignIn, devIds } from '../../fixtures/auth';
  * E36-T05: the Ask panel. Hidden while the assistant is off; when on, the user menu opens a slide-out
  * where a question is sent with the earlier turns, the answer is shown as text (model HTML is never
  * rendered; "- " lines become a list) with the tools used, and errors such as the daily limit are shown.
- * The assistant API is faked in the browser.
+ * The assistant API is faked in the browser. U09-T06 (AskPanel.dc.html): the scope line under the
+ * title, suggestion chips that send their question, "Open <environment>" links for environments an
+ * answer names, Start over, and Ask in the help menu.
  */
 
 declare const AssistantPanel: any;
+declare const Slideout: any;
 
 const json = (route: Route, body: unknown, status = 200) =>
   route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
 async function setUp(page: Page, enabled: boolean, answers: Array<{ status: number; body: unknown }> = []) {
   const asked: any[] = [];
+  await page.route(/\/api\/v1\/users\/me\/access$/, route => json(route, [
+    { accessId: 'a1', environmentId: 'env-pay', environmentName: 'Payments Dev', accessLevel: 'USER' },
+    { accessId: 'a2', environmentId: 'env-crm', environmentName: 'CRM UAT', accessLevel: 'USER' }]));
   await page.route(/\/api\/v1\/assistant\/status$/, route => json(route, enabled
     ? { enabled: true, dailyLimit: 50, remainingToday: 50 } : { enabled: false }));
   await page.route(/\/api\/v1\/assistant\/ask$/, route => {
@@ -77,6 +83,39 @@ test.describe('Ask panel', () => {
 
     await page.locator('#assistant-clear').click();
     await expect(page.locator('.assistant-msg')).toHaveCount(0);
+  });
+
+  test('the scope line, chips that ask, and Open links for environments an answer names', async ({ page }) => {
+    const asked = await setUp(page, true, [
+      { status: 200, body: { answer: 'Two VMs were idle:\n- pay-cache in Payments Dev\n- crm-batch-01 in crm uat\nNothing in Billing.',
+        toolCalls: [], incomplete: false } }]);
+    await openPanel(page);
+
+    await expect(page.locator('#dynamicSlideoutTitle')).toHaveText('Ask');
+    await expect(page.locator('.ask-head-sub')).toHaveText(/It can't start, stop or change anything\./);
+    const chips = page.locator('.assistant-chip');
+    await expect(chips).toHaveText(['Cost trend for 3 months', 'Spend by service', 'Savings I could make', 'VMs that could be smaller']);
+    await expect(page.locator('.assistant-foot')).toContainText('Remembers the last 10 messages of this conversation.');
+
+    await chips.filter({ hasText: 'Savings I could make' }).click();
+    await expect(page.locator('.assistant-msg-user')).toHaveText('Savings I could make');
+    await expect(page.locator('.assistant-env-link')).toHaveText(['Open Payments Dev', 'Open CRM UAT']);
+    expect(asked[0].question).toBe('Savings I could make');
+    await expect(chips).toHaveCount(4);
+
+    await page.locator('.assistant-env-link', { hasText: 'Open CRM UAT' }).click();
+    await expect(page).toHaveURL(/#\/environments\/env-crm$/);
+    await expect(page.locator('#dynamicSlideoutPanel')).not.toHaveClass(/show/);
+  });
+
+  test('Ask is also in the help menu while the assistant is on', async ({ page }) => {
+    await setUp(page, true);
+    await page.locator('#topbar-help-btn').click();
+    await page.getByRole('menuitem', { name: 'Ask about cost and environments' }).click();
+    await expect(page.locator('#assistant-question')).toBeFocused();
+    await page.locator('#dynamicSlideoutPanel .close-btn').click();
+    await page.evaluate(() => Slideout.open('Other', '<p>x</p>'));
+    await expect(page.locator('.ask-head-sub')).toHaveCount(0);
   });
 
   test('the daily limit and failures are shown and not sent back as history', async ({ page }) => {

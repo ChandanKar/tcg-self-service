@@ -25,6 +25,11 @@ const HelpMenu = (function() {
             close(false);
             if (typeof Keyboard !== 'undefined') Keyboard.showShortcutsHelp();
         });
+        $(document).on('click', `${MENU} [data-help-menu="ask"]`, function(e) {
+            e.preventDefault();
+            close(false);
+            if (typeof AssistantPanel !== 'undefined') AssistantPanel.open();
+        });
         $(document).on('click', `${MENU} a[role="menuitem"]`, function() { close(false); });
     }
 
@@ -49,7 +54,11 @@ const HelpMenu = (function() {
             <a href="#/help" class="dropdown-item" role="menuitem" data-help-menu="all">
                 <i class="fas fa-book-open" aria-hidden="true"></i><span>All help topics</span></a>
             <button type="button" class="dropdown-item" role="menuitem" data-help-menu="shortcuts">
-                <i class="far fa-keyboard" aria-hidden="true"></i><span>Keyboard shortcuts</span><kbd class="ms-auto">?</kbd></button>`;
+                <i class="far fa-keyboard" aria-hidden="true"></i><span>Keyboard shortcuts</span><kbd class="ms-auto">?</kbd></button>`
+            + (typeof AssistantPanel !== 'undefined' && AssistantPanel.isEnabled()
+                ? `<button type="button" class="dropdown-item" role="menuitem" data-help-menu="ask">
+                    <i class="far fa-comment-dots" aria-hidden="true"></i><span>Ask about cost and environments</span></button>`
+                : '');
     }
 
     function open() {
