@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
+import { seedEnvironment } from '../../fixtures/seed';
 
 /**
  * E05-T08: the operations UI. The operations API is faked in the browser (no cloud calls): a
@@ -8,6 +9,8 @@ import { signIn, canSignIn, devIds } from '../../fixtures/auth';
  */
 
 declare const VmOperations: any;
+declare const OperationHistory: any;
+declare const ContentRouter: any;
 
 type Exec = {
   executionId: string; environmentId: string; operationType: string; status: string;
@@ -59,6 +62,14 @@ class FakeOperations {
       this.cancels.push(id);
       this.set(id, { status: 'CANCELLED', completedAt: new Date().toISOString() });
       return this.json(route, this.runs.get(id));
+    }
+    if (req.method() === 'GET' && id === 'page') {
+      // U08-T04: one page of runs, newest first, without steps.
+      const size = Number(url.searchParams.get('size')) || 7;
+      const number = Number(url.searchParams.get('page')) || 0;
+      const all = [...this.runs.values()].filter(r => r.environmentId === envId).reverse();
+      return this.json(route, { content: all.slice(number * size, number * size + size).map(r => ({ ...r, details: null })),
+        page: { size, number, totalElements: all.length, totalPages: Math.ceil(all.length / size) } });
     }
     if (req.method() === 'GET' && id && id !== 'time-estimates') {
       this.polls.set(id, (this.polls.get(id) || 0) + 1);
@@ -212,31 +223,87 @@ test.describe('Operations UI', () => {
     await expect(page.locator('.op-progress-time')).toHaveText('2:20 in all');
   });
 
-  test('history labels statuses, shows skipped steps and cancels a running row', async ({ page }) => {
+  test('U08-T04: the history panel pages runs, names who started them, expands steps, retries a failed VM and cancels', async ({ page }) => {
     const fake = new FakeOperations();
     await fake.install(page);
     await ready(page);
     await start(page, 'env-a', 'Env A');                 // exec-1, will be partial
     await expect.poll(() => fake.polls.get('exec-1') || 0).toBeGreaterThan(0);
+    const ago = (min: number) => new Date(Date.now() - min * 60000).toISOString();
     fake.set('exec-1', { status: 'PARTIAL_SUCCESS', completedTargets: 1, failedTargets: 1, skippedTargets: 1,
-      completedAt: new Date().toISOString(), details: [] });
+      startedAt: ago(10), completedAt: ago(8.8), initiatedByDisplayName: 'Priya Nair', scopeLabel: 'Application group',
+      details: [
+        { detailId: 'd1', sequencePosition: 1, groupId: 'g-app', groupName: 'Application', targetType: 'vm', targetId: 'vm-rw',
+          targetName: 'report-worker', status: 'FAILED', errorMessage: 'AWS: no r6i.xlarge capacity in ap-south-1b right now.' },
+        { detailId: 'd2', sequencePosition: 2, groupId: 'g-app', groupName: 'Application', targetType: 'vm', targetId: 'vm-etl',
+          targetName: 'etl-runner', status: 'SKIPPED' }] } as any);
     await page.locator('#btn-close-progress').click();
     await start(page, 'env-a', 'Env A');                 // exec-2, still running
     await expect.poll(() => fake.polls.get('exec-2') || 0).toBeGreaterThan(0);
     await page.locator('#btn-close-progress').click();
+    for (let i = 3; i <= 9; i++) {                        // seven more, finished by the nightly schedule
+      await start(page, 'env-a', 'Env A');
+      await expect.poll(() => fake.runs.size).toBe(i);
+      fake.set(`exec-${i}`, { status: 'COMPLETED', completedTargets: 3, startedAt: ago(60 * i), completedAt: ago(60 * i - 4),
+        triggerSource: 'SCHEDULE', triggerName: 'Nightly batch', scopeLabel: 'whole environment' } as any);
+      await page.locator('#btn-close-progress').click();
+    }
 
-    await page.evaluate(() => VmOperations.showHistoryModal('env-a', 'Env A'));
-    const partial = page.locator('.operation-history tr[data-execution-id="exec-1"]');
-    const running = page.locator('.operation-history tr[data-execution-id="exec-2"]');
-    await expect(partial.locator('[data-col="status"]')).toHaveText('Completed with failures');
-    await expect(partial).toContainText('skipped 1');
+    await page.evaluate(() => OperationHistory.open({ environmentId: 'env-a', displayName: 'Env A', groups: [] }));
+    const panel = page.locator('#dynamicSlideoutPanel[data-variant="op-history"]');
+    await expect(panel.locator('#dynamicSlideoutTitle')).toHaveText('History · Env A');
+    await expect(panel.locator('.op-history-run')).toHaveCount(7, { timeout: 10_000 });
+    await expect(panel.locator('.op-history-pager')).toContainText('1–7 of 9');
+    await expect(panel.getByRole('button', { name: 'Previous' })).toBeDisabled();
+    const nightly = panel.locator('.op-history-run[data-execution-id="exec-9"]');
+    await expect(nightly.locator('.op-history-who')).toHaveText('Schedule "Nightly batch"');
+    await expect(nightly.locator('.op-history-what')).toHaveText('Start, whole environment');
+    await expect(nightly.locator('.op-history-took')).toHaveText('4:00');
+    await expect(nightly.locator('[data-col="result"]')).toHaveText('Done');
+
+    await panel.getByRole('button', { name: 'Next' }).click();
+    await expect(panel.locator('.op-history-pager')).toContainText('8–9 of 9');
+    const partial = panel.locator('.op-history-run[data-execution-id="exec-1"]');
+    const running = panel.locator('.op-history-run[data-execution-id="exec-2"]');
+    await expect(partial.locator('[data-col="result"]')).toHaveText('1 failed');
+    await expect(partial.locator('.op-history-who')).toHaveText('Priya Nair');
+    await expect(partial.locator('.op-history-what')).toHaveText('Start Application group');
     await expect(partial.locator('[data-op-cancel]')).toHaveCount(0);
+    await expect(running.locator('[data-col="result"]')).toHaveText('Running');
 
+    // Expanding loads the steps once: the reason, the skipped VM and Retry for the failed one.
+    await partial.locator('.op-history-row').click();
+    await expect(partial.locator('.op-history-row')).toHaveAttribute('aria-expanded', 'true');
+    await expect(partial.locator('.op-history-step')).toHaveCount(2);
+    await expect(partial.locator('.op-history-step').nth(0)).toContainText('AWS: no r6i.xlarge capacity in ap-south-1b right now.');
+    await expect(partial.locator('.op-history-step').nth(1)).toContainText('Skipped');
+
+    // Cancel on the running row still cancels.
     await running.locator('[data-op-cancel]').click();
     await page.locator('#confirmBtn').click();
-
     await expect.poll(() => fake.cancels).toEqual(['exec-2']);
-    await expect(page.locator('.operation-history tr[data-execution-id="exec-2"] [data-col="status"]'))
-      .toHaveText('Cancelled', { timeout: 10_000 });
+    await expect(running.locator('[data-col="result"]')).toHaveText('Cancelled', { timeout: 10_000 });
+    await expect(partial.locator('.op-history-step')).toHaveCount(2);    // still expanded after the reload
+
+    await partial.getByRole('button', { name: 'Retry report-worker' }).click();
+    await expect(panel).not.toHaveClass(/show/);
+    await expect(page.locator('#operationConfirmModal .modal-title')).toHaveText('Start report-worker?');
+  });
+
+  test('U08-T04: History on the environment page opens the panel and Escape returns to the button', async ({ page, playwright }) => {
+    test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+    const envId = await seedEnvironment(playwright, 'Hist Btn');
+    await signIn(page, 'admin');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate(id => { location.hash = `#/environments/${id}`; }, envId);
+    const button = page.locator('#btn-operation-history');
+    await expect(button).toBeVisible({ timeout: 15_000 });
+    await button.click();
+    const panel = page.locator('#dynamicSlideoutPanel[data-variant="op-history"]');
+    await expect(panel.locator('#dynamicSlideoutTitle')).toHaveText(/^History · Hist Btn \d+$/);
+    await expect(panel.locator('.op-history-list')).toContainText('No starts or stops yet.');
+    await expect(panel.locator('.op-history-pager')).toContainText('0 of 0');
+    await page.keyboard.press('Escape');
+    await expect(button).toBeFocused();
   });
 });

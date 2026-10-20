@@ -59,6 +59,7 @@ test('title and cost note: counts and names, a plain title with nothing listed, 
     assert.equal(M.titleFor({ displayName: 'Payments Dev' }, 'STOP', t(1)), 'Stop 1 VM in Payments Dev?');
     assert.equal(M.titleFor({ displayName: 'Orders', serviceType: 'EKS' }, 'STOP', t(2)), 'Scale 2 node groups in Orders to 0?');
     assert.equal(M.titleFor({ displayName: 'Empty' }, 'START', []), 'Start Empty?');
+    assert.equal(M.titleFor({ displayName: 'Empty' }, 'START', [], { level: 'vm', vmId: 'v', name: 'report-worker' }), 'Start report-worker?');
     const preview = { hours: 8, hourlyTotal: 0.09, estimatedTotal: 0.72, vms: [{}, {}] };
     assert.equal(M.costNote(preview, 2, false), '$0.09 an hour for both');
     assert.equal(M.costNote({ ...preview, unknownPriceCount: 1, approximate: true }, 3, true),

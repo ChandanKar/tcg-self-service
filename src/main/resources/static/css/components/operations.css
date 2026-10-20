@@ -225,27 +225,204 @@
     color: var(--slate);
 }
 
-/* Operation history table */
-.operation-history .table {
-    margin-bottom: 0;
+/* Operation history side panel (U08-T04, OperationHistory.dc.html) */
+.op-history-sub {
+    margin: 0 0 8px;
+    font-size: 13.5px;
+    color: var(--slate);
 }
 
-.operation-history .table th {
+.op-history-list {
+    margin: 0 -20px;
+}
+
+.op-history-run {
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.op-history-row {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr) 150px 56px 110px;
+    gap: 10px;
+    align-items: center;
+    width: 100%;
+    padding: 10px 20px;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    font-size: var(--fs-body);
+    color: var(--ink);
+    text-align: left;
+    cursor: pointer;
+}
+
+.op-history-row:hover,
+.op-history-run.open .op-history-row {
     background: var(--surface-subtle);
-    border-bottom: 2px solid var(--line);
-    font-weight: 600;
-    font-size: 0.75rem;
+}
+
+.op-history-row:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: -2px;
+}
+
+.op-history-when,
+.op-history-took {
+    font-size: 12.5px;
     color: var(--slate);
 }
 
-.operation-history .table td {
-    vertical-align: middle;
-    padding: 0.75rem;
+.op-history-what {
+    font-weight: 500;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
-/* Empty state */
-.operation-history .empty-state {
+.op-history-who {
+    font-size: var(--fs-caption);
     color: var(--slate);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.op-history-chip {
+    justify-self: end;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: var(--fs-small);
+    font-weight: 500;
+    white-space: nowrap;
+    background: var(--surface-muted);
+    color: var(--status-stopped-text);
+}
+
+.op-history-chip[data-tone="ok"] {
+    background: var(--brand-green-tint);
+    color: var(--brand-green-text);
+}
+
+.op-history-chip[data-tone="part"] {
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
+}
+
+.op-history-chip[data-tone="fail"] {
+    background: var(--brand-red-tint);
+    color: var(--brand-red-text);
+}
+
+.op-history-chip[data-tone="run"] {
+    background: var(--brand-navy-tint);
+    color: var(--brand-navy);
+}
+
+.op-history-actions {
+    padding: 0 20px 8px 126px;
+}
+
+.op-history-actions .op-history-cancel {
+    padding: 0;
+    color: var(--brand-red-text);
+    text-decoration: none;
+}
+
+.op-history-actions .op-history-cancel:hover {
+    text-decoration: underline;
+}
+
+.op-history-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 4px 20px 14px 126px;
+    background: var(--surface-subtle);
+}
+
+.op-history-step {
+    display: grid;
+    grid-template-columns: 110px minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: start;
+    padding: 4px 0;
+    font-size: 13.5px;
+}
+
+.op-history-step-group {
+    color: var(--slate);
+}
+
+.op-history-step-note {
+    display: block;
+    font-size: 12.5px;
+    color: var(--brand-red-text);
+}
+
+.op-history-retry {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 4px;
+}
+
+.op-history-retry .btn-link {
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.op-history-empty {
+    padding: 16px 20px;
+    color: var(--slate);
+}
+
+.op-history-pager {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    font-size: var(--fs-caption);
+    color: var(--slate);
+}
+
+.op-history-pager-buttons {
+    display: flex;
+    gap: 6px;
+}
+
+@media (max-width: 640px) {
+    .op-history-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+        row-gap: 2px;
+    }
+
+    .op-history-what {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .op-history-row .op-history-chip {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .op-history-when,
+    .op-history-who,
+    .op-history-took {
+        grid-column: 1 / -1;
+    }
+
+    .op-history-steps,
+    .op-history-actions {
+        padding-left: 20px;
+    }
+
+    .op-history-step {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .op-history-step-group {
+        grid-column: 1 / -1;
+    }
 }
 
 /* ================================================

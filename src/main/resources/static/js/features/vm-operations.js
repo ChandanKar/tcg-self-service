@@ -537,7 +537,7 @@ const VmOperations = (function() {
      * Cancel an operation after confirmation (H12). Allowed for the initiator, the lock holder
      * and environment admins; the server's 403 reason is shown as is.
      */
-    function confirmCancel(envId, executionId, $button) {
+    function confirmCancel(envId, executionId, $button, onDone) {
         Modals.confirm('Cancel operation',
             'Cancel this operation? VMs already started or stopped stay that way.',
             function() {
@@ -546,7 +546,7 @@ const VmOperations = (function() {
                     .done(function(execution) {
                         Notifications.info('Operation cancelled');
                         if (modalExecutionId === executionId) updateProgressModal('cancelled');
-                        if ($('.operation-history').length) loadHistoryContent(envId);
+                        if (onDone) onDone(execution);
                     })
                     .fail(function(xhr) {
                         if ($button) $button.prop('disabled', false);
@@ -587,112 +587,6 @@ const VmOperations = (function() {
     /**
      * Get operation history for an environment
      */
-    function getHistory(envId, page = 0, size = 20) {
-        return new Promise((resolve, reject) => {
-            ApiClient.get(`${Config.API.operations.list(envId)}?page=${page}&size=${size}`)
-                .done(resolve)
-                .fail(reject);
-        });
-    }
-
-    /**
-     * Show operation history modal
-     */
-    function showHistoryModal(envId, envName) {
-        Modals.show({
-            id: 'operationHistoryModal',
-            title: `Operation History: ${envName}`,
-            size: 'lg',
-            body: `
-                <div class="operation-history">
-                    <div class="text-center py-4">
-                        <i class="fas fa-spinner fa-spin"></i> Loading history...
-                    </div>
-                </div>
-            `,
-            buttons: [
-                { text: 'Close', class: 'btn-secondary', dismiss: true }
-            ],
-            onShow: function() {
-                loadHistoryContent(envId);
-            }
-        });
-    }
-
-    /**
-     * Load history content into modal
-     */
-    function loadHistoryContent(envId) {
-        getHistory(envId)
-            .then(function(data) {
-                const executions = data.content || data || [];
-
-                if (executions.length === 0) {
-                    $('.operation-history').html(`
-                        <div class="empty-state text-center py-4">
-                            <i class="fas fa-history fa-2x text-muted mb-2"></i>
-                            <p>No operations found</p>
-                        </div>
-                    `);
-                    return;
-                }
-
-                const rows = executions.map(exec => {
-                    const statusConfig = Config.STATUS.operation[exec.status] || { class: 'text-secondary', icon: 'fa-question', label: exec.status };
-                    const duration = exec.completedAt && exec.startedAt ?
-                        Utils.formatDuration(new Date(exec.completedAt) - new Date(exec.startedAt)) : '-';
-                    const skipped = Number(exec.skippedTargets) || 0;
-                    const running = RUNNING_STATUSES.includes(exec.status);
-                    const action = running
-                        ? `<button type="button" class="btn btn-sm btn-outline-danger" data-op-cancel
-                                   data-env-id="${Utils.escapeHtml(envId)}" data-execution-id="${Utils.escapeHtml(exec.executionId)}">Cancel</button>`
-                        : '';
-
-                    return `
-                        <tr data-execution-id="${Utils.escapeHtml(exec.executionId)}">
-                            <td>${Utils.formatRelativeTime(exec.startedAt)}</td>
-                            <td><span class="badge bg-secondary">${Utils.escapeHtml(exec.operationType)}</span></td>
-                            <td>
-                                <span class="${statusConfig.class}" data-col="status">
-                                    <i class="fas ${statusConfig.icon} me-1"></i>${Utils.escapeHtml(statusConfig.label || exec.status)}
-                                </span>${skipped > 0 ? ` <span class="text-muted small">· skipped ${skipped}</span>` : ''}
-                            </td>
-                            <td>${duration}</td>
-                            <td>${Utils.escapeHtml(exec.initiatedByDisplayName || exec.initiatedBy || '-')}</td>
-                            <td class="text-end">${action}</td>
-                        </tr>
-                    `;
-                }).join('');
-
-                $('.operation-history').html(`
-                    <table class="table table-sm table-hover">
-                        <thead>
-                            <tr>
-                                <th>Time</th>
-                                <th>Operation</th>
-                                <th>Status</th>
-                                <th>Duration</th>
-                                <th>Initiated By</th>
-                                <th class="text-end"><span class="visually-hidden">Actions</span></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${rows}
-                        </tbody>
-                    </table>
-                `);
-                $('.operation-history').off('click', '[data-op-cancel]').on('click', '[data-op-cancel]', function() {
-                    const $btn = $(this);
-                    confirmCancel($btn.data('env-id'), $btn.data('execution-id'), $btn);
-                });
-            })
-            .catch(function() {
-                $('.operation-history').html(`
-                    <div class="alert alert-danger">Failed to load operation history</div>
-                `);
-            });
-    }
-
     // Public API
     return {
         startEnvironment,
@@ -701,8 +595,7 @@ const VmOperations = (function() {
         stopGroup,
         startVm,
         stopVm,
-        showHistoryModal,
-        getHistory,
+        confirmCancel,
         stopAllPolling,
         trackedExecutionIds,
         hasRunningOperation,

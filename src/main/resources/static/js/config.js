@@ -298,6 +298,8 @@ const Config = (function() {
         operations: {
             create: (envId) => `${API_BASE_URL}/environments/${envId}/operations`,
             list: (envId) => `${API_BASE_URL}/environments/${envId}/operations`,
+            // One page of runs, newest first, with who started them and what they covered (U08-T01)
+            page: (envId, page = 0, size = 7) => `${API_BASE_URL}/environments/${envId}/operations/page?page=${page}&size=${size}`,
             get: (envId, execId) => `${API_BASE_URL}/environments/${envId}/operations/${execId}`,
             cancel: (envId, execId) => `${API_BASE_URL}/environments/${envId}/operations/${execId}/cancel`,
             estimates: (envId, opType, scope) => {

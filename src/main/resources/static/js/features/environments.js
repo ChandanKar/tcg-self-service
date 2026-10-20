@@ -1811,8 +1811,11 @@ const Environments = (function() {
         }
     }
 
+    /** The history side panel (U08-T04); Retry in it needs the environment's VMs. */
     function showOperationHistory(envId, envName) {
-        VmOperations.showHistoryModal(envId, envName);
+        const env = currentEnvironment && currentEnvironment.environmentId === envId ? currentEnvironment
+            : { environmentId: envId, displayName: envName, groups: [] };
+        OperationHistory.open(env);
     }
 
     return {

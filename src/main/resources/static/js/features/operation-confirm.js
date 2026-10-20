@@ -138,11 +138,12 @@ const OperationConfirm = (function() {
 
     /**
      * "Start 2 VMs in Payments Dev?", "Stop 1 VM in Payments Dev?", "Scale 2 node groups in Orders
-     * to 0?"; "Start Payments Dev?" when nothing is listed to act on (the server decides).
+     * to 0?"; "Start Payments Dev?" when nothing is listed to act on (the server decides), or
+     * "Start report-worker?" for one VM named in the scope.
      */
-    function titleFor(env, opType, targets) {
+    function titleFor(env, opType, targets, scope) {
         const n = targets.length;
-        const envName = env.displayName || env.name || 'this environment';
+        const envName = (!n && scope && scope.level === 'vm' && scope.name) || env.displayName || env.name || 'this environment';
         const eks = String(env.serviceType || '').toUpperCase() === 'EKS';
         const things = eks ? (n === 1 ? 'node group' : 'node groups') : (n === 1 ? 'VM' : 'VMs');
         if (opType === 'STOP') {
@@ -338,7 +339,7 @@ const OperationConfirm = (function() {
         state = { env, opType, scope, targets, chips, selected, nextStop, cost: {}, approval: {}, token: Date.now() + Math.random() };
         Modals.show({
             id: MODAL_ID,
-            title: titleFor(env, opType, targets),
+            title: titleFor(env, opType, targets, scope),
             body: bodyHtml(),
             buttons: [
                 { text: 'Cancel', class: 'btn-secondary', dismiss: true },
