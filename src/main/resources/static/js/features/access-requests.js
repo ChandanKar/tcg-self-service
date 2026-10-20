@@ -1,21 +1,108 @@
 /**
  * VM Self-Service Platform - Access Requests Module
- * The reviewer side of access requests: pending requests, approve and deny, manage and grant
- * access. The requester's page is RequestAccess (request-access.js, U09-T02).
+ * The reviewer side of access requests (U10-T07, AccessRequests.dc.html): one card per waiting
+ * request, oldest first, saying who wants what on which environment, why, which part, for how long
+ * and what they have today. "Approve for" picks the length and Approve decides it in place; Deny…
+ * asks for a reason. The requester's page is RequestAccess (request-access.js, U09-T02).
  */
 
 const AccessRequests = (function() {
     'use strict';
 
-    // Pending Requests page: the loaded requests, so Approve can show the full request.
-    let pendingList = [];
+    const NS = '.accessRequests';
+    const WANTS = { VIEWER: 'view access', USER: 'operator access', ADMIN: 'admin access' };
+    // "Approve for" choices besides the requested length (the server caps grants at
+    // access.grant.max-duration-days).
+    const APPROVE_DAYS = [7, 30, 90];
+    const DAY_MS = 24 * 60 * 60 * 1000;
 
-    // Approve dialog: override choices (the server caps grants at access.grant.max-duration-days).
-    const APPROVE_DAY_OPTIONS = [7, 30, 90, 180, 365];
+    // The waiting requests on the page (oldest first) and the environment filter ('' = all).
+    let pendingList = [];
+    let envFilter = '';
+
+    // ------------------------------------------------------------------ model
+
+    function nameOf(req) {
+        return req.requesterDisplayName || req.requesterEmail || 'Someone';
+    }
+
+    function initials(name) {
+        const words = String(name || '').replace(/@.*/, '').split(/[\s._-]+/).filter(Boolean);
+        if (!words.length) return '?';
+        return (words[0][0] + (words.length > 1 ? words[words.length - 1][0] : '')).toUpperCase();
+    }
+
+    function oldestFirst(list) {
+        return (list || []).slice().sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    }
+
+    /** "asked 2 h ago", "asked yesterday", "asked on 3 Oct". */
+    function askedText(createdAt, now) {
+        if (!createdAt) return '';
+        const n = now ? new Date(now) : new Date();
+        const t = new Date(createdAt);
+        const min = Math.floor((n - t) / 60000);
+        if (min < 1) return 'asked just now';
+        if (min < 60) return `asked ${min} min ago`;
+        if (min < 24 * 60) return `asked ${Math.floor(min / 60)} h ago`;
+        const startOf = d => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+        const days = Math.round((startOf(n) - startOf(t)) / DAY_MS);
+        if (days <= 1) return 'asked yesterday';
+        if (days < 7) return `asked ${days} days ago`;
+        const opts = { day: 'numeric', month: 'short' };
+        if (t.getFullYear() !== n.getFullYear()) opts.year = 'numeric';
+        return `asked on ${t.toLocaleDateString('en-GB', opts)}`;
+    }
+
+    function daysText(n, extension) {
+        return `${n} ${extension ? 'more ' : ''}${n === 1 ? 'day' : 'days'}`;
+    }
 
     /**
-     * Load Pending Requests page (admin view)
+     * What a reviewer needs to know about a request: what is asked, which part, for how long and
+     * what the person holds today.
      */
+    function describeRequest(req, now) {
+        const level = req.currentAccessLevel ? AccessLevels.label(req.currentAccessLevel) : null;
+        const until = level && req.currentExpiresAt
+            ? AccessLevels.endsText(req.currentExpiresAt, now).text.split(' · ')[0] : null;
+        return {
+            wants: req.extension ? 'an extension' : (WANTS[req.requestedAccessLevel] || 'access'),
+            scope: req.scopeType === 'GROUP' ? `${req.scopeName || req.scopeId} group` : 'Whole environment',
+            duration: req.durationDays ? daysText(req.durationDays, !!req.extension) : 'No end',
+            current: !level ? 'None' : until ? `${level} until ${until}` : `${level}, no end date`,
+            extension: !!req.extension
+        };
+    }
+
+    /** "Approve for": the requested length first, then 7, 30, 90 days and No end. */
+    function approveOptions(req) {
+        const ext = !!req.extension;
+        const asked = req.durationDays ? String(req.durationDays) : 'none';
+        const all = APPROVE_DAYS.map(n => ({ value: String(n), label: daysText(n, ext) }))
+            .concat([{ value: 'none', label: 'No end' }]);
+        const first = all.find(o => o.value === asked) || { value: asked, label: daysText(req.durationDays, ext) };
+        return [first].concat(all.filter(o => o.value !== asked));
+    }
+
+    /** The approve body (ReviewAccessRequestDTO) for an "Approve for" choice. */
+    function approveBody(choice) {
+        return choice === 'none' ? { clearExpiry: true } : { durationDays: parseInt(choice, 10) };
+    }
+
+    /** The environment filter: "All (<n> waiting)", then each environment with waiting requests. */
+    function envOptions(list) {
+        const names = new Map();
+        (list || []).forEach(r => {
+            if (!names.has(r.environmentId)) names.set(r.environmentId, r.environmentName || r.environmentId);
+        });
+        const envs = [...names].map(([value, label]) => ({ value, label }))
+            .sort((a, b) => a.label.localeCompare(b.label));
+        return [{ value: '', label: `All (${(list || []).length} waiting)` }].concat(envs);
+    }
+
+    // ------------------------------------------------------------------ page
+
     /** Router loader (see the page contract in core/router.js). */
     async function loadPendingRequestsPage() {
         const t = ContentRouter.token();
@@ -29,10 +116,13 @@ const AccessRequests = (function() {
         try {
             const requests = await fetchPendingRequests();
             if (!ContentRouter.isCurrent(t)) return;
-            pendingList = requests || [];
-            const html = buildPendingRequestsPageHtml(requests);
-            $('#content-area').html(html);
+            pendingList = oldestFirst(requests);
+            envFilter = '';
+            $('#content-area').html(pageHtml());
+            render();
             bindPendingRequestsEvents();
+            ContentRouter.onLeave(() => $(document).off(NS));
+            loadApprovalsLine(t);
         } catch (error) {
             if (!ContentRouter.isCurrent(t)) return;
             console.error('Failed to load pending requests:', error);
@@ -77,230 +167,141 @@ const AccessRequests = (function() {
         `);
     }
 
-    /**
-     * Build Pending Requests page HTML (admin)
-     */
-    function buildPendingRequestsPageHtml(requests) {
-        if (!requests || requests.length === 0) {
-            return `
-                <div class="request-access-container">
-                    <div class="content-header">
-                        <h1><i class="fas fa-user-check"></i> Pending Access Requests</h1>
-                        <p class="text-muted">Review and approve user access requests</p>
-                    </div>
-                    <div class="card">
-                        <div class="card-body">
-                            <div class="ra-empty-state">
-                                <i class="fas fa-inbox fa-2x d-block"></i>
-                                <p>No pending requests — all access requests have been processed</p>
-                            </div>
+    function pageHtml() {
+        const filter = `<label class="ar-env-filter" for="ar-env-filter">Environment
+                <select class="form-select" id="ar-env-filter"></select></label>`;
+        return `
+            <div class="content-view ar-review-page" id="access-requests-view">
+                ${PageHeader.markup({ title: 'Access requests',
+                    summaryHtml: 'People asking to use environments you look after. Oldest first.',
+                    actionsHtml: filter, helpPage: 'pending-requests', helpLabel: 'Access requests' })}
+                <p class="ar-approvals" id="ar-approvals" hidden></p>
+                <div class="ar-list" id="ar-list"></div>
+            </div>`;
+    }
+
+    /** Requests to start or extend environments wait on Approvals; say so when it is in use. */
+    function loadApprovalsLine(t) {
+        if (!Config.API.approvals) return;
+        ApiClient.get(Config.API.approvals.status, { suppressGlobalError: true })
+            .done(function(status) {
+                if (!ContentRouter.isCurrent(t) || !status || !status.visible) return;
+                ApiClient.get(Config.API.approvals.list('to-review'), { suppressGlobalError: true })
+                    .always(function(list) {
+                        if (!ContentRouter.isCurrent(t)) return;
+                        const waiting = Array.isArray(list)
+                            ? list.filter(r => r.status === 'PENDING' && r.canDecide).length : 0;
+                        $('#ar-approvals').html('Requests to start or extend environments are on '
+                            + '<a href="#/approvals">Approvals</a>'
+                            + (waiting ? ` · ${waiting} waiting.` : '.')).prop('hidden', false);
+                    });
+            });
+    }
+
+    function render() {
+        const options = envOptions(pendingList);
+        if (!options.some(o => o.value === envFilter)) envFilter = '';
+        $('#ar-env-filter').html(options.map(o =>
+            `<option value="${Utils.escapeHtml(o.value)}"${o.value === envFilter ? ' selected' : ''}>${Utils.escapeHtml(o.label)}</option>`
+        ).join('')).prop('disabled', pendingList.length === 0);
+
+        const shown = pendingList.filter(r => !envFilter || r.environmentId === envFilter);
+        $('#ar-list').html(shown.length
+            ? shown.map(r => cardHtml(r)).join('')
+            : '<div class="ar-empty">No one is waiting. New requests show here.</div>');
+    }
+
+    function cardHtml(req, now) {
+        const d = describeRequest(req, now);
+        const name = nameOf(req);
+        const id = Utils.escapeHtml(req.requestId);
+        const options = approveOptions(req).map((o, i) =>
+            `<option value="${Utils.escapeHtml(o.value)}"${i === 0 ? ' selected' : ''}>${Utils.escapeHtml(o.label)}</option>`).join('');
+        const meta = [req.requesterEmail, askedText(req.createdAt, now)].filter(Boolean).join(' · ');
+        const fact = (key, label, value) =>
+            `<div data-fact="${key}"><dt>${label}</dt><dd>${Utils.escapeHtml(value)}</dd></div>`;
+        return `
+            <article class="ar-card" data-request-id="${id}" aria-labelledby="ar-title-${id}">
+                <div class="ar-main">
+                    <div class="ar-who">
+                        <span class="ar-avatar" aria-hidden="true">${Utils.escapeHtml(initials(name))}</span>
+                        <div class="ar-who-text">
+                            <div class="ar-title" id="ar-title-${id}"><b>${Utils.escapeHtml(name)}</b> wants
+                                <b>${Utils.escapeHtml(d.wants)}</b> on <b>${Utils.escapeHtml(req.environmentName || 'an environment')}</b></div>
+                            <div class="ar-meta">${Utils.escapeHtml(meta)}</div>
                         </div>
                     </div>
+                    ${req.businessJustification
+                        ? `<p class="ar-reason">"${Utils.escapeHtml(req.businessJustification)}"</p>` : ''}
+                    <dl class="ar-facts">
+                        ${fact('scope', 'Part of it', d.scope)}
+                        ${fact('for', 'For', d.duration)}
+                        ${fact('current', 'Has today', d.current)}
+                    </dl>
                 </div>
-            `;
-        }
-
-        const rows = requests.map(req => `
-            <tr>
-                <td class="ra-wrap" data-label="Requester">
-                    <strong>${Utils.escapeHtml(req.requesterDisplayName || 'Unknown')}</strong>
-                    <br><small class="text-muted">${Utils.escapeHtml(req.requesterEmail || '')}</small>
-                </td>
-                <td class="ra-wrap" data-label="Environment">
-                    <strong>${Utils.escapeHtml(req.environmentName || 'Unknown')}</strong>
-                </td>
-                <td data-label="Access level">
-                    <span class="access-level-badge ${AccessLevels.chipClass(req.requestedAccessLevel)}">
-                        ${Utils.escapeHtml(AccessLevels.label(req.requestedAccessLevel))}
-                    </span>
-                </td>
-                <td class="ra-wrap" data-col="scope" data-label="Scope">${Utils.escapeHtml(describeRequest(req).scope)}</td>
-                <td data-col="duration" data-label="Duration">${Utils.escapeHtml(describeRequest(req).duration)}</td>
-                <td class="ra-wrap" data-col="current" data-label="Current access">${currentAccessHtml(req)}</td>
-                <td data-label="Requested">${Utils.formatRelativeTime(req.createdAt)}</td>
-                <td data-label="Reason" title="${Utils.escapeHtml(req.businessJustification || '')}">
-                    <span class="reason-text">${Utils.escapeHtml(req.businessJustification || '-')}</span>
-                </td>
-                <td class="text-end ra-actions-cell td-actions">
-                    <div class="ra-action-buttons">
-                        <button class="btn btn-sm btn-tonal btn-success" data-request-id="${req.requestId}" data-action="approve">
-                            <i class="fas fa-check"></i> Approve
-                        </button>
-                        <button class="btn btn-sm btn-tonal btn-danger" data-request-id="${req.requestId}" data-action="deny">
-                            <i class="fas fa-times"></i> Deny
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `).join('');
-
-        return `
-            <div class="request-access-container">
-                <div class="content-header">
-                    <h1><i class="fas fa-user-check"></i> Pending Access Requests</h1>
-                    <p class="text-muted">Review and approve user access requests
-                        <span class="badge bg-warning text-dark ms-2">${requests.length} pending</span>
-                        <a class="ms-2" href="#/approvals"><i class="fas fa-stamp me-1" aria-hidden="true"></i>Operation approvals</a>
-                    </p>
+                <div class="ar-actions">
+                    <label class="ar-for" for="ar-for-${id}">Approve for</label>
+                    <select class="form-select" id="ar-for-${id}" data-ar-for>${options}</select>
+                    <button type="button" class="btn btn-primary ar-approve" data-action="approve" data-request-id="${id}">Approve</button>
+                    <button type="button" class="btn ar-deny" data-action="deny" data-request-id="${id}">Deny…</button>
                 </div>
-                <div class="card">
-                    <div class="card-body p-0">
-                        <table class="table table-hover mb-0 table-cards" id="pending-requests-table">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Requester</th>
-                                    <th>Environment</th>
-                                    <th>Access Level</th>
-                                    <th>Scope</th>
-                                    <th>Duration</th>
-                                    <th>Current access</th>
-                                    <th>Requested</th>
-                                    <th>Reason</th>
-                                    <th class="text-end">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${rows}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        `;
+            </article>`;
     }
 
-    /**
-     * Bind events for Pending Requests page
-     */
+    /** Takes a decided request off the page and the sidebar badge. */
+    function dropRequest(requestId) {
+        pendingList = pendingList.filter(r => r.requestId !== requestId);
+        render();
+        updatePendingBadge();
+    }
+
     function bindPendingRequestsEvents() {
-        // Approve request
-        $('[data-action="approve"]').off('click').on('click', function() {
-            const request = pendingList.find(r => r.requestId === $(this).data('request-id'));
-            if (request) {
-                showApproveModal(request, () => { loadPendingRequestsPage(); updatePendingBadge(); });
-            }
-        });
-
-        // Deny request
-        $('[data-action="deny"]').off('click').on('click', function() {
-            const requestId = $(this).data('request-id');
-            showDenyModal(requestId);
-        });
+        $(document).off(NS)
+            .on('change' + NS, '#ar-env-filter', function() {
+                envFilter = $(this).val() || '';
+                render();
+            })
+            .on('click' + NS, '#access-requests-view [data-action="approve"]', function() {
+                const requestId = String($(this).data('request-id'));
+                const choice = $(this).closest('.ar-card').find('[data-ar-for]').val();
+                approve(requestId, choice, $(this));
+            })
+            .on('click' + NS, '#access-requests-view [data-action="deny"]', function() {
+                const request = pendingList.find(r => r.requestId === String($(this).data('request-id')));
+                if (request) showDenyModal(request, () => dropRequest(request.requestId));
+            });
     }
 
-    function formatDay(ts) {
-        return new Date(ts).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-    }
-
-    /**
-     * Plain-text facts a reviewer needs about a request (M20): what it covers, for how long, and
-     * what the requester holds today. Shared with Access Management's pending list.
-     */
-    function describeRequest(req) {
-        const level = req.currentAccessLevel ? AccessLevels.label(req.currentAccessLevel) : null;
-        return {
-            scope: req.scopeType === 'GROUP' ? `Group ${req.scopeName || req.scopeId}` : 'Whole environment',
-            duration: req.durationDays ? `${req.durationDays} days requested` : 'No end date requested',
-            current: !level ? 'None'
-                : req.currentExpiresAt ? `${level} until ${formatDay(req.currentExpiresAt)}` : `${level}, no end`,
-            extension: !!req.extension
-        };
-    }
-
-    /** Current access plus an "Extension" pill when the request extends it. */
-    function currentAccessHtml(req) {
-        const d = describeRequest(req);
-        const pill = d.extension ? ' <span class="badge ra-extension-pill">Extension</span>' : '';
-        return `${Utils.escapeHtml(d.current)}${pill}`;
+    function approve(requestId, choice, $btn) {
+        const $card = $btn.closest('.ar-card');
+        $card.find('button, select').prop('disabled', true);
+        $btn.text('Approving…');
+        ApiClient.post(Config.API.access.approveRequest(requestId), approveBody(choice), { suppressGlobalError: true })
+            .done(function() {
+                Notifications.success('Access approved.');
+                dropRequest(requestId);
+            })
+            .fail(function(xhr) {
+                if (xhr.status === 409) {
+                    // E04-T04: another reviewer (or the requester) got there first.
+                    Notifications.warning('Someone else already reviewed this request');
+                    dropRequest(requestId);
+                    return;
+                }
+                $card.find('button, select').prop('disabled', false);
+                $btn.text('Approve');
+                Notifications.error(xhr.responseJSON?.message || 'Failed to approve request');
+            });
     }
 
     /**
-     * Approve dialog: shows what is being approved and lets the reviewer keep the requested
-     * duration, pick another, or grant with no expiry; nothing is approved until Approve.
+     * Deny dialog (U10-T08 turns it into the decline dialog).
      *
-     * @param {object} request - a pending request (EnvironmentAccessRequestDTO)
-     * @param {function=} onDone - called after the request was approved or found already reviewed
+     * @param {object} request - the pending request
+     * @param {function=} onDone - called after the request was denied
      */
-    function showApproveModal(request, onDone) {
-        const d = describeRequest(request);
-        const requested = request.durationDays ? `As requested (${request.durationDays} days)` : 'As requested (no end date)';
-        const dayOptions = APPROVE_DAY_OPTIONS.map(n => `<option value="${n}">${n} days</option>`).join('');
-        const countsFrom = request.extension && request.currentExpiresAt
-            ? `Days are added to the current expiry (${formatDay(request.currentExpiresAt)}).`
-            : 'Days count from the moment you approve.';
-        const row = (label, value) => `<dt class="col-5">${label}</dt><dd class="col-7">${value}</dd>`;
-
-        Modals.show({
-            id: 'approveRequestModal',
-            title: 'Approve Access Request',
-            body: `
-                <dl class="row small mb-3 ra-approve-summary">
-                    ${row('Requester', Utils.escapeHtml(request.requesterDisplayName || request.requesterEmail || 'Unknown'))}
-                    ${row('Environment', Utils.escapeHtml(request.environmentName || 'Unknown'))}
-                    ${row('Scope', Utils.escapeHtml(d.scope))}
-                    ${row('Access level', Utils.escapeHtml(AccessLevels.label(request.requestedAccessLevel)))}
-                    ${row('Duration', Utils.escapeHtml(d.duration))}
-                    ${row('Current access', currentAccessHtml(request))}
-                </dl>
-                <form id="approveRequestForm">
-                    <div class="mb-3">
-                        <label class="form-label" for="approveDuration">Grant for</label>
-                        <select class="form-select" id="approveDuration" aria-describedby="approveDurationHelp">
-                            <option value="requested" selected>${Utils.escapeHtml(requested)}</option>
-                            ${dayOptions}
-                            <option value="none">No expiry</option>
-                        </select>
-                        <div class="form-text" id="approveDurationHelp">${Utils.escapeHtml(countsFrom)}</div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="approveComments">Notes (optional)</label>
-                        <textarea class="form-control" id="approveComments" rows="2" maxlength="500"
-                                  placeholder="Any notes for the requester..."></textarea>
-                    </div>
-                </form>
-            `,
-            buttons: [
-                { text: 'Cancel', class: 'btn-secondary', dismiss: true },
-                { text: 'Approve', class: 'btn-success', id: 'confirmApprove' }
-            ],
-            onShow: function() {
-                $('#approveDuration').trigger('focus');
-                $('#confirmApprove').off('click').on('click', function() {
-                    const choice = $('#approveDuration').val();
-                    const body = {
-                        notes: $('#approveComments').val().trim() || null,
-                        durationDays: /^\d+$/.test(choice) ? parseInt(choice, 10) : null,
-                        clearExpiry: choice === 'none' ? true : null
-                    };
-
-                    $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Approving...');
-
-                    ApiClient.post(Config.API.access.approveRequest(request.requestId), body, { suppressGlobalError: true })
-                    .done(function() {
-                        Modals.hide('approveRequestModal');
-                        Notifications.success('Request approved');
-                        if (onDone) onDone();
-                    })
-                    .fail(function(xhr) {
-                        if (xhr.status === 409) {
-                            // E04-T04: another reviewer (or the requester) got there first.
-                            Modals.hide('approveRequestModal');
-                            Notifications.warning('Someone else already reviewed this request');
-                            if (onDone) onDone();
-                            return;
-                        }
-                        $('#confirmApprove').prop('disabled', false).html('Approve');
-                        Notifications.error(xhr.responseJSON?.message || 'Failed to approve request');
-                    });
-                });
-            }
-        });
-    }
-
-    /**
-     * Show deny modal
-     */
-    function showDenyModal(requestId) {
+    function showDenyModal(request, onDone) {
+        const requestId = request.requestId;
         Modals.show({
             id: 'denyRequestModal',
             title: 'Deny Access Request',
@@ -332,9 +333,8 @@ const AccessRequests = (function() {
                     ApiClient.post(Config.API.access.denyRequest(requestId), { notes: reason })
                         .done(function() {
                             Modals.hide('denyRequestModal');
-                            Notifications.success('Request denied');
-                            loadPendingRequestsPage();
-                            updatePendingBadge();
+                            Notifications.success('Request declined.');
+                            if (onDone) onDone();
                         })
                         .fail(function(xhr) {
                             $('#confirmDeny').prop('disabled', false).html('Deny Request');
@@ -573,10 +573,9 @@ const AccessRequests = (function() {
     return {
         loadPendingRequestsPage,
         showManageAccessModal,
-        showApproveModal,
         describeRequest,
-        currentAccessHtml,
-        updatePendingBadge
+        updatePendingBadge,
+        model: { nameOf, initials, oldestFirst, askedText, describeRequest, approveOptions, approveBody, envOptions, cardHtml }
     };
 })();
 

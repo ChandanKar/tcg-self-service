@@ -1,6 +1,6 @@
 /**
  * Access Requests Feature Styles
- * Operations > Request Access — user request workflow and admin approval view.
+ * Request access (the requester, U09-T02) and Access requests (the reviewer's cards, U10-T07).
  * Typography and density synced to dashboard baseline.
  */
 
@@ -85,35 +85,6 @@
 #history-table thead th:nth-child(6),
 #history-table tbody td:nth-child(6) { width: 24%; }
 
-/* ── Pending Requests (admin) table column widths (9 cols, U02-T05) ──
-   requester, environment, level, scope, duration, current access, requested, reason, actions.
-   The actions column has a fixed width so Approve and Deny always sit side by side. */
-#pending-requests-table {
-    table-layout: fixed;
-    width: 100%;
-}
-#pending-requests-table thead th:nth-child(1),
-#pending-requests-table tbody td:nth-child(1) { width: 16%; }
-#pending-requests-table thead th:nth-child(2),
-#pending-requests-table tbody td:nth-child(2) { width: 13%; }
-#pending-requests-table thead th:nth-child(3),
-#pending-requests-table tbody td:nth-child(3) { width: 8%; }
-#pending-requests-table thead th:nth-child(4),
-#pending-requests-table tbody td:nth-child(4) { width: 11%; }
-#pending-requests-table thead th:nth-child(5),
-#pending-requests-table tbody td:nth-child(5) { width: 9%; }
-#pending-requests-table thead th:nth-child(6),
-#pending-requests-table tbody td:nth-child(6) { width: 12%; }
-#pending-requests-table thead th:nth-child(7),
-#pending-requests-table tbody td:nth-child(7) { width: 8%; }
-#pending-requests-table thead th:nth-child(8),
-#pending-requests-table tbody td:nth-child(8) { width: auto; }
-#pending-requests-table thead th:nth-child(9),
-#pending-requests-table tbody td:nth-child(9) { width: 11.5rem; text-align: right; }
-#pending-requests-table .ra-action-buttons {
-    flex-wrap: nowrap;
-}
-
 /* Truncate long text in fixed-width cells */
 .request-access-container .table tbody td {
     overflow: hidden;
@@ -125,15 +96,6 @@
 .request-access-container .table tbody td.ra-wrap {
     white-space: normal;
     overflow: visible;
-}
-
-/* ── Reason text: truncate in admin table ── */
-.reason-text {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 100%;
-    display: block;
 }
 
 /* ── Action buttons in tables ── */
@@ -148,70 +110,7 @@
     padding: 0.15rem 0.45rem;
     font-size: 0.78rem;
 }
-.request-access-container .table tbody td.ra-actions-cell {
-    overflow: visible;
-    white-space: normal;
-}
-.ra-action-buttons {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 0.35rem;
-    flex-wrap: wrap;
-}
-.ra-action-buttons .btn {
-    min-width: 72px;
-}
-
 /* Pagination — see components/pagination.css for .pagination-bar-wrap */
-
-/* ── Empty state ── */
-.ra-empty-state {
-    text-align: center;
-    padding: 2rem 1rem;
-    color: var(--slate);
-}
-.ra-empty-state i {
-    opacity: 0.5;
-    margin-bottom: 0.5rem;
-}
-.ra-empty-state p {
-    font-size: 0.875rem;
-    margin-bottom: 0;
-}
-
-/* E04-T07: what a reviewer is approving — scope, duration, current access (M20) */
-.ra-scope-chip {
-    display: inline-block;
-    padding: 0.05rem 0.45rem;
-    border: 1px solid var(--border-color);
-    border-radius: 999px;
-    color: var(--text-primary);
-}
-
-.ra-extension-pill {
-    background: var(--brand-gold-tint);
-    color: var(--brand-gold-text);
-    font-weight: 600;
-}
-
-.access-request-facts {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem 0.75rem;
-    margin-top: 0.35rem;
-    color: var(--text-secondary);
-    font-size: 0.72rem;
-}
-
-.ra-approve-summary dt {
-    font-weight: 500;
-    color: var(--text-secondary);
-}
-
-.ra-approve-summary dd {
-    margin-bottom: 0.25rem;
-}
 
 /* Request access: environments on the left, the form on the right; your requests (U09-T02, RequestAccess.dc.html) */
 .ra-page {
@@ -519,5 +418,196 @@
 
     .ra-card-head label {
         flex: 1 1 100%;
+    }
+}
+
+/* Access requests: one card per waiting request, the decision on the right (U10-T07, AccessRequests.dc.html) */
+.ar-review-page {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.ar-env-filter {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.ar-env-filter .form-select {
+    width: auto;
+    min-width: 180px;
+}
+
+.ar-approvals {
+    margin: 0;
+    font-size: var(--fs-body);
+    color: var(--text-primary);
+}
+
+.ar-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.ar-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 200px;
+    gap: 16px 24px;
+    align-items: start;
+    padding: 18px 20px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+}
+
+.ar-main {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+}
+
+.ar-who {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.ar-avatar {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--brand-navy-tint);
+    color: var(--brand-navy);
+    font-size: var(--fs-small);
+    font-weight: 600;
+}
+
+.ar-who-text {
+    min-width: 0;
+}
+
+.ar-title {
+    font-size: var(--fs-body);
+    overflow-wrap: anywhere;
+}
+
+.ar-title b {
+    font-weight: 600;
+}
+
+.ar-meta {
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+    overflow-wrap: anywhere;
+}
+
+.ar-reason {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--surface-subtle);
+    font-size: var(--fs-body);
+    overflow-wrap: anywhere;
+}
+
+.ar-facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin: 0;
+}
+
+.ar-facts dt {
+    font-size: var(--fs-small);
+    font-weight: 400;
+    color: var(--text-secondary);
+}
+
+.ar-facts dd {
+    margin: 2px 0 0;
+    font-size: var(--fs-body);
+}
+
+.ar-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.ar-for {
+    margin: 0;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.ar-actions .btn {
+    width: 100%;
+}
+
+.ar-deny {
+    border: 1px solid var(--brand-red-line);
+    background: #fff;
+    color: var(--brand-red-text);
+}
+
+.ar-deny:hover,
+.ar-deny:focus-visible {
+    background: var(--brand-red-tint);
+    color: var(--brand-red-text);
+}
+
+.ar-empty {
+    padding: 32px 20px;
+    border: 1px dashed var(--line);
+    border-radius: 12px;
+    text-align: center;
+    font-size: var(--fs-body);
+    color: var(--text-secondary);
+}
+
+@media (max-width: 767.98px) {
+    .ar-review-page .page-actions {
+        flex-wrap: nowrap;
+        width: 100%;
+    }
+
+    .ar-env-filter {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .ar-env-filter .form-select {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .ar-card {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ar-facts {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 8px;
+    }
+
+    .ar-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .ar-for,
+    .ar-actions .form-select {
+        grid-column: 1 / -1;
     }
 }

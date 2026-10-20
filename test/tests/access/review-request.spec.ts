@@ -2,9 +2,9 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
 
 /**
- * E04-T07 (M20): reviewers see the scope, requested duration and current access of a request,
- * and every approval goes through a dialog where they can keep the requested duration, pick
- * another, or grant with no expiry.
+ * U10-T07 (AccessRequests.dc.html): Access requests shows one card per waiting request, oldest
+ * first, with the part, how long and what the person has today; "Approve for" picks the length
+ * (the requested one, 7 / 30 / 90 days or No end) and Approve decides it in place.
  *
  * Needs dev-mode identities: TEST_DEV_USER_ID / TEST_DEV_ADMIN_ID, plus 'user-002' from
  * src/test/resources/db/reset-test-data.sql as a second requester.
@@ -106,8 +106,14 @@ async function openAccessManagementPending(page: Page) {
   await expect(page).toHaveURL(/#\/pending-requests$/);
 }
 
-const day = (page: Page, ms: number) => page.evaluate((t) =>
-  new Date(t).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }), ms);
+/** The card of one request on Access requests. */
+const cardOf = (page: Page, requestId: string) => page.locator(`.ar-card[data-request-id="${requestId}"]`);
+
+/** "Operator until 26 Oct": the short end date the cards use. */
+const until = (page: Page, ms: number) => page.evaluate((t) =>
+  AccessLevels.endsText(new Date(t).toISOString()).text.split(' · ')[0], ms);
+
+declare const AccessLevels: any;
 
 test.describe('Reviewing access requests', () => {
   test.beforeEach(async () => {
@@ -115,62 +121,71 @@ test.describe('Reviewing access requests', () => {
       'Needs TEST_DEV_USER_ID and TEST_DEV_ADMIN_ID (dev mode) to seed requests');
   });
 
-  test('Pending Requests shows scope, duration, current access and the extension pill', async ({ page, playwright }) => {
+  test('cards come oldest first with the reason, part, length and what they have today', async ({ page, playwright }) => {
     const s = await seed(playwright);
     await goTo(page, '#/pending-requests');
+    await expect(page.locator('#content-area h1')).toHaveText('Access requests', { timeout: 10_000 });
 
-    const row = page.locator('#pending-requests-table tr', {
-      has: page.locator(`[data-request-id="${s.extensionRequestId}"]`),
-    });
-    await expect(row).toBeVisible({ timeout: 10_000 });
-    await expect(row.locator('[data-col="scope"]')).toHaveText(`Group ${s.groupName}`);
-    await expect(row.locator('[data-col="duration"]')).toHaveText('30 days requested');
-    await expect(row.locator('[data-col="current"]')).toContainText(`Operator until ${await day(page, s.currentExpiresAt)}`);
-    await expect(row.locator('.ra-extension-pill')).toHaveText('Extension');
+    const ext = cardOf(page, s.extensionRequestId);
+    await expect(ext).toBeVisible({ timeout: 10_000 });
+    await expect(ext.locator('.ar-title')).toContainText('wants an extension on Review E2E');
+    await expect(ext.locator('.ar-reason')).toHaveText('"Release testing runs longer"');
+    await expect(ext.locator('[data-fact="scope"] dd')).toHaveText(`${s.groupName} group`);
+    await expect(ext.locator('[data-fact="for"] dd')).toHaveText('30 more days');
+    await expect(ext.locator('[data-fact="current"] dd')).toHaveText(`Operator until ${await until(page, s.currentExpiresAt)}`);
+    await expect(ext.locator('[data-ar-for] option:checked')).toHaveText('30 more days');
 
-    const fresh = page.locator('#pending-requests-table tr', {
-      has: page.locator(`[data-request-id="${s.newRequestId}"]`),
-    });
-    await expect(fresh.locator('[data-col="scope"]')).toHaveText('Whole environment');
-    await expect(fresh.locator('[data-col="current"]')).toHaveText('None');
-    await expect(fresh.locator('.ra-extension-pill')).toHaveCount(0);
+    const fresh = cardOf(page, s.newRequestId);
+    await expect(fresh.locator('.ar-title')).toContainText('wants operator access on Review E2E');
+    await expect(fresh.locator('[data-fact="scope"] dd')).toHaveText('Whole environment');
+    await expect(fresh.locator('[data-fact="for"] dd')).toHaveText('30 days');
+    await expect(fresh.locator('[data-fact="current"] dd')).toHaveText('None');
+    await expect(fresh.locator('[data-ar-for] option')).toHaveText(['30 days', '7 days', '90 days', 'No end']);
+
+    // Oldest first: the cards' asked times never go back (two requests can share a second).
+    const ids = await page.locator('.ar-card').evaluateAll(cards => cards.map(c => c.getAttribute('data-request-id')));
+    const admin = await api(playwright, devIds.admin);
+    const pending = await (await admin.get('/api/v1/access-requests/pending')).json();
+    await admin.dispose();
+    const asked = new Map(pending.map((r: any) => [r.requestId, new Date(r.createdAt).getTime()]));
+    const times = ids.filter(id => asked.has(id)).map(id => asked.get(id) as number);
+    expect(times.length).toBeGreaterThan(1);
+    times.forEach((t, i) => { if (i > 0) expect(t).toBeGreaterThanOrEqual(times[i - 1]); });
+
+    // The environment filter narrows the cards to one environment.
+    await page.locator('#ar-env-filter').selectOption(s.envId);
+    await expect(page.locator('.ar-card')).toHaveCount(2);
+    await expect(page.locator('#ar-env-filter option').first()).toHaveText(/^All \(\d+ waiting\)$/);
   });
 
-  test('Access management links to the waiting requests; Approve opens a dialog and approves nothing until confirmed; Escape cancels',
-    async ({ page, playwright }) => {
-      const s = await seed(playwright);
-      await openAccessManagementPending(page);
-
-      const card = page.locator('#pending-requests-table tr', { has: page.locator(`[data-request-id="${s.extensionRequestId}"]`) });
-      await expect(card).toBeVisible({ timeout: 10_000 });
-      await expect(card.locator('[data-col="scope"]')).toHaveText(`Group ${s.groupName}`);
-      await expect(card.locator('[data-col="duration"]')).toHaveText('30 days requested');
-      await expect(card.locator('.ra-extension-pill')).toBeVisible();
-
-      await card.locator('[data-action="approve"]').click();
-      const dialog = page.locator('#approveRequestModal');
-      await expect(dialog).toBeVisible();
-      await expect(dialog.locator('.ra-approve-summary')).toContainText(`Group ${s.groupName}`);
-      await expect(dialog.locator('#approveDuration')).toHaveValue('requested');
-      await expect(dialog.locator('#approveDuration')).toBeFocused();
-      await expect(dialog.locator('#approveDurationHelp')).toContainText('added to the current expiry');
-      expect(await requestStatus(playwright, s.extensionRequestId)).toBe('PENDING');
-
-      await page.keyboard.press('Escape');
-      await expect(dialog).toBeHidden();
-      expect(await requestStatus(playwright, s.extensionRequestId)).toBe('PENDING');
-    });
-
-  test('"No expiry" grants without an expiry even though 30 days were requested', async ({ page, playwright }) => {
+  test('Access management links here; "Approve for 7 days" sends durationDays=7 and the card goes', async ({ page, playwright }) => {
     const s = await seed(playwright);
     await openAccessManagementPending(page);
 
-    const card = page.locator('#pending-requests-table tr', { has: page.locator(`[data-request-id="${s.newRequestId}"]`) });
-    await card.locator('[data-action="approve"]').click();
-    await page.locator('#approveDuration').selectOption('none');
-    await page.locator('#confirmApprove').click();
-    await expect(page.locator('#approveRequestModal')).toBeHidden({ timeout: 10_000 });
+    const card = cardOf(page, s.newRequestId);
+    await expect(card).toBeVisible({ timeout: 10_000 });
+    await card.locator('[data-ar-for]').selectOption('7');
+    const [req] = await Promise.all([
+      page.waitForRequest(r => r.method() === 'POST' && r.url().endsWith(`/access-requests/${s.newRequestId}/approve`)),
+      card.locator('[data-action="approve"]').click(),
+    ]);
+    expect(req.postDataJSON()).toEqual({ durationDays: 7 });
+    await expect(page.getByText('Access approved.')).toBeVisible({ timeout: 10_000 });
     await expect(card).toHaveCount(0);
+
+    expect(await requestStatus(playwright, s.newRequestId)).toBe('APPROVED');
+    const grant = await grantOf(playwright, s.envId, SECOND_USER);
+    expect(Math.abs(new Date(grant.expiresAt).getTime() - (Date.now() + 7 * DAY_MS))).toBeLessThan(5 * 60_000);
+  });
+
+  test('"No end" grants without an expiry even though 30 days were requested', async ({ page, playwright }) => {
+    const s = await seed(playwright);
+    await goTo(page, '#/pending-requests');
+
+    const card = cardOf(page, s.newRequestId);
+    await card.locator('[data-ar-for]').selectOption('none');
+    await card.locator('[data-action="approve"]').click();
+    await expect(card).toHaveCount(0, { timeout: 10_000 });
 
     expect(await requestStatus(playwright, s.newRequestId)).toBe('APPROVED');
     const grant = await grantOf(playwright, s.envId, SECOND_USER);
@@ -178,15 +193,14 @@ test.describe('Reviewing access requests', () => {
     expect(grant.expiresAt).toBeNull();
   });
 
-  test('"As requested" on an extension adds the requested days to the current expiry', async ({ page, playwright }) => {
+  test('the requested length on an extension adds the days to the current expiry', async ({ page, playwright }) => {
     const s = await seed(playwright);
     await goTo(page, '#/pending-requests');
 
-    await page.locator(`[data-action="approve"][data-request-id="${s.extensionRequestId}"]`).click();
-    await expect(page.locator('#approveDuration')).toHaveValue('requested');
-    await page.locator('#approveComments').fill('Approved for the release window');
-    await page.locator('#confirmApprove').click();
-    await expect(page.locator('#approveRequestModal')).toBeHidden({ timeout: 10_000 });
+    const card = cardOf(page, s.extensionRequestId);
+    await expect(card.locator('[data-ar-for]')).toHaveValue('30');
+    await card.locator('[data-action="approve"]').click();
+    await expect(card).toHaveCount(0, { timeout: 10_000 });
 
     expect(await requestStatus(playwright, s.extensionRequestId)).toBe('APPROVED');
     const admin = await api(playwright, devIds.admin);
@@ -199,20 +213,32 @@ test.describe('Reviewing access requests', () => {
 
   test('a request reviewed meanwhile by someone else shows a warning and drops off the list', async ({ page, playwright }) => {
     const s = await seed(playwright);
-    await openAccessManagementPending(page);
+    await goTo(page, '#/pending-requests');
+    const card = cardOf(page, s.newRequestId);
+    await expect(card).toBeVisible({ timeout: 10_000 });
 
-    const card = page.locator('#pending-requests-table tr', { has: page.locator(`[data-request-id="${s.newRequestId}"]`) });
-    await card.locator('[data-action="approve"]').click();
-    await expect(page.locator('#approveRequestModal')).toBeVisible();
-
-    // Another reviewer denies it while the dialog is open.
+    // Another reviewer denies it while the page is open.
     const admin = await api(playwright, devIds.admin);
     expect((await admin.post(`/api/v1/access-requests/${s.newRequestId}/deny`, { data: { notes: 'No' } })).ok()).toBeTruthy();
     await admin.dispose();
 
-    await page.locator('#confirmApprove').click();
+    await card.locator('[data-action="approve"]').click();
     await expect(page.getByText('Someone else already reviewed this request')).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator('#approveRequestModal')).toBeHidden();
+    await expect(card).toHaveCount(0);
+    expect(await requestStatus(playwright, s.newRequestId)).toBe('DENIED');
+  });
+
+  test('Deny… asks for a reason, then the card goes', async ({ page, playwright }) => {
+    const s = await seed(playwright);
+    await goTo(page, '#/pending-requests');
+    const card = cardOf(page, s.newRequestId);
+    await card.locator('[data-action="deny"]').click();
+    await expect(page.locator('#denyRequestModal')).toBeVisible();
+    expect(await requestStatus(playwright, s.newRequestId)).toBe('PENDING');
+
+    await page.locator('#denyReason').fill('The release team is full this sprint.');
+    await page.locator('#confirmDeny').click();
+    await expect(page.getByText('Request declined.')).toBeVisible({ timeout: 10_000 });
     await expect(card).toHaveCount(0);
     expect(await requestStatus(playwright, s.newRequestId)).toBe('DENIED');
   });
