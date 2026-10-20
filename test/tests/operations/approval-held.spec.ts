@@ -21,7 +21,8 @@ test.describe('Start held for approval', () => {
           approvalRequestId: 'req-1', status: 'PENDING_APPROVAL', reasons: ['8 h is longer than 1 h'],
           approvers: ['Alice', 'Bob'], estimatedCost: 1.54 }) });
       }
-      polls++;
+      // The dialog's usual-duration lookup (U08-T03) is not a status poll.
+      if (!route.request().url().includes('/time-estimates')) polls++;
       return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
     });
     await signIn(page, 'user');
