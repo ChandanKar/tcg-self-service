@@ -41,6 +41,21 @@ public interface VmMetricSampleRepository extends JpaRepository<VmMetricSample, 
            "GROUP BY s.vm.vmId")
     List<DailyAggregate> aggregateByVmForPeriod(@Param("dayStart") Timestamp dayStart, @Param("dayEnd") Timestamp dayEnd);
 
+    /**
+     * Average CPU per VM since a moment (U07-T01: the environment page's "CPU 24 h"), one grouped
+     * query for every listed VM; VMs without samples are absent.
+     */
+    @Query("SELECT s.vm.vmId AS vmId, AVG(s.cpuUtilization) AS avgCpu FROM VmMetricSample s " +
+           "WHERE s.vm.vmId IN :vmIds AND s.sampleTime >= :since AND s.cpuUtilization IS NOT NULL " +
+           "GROUP BY s.vm.vmId")
+    List<VmCpuAverage> avgCpuByVmIdsSince(@Param("vmIds") java.util.Collection<String> vmIds,
+                                          @Param("since") Timestamp since);
+
+    interface VmCpuAverage {
+        String getVmId();
+        Double getAvgCpu();
+    }
+
     interface DailyAggregate {
         String getVmId();
         java.math.BigDecimal getAvgCpu();

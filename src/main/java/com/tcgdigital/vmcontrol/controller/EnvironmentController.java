@@ -431,8 +431,21 @@ public class EnvironmentController {
             dto.setLeaseEnabled(Boolean.TRUE.equals(environment.getLeaseEnabled()));
         }
         withViewerFlags(dto);
+        withViewerGrant(dto);
 
         return ResponseEntity.ok(dto);
+    }
+
+    /** The viewer's own level and access end (U07-T01); none for administrators. */
+    private void withViewerGrant(EnvironmentDTO dto) {
+        if (securityService.isAdmin()) {
+            return;
+        }
+        environmentAccessService.effectiveGrant(userService.getCurrentUserId(), dto.getEnvironmentId())
+                .ifPresent(grant -> {
+                    dto.setViewerAccessLevel(grant.level().name());
+                    dto.setViewerAccessEndsAt(grant.endsAt());
+                });
     }
 
     /**

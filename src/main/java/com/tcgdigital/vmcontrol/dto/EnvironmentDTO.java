@@ -52,6 +52,33 @@ public class EnvironmentDTO {
     private Boolean viewerCanManageAccess;
 
     /**
+     * The viewer's own grant here (U07-T01, detail endpoint only): its level (ADMIN, USER or VIEWER)
+     * and when it ends ("Your view access ends on 17 Nov"). Left out for administrators and for
+     * anyone without a grant; viewerAccessEndsAt is left out for a grant without an end.
+     */
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    private String viewerAccessLevel;
+
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    private Timestamp viewerAccessEndsAt;
+
+    public String getViewerAccessLevel() {
+        return viewerAccessLevel;
+    }
+
+    public void setViewerAccessLevel(String viewerAccessLevel) {
+        this.viewerAccessLevel = viewerAccessLevel;
+    }
+
+    public Timestamp getViewerAccessEndsAt() {
+        return viewerAccessEndsAt;
+    }
+
+    public void setViewerAccessEndsAt(Timestamp viewerAccessEndsAt) {
+        this.viewerAccessEndsAt = viewerAccessEndsAt;
+    }
+
+    /**
      * VM state counts per group in start order (U05-T03), for the grouped power strip. Only filled
      * when a list is asked with includeGroups=true; a group-scoped viewer gets only their groups.
      */

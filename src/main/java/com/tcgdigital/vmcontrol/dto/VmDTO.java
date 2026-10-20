@@ -46,6 +46,8 @@ public class VmDTO {
      * removed by data retention. Never a guess from createdAt or lastStateSyncAt.
      */
     private Timestamp stateSince;
+    /** Average CPU over the last 24 hours, one decimal (U07-T01: "CPU 24 h"); null without samples. */
+    private java.math.BigDecimal cpuAvg24h;
     private Timestamp lastStateSyncAt;
     private Boolean stateDriftDetected;
     private Boolean discoveryPending;
@@ -254,6 +256,14 @@ public class VmDTO {
 
     public void setStateSince(Timestamp stateSince) {
         this.stateSince = stateSince;
+    }
+
+    public java.math.BigDecimal getCpuAvg24h() {
+        return cpuAvg24h;
+    }
+
+    public void setCpuAvg24h(java.math.BigDecimal cpuAvg24h) {
+        this.cpuAvg24h = cpuAvg24h;
     }
 
     public Timestamp getLastStateSyncAt() {

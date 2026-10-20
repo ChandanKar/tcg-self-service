@@ -65,6 +65,37 @@ public class EnvironmentAccessService {
     private int grantMaxDurationDays = 365;
 
     private final EnvironmentAccessRepository accessRepository;
+
+    /** A user's effective grant on one environment (U07-T01): its level and end (null: no end). */
+    public record EffectiveGrant(AccessLevel level, Timestamp endsAt) {}
+
+    /**
+     * The user's effective grant on an environment: environment-wide grants first, else their
+     * group grants there; the highest level among those, ending when the last grant at that level
+     * ends (never, when one of them has no end). Empty when they hold no active grant.
+     */
+    public java.util.Optional<EffectiveGrant> effectiveGrant(String userId, String environmentId) {
+        if (userId == null || environmentId == null) {
+            return java.util.Optional.empty();
+        }
+        List<EnvironmentAccess> grants = accessRepository
+                .findActiveAccessByUser(userId, new Timestamp(System.currentTimeMillis())).stream()
+                .filter(g -> g.getEnvironment() != null && environmentId.equals(g.getEnvironment().getEnvironmentId()))
+                .toList();
+        List<EnvironmentAccess> environmentWide = grants.stream()
+                .filter(g -> g.getScopeType() == null || g.getScopeType() == AccessScopeType.ENVIRONMENT)
+                .toList();
+        List<EnvironmentAccess> chosen = environmentWide.isEmpty() ? grants : environmentWide;
+        if (chosen.isEmpty()) {
+            return java.util.Optional.empty();
+        }
+        AccessLevel level = chosen.stream().map(EnvironmentAccess::getAccessLevel)
+                .max(java.util.Comparator.naturalOrder()).orElseThrow();
+        List<EnvironmentAccess> atLevel = chosen.stream().filter(g -> g.getAccessLevel() == level).toList();
+        Timestamp endsAt = atLevel.stream().anyMatch(g -> g.getExpiresAt() == null) ? null
+                : atLevel.stream().map(EnvironmentAccess::getExpiresAt).max(java.util.Comparator.naturalOrder()).orElse(null);
+        return java.util.Optional.of(new EffectiveGrant(level, endsAt));
+    }
     private final EnvironmentAccessRequestRepository requestRepository;
     private final EnvironmentRepository environmentRepository;
     private final UserRepository userRepository;

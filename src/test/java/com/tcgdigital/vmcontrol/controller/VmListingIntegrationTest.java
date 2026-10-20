@@ -156,4 +156,30 @@ class VmListingIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message", containsString("running, stopped, problems")));
     }
+
+    // ---------------------------------------------------------------- U07-T01: CPU 24 h
+
+    private void cpuSample(Vm vm, double cpu, Instant at) {
+        jdbcTemplate.update("INSERT INTO vm_metric_sample (metric_sample_id, vm_id, provider, provider_vm_id, sample_time, "
+                + "period_seconds, cpu_utilization) VALUES (?, ?, 'AWS', ?, ?, 300, ?)",
+                UUID.randomUUID().toString(), vm.getVmId(), "i-0" + UUID.randomUUID().toString().replace("-", "").substring(0, 16),
+                Timestamp.from(at), cpu);
+    }
+
+    @Test
+    void listedVmsCarryTheirAverageCpuOverTheLast24Hours() throws Exception {
+        Fixture f = fixture();
+        Instant now = Instant.now();
+        cpuSample(f.withHistory(), 20, now.minus(2, ChronoUnit.HOURS));
+        cpuSample(f.withHistory(), 40, now.minus(20, ChronoUnit.HOURS));
+        cpuSample(f.withHistory(), 95, now.minus(30, ChronoUnit.HOURS)); // older than 24 h: not counted
+
+        mockMvc.perform(get("/api/v1/environments/" + f.env().getEnvironmentId() + "/vms").header("X-User-Id", "admin-001"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].vms[?(@.vmId == '" + f.withHistory().getVmId() + "')].cpuAvg24h", contains(30.0)))
+                .andExpect(jsonPath("$[0].vms[?(@.vmId == '" + f.without().getVmId() + "')].cpuAvg24h", contains(nullValue())));
+        mockMvc.perform(get("/api/v1/environments/" + f.env().getEnvironmentId() + "/vms/" + f.group().getGroupId() + "/page")
+                        .header("X-User-Id", "admin-001"))
+                .andExpect(jsonPath("$.content[?(@.vmId == '" + f.withHistory().getVmId() + "')].cpuAvg24h", contains(30.0)));
+    }
 }

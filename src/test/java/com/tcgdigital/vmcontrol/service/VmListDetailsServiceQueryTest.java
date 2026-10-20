@@ -28,9 +28,16 @@ class VmListDetailsServiceQueryTest {
     }
 
     @Test
-    void twentyFiveVmsAreOneHistoryQueryAndOneInventoryQuery() {
+    void twentyFiveVmsAreOneHistoryOneInventoryAndOneMetricsQuery() {
         VmInventorySnapshotRepository inventory = mock(VmInventorySnapshotRepository.class);
         VmStateHistoryRepository history = mock(VmStateHistoryRepository.class);
+        com.tcgdigital.vmcontrol.repository.VmMetricSampleRepository metrics =
+                mock(com.tcgdigital.vmcontrol.repository.VmMetricSampleRepository.class);
+        com.tcgdigital.vmcontrol.repository.VmMetricSampleRepository.VmCpuAverage cpu =
+                mock(com.tcgdigital.vmcontrol.repository.VmMetricSampleRepository.VmCpuAverage.class);
+        when(cpu.getVmId()).thenReturn("vm-3");
+        when(cpu.getAvgCpu()).thenReturn(30.04);
+        when(metrics.avgCpuByVmIdsSince(anyList(), org.mockito.ArgumentMatchers.any())).thenReturn(List.of(cpu));
         Timestamp since = Timestamp.valueOf("2026-10-20 14:10:00");
         List<Object[]> rows = new ArrayList<>();
         rows.add(new Object[]{"vm-3", VmStatus.RUNNING, since});
@@ -44,12 +51,14 @@ class VmListDetailsServiceQueryTest {
 
         List<Vm> vms = IntStream.rangeClosed(1, 25).mapToObj(i -> vm("vm-" + i)).toList();
 
-        Map<String, VmListDetailsService.Details> details = new VmListDetailsService(inventory, history).detailsFor(vms);
+        Map<String, VmListDetailsService.Details> details = new VmListDetailsService(inventory, history, metrics).detailsFor(vms);
 
         verify(history, times(1)).findLastEnteredAtByStatus(anyList());
         verify(inventory, times(1)).findByVmVmIdIn(anyList());
+        verify(metrics, times(1)).avgCpuByVmIdsSince(anyList(), org.mockito.ArgumentMatchers.any());
         assertThat(details).hasSize(25);
-        assertThat(details.get("vm-3")).isEqualTo(new VmListDetailsService.Details("10.0.1.23", "t3.medium", since));
-        assertThat(details.get("vm-4")).isEqualTo(new VmListDetailsService.Details(null, null, null));
+        assertThat(details.get("vm-3")).isEqualTo(new VmListDetailsService.Details("10.0.1.23", "t3.medium", since,
+                new java.math.BigDecimal("30.0")));
+        assertThat(details.get("vm-4")).isEqualTo(new VmListDetailsService.Details(null, null, null, null));
     }
 }

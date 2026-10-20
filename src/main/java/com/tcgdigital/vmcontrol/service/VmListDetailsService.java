@@ -5,11 +5,16 @@ import com.tcgdigital.vmcontrol.model.Vm;
 import com.tcgdigital.vmcontrol.model.VmInventorySnapshot;
 import com.tcgdigital.vmcontrol.model.VmStatus;
 import com.tcgdigital.vmcontrol.repository.VmInventorySnapshotRepository;
+import com.tcgdigital.vmcontrol.repository.VmMetricSampleRepository;
 import com.tcgdigital.vmcontrol.repository.VmStateHistoryRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.Timestamp;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -17,9 +22,10 @@ import java.util.Map;
 
 /**
  * What a VM listing adds to each VmDTO beyond the VM row itself: the private IP and the instance
- * type from the inventory snapshot (U05-T02: the "Size" column, an RDS instance's DB class) and when
- * the VM entered its current status (U05-T01: "Running since 14:10"). One inventory query and one
- * history query, however many VMs are listed.
+ * type from the inventory snapshot (U05-T02: the "Size" column, an RDS instance's DB class), when
+ * the VM entered its current status (U05-T01: "Running since 14:10") and its average CPU over the
+ * last 24 hours (U07-T01). One inventory, one history and one metrics query, however many VMs are
+ * listed.
  */
 @Service
 public class VmListDetailsService {
@@ -28,16 +34,19 @@ public class VmListDetailsService {
      * Extra facts about one listed VM. privateIp and instanceType are null until the inventory sync
      * has read the VM; stateSince is null when no history row matches its status.
      */
-    public record Details(String privateIp, String instanceType, Timestamp stateSince) {
-        static final Details NONE = new Details(null, null, null);
+    public record Details(String privateIp, String instanceType, Timestamp stateSince, BigDecimal cpuAvg24h) {
+        static final Details NONE = new Details(null, null, null, null);
     }
 
     private final VmInventorySnapshotRepository inventoryRepository;
     private final VmStateHistoryRepository historyRepository;
+    private final VmMetricSampleRepository metricRepository;
 
-    public VmListDetailsService(VmInventorySnapshotRepository inventoryRepository, VmStateHistoryRepository historyRepository) {
+    public VmListDetailsService(VmInventorySnapshotRepository inventoryRepository, VmStateHistoryRepository historyRepository,
+                                VmMetricSampleRepository metricRepository) {
         this.inventoryRepository = inventoryRepository;
         this.historyRepository = historyRepository;
+        this.metricRepository = metricRepository;
     }
 
     /**
@@ -61,6 +70,14 @@ public class VmListDetailsService {
             enteredAt.computeIfAbsent((String) row[0], id -> new HashMap<>()).put((VmStatus) row[1], (Timestamp) row[2]);
         }
 
+        Map<String, BigDecimal> cpu = new HashMap<>();
+        Timestamp since = Timestamp.from(Instant.now().minus(Duration.ofHours(24)));
+        for (VmMetricSampleRepository.VmCpuAverage row : metricRepository.avgCpuByVmIdsSince(vmIds, since)) {
+            if (row.getAvgCpu() != null) {
+                cpu.put(row.getVmId(), BigDecimal.valueOf(row.getAvgCpu()).setScale(1, RoundingMode.HALF_UP));
+            }
+        }
+
         Map<String, Details> details = new HashMap<>();
         for (Vm vm : vms) {
             Map<VmStatus, Timestamp> byStatus = enteredAt.getOrDefault(vm.getVmId(), Map.of());
@@ -68,7 +85,8 @@ public class VmListDetailsService {
             details.put(vm.getVmId(), new Details(
                     snapshot != null ? snapshot.getPrivateIp() : null,
                     snapshot != null ? snapshot.getInstanceType() : null,
-                    byStatus.get(vm.getStatus())));
+                    byStatus.get(vm.getStatus()),
+                    cpu.get(vm.getVmId())));
         }
         return details;
     }
@@ -85,6 +103,7 @@ public class VmListDetailsService {
         dto.setPrivateIp(d.privateIp());
         dto.setInstanceType(d.instanceType());
         dto.setStateSince(d.stateSince());
+        dto.setCpuAvg24h(d.cpuAvg24h());
         return dto;
     }
 }

@@ -76,4 +76,44 @@ class EnvironmentViewerCapabilitiesTest extends SecuredWebTestBase {
                 .andExpect(jsonPath("$.viewerCanOperate").value(true))
                 .andExpect(jsonPath("$.viewerCanAdminister").value(true));
     }
+
+    // ---------------------------------------------------------------- U07-T01: the viewer's own grant
+
+    @Test
+    void aViewerSeesTheirLevelAndWhenTheirAccessEnds() throws Exception {
+        Environment env = newEnvironment("Caps ends");
+        com.tcgdigital.vmcontrol.model.EnvironmentAccess grant = grantEnv(viewer, env.getEnvironmentId(), AccessLevel.VIEWER);
+        java.sql.Timestamp ends = java.sql.Timestamp.valueOf(java.time.LocalDateTime.now().plusDays(28).withNano(0));
+        grant.setExpiresAt(ends);
+        environmentAccessRepository.saveAndFlush(grant);
+
+        mockMvc.perform(get("/api/v1/environments/" + env.getEnvironmentId()).with(asViewer()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.viewerAccessLevel").value("VIEWER"))
+                .andExpect(jsonPath("$.viewerAccessEndsAt").value(org.hamcrest.Matchers.startsWith(
+                        ends.toLocalDateTime().toLocalDate().toString())));
+    }
+
+    @Test
+    void anOperatorWithoutAnEndHasALevelButNoEnd() throws Exception {
+        Environment env = newEnvironment("Caps no end");
+        grantEnv(operator, env.getEnvironmentId(), AccessLevel.USER);
+
+        mockMvc.perform(get("/api/v1/environments/" + env.getEnvironmentId()).with(asUser()))
+                .andExpect(jsonPath("$.viewerAccessLevel").value("USER"))
+                .andExpect(jsonPath("$.viewerAccessEndsAt").doesNotExist());
+    }
+
+    @Test
+    void aGroupOnlyGrantGivesItsLevelAndAnAdministratorNone() throws Exception {
+        Environment env = newEnvironment("Caps group level");
+        com.tcgdigital.vmcontrol.model.VmGroup mine = newGroup(env, "mine");
+        grantGroup(viewer, mine.getGroupId(), AccessLevel.USER);
+
+        mockMvc.perform(get("/api/v1/environments/" + env.getEnvironmentId()).with(asViewer()))
+                .andExpect(jsonPath("$.viewerAccessLevel").value("USER"));
+        mockMvc.perform(get("/api/v1/environments/" + env.getEnvironmentId()).with(asAdmin()))
+                .andExpect(jsonPath("$.viewerAccessLevel").doesNotExist())
+                .andExpect(jsonPath("$.viewerAccessEndsAt").doesNotExist());
+    }
 }
