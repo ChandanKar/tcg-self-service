@@ -92,7 +92,8 @@ const Config = (function() {
                 + (opts.state ? '&state=' + encodeURIComponent(opts.state) : ''),
             available: `${API_BASE_URL}/environments/available`,
             get: (id) => `${API_BASE_URL}/environments/${id}`,
-            insights: (id) => `${API_BASE_URL}/environments/${id}/insights`,
+            // 24h (default) or 7d: the window of averages and busiest VMs (U08-T08)
+            insights: (id, window = '24h') => `${API_BASE_URL}/environments/${id}/insights?window=${encodeURIComponent(window)}`,
             cost: (id) => `${API_BASE_URL}/environments/${encodeURIComponent(id)}/cost`,
             // Carbon (E37-T03); 404 while carbon.enabled is off
             carbon: (id) => `${API_BASE_URL}/environments/${encodeURIComponent(id)}/carbon`,

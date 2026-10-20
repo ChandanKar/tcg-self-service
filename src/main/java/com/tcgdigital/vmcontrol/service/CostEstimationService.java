@@ -411,6 +411,21 @@ public class CostEstimationService {
         }).toList();
     }
 
+    /** The candidates of these VMs, built once (U08-T08: insights asks for a whole environment). */
+    public Map<String, RightsizingCandidateDTO> findCandidates(java.util.Collection<String> vmIds) {
+        java.util.Set<String> wanted = new java.util.HashSet<>(vmIds);
+        Map<String, RightsizingCandidateDTO> result = new LinkedHashMap<>();
+        if (wanted.isEmpty()) {
+            return result;
+        }
+        for (RightsizingCandidateDTO c : buildRightsizingCandidates(buildBundles())) {
+            if (wanted.contains(c.vmId())) {
+                result.putIfAbsent(c.vmId(), c);
+            }
+        }
+        return result;
+    }
+
     public Optional<RightsizingCandidateDTO> findCandidate(String vmId) {
         return buildRightsizingCandidates(buildBundles()).stream()
                 .filter(c -> c.vmId().equals(vmId))

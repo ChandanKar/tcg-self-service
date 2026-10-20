@@ -61,9 +61,36 @@ public class EnvironmentInsightsService {
         this.idleSummaryRepository = idleSummaryRepository;
     }
 
+    // Optional collaborators for the actions (U08-T08); insights work without them.
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.context.annotation.Lazy
+    private CostDataProvider costDataProvider;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.context.annotation.Lazy
+    private CostEstimationService costEstimationService;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.context.annotation.Lazy
+    private AutomationRuleService automationRuleService;
+
+    /** The windows insights accept (U08-T08). */
+    public static java.time.Duration parseWindow(String window) {
+        if (window == null || window.isBlank() || "24h".equalsIgnoreCase(window)) {
+            return java.time.Duration.ofHours(24);
+        }
+        if ("7d".equalsIgnoreCase(window)) {
+            return java.time.Duration.ofDays(7);
+        }
+        throw new IllegalArgumentException("window must be 24h or 7d");
+    }
+
     @Transactional(readOnly = true)
     public EnvironmentInsightsDTO getInsights(String environmentId) {
         return getInsights(environmentId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public EnvironmentInsightsDTO getInsights(String environmentId, java.util.Collection<String> visibleGroupIds) {
+        return getInsights(environmentId, visibleGroupIds, "24h");
     }
 
     /**
@@ -72,7 +99,10 @@ public class EnvironmentInsightsService {
      *                        can access. Null means every group.
      */
     @Transactional(readOnly = true)
-    public EnvironmentInsightsDTO getInsights(String environmentId, java.util.Collection<String> visibleGroupIds) {
+    public EnvironmentInsightsDTO getInsights(String environmentId, java.util.Collection<String> visibleGroupIds,
+                                              String window) {
+        java.time.Duration windowLength = parseWindow(window);
+        String windowKey = windowLength.toDays() >= 7 ? "7d" : "24h";
         Environment environment = environmentService.getEnvironmentById(environmentId);
         List<VmGroup> groups = groupRepository.findByEnvironmentEnvironmentIdOrderBySequencePositionAsc(environmentId);
         List<Vm> vms = vmRepository.findByEnvironmentIdFetchGroupAndEnvironment(environmentId);
@@ -118,7 +148,14 @@ public class EnvironmentInsightsService {
         Map<String, VmIdleSummary> idleByVm = new HashMap<>();
         Map<String, VmMetricSample> latestByVm = new HashMap<>();
         Map<String, List<VmMetricSample>> seriesByVm = new HashMap<>();
+        Map<String, BigDecimal> windowCpuByVm = new HashMap<>();
+        Timestamp windowStart = Timestamp.from(seriesEnd.minus(windowLength));
         for (List<String> chunk : chunks(vmIds)) {
+            sampleRepository.avgCpuByVmIdsSince(chunk, windowStart).forEach(a -> {
+                if (a.getAvgCpu() != null) {
+                    windowCpuByVm.put(a.getVmId(), BigDecimal.valueOf(a.getAvgCpu().doubleValue()).setScale(2, RoundingMode.HALF_UP));
+                }
+            });
             inventoryRepository.findByVmVmIdIn(chunk).forEach(i -> inventoryByVm.put(i.getVm().getVmId(), i));
             volumeRepository.findByVmVmIdIn(chunk).forEach(v ->
                     volumesByVm.computeIfAbsent(v.getVm().getVmId(), k -> new ArrayList<>()).add(v));
@@ -203,7 +240,8 @@ public class EnvironmentInsightsService {
                     latestSample.map(VmMetricSample::getCpuUtilization).orElse(null),
                     idleSummary.map(VmIdleSummary::getIdleDurationMinutes).orElse(0),
                     vmStorageGib,
-                    latestSample.map(VmMetricSample::getSampleTime).orElse(null)
+                    latestSample.map(VmMetricSample::getSampleTime).orElse(null),
+                    windowCpuByVm.get(vm.getVmId())
             ));
         }
 
@@ -220,10 +258,12 @@ public class EnvironmentInsightsService {
                 : cpuTotal.divide(BigDecimal.valueOf(cpuSampleCount), 2, RoundingMode.HALF_UP);
 
         int activeVms = Math.max(0, vms.size() - idleVms);
+        // Busiest over the window (U08-T08); the latest sample only when the window has none.
+        java.util.function.Function<EnvironmentInsightsDTO.VmInsightRowDTO, BigDecimal> busy =
+                row -> row.avgCpuWindow() != null ? row.avgCpuWindow() : row.cpuUtilization();
         List<EnvironmentInsightsDTO.VmInsightRowDTO> busiestVms = vmRows.stream()
-                .filter(row -> row.cpuUtilization() != null)
-                .sorted(Comparator.comparing(EnvironmentInsightsDTO.VmInsightRowDTO::cpuUtilization,
-                        Comparator.nullsLast(Comparator.naturalOrder())).reversed())
+                .filter(row -> busy.apply(row) != null)
+                .sorted(Comparator.comparing(busy, Comparator.nullsLast(Comparator.naturalOrder())).reversed())
                 .limit(5)
                 .toList();
         List<EnvironmentInsightsDTO.VmInsightRowDTO> idleRows = vmRows.stream()
@@ -268,8 +308,97 @@ public class EnvironmentInsightsService {
                 groupInsights,
                 busiestVms,
                 idleRows,
-                buildRecommendations(idleVms, missingInventoryVms, missingMetricVms, driftedVms, totalAllocatedStorageGib)
+                buildRecommendations(idleVms, missingInventoryVms, missingMetricVms, driftedVms, totalAllocatedStorageGib),
+                windowKey,
+                buildActions(environmentId, vms, idleByVm, seriesEnd)
         );
+    }
+
+    /** How many actions insights returns at most; the panel shows the first three. */
+    static final int MAX_ACTIONS = 5;
+    /** Weekend idle hours across the environment's VMs that are worth a weekend stop. */
+    static final int WEEKEND_IDLE_HOURS = 16;
+
+    /**
+     * What to do (U08-T08): stop running VMs that idle now (with what they cost an hour), resize the
+     * ones the rightsizing rules flag (with the monthly saving), and stop on weekends too when the
+     * environment has a schedule and its VMs idled through last weekend.
+     */
+    List<EnvironmentInsightsDTO.ActionDTO> buildActions(String environmentId, List<Vm> vms,
+                                                        Map<String, VmIdleSummary> idleByVm, Instant now) {
+        List<EnvironmentInsightsDTO.ActionDTO> actions = new ArrayList<>();
+        if (vms.isEmpty()) {
+            return actions;
+        }
+        Map<String, Vm> byId = new LinkedHashMap<>();
+        vms.forEach(vm -> byId.put(vm.getVmId(), vm));
+
+        List<Vm> idleRunning = vms.stream()
+                .filter(vm -> vm.getStatus() == VmStatus.RUNNING)
+                .filter(vm -> idleByVm.get(vm.getVmId()) != null && Boolean.TRUE.equals(idleByVm.get(vm.getVmId()).getIdle()))
+                .sorted(Comparator.comparing((Vm vm) -> nullToZero(idleByVm.get(vm.getVmId()).getIdleDurationMinutes())).reversed())
+                .toList();
+        Map<String, CostDataProvider.VmCostEstimate> rates = idleRunning.isEmpty() || costDataProvider == null ? Map.of()
+                : costDataProvider.estimateCosts(idleRunning, Timestamp.from(now.minus(1, ChronoUnit.HOURS)), Timestamp.from(now));
+        for (Vm vm : idleRunning) {
+            CostDataProvider.VmCostEstimate e = rates.get(vm.getVmId());
+            int minutes = nullToZero(idleByVm.get(vm.getVmId()).getIdleDurationMinutes());
+            actions.add(new EnvironmentInsightsDTO.ActionDTO("STOP_IDLE", vm.getVmId(), name(vm), groupName(vm), null,
+                    e != null && e.costKnown() ? e.hourlyRate() : null, null, "Idle for " + idleText(minutes)));
+        }
+
+        if (costEstimationService != null) {
+            costEstimationService.findCandidates(byId.keySet()).values().stream()
+                    .filter(c -> c.suggestedInstanceType() != null && !c.suggestedInstanceType().equals(c.currentInstanceType()))
+                    .sorted(Comparator.comparing((com.tcgdigital.vmcontrol.dto.RightsizingCandidateDTO c) ->
+                            c.estimatedMonthlySavings() == null ? BigDecimal.ZERO : c.estimatedMonthlySavings()).reversed())
+                    .forEach(c -> {
+                        Vm vm = byId.get(c.vmId());
+                        actions.add(new EnvironmentInsightsDTO.ActionDTO("RESIZE", c.vmId(), vm == null ? c.vmName() : name(vm),
+                                vm == null ? null : groupName(vm), c.suggestedInstanceType(), null,
+                                c.estimatedMonthlySavings() == null ? null : c.estimatedMonthlySavings().setScale(2, RoundingMode.HALF_UP),
+                                "CPU peaked at " + (c.peakCpuUtilization() == null ? "—"
+                                        : c.peakCpuUtilization().setScale(0, RoundingMode.HALF_UP).toPlainString() + "%")));
+                    });
+        }
+
+        if (automationRuleService != null && automationRuleService.nextScheduledFirings(environmentId, now).ruleCount() > 0) {
+            List<VmMetricSampleRepository.VmIdleSeconds> weekend = new ArrayList<>();
+            for (List<String> chunk : chunks(new ArrayList<>(byId.keySet()))) {
+                weekend.addAll(sampleRepository.weekendIdleSecondsByVmIds(chunk,
+                        Timestamp.from(now.minus(7, ChronoUnit.DAYS)), BigDecimal.valueOf(5)));
+            }
+            long seconds = weekend.stream().mapToLong(w -> w.getSeconds() == null ? 0 : w.getSeconds().longValue()).sum();
+            long hours = seconds / 3600;
+            long vmsIdle = weekend.stream().filter(w -> w.getSeconds() != null && w.getSeconds().longValue() >= 3600).count();
+            if (hours >= WEEKEND_IDLE_HOURS && vmsIdle > 0) {
+                actions.add(new EnvironmentInsightsDTO.ActionDTO("SCHEDULE_WEEKENDS", null, null, null, null, null, null,
+                        vmsIdle + " VM" + (vmsIdle == 1 ? "" : "s") + " ran idle for about " + hours + " h over the weekend"));
+            }
+        }
+        return actions.size() > MAX_ACTIONS ? actions.subList(0, MAX_ACTIONS) : actions;
+    }
+
+    private static String name(Vm vm) {
+        return vm.getDisplayName() != null ? vm.getDisplayName() : vm.getName();
+    }
+
+    private static String groupName(Vm vm) {
+        if (vm.getGroup() == null) return null;
+        return vm.getGroup().getDisplayName() != null ? vm.getGroup().getDisplayName() : vm.getGroup().getName();
+    }
+
+    /** "45 min", "3 h", "2 days". */
+    static String idleText(int minutes) {
+        if (minutes < 60) return minutes + " min";
+        if (minutes < 48 * 60) return (minutes / 60) + " h";
+        return (minutes / 1440) + " days";
+    }
+
+    void setCollaborators(CostDataProvider costs, CostEstimationService estimation, AutomationRuleService rules) {
+        this.costDataProvider = costs;
+        this.costEstimationService = estimation;
+        this.automationRuleService = rules;
     }
 
     private static final int IN_CHUNK = 500;
@@ -289,7 +418,7 @@ public class EnvironmentInsightsService {
         int stopped = (int) rows.stream().filter(row -> Objects.equals(row.status(), "STOPPED")).count();
         int idle = (int) rows.stream().filter(row -> row.idleDurationMinutes() != null && row.idleDurationMinutes() > 0).count();
         List<BigDecimal> cpus = rows.stream()
-                .map(EnvironmentInsightsDTO.VmInsightRowDTO::cpuUtilization)
+                .map(row -> row.avgCpuWindow() != null ? row.avgCpuWindow() : row.cpuUtilization())
                 .filter(Objects::nonNull)
                 .toList();
         BigDecimal avgCpu = cpus.isEmpty()

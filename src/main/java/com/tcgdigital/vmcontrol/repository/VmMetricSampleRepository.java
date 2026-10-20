@@ -51,6 +51,22 @@ public interface VmMetricSampleRepository extends JpaRepository<VmMetricSample, 
     List<VmCpuAverage> avgCpuByVmIdsSince(@Param("vmIds") java.util.Collection<String> vmIds,
                                           @Param("since") Timestamp since);
 
+    /**
+     * Seconds each VM spent under the CPU threshold on Saturdays and Sundays since a time (U08-T08),
+     * from the samples' periods. MySQL's DAYOFWEEK: 1 is Sunday, 7 is Saturday.
+     */
+    @Query(value = "SELECT s.vm_id AS vmId, SUM(s.period_seconds) AS seconds FROM vm_metric_sample s " +
+           "WHERE s.vm_id IN (:vmIds) AND s.sample_time >= :since AND s.cpu_utilization < :threshold " +
+           "AND DAYOFWEEK(s.sample_time) IN (1, 7) GROUP BY s.vm_id", nativeQuery = true)
+    List<VmIdleSeconds> weekendIdleSecondsByVmIds(@Param("vmIds") java.util.Collection<String> vmIds,
+                                                  @Param("since") Timestamp since,
+                                                  @Param("threshold") java.math.BigDecimal threshold);
+
+    interface VmIdleSeconds {
+        String getVmId();
+        Number getSeconds();
+    }
+
     interface VmCpuAverage {
         String getVmId();
         Double getAvgCpu();

@@ -473,14 +473,21 @@ public class EnvironmentController {
             description = "Returns aggregate inventory, utilization, storage, idle, and recommendation data for an environment."
     )
     public ResponseEntity<EnvironmentInsightsDTO> getEnvironmentInsights(
-            @Parameter(description = "Environment ID") @PathVariable String environmentId) {
+            @Parameter(description = "Environment ID") @PathVariable String environmentId,
+            @Parameter(description = "24h (default) or 7d: the window of averages and busiest VMs")
+            @RequestParam(defaultValue = "24h") String window) {
         if (!securityService.canViewEnvironment(environmentId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        try {
+            EnvironmentInsightsService.parseWindow(window);
+        } catch (IllegalArgumentException e) {
+            throw new com.tcgdigital.vmcontrol.exception.ValidationException(e.getMessage());
         }
         // Restrict to the caller's visible groups — a no-op for anyone with environment-wide
         // access (getVisibleGroupIds returns every group for them).
         return ResponseEntity.ok(environmentInsightsService.getInsights(
-                environmentId, securityService.getVisibleGroupIds(environmentId)));
+                environmentId, securityService.getVisibleGroupIds(environmentId), window));
     }
 
     @GetMapping("/discover/eks")

@@ -362,3 +362,73 @@ test.describe('EKS environment', () => {
     await expect(page.locator('#btn-env-action-stop, #btn-env-action')).toHaveCount(0);
   });
 });
+
+test.describe('Environment insights', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.user || !devIds.admin || !canSignIn('user'), 'Needs TEST_DEV_USER_ID and TEST_DEV_ADMIN_ID (dev mode)');
+  });
+
+  // U08-T08: one side panel for 24 h or 7 days; the advice for everyone, Stop for operators only.
+  const insights = (window: string) => ({
+    environmentId: 'x', totalVms: 7, runningVms: 5, totalAllocatedStorageGib: 1229, latestMetricSampleTime: new Date(Date.now() - 4 * 60000).toISOString(),
+    window, volumeTypeCounts: { gp3: 6, gp2: 1 },
+    groups: [{ groupId: 'g1', name: 'Database', sequencePosition: 1, totalVms: 3, runningVms: 3, avgCpuUtilization: 12 },
+      { groupId: 'g2', name: 'Application', sequencePosition: 2, totalVms: 2, runningVms: 2, avgCpuUtilization: 30 }],
+    busiestVms: [{ vmId: 'v-api', name: 'pay-api-01', cpuUtilization: 50, avgCpuWindow: window === '7d' ? 24 : 31 },
+      { vmId: 'v-cache', name: 'pay-cache', cpuUtilization: 4, avgCpuWindow: 4 }],
+    idleVmRows: [{ vmId: 'v-cache', name: 'pay-cache', idleDurationMinutes: 370, cpuUtilization: 3.9 }],
+    actions: [{ kind: 'STOP_IDLE', vmId: 'v-cache', vmName: 'pay-cache', hourlyRate: 0.07, detail: 'Idle for 6 h' },
+      { kind: 'RESIZE', vmId: 'v-api', vmName: 'pay-api-01', recommendedType: 'm6i.medium', monthlySavings: 31, detail: 'CPU peaked at 18%' },
+      { kind: 'SCHEDULE_WEEKENDS', detail: '2 VMs ran idle for about 48 h over the weekend' }],
+  });
+
+  async function openInsights(page: any, envId: string, asked: string[]) {
+    await page.route(/\/api\/v1\/environments\/[^/]+\/insights/, (route: any) => {
+      const window = new URL(route.request().url()).searchParams.get('window') || '24h';
+      asked.push(window);
+      return route.fulfill({ json: insights(window) });
+    });
+    await page.route(/\/api\/v1\/environments\/[^/]+\/cost-anomalies/, (route: any) => route.fulfill({ json: [] }));
+    await open(page, envId);
+    await page.locator('#btn-env-insights').click();
+    const panel = page.locator('#dynamicSlideoutPanel[data-variant="env-insights"]');
+    await expect(panel.locator('.ins-todo')).toHaveCount(3, { timeout: 10_000 });
+    return panel;
+  }
+
+  test('an operator: what to do with Stop, idle now, busiest, groups, storage; 7 days reloads', async ({ page, playwright }) => {
+    const envId = await environmentWithUserAt(playwright, 'USER');
+    const asked: string[] = [];
+    const panel = await openInsights(page, envId, asked);
+    await expect(panel.locator('#dynamicSlideoutTitle')).toHaveText(/ insights$/);
+    await expect(panel.locator('.ins-sub')).toHaveText('7 VMs · 5 running · 1.2 TiB of disk · metrics up to 4 min ago');
+    const todo = panel.locator('.ins-todo');
+    await expect(todo.nth(0)).toContainText('Stop pay-cache.');
+    await expect(todo.nth(0)).toContainText('$0.07/h');
+    await expect(todo.nth(0).getByRole('button', { name: 'Stop' })).toBeVisible();
+    await expect(todo.nth(1)).toContainText('Resize pay-api-01 to m6i.medium.');
+    await expect(todo.nth(1)).toContainText('$31/mo');
+    await expect(todo.nth(2).getByRole('link', { name: 'Edit schedule' })).toHaveCount(0);
+    await expect(panel.locator('section[aria-labelledby="ins-idle-title"]')).toContainText('idle 6 h 10 min · CPU 3.9%');
+    await expect(panel.locator('.ins-bar-row').first()).toContainText('31%');
+    await expect(panel.locator('.ins-group-row')).toHaveCount(2);
+    await expect(panel.locator('section[aria-labelledby="ins-disk-title"]')).toContainText('move to gp3');
+    await expect(panel.locator('section[aria-labelledby="ins-spend-title"]')).toContainText('No unusual spend in the last 90 days.');
+
+    await panel.getByRole('button', { name: '7 days' }).click();
+    await expect(panel.locator('.ins-bar-row').first()).toContainText('24%');
+    expect(asked).toEqual(['24h', '7d']);
+
+    await todo.nth(0).getByRole('button', { name: 'Stop' }).click();
+    await expect(page.locator('#operationConfirmModal .modal-title')).toHaveText(/^Stop (1 VM in .*|pay-cache)\?$/);
+  });
+
+  test('a viewer reads the advice without Stop or Edit schedule', async ({ page, playwright }) => {
+    const envId = await environmentWithUserAt(playwright, 'VIEWER');
+    const panel = await openInsights(page, envId, []);
+    await expect(panel.locator('.ins-todo').nth(0)).toContainText('Stop pay-cache.');
+    await expect(panel.getByRole('button', { name: 'Stop' })).toHaveCount(0);
+    await expect(panel.getByRole('link', { name: 'Edit schedule' })).toHaveCount(0);
+    await expect(panel.locator('.ins-todo').nth(1).getByRole('button', { name: 'Details' })).toBeVisible();
+  });
+});
