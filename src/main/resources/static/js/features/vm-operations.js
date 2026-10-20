@@ -82,9 +82,15 @@ const VmOperations = (function() {
     const MAX_POLL_FAILURES = 3;
 
     function executeOperation(envId, operationData, title) {
+        const ctx = {
+            envId,
+            opType: operationData.operationType,
+            scope: operationData.vmIds ? { vmId: operationData.vmIds[0] }
+                : operationData.groupIds ? { groupId: operationData.groupIds[0] } : null
+        };
         return new Promise((resolve, reject) => {
             // Show progress modal
-            showProgressModal(title);
+            showProgressModal(title, ctx);
 
             // Submit operation (errors are shown in the progress modal, with the server's reason)
             ApiClient.post(Config.API.operations.create(envId), operationData, { suppressGlobalError: true })
@@ -110,6 +116,7 @@ const VmOperations = (function() {
                         envId,
                         execution,
                         title,
+                        ctx,
                         state: 'running',  // Explicit state: running, completed, error, timeout
                         startTime: Date.now(),
                         lastUpdateTime: Date.now(),
@@ -150,9 +157,13 @@ const VmOperations = (function() {
     }
 
     /**
-     * Show progress modal
+     * The progress dialog (U08-T03, OperationProgress.dc.html): "1:42 so far · usually about
+     * 4 min" next to the title, a bar of VMs done, the live line ("3 of 6 running · Application
+     * is starting; Web waits for it", #progress-status-text, which also carries errors and the
+     * finished words) and one block per group (#vm-status-list, OperationStages). "Cancel the
+     * rest" cancels what has not run yet; "Hide · keeps running" closes it and the banner takes over.
      */
-    function showProgressModal(title) {
+    function showProgressModal(title, ctx) {
         const token = ++modalToken;
         modalExecutionId = null;
         hideBanner();
@@ -162,74 +173,19 @@ const VmOperations = (function() {
             size: 'lg',
             body: `
                 <div class="operation-progress">
-                    <div class="progress-header mb-3">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="progress-status">
-                                <span id="progress-status-text"><i class="fas fa-spinner fa-spin me-2"></i>Initializing...</span>
-                            </span>
-                            <span class="progress-time text-muted" id="progress-elapsed">0s</span>
-                        </div>
-                    </div>
-
-                    <div class="progress mb-3" style="height: 24px;">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated"
-                             id="progress-bar" role="progressbar" style="width: 0%">
-                            <span id="progress-percent">0%</span>
-                        </div>
-                    </div>
-
-                    <div class="progress-details">
-                        <div class="row text-center mb-3">
-                            <div class="col-3">
-                                <div class="metric-mini">
-                                    <div class="metric-value text-success" id="progress-completed">0</div>
-                                    <div class="metric-label">Completed</div>
-                                </div>
-                            </div>
-                            <div class="col-3">
-                                <div class="metric-mini">
-                                    <div class="metric-value text-primary" id="progress-pending">0</div>
-                                    <div class="metric-label">Pending</div>
-                                </div>
-                            </div>
-                            <div class="col-3">
-                                <div class="metric-mini">
-                                    <div class="metric-value text-muted" id="progress-skipped">0</div>
-                                    <div class="metric-label">Skipped</div>
-                                </div>
-                            </div>
-                            <div class="col-3">
-                                <div class="metric-mini">
-                                    <div class="metric-value text-danger" id="progress-failed">0</div>
-                                    <div class="metric-label">Failed</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="vm-status-list" id="vm-status-list">
-                            <!-- VM status items will be added here -->
-                        </div>
-                    </div>
+                    <div class="op-progress-bar" id="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="0"
+                         aria-valuenow="0" aria-label="${Utils.escapeHtml(title)}"><div class="op-progress-fill" id="progress-fill"></div></div>
+                    <div class="op-progress-live" id="progress-status-text" aria-live="polite">Getting ready…</div>
+                    <div class="op-stages" id="vm-status-list"></div>
                 </div>
             `,
             buttons: [
-                { text: 'Cancel operation', class: 'btn-outline-danger', id: 'btn-cancel-operation' },
-                { text: 'Close', class: 'btn-secondary', id: 'btn-close-progress' }
+                { text: 'Cancel the rest', class: 'btn-link op-cancel-rest', id: 'btn-cancel-operation' },
+                { text: 'Hide · keeps running', class: 'btn-outline-secondary', id: 'btn-close-progress' }
             ],
             onShow: function() {
-                // Start elapsed time counter
-                startElapsedTimer();
                 // Shown once the operation exists (see executeOperation), hidden when it ends.
-                $('#btn-cancel-operation').prop('hidden', !modalExecutionId).off('click').on('click', function() {
-                    const $btn = $(this);
-                    confirmCancel($btn.data('env-id'), $btn.data('execution-id'), $btn);
-                });
-
-                // Handle close — the operation keeps running server-side and keeps being polled
-                // after the modal is dismissed, so it's safe to close it at any point.
-                $('#btn-close-progress').off('click').on('click', function() {
-                    Modals.hide('operationProgressModal');
-                });
+                $('#btn-cancel-operation').prop('hidden', !modalExecutionId);
             },
             onHide: function() {
                 // A closed modal's 'hidden' fires after its fade: only unbind if it is still current.
@@ -240,6 +196,28 @@ const VmOperations = (function() {
                 }
             }
         });
+        // The time sits next to the title, as on the board.
+        $('#operationProgressModalLabel').after(`<span class="op-progress-time"><span class="mono" id="progress-elapsed">0:00</span><span id="progress-elapsed-word"> so far</span><span id="progress-usual"></span></span>`);
+        // Bound now, not on "shown": the buttons work while the dialog is still fading in.
+        $('#btn-cancel-operation').prop('hidden', true).on('click', function() {
+            const $btn = $(this);
+            confirmCancel($btn.data('env-id'), $btn.data('execution-id'), $btn);
+        });
+        // The operation keeps running server-side and keeps being polled after the dialog closes.
+        $('#btn-close-progress').on('click', () => Modals.hideWhenReady(document.getElementById('operationProgressModal')));
+        startElapsedTimer();
+        loadUsualDuration(ctx, token);
+    }
+
+    /** "· usually about 4 min" from past runs of the same kind; nothing without history. */
+    function loadUsualDuration(ctx, token) {
+        if (!ctx || !ctx.envId || !Config.API.operations.estimates) return;
+        ApiClient.get(Config.API.operations.estimates(ctx.envId, ctx.opType || 'START', ctx.scope), { suppressGlobalError: true })
+            .done(function(estimate) {
+                if (token !== modalToken || !estimate || !estimate.sampleCount || !estimate.avgEnvironmentSeconds) return;
+                const minutes = Math.max(1, Math.round(estimate.avgEnvironmentSeconds / 60));
+                $('#progress-usual').html(Utils.html` · usually about <span class="mono">${minutes} min</span>`);
+            });
     }
 
     // ─── Operation banner (E13-T07) ──────────────────────────────────────────
@@ -274,7 +252,7 @@ const VmOperations = (function() {
         const summary = summarizeExecution(running.op.execution);
         $('#operation-description').text(running.op.title || 'Operation in progress');
         $('#operation-progress-bar').css('width', `${summary.percent}%`).attr('aria-valuenow', summary.percent);
-        $('#operation-count').text(`${summary.completed}/${summary.total}`);
+        $('#operation-count').text(`${summary.completed} of ${summary.total} done`);
         $('#view-operation-details').data('execution-id', running.executionId);
         $('#operation-banner').show();
     }
@@ -286,7 +264,7 @@ const VmOperations = (function() {
             hideBanner();
             return;
         }
-        showProgressModal(running.op.title);
+        showProgressModal(running.op.title, running.op.ctx);
         modalExecutionId = running.executionId;
         $('#btn-cancel-operation').prop('hidden', false).prop('disabled', false)
             .data('env-id', running.op.envId).data('execution-id', running.executionId);
@@ -345,198 +323,89 @@ const VmOperations = (function() {
         return { steps, total, completed, failed, skipped, pending, percent };
     }
 
+    const LIGHT_CLASS = { R: 'pip on', B: 'pip busy', E: 'pip err', K: 'pip skip', S: 'pip' };
+
+    /** A finished or failed dialog: the words in the live line, the bar's tone, Close for Hide. */
+    function finishProgress(text, tone) {
+        $('#progress-status-text').text(text).attr('data-tone', tone);
+        $('#progress-bar').attr('data-tone', tone);
+        if (tone !== 'done') $('#progress-fill').css('width', '100%');
+        $('#btn-cancel-operation').prop('hidden', true);
+        $('#btn-close-progress').text('Close');
+        stopElapsedTimer();
+    }
+
     /**
-     * Update progress modal with current status
+     * Update the progress dialog: status 'error' | 'timeout' | 'cancelled' with a message, or
+     * 'progress' with the execution.
      */
     function updateProgressModal(status, message, execution) {
-        const $statusText = $('#progress-status-text');
-        const $progressBar = $('#progress-bar');
-        const $progressPercent = $('#progress-percent');
-
         if (status === 'error') {
-            $statusText.empty()
-                .append('<i class="fas fa-times-circle text-danger me-2"></i>')
-                .append(document.createTextNode(message == null ? '' : String(message)));
-            $progressBar.removeClass('progress-bar-animated progress-bar-striped')
-                        .addClass('bg-danger').css('width', '100%');
-            $progressPercent.text('Error');
-            stopElapsedTimer();
+            finishProgress(message == null ? '' : String(message), 'failed');
             return;
         }
-
         if (status === 'timeout') {
-            $statusText.html(`<i class="fas fa-clock text-warning me-2"></i>Operation timed out`);
-            $progressBar.removeClass('progress-bar-animated progress-bar-striped')
-                        .addClass('bg-warning').css('width', '100%');
-            $progressPercent.text('Timed out');
-            stopElapsedTimer();
+            finishProgress('Took too long to report back', 'failed');
             return;
         }
-
         if (status === 'cancelled') {
-            $statusText.html(`<i class="fas fa-ban text-secondary me-2"></i>Operation cancelled`);
-            $progressBar.removeClass('progress-bar-animated progress-bar-striped')
-                        .addClass('bg-secondary').css('width', '100%');
-            $progressPercent.text('Cancelled');
-            stopElapsedTimer();
+            finishProgress('Cancelled', 'cancelled');
             return;
         }
+        if (!execution) return;
 
-        if (execution) {
-            const { steps, completed, failed, skipped, pending, percent } = summarizeExecution(execution);
-            const currentStep = steps.find(s => (s.status || '').toUpperCase() === 'IN_PROGRESS');
-            const stageLabel = getProgressStageLabel(execution, steps, currentStep, percent);
+        const { percent } = summarizeExecution(execution);
+        const live = OperationStages.liveLine(execution);
+        // The time counts from the run's own start, also after the dialog is re-opened.
+        const started = toMillis(execution.startedAt);
+        if (started !== null) elapsedStart = Math.min(elapsedStart || started, started);
+        $('#progress-elapsed').text(OperationStages.clock(Date.now() - elapsedStart));
 
-            // Update counts
-            $('#progress-completed').text(completed);
-            $('#progress-pending').text(pending);
-            $('#progress-skipped').text(skipped);
-            $('#progress-failed').text(failed);
+        $('#progress-fill').css('width', `${percent}%`);
+        $('#progress-bar').attr({ 'aria-valuemax': live.total, 'aria-valuenow': live.done,
+            'aria-label': `${live.done} of ${live.total} VMs ${live.word}` });
+        renderStages(execution);
 
-            // Update progress bar width + label
-            $progressBar.css('width', `${percent}%`);
-            $progressPercent.text(stageLabel ? `${percent}% - ${stageLabel}` : `${percent}%`);
-
-            // Update status text and bar style based on terminal/in-progress state
-            if (execution.status === 'COMPLETED') {
-                $statusText.html(`<i class="fas fa-check-circle text-success me-2"></i>Completed successfully`);
-                $progressBar.removeClass('progress-bar-animated progress-bar-striped').addClass('bg-success');
-                stopElapsedTimer();
-            } else if (execution.status === 'PARTIAL_SUCCESS') {
-                const partialMsg = `Completed with failures (${failed} failed, ${skipped} skipped)`;
-                $statusText.html(`<i class="fas fa-exclamation-triangle text-warning me-2"></i>${partialMsg}`);
-                $progressBar.removeClass('progress-bar-animated progress-bar-striped').addClass('bg-warning');
-                stopElapsedTimer();
-            } else if (execution.status === 'FAILED') {
-                // The server says why: "All N steps failed", "No step succeeded (...)", "Interrupted: ..."
-                $statusText.empty()
-                    .append('<i class="fas fa-times-circle text-danger me-2"></i>')
-                    .append(document.createTextNode('Failed — ' + (execution.errorMessage || 'no step succeeded')));
-                $progressBar.removeClass('progress-bar-animated progress-bar-striped').addClass('bg-danger').css('width', '100%');
-                $progressPercent.text('Failed');
-                stopElapsedTimer();
-            } else if (execution.status === 'CANCELLED') {
-                $statusText.html(`<i class="fas fa-ban text-secondary me-2"></i>Operation cancelled`);
-                $progressBar.removeClass('progress-bar-animated progress-bar-striped').addClass('bg-secondary');
-                stopElapsedTimer();
-            } else {
-                // In progress — keep spinner
-                if (currentStep) {
-                    const stepLabel = currentStep.stageLabel || `Processing: ${currentStep.targetName || currentStep.targetId}`;
-                    $statusText.html(`<i class="fas fa-spinner fa-spin me-2"></i>${Utils.escapeHtml(stepLabel)}`);
-                } else {
-                    $statusText.html(`<i class="fas fa-spinner fa-spin me-2"></i>Processing...`);
-                }
+        const finished = OperationStages.statusText(execution);
+        if (finished) {
+            const tone = execution.status === 'COMPLETED' ? 'done' : execution.status === 'CANCELLED' ? 'cancelled'
+                : execution.status === 'FAILED' ? 'failed' : 'problems';
+            finishProgress(finished, tone);
+            $('#progress-fill').css('width', '100%');
+            const ended = toMillis(execution.completedAt);
+            if (started !== null && ended !== null) {
+                $('#progress-elapsed').text(OperationStages.clock(ended - started));
+                $('#progress-elapsed-word').text(' in all');
+                $('#progress-usual').empty();
             }
-
-            // Update VM status list
-            updateVmStatusList(steps);
-            $('#btn-cancel-operation').prop('hidden', !RUNNING_STATUSES.includes(execution.status));
-        }
-    }
-
-    function getProgressStageLabel(execution, steps, currentStep, percent) {
-        if (execution.status === 'COMPLETED') return 'Completed';
-        if (execution.status === 'FAILED') return 'Failed';
-        if (execution.status === 'PARTIAL_SUCCESS') {
-            const anyFailed = (steps || []).some(s => (s.status || '').toUpperCase() === 'FAILED');
-            return anyFailed ? 'Completed with failures' : 'Completed, some skipped';
-        }
-        if (execution.status === 'CANCELLED') return 'Cancelled';
-
-        if (currentStep?.stageLabel) {
-            return currentStep.stageLabel;
-        }
-
-        const activeStep = steps.find(step =>
-            Number(step.progressPercentage) > 0 &&
-            (step.status || '').toUpperCase() !== 'COMPLETED'
-        );
-        if (activeStep?.stageLabel) {
-            return activeStep.stageLabel;
-        }
-
-        if (percent > 0) return 'Processing';
-        return 'Initializing';
-    }
-
-    /**
-     * Update VM status list in modal
-     */
-    function updateVmStatusList(steps) {
-        const $list = $('#vm-status-list');
-
-        if (!steps || steps.length === 0) {
-            $list.html('<p class="text-muted text-center">No steps to display</p>');
             return;
         }
-
-        const items = steps.map(step => {
-            let statusIcon, statusClass;
-            const normalizedStatus = (step.status || '').toUpperCase();
-            switch (normalizedStatus) {
-                case 'COMPLETED':
-                    statusIcon = 'fa-check-circle';
-                    statusClass = 'text-success';
-                    break;
-                case 'FAILED':
-                    statusIcon = 'fa-times-circle';
-                    statusClass = 'text-danger';
-                    break;
-                case 'IN_PROGRESS':
-                    statusIcon = 'fa-spinner fa-spin';
-                    statusClass = 'text-primary';
-                    break;
-                case 'CANCELLED':
-                    statusIcon = 'fa-ban';
-                    statusClass = 'text-secondary';
-                    break;
-                case 'SKIPPED':
-                    statusIcon = 'fa-forward';
-                    statusClass = 'text-warning';
-                    break;
-                default:
-                    statusIcon = 'fa-clock';
-                    statusClass = 'text-muted';
-            }
-
-            // A skipped step's message ("dependency X failed to start") is a reason, not an
-            // error on this VM — show it amber, not red.
-            const msgClass = normalizedStatus === 'SKIPPED' ? 'text-warning' : 'text-danger';
-            const errorMsg = step.errorMessage ?
-                `<small class="${msgClass} d-block">${Utils.escapeHtml(step.errorMessage)}</small>` : '';
-            const stageMsg = step.stageLabel && normalizedStatus !== 'COMPLETED' ?
-                `<small class="text-muted d-block">${Utils.escapeHtml(step.stageLabel)}</small>` : '';
-
-            return `
-                <div class="vm-status-item d-flex justify-content-between align-items-center py-2 border-bottom">
-                    <div>
-                        <i class="fas ${statusIcon} ${statusClass} me-2"></i>
-                        <span>${Utils.escapeHtml(step.targetName || step.targetId)}</span>
-                        ${stageMsg}
-                        ${errorMsg}
-                    </div>
-                    <span class="badge bg-${getStatusBadgeClass(normalizedStatus)}">${normalizedStatus}</span>
-                </div>
-            `;
-        }).join('');
-
-        $list.html(items);
+        const $live = $('#progress-status-text').removeAttr('data-tone').empty();
+        if (live.total) {
+            $live.html(Utils.html`<b class="mono">${live.done}</b> of <b class="mono">${live.total}</b> ${live.word}`
+                + (live.text ? Utils.html` · ${live.text}` : ''));
+        } else {
+            $live.text('Getting ready…');
+        }
+        $('#btn-cancel-operation').prop('hidden', !RUNNING_STATUSES.includes(execution.status));
     }
 
-    /**
-     * Get badge class for status
-     */
-    function getStatusBadgeClass(status) {
-        switch (status) {
-            case 'COMPLETED': return 'success';
-            case 'PARTIAL_SUCCESS': return 'warning';
-            case 'FAILED': return 'danger';
-            case 'IN_PROGRESS': return 'primary';
-            case 'CANCELLED': return 'secondary';
-            case 'SKIPPED': return 'warning';
-            default: return 'secondary';
-        }
+    function toMillis(ts) {
+        if (ts === null || ts === undefined || ts === '') return null;
+        const t = typeof ts === 'number' ? ts : Date.parse(ts);
+        return Number.isNaN(t) ? null : t;
+    }
+
+    /** One block per group, in run order, with a line per VM. */
+    function renderStages(execution) {
+        const stages = OperationStages.stages(execution);
+        $('#vm-status-list').html(stages.map(stage => Utils.html`
+            <section class="op-stage" data-tone="${stage.tone}">
+                <div class="op-stage-head"><b>${stage.order} · ${stage.name}</b><span class="op-stage-tag">${stage.tag}</span></div>
+                ${Utils.raw(stage.vms.map(vm => Utils.html`<div class="op-stage-vm">
+                    <span class="${LIGHT_CLASS[vm.light] || 'pip'}" aria-hidden="true"></span><span class="op-stage-vm-name">${vm.name}</span>
+                    <span class="op-stage-state">${vm.state}</span></div>`).join(''))}
+            </section>`).join(''));
     }
 
     /**
@@ -622,9 +491,7 @@ const VmOperations = (function() {
                     console.warn('Failed to poll operation status:', xhr.status, xhr.statusText, `attempt ${failures}/${MAX_POLL_FAILURES}`);
 
                     if (failures < MAX_POLL_FAILURES) {
-                        if (modalExecutionId === executionId) {
-                            $('#progress-status-text').html('<i class="fas fa-spinner fa-spin me-2"></i>Reconnecting to operation status...');
-                        }
+                        if (modalExecutionId === executionId) $('#progress-status-text').text('Reconnecting…');
                         return;
                     }
 
@@ -703,20 +570,11 @@ const VmOperations = (function() {
     let elapsedStart = null;
 
     function startElapsedTimer() {
-        elapsedStart = Date.now();
         stopElapsedTimer();
-
-        elapsedInterval = setInterval(function() {
-            const elapsed = Math.floor((Date.now() - elapsedStart) / 1000);
-            const minutes = Math.floor(elapsed / 60);
-            const seconds = elapsed % 60;
-
-            const display = minutes > 0 ?
-                `${minutes}m ${seconds}s` :
-                `${seconds}s`;
-
-            $('#progress-elapsed').text(display);
-        }, 1000);
+        elapsedStart = Date.now();
+        const tick = () => $('#progress-elapsed').text(OperationStages.clock(Date.now() - elapsedStart));
+        tick();
+        elapsedInterval = setInterval(tick, 1000);
     }
 
     function stopElapsedTimer() {

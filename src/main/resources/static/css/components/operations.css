@@ -2,104 +2,206 @@
  * VM Operations Progress Styles
  */
 
-/* Progress modal */
+/* Progress dialog by group (U08-T03, OperationProgress.dc.html) */
 .operation-progress {
-    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
 }
 
-.progress-header {
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid var(--line);
+#operationProgressModal .modal-header {
+    gap: 12px;
 }
 
-.progress-status {
-    font-weight: 500;
+/* The time goes to the right of the title, before the close button (which Bootstrap pushes right). */
+#operationProgressModal .modal-header .btn-close {
+    margin-left: 0;
+}
+
+.op-progress-time {
+    margin-left: auto;
+    font-size: 13.5px;
+    color: var(--slate);
+    white-space: nowrap;
+}
+
+.op-progress-time .mono {
     color: var(--ink);
 }
 
-.progress-time {
-    font-size: 0.875rem;
-    font-family: monospace;
-}
-
-/* Mini metrics in progress modal */
-.metric-mini {
-    padding: 0.75rem;
-    background: var(--surface-subtle);
-    border-radius: 8px;
-}
-
-.metric-mini .metric-value {
-    font-size: 1.5rem;
-    font-weight: 700;
-}
-
-.metric-mini .metric-label {
-    font-size: 0.75rem;
-    color: var(--slate);
-    text-transform: uppercase;
-}
-
-/* VM status list */
-.vm-status-list {
-    max-height: 300px;
-    overflow-y: auto;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--surface-subtle);
-}
-
-.vm-status-item {
-    padding: 0.75rem 1rem;
-    background: white;
-    transition: background 0.15s;
-}
-
-.vm-status-item:hover {
-    background: var(--surface-subtle);
-}
-
-.vm-status-item:last-child {
-    border-bottom: none;
-}
-
-.vm-status-item .badge {
-    font-size: 0.7rem;
-    font-weight: 500;
-}
-
-/* Progress bar customization */
-#operationProgressModal .progress {
-    border-radius: 12px;
-    background: var(--line);
-    position: relative;
+.op-progress-bar {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--surface-muted);
     overflow: hidden;
 }
 
-#operationProgressModal .progress-bar {
-    border-radius: 12px;
-    font-weight: 600;
-    font-size: 0.875rem;
+.op-progress-fill {
+    width: 0;
+    height: 100%;
+    background: var(--brand-green);
     transition: width 0.3s ease;
 }
 
-#operationProgressModal #progress-percent {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0 0.75rem;
-    /* Dark with a light halo: readable on both the filled bar and the empty track (E13-T04) */
+.op-progress-bar[data-tone="failed"] .op-progress-fill {
+    background: var(--brand-red);
+}
+
+.op-progress-bar[data-tone="problems"] .op-progress-fill {
+    background: var(--brand-gold);
+}
+
+.op-progress-bar[data-tone="cancelled"] .op-progress-fill {
+    background: var(--line-strong);
+}
+
+.op-progress-live {
+    font-size: var(--fs-body);
     color: var(--ink);
-    text-shadow: 0 0 2px #fff, 0 0 2px #fff;
-    font-size: 0.8rem;
-    font-weight: 700;
-    text-shadow: 0 1px 2px rgba(20, 27, 45, 0.75);
-    white-space: nowrap;
+}
+
+.op-progress-live b {
+    font-weight: 500;
+}
+
+.op-progress-live[data-tone="done"] {
+    color: var(--brand-green-text);
+    font-weight: 500;
+}
+
+.op-progress-live[data-tone="failed"] {
+    color: var(--brand-red-text);
+    font-weight: 500;
+}
+
+.op-progress-live[data-tone="problems"] {
+    color: var(--brand-gold-text);
+    font-weight: 500;
+}
+
+.op-stages {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 52vh;
+    overflow-y: auto;
+}
+
+.op-stage {
+    border: 1px solid var(--line);
+    border-radius: 10px;
     overflow: hidden;
-    text-overflow: ellipsis;
-    pointer-events: none;
+    flex-shrink: 0;
+}
+
+.op-stage-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 14px;
+    background: var(--surface-subtle);
+    font-size: var(--fs-body);
+}
+
+.op-stage-head b {
+    font-weight: 600;
+}
+
+.op-stage-tag {
+    font-size: var(--fs-small);
+    font-weight: 500;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: var(--surface-muted);
+    color: var(--status-stopped-text);
+    white-space: nowrap;
+}
+
+.op-stage[data-tone="done"] .op-stage-tag {
+    background: var(--brand-green-tint);
+    color: var(--brand-green-text);
+}
+
+.op-stage[data-tone="busy"] .op-stage-head {
+    background: color-mix(in srgb, var(--brand-gold-tint) 45%, var(--surface-subtle));
+}
+
+.op-stage[data-tone="busy"] .op-stage-tag {
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
+}
+
+.op-stage[data-tone="failed"] .op-stage-tag {
+    background: var(--brand-red-tint);
+    color: var(--brand-red-text);
+}
+
+.op-stage-vm {
+    display: grid;
+    grid-template-columns: 14px minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    padding: 7px 14px;
+    border-top: 1px solid var(--line-soft);
+    font-size: 13.5px;
+}
+
+.op-stage-vm .pip {
+    width: 9px;
+    height: 16px;
+}
+
+.op-stage-vm .pip.skip {
+    background: var(--surface-muted);
+    border-style: dashed;
+}
+
+.op-stage-vm-name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.op-stage-state {
+    font-size: var(--fs-caption);
+    color: var(--slate);
+    text-align: right;
+}
+
+.op-stage-vm:has(.pip.err) .op-stage-state {
+    color: var(--brand-red-text);
+}
+
+#operationProgressModal .op-cancel-rest {
+    margin-right: auto;
+    padding-left: 0;
+    color: var(--brand-red-text);
+    text-decoration: none;
+}
+
+#operationProgressModal .op-cancel-rest:hover {
+    text-decoration: underline;
+}
+
+@media (max-width: 575.98px) {
+    .op-stage-vm {
+        grid-template-columns: 14px minmax(0, 1fr);
+    }
+
+    .op-stage-state {
+        grid-column: 2;
+        text-align: left;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .op-stage-vm .pip.busy {
+        animation: none;
+    }
+
+    .op-progress-fill {
+        transition: none;
+    }
 }
 
 /* Operation status colors */
@@ -144,25 +246,6 @@
 /* Empty state */
 .operation-history .empty-state {
     color: var(--slate);
-}
-
-/* Scrollbar styling for VM list */
-.vm-status-list::-webkit-scrollbar {
-    width: 6px;
-}
-
-.vm-status-list::-webkit-scrollbar-track {
-    background: var(--surface-muted);
-    border-radius: 3px;
-}
-
-.vm-status-list::-webkit-scrollbar-thumb {
-    background: var(--line-strong);
-    border-radius: 3px;
-}
-
-.vm-status-list::-webkit-scrollbar-thumb:hover {
-    background: var(--slate-light);
 }
 
 /* ================================================

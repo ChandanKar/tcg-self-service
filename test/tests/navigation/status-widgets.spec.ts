@@ -80,7 +80,7 @@ test.describe('Status widgets', () => {
     const banner = page.locator('#operation-banner');
     await expect(banner).toBeVisible();
     await expect(page.locator('#operation-description')).toHaveText('Starting E2E env');
-    await expect(page.locator('#operation-count')).toHaveText('1/2');
+    await expect(page.locator('#operation-count')).toHaveText('1 of 2 done');
 
     await page.locator('#view-operation-details').click();
     await expect(page.locator('#operationProgressModal')).toBeVisible();

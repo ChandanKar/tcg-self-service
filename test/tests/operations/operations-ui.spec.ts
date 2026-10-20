@@ -85,7 +85,7 @@ test.describe('Operations UI', () => {
     test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
   });
 
-  test('Cancel in the progress modal cancels the run and shows "Operation cancelled"', async ({ page }) => {
+  test('Cancel in the progress modal cancels the run and shows "Cancelled"', async ({ page }) => {
     const fake = new FakeOperations();
     await fake.install(page);
     await ready(page);
@@ -98,7 +98,7 @@ test.describe('Operations UI', () => {
     await expect(page.locator('#confirmModal')).toContainText('VMs already started or stopped stay that way');
     await page.locator('#confirmBtn').click();
 
-    await expect(page.locator('#progress-status-text')).toHaveText('Operation cancelled', { timeout: 5_000 });
+    await expect(page.locator('#progress-status-text')).toHaveText('Cancelled', { timeout: 5_000 });
     expect(fake.cancels).toEqual(['exec-1']);
     await expect(cancel).toBeHidden();
   });
@@ -121,10 +121,10 @@ test.describe('Operations UI', () => {
     fake.set('exec-1', { status: 'COMPLETED', completedTargets: 3, details: [] });
     await expect.poll(() => page.evaluate(() => VmOperations.trackedExecutionIds()), { timeout: 10_000 }).toEqual(['exec-2']);
     // B's modal never showed A's result.
-    await expect(page.locator('#progress-status-text')).not.toHaveText(/Completed/);
+    await expect(page.locator('#progress-status-text')).not.toHaveText(/Done/);
     fake.set('exec-2', { status: 'COMPLETED', completedTargets: 3, details: [] });
     await expect.poll(() => page.evaluate(() => VmOperations.trackedExecutionIds()), { timeout: 10_000 }).toEqual([]);
-    await expect(page.locator('#progress-status-text')).toHaveText('Completed successfully');
+    await expect(page.locator('#progress-status-text')).toHaveText('Done');
   });
 
   test('a 403 shows the server reason, not a generic lock hint', async ({ page }) => {
@@ -162,8 +162,54 @@ test.describe('Operations UI', () => {
       details: [1, 2, 3].map(n => ({ detailId: `d${n}`, targetName: `vm-${n}`, status: 'failed' })),
     });
 
-    await expect(page.locator('#progress-status-text')).toHaveText('Failed — All 3 steps failed', { timeout: 10_000 });
+    await expect(page.locator('#progress-status-text')).toHaveText('Failed: All 3 steps failed', { timeout: 10_000 });
     await expect(page.locator('#btn-cancel-operation')).toBeHidden();
+  });
+
+  test('U08-T03: progress by group in start order, the live line, the reason a VM failed, Hide and re-open', async ({ page }) => {
+    const fake = new FakeOperations();
+    await fake.install(page);
+    await ready(page);
+    await start(page, 'env-a', 'CRM UAT');
+    await expect.poll(() => fake.polls.get('exec-1') || 0).toBeGreaterThan(0);
+
+    const t0 = Date.now() - 102_000;
+    const at = (s: number) => new Date(t0 + s * 1000).toISOString();
+    const step = (seq: number, group: string, name: string, status: string, from: number | null, to: number | null, extra: any = {}) => ({
+      detailId: name, sequencePosition: seq, groupId: 'g-' + group, groupName: group, targetName: name, status,
+      startedAt: from === null ? null : at(from), completedAt: to === null ? null : at(to), ...extra });
+    fake.set('exec-1', { totalTargets: 6, startedAt: at(0), details: [
+      step(1, 'Database', 'crm-db-01', 'COMPLETED', 0, 41), step(2, 'Database', 'crm-db-02', 'COMPLETED', 0, 48),
+      step(3, 'Application', 'crm-api-01', 'COMPLETED', 48, 87), step(4, 'Application', 'crm-api-02', 'IN_PROGRESS', 48, null),
+      step(5, 'Application', 'crm-api-03', 'IN_PROGRESS', 48, null), step(6, 'Web', 'crm-web-01', 'PENDING', null, null)] });
+
+    const stages = page.locator('#vm-status-list .op-stage');
+    await expect(stages.locator('.op-stage-head')).toHaveText([/1st · Database\s*Done in 0:48/, /2nd · Application\s*Starting/,
+      /3rd · Web\s*Waits for Application/], { timeout: 10_000 });
+    await expect(stages.nth(0).locator('.op-stage-state')).toHaveText(['Running · 0:41', 'Running · 0:48']);
+    await expect(stages.nth(2).locator('.op-stage-state')).toHaveText(['Waiting']);
+    await expect(page.locator('#progress-status-text')).toHaveText('3 of 6 running · Application is starting; Web waits for it');
+    await expect(page.locator('#progress-bar')).toHaveAttribute('aria-valuenow', '3');
+    await expect(page.locator('#progress-bar')).toHaveAttribute('aria-label', '3 of 6 VMs running');
+    await expect(page.locator('#progress-elapsed')).toHaveText(/^1:4\d$/);
+    await expect(page.getByRole('button', { name: 'Cancel the rest' })).toBeVisible();
+
+    // Hide · keeps running: the banner takes over and re-opens the same run.
+    await page.getByRole('button', { name: 'Hide · keeps running' }).click();
+    await expect(page.locator('#operation-banner')).toBeVisible();
+    await expect(page.locator('#operation-count')).toHaveText('3 of 6 done');
+    await page.locator('#view-operation-details').click();
+    await expect(page.locator('#vm-status-list .op-stage')).toHaveCount(3);
+
+    fake.set('exec-1', { status: 'PARTIAL_SUCCESS', completedAt: at(140), details: [
+      step(1, 'Database', 'crm-db-01', 'COMPLETED', 0, 41), step(2, 'Database', 'crm-db-02', 'COMPLETED', 0, 48),
+      step(3, 'Application', 'crm-api-01', 'FAILED', 48, 60, { errorMessage: 'AWS has no m5.large capacity in eu-west-1a right now' }),
+      step(4, 'Web', 'crm-web-01', 'COMPLETED', 60, 100)] });
+    await expect(page.locator('#progress-status-text')).toHaveText('Done with problems: 1 failed', { timeout: 10_000 });
+    await expect(page.locator('#vm-status-list .op-stage').nth(1)).toContainText('Failed: AWS has no m5.large capacity in eu-west-1a right now');
+    await expect(page.locator('#btn-cancel-operation')).toBeHidden();
+    await expect(page.locator('#btn-close-progress')).toHaveText('Close');
+    await expect(page.locator('.op-progress-time')).toHaveText('2:20 in all');
   });
 
   test('history labels statuses, shows skipped steps and cancels a running row', async ({ page }) => {
