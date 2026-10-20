@@ -156,11 +156,12 @@ class OperationScopeSecurityTest extends SecuredWebTestBase {
                 .andExpect(jsonPath("$.status").value("CANCELLED"));
 
         assertThat(statusOf(execution)).isEqualTo(ExecutionStatus.CANCELLED);
-        assertThat(auditLogs.findByActionOrderByCreatedAtDesc("OPERATION_CANCELLED", PageRequest.of(0, 10)).getContent())
+        // The audit row is written by AuditWriter after the commit, on another thread: wait for it.
+        awaitAsync(() -> assertThat(auditLogs.findByActionOrderByCreatedAtDesc("OPERATION_CANCELLED", PageRequest.of(0, 10)).getContent())
                 .anySatisfy(a -> {
                     assertThat(a.getTargetId()).isEqualTo(execution.getExecutionId());
                     assertThat(a.getUserId()).isEqualTo(operator.getUserId());
-                });
+                }));
     }
 
     @Test
