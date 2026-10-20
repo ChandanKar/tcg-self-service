@@ -17,6 +17,7 @@ import com.tcgdigital.vmcontrol.service.SecurityService;
 import com.tcgdigital.vmcontrol.service.UserService;
 import com.tcgdigital.vmcontrol.service.VmGroupService;
 import com.tcgdigital.vmcontrol.service.VmInventoryService;
+import com.tcgdigital.vmcontrol.service.VmListDetailsService;
 import com.tcgdigital.vmcontrol.service.VmMetricsService;
 import com.tcgdigital.vmcontrol.service.VmService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -55,17 +56,20 @@ public class VmMgmtController {
     private final UserService userService;
     private final VmInventoryService inventoryService;
     private final VmMetricsService metricsService;
+    private final VmListDetailsService detailsService;
 
     public VmMgmtController(VmService vmService, VmGroupService groupService,
                              SecurityService securityService, UserService userService,
                              VmInventoryService inventoryService,
-                             VmMetricsService metricsService) {
+                             VmMetricsService metricsService,
+                             VmListDetailsService detailsService) {
         this.vmService = vmService;
         this.groupService = groupService;
         this.securityService = securityService;
         this.userService = userService;
         this.inventoryService = inventoryService;
         this.metricsService = metricsService;
+        this.detailsService = detailsService;
     }
 
     @GetMapping
@@ -73,7 +77,9 @@ public class VmMgmtController {
     @Operation(
             summary = "List all VMs in an environment",
             description = "Retrieves a list of all VMs in the specified environment, grouped by their VM groups. " +
-                    "Requires access to the environment."
+                    "Requires access to the environment. Each VM's stateSince is when it entered its current " +
+                    "status; it is null when the state history has no matching row (registered while already in " +
+                    "that state, or removed by data retention)."
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -108,12 +114,10 @@ public class VmMgmtController {
             firstPageByGroup.put(group.getGroupId(), vmService.getVmsByGroupIdPaged(group.getGroupId(), 0, DEFAULT_VM_PAGE_SIZE));
         }
 
-        // Batch-fetch private IPs once across every VM about to be returned, rather than per group.
-        List<String> allVmIds = firstPageByGroup.values().stream()
+        // Private IPs and "in this state since" for every VM about to be returned: one batch, not per group.
+        Map<String, VmListDetailsService.Details> details = detailsService.detailsFor(firstPageByGroup.values().stream()
                 .flatMap(page -> page.getContent().stream())
-                .map(Vm::getVmId)
-                .toList();
-        Map<String, String> privateIpsByVmId = inventoryService.getPrivateIpsByVmIds(allVmIds);
+                .toList());
 
         // U02-T02: Start/Stop per group. Environment-level operators (and admins) get every group; an
         // operator of one group only gets that one.
@@ -133,17 +137,12 @@ public class VmMgmtController {
             dto.setViewerCanOperate(environmentOperator
                     || securityService.hasGroupAccessLevel(group.getGroupId(), com.tcgdigital.vmcontrol.model.AccessLevel.USER));
             dto.setVms(firstPage.getContent().stream()
-                    .map(vm -> withPrivateIp(VmDTO.fromEntity(vm), privateIpsByVmId))
+                    .map(vm -> VmListDetailsService.apply(VmDTO.fromEntity(vm), details))
                     .toList());
             result.add(dto);
         }
 
         return ResponseEntity.ok(result);
-    }
-
-    private VmDTO withPrivateIp(VmDTO dto, Map<String, String> privateIpsByVmId) {
-        dto.setPrivateIp(privateIpsByVmId.get(dto.getVmId()));
-        return dto;
     }
 
     /** The environment a group belongs to (404 when the group does not exist). */
@@ -186,10 +185,9 @@ public class VmMgmtController {
         }
 
         Page<Vm> vmPage = vmService.getVmsByGroupIdPaged(groupId, pageable);
-        Map<String, String> privateIpsByVmId = inventoryService.getPrivateIpsByVmIds(
-                vmPage.getContent().stream().map(Vm::getVmId).toList());
+        Map<String, VmListDetailsService.Details> details = detailsService.detailsFor(vmPage.getContent());
 
-        Page<VmDTO> result = vmPage.map(vm -> withPrivateIp(VmDTO.fromEntity(vm), privateIpsByVmId));
+        Page<VmDTO> result = vmPage.map(vm -> VmListDetailsService.apply(VmDTO.fromEntity(vm), details));
         return ResponseEntity.ok(result);
     }
 
@@ -211,7 +209,8 @@ public class VmMgmtController {
             throw new ValidationException("state must be one of DRIFT, PENDING, INACTIVE");
         }
         Page<Vm> vms = vmService.getReviewPage(environmentId, normalized, Paging.of(page, size, Paging.DEFAULT_MAX_SIZE));
-        return ResponseEntity.ok(vms.map(VmDTO::fromEntity));
+        Map<String, VmListDetailsService.Details> details = detailsService.detailsFor(vms.getContent());
+        return ResponseEntity.ok(vms.map(vm -> VmListDetailsService.apply(VmDTO.fromEntity(vm), details)));
     }
 
     private static final java.util.Set<String> REVIEW_STATES = java.util.Set.of("DRIFT", "PENDING", "INACTIVE");
@@ -240,7 +239,7 @@ public class VmMgmtController {
         securityService.assertCanAdminister(environmentId);
 
         Vm vm = vmService.moveVm(vmId, dto, userService.getCurrentUserId());
-        return ResponseEntity.ok(VmDTO.fromEntity(vm));
+        return ResponseEntity.ok(detailsService.toDto(vm));
     }
 
     @GetMapping("/{vmId}")
@@ -270,8 +269,7 @@ public class VmMgmtController {
         }
 
         Vm vm = vmService.getVmById(vmId);
-        Map<String, String> privateIpsByVmId = inventoryService.getPrivateIpsByVmIds(List.of(vmId));
-        return ResponseEntity.ok(withPrivateIp(VmDTO.fromEntity(vm), privateIpsByVmId));
+        return ResponseEntity.ok(detailsService.toDto(vm));
     }
 
     @GetMapping("/{vmId}/inventory")
@@ -353,7 +351,7 @@ public class VmMgmtController {
 
         Vm created = vmService.registerVm(dto, userService.getCurrentUserId(), userService.isCurrentUserAdmin());
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(VmDTO.fromEntity(created));
+                .body(detailsService.toDto(created));
     }
 
     @PutMapping("/{vmId}")
@@ -383,8 +381,7 @@ public class VmMgmtController {
 
 
         Vm updated = vmService.updateVm(vmId, dto, userService.getCurrentUserId(), userService.isCurrentUserAdmin());
-        Map<String, String> privateIpsByVmId = inventoryService.getPrivateIpsByVmIds(List.of(vmId));
-        return ResponseEntity.ok(withPrivateIp(VmDTO.fromEntity(updated), privateIpsByVmId));
+        return ResponseEntity.ok(detailsService.toDto(updated));
     }
 
     @DeleteMapping("/{vmId}")
@@ -430,7 +427,7 @@ public class VmMgmtController {
 
         String userId = userService.getCurrentUserId();
         Vm vm = vmService.acknowledgeVm(vmId, userId);
-        return ResponseEntity.ok(VmDTO.fromEntity(vm));
+        return ResponseEntity.ok(detailsService.toDto(vm));
     }
 
     @PostMapping("/{vmId}/reactivate")
@@ -452,7 +449,7 @@ public class VmMgmtController {
         securityService.assertCanAdminister(environmentId);
 
         Vm vm = vmService.reactivateVm(vmId, userService.getCurrentUserId());
-        return ResponseEntity.ok(VmDTO.fromEntity(vm));
+        return ResponseEntity.ok(detailsService.toDto(vm));
     }
 
     /**

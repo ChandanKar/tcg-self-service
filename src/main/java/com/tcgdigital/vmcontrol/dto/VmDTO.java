@@ -34,6 +34,12 @@ public class VmDTO {
     private Integer sequencePosition;
     private List<String> dependsOnVmIds;
     private VmStatus status;
+    /**
+     * When the VM entered its current status (U05-T01: "Running since 14:10"), from the state history.
+     * Null when no history row matches the status: registered while already in it, or the row was
+     * removed by data retention. Never a guess from createdAt or lastStateSyncAt.
+     */
+    private Timestamp stateSince;
     private Timestamp lastStateSyncAt;
     private Boolean stateDriftDetected;
     private Boolean discoveryPending;
@@ -226,6 +232,14 @@ public class VmDTO {
 
     public void setStatus(VmStatus status) {
         this.status = status;
+    }
+
+    public Timestamp getStateSince() {
+        return stateSince;
+    }
+
+    public void setStateSince(Timestamp stateSince) {
+        this.stateSince = stateSince;
     }
 
     public Timestamp getLastStateSyncAt() {

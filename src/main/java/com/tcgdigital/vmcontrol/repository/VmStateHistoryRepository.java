@@ -82,6 +82,14 @@ public interface VmStateHistoryRepository extends JpaRepository<VmStateHistory, 
     List<VmStateHistory> findLatestBeforeForVms(@org.springframework.data.repository.query.Param("vmIds") List<String> vmIds,
                                                 @org.springframework.data.repository.query.Param("before") Timestamp before);
 
+    /**
+     * When each of many VMs last entered each status, in one query: [vmId, VmStatus, Timestamp]
+     * (U05-T01, "Running since"). Uses idx_vm_state_history_vm.
+     */
+    @Query("SELECT h.vm.vmId, h.newStatus, MAX(h.changedAt) FROM VmStateHistory h WHERE h.vm.vmId IN :vmIds "
+            + "GROUP BY h.vm.vmId, h.newStatus")
+    List<Object[]> findLastEnteredAtByStatus(@org.springframework.data.repository.query.Param("vmIds") List<String> vmIds);
+
     /** When each of many VMs last became STOPPED: [vmId, Timestamp] (waste sweep, E22-T02). */
     @Query("SELECT h.vm.vmId, MAX(h.changedAt) FROM VmStateHistory h WHERE h.vm.vmId IN :vmIds "
             + "AND h.newStatus = com.tcgdigital.vmcontrol.model.VmStatus.STOPPED GROUP BY h.vm.vmId")
