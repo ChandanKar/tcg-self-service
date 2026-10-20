@@ -205,7 +205,13 @@ const Environments = (function() {
             const rest = search.split('&').filter(part => part && !part.startsWith('vm='));
             window.history.replaceState(null, '', rest.length ? `${path}?${rest.join('&')}` : path);
         }
-        showVmDetails(env.environmentId, q.vm);
+        openVmDetails(env.environmentId, q.vm);
+    }
+
+    /** The VM details side panel (U08-T05); a start or stop from it reloads this page. */
+    function openVmDetails(envId, vmId, tab) {
+        const env = currentEnvironment && currentEnvironment.environmentId === envId ? currentEnvironment : null;
+        VmDetails.open(envId, vmId, { env, tab, onDone: () => reloadDetailIfCurrent(envId) });
     }
 
     /**
@@ -935,7 +941,7 @@ const Environments = (function() {
                 } else if (action === 'stop-vm') {
                     stopVm(id, this.getAttribute('data-vm-id'));
                 } else if (action === 'vm-details') {
-                    showVmDetails(id, this.getAttribute('data-vm-id'));
+                    openVmDetails(id, this.getAttribute('data-vm-id'));
                 } else if (action === 'env-large-group') {
                     Object.assign(largeStateFor(currentEnvironment),
                         { groupId: this.getAttribute('data-group-id'), filter: 'all', page: 0 });
@@ -1308,121 +1314,6 @@ const Environments = (function() {
         `).join('');
     }
 
-    function showVmDetails(envId, vmId, window = '1h', activeTab = 'overview') {
-        ApiClient.get(Config.API.vms.get(envId, vmId))
-            .done(function(vm) {
-                const providerConfig = Config.CLOUD_ICONS[vm.provider] || { icon: 'fas fa-cloud', label: vm.provider };
-                const statusConfig = Config.STATUS.vm[vm.status] || Config.STATUS.vm.UNKNOWN;
-                const inventoryRequest = resolveApiOrNull(ApiClient.get(Config.API.vms.inventory(envId, vmId), { suppressGlobalError: true }));
-                const metricsRequest = resolveApiOrNull(ApiClient.get(Config.API.vms.metrics(envId, vmId, window, 300), { suppressGlobalError: true }));
-                const summaryRequest = resolveApiOrNull(ApiClient.get(Config.API.vms.utilizationSummary(envId, vmId), { suppressGlobalError: true }));
-
-                $.when(inventoryRequest, metricsRequest, summaryRequest)
-                    .done(function(inventory, metrics, summary) {
-                        const insights = buildLiveVmInsightsData(vm, inventory, metrics, summary);
-                        const content = buildVmInsightsPanel(vm, providerConfig, statusConfig, insights, envId, window, activeTab);
-                        const title = buildVmInsightsTitle(vm, statusConfig, insights);
-
-                        try {
-                            if (typeof Slideout !== 'undefined' && Slideout.open) {
-                                Slideout.open(title, content, { html: true });
-                                bindMetricWindowInteractions();
-                            } else {
-                                Notifications.info('VM Details: ' + vm.name);
-                            }
-                        } catch (e) {
-                            console.error('Error opening slideout:', e);
-                            Notifications.info('Could not display VM details');
-                        }
-                    });
-            })
-            .fail(function() {
-                Notifications.error('Failed to load VM details');
-            });
-    }
-
-    function resolveApiOrNull(request) {
-        const deferred = $.Deferred();
-        request.done(function(data) {
-            deferred.resolve(data);
-        }).fail(function() {
-            deferred.resolve(null);
-        });
-        return deferred.promise();
-    }
-
-    function bindMetricWindowInteractions() {
-        $(document).off('click.vmMetricWindow', '.vm-window-control button')
-            .on('click.vmMetricWindow', '.vm-window-control button', function() {
-                const $button = $(this);
-                showVmDetails($button.data('env-id'), $button.data('vm-id'), $button.data('window') || '1h', 'utilization');
-            });
-    }
-
-    function buildVmInsightsTitle(vm, statusConfig, mock) {
-        return `
-            <div class="vm-slideout-title">
-                <span class="vm-slideout-name">VM: ${Utils.escapeHtml(vm.displayName || vm.name)}</span>
-                <span class="vm-slideout-badges">
-                    <span class="vm-title-pill vm-title-status ${statusConfig.class}">
-                        <i class="fas ${statusConfig.icon}"></i> ${statusConfig.label}
-                    </span>
-                    <span class="vm-title-pill vm-title-idle ${mock.idle.isIdle ? 'idle' : 'active'}">
-                        <i class="fas ${mock.idle.isIdle ? 'fa-moon' : 'fa-bolt'}"></i>
-                        ${mock.idle.label}
-                    </span>
-                </span>
-            </div>
-        `;
-    }
-
-    function buildVmInsightsPanel(vm, providerConfig, statusConfig, mock, envId, selectedWindow = '1h', activeTab = 'overview') {
-        const providerLabel = providerConfig.label || vm.provider || 'Cloud';
-        const lastSync = formatVmInsightTime(vm.lastStateSyncAt);
-        const tab = ['overview', 'utilization', 'storage', 'history'].includes(activeTab) ? activeTab : 'overview';
-
-        return `
-            <div class="vm-insights-panel">
-                <div class="vm-insights-summary">
-                    ${buildInsightStat('Instance', mock.instanceType || '-', 'fa-microchip')}
-                    ${buildInsightStat('CPU', formatPercent(mock.cpu.latest), 'fa-gauge-high')}
-                    ${buildInsightStat('Storage', mock.storage.totalGiB ? `${mock.storage.totalGiB} GiB` : '-', 'fa-hard-drive')}
-                    ${buildInsightStat('Last metric', mock.lastMetricSample, 'fa-clock')}
-                </div>
-
-                <ul class="nav nav-tabs vm-insights-tabs" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link ${tab === 'overview' ? 'active' : ''}" data-bs-toggle="tab" data-bs-target="#vm-overview-tab" type="button" role="tab">Overview</button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link ${tab === 'utilization' ? 'active' : ''}" data-bs-toggle="tab" data-bs-target="#vm-utilization-tab" type="button" role="tab">Utilization</button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link ${tab === 'storage' ? 'active' : ''}" data-bs-toggle="tab" data-bs-target="#vm-storage-tab" type="button" role="tab">Storage</button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link ${tab === 'history' ? 'active' : ''}" data-bs-toggle="tab" data-bs-target="#vm-history-tab" type="button" role="tab">History</button>
-                    </li>
-                </ul>
-
-                <div class="tab-content vm-insights-tab-content">
-                    <div class="tab-pane fade ${tab === 'overview' ? 'show active' : ''}" id="vm-overview-tab" role="tabpanel">
-                        ${buildOverviewSection(vm, providerLabel, providerConfig, mock, lastSync)}
-                    </div>
-                    <div class="tab-pane fade ${tab === 'utilization' ? 'show active' : ''}" id="vm-utilization-tab" role="tabpanel">
-                        ${buildUtilizationSection(mock, envId, vm.vmId, selectedWindow)}
-                    </div>
-                    <div class="tab-pane fade ${tab === 'storage' ? 'show active' : ''}" id="vm-storage-tab" role="tabpanel">
-                        ${buildStorageSection(mock)}
-                    </div>
-                    <div class="tab-pane fade ${tab === 'history' ? 'show active' : ''}" id="vm-history-tab" role="tabpanel">
-                        ${buildHistorySection(mock)}
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
     function buildInsightStat(label, value, icon) {
         return `
             <div class="vm-insight-stat">
@@ -1430,118 +1321,6 @@ const Environments = (function() {
                 <div>
                     <span>${Utils.escapeHtml(value)}</span>
                     <small>${Utils.escapeHtml(label)}</small>
-                </div>
-            </div>
-        `;
-    }
-
-    function buildOverviewSection(vm, providerLabel, providerConfig, mock, lastSync) {
-        const purposeValue = vm.purpose
-            ? `${Utils.escapeHtml(vm.purpose)}${vm.remarks ? `<div class="small text-muted">${Utils.escapeHtml(vm.remarks)}</div>` : ''}`
-            : null;
-        return `
-            <div class="vm-insight-section">
-                <div class="vm-overview-clean">
-                    ${buildField('Purpose', purposeValue, true)}
-                    ${buildField('Private IP', mock.privateIp)}
-                    ${buildField('Public IP', mock.publicIp)}
-                    ${buildField('Instance type', mock.instanceType)}
-                    ${buildField('vCPU / Memory', `${mock.vcpu} vCPU / ${mock.memoryGiB} GiB`)}
-                    ${buildField('Region / AZ', `${vm.region || mock.region} / ${mock.availabilityZone}`)}
-                    ${buildField('Last state sync', lastSync)}
-                </div>
-                <div class="vm-provider-line">
-                    <span><i class="${providerConfig.icon}"></i> ${Utils.escapeHtml(providerLabel)}</span>
-                    ${vm.providerVmId ? `<span class="vm-instance-id">Instance ID <code>${Utils.escapeHtml(vm.providerVmId)}</code> <small class="text-muted">· Administrators only</small></span>` : ''}
-                </div>
-            </div>
-        `;
-    }
-
-    function buildUtilizationSection(mock, envId, vmId, selectedWindow = '1h') {
-        const windows = ['1h', '6h', '12h', '24h', '7d'];
-        return `
-            <div class="vm-insight-section">
-                <div class="vm-window-control" role="group" aria-label="Metric window">
-                    ${windows.map(window => `
-                        <button class="${window === selectedWindow ? 'active' : ''}" type="button"
-                                data-env-id="${Utils.escapeHtml(envId)}" data-vm-id="${Utils.escapeHtml(vmId)}" data-window="${window}">
-                            ${window}
-                        </button>
-                    `).join('')}
-                </div>
-
-                <div class="vm-util-grid">
-                    ${buildMetricTile('CPU Utilization', formatPercent(mock.cpu.latest), 'Avg 1h', mock.cpu.series, 'cpu')}
-                    ${mock.memory && mock.memory.available
-                        ? buildMetricTile('Memory', formatPercent(mock.memory.latest), 'Avg 1h', mock.memory.series, 'cpu')
-                        : buildMetricTile('Memory', '-', 'Memory needs the CloudWatch agent', [], 'cpu')}
-                    ${buildMetricTile('Network In', formatBytes(mock.network.inBytes), 'Last period', mock.network.inSeries, 'network')}
-                    ${buildMetricTile('Network Out', formatBytes(mock.network.outBytes), 'Last period', mock.network.outSeries, 'network')}
-                    ${buildMetricTile('Disk Read', formatBytes(mock.disk.readBytes), 'Last period', mock.disk.readSeries, 'disk')}
-                    ${buildMetricTile('Disk Write', formatBytes(mock.disk.writeBytes), 'Last period', mock.disk.writeSeries, 'disk')}
-                    <div class="vm-idle-panel ${mock.idle.isIdle ? 'idle' : 'active'}"
-                         title="${Utils.escapeHtml(mock.idle.reason)} Thresholds: CPU < 5%, low network, low disk IO for 30 minutes.">
-                        <div class="vm-idle-label">Idle Detection</div>
-                        <strong>${mock.idle.label}</strong>
-                        <p>${mock.idle.reason}</p>
-                        <small>CPU &lt; 5%, low network and disk IO</small>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    function buildStorageSection(mock) {
-        const volumes = mock.storage.volumes.length > 0 ? mock.storage.volumes.map(volume => `
-            <div class="vm-volume-pill">
-                <div>
-                    <strong>${Utils.escapeHtml(volume.device)}</strong>
-                    <code>${Utils.escapeHtml(volume.volumeId)}</code>
-                </div>
-                <span>${Utils.escapeHtml(volume.type)} / ${volume.sizeGiB} GiB</span>
-                <small>${volume.iops} IOPS / ${volume.throughput} MB/s</small>
-            </div>
-        `).join('') : buildEmptyState('No EBS volume snapshot collected yet.');
-
-        return `
-            <div class="vm-insight-section">
-                <div class="vm-storage-summary">
-                    ${buildStorageMeter('Allocated', mock.storage.totalGiB ? `${mock.storage.totalGiB} GiB` : '-', 100)}
-                    ${buildStorageMeter('Used', 'Not collected', 0)}
-                    ${buildStorageMeter('Free', 'Not collected', 0)}
-                </div>
-                <div class="vm-storage-meter">
-                    <div style="width: 0%"></div>
-                </div>
-                <div class="vm-volume-list">
-                    ${volumes}
-                </div>
-            </div>
-        `;
-    }
-
-    function buildHistorySection(mock) {
-        if (!mock.history || mock.history.length === 0) {
-            return `
-                <div class="vm-insight-section">
-                    ${buildEmptyState('No inventory or metric events collected yet.')}
-                </div>
-            `;
-        }
-
-        return `
-            <div class="vm-insight-section">
-                <div class="vm-timeline">
-                    ${mock.history.slice(0, 3).map(item => `
-                        <div class="vm-timeline-item">
-                            <div class="vm-timeline-dot ${item.tone}"></div>
-                            <div>
-                                <strong>${Utils.escapeHtml(item.title)}</strong>
-                                <small>${Utils.escapeHtml(item.time)}</small>
-                            </div>
-                        </div>
-                    `).join('')}
                 </div>
             </div>
         `;
@@ -1662,122 +1441,11 @@ const Environments = (function() {
         `;
     }
 
-    function buildLiveVmInsightsData(vm, inventory, metrics, summary) {
-        const volumes = inventory && Array.isArray(inventory.volumes) ? inventory.volumes : [];
-        const totalStorage = inventory?.totalStorageGib || sumVolumeSize(volumes) || summary?.totalStorageGib;
-        const samples = metrics && Array.isArray(metrics.series) ? metrics.series : [];
-        const latest = metrics?.latest || samples[samples.length - 1] || null;
-        const idle = metrics?.idle || null;
-        const isIdle = idle?.idle === true || summary?.idle === true;
-        const idleDuration = idle?.idleDurationMinutes ?? summary?.idleDurationMinutes ?? 0;
-
-        const insights = {
-            region: vm.region || '-',
-            availabilityZone: inventory?.availabilityZone || '-',
-            privateIp: inventory?.privateIp || vm.privateIp || '-',
-            publicIp: inventory?.publicIp || vm.publicIp || '-',
-            instanceType: inventory?.instanceType || summary?.instanceType || normalizeVmType(vm.vmType),
-            vcpu: inventory?.vcpuCount || '-',
-            memoryGiB: inventory?.memoryMib ? roundOneDecimal(inventory.memoryMib / 1024) : '-',
-            architecture: inventory?.architecture || '-',
-            launchTime: inventory?.launchTime ? formatVmInsightTime(inventory.launchTime) : '-',
-            lastInventoryRefresh: inventory?.lastRefreshedAt ? formatVmInsightTime(inventory.lastRefreshedAt) : null,
-            lastMetricSample: latest?.sampleTime ? formatVmInsightTime(latest.sampleTime) : 'No samples',
-            cpu: {
-                latest: latest?.cpuUtilization ?? summary?.latestCpuUtilization ?? null,
-                series: sampleSeries(samples, 'cpuUtilization', 'percent')
-            },
-            // Memory only exists when the CloudWatch agent publishes it (E12-T04).
-            memory: {
-                available: samples.some(s => s.memoryUtilization !== null && s.memoryUtilization !== undefined),
-                latest: latest?.memoryUtilization ?? null,
-                series: sampleSeries(samples, 'memoryUtilization', 'percent')
-            },
-            network: {
-                inBytes: latest?.networkInBytes ?? null,
-                outBytes: latest?.networkOutBytes ?? null,
-                inSeries: sampleSeries(samples, 'networkInBytes', 'bytes'),
-                outSeries: sampleSeries(samples, 'networkOutBytes', 'bytes')
-            },
-            disk: {
-                readBytes: latest?.diskReadBytes ?? null,
-                writeBytes: latest?.diskWriteBytes ?? null,
-                readSeries: sampleSeries(samples, 'diskReadBytes', 'bytes'),
-                writeSeries: sampleSeries(samples, 'diskWriteBytes', 'bytes')
-            },
-            idle: {
-                isIdle,
-                label: idle || summary
-                    ? (isIdle ? `Idle ${formatMinutes(idleDuration)}` : 'Active now')
-                    : 'Metrics pending',
-                reason: idle?.reason || (summary ? 'Latest utilization summary received.' : 'No metrics collected yet.')
-            },
-            storage: {
-                totalGiB: totalStorage || null,
-                usedGiB: null,
-                freeGiB: null,
-                usedPercent: 0,
-                volumes: volumes.map(volume => ({
-                    device: volume.deviceName || '-',
-                    volumeId: volume.volumeId || '-',
-                    type: volume.volumeType || '-',
-                    sizeGiB: volume.sizeGib || 0,
-                    iops: volume.iops || '-',
-                    throughput: volume.throughputMbps || '-',
-                    encrypted: volume.encrypted === true
-                }))
-            },
-            history: []
-        };
-
-        if (inventory?.lastRefreshedAt) {
-            insights.history.push({
-                tone: 'success',
-                title: 'Inventory refreshed',
-                time: formatVmInsightTime(inventory.lastRefreshedAt)
-            });
-        }
-
-        if (latest?.sampleTime) {
-            insights.history.push({
-                tone: isIdle ? 'warning' : 'primary',
-                title: isIdle ? 'Idle summary updated' : 'Metric sample collected',
-                time: formatVmInsightTime(latest.sampleTime)
-            });
-        }
-
-        return insights;
-    }
-
-    function sumVolumeSize(volumes) {
-        return volumes.reduce((total, volume) => total + (Number(volume.sizeGib) || 0), 0);
-    }
-
-    function sampleSeries(samples, field, unit) {
-        const values = samples
-            .slice(-12)
-            .map(sample => sample[field])
-            .filter(value => value !== null && value !== undefined)
-            .map(value => {
-                const numeric = Number(value);
-                return unit === 'bytes' ? Math.round(numeric / (1024 * 1024)) : Math.round(numeric);
-            });
-        return values.length > 1 ? values : [];
-    }
-
-    function normalizeVmType(vmType) {
-        return vmType && vmType !== 'UNKNOWN' ? vmType : '-';
-    }
-
     function formatPercent(value) {
         if (value === null || value === undefined || value === '') return '-';
         const numeric = Number(value);
         if (Number.isNaN(numeric)) return '-';
         return `${Math.round(numeric)}%`;
-    }
-
-    function roundOneDecimal(value) {
-        return Math.round(value * 10) / 10;
     }
 
     function formatMinutes(minutes) {
@@ -1824,7 +1492,7 @@ const Environments = (function() {
         setStateFilter,
         goToEnvPage,
         /** VM details from the drift alert (U07-T07), on its History tab. */
-        openVm: vmId => currentEnvironment && showVmDetails(currentEnvironment.environmentId, vmId, '1h', 'history'),
+        openVm: vmId => currentEnvironment && openVmDetails(currentEnvironment.environmentId, vmId, 'history'),
         _search: function(val) {
             filterAndRenderEnvList((val || '').toLowerCase().trim());
         }

@@ -4,6 +4,9 @@ import { signIn, canSignIn, devIds } from '../../fixtures/auth';
 /**
  * U01-T05: a VM's details show its instance ID to administrators only ("Instance ID · Administrators
  * only"); anyone else sees the VM, its IP and state, and no instance ID anywhere on the page.
+ * U08-T05: the details are a side panel named after the VM, with the environment and group above the
+ * name, quick stats, and Overview / Use / Storage / Idle / History tabs that the arrow keys move
+ * between; Use switches its window without leaving the tab; Close returns to the Details button.
  */
 
 declare const ContentRouter: any;
@@ -47,7 +50,8 @@ async function openDetails(page: any, role: 'admin' | 'user', envId: string, vmI
   const details = page.locator(`[data-action="vm-details"][data-vm-id="${vmId}"]`).first();
   await expect(details).toBeVisible({ timeout: 15_000 });
   await details.click();
-  await expect(page.locator('.vm-provider-line')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('#dynamicSlideoutPanel[data-variant="vm-details"] .vm-panel-fields')).toBeVisible({ timeout: 15_000 });
+  return details;
 }
 
 test.describe('Instance ID in VM details', () => {
@@ -70,5 +74,48 @@ test.describe('Instance ID in VM details', () => {
     await expect(page.locator('.vm-instance-id')).toHaveCount(0);
     await expect(page.locator('body')).not.toContainText(/\bi-[0-9a-f]{8,17}\b/);
     await expect(page.locator('body')).not.toContainText('pending-provider-id');
+  });
+
+  test('U08-T05: the panel is named after the VM, with its place, stats and Overview fields', async ({ page, playwright }) => {
+    const { envId, vmId } = await environmentWithVm(playwright);
+    await openDetails(page, 'admin', envId, vmId);
+    const panel = page.locator('#dynamicSlideoutPanel[data-variant="vm-details"]');
+    await expect(panel).toHaveAttribute('role', 'dialog');
+    await expect(page.getByRole('dialog', { name: 'Web 01', exact: true })).toBeVisible();
+    await expect(panel.locator('.vm-head-kicker')).toHaveText(/^Instance ID \d+ · Web group$/);
+    await expect(panel.locator('.vm-state-chip')).toBeVisible();
+    await expect(panel.locator('.vm-panel-stat-label')).toHaveText(['Size', 'CPU now', 'IP address', 'Disk used']);
+    await expect(panel.locator('.vm-panel-stat').nth(3)).toContainText('Not collected');
+    await expect(panel.locator('.vm-panel-field dt')).toHaveText(['Size', 'vCPU / memory', 'Region / zone', 'Private IP',
+      'Public IP', 'Purchase', 'Purpose', 'Launched', 'State read from AWS', 'Cost this month']);
+    await expect(panel.locator('.vm-panel-field').filter({ hasText: 'Region / zone' }).locator('dd')).toHaveText('ap-south-1');
+    await expect(panel).not.toContainText('pending-provider-id');
+  });
+
+  test('U08-T05: the tabs are a tablist; Use switches to 7 days and stays on Use; Close returns to Details', async ({ page, playwright }) => {
+    const { envId, vmId } = await environmentWithVm(playwright);
+    const details = await openDetails(page, 'user', envId, vmId);
+    const panel = page.locator('#dynamicSlideoutPanel[data-variant="vm-details"]');
+    const tabs = panel.getByRole('tablist', { name: 'VM details' }).getByRole('tab');
+    await expect(tabs).toHaveText(['Overview', 'Use', 'Storage', 'Idle', 'History']);
+
+    await tabs.nth(0).focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+    await expect(tabs.nth(1)).toBeFocused();
+    const use = panel.getByRole('tabpanel', { name: 'Use' });
+    await expect(use).toBeVisible();
+    await expect(use.locator('[data-metric="Memory"]')).toContainText('Needs the CloudWatch agent on the VM', { timeout: 10_000 });
+
+    const asked = page.waitForRequest(r => r.url().includes(`/vms/${vmId}/metrics`) && r.url().includes('window=7d') && r.url().includes('period=3600'));
+    await use.getByRole('button', { name: '7 days' }).click();
+    await asked;
+    await expect(panel.getByRole('tab', { name: 'Use' })).toHaveAttribute('aria-selected', 'true');
+    await expect(panel.getByRole('button', { name: '7 days' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(use.locator('[data-metric="CPU"]')).toBeVisible();
+
+    await panel.locator('.close-btn').click();
+    await expect(panel).not.toHaveClass(/show/);
+    await expect(details).toBeFocused();
   });
 });
