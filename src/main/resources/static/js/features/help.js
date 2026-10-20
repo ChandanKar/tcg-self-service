@@ -31,10 +31,7 @@ const Help = (function() {
         current = topic && visible(topic) ? topic : (id ? 'missing' : null);
         $('#content-area').html(`
             <div class="content-view help-page" id="help-view">
-                <div class="content-header">
-                    <h1><i class="fas fa-life-ring me-2" aria-hidden="true"></i>Help</h1>
-                    <p class="text-muted mb-0">How to use the platform, by topic</p>
-                </div>
+                ${PageHeader.markup({ title: 'Help', summaryHtml: 'How the platform works, in short articles.' })}
                 <div class="help-layout">
                     <nav class="help-nav" aria-label="Help topics">
                         <label class="visually-hidden" for="help-search">Search help</label>

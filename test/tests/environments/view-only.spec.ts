@@ -62,7 +62,7 @@ test.describe('Environment page by access level', () => {
 
     await expect(page.locator('.env-viewonly-note')).toHaveCount(0);
     await expect(page.locator('#btn-env-action')).toHaveText(/Start All/);
-    await expect(page.locator('.env-breadcrumb a')).toHaveAttribute('href', '#/my-environments');
+    await expect(page.locator('nav[aria-label="Breadcrumb"] a')).toHaveAttribute('href', '#/my-environments');
     const order = await page.locator('#env-detail-view .env-section-title').allTextContents();
     expect(order).toEqual(['Groups & VMs', 'Cost & settings']);
   });

@@ -11,18 +11,9 @@
 
 #dashboard-view .content-header {
     margin-bottom: 0.55rem;
-    padding-left: 0.75rem;
 }
 
-#dashboard-view .content-header h1 {
-    font-size: 1.2rem;
-    margin-bottom: 0;
-}
 
-#dashboard-view .content-header p {
-    font-size: 0.75rem;
-    margin-bottom: 0;
-}
 
 #dashboard-view .dashboard-body {
     flex: 1;

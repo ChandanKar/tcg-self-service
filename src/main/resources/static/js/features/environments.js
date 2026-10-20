@@ -357,6 +357,16 @@ const Environments = (function() {
         `);
     }
 
+    /** The list's page header (U04-T03); the title is renamed with the list's redesign (U06). */
+    function listHeader() {
+        return PageHeader.markup({
+            title: 'My Environments',
+            summaryHtml: 'Manage and monitor your accessible environments',
+            helpPage: 'my-environments',
+            helpLabel: 'Environments',
+        });
+    }
+
     /**
      * Build environment list HTML — dashboard-style compact table with pagination
      */
@@ -364,12 +374,7 @@ const Environments = (function() {
         if (!environments || environments.length === 0) {
             const searchActive = !!envSearchTerm;
             return `
-                <div class="content-header d-flex justify-content-between align-items-start">
-                    <div>
-                        <h1>My Environments ${typeof HelpLink !== 'undefined' ? HelpLink.button('my-environments', 'Environments') : ''}</h1>
-                        <p>Manage and monitor your accessible environments</p>
-                    </div>
-                </div>
+                ${listHeader()}
                 <div class="empty-state">
                     <i class="fas fa-server fa-3x text-muted"></i>
                     <p class="mt-3 mb-1">${searchActive ? 'No environments match your search' : 'No environments assigned'}</p>
@@ -382,12 +387,7 @@ const Environments = (function() {
 
         return `
             <div id="environments-list-view">
-            <div class="content-header d-flex justify-content-between align-items-start flex-shrink-0">
-                <div>
-                    <h1>My Environments ${typeof HelpLink !== 'undefined' ? HelpLink.button('my-environments', 'Environments') : ''}</h1>
-                    <p>Manage and monitor your accessible environments</p>
-                </div>
-            </div>
+            ${listHeader()}
             <div class="metric-card env-list-card">
                 <div class="d-flex justify-content-between align-items-center mb-2 flex-shrink-0">
                     <h6 class="mb-0 text-muted text-uppercase" style="font-size:0.7rem;letter-spacing:0.05em;">My Environments</h6>
@@ -685,18 +685,12 @@ const Environments = (function() {
 
         return `
             <div id="env-detail-view">
-                <nav class="env-breadcrumb" aria-label="Breadcrumb">
-                    <a href="#/my-environments">My Environments</a>
-                    <span aria-hidden="true">/</span>
-                    <span aria-current="page">${Utils.escapeHtml(envName)}</span>
-                </nav>
-                <div class="env-detail-header">
-                    <div class="env-detail-title">
-                        <h1>${Utils.escapeHtml(envName)}</h1>
-                        ${env.description ? `<p>${Utils.escapeHtml(env.description)}</p>` : ''}
-                        ${summary}
-                    </div>
-                    <div class="env-detail-actions">
+                ${PageHeader.markup({
+                    title: envName,
+                    breadcrumb: [{ label: 'Environments', href: '#/my-environments' }, { label: envName }],
+                    summaryHtml: (env.description ? Utils.html`<p>${env.description}</p>` : '') + summary,
+                    actionsClass: 'env-detail-actions',
+                    actionsHtml: `
                         <button type="button" class="btn btn-sm btn-ghost" id="btn-env-insights"
                                 data-bs-toggle="tooltip" title="Utilization, cost and recommendations" aria-label="Environment insights">
                             <i class="fas fa-chart-line" aria-hidden="true"></i> Insights
@@ -714,9 +708,8 @@ const Environments = (function() {
                                        data-bs-toggle="tooltip" title="Email everyone with access to this environment">
                                 <i class="fas fa-envelope" aria-hidden="true"></i> Notify
                             </button>` : ''}
-                        ${primaryAction}
-                    </div>
-                </div>
+                        ${primaryAction}`
+                })}
 
                 ${viewOnly}
                 ${lockSection}

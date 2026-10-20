@@ -18,19 +18,9 @@
    ============================================ */
 #user-management-view .content-header {
     margin-bottom: 0.5rem;
-    padding-left: 0.75rem;
 }
 
-#user-management-view .content-header h1 {
-    font-size: 1.2rem;
-    margin-bottom: 0;
-}
 
-#user-management-view .content-header p {
-    font-size: 0.75rem;
-    margin-bottom: 0;
-    color: var(--text-secondary);
-}
 
 #user-management-view .header-actions {
     display: flex;

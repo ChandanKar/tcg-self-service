@@ -19,19 +19,9 @@
    ============================================ */
 #access-management-view .content-header {
     margin-bottom: 0;
-    padding-left: 0.75rem;
 }
 
-#access-management-view .content-header h1 {
-    font-size: 1.2rem;
-    margin-bottom: 0;
-}
 
-#access-management-view .content-header p {
-    font-size: 0.75rem;
-    margin-bottom: 0;
-    color: var(--text-secondary);
-}
 
 #access-management-view .header-actions {
     display: flex;

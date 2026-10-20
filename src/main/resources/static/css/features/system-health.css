@@ -18,15 +18,6 @@
     margin-bottom: 0.5rem;
     flex-shrink: 0;
 }
-#system-health-view .content-header h1 {
-    font-size: 1.2rem;
-    font-weight: 700;
-    margin-bottom: 0;
-}
-#system-health-view .content-header p {
-    font-size: 0.75rem;
-    margin-bottom: 0;
-}
 
 /* Compact metric cards — matches dashboard density */
 #system-health-view .metric-card {

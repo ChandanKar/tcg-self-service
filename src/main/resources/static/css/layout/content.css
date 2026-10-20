@@ -48,15 +48,6 @@ body.app-shell {
 /* Compact header for dashboard */
 #dashboard-view .content-header {
     margin-bottom: 0.4rem;
-    padding-left: 0.75rem;
-}
-#dashboard-view .content-header h1 {
-    font-size: 1.2rem;
-    margin-bottom: 0;
-}
-#dashboard-view .content-header p {
-    font-size: 0.75rem;
-    margin-bottom: 0;
 }
 
 /* Dashboard body: flex column, gaps between sections */
@@ -186,14 +177,6 @@ body.app-shell {
     margin-bottom: 0.35rem;
     padding-top: 0;
 }
-#environments-list-view .content-header h1 {
-    font-size: 1.2rem;
-    margin-bottom: 0.05rem;
-}
-#environments-list-view .content-header p {
-    font-size: 0.75rem;
-    margin-bottom: 0;
-}
 
 #environments-list-view .env-list-card {
     flex: 1;
@@ -272,22 +255,81 @@ body.app-shell {
     margin-top: auto;
 }
 
-/* ── All other views ── */
+/* ── Page header (U04-T03): breadcrumb, title, one summary line, actions on the right ──
+   The base rules give every page, migrated or not, the mockup's type: a 28/600 title without an
+   icon and a 15 px slate summary. js/ui/page-header.js builds the full pattern (.page-header). */
 .content-header {
-    margin-bottom: 0.75rem;
-    border-left: 4px solid var(--primary-color);
-    padding-left: 1rem;
+    margin-bottom: 20px;
     flex-shrink: 0;
 }
 .content-header h1 {
-    font-size: 1.2rem;
-    font-weight: 700;
+    font-size: var(--fs-page-title);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
     color: var(--ink);
-    margin-bottom: 0.15rem;
+    margin: 0;
+    text-wrap: balance;
+}
+/* Page titles are words; the icon belongs to the menu item. */
+.content-header h1 > i.fas,
+.content-header h1 > i.far,
+.content-header h1 > i.fab {
+    display: none;
 }
 .content-header p {
-    color: var(--text-secondary);
-    font-size: 0.75rem;
+    color: var(--slate);
+    font-size: var(--fs-lead);
+    margin: 6px 0 0;
+}
+
+.page-breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: var(--fs-caption);
+    color: var(--slate);
+}
+.page-breadcrumb a {
+    color: var(--slate);
+    text-decoration: none;
+}
+.page-breadcrumb a:hover {
+    color: var(--brand-navy);
+    text-decoration: underline;
+}
+.page-breadcrumb [aria-current="page"] {
+    color: var(--ink);
+}
+.page-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+.page-heading {
+    min-width: 0;
+}
+.page-summary {
+    margin-top: 6px;
+    font-size: var(--fs-lead);
+    color: var(--slate);
+}
+.page-summary p {
+    margin: 0;
+}
+.page-summary .mono,
+.page-summary strong {
+    color: var(--ink);
+    font-weight: 500;
+}
+.page-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .content-view {
@@ -312,54 +354,14 @@ body.app-shell {
     flex: 1 0 auto;
 }
 
-.env-breadcrumb {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-    font-size: 0.8125rem;
-    color: var(--text-secondary);
-    margin-bottom: 0.5rem;
-}
-.env-breadcrumb a {
-    color: var(--text-secondary);
-    text-decoration: none;
-}
-.env-breadcrumb a:hover {
-    color: var(--primary-color);
-    text-decoration: underline;
-}
-.env-breadcrumb [aria-current="page"] {
-    color: var(--text-primary);
-}
-
-.env-detail-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 1rem;
-    margin-bottom: 1rem;
-}
-.env-detail-title {
-    min-width: 0;
-}
-.env-detail-title h1 {
-    font-size: 1.375rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0 0 0.125rem;
-}
-.env-detail-title p {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    margin: 0 0 0.375rem;
-}
 .env-detail-summary {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.375rem;
-    font-size: 0.875rem;
-    color: var(--text-secondary);
+    margin-top: 4px;
+    font-size: var(--fs-body);
+    color: var(--slate);
 }
 .env-detail-summary strong {
     color: var(--text-primary);
@@ -422,9 +424,6 @@ body.app-shell {
 }
 
 @media (max-width: 768px) {
-    .env-detail-header {
-        flex-direction: column;
-    }
     .env-detail-actions {
         justify-content: flex-start;
     }

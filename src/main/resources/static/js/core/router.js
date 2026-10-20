@@ -292,6 +292,8 @@ const ContentRouter = (function() {
     function loadContent(contentType, params = {}) {
         runLeaveHandlers();
         _navToken++;
+        // The browser tab names the page; pages built with PageHeader set their own title (U04-T03).
+        document.title = 'Self-Service';
         // Pages this person cannot use say so, and their loader (and its requests) never runs (U02-T01).
         const problem = accessProblem(contentType);
         if (problem) {
