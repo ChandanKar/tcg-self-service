@@ -57,6 +57,32 @@ test.describe('Keyboard reach', () => {
     await expect(page.locator('#user-dropdown')).toBeHidden();
   });
 
+  test('the help menu opens from the keyboard; arrows move; Escape returns focus to "?" (U04-T04)', async ({ page }) => {
+    await page.evaluate(() => { location.hash = '#/my-environments'; });
+    await expect(page.locator('#content-area .content-header h1').first()).toHaveText('My Environments', { timeout: 15_000 });
+    await page.locator('body').focus();
+    expect(await tabUntil(page, el => el.id === 'topbar-help-btn')).toBe(true);
+    const help = page.locator('#topbar-help-btn');
+
+    await page.keyboard.press('Enter');
+    await expect(help).toHaveAttribute('aria-expanded', 'true');
+    const items = page.locator('#help-menu [role="menuitem"]');
+    await expect(items.nth(0)).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(items.nth(1)).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(items.nth(2)).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(items.nth(0)).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(items.nth(2)).toBeFocused();
+
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#help-menu')).toBeHidden();
+    await expect(help).toHaveAttribute('aria-expanded', 'false');
+    await expect(help).toBeFocused();
+  });
+
   test('an admin page marks its link active and current', async ({ page }) => {
     await page.evaluate(() => { location.hash = '#/user-management'; });
     await expect(page.locator('#admin-menu')).toBeVisible();

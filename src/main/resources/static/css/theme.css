@@ -14,7 +14,9 @@
     --bs-body-line-height: 1.5;
     --bs-font-monospace: var(--font-mono);
     --bs-body-color: var(--text-primary);
-    --bs-body-bg: var(--canvas);
+    /* Bootstrap paints dialogs, menus, inputs and table cells with the body colour: keep it white.
+       The page itself gets the canvas below. */
+    --bs-body-bg: #fff;
     --bs-primary: #14245c;
     --bs-primary-rgb: 20, 36, 92;
     --bs-success: #12915e;

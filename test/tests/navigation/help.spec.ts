@@ -74,13 +74,42 @@ test.describe('Help', () => {
     await expect(page.locator('.help-topic-link', { hasText: 'Idle auto-stop and snooze' })).toBeVisible();
   });
 
-  test('the top bar has a Help button (U04-T01)', async ({ page }) => {
+  test('the top bar "?" offers help for this page, all topics and the shortcuts (U04-T01, U04-T04)', async ({ page }) => {
     test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
-    await go(page, 'user', '#/dashboard');
+    await go(page, 'user', '#/my-environments');
+    await expect(page.locator('#content-area .content-header h1').first()).toHaveText('My Environments', { timeout: 15_000 });
     const help = page.locator('#topbar-help-btn');
-    await expect(help).toHaveAttribute('href', '#/help');
     await expect(help).toHaveAccessibleName('Help');
+    await expect(help).toHaveAttribute('aria-haspopup', 'menu');
+    await help.click();
+    await expect(help).toHaveAttribute('aria-expanded', 'true');
+    const menu = page.getByRole('menu', { name: 'Help' });
+    await expect(menu.getByRole('menuitem')).toHaveText(['Help for this page', 'All help topics', /Keyboard shortcuts/]);
+    await expect(menu.getByRole('menuitem', { name: 'Help for this page' })).toHaveAttribute('href', '#/help/environments');
+    await menu.getByRole('menuitem', { name: 'Help for this page' }).click();
+    await expect(page).toHaveURL(/#\/help\/environments$/);
+    await expect(page.locator('#help-topic-title')).toBeVisible();
+    await expect(menu).toBeHidden();
+
+    // The account menu no longer carries Help.
     await page.locator('.user-profile-trigger').click();
     await expect(page.locator('#help-menu-btn')).toHaveCount(0);
+  });
+
+  test('"?" without a page topic shows only All help topics and Keyboard shortcuts; shortcuts open the dialog', async ({ page }) => {
+    test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
+    await go(page, 'user', '#/dashboard');
+    await expect(page.locator('#content-area .content-header h1').first()).toHaveText('Dashboard', { timeout: 15_000 });
+    await page.evaluate(() => { HelpContent.PAGE_TOPICS.dashboard = undefined; });
+    await page.locator('#topbar-help-btn').click();
+    const menu = page.getByRole('menu', { name: 'Help' });
+    await expect(menu.getByRole('menuitem')).toHaveText(['All help topics', /Keyboard shortcuts/]);
+    await menu.getByRole('menuitem', { name: /Keyboard shortcuts/ }).click();
+    await expect(page.locator('#shortcutsHelpModal')).toBeVisible();
+    // Escape reaches the dialog once it has focus (after its fade-in).
+    await page.waitForFunction(() => document.getElementById('shortcutsHelpModal')?.contains(document.activeElement));
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#shortcutsHelpModal')).toBeHidden();
+    await expect(page.locator('#topbar-help-btn')).toBeFocused();
   });
 });

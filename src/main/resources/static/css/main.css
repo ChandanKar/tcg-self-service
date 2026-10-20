@@ -275,40 +275,49 @@ a:hover {
     overflow: hidden;
 }
 
-/* Keyboard shortcuts */
-kbd {
-    display: inline-block;
-    padding: 0.25rem 0.5rem;
-    font-size: 0.75rem;
-    font-family: monospace;
-    line-height: 1;
-    color: var(--ink);
-    background: var(--surface-muted);
-    border: 1px solid var(--line);
-    border-radius: 4px;
-    box-shadow: 0 1px 0 var(--line);
+/* Keyboard shortcuts dialog (Shortcuts.dc.html); <kbd> itself is styled in theme.css */
+.shortcuts-list .shortcut-group + .shortcut-group {
+    margin-top: 12px;
 }
 
-kbd .key {
-    display: inline-block;
-    min-width: 1.5em;
-    text-align: center;
+.shortcut-group h3 {
+    margin: 0 0 4px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--slate);
 }
 
-kbd + kbd {
-    margin-left: 0.25rem;
+.shortcut-group ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
 }
 
-.shortcuts-table {
-    margin-bottom: 0;
+.shortcut-group li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-top: 1px solid var(--line-soft);
+    font-size: var(--fs-body);
 }
 
-.shortcuts-table th {
-    background: var(--surface-subtle);
+.shortcut-keys {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--fs-small);
+    color: var(--slate);
 }
 
-.shortcuts-table td:first-child {
-    width: 120px;
+.shortcuts-note {
+    margin: 14px -24px -20px;
+    border-radius: 0 0 14px 14px;
+    padding: 10px 24px 14px;
+    font-size: 12.5px;
+    color: var(--slate);
+    background: #fafbfd;
+    border-top: 1px solid var(--line);
 }
 
 /* Responsive spacing */

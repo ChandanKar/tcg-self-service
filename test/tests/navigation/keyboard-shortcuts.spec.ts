@@ -91,7 +91,14 @@ test.describe('Keyboard shortcuts', () => {
     await page.keyboard.press('Shift+?');
     const modal = page.locator('#shortcutsHelpModal');
     await expect(modal).toBeVisible();
-    await expect(modal).toContainText('Go to My Environments');
+    // U04-T04: grouped as in Shortcuts.dc.html, with the side menu's names
+    await expect(modal.locator('.modal-title')).toHaveText('Keyboard shortcuts');
+    await expect(modal.locator('.shortcut-group h3')).toHaveText(['Go to', 'On any page']);
+    const go = modal.locator('.shortcut-group').first();
+    await expect(go.locator('li')).toHaveText([/Home\s*g\s*then\s*d/, /Environments\s*g\s*then\s*e/,
+      /Request access\s*g\s*then\s*r/, /My activity\s*g\s*then\s*a/]);
+    await expect(modal.locator('.shortcut-group').nth(1)).toContainText('Close a dialog or panel');
+    await expect(modal.locator('.shortcuts-note')).toContainText("Shortcuts don't fire while you type in a field");
     await expect(modal.locator('kbd').first()).toHaveText('g');
 
     await page.keyboard.press('g');

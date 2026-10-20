@@ -137,9 +137,7 @@ const Modals = (function() {
                         <div class="modal-body">
                             ${body}
                         </div>
-                        <div class="modal-footer">
-                            ${buttonsHtml}
-                        </div>
+                        ${buttonsHtml ? `<div class="modal-footer">${buttonsHtml}</div>` : ''}
                     </div>
                 </div>
             </div>

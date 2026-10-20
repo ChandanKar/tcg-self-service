@@ -289,6 +289,14 @@ const ContentRouter = (function() {
      * @param {string} contentType
      * @param {object} params
      */
+    // The page on screen (its route key), for the top bar's "Help for this page" (U04-T04).
+    let _currentContentType = null;
+
+    /** The route key of the page on screen, e.g. 'my-environments' or 'environment-detail'. */
+    function current() {
+        return _currentContentType;
+    }
+
     function loadContent(contentType, params = {}) {
         runLeaveHandlers();
         _navToken++;
@@ -340,6 +348,7 @@ const ContentRouter = (function() {
         }
 
         const contentType = route.contentType;
+        _currentContentType = contentType;
         // Route params (from the URL) win over in-memory ones.
         const params = Object.assign({}, pending, route.params);
 
@@ -472,6 +481,7 @@ const ContentRouter = (function() {
         query,
         access,
         showNoAccess,
+        current,
         // For the front-end tests: every routable page must have an access rule.
         _routeKeys: () => Object.keys(ROUTES).concat(PARAM_ROUTES.map(r => r.contentType)),
         _accessKeys: () => Object.keys(ROUTE_ACCESS)

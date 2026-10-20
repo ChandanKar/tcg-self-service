@@ -11,15 +11,19 @@
 const Keyboard = (function() {
     'use strict';
 
-    // Sequence (keys typed one after another, no separators) -> shortcut
+    // Sequence (keys typed one after another, no separators) -> shortcut. Labels use the side
+    // menu's names, grouped as in Shortcuts.dc.html (U04-T04).
     const shortcuts = {
-        'gd': { keys: ['g', 'd'], action: () => ContentRouter.navigate('dashboard'), description: 'Go to Dashboard' },
-        'ge': { keys: ['g', 'e'], action: () => ContentRouter.navigate('my-environments'), description: 'Go to My Environments' },
-        'gr': { keys: ['g', 'r'], action: () => ContentRouter.navigate('request-access'), description: 'Go to Request Access' },
-        'ga': { keys: ['g', 'a'], action: () => ContentRouter.navigate('activity-logs'), description: 'Go to Activity Logs' },
-        'r':  { keys: ['r'], action: () => ContentRouter.reload(), description: 'Refresh current view' },
-        '?':  { keys: ['?'], action: () => showShortcutsHelp(), description: 'Show shortcuts help' }
+        'gd': { keys: ['g', 'd'], action: () => ContentRouter.navigate('dashboard'), group: 'Go to', label: 'Home' },
+        'ge': { keys: ['g', 'e'], action: () => ContentRouter.navigate('my-environments'), group: 'Go to', label: 'Environments' },
+        'gr': { keys: ['g', 'r'], action: () => ContentRouter.navigate('request-access'), group: 'Go to', label: 'Request access' },
+        'ga': { keys: ['g', 'a'], action: () => ContentRouter.navigate('activity-logs'), group: 'Go to', label: 'My activity' },
+        'r':  { keys: ['r'], action: () => ContentRouter.reload(), group: 'On any page', label: 'Refresh what you see' },
+        '?':  { keys: ['?'], action: () => showShortcutsHelp(), group: 'On any page', label: 'Show this list' }
     };
+    // Escape is handled by the dialogs and panels themselves; it is listed so people know it.
+    const LISTED_ONLY = [{ keys: ['Esc'], group: 'On any page', label: 'Close a dialog or panel' }];
+    const GROUPS = ['Go to', 'On any page'];
 
     const SEQUENCE_TIMEOUT_MS = 1000;
 
@@ -96,41 +100,30 @@ const Keyboard = (function() {
         return !!(element && element.closest && element.closest('.modal, .slideout-panel'));
     }
 
-    /**
-     * Show shortcuts help modal
-     */
+    /** The "Keyboard shortcuts" dialog: the shortcuts by group, keys in <kbd>, and when they apply. */
     function showShortcutsHelp() {
-        const shortcutsList = Object.values(shortcuts)
-            .filter(config => config.keys[0] !== '?')
-            .map(config => `
-                <tr>
-                    <td>${config.keys.map(k => `<kbd>${Utils.escapeHtml(k)}</kbd>`).join(' then ')}</td>
-                    <td>${Utils.escapeHtml(config.description)}</td>
-                </tr>
-            `).join('');
+        // Focus goes back where it was when the dialog closes (opened from the help menu: its "?").
+        const active = document.activeElement;
+        const returnTo = active && active.closest && active.closest('#help-menu')
+            ? document.getElementById('topbar-help-btn') : active;
+        const all = Object.values(shortcuts).concat(LISTED_ONLY);
+        const keys = list => list.map(k => Utils.html`<kbd>${k}</kbd>`).join('<span class="shortcut-then">then</span>');
+        const groups = GROUPS.map(group => `
+            <section class="shortcut-group" aria-labelledby="shortcut-group-${group === 'Go to' ? 'go' : 'any'}">
+                <h3 id="shortcut-group-${group === 'Go to' ? 'go' : 'any'}">${Utils.escapeHtml(group)}</h3>
+                <ul>
+                    ${all.filter(s => s.group === group).map(s => `
+                        <li><span>${Utils.escapeHtml(s.label)}</span><span class="shortcut-keys">${keys(s.keys)}</span></li>`).join('')}
+                </ul>
+            </section>`).join('');
 
         Modals.show({
             id: 'shortcutsHelpModal',
-            title: 'Keyboard Shortcuts',
-            body: `
-                <table class="table table-sm shortcuts-table">
-                    <thead>
-                        <tr>
-                            <th>Shortcut</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${shortcutsList}
-                    </tbody>
-                </table>
-                <p class="text-muted mt-3">
-                    <small>Press <kbd>?</kbd> anytime to show this help. Press <kbd>Esc</kbd> to close dialogs and panels.</small>
-                </p>
-            `,
-            buttons: [
-                { text: 'Close', class: 'btn-secondary', dismiss: true }
-            ]
+            title: 'Keyboard shortcuts',
+            body: `<div class="shortcuts-list">${groups}</div>
+                <p class="shortcuts-note">Shortcuts don't fire while you type in a field or while a dialog is open. Ctrl and Alt combinations stay the browser's.</p>`,
+            buttons: [],   // closed with the x or Esc, as in Shortcuts.dc.html
+            onHide: () => { if (returnTo && document.body.contains(returnTo)) returnTo.focus(); }
         });
     }
 

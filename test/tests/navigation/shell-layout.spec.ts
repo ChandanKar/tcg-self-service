@@ -57,7 +57,7 @@ test.describe('App shell', () => {
   test('the top bar holds Help, notifications and the account with initials, name and role', async ({ page }) => {
     test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
     await open(page, 'admin');
-    await expect(page.locator('#topbar-help-btn')).toHaveAttribute('href', '#/help');
+    await expect(page.locator('#topbar-help-btn')).toHaveAttribute('aria-haspopup', 'menu');
     await expect(page.locator('#notification-bell-btn')).toBeVisible();
     await expect(page.locator('.top-navbar .user-role')).toHaveText('Administrator');
     await expect(page.locator('.top-navbar .user-avatar')).toHaveCSS('width', '34px');
