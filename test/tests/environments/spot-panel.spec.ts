@@ -28,6 +28,14 @@ function summary(overrides: any = {}) {
   };
 }
 
+/** U07-T02: Spot, Teams and webhooks live in the environment's Settings panel. */
+async function openSettings(page: Page) {
+  const settings = page.locator('#btn-env-settings');
+  await expect(settings).toBeVisible({ timeout: 15_000 });
+  await settings.click();
+  await expect(page.locator('.env-settings')).toBeVisible();
+}
+
 async function openEnv(page: Page, envId: string, body: any, status = 200) {
   const puts: any[] = [];
   await page.route(/\/api\/v1\/environments\/[^/]+\/spot-summary$/, route =>
@@ -40,6 +48,7 @@ async function openEnv(page: Page, envId: string, body: any, status = 200) {
   await signIn(page, 'admin');
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
   await page.evaluate(id => { location.hash = `#/environments/${id}`; }, envId);
+  await openSettings(page);
   return puts;
 }
 

@@ -616,9 +616,62 @@ const Environments = (function() {
     // Debounced so a fresh server request doesn't fire on every keystroke.
     const filterAndRenderEnvList = Utils.debounce(doSearchEnvList, 300);
 
+    /** "payments-dev · AWS EC2 · ap-south-1 · Payments team" under the name (EnvDetail.dc.html). */
+    function detailMetaHtml(env) {
+        let envMeta = {};
+        try { envMeta = JSON.parse(env.metadata || '{}') || {}; } catch (e) { /* no metadata */ }
+        const type = `${(envMeta.defaultCloudProvider || 'AWS').toUpperCase()} ${(env.serviceType || 'EC2').toUpperCase()}`;
+        const regions = env.regions || [];
+        const parts = [Utils.html`<span class="mono">${env.name}</span>`, Utils.escapeHtml(type)];
+        if (regions.length) {
+            parts.push(Utils.html`<span class="mono">${regions[0]}</span>` + (regions.length > 1
+                ? Utils.html` <span title="${regions.join(', ')}">+${regions.length - 1}</span>` : ''));
+        }
+        if (env.teamName) parts.push(Utils.escapeHtml(env.teamName));
+        return `<p class="env-meta">${parts.join(' · ')}</p>`;
+    }
+
     /**
-     * Build environment detail HTML. Order follows the task: what it is and whether it runs, the
-     * controls, the groups and VMs; cost and settings panels come after the VMs.
+     * Start and stop in the header: "Stop all" while anything runs, and "Start all" (nothing runs)
+     * or "Start the N stopped" (some run); nothing for people who cannot operate here.
+     */
+    function headerOperationButtons(env) {
+        if (env.viewerCanOperate !== true) return '';
+        if (hasTransitionalVms(env)) {
+            return `<button type="button" class="btn btn-secondary" id="btn-env-action" disabled title="An operation is already in progress">
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> In progress</button>`;
+        }
+        const running = env.runningVms || 0;
+        const stopped = countVmsWithStatus(env, 'STOPPED');
+        const stop = running > 0
+            ? '<button type="button" class="btn btn-danger" id="btn-env-action-stop" data-action-type="stop">Stop all</button>'
+            : '';
+        const startLabel = running === 0 ? 'Start all' : `Start the ${stopped} stopped`;
+        const start = running === 0 || stopped > 0
+            ? `<button type="button" class="btn btn-success" id="btn-env-action" data-action-type="start">
+                    <i class="fas fa-play" aria-hidden="true"></i> ${Utils.escapeHtml(startLabel)}</button>`
+            : '';
+        return stop + start;
+    }
+
+    /** The groups in start order, each with its lights, arrows between (EnvDetail.dc.html "Start order"). */
+    function buildStartOrder(env) {
+        const groups = PowerStrip.fromVmGroups(env.groups || []);
+        if (!groups.length) return '';
+        const arrow = `<svg class="env-stage-arrow" width="28" height="14" viewBox="0 0 28 14" fill="none" stroke="currentColor"
+                stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h20M19 3l4 4-4 4"/></svg>`;
+        const stages = groups.map((g, i) => (i ? arrow : '')
+            + Utils.html`<span class="env-stage"><b>${g.name || 'Group ' + (i + 1)}</b>`
+            + PowerStrip.render([g], { large: true, showCount: false }) + '</span>').join('');
+        return `<section class="panel env-start-order" aria-label="Start order">
+                <span class="env-start-order-label">Start order</span>${stages}</section>`;
+    }
+
+    /**
+     * The environment page (EnvDetail.dc.html): the header with the meta line and actions, then a
+     * main column (notes and banners, start order, groups and VMs) and the "About this environment"
+     * column (running count, cost, budget, idle auto-stop). Spot, Teams, webhooks and Notify open
+     * from Settings (EnvSettingsPanel).
      */
     function buildDetailHtml(env) {
         const totalVms = env.totalVms || 0;
@@ -636,38 +689,7 @@ const Environments = (function() {
                 Locks.buildLockBanner(env.lockStatus, env.environmentId) : '';
         } catch (e) { lockSection = ''; }
 
-        const groupCount = env.groups ? env.groups.length : 0;
         const unknownVms = countVmsWithStatus(env, 'UNKNOWN');
-        const summary = `
-            <div class="env-detail-summary">
-                <span class="env-run-dot ${runningVms === 0 ? 'off' : runningVms === totalVms ? 'on' : 'partial'}" aria-hidden="true"></span>
-                <strong>${runningVms} of ${totalVms}</strong> VMs running
-                <span class="env-summary-sep" aria-hidden="true">·</span> ${groupCount} ${groupCount === 1 ? 'group' : 'groups'}
-                ${unknownVms > 0 ? `<span class="env-summary-sep" aria-hidden="true">·</span>
-                    <span title="Not yet read from the cloud; it updates on the next sync">${unknownVms} with unknown status</span>` : ''}
-            </div>`;
-
-        const primaryAction = !canOperate ? '' :
-            hasTransitionalVms(env) ?
-                `<button class="btn btn-sm btn-secondary" id="btn-env-action" disabled
-                         data-bs-toggle="tooltip" title="Operation already in progress">
-                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> In Progress
-                </button>` :
-            runningVms === 0 ?
-                `<button class="btn btn-sm btn-success" id="btn-env-action" data-action-type="start">
-                    <i class="fas fa-play" aria-hidden="true"></i> Start All
-                </button>` :
-            runningVms === totalVms ?
-                `<button class="btn btn-sm btn-outline-danger" id="btn-env-action" data-action-type="stop">
-                    <i class="fas fa-stop" aria-hidden="true"></i> Stop All
-                </button>` :
-                `<button class="btn btn-sm btn-success" id="btn-env-action" data-action-type="start">
-                    <i class="fas fa-play" aria-hidden="true"></i> Start All
-                </button>
-                <button class="btn btn-sm btn-outline-danger" id="btn-env-action-stop" data-action-type="stop">
-                    <i class="fas fa-stop" aria-hidden="true"></i> Stop All
-                </button>`;
-
         const viewOnly = canOperate ? '' : `
             <div class="env-viewonly-note" role="note">
                 <i class="fas fa-eye" aria-hidden="true"></i>
@@ -681,56 +703,53 @@ const Environments = (function() {
             buildGroupCard(group, env, openAll || idx === 0, canOperate)
         ).join('');
 
+        const settings = typeof EnvSettingsPanel !== 'undefined' && EnvSettingsPanel.isAvailable(env)
+            ? '<button type="button" class="btn btn-ghost" id="btn-env-settings">Settings</button>' : '';
+
         return `
-            <div id="env-detail-view">
+            <div id="env-detail-view" class="page env-detail-page">
                 ${PageHeader.markup({
                     title: envName,
                     breadcrumb: [{ label: 'Environments', href: '#/my-environments' }, { label: envName }],
-                    summaryHtml: (env.description ? Utils.html`<p>${env.description}</p>` : '') + summary,
+                    summaryHtml: detailMetaHtml(env),
                     actionsClass: 'env-detail-actions',
                     actionsHtml: `
-                        <button type="button" class="btn btn-sm btn-ghost" id="btn-env-insights"
-                                data-bs-toggle="tooltip" title="Utilization, cost and recommendations" aria-label="Environment insights">
-                            <i class="fas fa-chart-line" aria-hidden="true"></i> Insights
-                        </button>
-                        <button class="btn btn-sm btn-ghost" id="btn-operation-history"
-                                data-bs-toggle="tooltip" title="Past starts and stops">
-                            <i class="fas fa-history" aria-hidden="true"></i> History
-                        </button>
+                        <button type="button" class="btn btn-ghost" id="btn-env-insights" aria-label="Environment insights"
+                                title="Use, cost and recommendations">Insights</button>
+                        <button type="button" class="btn btn-ghost" id="btn-operation-history" title="Past starts and stops">History</button>
                         ${isEnvAdmin
-                            ? `<button class="btn btn-sm btn-ghost" id="btn-env-manage-access"
-                                       data-bs-toggle="tooltip" title="Manage access for this environment">
-                                <i class="fas fa-user-shield" aria-hidden="true"></i> Access
-                            </button>
-                            <button class="btn btn-sm btn-ghost" id="btn-env-notify"
-                                       data-bs-toggle="tooltip" title="Email everyone with access to this environment">
-                                <i class="fas fa-envelope" aria-hidden="true"></i> Notify
-                            </button>` : ''}
-                        ${primaryAction}`
+                            ? '<button type="button" class="btn btn-ghost" id="btn-env-manage-access" title="Who has access to this environment">Access</button>'
+                            : ''}
+                        ${settings}
+                        ${headerOperationButtons(env)}`
                 })}
 
-                ${viewOnly}
-                ${lockSection}
-                <div id="env-approval-banner"></div>
-                <div id="env-lease-section"></div>
-
-                <section class="env-section" aria-labelledby="env-groups-title">
-                    <h2 class="env-section-title" id="env-groups-title">Groups &amp; VMs</h2>
-                    <div id="env-groups-container">
-                        ${groupsHtml || '<div class="alert alert-secondary py-2 small">No groups configured for this environment.</div>'}
+                <div class="env-body">
+                    <div id="env-main" class="env-main">
+                        ${viewOnly}
+                        ${lockSection}
+                        <div id="env-approval-banner"></div>
+                        <div id="env-lease-section"></div>
+                        ${buildStartOrder(env)}
+                        <section class="env-section" aria-labelledby="env-groups-title">
+                            <h2 class="visually-hidden" id="env-groups-title">Groups and VMs</h2>
+                            <div id="env-groups-container">
+                                ${groupsHtml || '<div class="alert alert-secondary py-2 small">No groups configured for this environment.</div>'}
+                            </div>
+                        </section>
                     </div>
-                </section>
-
-                <section class="env-section env-more" aria-labelledby="env-more-title">
-                    <h2 class="env-section-title" id="env-more-title">Cost &amp; settings</h2>
-                    <section id="env-cost-card" aria-label="Environment cost"></section>
-                    <div id="env-budget-panel"></div>
-                    <div id="env-anomaly-panel"></div>
-                    <div id="env-idle-panel"></div>
-                    <div id="env-spot-panel"></div>
-                    <div id="env-chat-panel"></div>
-                    <div id="env-webhook-panel"></div>
-                </section>
+                    <aside id="env-aside" class="env-aside" aria-label="About this environment">
+                        <div class="panel env-aside-run">
+                            ${env.description ? Utils.html`<p class="env-aside-description">${env.description}</p>` : ''}
+                            <div><b class="mono">${runningVms}</b> of <b class="mono">${totalVms}</b> VMs running</div>
+                            ${unknownVms > 0 ? `<div class="env-aside-note" title="Not yet read from the cloud; it updates on the next sync">${unknownVms} with unknown status</div>` : ''}
+                        </div>
+                        <section id="env-cost-card" aria-label="Environment cost"></section>
+                        <div id="env-budget-panel"></div>
+                        <div id="env-anomaly-panel"></div>
+                        <div id="env-idle-panel"></div>
+                    </aside>
+                </div>
             </div>`;
     }
 
@@ -934,19 +953,7 @@ const Environments = (function() {
             Approvals.renderEnvBanner(env);
         }
 
-        // Panels for switched-off features, or that the person cannot use, are not asked for at all (U02-T03).
-        // Teams channels (E24-T02) and webhooks (E34-T07): only for those who administer the environment.
-        if (typeof ChatChannels !== 'undefined' && hasFeature('chat') && env.viewerCanAdminister === true) {
-            ChatChannels.renderEnvPanel(env);
-        }
-        if (typeof WebhooksPanel !== 'undefined' && hasFeature('webhooks') && env.viewerCanAdminister === true) {
-            WebhooksPanel.renderEnvPanel(env);
-        }
-
-        // Spot (E31-T08)
-        if (typeof SpotPanel !== 'undefined' && hasFeature('spot')) {
-            SpotPanel.render(env);
-        }
+        // Spot, Teams channels and webhooks render only when Settings is opened (U07-T02).
 
         // Lease banner (E15-T06): renders nothing while leases are off.
         if (typeof Leases !== 'undefined') {
@@ -995,9 +1002,9 @@ const Environments = (function() {
             }
         });
 
-        $('#btn-env-notify').off('click').on('click', function(e) {
+        $('#btn-env-settings').off('click').on('click', function(e) {
             e.preventDefault();
-            notifyEnvironmentMembers(env.environmentId, env.displayName || env.name);
+            EnvSettingsPanel.open(env);
         });
 
         $('[data-action="group-action"]').off('click').on('click', function(e) {
@@ -1119,32 +1126,6 @@ const Environments = (function() {
             onConfirm: () => VmOperations.stopEnvironment(envId, envName)
                                 .then(() => reloadDetailIfCurrent(envId))
         });
-    }
-
-    /**
-     * "Notify" button — emails (and bell-notifies) everyone with active access to this
-     * environment. Independent of Stop All: usable any time, e.g. right before stopping it,
-     * or for any other heads-up. Not gated behind a notification.email.* flag — the admin's
-     * click here is itself the opt-in.
-     */
-    function notifyEnvironmentMembers(envId, envName) {
-        Modals.confirm(
-            'Notify Environment Members',
-            `Email everyone with access to <strong>${Utils.escapeHtml(envName)}</strong> that it's being stopped? This also adds an in-app notification for each of them.`,
-            function() {
-                ApiClient.post(Config.API.environments.notifyStop(envId), {})
-                    .done(function(result) {
-                        const n = result && result.emailedCount;
-                        Notifications.success(n
-                            ? `Emailed ${n} member${n === 1 ? '' : 's'}`
-                            : 'No active members with an email address to notify');
-                    })
-                    .fail(function(xhr) {
-                        Notifications.error(xhr.responseJSON?.message || 'Failed to send notification');
-                    });
-            },
-            { confirmText: 'Notify', confirmClass: 'btn-primary', html: true }
-        );
     }
 
     /**

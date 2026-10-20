@@ -2,10 +2,15 @@
  * Slide-out Panel Styles
  */
 
-/* Dialogs opened from a slide-out (My Account's API tokens, E34-T05) and the shared confirm dialog
-   stay above it: the panel sits above Bootstrap's modal layer. */
+/* Dialogs opened from a slide-out (My Account's API tokens, E34-T05; the environment's Settings
+   panel, U07-T02) and the shared confirm dialog stay above it: the panel sits above Bootstrap's
+   modal layer. */
 #apiTokenCreateModal,
 #apiTokenRevealModal,
+#chatChannelModal,
+#webhookModal,
+#webhookSecretModal,
+#webhookDeliveriesModal,
 #confirmModal {
     z-index: 1090;
 }

@@ -262,73 +262,7 @@ body.app-shell {
     display: none;
 }
 
-/* ── Environment detail ──
-   Reads top to bottom with the page scrolling: breadcrumb, title with a one-line run summary and
-   the actions, notes (view only, lock, approval, lease), groups and VMs, then cost and settings. */
-#env-detail-view {
-    flex: 1 0 auto;
-}
-
-.env-detail-summary {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.375rem;
-    margin-top: 4px;
-    font-size: var(--fs-body);
-    color: var(--slate);
-}
-.env-detail-summary strong {
-    color: var(--text-primary);
-    font-weight: 600;
-}
-.env-run-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--slate-light);
-}
-.env-run-dot.on { background: var(--success-color); }
-.env-run-dot.partial { background: var(--warning-color); }
-.env-summary-sep { color: var(--line-strong); }
-
-.env-detail-actions {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 0.375rem;
-    flex-shrink: 0;
-}
-
-.env-viewonly-note {
-    display: flex;
-    gap: 0.625rem;
-    align-items: center;
-    padding: 0.625rem 1rem;
-    margin-bottom: 1rem;
-    border: 1px solid var(--brand-navy-line);
-    background: var(--brand-navy-tint);
-    border-radius: 8px;
-    font-size: 0.875rem;
-    color: var(--brand-navy);
-}
-
-.env-section {
-    margin-bottom: 1.5rem;
-}
-.env-section-title {
-    font-size: 0.9375rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0 0 0.625rem;
-}
-.env-more > :empty {
-    display: none;
-}
-.env-more > * + * {
-    margin-top: 0.75rem;
-}
-
+/* ── Environment detail: the frame lives in features/environments.css (U07-T02) ── */
 #env-groups-container .group-card + .group-card {
     margin-top: 0.5rem;
 }
@@ -336,12 +270,6 @@ body.app-shell {
 #env-groups-container .btn-vm-op {
     padding: 0.125rem 0.5rem;
     font-size: 0.75rem;
-}
-
-@media (max-width: 768px) {
-    .env-detail-actions {
-        justify-content: flex-start;
-    }
 }
 
 /* Compact lock banner on detail page */

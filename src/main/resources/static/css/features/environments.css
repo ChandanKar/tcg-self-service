@@ -3,6 +3,143 @@
  * Styles for environment list and detail views
  */
 
+/* Environment page frame (U07-T02, EnvDetail.dc.html): header, start order, main + "About" column */
+.env-detail-page {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.env-meta {
+    margin: 4px 0 0;
+    font-size: var(--fs-body);
+    color: var(--slate);
+}
+
+.env-detail-actions {
+    justify-content: flex-end;
+}
+
+.env-detail-actions .btn {
+    height: 36px;
+}
+
+.env-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 16px;
+    align-items: start;
+}
+
+.env-main,
+.env-aside {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+}
+
+.env-main > :empty,
+.env-aside > :empty {
+    display: none;
+}
+
+.env-start-order {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 18px;
+}
+
+.env-start-order-label {
+    margin-right: 6px;
+    font-size: var(--fs-caption);
+    color: var(--slate);
+}
+
+.env-stage {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 9px;
+    background: var(--surface-subtle);
+}
+
+.env-stage b {
+    font-weight: 600;
+    font-size: var(--fs-body);
+}
+
+.env-stage-arrow {
+    color: var(--line-strong);
+    flex-shrink: 0;
+}
+
+.env-aside-run {
+    padding: 14px 18px;
+    font-size: var(--fs-body);
+    color: var(--slate);
+}
+
+.env-aside-run b {
+    color: var(--ink);
+    font-weight: 600;
+}
+
+.env-aside-description {
+    margin: 0 0 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line-soft);
+    color: var(--ink);
+}
+
+.env-aside-note {
+    margin-top: 2px;
+    font-size: var(--fs-caption);
+}
+
+.env-viewonly-note {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 16px;
+    border: 1px solid var(--brand-navy-line);
+    background: var(--brand-navy-tint);
+    border-radius: 8px;
+    font-size: var(--fs-body);
+    color: var(--brand-navy);
+}
+
+.env-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.env-settings > :empty {
+    display: none;
+}
+
+.env-settings-section h3 {
+    margin: 0 0 4px;
+    font-size: var(--fs-body);
+    font-weight: 600;
+}
+
+.env-settings-section p {
+    margin: 0 0 8px;
+    font-size: var(--fs-caption);
+    color: var(--slate);
+}
+
+@media (max-width: 1100px) {
+    .env-body {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
 /* Environments list (U06-T05, Environments15.dc.html): 15 rows of 38 px fit 1440x900 */
 .env-list-page {
     display: flex;

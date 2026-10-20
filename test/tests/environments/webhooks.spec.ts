@@ -39,8 +39,18 @@ async function open(page: Page, envId: string, enabled: boolean) {
   await signIn(page, 'admin');
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
   await page.evaluate(id => { location.hash = '#/environments/' + id; }, envId);
+  await openSettings(page);
   return calls;
 }
+
+/** U07-T02: Spot, Teams and webhooks live in the environment's Settings panel. */
+async function openSettings(page: Page) {
+  const settings = page.locator('#btn-env-settings');
+  await expect(settings).toBeVisible({ timeout: 15_000 });
+  await settings.click();
+  await expect(page.locator('.env-settings')).toBeVisible();
+}
+
 
 test.describe('Webhooks panel', () => {
   let envId = '';

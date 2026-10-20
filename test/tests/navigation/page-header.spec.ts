@@ -40,7 +40,9 @@ test.describe('Page header', () => {
     await expect(crumbs.locator('[aria-current="page"]')).toHaveText(`Header ${stamp}`);
     await expect(header.locator('h1')).toHaveCSS('font-size', '28px');
     await expect(header.locator('h1')).toHaveCSS('font-weight', '600');
-    await expect(header.locator('.page-summary')).toContainText('Checkout team staging');
+    // U07-T02: the summary is the meta line; the description moved to "About this environment".
+    await expect(header.locator('.page-summary')).toContainText(`header-${stamp} · AWS EC2`);
+    await expect(page.getByRole('complementary', { name: 'About this environment' })).toContainText('Checkout team staging');
 
     const title = await header.locator('h1').boundingBox();
     const actions = await header.locator('.page-actions').boundingBox();

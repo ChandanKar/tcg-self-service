@@ -11,11 +11,20 @@ import { seedEnvironment } from '../../fixtures/seed';
 
 declare const ContentRouter: any;
 
+/** U07-T02: Spot, Teams and webhooks live in the environment's Settings panel. */
+async function openSettings(page: Page) {
+  const settings = page.locator('#btn-env-settings');
+  await expect(settings).toBeVisible({ timeout: 15_000 });
+  await settings.click();
+  await expect(page.locator('.env-settings')).toBeVisible();
+}
+
 async function openEnv(page: Page, envId: string, role: 'admin' | 'user' = 'admin') {
   await withFeatures(page, { chat: true }); // U02-T03: switched on for this page
   await signIn(page, role);
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
   await page.evaluate(id => { location.hash = `#/environments/${id}`; }, envId);
+  if (role === 'admin') await openSettings(page);
 }
 
 const HOOK = 'https://prod-12.westeurope.logic.azure.com/workflows/abc/triggers/manual?sig=E2E-SECRET';
@@ -72,8 +81,8 @@ test.describe('Teams channels panel', () => {
     test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
     const envId = await seedEnvironment(playwright, 'Chat hidden', { grantUser: true });
     await openEnv(page, envId, 'user');
-    await expect(page.locator('#env-chat-panel')).toBeAttached({ timeout: 15_000 });
-    await page.waitForTimeout(1000);
+    await expect(page.locator('#env-detail-view .env-body')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('#btn-env-settings')).toHaveCount(0); // nothing for them in Settings
     await expect(page.locator('.chat-channels-card')).toHaveCount(0);
   });
 });
