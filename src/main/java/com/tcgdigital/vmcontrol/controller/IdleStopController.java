@@ -118,9 +118,11 @@ public class IdleStopController {
         var snooze = snoozeService.getActive(environmentId).orElse(null);
         String snoozedByName = snooze == null || snooze.getSnoozedByUserId() == null ? null
                 : userRepository.findById(snooze.getSnoozedByUserId()).map(u -> u.getDisplayName()).orElse(null);
-        var latest = eventRepository.findTop20ByEnvironmentIdOrderByEvaluatedAtDesc(environmentId).stream().findFirst()
+        var recent = eventRepository.findTop20ByEnvironmentIdOrderByEvaluatedAtDesc(environmentId).stream()
+                .limit(5)
                 .map(e -> new IdleStopStatusDTO.LatestEvent(e.getOutcome(), e.getReason(), e.getEvaluatedAt(), e.getIdleSince()))
-                .orElse(null);
+                .toList();
+        var latest = recent.isEmpty() ? null : recent.get(0);
         var summary = summaryService.summarize(environmentId, days);
         return ResponseEntity.ok(new IdleStopStatusDTO(featureEnabled, Boolean.TRUE.equals(environment.getIsProduction()),
                 securityService.canOperateInEnvironment(environmentId),
@@ -128,12 +130,13 @@ public class IdleStopController {
                 ruleService.listRules(environmentId),
                 snooze == null ? null : snooze.getSnoozedUntil(), snooze == null ? null : snooze.getSnoozedByUserId(),
                 snoozedByName, latest, Math.max(1, Math.min(days, 31)), summary.wouldStopEpisodes(), summary.wouldHaveSaved(),
-                summary.stoppedCount(), summary.savedEstimate(), summary.stoppedSavings()));
+                summary.stoppedCount(), summary.savedEstimate(), summary.stoppedSavings(),
+                recent, ruleService.getMinDryRunDays(), securityService.isAdmin()));
     }
 
     @PostMapping("/idle-stop/snooze")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Snooze idle auto-stop", description = "For 1, 4 or 8 hours; extends an active snooze.")
+    @Operation(summary = "Snooze idle auto-stop", description = "For a number of hours (the dialog offers 2, 4 and 8); extends an active snooze.")
     public ResponseEntity<Map<String, Object>> snooze(@PathVariable String environmentId,
                                                       @RequestBody Map<String, Object> body) {
         securityService.assertCanOperate(environmentId);

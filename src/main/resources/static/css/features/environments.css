@@ -939,11 +939,184 @@
     margin-top: 4px;
 }
 
-.idle-snooze-row {
+/* Idle auto-stop dialog (U08-T09, IdleStop.dc.html) */
+.idle-dialog {
     display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.idle-dialog .dialog-lead {
+    margin: 0;
+}
+
+.idle-going,
+.idle-rule {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+}
+
+.idle-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 12px;
+}
+
+.idle-head span,
+.idle-note,
+.idle-note-inline,
+.idle-empty {
+    font-size: var(--fs-caption);
+    color: var(--slate);
+}
+
+.idle-summary,
+.idle-note,
+.idle-empty {
+    margin: 0;
+}
+
+.idle-label {
+    font-size: var(--fs-small);
+    font-weight: 500;
+    color: var(--slate);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.idle-decision {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    padding: 6px 0;
+    border-top: 1px solid var(--line-soft);
+    font-size: var(--fs-caption);
+}
+
+.idle-decision .mono {
+    color: var(--slate);
+}
+
+.idle-tag {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 500;
+    white-space: nowrap;
+    background: var(--surface-muted);
+    color: var(--status-stopped-text);
+}
+
+.idle-tag[data-tone="would"] {
+    background: var(--brand-green-tint);
+    color: var(--brand-green-text);
+}
+
+.idle-tag[data-tone="skip"] {
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
+}
+
+.idle-pause {
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
-    margin: 12px 0 8px;
+    font-size: var(--fs-body);
+}
+
+.idle-rule-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.idle-rule-head h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.idle-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: var(--fs-caption);
+    color: var(--ink);
+    min-width: 0;
+}
+
+.idle-fields {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.idle-mode {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.idle-mode legend {
+    margin: 0 0 2px;
+    font-size: var(--fs-caption);
+    font-weight: 500;
+}
+
+.idle-mode-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: var(--fs-body);
+}
+
+.idle-mode-option input {
+    margin-top: 4px;
+}
+
+.idle-mode-option > span {
+    display: flex;
+    flex-direction: column;
+}
+
+.idle-mode-option > span > span {
+    font-size: var(--fs-caption);
+    color: var(--slate);
+}
+
+.idle-mode-option:has(input:disabled) b {
+    color: var(--slate);
+}
+
+.idle-rule-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+@media (max-width: 575.98px) {
+    .idle-fields {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .idle-decision {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .idle-decision .mono {
+        grid-column: 1 / -1;
+    }
 }
 
 /* VM details side panel (U08-T05, VmDetails.dc.html) */

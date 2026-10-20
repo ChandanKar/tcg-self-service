@@ -25,7 +25,13 @@ public record IdleStopStatusDTO( // canOperate: may snooze; canAdminister: may c
         BigDecimal wouldHaveSaved,
         int stoppedCount,
         BigDecimal savedEstimate,
-        List<SavingEntry> stoppedSavings
+        List<SavingEntry> stoppedSavings,
+        /** The 5 newest decisions, newest first (U08-T09: "How it is going"). */
+        List<LatestEvent> recentEvents,
+        /** Days of dry run before a rule may stop VMs (automation.idle-stop.min-dry-run-days). */
+        long minDryRunDays,
+        /** The caller may switch a rule to stopping before the dry run is over (administrators). */
+        boolean canEnforceEarly
 ) {
     public record LatestEvent(IdleStopOutcome outcome, String reason, Timestamp evaluatedAt, Timestamp idleSince) {}
 

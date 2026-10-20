@@ -201,6 +201,32 @@ class IdleStopControllerTest extends SecuredWebTestBase {
                 Integer.class, envA.getEnvironmentId())).isEqualTo(1));
     }
 
+    /** U08-T09: the dialog pauses for 2 hours and lists the 5 newest decisions, newest first. */
+    @Test
+    void aTwoHourPauseAndTheFiveNewestDecisions() throws Exception {
+        mockMvc.perform(post(snoozeUrl(envA)).with(asUser()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"hours\":2}"))
+                .andExpect(status().isOk());
+        String ruleId = create(envA, "{}");
+        java.time.Instant now = java.time.Instant.now();
+        for (int i = 0; i < 7; i++) {
+            jdbcTemplate.update("INSERT INTO idle_stop_event (event_id, rule_id, environment_id, evaluated_at, outcome, reason) VALUES (?, ?, ?, ?, ?, ?)",
+                    java.util.UUID.randomUUID().toString(), ruleId, envA.getEnvironmentId(),
+                    java.sql.Timestamp.from(now.minusSeconds(600L * i)), i == 0 ? "SNOOZED" : "WOULD_STOP", "decision " + i);
+        }
+        mockMvc.perform(get("/api/v1/environments/" + envA.getEnvironmentId() + "/idle-stop/status").with(asUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.recentEvents.length()").value(5))
+                .andExpect(jsonPath("$.recentEvents[0].reason").value("decision 0"))
+                .andExpect(jsonPath("$.recentEvents[0].outcome").value("SNOOZED"))
+                .andExpect(jsonPath("$.recentEvents[4].reason").value("decision 4"))
+                .andExpect(jsonPath("$.latestEvent.reason").value("decision 0"))
+                .andExpect(jsonPath("$.minDryRunDays").value(14))
+                .andExpect(jsonPath("$.canEnforceEarly").value(false));
+        mockMvc.perform(get("/api/v1/environments/" + envA.getEnvironmentId() + "/idle-stop/status").with(asAdmin()))
+                .andExpect(jsonPath("$.canEnforceEarly").value(true));
+    }
+
     @Test
     void onlyOneFourOrEightHoursAndNotForViewers() throws Exception {
         expectError(mockMvc.perform(post(snoozeUrl(envA)).with(asUser()).contentType(MediaType.APPLICATION_JSON)

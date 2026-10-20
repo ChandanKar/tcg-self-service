@@ -23,14 +23,14 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Snoozes pause idle auto-stop for an environment for 1, 4 or 8 hours (E16-T04, G5). Anyone who
+ * Snoozes pause idle auto-stop for an environment for 1, 2, 4 or 8 hours (E16-T04, G5; 2 since U08-T09). Anyone who
  * can operate the environment can snooze; a new snooze extends an active one; the snoozer or an
  * environment admin can end it. Audited.
  */
 @Service
 public class IdleStopSnoozeService {
 
-    static final Set<Integer> ALLOWED_HOURS = Set.of(1, 4, 8);
+    static final Set<Integer> ALLOWED_HOURS = Set.of(1, 2, 4, 8);
 
     private final IdleStopSnoozeRepository snoozeRepository;
     private final EnvironmentRepository environmentRepository;
@@ -52,7 +52,7 @@ public class IdleStopSnoozeService {
     @Transactional
     public IdleStopSnooze snooze(String environmentId, Integer hours, String reason, String userId) {
         if (hours == null || !ALLOWED_HOURS.contains(hours)) {
-            throw new ValidationException("Snooze for 1, 4 or 8 hours");
+            throw new ValidationException("Snooze for 1, 2, 4 or 8 hours");
         }
         Environment environment = environmentRepository.findById(environmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Environment", environmentId));

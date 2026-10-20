@@ -7,6 +7,8 @@ import { signIn, canSignIn, devIds } from '../../fixtures/auth';
  * the fact is mounted with IdleStop.renderPanel, so no environment, rule or cloud call is needed:
  * dry-run savings, snooze and end snooze, a viewer sees no action, the flag off renders nothing,
  * and the settings modal saves once per click.
+ * U08-T09: "Pause or review" opens one dialog: the recent decisions newest first, pause for 2, 4 or
+ * 8 hours ("Paused until HH:MM" and Resume now), and the rule form with a named switch.
  */
 
 declare const IdleStop: any;
@@ -23,6 +25,13 @@ class FakeIdleStop {
     latestEvent: { outcome: 'WOULD_STOP', reason: 'Dry run: would stop 2 VM(s)', evaluatedAt: new Date().toISOString(),
       idleSince: new Date(Date.now() - 2 * 3600000).toISOString() },
     days: 14, wouldStopEpisodes: 3, wouldHaveSaved: 9, stoppedCount: 0, savedEstimate: 0, stoppedSavings: [],
+    recentEvents: [
+      { outcome: 'WOULD_STOP', reason: 'All 7 VMs idle for 60 min', evaluatedAt: new Date(Date.now() - 3600000).toISOString() },
+      { outcome: 'WOULD_STOP', reason: 'All 7 VMs idle for 60 min', evaluatedAt: new Date(Date.now() - 5 * 3600000).toISOString() },
+      { outcome: 'SKIPPED', reason: 'Locked by Priya Nair', evaluatedAt: new Date(Date.now() - 26 * 3600000).toISOString() },
+      { outcome: 'SNOOZED', reason: 'Paused by Karthik S until 23:00', evaluatedAt: new Date(Date.now() - 50 * 3600000).toISOString() },
+      { outcome: 'SKIPPED', reason: 'An operation is running', evaluatedAt: new Date(Date.now() - 74 * 3600000).toISOString() }],
+    minDryRunDays: 14, canEnforceEarly: false,
   };
   snoozes: number[] = [];
   puts = 0;
@@ -86,23 +95,27 @@ test.describe('Idle auto-stop panel', () => {
     await expect(page.locator('#idle-would-have-saved')).toContainText('last 14 days');
   });
 
-  test('snooze 4 h shows the snooze and End snooze, which ends it', async ({ page }) => {
+  test('the dialog: decisions newest first, pause for 2 hours, Paused until and Resume now', async ({ page }) => {
     const fake = new FakeIdleStop();
     await mount(page, fake);
 
-    const review = page.getByRole('button', { name: 'Pause or review' });
-    await review.click();
-    await page.locator('#idleStopReviewModal [data-action="idle-snooze"][data-hours="4"]').click();
+    await page.getByRole('button', { name: 'Pause or review' }).click();
+    const dialog = page.locator('#idleStopDialog');
+    await expect(dialog.locator('.idle-head')).toContainText(/Dry run · day \d+ of 14/);
+    const decisions = dialog.locator('.idle-decision');
+    await expect(decisions).toHaveCount(5);
+    await expect(decisions.locator('.idle-tag')).toHaveText(['Would stop', 'Would stop', 'Skipped: locked', 'Skipped: paused', 'Skipped']);
+    await expect(decisions.nth(2)).toContainText('Locked by Priya Nair');
+    await expect(dialog.getByRole('button', { name: /hours$/ })).toHaveText(['2 hours', '4 hours', '8 hours']);
 
-    await expect(page.locator('#idleStopReviewModal')).toBeHidden();
-    await expect(page.locator('#idle-snoozed')).toContainText(/Snoozed until \d\d:\d\d by Test User 1/);
-    expect(fake.snoozes).toEqual([4]);
-    await review.click();
-    await expect(page.locator('#idleStopReviewModal [data-action="idle-snooze"]')).toHaveCount(0);
-    await page.locator('#idleStopReviewModal [data-action="idle-end-snooze"]').click();
-    await expect(page.locator('#idleStopReviewModal')).toBeHidden();
-    await review.click();
-    await expect(page.locator('#idleStopReviewModal [data-action="idle-snooze"]')).toHaveCount(3);
+    await dialog.getByRole('button', { name: '2 hours' }).click();
+    await expect.poll(() => fake.snoozes).toEqual([2]);
+    await expect(dialog.locator('#idle-dialog-paused')).toHaveText(/^Paused until \d\d:\d\d/);
+    await expect(page.locator('#idle-snoozed')).toContainText(/Paused until \d\d:\d\d by Test User 1/);
+    await expect(dialog.locator('[data-action="idle-snooze"]')).toHaveCount(0);
+    await dialog.getByRole('button', { name: 'Resume now' }).click();
+    await expect(dialog.locator('[data-action="idle-snooze"]')).toHaveCount(3);
+    await expect(dialog.getByRole('switch')).toHaveCount(0);    // an operator: no rule form
   });
 
   test('a viewer sees the panel without snooze or settings buttons', async ({ page }) => {
@@ -123,20 +136,22 @@ test.describe('Idle auto-stop panel', () => {
     await expect(page.locator('#idle-stop-card')).toHaveCount(0);
   });
 
-  test('settings: enforce is unavailable during the dry run, and Save sends one request', async ({ page }) => {
+  test('settings: the rule form in the dialog; stopping is unavailable during the dry run; Save sends one request', async ({ page }) => {
     test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
     const fake = new FakeIdleStop();
     fake.status.canAdminister = true;
     await mount(page, fake, 'user'); // a non-admin env admin view: the 14-day gate applies
 
     await page.getByRole('button', { name: 'Pause or review' }).click();
-    await page.locator('#idleStopReviewModal [data-action="idle-rule-settings"]').click();
-    await expect(page.locator('#idleStopRuleModal')).toBeVisible();
-    await expect(page.locator('#idleMode option[value="ENFORCE"]')).toBeDisabled();
-    await page.locator('#idleMinutes').fill('90');
+    const dialog = page.locator('#idleStopDialog');
+    await expect(dialog.getByRole('switch', { name: 'Idle auto-stop on' })).toBeChecked();
+    await expect(dialog.getByLabel('Applies to')).toBeDisabled();
+    await expect(dialog.getByRole('radio', { name: /Stop idle VMs/ })).toBeDisabled();
+    await expect(dialog.locator('#idle-enforce-note')).toHaveText(/^Available after 14 days of dry run, on \d+ \w{3}$/);
+    await dialog.getByLabel('Idle for (min)').fill('90');
     await page.locator('#idleSaveRule').dblclick();
 
-    await expect(page.locator('#idleStopRuleModal')).toBeHidden();
+    await expect(dialog).toBeHidden();
     expect(fake.puts).toBe(1);
     expect(fake.status.rules[0].idleMinutes).toBe(90);
   });

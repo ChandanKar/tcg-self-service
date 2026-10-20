@@ -39,6 +39,11 @@ public class IdleStopRuleService {
     @Value("${automation.idle-stop.min-dry-run-days:14}")
     private long minDryRunDays = 14;
 
+    /** Days of dry run a rule needs before it may stop VMs (U08-T09 shows when that is). */
+    public long getMinDryRunDays() {
+        return minDryRunDays;
+    }
+
     public IdleStopRuleService(IdleStopRuleRepository ruleRepository, EnvironmentRepository environmentRepository,
                                VmGroupRepository groupRepository, AuditService auditService) {
         this.ruleRepository = ruleRepository;
