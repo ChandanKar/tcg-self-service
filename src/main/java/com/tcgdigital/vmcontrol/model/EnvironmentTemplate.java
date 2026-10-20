@@ -62,6 +62,10 @@ public class EnvironmentTemplate {
     @Column(name = "estimated_monthly_cost", precision = 12, scale = 2)
     private BigDecimal estimatedMonthlyCost;
 
+    /** VMs per group in start order, "1|2|1" (U09-T09); null when not described. */
+    @Column(name = "vm_layout", length = 64)
+    private String vmLayout;
+
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
@@ -113,6 +117,8 @@ public class EnvironmentTemplate {
     public void setAllowedRoles(String allowedRoles) { this.allowedRoles = allowedRoles; }
     public BigDecimal getEstimatedMonthlyCost() { return estimatedMonthlyCost; }
     public void setEstimatedMonthlyCost(BigDecimal estimatedMonthlyCost) { this.estimatedMonthlyCost = estimatedMonthlyCost; }
+    public String getVmLayout() { return vmLayout; }
+    public void setVmLayout(String vmLayout) { this.vmLayout = vmLayout; }
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
     public String getCreatedBy() { return createdBy; }

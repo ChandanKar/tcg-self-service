@@ -175,6 +175,7 @@ public class TemplateService {
         if (dto.estimatedMonthlyCost() != null && dto.estimatedMonthlyCost().signum() < 0) {
             throw new ValidationException("estimatedMonthlyCost cannot be negative");
         }
+        String layout = vmLayout(dto.vmLayout());
         t.setName(dto.name().trim());
         t.setDescription(dto.description());
         t.setEngine(engine);
@@ -188,6 +189,30 @@ public class TemplateService {
         t.setApproverRole(approver);
         t.setAllowedRoles(String.join(",", roles));
         t.setEstimatedMonthlyCost(dto.estimatedMonthlyCost());
+        t.setVmLayout(layout);
+    }
+
+    /** "1|2|1": at least one VM in every group, at most 200 in all (U09-T09); blank means none. */
+    static String vmLayout(String value) {
+        String layout = blankToNull(value);
+        if (layout == null) {
+            return null;
+        }
+        if (!layout.matches("\\d{1,3}(\\|\\d{1,3})*")) {
+            throw new ValidationException("vmLayout is VMs per group in start order, such as 1|2|1");
+        }
+        int total = 0;
+        for (String part : layout.split("\\|")) {
+            int n = Integer.parseInt(part);
+            if (n < 1) {
+                throw new ValidationException("vmLayout needs at least one VM in every group");
+            }
+            total += n;
+        }
+        if (total > 200) {
+            throw new ValidationException("vmLayout can describe at most 200 VMs");
+        }
+        return layout;
     }
 
     static void validateEngineRef(ProvisioningEngineType engine, JsonNode ref) {
@@ -278,7 +303,7 @@ public class TemplateService {
         return new EnvironmentTemplateDTO(t.getTemplateId(), t.getName(), t.getDescription(), t.getEngine().name(),
                 admin ? json(t.getEngineRef()) : null, json(t.getParameterSchema()), t.getAwsAccountRef(), t.getRegion(),
                 t.getDefaultTtlHours(), t.getMaxTtlHours(), t.isRequiresApproval(), t.getApproverRole(), allowed(t),
-                t.getEstimatedMonthlyCost(), t.isActive(), t.getCreatedAt(), t.getUpdatedAt());
+                t.getEstimatedMonthlyCost(), t.isActive(), t.getCreatedAt(), t.getUpdatedAt(), t.getVmLayout());
     }
 
     private JsonNode json(String text) {

@@ -3,6 +3,9 @@
  * request form generated from each template's parameter schema, and "My requests" with status,
  * lifetime and actions (cancel while waiting; extend and destroy once ready). The page and its
  * sidebar item exist only while provisioning is on (the API answers 404 otherwise).
+ * U09-T09 (NewEnvironment.dc.html): each template is a card with its name and description, a
+ * power strip of the VMs it creates, VMs / Per day / Lifetime and "Request this"; the second
+ * tab says how many requests there are ("My requests · 1").
  */
 const Templates = (function() {
     'use strict';
@@ -26,6 +29,38 @@ const Templates = (function() {
     let tab = 'catalogue';
     let templates = [];
     let requests = [];
+    let requestCount = null;
+
+    // ---- pure model (node tests: src/test/js/templates.test.mjs) ----
+
+    /** "1|2|1" -> [1, 2, 1]; [] when not described or not readable. */
+    function layoutGroups(layout) {
+        if (!layout || !/^\d+(\|\d+)*$/.test(String(layout))) return [];
+        return String(layout).split('|').map(Number).filter(n => n > 0);
+    }
+
+    /** The monthly estimate as a day's cost, or null without one. */
+    function perDay(monthly) {
+        return monthly == null || monthly === '' ? null : Number(monthly) / 30;
+    }
+
+    /** "Up to 30 days"; hours below two days ("Up to 36 hours"). */
+    function lifetimeText(maxTtlHours) {
+        const h = Number(maxTtlHours);
+        if (!h) return '';
+        if (h < 48) return `Up to ${h} hour${h === 1 ? '' : 's'}`;
+        return `Up to ${Math.floor(h / 24)} days`;
+    }
+
+    function tabLabel(id, label, count) {
+        return id === 'mine' && count ? `${label} · ${count}` : label;
+    }
+
+    function totalOf(data) {
+        if (data && data.page && data.page.totalElements != null) return data.page.totalElements;
+        if (data && data.totalElements != null) return data.totalElements;
+        return ((data && data.content) || []).length;
+    }
 
     function call(method, url, data) {
         return new Promise((resolve, reject) => {
@@ -49,13 +84,24 @@ const Templates = (function() {
         $('#content-area').html(`
             <div class="content-view templates-page" id="templates-view">
                 <div class="content-header">
-                    <h1><i class="fas fa-layer-group me-2" aria-hidden="true"></i>New environment</h1>
-                    <p class="text-muted mb-0">Request an environment built from an approved template; it is removed when its lifetime ends</p>
+                    <h1>New environment</h1>
+                    <p class="text-muted mb-0">Request an environment built from an approved template. It is removed when its lifetime ends unless you extend it.</p>
                 </div>
                 <ul class="nav nav-tabs mb-3" role="tablist" id="templates-tabs"></ul>
                 <div id="templates-body"><div class="text-muted small"><i class="fas fa-spinner fa-spin"></i> Loading…</div></div>
             </div>`);
         refresh();
+        countRequests();
+    }
+
+    /** The second tab says how many requests there are; loaded once when the page opens. */
+    function countRequests() {
+        const token = pageToken;
+        call('GET', Config.API.provisioning.mine()).then(d => {
+            if (!ContentRouter.isCurrent(token)) return;
+            requestCount = totalOf(d);
+            drawTabs();
+        }).catch(() => {});
     }
 
     function tabs() {
@@ -67,7 +113,7 @@ const Templates = (function() {
     function drawTabs() {
         $('#templates-tabs').html(tabs().map(([id, label]) => `<li class="nav-item" role="presentation">
             <button type="button" class="nav-link ${tab === id ? 'active' : ''}" role="tab" aria-selected="${tab === id}"
-                    data-action="templates-tab" data-tab="${id}">${Utils.escapeHtml(label)}</button></li>`).join(''));
+                    data-action="templates-tab" data-tab="${id}">${Utils.escapeHtml(tabLabel(id, label, requestCount))}</button></li>`).join(''));
     }
 
     function refresh() {
@@ -83,6 +129,8 @@ const Templates = (function() {
             if (!ContentRouter.isCurrent(token)) return;
             if (tab === 'mine') {
                 requests = (data && data.content) || [];
+                requestCount = totalOf(data);
+                drawTabs();
                 drawRequests();
                 followBusy();
             } else {
@@ -107,24 +155,41 @@ const Templates = (function() {
         return v == null ? '' : Utils.escapeHtml(Utils.formatCurrency(Number(v)));
     }
 
+    /** A strip of stopped lights, one group per tier, for the VMs a template creates. */
+    function stripHtml(groups) {
+        if (!groups.length) return '';
+        const total = groups.reduce((a, b) => a + b, 0);
+        const name = `${total} VM${total === 1 ? '' : 's'} in ${groups.length} group${groups.length === 1 ? '' : 's'}, started in order`;
+        return Utils.html`<span class="power-strip template-strip" role="img" aria-label="${name}" title="${name}"><span class="power-strip-lights" aria-hidden="true">${
+            Utils.raw(groups.map(n => `<span class="power-strip-group">${'<span class="pip"></span>'.repeat(n)}</span>`).join(''))}</span></span>`;
+    }
+
     function drawCatalogue() {
         if (!templates.length) {
             $('#templates-body').html('<p class="text-muted">No templates are available to you yet.</p>');
             return;
         }
-        $('#templates-body').html(`<div class="row g-3 templates-grid">${templates.map(t => Utils.html`
-            <div class="col-12 col-md-6 col-xl-4"><section class="card h-100 template-card" data-template="${t.templateId}">
-                <div class="card-body d-flex flex-column">
-                    <h2 class="h6 mb-1">${t.name}</h2>
-                    <div class="small text-muted mb-2">${t.region || 'Default region'} · ${t.engine === 'TERRAFORM' ? 'Terraform' : 'AWS Service Catalog'}</div>
-                    <p class="small flex-grow-1 mb-2">${t.description || ''}</p>
-                    <div class="small mb-2">
-                        ${Utils.raw(t.estimatedMonthlyCost != null ? `<span class="me-2">~${money(t.estimatedMonthlyCost)}/month</span>` : '')}
-                        <span class="me-2">${t.defaultTtlHours} h by default, up to ${t.maxTtlHours} h</span>
-                        ${Utils.raw(t.requiresApproval ? '<span class="badge text-bg-warning">Needs approval</span>' : '<span class="badge text-bg-success">No approval needed</span>')}
-                    </div>
-                    <button type="button" class="btn btn-sm btn-primary align-self-start" data-action="templates-request" data-id="${t.templateId}">Request</button>
-                </div></section></div>`).join('')}</div>`);
+        $('#templates-body').html(`<div class="templates-grid">${templates.map(t => {
+            const groups = layoutGroups(t.vmLayout);
+            const day = perDay(t.estimatedMonthlyCost);
+            const facts = [
+                groups.length ? ['VMs', String(groups.reduce((a, b) => a + b, 0)), true] : null,
+                day != null ? ['Per day', Utils.formatCurrency(day), true] : null,
+                ['Lifetime', lifetimeText(t.maxTtlHours), false]
+            ].filter(Boolean);
+            return Utils.html`<article class="template-card" data-template="${t.templateId}">
+                <div>
+                    <h2>${t.name}</h2>
+                    ${Utils.raw(t.description ? Utils.html`<p class="template-desc">${t.description}</p>` : '')}
+                </div>
+                ${Utils.raw(stripHtml(groups))}
+                <dl class="template-facts">${Utils.raw(facts.map(([k, v, mono]) => Utils.html`<div><dt>${k}</dt><dd class="${mono ? 'mono' : ''}">${v}</dd></div>`).join(''))}</dl>
+                <div class="template-foot">
+                    <button type="button" class="btn btn-outline-primary btn-sm" data-action="templates-request" data-id="${t.templateId}">Request this</button>
+                    ${Utils.raw(t.requiresApproval ? '<span class="template-note">Needs approval</span>' : '')}
+                </div>
+            </article>`;
+        }).join('')}</div>`);
     }
 
     function field(p) {
@@ -337,12 +402,13 @@ const Templates = (function() {
         });
     }
 
-    return { load, probeNav, setTab, openRequest, cancel, extend, destroy, refresh };
+    return { load, probeNav, setTab, openRequest, cancel, extend, destroy, refresh,
+        model: { layoutGroups, perDay, lifetimeText, tabLabel } };
 })();
 
-window.Templates = Templates;
+if (typeof window !== 'undefined') window.Templates = Templates;
 
-Actions.registerAll({
+if (typeof Actions !== 'undefined') Actions.registerAll({
     'templates-tab': el => Templates.setTab(el.dataset.tab),
     'templates-request': el => Templates.openRequest(el.dataset.id),
     'templates-cancel': el => Templates.cancel(el),

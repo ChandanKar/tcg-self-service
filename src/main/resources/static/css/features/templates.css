@@ -1,0 +1,79 @@
+/*
+ * New environment (U09-T09, NewEnvironment.dc.html): template cards with the name and
+ * description, a power strip of the VMs a template creates, VMs / Per day / Lifetime, and
+ * "Request this".
+ */
+
+.templates-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+}
+
+.template-card {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 20px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+}
+
+.template-card h2 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.template-desc {
+    margin: 4px 0 0;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--slate);
+}
+
+.template-strip {
+    align-self: flex-start;
+}
+
+.template-facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0;
+    font-size: 13px;
+}
+
+.template-facts dt {
+    font-weight: 400;
+    color: var(--slate);
+}
+
+.template-facts dd {
+    margin: 2px 0 0;
+    color: var(--ink);
+}
+
+.template-facts dd.mono {
+    font-family: var(--font-mono);
+}
+
+.template-foot {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: auto;
+}
+
+.template-note {
+    font-size: 12.5px;
+    color: var(--brand-gold-text);
+}
+
+@media (max-width: 480px) {
+    .templates-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

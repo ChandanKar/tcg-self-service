@@ -94,6 +94,32 @@ class TemplateControllerTest extends SecuredWebTestBase {
         mockMvc.perform(delete(URL + "/" + id).with(asViewer())).andExpect(status().isForbidden());
     }
 
+    private String withLayout(String name, String layout) {
+        String body = template(name, "[\"USER\"]", "[]");
+        return body.substring(0, body.length() - 1) + ",\"vmLayout\":" + (layout == null ? "null" : "\"" + layout + "\"") + "}";
+    }
+
+    @Test
+    void theVmLayoutRoundTripsAndIsChecked() throws Exception {
+        String json = mockMvc.perform(post(URL).with(asAdmin()).contentType(MediaType.APPLICATION_JSON)
+                        .content(withLayout("Java stack", "1|2|1")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.vmLayout").value("1|2|1"))
+                .andReturn().getResponse().getContentAsString();
+        String id = JsonPath.read(json, "$.templateId");
+        mockMvc.perform(get(URL).with(asUser())).andExpect(jsonPath("$[0].vmLayout").value("1|2|1"));
+
+        mockMvc.perform(put(URL + "/" + id).with(asAdmin()).contentType(MediaType.APPLICATION_JSON)
+                        .content(withLayout("Java stack", "")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.vmLayout").doesNotExist());
+
+        for (String bad : new String[] {"1,2", "a|b", "1||2", "0|1", "|1", "201"}) {
+            expectError(mockMvc.perform(post(URL).with(asAdmin()).contentType(MediaType.APPLICATION_JSON)
+                    .content(withLayout("Bad " + bad.hashCode(), bad))), 400);
+        }
+    }
+
     @Test
     void invalidTemplatesAreRefused() throws Exception {
         expectError(mockMvc.perform(post(URL).with(asAdmin()).contentType(MediaType.APPLICATION_JSON)

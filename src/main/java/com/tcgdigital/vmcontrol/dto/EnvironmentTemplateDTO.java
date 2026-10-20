@@ -8,7 +8,7 @@ import java.util.List;
 
 /**
  * An environment template as the catalogue shows it (E32-T01). {@code engineRef} is only filled
- * for administrators.
+ * for administrators. {@code vmLayout}: VMs per group in start order, "1|2|1" (U09-T09), or null.
  */
 public record EnvironmentTemplateDTO(
         String templateId,
@@ -27,6 +27,7 @@ public record EnvironmentTemplateDTO(
         BigDecimal estimatedMonthlyCost,
         boolean active,
         Timestamp createdAt,
-        Timestamp updatedAt
+        Timestamp updatedAt,
+        String vmLayout
 ) {
 }

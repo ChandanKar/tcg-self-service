@@ -12,7 +12,8 @@ import java.util.List;
  * Create or change an environment template (E32-T01). {@code engineRef} is a JSON object
  * (Service Catalog: productId, provisioningArtifactId, optional launchPathId; Terraform:
  * organization, workspacePrefix, optional module); {@code parameterSchema} a JSON array of
- * {key, label, type: string|number|enum, required, default, options, pattern}.
+ * {key, label, type: string|number|enum, required, default, options, pattern}. {@code vmLayout}:
+ * VMs per group in start order, "1|2|1" (U09-T09); blank clears it.
  */
 public record UpsertEnvironmentTemplateDTO(
         @NotBlank @Size(max = 120) String name,
@@ -27,6 +28,8 @@ public record UpsertEnvironmentTemplateDTO(
         Boolean requiresApproval,
         String approverRole,
         List<String> allowedRoles,
-        BigDecimal estimatedMonthlyCost
+        BigDecimal estimatedMonthlyCost,
+        @Size(max = 64) @jakarta.validation.constraints.Pattern(regexp = "^$|^\\d+(\\|\\d+)*$",
+                message = "vmLayout is VMs per group in start order, such as 1|2|1") String vmLayout
 ) {
 }
