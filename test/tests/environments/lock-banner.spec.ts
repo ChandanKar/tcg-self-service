@@ -125,7 +125,7 @@ test.describe('Lock fact', () => {
     const banner = page.locator('#lock-e2e .lock-fact');
     await expect(banner).toHaveClass(/mine/);
     await expect(banner).not.toHaveClass(/expiring/);
-    await expect(banner.locator('.env-fact-value')).toHaveText(/^Locked by you until \d\d:\d\d$/);
+    await expect(banner.locator('.env-fact-value')).toHaveText(/^Locked by you until (\w{3} )?\d\d:\d\d$/);  // a weekday when it ends after midnight
     await expect(page.locator('#lock-e2e .lock-countdown')).toHaveText(/Auto-releases in 42 min/);
     await expect(page.locator('#lock-e2e [data-lock-action="release"]')).toBeVisible();
 
