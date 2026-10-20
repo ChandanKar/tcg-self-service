@@ -29,6 +29,11 @@ public interface EnvironmentLeaseRepository extends JpaRepository<EnvironmentLea
             + "AND l.endsAt <= :now ORDER BY l.endsAt")
     List<String> findOverdueIds(@Param("now") Timestamp now);
 
+    /** The ACTIVE leases of many environments, with their environment (U06-T01: Home's cards). */
+    @Query("SELECT l FROM EnvironmentLease l JOIN FETCH l.environment WHERE l.status = "
+            + "com.tcgdigital.vmcontrol.model.LeaseStatus.ACTIVE AND l.environment.environmentId IN :environmentIds")
+    List<EnvironmentLease> findActiveByEnvironmentIdIn(@Param("environmentIds") List<String> environmentIds);
+
     /** ACTIVE leases ending in (start, end] (warning thresholds, E15-T04). */
     @Query("SELECT l FROM EnvironmentLease l JOIN FETCH l.environment WHERE l.status = "
             + "com.tcgdigital.vmcontrol.model.LeaseStatus.ACTIVE AND l.endsAt > :start AND l.endsAt <= :end")

@@ -22,7 +22,9 @@ public record DashboardSummaryDTO(
         List<SchedulerHealthDTO> schedulerHealth,
         List<RiskComplianceDTO> riskCompliance,
         List<RecommendationDTO> recommendations,
-        Timestamp generatedAt
+        Timestamp generatedAt,
+        /** What needs the viewer soon, earliest first (U06-T01): leases ending within 3 h, grants about to end. */
+        List<NeedsYouDTO> needsYou
 ) {
     public record SummaryDTO(
             Integer environments,
@@ -32,7 +34,9 @@ public record DashboardSummaryDTO(
             Integer idleVms,
             Integer driftedVms,
             Integer lockedEnvironments,
-            Integer pendingAccessRequests
+            Integer pendingAccessRequests,
+            /** Month to date across the viewer's environments ("$X this month"); null for administrators. */
+            BigDecimal monthToDateCost
     ) {}
 
     public record UtilizationDTO(
@@ -68,7 +72,22 @@ public record DashboardSummaryDTO(
             Integer idleVms,
             BigDecimal avgCpuUtilization,
             Integer allocatedStorageGib,
-            Boolean locked
+            Boolean locked,
+            // Home (U06-T01); null for administrators until U14 replaces their dashboard
+            BigDecimal monthToDateCost,
+            /** ADMIN, USER or VIEWER; null for a group-only grant. */
+            String myAccess,
+            String lockedByName,
+            Boolean lockedByMe,
+            Timestamp lockExpiresAt,
+            java.time.Instant leaseEndsAt,
+            java.time.Instant nextStart,
+            java.time.Instant nextStop,
+            /** Starting or stopping, and failed (error, not found, terminated). */
+            Integer transitionalVms,
+            Integer failedVms,
+            /** VM state counts per group in start order, for the power strip (U05-T03). */
+            List<GroupStateCountsDTO> groupStates
     ) {}
 
     public record ChartPointDTO(
@@ -88,7 +107,23 @@ public record DashboardSummaryDTO(
             String status,
             BigDecimal cpuUtilization,
             Integer idleDurationMinutes,
-            Integer allocatedStorageGib
+            Integer allocatedStorageGib,
+            String environmentId,
+            String groupName,
+            /** On-demand price per hour from the pricing reference; null when unknown. */
+            BigDecimal hourlyRate
+    ) {}
+
+    /**
+     * Something the viewer should act on soon (U06-T01). kind LEASE_ENDING (referenceId = lease id)
+     * or ACCESS_ENDING (referenceId = access id); at = when it ends.
+     */
+    public record NeedsYouDTO(
+            String kind,
+            String environmentId,
+            String environmentName,
+            java.time.Instant at,
+            String referenceId
     ) {}
 
     /** {@code owner} is shown to admins only; {@code expectedIntervalSeconds} is the job's own schedule (E12-T05). */

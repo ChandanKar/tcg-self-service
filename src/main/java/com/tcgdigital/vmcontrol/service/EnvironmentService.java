@@ -473,7 +473,8 @@ public class EnvironmentService {
     }
 
     /** Who holds an environment's lock, for list rows (no per-row lock request, M36). */
-    public record LockSummary(String lockedByUserId, String lockedByDisplayName, java.sql.Timestamp lockedAt) {}
+    public record LockSummary(String lockedByUserId, String lockedByDisplayName, java.sql.Timestamp lockedAt,
+                              java.sql.Timestamp expiresAt) {}
 
     /** Active locks of the given environments with holder names: two queries for the whole list. */
     public Map<String, LockSummary> getLockSummaries(List<String> environmentIds) {
@@ -488,7 +489,7 @@ public class EnvironmentService {
         Map<String, LockSummary> result = new HashMap<>();
         for (com.tcgdigital.vmcontrol.model.EnvironmentLock lock : locks) {
             result.put(lock.getEnvironment().getEnvironmentId(), new LockSummary(lock.getLockedByUserId(),
-                    names.get(lock.getLockedByUserId()), lock.getLockedAt()));
+                    names.get(lock.getLockedByUserId()), lock.getLockedAt(), lock.getExpiresAt()));
         }
         return result;
     }

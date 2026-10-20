@@ -37,6 +37,24 @@ public class DashboardSummaryService {
     private final SecurityService securityService;
     private final SchedulerJobCatalog jobCatalog;
 
+    // Home (U06-T01): cost, leases, grants and prices. Field-injected so the constructor and its
+    // tests stay as they were; absent beans leave the extra fields empty.
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.context.annotation.Lazy
+    private EnvironmentCostService environmentCostService;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.repository.EnvironmentLeaseRepository leaseRepository;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.repository.EnvironmentAccessRepository accessRepository;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.context.annotation.Lazy
+    private EnvironmentAccessService environmentAccessService;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private PricingReferenceService pricingReferenceService;
+
+    /** A lease ending within this time is something the viewer should act on. */
+    static final java.time.Duration LEASE_ENDING_SOON = java.time.Duration.ofHours(3);
+
     public DashboardSummaryService(EnvironmentService environmentService,
                                    UserService userService,
                                    VmRepository vmRepository,
@@ -70,7 +88,7 @@ public class DashboardSummaryService {
                 ? environmentService.getAllActiveEnvironments()
                 : environmentService.getEnvironmentsForCurrentUser();
         if (admin) {
-            return buildSummary("ADMIN", environments, null);
+            return buildSummary("ADMIN", environments, null, null);
         }
         // A group-grant user sees only their groups' VMs (E11-T11, H20).
         com.tcgdigital.vmcontrol.model.User user = userService.getCurrentUser();
@@ -78,11 +96,12 @@ public class DashboardSummaryService {
         for (Environment environment : environments) {
             visibleGroupIds.addAll(securityService.getVisibleGroupIds(user, environment.getEnvironmentId()));
         }
-        return buildSummary("USER", environments, visibleGroupIds);
+        return buildSummary("USER", environments, visibleGroupIds, user);
     }
 
     /** @param visibleGroupIds the groups whose VMs count; null for every group (admins). */
-    private DashboardSummaryDTO buildSummary(String persona, List<Environment> environments, Set<String> visibleGroupIds) {
+    private DashboardSummaryDTO buildSummary(String persona, List<Environment> environments, Set<String> visibleGroupIds,
+                                             com.tcgdigital.vmcontrol.model.User user) {
         List<String> environmentIds = environments.stream()
                 .map(Environment::getEnvironmentId)
                 .toList();
@@ -122,6 +141,8 @@ public class DashboardSummaryService {
                 .filter(environmentIds::contains)
                 .collect(Collectors.toSet());
 
+        HomeExtras home = "ADMIN".equals(persona) ? HomeExtras.NONE : homeExtras(user, environments, visibleGroupIds);
+
         int pendingAccessRequests = "ADMIN".equals(persona)
                 ? Math.toIntExact(accessRequestRepository.countByStatus(AccessRequestStatus.PENDING))
                 : 0;
@@ -134,7 +155,8 @@ public class DashboardSummaryService {
                 idleVms,
                 driftedVms,
                 lockedEnvironmentIds.size(),
-                pendingAccessRequests
+                pendingAccessRequests,
+                home.monthToDateCost()
         );
 
         DashboardSummaryDTO.UtilizationDTO utilization = new DashboardSummaryDTO.UtilizationDTO(
@@ -167,7 +189,7 @@ public class DashboardSummaryService {
 
         List<DashboardSummaryDTO.EnvironmentCardDTO> environmentCards = environments.stream()
                 .map(env -> buildEnvironmentCard(env, vmsByEnvironmentId.getOrDefault(env.getEnvironmentId(), List.of()),
-                        idleByVmId, inventoryByVmId, lockedEnvironmentIds))
+                        idleByVmId, inventoryByVmId, lockedEnvironmentIds, home, user))
                 .sorted(Comparator.comparing(DashboardSummaryDTO.EnvironmentCardDTO::name, String.CASE_INSENSITIVE_ORDER))
                 .toList();
 
@@ -183,13 +205,90 @@ public class DashboardSummaryService {
                 buildRegionCounts(vms),
                 buildProviderCounts(vms),
                 buildVolumeTypeCounts(volumes),
-                buildTopBusyVms(vms, idleByVmId),
+                buildTopBusyVms(vms, idleByVmId, inventoryByVmId),
                 buildIdleVms(vms, idleByVmId, inventoryByVmId),
                 buildSchedulerHealth("ADMIN".equals(persona)),
                 buildRiskCompliance(totalVms, driftedVms, idleVms, coverage, volumes),
                 buildRecommendations(totalVms, driftedVms, idleVms, coverage, pendingAccessRequests),
-                new Timestamp(System.currentTimeMillis())
+                new Timestamp(System.currentTimeMillis()),
+                home.needsYou()
         );
+    }
+
+    /** What Home adds to the non-admin summary (U06-T01), loaded once for all the viewer's environments. */
+    record HomeExtras(Map<String, com.tcgdigital.vmcontrol.dto.MyEnvironmentCostDTO> cost,
+                      Map<String, EnvironmentService.LockSummary> locks,
+                      Map<String, java.time.Instant> leaseEnds,
+                      Map<String, List<com.tcgdigital.vmcontrol.dto.GroupStateCountsDTO>> groupStates,
+                      BigDecimal monthToDateCost,
+                      List<DashboardSummaryDTO.NeedsYouDTO> needsYou) {
+        static final HomeExtras NONE = new HomeExtras(Map.of(), Map.of(), Map.of(), Map.of(), null, List.of());
+    }
+
+    private HomeExtras homeExtras(com.tcgdigital.vmcontrol.model.User user, List<Environment> environments,
+                                  Set<String> visibleGroupIds) {
+        List<String> ids = environments.stream().map(Environment::getEnvironmentId).toList();
+        if (ids.isEmpty()) {
+            return new HomeExtras(Map.of(), Map.of(), Map.of(), Map.of(), BigDecimal.ZERO, List.of());
+        }
+        Map<String, com.tcgdigital.vmcontrol.dto.MyEnvironmentCostDTO> cost = environmentCostService == null
+                ? Map.of() : environmentCostService.getCostRowsFor(user, environments);
+        BigDecimal monthToDate = cost.values().stream()
+                .map(com.tcgdigital.vmcontrol.dto.MyEnvironmentCostDTO::monthToDateEstimated)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        Map<String, EnvironmentService.LockSummary> locks = environmentService.getLockSummaries(ids);
+
+        Instant now = Instant.now();
+        Map<String, java.time.Instant> leaseEnds = new java.util.HashMap<>();
+        List<DashboardSummaryDTO.NeedsYouDTO> needsYou = new ArrayList<>();
+        Map<String, Environment> byId = environments.stream()
+                .collect(Collectors.toMap(Environment::getEnvironmentId, Function.identity()));
+        if (leaseRepository != null) {
+            for (com.tcgdigital.vmcontrol.model.EnvironmentLease lease : leaseRepository.findActiveByEnvironmentIdIn(ids)) {
+                if (lease.getEndsAt() == null) continue;
+                String envId = lease.getEnvironment().getEnvironmentId();
+                Instant ends = lease.getEndsAt().toInstant();
+                leaseEnds.put(envId, ends);
+                if (!ends.isAfter(now.plus(LEASE_ENDING_SOON)) && securityService.canOperateInEnvironment(envId)) {
+                    needsYou.add(new DashboardSummaryDTO.NeedsYouDTO("LEASE_ENDING", envId, label(byId.get(envId)), ends,
+                            lease.getLeaseId()));
+                }
+            }
+        }
+        if (accessRepository != null && user != null) {
+            int windowDays = environmentAccessService == null ? 0 : environmentAccessService.getExtensionWindowDays();
+            Instant horizon = now.plus(java.time.Duration.ofDays(windowDays));
+            for (com.tcgdigital.vmcontrol.model.EnvironmentAccess grant
+                    : accessRepository.findActiveAccessByUser(user.getUserId(), Timestamp.from(now))) {
+                if (grant.getExpiresAt() == null || grant.getExpiresAt().toInstant().isAfter(horizon)) continue;
+                String envId = grant.getEnvironment().getEnvironmentId();
+                needsYou.add(new DashboardSummaryDTO.NeedsYouDTO("ACCESS_ENDING", envId, label(grant.getEnvironment()),
+                        grant.getExpiresAt().toInstant(), grant.getAccessId()));
+            }
+        }
+        needsYou.sort(Comparator.comparing(DashboardSummaryDTO.NeedsYouDTO::at));
+
+        // Group-scoped viewers see only their groups in the strip, as in the environment list (U05-T03).
+        Map<String, List<String>> visible = new java.util.HashMap<>();
+        if (visibleGroupIds != null) {
+            for (String id : ids) {
+                if (!securityService.hasEnvironmentWideView(id)) {
+                    visible.put(id, securityService.getVisibleGroupIds(id));
+                }
+            }
+        }
+        Map<String, List<com.tcgdigital.vmcontrol.dto.GroupStateCountsDTO>> groupStates =
+                environmentService.getGroupStateCounts(ids, visible);
+        return new HomeExtras(cost, locks, leaseEnds, groupStates, money(monthToDate), List.copyOf(needsYou));
+    }
+
+    private String label(Environment env) {
+        return env == null ? null : firstNonBlank(env.getDisplayName(), env.getName());
+    }
+
+    private static BigDecimal money(BigDecimal value) {
+        return value == null ? null : value.setScale(2, java.math.RoundingMode.HALF_UP);
     }
 
     private DashboardSummaryDTO.EnvironmentCardDTO buildEnvironmentCard(
@@ -197,7 +296,9 @@ public class DashboardSummaryService {
             List<Vm> vms,
             Map<String, VmIdleSummary> idleByVmId,
             Map<String, VmInventorySnapshot> inventoryByVmId,
-            Set<String> lockedEnvironmentIds) {
+            Set<String> lockedEnvironmentIds,
+            HomeExtras home,
+            com.tcgdigital.vmcontrol.model.User user) {
         int total = vms.size();
         int running = countStatus(vms, VmStatus.RUNNING);
         int stopped = countStatus(vms, VmStatus.STOPPED);
@@ -219,6 +320,9 @@ public class DashboardSummaryService {
                 .filter(Objects::nonNull)
                 .mapToInt(Integer::intValue)
                 .sum();
+        String id = env.getEnvironmentId();
+        com.tcgdigital.vmcontrol.dto.MyEnvironmentCostDTO cost = home.cost().get(id);
+        EnvironmentService.LockSummary lock = home.locks().get(id);
         return new DashboardSummaryDTO.EnvironmentCardDTO(
                 env.getEnvironmentId(),
                 env.getName(),
@@ -230,7 +334,19 @@ public class DashboardSummaryService {
                 idle,
                 cpu,
                 storage,
-                lockedEnvironmentIds.contains(env.getEnvironmentId())
+                lockedEnvironmentIds.contains(env.getEnvironmentId()),
+                cost == null ? null : cost.monthToDateEstimated(),
+                cost == null ? null : cost.myLevel(),
+                lock == null ? null : lock.lockedByDisplayName(),
+                lock == null ? null : (user != null && user.getUserId().equals(lock.lockedByUserId())),
+                lock == null ? null : lock.expiresAt(),
+                home.leaseEnds().get(id),
+                cost == null ? null : cost.nextStart(),
+                cost == null ? null : cost.nextStop(),
+                (int) vms.stream().filter(vm -> vm.getStatus() == VmStatus.STARTING || vm.getStatus() == VmStatus.STOPPING).count(),
+                (int) vms.stream().filter(vm -> vm.getStatus() == VmStatus.ERROR || vm.getStatus() == VmStatus.NOT_FOUND
+                        || vm.getStatus() == VmStatus.TERMINATED).count(),
+                home.groupStates().get(id)
         );
     }
 
@@ -341,9 +457,10 @@ public class DashboardSummaryService {
         return points;
     }
 
-    private List<DashboardSummaryDTO.TopVmDTO> buildTopBusyVms(List<Vm> vms, Map<String, VmIdleSummary> idleByVmId) {
+    private List<DashboardSummaryDTO.TopVmDTO> buildTopBusyVms(List<Vm> vms, Map<String, VmIdleSummary> idleByVmId,
+                                                              Map<String, VmInventorySnapshot> inventoryByVmId) {
         return vms.stream()
-                .map(vm -> toTopVm(vm, idleByVmId.get(vm.getVmId()), null))
+                .map(vm -> toTopVm(vm, idleByVmId.get(vm.getVmId()), inventoryByVmId.get(vm.getVmId())))
                 .filter(row -> row.cpuUtilization() != null)
                 .sorted(Comparator.comparing(DashboardSummaryDTO.TopVmDTO::cpuUtilization).reversed())
                 .limit(6)
@@ -469,8 +586,21 @@ public class DashboardSummaryService {
                 vm.getStatus() == null ? "UNKNOWN" : vm.getStatus().name(),
                 idle == null ? null : idle.getLatestCpuUtilization(),
                 idle == null ? null : idle.getIdleDurationMinutes(),
-                inventory == null ? null : inventory.getTotalStorageGib()
+                inventory == null ? null : inventory.getTotalStorageGib(),
+                env.getEnvironmentId(),
+                firstNonBlank(vm.getGroup().getDisplayName(), vm.getGroup().getName()),
+                hourlyRate(vm, inventory)
         );
+    }
+
+    /** On-demand price per hour for the VM's instance type, as the start preview uses it; null when unknown. */
+    private BigDecimal hourlyRate(Vm vm, VmInventorySnapshot inventory) {
+        if (pricingReferenceService == null || inventory == null || inventory.getInstanceType() == null || vm.getProvider() == null) {
+            return null;
+        }
+        PricingReferenceService.PriceLookupResult rate = pricingReferenceService.lookupHourlyRate(
+                vm.getProvider().name(), inventory.getInstanceType(), vm.getRegion());
+        return rate.priceKnown() ? rate.hourlyRate() : null;
     }
 
     private List<DashboardSummaryDTO.RecommendationDTO> buildRecommendations(
