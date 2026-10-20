@@ -51,6 +51,21 @@ public class EnvironmentDTO {
     private Boolean viewerCanAdminister;
     private Boolean viewerCanManageAccess;
 
+    /**
+     * VM state counts per group in start order (U05-T03), for the grouped power strip. Only filled
+     * when a list is asked with includeGroups=true; a group-scoped viewer gets only their groups.
+     */
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    private List<GroupStateCountsDTO> groupStates;
+
+    public List<GroupStateCountsDTO> getGroupStates() {
+        return groupStates;
+    }
+
+    public void setGroupStates(List<GroupStateCountsDTO> groupStates) {
+        this.groupStates = groupStates;
+    }
+
     public Boolean getViewerCanManageAccess() {
         return viewerCanManageAccess;
     }

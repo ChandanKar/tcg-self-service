@@ -210,6 +210,28 @@ public interface VmRepository extends JpaRepository<Vm, String> {
            "AND v.region IS NOT NULL AND v.region <> ''")
     List<EnvironmentRegion> findDistinctRegionsGroupedByEnvironment(@Param("environmentIds") List<String> environmentIds);
 
+    /**
+     * VM counts per group and status across many environments in one query (U05-T03, grouped power
+     * strips): one row per (environment, group, status). Active VMs only; groups without VMs give
+     * no rows.
+     */
+    @Query("SELECT g.environment.environmentId AS environmentId, g.groupId AS groupId, g.name AS name, " +
+           "g.displayName AS displayName, g.sequencePosition AS sequencePosition, v.status AS status, " +
+           "COUNT(v) AS total " +
+           "FROM Vm v JOIN v.group g WHERE g.environment.environmentId IN :environmentIds AND v.isActive = true " +
+           "GROUP BY g.environment.environmentId, g.groupId, g.name, g.displayName, g.sequencePosition, v.status")
+    List<GroupStatusCount> countVmsByGroupAndStatus(@Param("environmentIds") List<String> environmentIds);
+
+    interface GroupStatusCount {
+        String getEnvironmentId();
+        String getGroupId();
+        String getName();
+        String getDisplayName();
+        Integer getSequencePosition();
+        VmStatus getStatus();
+        long getTotal();
+    }
+
     interface GroupVmCounts {
         String getGroupId();
         long getTotal();

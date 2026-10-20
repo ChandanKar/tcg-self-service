@@ -13,6 +13,7 @@ import com.tcgdigital.vmcontrol.dto.VmUtilizationSummaryDTO;
 import com.tcgdigital.vmcontrol.model.Vm;
 import com.tcgdigital.vmcontrol.model.VmGroup;
 import com.tcgdigital.vmcontrol.repository.VmRepository;
+import com.tcgdigital.vmcontrol.service.EnvironmentService;
 import com.tcgdigital.vmcontrol.service.SecurityService;
 import com.tcgdigital.vmcontrol.service.UserService;
 import com.tcgdigital.vmcontrol.service.VmGroupService;
@@ -57,12 +58,14 @@ public class VmMgmtController {
     private final VmInventoryService inventoryService;
     private final VmMetricsService metricsService;
     private final VmListDetailsService detailsService;
+    private final EnvironmentService environmentService;
 
     public VmMgmtController(VmService vmService, VmGroupService groupService,
                              SecurityService securityService, UserService userService,
                              VmInventoryService inventoryService,
                              VmMetricsService metricsService,
-                             VmListDetailsService detailsService) {
+                             VmListDetailsService detailsService,
+                             EnvironmentService environmentService) {
         this.vmService = vmService;
         this.groupService = groupService;
         this.securityService = securityService;
@@ -70,6 +73,7 @@ public class VmMgmtController {
         this.inventoryService = inventoryService;
         this.metricsService = metricsService;
         this.detailsService = detailsService;
+        this.environmentService = environmentService;
     }
 
     @GetMapping
@@ -105,7 +109,11 @@ public class VmMgmtController {
         List<VmGroup> groups = groupService.getGroupsByEnvironmentId(environmentId).stream()
                 .filter(g -> visibleGroupIds.contains(g.getGroupId()))
                 .toList();
-        Map<String, VmRepository.GroupVmCounts> countsByGroup = vmService.getVmCountsByGroupForEnvironment(environmentId);
+        // Each group's VMs by state (running, starting or stopping, stopped, failed, not read): one query.
+        Map<String, com.tcgdigital.vmcontrol.dto.GroupStateCountsDTO> statesByGroup = new HashMap<>();
+        environmentService.getGroupStateCounts(List.of(environmentId), null)
+                .getOrDefault(environmentId, List.of())
+                .forEach(states -> statesByGroup.put(states.groupId(), states));
 
         // Only the first page loads eagerly here — the rest is fetched on demand via
         // GET .../vms/{groupId}/page so a group with many VMs doesn't slow this endpoint down.
@@ -126,14 +134,10 @@ public class VmMgmtController {
                 || (envLevel != null && envLevel != com.tcgdigital.vmcontrol.model.AccessLevel.VIEWER);
         List<VmGroupWithVmsDTO> result = new ArrayList<>();
         for (VmGroup group : groups) {
-            VmRepository.GroupVmCounts counts = countsByGroup.get(group.getGroupId());
-            int vmCount = counts != null ? (int) counts.getTotal() : 0;
-            int runningCount = counts != null ? (int) counts.getRunning() : 0;
-
             Page<Vm> firstPage = firstPageByGroup.get(group.getGroupId());
 
             VmGroupWithVmsDTO dto = new VmGroupWithVmsDTO();
-            dto.setGroup(VmGroupDTO.fromEntityWithCounts(group, vmCount, runningCount));
+            dto.setGroup(VmGroupDTO.fromEntityWithStates(group, statesByGroup.get(group.getGroupId())));
             dto.setViewerCanOperate(environmentOperator
                     || securityService.hasGroupAccessLevel(group.getGroupId(), com.tcgdigital.vmcontrol.model.AccessLevel.USER));
             dto.setVms(firstPage.getContent().stream()

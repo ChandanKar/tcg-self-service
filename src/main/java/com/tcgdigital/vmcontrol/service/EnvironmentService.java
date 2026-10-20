@@ -408,6 +408,39 @@ public class EnvironmentService {
     }
 
     /**
+     * VM state counts per group for many environments, from one query (U05-T03), each environment's
+     * groups in start order. {@code visibleGroupIds} limits an environment to the groups a
+     * group-scoped viewer may see (no entry: every group). Groups without active VMs are left out.
+     */
+    public Map<String, List<com.tcgdigital.vmcontrol.dto.GroupStateCountsDTO>> getGroupStateCounts(
+            List<String> environmentIds, Map<String, ? extends java.util.Collection<String>> visibleGroupIds) {
+        if (environmentIds == null || environmentIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Map<String, com.tcgdigital.vmcontrol.dto.GroupStateCountsDTO>> byEnvironment = new HashMap<>();
+        for (VmRepository.GroupStatusCount row : vmRepository.countVmsByGroupAndStatus(environmentIds)) {
+            java.util.Collection<String> visible = visibleGroupIds == null ? null : visibleGroupIds.get(row.getEnvironmentId());
+            if (visible != null && !visible.contains(row.getGroupId())) {
+                continue;
+            }
+            String name = row.getDisplayName() != null && !row.getDisplayName().isBlank() ? row.getDisplayName() : row.getName();
+            byEnvironment.computeIfAbsent(row.getEnvironmentId(), id -> new java.util.LinkedHashMap<>())
+                    .merge(row.getGroupId(),
+                            com.tcgdigital.vmcontrol.dto.GroupStateCountsDTO.empty(row.getGroupId(), name, row.getSequencePosition())
+                                    .plus(row.getStatus(), row.getTotal()),
+                            (have, add) -> have.plus(row.getStatus(), row.getTotal()));
+        }
+        Map<String, List<com.tcgdigital.vmcontrol.dto.GroupStateCountsDTO>> result = new HashMap<>();
+        byEnvironment.forEach((environmentId, groups) -> result.put(environmentId, groups.values().stream()
+                .sorted(java.util.Comparator.comparing(com.tcgdigital.vmcontrol.dto.GroupStateCountsDTO::sequencePosition,
+                                java.util.Comparator.nullsLast(Integer::compareTo))
+                        .thenComparing(com.tcgdigital.vmcontrol.dto.GroupStateCountsDTO::name,
+                                java.util.Comparator.nullsLast(String::compareTo)))
+                .toList()));
+        return result;
+    }
+
+    /**
      * Group/VM/running counts for a set of environments, computed with exactly two queries
      * regardless of how many environments are requested — used by listing endpoints so they
      * don't issue a pair of count queries per environment.

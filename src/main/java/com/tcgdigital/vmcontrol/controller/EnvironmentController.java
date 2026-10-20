@@ -106,7 +106,9 @@ public class EnvironmentController {
     })
     public ResponseEntity<List<EnvironmentDTO>> listEnvironments(
             @Parameter(description = "Include inactive environments (admin only)")
-            @RequestParam(required = false, defaultValue = "false") boolean includeInactive) {
+            @RequestParam(required = false, defaultValue = "false") boolean includeInactive,
+            @Parameter(description = "Add groupStates: VM state counts per group, in start order (U05-T03)")
+            @RequestParam(required = false, defaultValue = "false") boolean includeGroups) {
 
         List<Environment> environments;
 
@@ -122,8 +124,38 @@ public class EnvironmentController {
 
         List<EnvironmentDTO> dtos = toDtosWithBatchedCounts(environments);
         dtos.forEach(this::withViewerFlags);
+        if (includeGroups) {
+            withGroupStates(dtos);
+        }
 
         return ResponseEntity.ok(dtos);
+    }
+
+    /**
+     * Fill groupStates for a page of environments (U05-T03): the counts come from one query. A
+     * viewer without environment-wide view (group grants only) gets only the groups they may see,
+     * and the row's VM, running and group counts are recounted from those groups.
+     */
+    private void withGroupStates(List<EnvironmentDTO> dtos) {
+        List<String> environmentIds = dtos.stream().map(EnvironmentDTO::getEnvironmentId).toList();
+        Map<String, List<String>> visible = new java.util.HashMap<>();
+        for (String environmentId : environmentIds) {
+            if (!securityService.hasEnvironmentWideView(environmentId)) {
+                visible.put(environmentId, securityService.getVisibleGroupIds(environmentId));
+            }
+        }
+        Map<String, List<com.tcgdigital.vmcontrol.dto.GroupStateCountsDTO>> states =
+                environmentService.getGroupStateCounts(environmentIds, visible);
+        for (EnvironmentDTO dto : dtos) {
+            List<com.tcgdigital.vmcontrol.dto.GroupStateCountsDTO> groups = states.getOrDefault(dto.getEnvironmentId(), List.of());
+            dto.setGroupStates(groups);
+            List<String> scoped = visible.get(dto.getEnvironmentId());
+            if (scoped != null) {
+                dto.setGroupCount(scoped.size());
+                dto.setVmCount((int) groups.stream().mapToLong(com.tcgdigital.vmcontrol.dto.GroupStateCountsDTO::total).sum());
+                dto.setRunningVmCount((int) groups.stream().mapToLong(com.tcgdigital.vmcontrol.dto.GroupStateCountsDTO::running).sum());
+            }
+        }
     }
 
     /** What the signed-in viewer may do in the environment (U02-T02), on every DTO the app reads. */
@@ -149,7 +181,9 @@ public class EnvironmentController {
             @Parameter(description = "Optional name/description search filter")
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "10") int size,
+            @Parameter(description = "Add groupStates: VM state counts per group, in start order (U05-T03)")
+            @RequestParam(required = false, defaultValue = "false") boolean includeGroups) {
 
         Pageable pageable = com.tcgdigital.vmcontrol.controller.support.Paging.of(page, size,
                 com.tcgdigital.vmcontrol.controller.support.Paging.DEFAULT_MAX_SIZE); // 400 on page < 0, size clamped
@@ -168,6 +202,9 @@ public class EnvironmentController {
         Map<String, String> accountNames = accountNames();
         Page<EnvironmentDTO> dtos = environments.map(env -> withViewerFlags(
                 withAccountName(toDtoWithCounts(env, counts, locks), accountNames)));
+        if (includeGroups) {
+            withGroupStates(dtos.getContent());
+        }
 
         return ResponseEntity.ok(dtos);
     }

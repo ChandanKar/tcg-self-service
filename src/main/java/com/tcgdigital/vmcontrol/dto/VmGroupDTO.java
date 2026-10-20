@@ -21,6 +21,11 @@ public class VmGroupDTO {
     private Timestamp updatedAt;
     private int vmCount;
     private int runningVmCount;
+    /** The rest of the group's VMs by state (U05-T03): starting or stopping, stopped, failed, not read yet. */
+    private int busyVmCount;
+    private int stoppedVmCount;
+    private int problemVmCount;
+    private int unknownVmCount;
 
     public VmGroupDTO() {
     }
@@ -43,6 +48,20 @@ public class VmGroupDTO {
         VmGroupDTO dto = fromEntity(group);
         dto.setVmCount(vmCount);
         dto.setRunningVmCount(runningVmCount);
+        return dto;
+    }
+
+    /** The group with its VMs counted by state (U05-T03); a group without VMs counts zero everywhere. */
+    public static VmGroupDTO fromEntityWithStates(VmGroup group, GroupStateCountsDTO states) {
+        VmGroupDTO dto = fromEntity(group);
+        if (states != null) {
+            dto.setVmCount((int) states.total());
+            dto.setRunningVmCount((int) states.running());
+            dto.setBusyVmCount((int) states.busy());
+            dto.setStoppedVmCount((int) states.stopped());
+            dto.setProblemVmCount((int) states.problem());
+            dto.setUnknownVmCount((int) states.unknown());
+        }
         return dto;
     }
 
@@ -133,6 +152,38 @@ public class VmGroupDTO {
 
     public void setRunningVmCount(int runningVmCount) {
         this.runningVmCount = runningVmCount;
+    }
+
+    public int getBusyVmCount() {
+        return busyVmCount;
+    }
+
+    public void setBusyVmCount(int busyVmCount) {
+        this.busyVmCount = busyVmCount;
+    }
+
+    public int getStoppedVmCount() {
+        return stoppedVmCount;
+    }
+
+    public void setStoppedVmCount(int stoppedVmCount) {
+        this.stoppedVmCount = stoppedVmCount;
+    }
+
+    public int getProblemVmCount() {
+        return problemVmCount;
+    }
+
+    public void setProblemVmCount(int problemVmCount) {
+        this.problemVmCount = problemVmCount;
+    }
+
+    public int getUnknownVmCount() {
+        return unknownVmCount;
+    }
+
+    public void setUnknownVmCount(int unknownVmCount) {
+        this.unknownVmCount = unknownVmCount;
     }
 }
 

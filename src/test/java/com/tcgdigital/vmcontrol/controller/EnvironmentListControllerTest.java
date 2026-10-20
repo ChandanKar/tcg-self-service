@@ -12,6 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -20,7 +22,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Environment and group lists carry what each row needs in a fixed number of queries
- * (E10-T05, M36): the lock holder, clamped paging, display-name search, grouped VM counts.
+ * (E10-T05, M36): the lock holder, clamped paging, display-name search, grouped VM counts, and on
+ * request the VM state counts per group (U05-T03).
  */
 class EnvironmentListControllerTest extends SecuredWebTestBase {
 
@@ -95,5 +98,113 @@ class EnvironmentListControllerTest extends SecuredWebTestBase {
         mockMvc.perform(get("/api/v1/environments/" + env.getEnvironmentId() + "/groups/start-order").with(asAdmin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[?(@.groupId == '" + web.getGroupId() + "')].vmCount").value(hasItem(2)));
+    }
+
+    // ---------------------------------------------------------------- U05-T03: groupStates
+
+    private void vms(VmGroup group, VmStatus status, int count) {
+        for (int i = 0; i < count; i++) newVm(group, group.getDisplayName() + "-" + status + "-" + i, status);
+    }
+
+    @Test
+    void includeGroupsListsEachGroupsStatesInStartOrder() throws Exception {
+        VmGroup database = newGroup(env, "Database");
+        VmGroup application = newGroup(env, "Application");
+        VmGroup web = newGroup(env, "Web");
+        vms(web, VmStatus.STOPPED, 2);
+        vms(database, VmStatus.RUNNING, 3);
+        vms(application, VmStatus.RUNNING, 2);
+
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).param("includeGroups", "true").with(asAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].groupStates[*].name").value(contains("Database", "Application", "Web")))
+                .andExpect(jsonPath("$.content[0].groupStates[*].running").value(contains(3, 2, 0)))
+                .andExpect(jsonPath("$.content[0].groupStates[*].stopped").value(contains(0, 0, 2)))
+                .andExpect(jsonPath("$.content[0].groupStates[*].total").value(contains(3, 2, 2)));
+        mockMvc.perform(get("/api/v1/environments").param("includeGroups", "true").with(asUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.environmentId == '" + env.getEnvironmentId() + "')].groupStates[*].name")
+                        .value(contains("Database", "Application", "Web")));
+    }
+
+    @Test
+    void statesFallIntoTheStripsBuckets() throws Exception {
+        VmGroup app = newGroup(env, "App");
+        vms(app, VmStatus.RUNNING, 1);
+        vms(app, VmStatus.STARTING, 1);
+        vms(app, VmStatus.STOPPING, 1);
+        vms(app, VmStatus.ERROR, 1);
+        vms(app, VmStatus.NOT_FOUND, 1);
+        vms(app, VmStatus.UNKNOWN, 2);
+        vms(app, VmStatus.STOPPED, 1);
+
+        String group = "$.content[0].groupStates[0].";
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).param("includeGroups", "true").with(asAdmin()))
+                .andExpect(jsonPath(group + "total").value(8))
+                .andExpect(jsonPath(group + "running").value(1))
+                .andExpect(jsonPath(group + "busy").value(2))
+                .andExpect(jsonPath(group + "problem").value(2))
+                .andExpect(jsonPath(group + "unknown").value(2))
+                .andExpect(jsonPath(group + "stopped").value(1));
+    }
+
+    @Test
+    void withoutTheFlagThereAreNoGroupStates() throws Exception {
+        vms(newGroup(env, "App"), VmStatus.RUNNING, 1);
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).with(asAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].groupStates").doesNotExist());
+    }
+
+    @Test
+    void aGroupScopedViewerSeesOnlyTheirGroupAndItsCounts() throws Exception {
+        VmGroup mine = newGroup(env, "Mine");
+        VmGroup other = newGroup(env, "Other");
+        vms(mine, VmStatus.RUNNING, 1);
+        vms(mine, VmStatus.STOPPED, 1);
+        vms(other, VmStatus.RUNNING, 4);
+        grantGroup(viewer, mine.getGroupId(), AccessLevel.VIEWER);
+
+        String row = "$[?(@.environmentId == '" + env.getEnvironmentId() + "')].";
+        mockMvc.perform(get("/api/v1/environments").param("includeGroups", "true").with(asViewer()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(row + "groupStates[*].name").value(contains("Mine")))
+                .andExpect(jsonPath(row + "vmCount").value(contains(2)))
+                .andExpect(jsonPath(row + "runningVmCount").value(contains(1)))
+                .andExpect(jsonPath(row + "groupCount").value(contains(1)));
+        // Someone with environment-wide access still sees every group.
+        mockMvc.perform(get("/api/v1/environments").param("includeGroups", "true").with(asUser()))
+                .andExpect(jsonPath(row + "groupStates[*].name").value(contains("Mine", "Other")))
+                .andExpect(jsonPath(row + "vmCount").value(contains(6)));
+    }
+
+    @Test
+    void listRowsSayWhetherTheViewerMayOperate() throws Exception {
+        Environment readOnly = newEnvironment("ro-" + tag);
+        grantEnv(operator, readOnly.getEnvironmentId(), AccessLevel.VIEWER);
+
+        mockMvc.perform(get("/api/v1/environments").param("includeGroups", "true").with(asUser()))
+                .andExpect(jsonPath("$[?(@.environmentId == '" + env.getEnvironmentId() + "')].viewerCanOperate").value(contains(true)))
+                .andExpect(jsonPath("$[?(@.environmentId == '" + readOnly.getEnvironmentId() + "')].viewerCanOperate").value(contains(false)))
+                .andExpect(jsonPath("$[?(@.environmentId == '" + readOnly.getEnvironmentId() + "')].groupStates").value(contains(empty())));
+    }
+
+    @Test
+    void theEnvironmentPagesGroupListingCountsEveryState() throws Exception {
+        VmGroup app = newGroup(env, "App");
+        vms(app, VmStatus.RUNNING, 2);
+        vms(app, VmStatus.ERROR, 1);
+        vms(app, VmStatus.STOPPED, 3);
+        vms(app, VmStatus.STARTING, 1);
+
+        String group = "$[?(@.group.groupId == '" + app.getGroupId() + "')].group.";
+        mockMvc.perform(get("/api/v1/environments/" + env.getEnvironmentId() + "/vms").with(asAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(group + "vmCount").value(contains(7)))
+                .andExpect(jsonPath(group + "runningVmCount").value(contains(2)))
+                .andExpect(jsonPath(group + "problemVmCount").value(contains(1)))
+                .andExpect(jsonPath(group + "stoppedVmCount").value(contains(3)))
+                .andExpect(jsonPath(group + "busyVmCount").value(contains(1)))
+                .andExpect(jsonPath(group + "unknownVmCount").value(contains(0)));
     }
 }
