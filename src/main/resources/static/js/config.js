@@ -126,8 +126,10 @@ const Config = (function() {
             metrics: (envId, vmId, window = '1h', period = 300) =>
                 `${API_BASE_URL}/environments/${envId}/vms/${vmId}/metrics?window=${encodeURIComponent(window)}&period=${encodeURIComponent(period)}`,
             utilizationSummary: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}/utilization-summary`,
-            groupPage: (envId, groupId, page = 0, size = 25) =>
-                `${API_BASE_URL}/environments/${envId}/vms/${groupId}/page?page=${page}&size=${size}`,
+            // state: 'running', 'stopped' or 'problems' (U05-T06); all when left out
+            groupPage: (envId, groupId, page = 0, size = 25, state = '') =>
+                `${API_BASE_URL}/environments/${envId}/vms/${groupId}/page?page=${page}&size=${size}`
+                + (state ? `&state=${encodeURIComponent(state)}` : ''),
             // Registry review (E09-T08/T06/T09): state is DRIFT, PENDING or INACTIVE
             review: (envId, state, page = 0, size = 25) =>
                 `${API_BASE_URL}/environments/${envId}/vms/review?state=${encodeURIComponent(state)}&page=${page}&size=${size}`,

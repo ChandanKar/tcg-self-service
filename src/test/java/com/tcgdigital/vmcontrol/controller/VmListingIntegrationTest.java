@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-/** U05-T01/T02: the VM endpoints carry stateSince and instanceType. */
+/** U05-T01/T02/T06: the VM endpoints carry stateSince and instanceType; a group's page filters by state. */
 @AutoConfigureMockMvc
 class VmListingIntegrationTest extends AbstractIntegrationTest {
 
@@ -106,5 +106,54 @@ class VmListingIntegrationTest extends AbstractIntegrationTest {
                         .header("X-User-Id", "admin-001"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.stateSince").value(nullValue()));
+    }
+
+    // ---------------------------------------------------------------- U05-T06: state filter
+
+    private String groupPage(Environment env, VmGroup group, String query) {
+        return "/api/v1/environments/" + env.getEnvironmentId() + "/vms/" + group.getGroupId() + "/page?" + query;
+    }
+
+    @Test
+    void aGroupsPageFiltersToStoppedVmsWithTheirOwnTotal() throws Exception {
+        Environment env = newEnvironment("Filter");
+        VmGroup group = newGroup(env, "web");
+        for (int i = 0; i < 14; i++) newVm(group, "run-" + i, VmStatus.RUNNING);
+        for (int i = 0; i < 4; i++) newVm(group, "stop-" + i, VmStatus.STOPPED);
+
+        mockMvc.perform(get(groupPage(env, group, "page=0&size=10&state=stopped")).header("X-User-Id", "admin-001"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(4)))
+                .andExpect(jsonPath("$.content[*].status", everyItem(is("STOPPED"))))
+                .andExpect(jsonPath("$.page.totalElements").value(4));
+        mockMvc.perform(get(groupPage(env, group, "page=1&size=10&state=running")).header("X-User-Id", "admin-001"))
+                .andExpect(jsonPath("$.content", hasSize(4)))
+                .andExpect(jsonPath("$.page.totalElements").value(14));
+        mockMvc.perform(get(groupPage(env, group, "page=0&size=10")).header("X-User-Id", "admin-001"))
+                .andExpect(jsonPath("$.page.totalElements").value(18));
+    }
+
+    @Test
+    void problemsAreFailedOrDriftFlaggedVms() throws Exception {
+        Environment env = newEnvironment("Problems");
+        VmGroup group = newGroup(env, "db");
+        Vm failed = newVm(group, "db-1", VmStatus.ERROR);
+        Vm drifted = newVm(group, "db-2", VmStatus.RUNNING);
+        newVm(group, "db-3", VmStatus.RUNNING);
+        jdbcTemplate.update("UPDATE vm SET state_drift_detected = true WHERE vm_id = ?", drifted.getVmId());
+
+        mockMvc.perform(get(groupPage(env, group, "state=problems")).header("X-User-Id", "admin-001"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[*].vmId", containsInAnyOrder(failed.getVmId(), drifted.getVmId())))
+                .andExpect(jsonPath("$.content[0].stateSince").hasJsonPath());
+    }
+
+    @Test
+    void anUnknownStateIsRefusedWithTheAllowedValues() throws Exception {
+        Environment env = newEnvironment("Bogus");
+        VmGroup group = newGroup(env, "app");
+        mockMvc.perform(get(groupPage(env, group, "state=bogus")).header("X-User-Id", "admin-001"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("running, stopped, problems")));
     }
 }

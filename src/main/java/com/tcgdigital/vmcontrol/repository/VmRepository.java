@@ -146,6 +146,18 @@ public interface VmRepository extends JpaRepository<Vm, String> {
      */
     Page<Vm> findByGroupGroupIdAndIsActiveTrueOrderBySequencePositionAsc(String groupId, Pageable pageable);
 
+    /** A group's active VMs in some statuses, in start order (U05-T06: Running / Stopped filters). */
+    Page<Vm> findByGroupGroupIdAndIsActiveTrueAndStatusInOrderBySequencePositionAsc(
+            String groupId, java.util.Collection<VmStatus> statuses, Pageable pageable);
+
+    /** A group's active VMs that have a problem: one of the statuses, or drift flagged (U05-T06). */
+    @Query(value = "SELECT v FROM Vm v WHERE v.group.groupId = :groupId AND v.isActive = true "
+            + "AND (v.status IN :statuses OR v.stateDriftDetected = true) ORDER BY v.sequencePosition ASC",
+           countQuery = "SELECT COUNT(v) FROM Vm v WHERE v.group.groupId = :groupId AND v.isActive = true "
+            + "AND (v.status IN :statuses OR v.stateDriftDetected = true)")
+    Page<Vm> findProblemsInGroup(@Param("groupId") String groupId,
+                                 @Param("statuses") java.util.Collection<VmStatus> statuses, Pageable pageable);
+
     /**
      * All active VMs (in active environments) with group and environment eagerly fetched, for
      * fleet-wide reporting (Cost Management) that needs every VM's environment/group display name

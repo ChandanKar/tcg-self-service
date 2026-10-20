@@ -89,6 +89,29 @@ public class VmService {
         return vmRepository.findByGroupGroupIdAndIsActiveTrueOrderBySequencePositionAsc(groupId, pageable);
     }
 
+    /** The group-page filters (U05-T06), as the API spells them. */
+    public static final java.util.List<String> VM_PAGE_STATES = java.util.List.of("running", "stopped", "problems");
+    private static final java.util.Set<VmStatus> PROBLEM_STATUSES =
+            java.util.EnumSet.of(VmStatus.ERROR, VmStatus.NOT_FOUND, VmStatus.TERMINATED);
+
+    /**
+     * A group's VMs in start order, optionally narrowed to a state (U05-T06): running, stopped, or
+     * problems (ERROR, NOT_FOUND, TERMINATED, or drift flagged). Null or blank means all.
+     */
+    public Page<Vm> getVmsByGroupIdPaged(String groupId, String state, Pageable pageable) {
+        if (state == null || state.isBlank()) {
+            return getVmsByGroupIdPaged(groupId, pageable);
+        }
+        return switch (state.trim().toLowerCase(java.util.Locale.ROOT)) {
+            case "running" -> vmRepository.findByGroupGroupIdAndIsActiveTrueAndStatusInOrderBySequencePositionAsc(
+                    groupId, java.util.EnumSet.of(VmStatus.RUNNING), pageable);
+            case "stopped" -> vmRepository.findByGroupGroupIdAndIsActiveTrueAndStatusInOrderBySequencePositionAsc(
+                    groupId, java.util.EnumSet.of(VmStatus.STOPPED), pageable);
+            case "problems" -> vmRepository.findProblemsInGroup(groupId, PROBLEM_STATUSES, pageable);
+            default -> throw new ValidationException("state must be one of " + String.join(", ", VM_PAGE_STATES));
+        };
+    }
+
     /**
      * VM/running counts for every group in an environment, keyed by groupId — computed with a
      * single query so a group listing doesn't need a pair of count queries per group.

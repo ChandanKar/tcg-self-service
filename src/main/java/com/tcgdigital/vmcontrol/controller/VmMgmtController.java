@@ -179,7 +179,10 @@ public class VmMgmtController {
             @Parameter(description = "Environment ID") @PathVariable String environmentId,
             @Parameter(description = "Group ID") @PathVariable String groupId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "25") int size) {
+            @RequestParam(defaultValue = "25") int size,
+            @Parameter(description = "Only VMs in this state: running, stopped or problems (error, not found, "
+                    + "terminated, or drift flagged); all when left out")
+            @RequestParam(required = false) String state) {
         securityService.assertSameEnvironment(envOfGroup(groupId), environmentId);
         PageRequest pageable = Paging.of(page, size, Paging.DEFAULT_MAX_SIZE); // 400 on page < 0, size clamped
 
@@ -188,7 +191,7 @@ public class VmMgmtController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        Page<Vm> vmPage = vmService.getVmsByGroupIdPaged(groupId, pageable);
+        Page<Vm> vmPage = vmService.getVmsByGroupIdPaged(groupId, state, pageable);
         Map<String, VmListDetailsService.Details> details = detailsService.detailsFor(vmPage.getContent());
 
         Page<VmDTO> result = vmPage.map(vm -> VmListDetailsService.apply(VmDTO.fromEntity(vm), details));
