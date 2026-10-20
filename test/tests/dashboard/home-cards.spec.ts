@@ -246,7 +246,8 @@ test.describe('Home', () => {
     await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
     await page.evaluate(([e, v]) => { location.hash = `#/environments/${e}?vm=${v}`; }, [envId, vmId]);
 
-    await expect(page.locator('.vm-provider-line')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('dialog', { name: 'Web 01', exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('#dynamicSlideoutPanel[data-variant="vm-details"] .vm-panel-fields')).toBeVisible();
     await expect.poll(() => page.evaluate(() => location.hash)).toBe(`#/environments/${envId}`);
   });
 });
