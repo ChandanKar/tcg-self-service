@@ -55,6 +55,8 @@ test.describe('My Account: request an extension', () => {
   test('previews the new expiry from the current one, and approval extends from it', async ({ page, playwright }) => {
     await signIn(page, 'user');
     await page.waitForFunction(() => typeof MyAccount !== 'undefined');
+    // Opening the first page closes any open panel; wait for it, or the panel can be shut right away.
+    await expect(page.locator('#content-area h1').first()).toBeVisible({ timeout: 15_000 });
     await page.evaluate(() => MyAccount.open('access'));
 
     const extend = page.locator(`[data-ma-action="extend"][data-access-id="${accessId}"]`);

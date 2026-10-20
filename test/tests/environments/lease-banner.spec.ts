@@ -96,6 +96,8 @@ test.describe('Lease fact', () => {
   test('My Account lists the running environment with Extend (E15-T07)', async ({ page }) => {
     await signIn(page, 'user');
     await page.waitForFunction(() => typeof (window as any).MyAccount !== 'undefined' || typeof ContentRouter !== 'undefined');
+    // Opening the first page closes any open panel; wait for it, or the panel can be shut right away.
+    await expect(page.locator('#content-area h1').first()).toBeVisible({ timeout: 15_000 });
     await page.evaluate(() => (window as any).eval('MyAccount.open("access")'));
     const section = page.locator('#dynamicSlideoutPanel .ma-leases');
     await expect(section).toBeVisible({ timeout: 10_000 });

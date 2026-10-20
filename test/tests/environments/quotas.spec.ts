@@ -98,6 +98,8 @@ test.describe('Team quotas', () => {
         quota({ metric: 'COST', limit: 500, used: 120, percent: 24 })] }]) }));
     await signIn(page, 'admin');
     await page.waitForFunction(() => typeof MyAccount !== 'undefined');
+    // Opening the first page closes any open panel; wait for it, or the panel can be shut right away.
+    await expect(page.locator('#content-area h1').first()).toBeVisible({ timeout: 15_000 });
     await page.evaluate(() => MyAccount.open('cost'));
     const card = page.locator('.ma-quota-card[data-team="t1"]');
     await expect(card).toContainText('Platform', { timeout: 10_000 });
