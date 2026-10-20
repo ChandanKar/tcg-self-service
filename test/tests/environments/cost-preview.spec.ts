@@ -44,11 +44,11 @@ test.describe('Cost preview in dialogs', () => {
     await openEnv(page, envId);
     await page.locator('#btn-env-action').click();
 
-    const line = page.locator('#confirmModal #cost-preview-line');
-    await expect(line).toHaveText('About $1.54 for 8 h ($0.19/h) · price unknown for 1 VM, approximate');
-    await expect(line).toBeVisible();
+    // U08-T02: the cost box of the start dialog (StartConfirm.dc.html).
+    await expect(page.locator('#operationConfirmModal #op-confirm-cost')).toHaveText('$1.54');
+    await expect(page.locator('#op-confirm-rate')).toHaveText(/\$0\.19 an hour · price unknown for 1 VM, approximate$/);
     expect(asked[0]).not.toContain('extension=true');
-    await expect(page.locator('#confirmBtn')).toBeEnabled();
+    await expect(page.locator('#op-confirm-btn')).toBeEnabled();
   });
 
   test('a failing preview leaves the dialog without a cost line', async ({ page, playwright }) => {
@@ -56,10 +56,69 @@ test.describe('Cost preview in dialogs', () => {
     await page.route(/\/operations\/cost-preview/, route => route.fulfill({ status: 500, body: '' }));
     await openEnv(page, envId);
     await page.locator('#btn-env-action').click();
-    await expect(page.locator('#confirmModal')).toBeVisible();
-    await expect(page.locator('#estimate-placeholder, #confirmModal .alert')).toHaveCount(1, { timeout: 10_000 });
-    await expect(page.locator('#cost-preview-line')).toBeHidden();
-    await expect(page.locator('#confirmBtn')).toBeEnabled();
+    await expect(page.locator('#operationConfirmModal')).toBeVisible();
+    await expect(page.locator('#op-confirm-cost')).toHaveText('—', { timeout: 10_000 });
+    await expect(page.locator('#op-confirm-rate')).toHaveText('No price known');
+    await expect(page.locator('#op-confirm-btn')).toBeEnabled();
+  });
+
+  test('U08-T02: the start dialog says what starts, offers lengths, prices each and names the approver', async ({ page, playwright }) => {
+    const envId = await seedEnvironment(playwright, 'Payments Dev');
+    const iso = (min: number) => new Date(Date.now() + min * 60000).toISOString();
+    await page.route(/\/api\/v1\/environments\/[^/]+\/vms(\?.*)?$/, route => route.fulfill({ json: [
+      { group: { groupId: 'g-db', name: 'db', displayName: 'Database', sequencePosition: 1 }, vms: [
+        { vmId: 'd1', name: 'db-01', provider: 'AWS', status: 'RUNNING', instanceType: 'm5.large', sequencePosition: 1, lastStateSyncAt: iso(-1) }] },
+      { group: { groupId: 'g-web', name: 'web', displayName: 'Web', sequencePosition: 2 }, vms: [
+        { vmId: 'w1', name: 'web-01', provider: 'AWS', status: 'STOPPED', instanceType: 't3.medium', sequencePosition: 1, lastStateSyncAt: iso(-1) },
+        { vmId: 'w2', name: 'web-02', provider: 'AWS', status: 'STOPPED', instanceType: 't3.medium', sequencePosition: 2, lastStateSyncAt: iso(-1) }] }] }));
+    await page.route(/\/api\/v1\/environments\/[^/]+\/lease$/, route => route.fulfill({ status: 404, body: '' }));
+    await page.route(/\/api\/v1\/environments\/[^/]+\/lease-policy$/, route => route.fulfill({ json: {
+      enabled: true, effectiveDefaultMinutes: 480, effectiveMaxMinutes: 1440, platformMaxMinutes: 1440, canEdit: false } }));
+    await page.route(/\/operations\/cost-preview/, route => {
+      const hours = Number(new URL(route.request().url()).searchParams.get('hours')) || 8;
+      return route.fulfill({ json: preview({ hours, hourlyTotal: 0.09, estimatedTotal: 0.09 * hours }) });
+    });
+    const evaluated: any[] = [];
+    await page.route(/\/approval-policies\/evaluate$/, route => {
+      const body = route.request().postDataJSON();
+      evaluated.push(body);
+      return route.fulfill({ json: body.hours > 8
+        ? { requiresApproval: true, blocked: false, warnings: [], matches: [{ policyId: 'p', name: 'Runs over 8 hours need the owner',
+          approverMode: 'ENV_OWNER', reasons: ['24 h is longer than 8 h'], approverNames: ['Sanjay Rao'] }] }
+        : { requiresApproval: false, blocked: false, warnings: [], matches: [] } });
+    });
+    let started: any = null;
+    await page.route(/\/api\/v1\/environments\/[^/]+\/operations$/, route => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      started = route.request().postDataJSON();
+      return route.fulfill({ json: { approvalRequestId: 'req-9', approvers: ['Sanjay Rao'], reasons: ['24 h is longer than 8 h'] } });
+    });
+    await openEnv(page, envId);
+    await page.locator('#btn-env-action').click();
+
+    const dialog = page.locator('#operationConfirmModal');
+    await expect(dialog.locator('.modal-title')).toHaveText(/^Start 2 VMs in Payments Dev \d+\?$/);
+    await expect(dialog.locator('#op-confirm-sentence')).toContainText('The Web group starts now. Database is already running.');
+    await expect(dialog.locator('.op-confirm-targets')).toContainText('web-01, web-02 · t3.medium');
+    const chips = dialog.locator('#op-confirm-chips .choice-chip');
+    await expect(chips).toHaveText(['2 hours', '8 hours', '24 hours']);
+    await expect(chips.nth(1)).toHaveAttribute('aria-pressed', 'true');
+    await expect(dialog.locator('#op-confirm-cost')).toHaveText('$0.72');
+    await expect(dialog.locator('#op-confirm-rate')).toHaveText('$0.09 an hour for both');
+    await expect(dialog.locator('#op-confirm-approval')).toHaveText('No approval needed');
+    await expect(dialog.locator('#op-confirm-hint')).toContainText('You get a reminder 15 minutes before.');
+    await expect(page.locator('#op-confirm-btn')).toHaveText('Start 2 VMs');
+
+    await chips.nth(2).click();
+    await expect(dialog.locator('#op-confirm-cost')).toHaveText('$2.16');
+    await expect(dialog.locator('#op-confirm-approval')).toHaveText('Needs Sanjay Rao');
+    await expect(dialog.locator('#op-confirm-approval-note')).toHaveText('Runs over 8 hours need the owner');
+    await expect(page.locator('#op-confirm-btn')).toHaveText('Send for approval');
+    expect(evaluated.map(e => e.hours)).toEqual([8, 24]);
+
+    await page.locator('#op-confirm-btn').click();
+    await expect.poll(() => started).toMatchObject({ operationType: 'START', leaseMinutes: 1440 });
+    await expect(page.locator('.toast-message').filter({ hasText: 'Sent for approval to Sanjay Rao' })).toBeVisible();
   });
 
   test('the extension dialog shows the extra cost for the chosen length', async ({ page }) => {

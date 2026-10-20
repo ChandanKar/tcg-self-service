@@ -110,7 +110,7 @@ const CostPreview = (function() {
         });
     }
 
-    return { text, render, money, quotaBar, renderQuota };
+    return { load, text, render, money, quotaBar, renderQuota };
 })();
 
 window.CostPreview = CostPreview;

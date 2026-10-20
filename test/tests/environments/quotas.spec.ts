@@ -62,16 +62,16 @@ test.describe('Team quotas', () => {
     const line = page.locator('#quota-preview-line');
     await expect(line).toHaveText('Team quota: 70 h of 100 h used; this start adds ~16 h');
     await expect(line).toHaveAttribute('data-quota', 'warn'); // 86% projected, past the 80% warning level
-    await expect(page.locator('#confirmBtn')).toBeEnabled();
-    await page.locator('#confirmModal .btn-close').click(); // works even while the dialog is still fading in
+    await expect(page.locator('#op-confirm-btn')).toBeEnabled();
+    await page.locator('#operationConfirmModal .btn-close').click(); // works even while the dialog is still fading in
     await expect(page.locator('.modal.show')).toHaveCount(0, { timeout: 10_000 });
 
     usage = [quota({ used: 95, enforcement: 'BLOCK' })];
     await page.locator('#btn-env-action').click();
     await expect(line).toContainText('(over the limit: blocked)');
     await expect(line).toHaveAttribute('data-quota', 'block');
-    await expect(page.locator('#confirmBtn')).toBeDisabled();
-    await expect(page.locator('#confirmBtn')).toHaveAttribute('title', 'The team quota would be exceeded');
+    await expect(page.locator('#op-confirm-btn')).toBeDisabled();
+    await expect(page.locator('#op-confirm-btn')).toHaveAttribute('title', 'The team quota would be exceeded');
   });
 
   test('an admin sets a cost quota on the Teams page and sees the usage bar in dollars', async ({ page, playwright }) => {

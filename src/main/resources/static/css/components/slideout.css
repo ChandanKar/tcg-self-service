@@ -3,7 +3,7 @@
  */
 
 /* Dialogs opened from a slide-out (My Account's API tokens, E34-T05; the environment's Settings
-   panel, U07-T02) and the shared confirm dialog stay above it: the panel sits above Bootstrap's
+   panel, U07-T02), the start and stop confirmation (U08-T02) and the shared confirm dialog stay above it: the panel sits above Bootstrap's
    modal layer. */
 #apiTokenCreateModal,
 #apiTokenRevealModal,
@@ -11,6 +11,7 @@
 #webhookModal,
 #webhookSecretModal,
 #webhookDeliveriesModal,
+#operationConfirmModal,
 #confirmModal {
     z-index: 1090;
 }

@@ -234,6 +234,78 @@
     margin-top: 4px;
 }
 
+/* Start and stop confirmation (U08-T02, StartConfirm.dc.html) */
+.op-confirm-targets {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 18px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--surface-subtle);
+    font-size: var(--fs-small);
+    color: var(--slate);
+    min-width: 0;
+}
+
+.op-confirm-targets > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.op-confirm-duration {
+    margin-bottom: 18px;
+}
+
+.op-confirm-hint {
+    margin: 8px 0 0;
+    font-size: var(--fs-small);
+    color: var(--slate);
+}
+
+.op-confirm-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.op-confirm-fact {
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    min-width: 0;
+}
+
+.op-confirm-label,
+.op-confirm-note {
+    font-size: var(--fs-caption);
+    color: var(--slate);
+}
+
+.op-confirm-value {
+    margin-top: 4px;
+    font-size: 15px;
+    color: var(--ink);
+}
+
+.op-confirm-value.mono {
+    font-size: 18px;
+}
+
+.op-confirm-note {
+    margin-top: 2px;
+}
+
+#quota-preview-line {
+    margin-top: 10px;
+}
+
+@media (max-width: 480px) {
+    .op-confirm-facts {
+        grid-template-columns: 1fr;
+    }
+}
+
 .lease-extend-facts {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

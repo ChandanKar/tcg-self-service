@@ -23,6 +23,7 @@ const EnvCost = (function() {
     }
 
     const pad = n => String(n).padStart(2, '0');
+    const schedules = {};   // envId -> scheduleStatus, for the start dialog's "Schedule stop" chip (U08-T02)
 
     /** "Mon 20:00", 24-hour like the rest of the app. */
     function when(ts) {
@@ -39,6 +40,7 @@ const EnvCost = (function() {
         ApiClient.get(Config.API.environments.cost(env.environmentId), { suppressGlobalError: true })
             .done(function(cost) {
                 if (!ContentRouter.isCurrent(token)) return; // navigated away meanwhile
+                schedules[env.environmentId] = cost.scheduleStatus || null;
                 $card.html(buildCard(cost, env));
                 $('#env-fact-schedule').html(scheduleFact(cost));
                 mountNamespaces(env, cost);
@@ -172,7 +174,12 @@ const EnvCost = (function() {
             </div>`;
     }
 
-    return { render, retry };
+    /** The schedule last read for an environment ({nextStop, nextStart, ruleCount}), or null. */
+    function scheduleFor(envId) {
+        return schedules[envId] || null;
+    }
+
+    return { render, retry, scheduleFor };
 })();
 
 window.EnvCost = EnvCost;

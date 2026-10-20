@@ -351,8 +351,14 @@ const Leases = (function() {
         return { values, defaultValue: policy.effectiveDefaultMinutes, label: minutesLabel };
     }
 
+    /** The lease policy last read for an environment, or null (U08-T02). */
+    function policyFor(envId) {
+        return policies[envId] || null;
+    }
+
     return {
         render,
+        policyFor,
         showExtendDialog,
         showPolicyDialog,
         runForOptions,

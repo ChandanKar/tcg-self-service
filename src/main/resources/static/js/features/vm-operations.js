@@ -38,11 +38,10 @@ const VmOperations = (function() {
      * Start a VM group
      * Backend: operationType=START, groupIds=[groupId]
      */
-    function startGroup(envId, groupId, groupName, noun) {
-        return executeOperation(envId, {
-            operationType: 'START',
-            groupIds: [groupId]
-        }, `Starting ${(noun || 'group').toLowerCase()} ${groupName || groupId}`);
+    function startGroup(envId, groupId, groupName, noun, leaseMinutes) {
+        const body = { operationType: 'START', groupIds: [groupId] };
+        if (leaseMinutes) body.leaseMinutes = leaseMinutes; // U08-T02: the length chosen in the start dialog
+        return executeOperation(envId, body, `Starting ${(noun || 'group').toLowerCase()} ${groupName || groupId}`);
     }
 
     /**
@@ -59,11 +58,10 @@ const VmOperations = (function() {
      * Start a single VM
      * Backend: operationType=START, vmIds=[vmId]
      */
-    function startVm(envId, vmId, vmName) {
-        return executeOperation(envId, {
-            operationType: 'START',
-            vmIds: [vmId]
-        }, `Starting ${vmName || vmId}`);
+    function startVm(envId, vmId, vmName, leaseMinutes) {
+        const body = { operationType: 'START', vmIds: [vmId] };
+        if (leaseMinutes) body.leaseMinutes = leaseMinutes; // U08-T02
+        return executeOperation(envId, body, `Starting ${vmName || vmId}`);
     }
 
     /**

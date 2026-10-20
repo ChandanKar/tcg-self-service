@@ -999,268 +999,68 @@ const Environments = (function() {
         window.addEventListener('vm-operation-status', operationStatusHandler);
     }
 
-    // Operation functions - delegate to VmOperations module for progress tracking
-    function startEnvironment(envId, envName) {
-        // Lease-enabled environments ask how long to run (E15-T06); the server applies the owner's limits.
-        const runFor = typeof Leases !== 'undefined' ? Leases.runForOptions(envId) : null;
-        const note = runFor ? `<label class="form-label small mb-1 mt-2" for="lease-run-for">Run for</label>
-                <select class="form-select form-select-sm" id="lease-run-for">${runFor.values.map(m =>
-                    `<option value="${m}" ${m === runFor.defaultValue ? 'selected' : ''}>${runFor.label(m)}</option>`).join('')}</select>` : '';
-        showOperationConfirm({
-            envId, opType: 'START',
-            scope: { level: 'environment', label: `all VMs in <strong>${Utils.escapeHtml(envName)}</strong>` },
-            note,
-            onConfirm: () => {
-                const minutes = runFor ? Number($('#lease-run-for').val()) || null : null;
-                return VmOperations.startEnvironment(envId, envName, minutes)
-                    .then(() => reloadDetailIfCurrent(envId));
-            }
+    // Operation functions - confirm in OperationConfirm (U08-T02), run through VmOperations for progress tracking
+    function confirmOperation(envId, opType, scope, run) {
+        const env = currentEnvironment && currentEnvironment.environmentId === envId ? currentEnvironment : { environmentId: envId, groups: [] };
+        OperationConfirm.open({
+            env, opType, scope,
+            onConfirm: leaseMinutes => run(leaseMinutes).then(() => reloadDetailIfCurrent(envId))
         });
     }
 
+    function startEnvironment(envId, envName) {
+        confirmOperation(envId, 'START', { level: 'environment' },
+            minutes => VmOperations.startEnvironment(envId, envName, minutes));
+    }
+
     function stopEnvironment(envId, envName) {
-        showOperationConfirm({
-            envId, opType: 'STOP',
-            scope: { level: 'environment', label: `all VMs in <strong>${Utils.escapeHtml(envName)}</strong>` },
-            note: 'Running VMs will be gracefully stopped.',
-            onConfirm: () => VmOperations.stopEnvironment(envId, envName)
-                                .then(() => reloadDetailIfCurrent(envId))
-        });
+        confirmOperation(envId, 'STOP', { level: 'environment' }, () => VmOperations.stopEnvironment(envId, envName));
     }
 
     /**
      * True when a group's VMs are EKS node-group representations (one Vm per node group in
      * this model) rather than a regular multi-VM group — used to say "node group" instead of
-     * the more alarming-sounding bare "Group" in operation confirmations, since to the user
-     * this action is scoped to exactly the one node group they clicked, not a broader "group".
+     * the more alarming-sounding bare "Group" in operation messages.
      */
     function isEksGroup(group) {
         const vms = group ? (group.vms || []) : [];
         return vms.length > 0 && vms.every(v => v.provider === 'AWS_EKS');
     }
 
-    function startGroup(envId, groupId) {
+    function groupLabel(groupId) {
         const group = findGroup(groupId);
-        const groupName = group ? (group.group?.displayName || group.group?.name || group.displayName || group.name) : groupId;
-        const noun = isEksGroup(group) ? 'Node Group' : 'Group';
-        showOperationConfirm({
-            envId, opType: 'START',
-            scope: { level: 'group', label: `${noun.toLowerCase()} <strong>${Utils.escapeHtml(groupName)}</strong>`, groupId, noun },
-            onConfirm: () => VmOperations.startGroup(envId, groupId, groupName, noun)
-                                .then(() => reloadDetailIfCurrent(envId))
-        });
+        return {
+            name: group ? (group.group?.displayName || group.group?.name || group.displayName || group.name) : groupId,
+            noun: isEksGroup(group) ? 'Node Group' : 'Group'
+        };
+    }
+
+    function startGroup(envId, groupId) {
+        const { name, noun } = groupLabel(groupId);
+        confirmOperation(envId, 'START', { level: 'group', groupId },
+            minutes => VmOperations.startGroup(envId, groupId, name, noun, minutes));
     }
 
     function stopGroup(envId, groupId) {
-        const group = findGroup(groupId);
-        const groupName = group ? (group.group?.displayName || group.group?.name || group.displayName || group.name) : groupId;
-        const noun = isEksGroup(group) ? 'Node Group' : 'Group';
-        showOperationConfirm({
-            envId, opType: 'STOP',
-            scope: { level: 'group', label: `${noun.toLowerCase()} <strong>${Utils.escapeHtml(groupName)}</strong>`, groupId, noun },
-            note: 'Running VMs will be gracefully stopped.',
-            onConfirm: () => VmOperations.stopGroup(envId, groupId, groupName, noun)
-                                .then(() => reloadDetailIfCurrent(envId))
-        });
+        const { name, noun } = groupLabel(groupId);
+        confirmOperation(envId, 'STOP', { level: 'group', groupId }, () => VmOperations.stopGroup(envId, groupId, name, noun));
+    }
+
+    function vmLabel(vmId) {
+        const vm = findVm(vmId);
+        return vm ? (vm.displayName || vm.name) : vmId;
     }
 
     function startVm(envId, vmId) {
-        const vm = findVm(vmId);
-        const vmName = vm ? (vm.displayName || vm.name) : vmId;
-        showOperationConfirm({
-            envId, opType: 'START',
-            scope: { level: 'vm', label: `VM <strong>${Utils.escapeHtml(vmName)}</strong>`, vmId },
-            onConfirm: () => VmOperations.startVm(envId, vmId, vmName)
-                                .then(() => reloadDetailIfCurrent(envId))
-        });
+        const name = vmLabel(vmId);
+        confirmOperation(envId, 'START', { level: 'vm', vmId }, minutes => VmOperations.startVm(envId, vmId, name, minutes));
     }
 
     function stopVm(envId, vmId) {
-        const vm = findVm(vmId);
-        const vmName = vm ? (vm.displayName || vm.name) : vmId;
-        showOperationConfirm({
-            envId, opType: 'STOP',
-            scope: { level: 'vm', label: `VM <strong>${Utils.escapeHtml(vmName)}</strong>`, vmId },
-            onConfirm: () => VmOperations.stopVm(envId, vmId, vmName)
-                                .then(() => reloadDetailIfCurrent(envId))
-        });
+        const name = vmLabel(vmId);
+        confirmOperation(envId, 'STOP', { level: 'vm', vmId }, () => VmOperations.stopVm(envId, vmId, name));
     }
 
-    /**
-     * Unified confirm modal with async estimate for all 3 scope levels.
-     * @param {object} opts
-     *   envId     - environment ID
-     *   opType    - 'START' | 'STOP'
-     *   scope     - { level: 'environment'|'group'|'vm', label, groupId?, vmId? }
-     *   note      - optional extra text (e.g., "VMs will be gracefully stopped")
-     *   onConfirm - function to call when user clicks confirm
-     */
-    function showOperationConfirm(opts) {
-        const { envId, opType, scope, note, onConfirm } = opts;
-
-        // Check lock status first - block if locked by another user
-        Locks.getStatus(envId).then(function(lockStatus) {
-            if (!Locks.canOperate(lockStatus)) {
-                const lockedBy = lockStatus.lockedByDisplayName || lockStatus.lockedByUserId || 'another user';
-                Notifications.warning(
-                    `This environment is locked by <strong>${Utils.escapeHtml(lockedBy)}</strong>. ` +
-                    `You cannot perform operations until the lock is released.`,
-                    4000, { html: true }
-                );
-                return;
-            }
-
-            // Lock check passed - show confirmation dialog
-            showOperationConfirmDialog(opts);
-        }).catch(function() {
-            // If we can't check lock status, proceed anyway (backend will enforce)
-            showOperationConfirmDialog(opts);
-        });
-    }
-
-    /**
-     * Internal: Show the actual operation confirmation dialog after lock check passes
-     */
-    function showOperationConfirmDialog(opts) {
-        const { envId, opType, scope, note, onConfirm } = opts;
-        const isStart     = opType === 'START';
-        const verb        = isStart ? 'Start' : 'Stop';
-        const scopeNoun   = scope.level === 'vm' ? 'VM' : scope.level === 'group' ? (scope.noun || 'Group') : 'All';
-        const actionLabel = `${verb} ${scopeNoun}`;
-        const actionClass = isStart ? 'btn-success' : 'btn-danger';
-
-        // Use div instead of p to avoid double-<p> wrap from Modals.confirm
-        const bodyFor = (estimateHtml) => `
-            <div class="mb-2">${verb} ${scope.label}?
-            ${note ? (note.startsWith('<label') ? note : `<br><small class="text-muted">${note}</small>`) : ''}
-            </div>
-            ${estimateHtml}
-        `;
-
-        // Show modal immediately — estimate loads async
-        Modals.confirm(
-            `${verb} ${scope.level === 'environment' ? 'Environment' : scope.level === 'group' ? (scope.noun || 'Group') : 'VM'}`,
-            bodyFor(`<div id="estimate-placeholder" class="text-muted small mt-2">
-                <i class="fas fa-spinner fa-spin me-1"></i> Loading time estimate…
-            </div>${isStart ? '<div id="cost-preview-line" class="small mt-2 fw-semibold" aria-live="polite" hidden></div>'
-                + '<div id="quota-preview-line" class="small mt-1" aria-live="polite" hidden></div>' : ''}`),
-            function() {
-                onConfirm().catch(err => console.error(`${actionLabel} failed:`, err));
-            },
-            { confirmText: actionLabel, confirmClass: actionClass, html: true }
-        );
-
-        // Build scope param for API
-        const scopeParam = scope.level === 'group' ? { groupId: scope.groupId }
-                         : scope.level === 'vm'    ? { vmId: scope.vmId }
-                         : null;
-
-        // What the start will cost (E25-T02); follows the lease "Run for" choice when there is one.
-        if (isStart && typeof CostPreview !== 'undefined') {
-            const navToken = ContentRouter.token();
-            const previewCost = () => {
-                const minutes = Number($('#lease-run-for').val()) || null;
-                CostPreview.render($('#cost-preview-line'), envId, scopeParam, minutes ? Math.ceil(minutes / 60) : null, false,
-                    () => ContentRouter.isCurrent(navToken) && $('#cost-preview-line').length > 0)
-                    .then(preview => {
-                        // The team's quota with this start added (E25-T08).
-                        const teamId = currentEnvironment && currentEnvironment.environmentId === envId ? currentEnvironment.teamId : null;
-                        $('#confirmBtn').prop('disabled', false).removeAttr('title');
-                        return CostPreview.renderQuota($('#quota-preview-line'), teamId, preview, $('#confirmBtn'));
-                    });
-            };
-            $('#confirmModal').on('change', '#lease-run-for', previewCost);
-            previewCost();
-        }
-
-        ApiClient.get(Config.API.operations.estimates(envId, opType, scopeParam))
-            .done(function(estimate) {
-                console.log(`[Estimate][${scope.level}] received:`, estimate);
-                const html = buildEstimateHtml(estimate, opType, scope.level);
-                const $ph = $('#estimate-placeholder');
-                if ($ph.length) $ph.replaceWith(html);
-            })
-            .fail(function(xhr) {
-                console.warn(`[Estimate][${scope.level}] fetch failed:`, xhr.status, xhr.responseText);
-                const $ph = $('#estimate-placeholder');
-                if ($ph.length) $ph.remove();
-            });
-    }
-
-    /**
-     * Build the estimate info block for any scope level.
-     * - ENVIRONMENT: shows avg/min/max + per-VM breakdown table
-     * - GROUP: shows avg/min/max total for the group (no VM breakdown)
-     * - VM: shows avg/min/max for that single VM
-     */
-    function buildEstimateHtml(estimate, opType, level) {
-        const opLabel = opType.toLowerCase();
-
-        if (!estimate || estimate.sampleCount === 0) {
-            return `<div class="alert alert-secondary py-2 small mt-2 mb-0">
-                <i class="fas fa-info-circle me-1"></i>
-                No historical data yet — this will be the first recorded ${opLabel} operation${level !== 'environment' ? ' at this level' : ''}.
-            </div>`;
-        }
-
-        const n   = estimate.sampleCount;
-        const avg = estimate.avgEnvironmentSeconds;
-        const min = estimate.minEnvironmentSeconds;
-        const max = estimate.maxEnvironmentSeconds;
-
-        const fmt = (s) => {
-            if (s == null || s === 0) return '—';
-            s = Math.round(s);
-            if (s < 60) return `${s}s`;
-            const m = Math.floor(s / 60), sec = s % 60;
-            return sec > 0 ? `${m}m ${sec}s` : `${m}m`;
-        };
-
-        // Per-VM breakdown only for environment scope
-        let vmBreakdown = '';
-        if (level === 'environment' && estimate.vmEstimates && estimate.vmEstimates.length > 0) {
-            const MAX_VISIBLE = 6;
-            const rows = estimate.vmEstimates.map((vm, i) => `
-                <tr class="${i >= MAX_VISIBLE ? 'vm-est-extra d-none' : ''}">
-                    <td class="text-muted pe-2" style="width:24px">${vm.sequencePosition}</td>
-                    <td>${Utils.escapeHtml(vm.vmName)}</td>
-                    <td class="text-end text-nowrap ps-3">~${fmt(vm.avgSeconds)}
-                        <small class="text-muted">(${vm.sampleCount}×)</small>
-                    </td>
-                </tr>`).join('');
-
-            const extra = estimate.vmEstimates.length - MAX_VISIBLE;
-            const toggleRow = extra > 0 ? `
-                <tr><td colspan="3" class="pt-1">
-                    <a href="#" class="small text-muted" data-action="env-toggle-estimates"
-                       data-extra="${extra}">Show ${extra} more…</a>
-                </td></tr>` : '';
-
-            vmBreakdown = `
-                <div class="mt-2 border-top pt-2">
-                    <table class="table table-sm table-borderless mb-0" style="font-size:0.8rem">
-                        <tbody>${rows}${toggleRow}</tbody>
-                    </table>
-                </div>`;
-        }
-
-        const levelLabel = level === 'environment' ? 'environment' : level === 'group' ? 'group' : 'VM';
-
-        return `
-            <div class="alert alert-info py-2 mt-2 mb-0" style="font-size:0.875rem">
-                <div class="d-flex align-items-center gap-2 mb-1">
-                    <i class="fas fa-clock text-info"></i>
-                    <strong>Estimated ${opLabel} time</strong>
-                    <span class="text-muted small">(based on ${n} previous ${n === 1 ? 'run' : 'runs'})</span>
-                </div>
-                <div class="d-flex gap-3 flex-wrap">
-                    <span>Avg: <strong class="text-dark">${fmt(avg)}</strong></span>
-                    <span class="text-muted">Fast: ${fmt(min)}</span>
-                    <span class="text-muted">Slow: ${fmt(max)}</span>
-                </div>
-                ${vmBreakdown}
-            </div>`;
-    }
 
 
     // Helper to find group in current environment
@@ -2028,13 +1828,6 @@ const Environments = (function() {
     };
 })();
 
-Actions.registerAll({
-    'env-toggle-estimates': el => {
-        const $link = $(el);
-        $link.closest('table').find('.vm-est-extra').toggleClass('d-none');
-        $link.text($link.text().startsWith('Show') ? 'Hide' : `Show ${el.dataset.extra} more…`);
-    }
-});
 Actions.register('env-search', el => Environments._search(el.value), 'input');
 // The list's All / Running / Stopped switch and its pager past 15 (U06-T05).
 Actions.register('env-list-filter', el => Environments.setStateFilter(el.getAttribute('data-filter')));
