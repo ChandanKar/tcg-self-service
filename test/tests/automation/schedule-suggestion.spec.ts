@@ -79,7 +79,11 @@ test.describe('Suggest from usage', () => {
 
   test('explains why there is no suggestion', async ({ page }) => {
     await openNewRule(page, environmentId);
+    // Wait for the real server's answer: a failure then says whether the click asked at all
+    // (VM run 0aa5089 once saw an empty panel; flaky list).
+    const answered = page.waitForResponse(r => r.url().includes('/automation-rules/suggestion'), { timeout: 10_000 });
     await page.locator('#ar-suggest-btn').click();
+    await answered;
     // The seeded environment has no VMs.
     await expect(page.locator('#ar-suggestion')).toContainText('This environment has no active VMs');
   });
