@@ -25,10 +25,10 @@ async function waitForRouter(page: Page) {
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined' && typeof ContentRouter.query === 'function');
 }
 
-/** The seeded environment's View button; searches by name, since earlier runs leave many E2E environments. */
+/** The seeded environment's Open link (U06-T05); searches by name, since earlier runs leave many E2E environments. */
 async function findInList(page: Page) {
   await page.locator('#env-list-search').fill(envName);
-  const view = page.locator(`[data-action="view"][data-env-id="${envId}"]`);
+  const view = page.locator(`#env-list-body a.env-open-link[href="#/environments/${envId}"]`);
   await expect(view).toBeVisible({ timeout: 10_000 });
   return view;
 }

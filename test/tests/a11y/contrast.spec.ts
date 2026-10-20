@@ -40,7 +40,7 @@ test.describe('Colour contrast', () => {
     ['Dashboard', '#/dashboard', '#content-area .dashboard-shell, #content-area h1'],
     ['Activity Logs', '#/activity-logs', '#al-action-type-filter'],
     ['VM Registry', '#/vm-registry', '#content-area h1'],
-    ['My Environments', '#/my-environments', '#env-list-search'],
+    ['Environments', '#/my-environments', '#env-list-search'],
   ] as const) {
     test(`${name} has no contrast violations`, async ({ page }) => {
       await open(page, hash, ready);

@@ -59,7 +59,7 @@ test.describe('Keyboard reach', () => {
 
   test('the help menu opens from the keyboard; arrows move; Escape returns focus to "?" (U04-T04)', async ({ page }) => {
     await page.evaluate(() => { location.hash = '#/my-environments'; });
-    await expect(page.locator('#content-area .content-header h1').first()).toHaveText('My Environments', { timeout: 15_000 });
+    await expect(page.locator('#content-area .content-header h1').first()).toHaveText('Environments', { timeout: 15_000 });
     await page.locator('body').focus();
     expect(await tabUntil(page, el => el.id === 'topbar-help-btn')).toBe(true);
     const help = page.locator('#topbar-help-btn');

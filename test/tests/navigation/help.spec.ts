@@ -77,7 +77,7 @@ test.describe('Help', () => {
   test('the top bar "?" offers help for this page, all topics and the shortcuts (U04-T01, U04-T04)', async ({ page }) => {
     test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
     await go(page, 'user', '#/my-environments');
-    await expect(page.locator('#content-area .content-header h1').first()).toHaveText('My Environments', { timeout: 15_000 });
+    await expect(page.locator('#content-area .content-header h1').first()).toHaveText('Environments', { timeout: 15_000 });
     const help = page.locator('#topbar-help-btn');
     await expect(help).toHaveAccessibleName('Help');
     await expect(help).toHaveAttribute('aria-haspopup', 'menu');

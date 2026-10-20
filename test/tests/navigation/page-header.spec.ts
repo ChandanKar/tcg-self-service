@@ -56,9 +56,9 @@ test.describe('Page header', () => {
     await expect(page).toHaveTitle('Help · Self-Service');
 
     await page.evaluate(() => { location.hash = '#/my-environments'; });
-    await expect(page.locator('#content-area .page-header h1')).toHaveText('My Environments', { timeout: 15_000 });
+    await expect(page.locator('#content-area .page-header h1')).toHaveText('Environments', { timeout: 15_000 });
     await expect(page.locator('#content-area .page-header a.help-link')).toHaveAttribute('aria-label', 'Help: Environments');
-    await expect(page).toHaveTitle('My Environments · Self-Service');
+    await expect(page).toHaveTitle('Environments · Self-Service');
   });
 
   test('a page not migrated yet shows its title in the new type, without an icon; the tab says Self-Service', async ({ page }) => {

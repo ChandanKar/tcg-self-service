@@ -3,17 +3,146 @@
  * Styles for environment list and detail views
  */
 
-/* Environment List View */
-#environments-list-view {
+/* Environments list (U06-T05, Environments15.dc.html): 15 rows of 38 px fit 1440x900 */
+.env-list-page {
     display: flex;
     flex-direction: column;
-    height: 100%;
-    overflow: hidden;
+    gap: 14px;
 }
 
-#environments-list-view .content-header {
-    margin-bottom: 0.75rem;
+.env-list-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
 }
+
+.env-list-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 240px;
+    max-width: 100%;
+    height: 36px;
+    margin: 0;
+    padding: 0 10px;
+    background: #fff;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-btn);
+    color: var(--slate);
+    font-size: var(--fs-caption);
+}
+
+.env-list-toolbar .env-list-search {
+    flex: 0 1 240px;
+}
+
+.env-list-search:focus-within {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: 1px;
+}
+
+.env-list-search input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    font: inherit;
+    font-size: var(--fs-body);
+    color: var(--ink);
+}
+
+.env-list-table {
+    width: 100%;
+    font-size: var(--fs-body);
+}
+
+.env-list-table thead th {
+    padding: 9px 10px;
+    background: var(--surface-subtle);
+    border-bottom: 0;
+    color: var(--slate);
+    font-size: 12.5px;
+    font-weight: 500;
+    text-align: left;
+    white-space: nowrap;
+}
+
+/* Desktop rows; on phones the rows become cards (tables.css, E13-T05). */
+@media (min-width: 768px) {
+    .env-list-table tbody tr {
+        height: 38px;
+    }
+
+    .env-list-table tbody td {
+        padding: 5px 10px;
+        border-top: 1px solid var(--line-soft);
+        border-bottom: 0;
+        color: #3a4256;
+        font-size: var(--fs-caption);
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+
+    .env-list-table th:first-child,
+    .env-list-table td:first-child {
+        padding-left: 18px;
+    }
+
+    .env-list-table th:last-child,
+    .env-list-table td:last-child {
+        padding-right: 18px;
+        text-align: right;
+    }
+
+    .env-list-table .col-cost {
+        text-align: right;
+    }
+
+    .env-list-table td.col-name {
+        max-width: 360px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: var(--fs-body);
+    }
+
+    .env-list-table td.col-lock {
+        max-width: 170px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
+
+.env-name-link {
+    color: var(--ink);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.env-name-link:hover,
+.env-name-link:focus-visible {
+    color: var(--brand-navy);
+    text-decoration: underline;
+}
+
+.env-slug {
+    margin-left: 6px;
+    font-size: var(--fs-small);
+    color: var(--slate);
+}
+
+.env-open-link {
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.env-list-empty td {
+    padding: 24px;
+    text-align: center !important;
+    color: var(--slate);
+}
+
 
 /* Environment List Container */
 .environments-list-container {
@@ -188,56 +317,6 @@
     font-size: 0.81rem;
 }
 
-/* Type in words with a small icon, e.g. "AWS EC2" (phones use cards, E13-T05) */
-.env-type-label {
-    white-space: nowrap;
-    font-size: 0.8125rem;
-    color: var(--text-secondary);
-}
-.env-type-icon {
-    font-size: 0.8125rem;
-    margin-right: 0.25rem;
-}
-
-.env-name-link {
-    color: inherit;
-    text-decoration: none;
-}
-.env-name-link:hover strong,
-.env-name-link:focus-visible strong {
-    color: var(--primary-color);
-    text-decoration: underline;
-}
-
-/* Region, Groups, Total VMs, Running, Actions: no fixed width — nowrap alone is enough for an
-   auto-layout table to shrink each to its own content, so every pixel reclaimed here comes out
-   of Lock Status's excess, never out of the Environment column (left with no width rule at all,
-   so it keeps whatever space it already gets). */
-@media (min-width: 768px) {
-.env-list-table-wrapper .table td.col-region,
-.env-list-table-wrapper .table td.col-groups,
-.env-list-table-wrapper .table td.col-vms,
-.env-list-table-wrapper .table td.col-running,
-.env-list-table-wrapper .table td.col-actions {
-    white-space: nowrap;
-}
-}
-
-/* Lock Status is the one exception that still needs an upper bound: unlike a region code or a
-   count, a locked-by display name is open-ended user input, so nothing stops one long name from
-   dragging the whole column wide again on every row. Sized to the common case ("Unlocked"); a
-   long name truncates with the full "Locked by X" recoverable via the tooltip already on it. */
-@media (min-width: 768px) {
-.env-list-table-wrapper .table th.col-lock {
-    width: 120px;
-}
-.env-list-table-wrapper .table td.col-lock {
-    max-width: 120px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-}
 
 .vm-list-table tr:hover {
     background-color: var(--sidebar-hover);

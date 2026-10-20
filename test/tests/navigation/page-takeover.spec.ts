@@ -46,13 +46,13 @@ test.describe('Dashboard lifecycle', () => {
     await expect(page.locator('#dashboard-auto-refresh-toggle')).toHaveCount(0);
 
     await goTo(page, 'my-environments');
-    await expect(header(page)).toHaveText('My Environments');
+    await expect(header(page)).toHaveText('Environments');
     let summaryCalls = 0;
     page.on('request', (r) => { if (r.url().includes(SUMMARY)) summaryCalls++; });
 
     await page.clock.runFor(35_000);
 
-    await expect(header(page)).toHaveText('My Environments');
+    await expect(header(page)).toHaveText('Environments');
     expect(summaryCalls).toBe(0);
     expect(await resizeHandlers(page, 'dashboardCharts')).toBe(0);
   });
@@ -92,7 +92,7 @@ test.describe('Dashboard lifecycle', () => {
     await signIn(page, 'user');
     await ready(page);
     await goTo(page, 'my-environments');
-    await expect(header(page)).toHaveText('My Environments');
+    await expect(header(page)).toHaveText('Environments');
 
     await delayRoute(page, `**${SUMMARY}`, 2_000);
     await goTo(page, 'dashboard');
@@ -157,7 +157,7 @@ test.describe('Environments lifecycle', () => {
 
   test("leaving Environments removes its delegated handlers, so other pages' [data-action=view] are untouched", async ({ page }) => {
     await goTo(page, 'my-environments');
-    await expect(header(page)).toHaveText('My Environments', { timeout: 10_000 });
+    await expect(header(page)).toHaveText('Environments', { timeout: 10_000 });
     await goTo(page, `environments/${envId}`);
     await expect(page.locator('#content-area')).toContainText(envName, { timeout: 10_000 });
 

@@ -11,10 +11,14 @@ const Environments = (function() {
     let environmentsList = []; // holds only the currently-displayed server page, not the full set
 
     // Pagination state for list view — server-side paginated, 0-indexed to match the backend
-    const ENV_PAGE_SIZE = 10;
+    // 15 rows fit 1440x900 with the header and the filter (Environments15.dc.html); the pager
+    // appears only past 15 (U06-T05).
+    const ENV_PAGE_SIZE = 15;
     let envCurrentPage = 0;
     let envSearchTerm = null;
     let envTotalElements = 0;
+    let envStateFilter = 'all';            // all | running | stopped (U06-T05)
+    let envTotals = null;                  // {vms, running} of the filtered set
     let operationRefreshTimer = null;
     let operationStatusHandler = null;
     let metricChartCounter = 0;
@@ -113,10 +117,12 @@ const Environments = (function() {
         try {
             envCurrentPage = 0;
             envSearchTerm = null;
-            const pageResult = await fetchEnvironmentsPage(envCurrentPage, envSearchTerm);
+            envStateFilter = 'all';
+            const pageResult = await fetchEnvironmentsPage(envCurrentPage, envSearchTerm, envStateFilter);
             if (!ContentRouter.isCurrent(t)) return;
             environmentsList = pageResult.content;
             envTotalElements = pageResult.totalElements;
+            envTotals = pageResult.totals;
             const html = buildListHtml(environmentsList, envTotalElements);
             $('#content-area').html(html);
             bindListEvents();
@@ -250,20 +256,26 @@ const Environments = (function() {
     }
 
     /**
-     * Server-side-paginated, optionally name/description-filtered fetch for the "My
-     * Environments" table — replaces the old fetch-everything-then-slice-client-side approach.
+     * One server page of the Environments list: search, the All / Running / Stopped filter, the
+     * per-group state counts for the power strips, and the VM totals of the whole filtered set
+     * from the X-Total-Vms / X-Running-Vms headers (U06-T04).
      */
-    function fetchEnvironmentsPage(page, search) {
+    function fetchEnvironmentsPage(page, search, state) {
         return new Promise((resolve, reject) => {
-            ApiClient.get(Config.API.environments.page(page, ENV_PAGE_SIZE, search || ''))
-                .done(async function(data) {
+            ApiClient.get(Config.API.environments.page(page, ENV_PAGE_SIZE, search || '',
+                { includeGroups: true, state: state && state !== 'all' ? state.toUpperCase() : '' }))
+                .done(function(data, _status, xhr) {
                     const normalized = normalizeEnvPage(data);
-                    const enriched = await Promise.all((normalized.content || []).map(enrichWithLockStatus));
+                    const header = name => {
+                        const value = xhr && xhr.getResponseHeader ? xhr.getResponseHeader(name) : null;
+                        return value === null || value === '' ? null : Number(value);
+                    };
                     resolve({
-                        content: enriched,
+                        content: (normalized.content || []).map(enrichWithLockStatus),
                         totalElements: normalized.totalElements || 0,
                         totalPages: normalized.totalPages || 0,
-                        number: normalized.number || 0
+                        number: normalized.number || 0,
+                        totals: { vms: header('X-Total-Vms'), running: header('X-Running-Vms') }
                     });
                 })
                 .fail(reject);
@@ -370,220 +382,216 @@ const Environments = (function() {
         `);
     }
 
-    /** The list's page header (U04-T03); the title is renamed with the list's redesign (U06). */
-    function listHeader() {
+    const STATE_FILTERS = [
+        { key: 'all', label: 'All' },
+        { key: 'running', label: 'Running' },
+        { key: 'stopped', label: 'Stopped' },
+    ];
+
+    function money(value) {
+        if (value === null || value === undefined || value === '') return '—';
+        const amount = Number(value);
+        return Number.isFinite(amount)
+            ? '$' + amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+    }
+
+    /** "15 environments · 7 of 26 VMs running" for the whole filtered set. */
+    function countsHtml(totalElements, totals) {
+        const count = Utils.html`<span class="mono">${totalElements}</span> environment${totalElements === 1 ? '' : 's'}`;
+        const vms = totals && totals.vms !== null && totals.vms !== undefined
+            ? Utils.html` · <span class="mono">${totals.running || 0}</span> of <span class="mono">${totals.vms}</span> VMs running`
+            : '';
+        return count + vms;
+    }
+
+    function listSummaryHtml(totalElements, totals) {
+        return `<span id="env-list-summary">${countsHtml(totalElements, totals)}</span>. Open one to start, stop or lock it.`;
+    }
+
+    /** The list's page header (Environments15.dc.html, U06-T05): search and the filter sit on its right. */
+    function listHeader(totalElements, totals, toolbarHtml = '') {
         return PageHeader.markup({
-            title: 'My Environments',
-            summaryHtml: 'Manage and monitor your accessible environments',
+            title: 'Environments',
+            summaryHtml: totalElements === null
+                ? 'The environments you can see. Open one to start, stop or lock it.'
+                : listSummaryHtml(totalElements, totals),
+            actionsHtml: toolbarHtml,
+            actionsClass: toolbarHtml ? 'env-list-toolbar' : '',
             helpPage: 'my-environments',
             helpLabel: 'Environments',
         });
     }
 
+    function listToolbarHtml() {
+        return `
+            <label class="env-list-search">
+                <i class="fas fa-search" aria-hidden="true"></i>
+                <span class="visually-hidden">Search environments</span>
+                <input type="search" id="env-list-search" placeholder="Search by name" autocomplete="off"
+                       data-action-input="env-search">
+            </label>
+            <span id="env-list-filter">${FilterGroup.markup({ label: 'Show', options: STATE_FILTERS, active: envStateFilter, action: 'env-list-filter' })}</span>`;
+    }
+
     /**
-     * Build environment list HTML — dashboard-style compact table with pagination
+     * The Environments list (Environments.dc.html, Environments15.dc.html): search, the
+     * All / Running / Stopped filter, one 38 px row per environment, "N environments" below and a
+     * pager only past 15.
      */
     function buildListHtml(environments, totalElements) {
-        if (!environments || environments.length === 0) {
-            const searchActive = !!envSearchTerm;
+        if ((!environments || environments.length === 0) && !envSearchTerm && envStateFilter === 'all') {
             return `
-                ${listHeader()}
+                <div id="environments-list-view" class="page env-list-page">
+                ${listHeader(null)}
                 <div class="empty-state">
-                    <i class="fas fa-server fa-3x text-muted"></i>
-                    <p class="mt-3 mb-1">${searchActive ? 'No environments match your search' : 'No environments assigned'}</p>
-                    <p class="text-muted small">${searchActive
-                        ? 'Try a different search term.'
-                        : `You don't have access to any environments yet.<br>${Auth.isEnvAdmin() ? 'Go to <strong>Admin › VM Registry</strong> to create environments.' : 'Please contact your administrator for environment access.'}`}</p>
+                    <i class="fas fa-server fa-3x text-muted" aria-hidden="true"></i>
+                    <p class="mt-3 mb-1">You have no environments yet.</p>
+                    <p class="text-muted small">${Auth.isEnvAdmin()
+                        ? 'Create one in <strong>VM Registry</strong>.'
+                        : 'Ask for access and an environment admin will review your request.'}</p>
+                    ${Auth.isEnvAdmin() ? '' : '<a class="btn btn-primary" href="#/request-access">Request access to an environment</a>'}
+                </div>
                 </div>
             `;
         }
 
         return `
-            <div id="environments-list-view">
-            ${listHeader()}
-            <div class="metric-card env-list-card">
-                <div class="d-flex justify-content-between align-items-center mb-2 flex-shrink-0">
-                    <h6 class="mb-0 text-muted text-uppercase" style="font-size:0.7rem;letter-spacing:0.05em;">My Environments</h6>
-                    <div class="input-group" style="width:220px;">
-                        <span class="input-group-text py-1"><i class="fas fa-search" style="font-size:0.8rem;"></i></span>
-                        <input type="text" class="form-control form-control-sm" id="env-list-search" placeholder="Search..."
-                               data-action-input="env-search">
-                    </div>
-                </div>
+            <div id="environments-list-view" class="page env-list-page">
+            ${listHeader(totalElements, envTotals, listToolbarHtml())}
+            <div class="panel env-list-card">
                 <div class="env-list-table-wrapper table-cards-wrap">
-                    <table class="table table-hover mb-0 table-cards">
-                        <thead class="table-light sticky-top">
+                    <table class="table mb-0 table-cards env-list-table">
+                        <thead>
                             <tr>
-                                <th>Environment</th>
-                                <th class="col-type">Type</th>
-                                <th class="col-account" hidden>Account</th>
-                                <th class="col-region">Region</th>
-                                <th class="col-groups text-center">Groups</th>
-                                <th class="col-vms text-center">Total VMs</th>
-                                <th class="col-running">Running</th>
-                                <th class="col-lock">Lock</th>
-                                <th><span class="visually-hidden">Actions</span></th>
+                                <th scope="col">Environment</th>
+                                <th scope="col" class="col-type">Type</th>
+                                <th scope="col" class="col-account" hidden>Account</th>
+                                <th scope="col" class="col-region">Region</th>
+                                <th scope="col" class="col-running">VMs</th>
+                                <th scope="col" class="col-lock">Lock</th>
+                                <th scope="col" class="col-access">Your access</th>
+                                <th scope="col" class="col-cost">This month</th>
+                                <th scope="col" class="col-actions"><span class="visually-hidden">Open</span></th>
                             </tr>
                         </thead>
                         <tbody id="env-list-body">
-                            ${buildEnvRows(environments)}
+                            ${environments.length ? buildEnvRows(environments) : emptyFilterRow()}
                         </tbody>
                     </table>
                 </div>
-                <div class="env-list-spacer"></div>
-                <div id="env-list-pagination" class="pagination-bar-wrap"></div>
+                <div id="env-list-pagination" class="panel-foot env-list-foot"></div>
             </div>
             </div>
         `;
     }
 
+    function emptyFilterRow() {
+        const text = envSearchTerm ? 'No environments match your search.' : 'No environments match this filter.';
+        return `<tr class="env-list-empty"><td colspan="9">${text}</td></tr>`;
+    }
+
+    /** "Not locked", "Locked by you" or the holder's name. */
+    function lockText(env) {
+        if (!env.lockStatus || !env.lockStatus.isLocked) return 'Not locked';
+        if (env.lockStatus.lockedByUserId === Auth.getUserId()) return 'Locked by you';
+        return env.lockStatus.lockedByDisplayName || 'Locked';
+    }
+
     /**
-     * Build table rows for the list view — envList is already exactly one server page's worth
-     * of items, so no client-side slicing needed here anymore.
+     * The rows of one server page: name with its slug, type, region, the grouped power strip,
+     * lock, the viewer's access, this month's cost and Open. Editing and deactivating live in
+     * VM Registry (U06-T05).
      */
     function buildEnvRows(envList) {
         // The Account column only when the listed environments span more than one AWS account (E28-T10);
         // toggled once the caller has inserted the rows.
         const multiAccount = new Set(envList.map(e => e.awsAccountRef).filter(Boolean)).size > 1;
-        queueMicrotask(() => $('#env-list-view .col-account, .env-list-table-wrapper .col-account').prop('hidden', !multiAccount));
-        const dataRows = envList.map(env => {
+        queueMicrotask(() => $('#environments-list-view .col-account').prop('hidden', !multiAccount));
+        return envList.map(env => {
+            const name = env.displayName || env.name;
+            const href = `#/environments/${encodeURIComponent(env.environmentId)}`;
             const runningVms = env.runningVms || 0;
             const totalVms = env.vmCount || env.totalVms || 0;
+            const strip = Array.isArray(env.groupStates) && env.groupStates.length
+                ? PowerStrip.render(PowerStrip.fromGroupStates(env.groupStates))
+                : PowerStrip.counts(runningVms, totalVms);
 
-            let lockDisplay;
-            if (env.lockStatus && env.lockStatus.isLocked) {
-                const lockedBy = env.lockStatus.lockedByUserId === Auth.getUserId() ? 'you' :
-                                 (env.lockStatus.lockedByDisplayName || 'another user');
-                // Lock Status is a capped column (see .col-lock) — a long display name
-                // truncates, so the full "Locked by X" is always recoverable on hover.
-                lockDisplay = `<span class="text-warning" data-bs-toggle="tooltip" title="Locked by ${Utils.escapeHtml(lockedBy)}"><i class="fas fa-lock"></i> ${Utils.escapeHtml(lockedBy)}</span>`;
-            } else {
-                lockDisplay = `<span class="text-muted"><i class="fas fa-lock-open" aria-hidden="true"></i> Unlocked</span>`;
-            }
-
-            const adminBtns = Auth.isEnvAdmin() ? `
-                <button type="button" class="btn btn-sm btn-outline-secondary btn-action ms-1"
-                        data-env-id="${env.environmentId}" data-action="edit-env"
-                        data-bs-toggle="tooltip" title="Edit" aria-label="Edit">
-                    <i class="fas fa-edit" aria-hidden="true"></i>
-                </button>
-                <button type="button" class="btn btn-sm btn-outline-danger btn-action ms-1"
-                        data-env-id="${env.environmentId}" data-env-name="${Utils.escapeHtml(env.displayName || env.name)}" data-action="delete-env"
-                        data-bs-toggle="tooltip" title="Deactivate" aria-label="Deactivate">
-                    <i class="fas fa-trash" aria-hidden="true"></i>
-                </button>
-            ` : '';
-
-            const descTooltip = env.description
-                ? ` data-bs-toggle="tooltip" data-bs-placement="right" title="${Utils.escapeHtml(env.description)}"`
-                : '';
-
-            const serviceType = (env.serviceType || 'EC2').toUpperCase();
-            const typeColor = serviceType === 'EKS' ? '#1d4ed8' : '#c2410c';
-            const typeIcon = serviceType === 'EKS' ? 'fas fa-dharmachakra' : 'fas fa-server';
-            // Type as words (icons alone were not understood): e.g. "AWS EC2", "AWS EKS".
             let envMeta = {};
-            try { envMeta = JSON.parse(env.metadata || '{}') || {}; } catch(e) {}
-            const cloudProv = (envMeta.defaultCloudProvider || 'AWS').toUpperCase();
-            const typeCell = `<span class="env-type-label"><i class="${typeIcon} env-type-icon" style="color:${typeColor}" aria-hidden="true"></i>`
-                + ` ${Utils.escapeHtml(cloudProv)} ${Utils.escapeHtml(serviceType)}</span>`;
+            try { envMeta = JSON.parse(env.metadata || '{}') || {}; } catch (e) { /* no metadata */ }
+            const type = `${(envMeta.defaultCloudProvider || 'AWS').toUpperCase()} ${(env.serviceType || 'EC2').toUpperCase()}`;
 
-            // Derived from the environment's own VMs (works the same for EC2 and EKS) rather
-            // than a declared value, so it always reflects what's actually there.
+            // From the environment's own VMs (EC2 and EKS alike), not a declared value.
             const regions = env.regions || [];
             const regionCell = regions.length === 0
                 ? '<span class="text-muted">&mdash;</span>'
-                : regions.length === 1
-                    ? Utils.escapeHtml(regions[0])
-                    : `<span data-bs-toggle="tooltip" title="${Utils.escapeHtml(regions.join(', '))}">${Utils.escapeHtml(regions[0])} <span class="text-muted">+${regions.length - 1}</span></span>`;
+                : Utils.escapeHtml(regions[0]) + (regions.length > 1
+                    ? Utils.html` <span class="text-muted" title="${regions.join(', ')}">+${regions.length - 1}</span>` : '');
 
-            return `
+            const slug = env.displayName && env.displayName !== env.name
+                ? Utils.html` <span class="env-slug mono">${env.name}</span>` : '';
+
+            return Utils.html`
                 <tr>
-                    <td class="td-primary" data-label="Environment">
-                        <a class="env-name-link" href="#/environments/${encodeURIComponent(env.environmentId)}"><strong${descTooltip}>${Utils.escapeHtml(env.displayName || env.name)}</strong></a>
-                        ${env.displayName && env.displayName !== env.name ? `<div class="small text-muted">${Utils.escapeHtml(env.name)}</div>` : ''}
+                    <td class="td-primary col-name" data-label="Environment">
+                        <a class="env-name-link" href="${href}">${name}</a>` + slug + Utils.html`
                     </td>
-                    <td class="col-type" data-label="Type">${typeCell}</td>
-                    <td class="col-account" data-label="Account" hidden>${Utils.escapeHtml(env.awsAccountName || '')}</td>
-                    <td class="col-region" data-label="Region">${regionCell}</td>
-                    <td class="col-groups text-center" data-label="Groups">${env.groupCount || 0}</td>
-                    <td class="col-vms text-center" data-label="Total VMs">${totalVms}</td>
-                    <td class="col-running" data-label="Running">${PowerStrip.counts(runningVms, totalVms)}</td>
-                    <td class="col-lock" data-label="Lock">${lockDisplay}</td>
+                    <td class="col-type" data-label="Type">${type}</td>
+                    <td class="col-account" data-label="Account" hidden>${env.awsAccountName || ''}</td>
+                    <td class="col-region" data-label="Region"><span class="mono">` + regionCell + `</span></td>
+                    <td class="col-running" data-label="VMs">` + strip + Utils.html`</td>
+                    <td class="col-lock" data-label="Lock" title="${lockText(env)}">${lockText(env)}</td>
+                    <td class="col-access" data-label="Your access">${HomeModel.accessLabel(env.myAccess)}</td>
+                    <td class="col-cost" data-label="This month"><span class="mono">${money(env.monthToDateCost)}</span></td>
                     <td class="col-actions td-actions">
-                        <button type="button" class="btn btn-sm btn-outline-primary"
-                                data-env-id="${env.environmentId}" data-env-name="${Utils.escapeHtml(env.displayName || env.name)}" data-action="view"
-                                aria-label="Open ${Utils.escapeHtml(env.displayName || env.name)}">
-                            Open
-                        </button>
-                        ${adminBtns}
+                        <a class="env-open-link" href="${href}" aria-label="Open ${name}">Open</a>
                     </td>
-                </tr>
-            `;
+                </tr>`;
         }).join('');
-
-        return dataRows;
     }
 
-    /**
-     * Render pagination for the list view
-     */
+    /** "N environments" below the table; Previous / Next only past one page of 15. */
     function renderEnvPagination(totalItems, page) {
-        const totalPages = Math.ceil(totalItems / ENV_PAGE_SIZE);
-
-        Pagination.renderNumbered('#env-list-pagination', {
-            page,
-            totalItems,
-            pageSize: ENV_PAGE_SIZE,
-            itemLabel: 'environments',
-            zeroIndexed: true,
-            bindAncestor: '#content-area',
-            onPageChange: async (target) => {
-                try {
-                    const pageResult = await fetchEnvironmentsPage(target, envSearchTerm);
-                    envCurrentPage = target;
-                    environmentsList = pageResult.content;
-                    envTotalElements = pageResult.totalElements;
-                    disposeEnvListTooltips();
-                    $('#env-list-body').html(buildEnvRows(environmentsList));
-                    renderEnvPagination(envTotalElements, envCurrentPage);
-                } catch (error) {
-                    console.error('Failed to load environments page:', error);
-                }
-            }
-        });
-
-        if (totalPages <= 1) return;
-
-        // Dispose all existing tooltips in the table first (prevent leaks on re-render)
-        document.querySelectorAll('#env-list-body [data-bs-toggle="tooltip"]').forEach(el => {
-            if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
-                const existing = bootstrap.Tooltip.getInstance(el);
-                if (existing) existing.dispose();
-            }
-        });
-
-        // Init fresh tooltips with auto-hide delay
-        document.querySelectorAll('#env-list-body [data-bs-toggle="tooltip"]').forEach(el => {
-            if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
-                new bootstrap.Tooltip(el, {
-                    trigger: 'hover',
-                    delay: { show: 300, hide: 100 }
-                });
-            }
-        });
+        const $foot = $('#env-list-pagination');
+        if (!$foot.length) return;
+        if (totalItems <= ENV_PAGE_SIZE) {
+            $foot.html(`<div class="pager"><span class="pager-range">${totalItems} environment${totalItems === 1 ? '' : 's'}</span></div>`);
+            return;
+        }
+        $foot.html(Pagination.buildPager({
+            totalItems, page: page + 1, pageSize: ENV_PAGE_SIZE, action: 'env-list-page', key: 'environments',
+        }));
     }
 
-    /**
-     * Dispose all Bootstrap tooltips inside env-list-body to prevent leaks on re-render
-     */
-    function disposeEnvListTooltips() {
-        if (typeof bootstrap === 'undefined' || !bootstrap.Tooltip) return;
-        document.querySelectorAll('#env-list-body [data-bs-toggle="tooltip"]').forEach(el => {
-            const tt = bootstrap.Tooltip.getInstance(el);
-            if (tt) tt.dispose();
-        });
-        document.querySelectorAll('.tooltip').forEach(el => el.remove());
+    /** Load another page, filter or search into the mounted list, keeping the toolbar. */
+    async function refreshEnvList(page) {
+        const t = ContentRouter.token();
+        try {
+            const pageResult = await fetchEnvironmentsPage(page, envSearchTerm, envStateFilter);
+            if (!ContentRouter.isCurrent(t)) return;
+            envCurrentPage = page;
+            environmentsList = pageResult.content;
+            envTotalElements = pageResult.totalElements;
+            envTotals = pageResult.totals;
+            $('#env-list-body').html(environmentsList.length ? buildEnvRows(environmentsList) : emptyFilterRow());
+            $('#env-list-summary').html(countsHtml(envTotalElements, envTotals));
+            $('#env-list-filter').html(FilterGroup.markup({ label: 'Show', options: STATE_FILTERS, active: envStateFilter, action: 'env-list-filter' }));
+            renderEnvPagination(envTotalElements, envCurrentPage);
+        } catch (error) {
+            console.error('Failed to load environments page:', error);
+        }
+    }
+
+    /** The filter buttons (Actions): page 0 with the new state. */
+    function setStateFilter(key) {
+        if (!STATE_FILTERS.some(f => f.key === key) || key === envStateFilter) return;
+        envStateFilter = key;
+        refreshEnvList(0);
+    }
+
+    /** Previous / Next (Actions): 1-indexed page from the pager. */
+    function goToEnvPage(page) {
+        const target = Math.max(0, (Number(page) || 1) - 1);
+        refreshEnvList(target);
     }
 
     function disposeAllBootstrapTooltips() {
@@ -599,33 +607,10 @@ const Environments = (function() {
         document.querySelectorAll('.tooltip').forEach(el => el.remove());
     }
 
-    /**
-     * Search environments server-side and re-render (page resets to 0 on every new search term).
-     */
+    /** Search on the server; the page resets to 0 and the filter stays. */
     async function doSearchEnvList(searchTerm) {
         envSearchTerm = searchTerm || null;
-        try {
-            const pageResult = await fetchEnvironmentsPage(0, envSearchTerm);
-            envCurrentPage = 0;
-            environmentsList = pageResult.content;
-            envTotalElements = pageResult.totalElements;
-            disposeEnvListTooltips();
-            // Keep the search box/table shell mounted even on zero matches — swapping in
-            // buildListHtml's full empty-state would tear out #env-list-search itself, leaving
-            // the user with no way to clear or change their search term.
-            if (environmentsList.length === 0) {
-                $('#env-list-body').html(`
-                    <tr><td colspan="9" class="text-center text-muted py-4">
-                        No environments match your search.
-                    </td></tr>`);
-                $('#env-list-pagination').empty();
-                return;
-            }
-            $('#env-list-body').html(buildEnvRows(environmentsList));
-            renderEnvPagination(envTotalElements, envCurrentPage);
-        } catch (error) {
-            console.error('Failed to search environments:', error);
-        }
+        await refreshEnvList(0);
     }
 
     // Debounced so a fresh server request doesn't fire on every keystroke.
@@ -904,34 +889,6 @@ const Environments = (function() {
      * Bind list view events
      */
     function bindListEvents() {
-        // View environment
-        $('#content-area').off('click.envList', '[data-action="view"]').on('click.envList', '[data-action="view"]', function() {
-            disposeAllBootstrapTooltips();
-            // Through the router so the address bar shows #/environments/<id> (refresh, Back, links).
-            ContentRouter.navigate('environment-detail', { environmentId: String($(this).data('env-id')) });
-        });
-
-        // Edit environment
-        $('#content-area').off('click.envList', '[data-action="edit-env"]').on('click.envList', '[data-action="edit-env"]', function() {
-            disposeAllBootstrapTooltips();
-            const envId = $(this).data('env-id');
-            const env = environmentsList.find(e => e.environmentId === envId);
-            if (env) {
-                Modals.showEditEnvironment(env, function() {
-                    reloadListIfCurrent();
-                });
-            }
-        });
-
-        // Delete environment
-        $('#content-area').off('click.envList', '[data-action="delete-env"]').on('click.envList', '[data-action="delete-env"]', function() {
-            disposeAllBootstrapTooltips();
-            const envId = $(this).data('env-id');
-            const envName = $(this).data('env-name');
-            deleteEnvironment(envId, envName);
-        });
-
-
         // Search — delegated binding + direct bind on rendered element (same pattern as dashboard)
         $('#content-area').off('input.envList', '#env-list-search').on('input.envList', '#env-list-search', function() {
             filterAndRenderEnvList($(this).val().toLowerCase().trim());
@@ -942,30 +899,6 @@ const Environments = (function() {
 
         // Initial pagination render
         renderEnvPagination(envTotalElements, envCurrentPage);
-    }
-
-    /**
-     * Delete environment
-     */
-    function deleteEnvironment(envId, envName) {
-        Modals.confirm(
-            'Deactivate environment',
-            Utils.html`This will deactivate "<strong>${envName}</strong>". It disappears from lists and schedules,
-             its active lock is released, and it can be reactivated later.`,
-            function() {
-                ApiClient.delete(Config.API.environments.delete(envId), { suppressGlobalError: true })
-                    .done(function() {
-                        Notifications.success(`Environment "${envName}" deactivated`);
-                        reloadListIfCurrent();
-                    })
-                    .fail(function(xhr) {
-                        // e.g. "Environment has running operations; wait for them to finish or cancel them"
-                        const msg = xhr.responseJSON?.message || 'Failed to deactivate environment';
-                        Notifications.error(msg);
-                    });
-            },
-            { confirmText: 'Deactivate', confirmClass: 'btn-danger', html: true }
-        );
     }
 
     /**
@@ -2204,6 +2137,8 @@ const Environments = (function() {
     return {
         loadList,
         loadDetail,
+        setStateFilter,
+        goToEnvPage,
         _search: function(val) {
             filterAndRenderEnvList((val || '').toLowerCase().trim());
         }
@@ -2218,3 +2153,6 @@ Actions.registerAll({
     }
 });
 Actions.register('env-search', el => Environments._search(el.value), 'input');
+// The list's All / Running / Stopped switch and its pager past 15 (U06-T05).
+Actions.register('env-list-filter', el => Environments.setStateFilter(el.getAttribute('data-filter')));
+Actions.register('env-list-page', el => Environments.goToEnvPage(el.getAttribute('data-page')));

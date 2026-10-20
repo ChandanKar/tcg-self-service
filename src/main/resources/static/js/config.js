@@ -88,7 +88,8 @@ const Config = (function() {
             listWithGroups: `${API_BASE_URL}/environments?includeGroups=true`,
             page: (page = 0, size = 10, search = '', opts = {}) =>
                 `${API_BASE_URL}/environments/page?page=${page}&size=${size}${search ? '&search=' + encodeURIComponent(search) : ''}`
-                + (opts.includeGroups ? '&includeGroups=true' : ''),
+                + (opts.includeGroups ? '&includeGroups=true' : '')
+                + (opts.state ? '&state=' + encodeURIComponent(opts.state) : ''),
             available: `${API_BASE_URL}/environments/available`,
             get: (id) => `${API_BASE_URL}/environments/${id}`,
             insights: (id) => `${API_BASE_URL}/environments/${id}/insights`,
