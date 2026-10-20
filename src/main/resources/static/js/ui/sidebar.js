@@ -158,8 +158,9 @@ const Sidebar = (function() {
      * Set active menu item programmatically
      */
     function setActiveItem(contentType) {
-        // Environment Detail lives under My Environments in the menu.
-        const key = contentType === 'environment-detail' ? 'my-environments' : contentType;
+        // Environment Detail lives under My Environments in the menu, Grant access under Access management.
+        const key = contentType === 'environment-detail' ? 'my-environments'
+            : contentType === 'access-grant' ? 'access-management' : contentType;
         $('.sidebar-menu-link').removeClass('active').removeAttr('aria-current');
         $(`.sidebar-menu-link[data-content="${key}"]`).addClass('active').attr('aria-current', 'page');
 

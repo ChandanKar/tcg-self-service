@@ -146,14 +146,14 @@ test.describe.serial('Edit grant: expiry is kept unless changed', () => {
     await expect(page.locator('#acd-save')).toBeDisabled();
   });
 
-  test('a new grant defaults to Permanent and has no "Keep current expiry"', async ({ page }) => {
+  test('Grant access from an environment opens the Grant access page with it chosen (U10-T06)', async ({ page }) => {
     await signIn(page, 'admin');
     await page.waitForFunction(() => typeof AccessManagement !== 'undefined');
+    await expect(page.locator('#content-area h1').first()).toBeVisible({ timeout: 15_000 });
     await page.evaluate((id) => AccessManagement.openForEnvironment(id), envId);
-    await expect(page.locator('#grantAccessModal')).toBeVisible({ timeout: 10_000 });
-
-    await expect(page.locator('#grant-duration')).toHaveValue('permanent');
-    await expect(page.locator('#grant-duration option[value="keep"]')).toHaveCount(0);
+    await expect(page.locator('#content-area h1')).toHaveText('Grant access', { timeout: 10_000 });
+    await expect(page.locator(`[data-ga-env-pick="${envId}"]`)).toBeChecked();
+    await expect(page.locator('#ga-duration')).toHaveValue('30');
   });
 
   test('Remove access: Keep access sends nothing; Remove access revokes the grant', async ({ page, playwright }) => {
@@ -181,6 +181,111 @@ test.describe.serial('Edit grant: expiry is kept unless changed', () => {
     await expect(page.locator('#accessRemoveModal')).toBeHidden({ timeout: 10_000 });
     await expect(page.locator(`tr[data-access-id="${accessId}"]`)).toHaveCount(0);
     expect((await storedGrant(playwright))).toBeUndefined();
+  });
+});
+
+/**
+ * U10-T06 (GrantAccess.dc.html): Grant access is a page. People as chips (from the user search),
+ * environments whole or by group, the level and how long, and a preview of every person x
+ * environment before "Grant access (N)". The preview and the people search are faked in the
+ * first test; the second grants for real.
+ */
+test.describe('Grant access page', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.admin || !devIds.user || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID and TEST_DEV_USER_ID (dev mode)');
+  });
+
+  async function openGrant(page: Page, hash = '#/access-management/grant') {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page, 'admin');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await expect(page.locator('#content-area h1').first()).toBeVisible({ timeout: 15_000 });
+    await page.evaluate((h) => { location.hash = h; }, hash);
+    await expect(page.locator('#content-area h1')).toHaveText('Grant access', { timeout: 15_000 });
+  }
+
+  async function addPerson(page: Page, query: string, name: RegExp) {
+    await page.locator('#ga-person-search').fill(query);
+    await page.locator('#ga-person-menu').getByRole('option', { name }).click();
+  }
+
+  test('the preview tags each person and environment and the button counts the changes', async ({ page, playwright }) => {
+    const seeding = await api(playwright);
+    const env = await (await seeding.post('/api/v1/environments', {
+      data: { name: `grant-preview-${Date.now()}`, displayName: `Grant Preview ${Date.now()}`, cloudProvider: 'AWS' } })).json();
+    await seeding.dispose();
+    const previews: any[] = [];
+    await page.route(/\/api\/v1\/users\/search/, route => route.fulfill({ json: [
+      { userId: 'p1', email: 'priya@example.com', displayName: 'Priya Nair' },
+      { userId: 'p2', email: 'neha@example.com', displayName: 'Neha Gupta' }] }));
+    await page.route(/\/api\/v1\/access-grants\/bulk\/preview$/, route => {
+      previews.push(route.request().postDataJSON());
+      const row = (userId: string, userName: string, environmentId: string, scopeName: string, outcome: string, extra = {}) => ({
+        userId, userName, environmentId, scopeName, scopeType: 'ENVIRONMENT', outcome, resultLevel: 'USER',
+        resultExpiresAt: new Date(Date.now() + 30 * DAY_MS).toISOString(), ...extra });
+      return route.fulfill({ json: { people: 2, environments: 2, changes: 3, skipped: 1, rows: [
+        row('p1', 'Priya Nair', 'e1', 'Payments Dev', 'NEW'),
+        row('p1', 'Priya Nair', 'e2', 'CRM UAT', 'EXTEND', { currentLevel: 'USER', currentExpiresAt: new Date(Date.now() + 2 * DAY_MS).toISOString() }),
+        row('p2', 'Neha Gupta', 'e1', 'Payments Dev', 'SKIP', { reason: 'Already has Admin, which is more' }),
+        row('p2', 'Neha Gupta', 'e2', 'CRM UAT', 'UPGRADE', { currentLevel: 'VIEWER' })] } });
+    });
+    await openGrant(page, `#/access-management/grant?environmentId=${env.environmentId}`);
+    await expect(page.locator('#ga-grant')).toHaveText('Nothing to grant');
+    await expect(page.locator('#ga-grant')).toBeDisabled();
+
+    await addPerson(page, 'pri', /Priya Nair/);
+    await addPerson(page, 'neh', /Neha Gupta/);
+    await expect(page.locator('.ga-chip')).toHaveCount(2);
+    await page.locator('[data-ga-level="ADMIN"]').click();
+    await page.locator('#ga-duration').selectOption('7');
+
+    await expect(page.locator('.ga-row')).toHaveCount(4);
+    await expect(page.locator('.ga-tag')).toHaveText(['New', 'Extends', 'No change', 'Upgrades']);
+    await expect(page.locator('.ga-row[data-outcome="SKIP"] .ga-row-detail')).toHaveText('Already has Admin, which is more');
+    await expect(page.locator('#ga-summary')).toHaveText('2 people × 2 environments: 3 changes, 1 skipped');
+    await expect(page.locator('#ga-grant')).toHaveText('Grant access (3)');
+    await expect(page.locator('#ga-grant')).toBeEnabled();
+    // The page fits 1440x900 (the preview list scrolls inside its panel).
+    expect(await page.evaluate(() => {
+      const main = document.getElementById('mainContent')!;
+      return main.scrollHeight <= main.clientHeight + 1;
+    })).toBe(true);
+    // The preview is debounced: wait for the request that carries the last choices.
+    await expect.poll(() => previews.at(-1)).toMatchObject({ userEmails: ['priya@example.com', 'neha@example.com'],
+      accessLevel: 'ADMIN', durationDays: 7, targets: [{ environmentId: env.environmentId, scopeType: 'ENVIRONMENT' }] });
+
+    await page.locator('.ga-chip', { hasText: 'Neha Gupta' }).getByRole('button', { name: 'Remove Neha Gupta' }).click();
+    await expect(page.locator('.ga-chip')).toHaveCount(1);
+    await expect.poll(() => previews.at(-1).userEmails).toEqual(['priya@example.com']);
+  });
+
+  test('granting for real adds the access and goes back to the list', async ({ page, playwright }) => {
+    const admin = await api(playwright);
+    const env = await (await admin.post('/api/v1/environments', {
+      data: { name: `grant-page-${Date.now()}`, displayName: `Grant Page ${Date.now()}`, cloudProvider: 'AWS' } })).json();
+    const user = await (await admin.get(`/api/v1/users/${devIds.user}`)).json();
+    await admin.dispose();
+
+    await openGrant(page, `#/access-management/grant?environmentId=${env.environmentId}`);
+    await addPerson(page, user.email.slice(0, 6), new RegExp(user.email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    await expect(page.locator('.ga-tag')).toHaveText(['New']);
+    await page.locator('#ga-grant').click();
+    await expect(page).toHaveURL(/#\/access-management$/, { timeout: 10_000 });
+    await expect(page.getByText('Access granted to 1 person.')).toBeVisible();
+
+    const check = await api(playwright);
+    const grants = await (await check.get(`/api/v1/environments/${env.environmentId}/access`)).json();
+    await check.dispose();
+    const g = grants.find((x: any) => x.userId === devIds.user);
+    expect(g.accessLevel).toBe('USER');
+    expect(Math.abs(new Date(g.expiresAt).getTime() - (Date.now() + 30 * DAY_MS))).toBeLessThan(5 * 60_000);
+  });
+
+  test('users cannot open it', async ({ page }) => {
+    await signIn(page, 'user');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate(() => { location.hash = '#/access-management/grant'; });
+    await expect(page.locator('[data-no-access="role-env-admin"] h1')).toHaveText('Grant access is for environment admins', { timeout: 15_000 });
   });
 });
 

@@ -502,6 +502,7 @@ const HelpContent = (function() {
         'chat-action': 'chat-actions',
         'pending-requests': 'access',
         'access-management': 'access',
+        'access-grant': 'access',
         'vm-registry': 'vm-registry',
         'automation-rules': 'automation-rules',
         'approval-policies': 'approvals',

@@ -30,6 +30,7 @@ const ContentRouter = (function() {
         'activity-logs':      '#/activity-logs',
         'user-management':    '#/user-management',
         'access-management':  '#/access-management',
+        'access-grant':       '#/access-management/grant',
         'vm-registry':        '#/vm-registry',
         'audit-logs-all':     '#/audit-logs-all',
         'automation-rules':   '#/automation-rules',
@@ -99,6 +100,7 @@ const ContentRouter = (function() {
         // Manage
         'pending-requests':   { role: 'ENV_ADMIN', label: 'Access requests' },
         'access-management':  { role: 'ENV_ADMIN', label: 'Access management' },
+        'access-grant':       { role: 'ENV_ADMIN', label: 'Grant access' },
         'vm-registry':        { role: 'ENV_ADMIN', label: 'VM registry' },
         'automation-rules':   { role: 'ENV_ADMIN', label: 'Automation rules' },
         'approval-policies':  { role: 'ENV_ADMIN', label: 'Approval policies' },
@@ -178,6 +180,7 @@ const ContentRouter = (function() {
             // fetches, two renders); use the fallback only when the module is missing.
             'user-management':    () => window.UserManagement ? window.UserManagement.load() : window.Features?.loadUserManagement?.(),
             'access-management':  () => window.AccessManagement ? window.AccessManagement.load() : window.Features?.loadAccessManagement?.(),
+            'access-grant':       () => window.GrantAccessPage?.load?.(query()),
             'vm-registry':        () => window.VmRegistry?.load?.(),
             'automation-rules':   () => window.Features?.loadAutomationRules?.(),
             'audit-logs-all':     () => AllLogs.loadAllAuditLogs(),

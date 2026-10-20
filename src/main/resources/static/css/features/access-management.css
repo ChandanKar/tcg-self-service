@@ -147,94 +147,6 @@
 }
 
 /* ============================================
-   Autocomplete (Grant Access modal)
-   ============================================ */
-.access-autocomplete-field {
-    position: relative;
-}
-
-.access-autocomplete-menu {
-    display: none;
-    position: absolute;
-    z-index: 1060;
-    top: 100%;
-    left: 0;
-    right: 0;
-    margin-top: 2px;
-    max-height: 220px;
-    overflow-y: auto;
-    background: var(--sidebar-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
-}
-
-.access-autocomplete-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    width: 100%;
-    text-align: left;
-    padding: 0.5rem 0.75rem;
-    font-size: 0.85rem;
-    color: var(--text-primary);
-    background: none;
-    border: none;
-    border-bottom: 1px solid var(--border-color);
-    cursor: pointer;
-}
-
-.access-autocomplete-item:last-child {
-    border-bottom: none;
-}
-
-.access-autocomplete-item:hover,
-.access-autocomplete-item:focus {
-    background: var(--background-light);
-}
-
-.access-autocomplete-item.is-disabled,
-.access-autocomplete-item:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
-}
-
-.access-autocomplete-item.is-disabled:hover,
-.access-autocomplete-item:disabled:hover {
-    background: none;
-}
-
-/* Group header inside the user typeahead ("In this app" / "Microsoft Entra directory") */
-.access-autocomplete-group {
-    padding: 0.4rem 0.75rem;
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--text-secondary);
-    background: var(--background-light);
-    border-bottom: 1px solid var(--border-color);
-}
-
-.access-autocomplete-badge {
-    flex-shrink: 0;
-    font-size: 0.62rem;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    padding: 0.05rem 0.4rem;
-    border-radius: 999px;
-    background: var(--status-stopped-bg);
-    color: var(--status-stopped-text);
-}
-
-.access-autocomplete-empty {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-}
-
-/* ============================================
    Modal Styles
    ============================================ */
 #grantAccessModal .modal-header,
@@ -282,63 +194,6 @@
     .justification-cell {
         max-width: 120px;
     }
-}
-
-/* ---- Group checklist in the Grant / Edit Access modal ---- */
-.grant-group-checklist {
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    overflow: hidden;
-    background: #fff;
-}
-.grant-checklist-head {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 10px;
-    background: var(--surface-subtle);
-    border-bottom: 1px solid var(--border-color);
-}
-.grant-checklist-head .form-control { flex: 1; }
-.grant-selall {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.8rem;
-    color: var(--slate);
-    white-space: nowrap;
-    cursor: pointer;
-}
-.grant-checklist-items {
-    list-style: none;
-    margin: 0;
-    padding: 4px;
-    max-height: 220px;
-    overflow-y: auto;
-}
-.grant-checklist-items li {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 7px 8px;
-    border-radius: 6px;
-}
-.grant-checklist-items li:hover { background: var(--surface-subtle); }
-.grant-checklist-items li label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex: 1;
-    margin: 0;
-    cursor: pointer;
-    font-size: 0.88rem;
-}
-.grant-group-name { font-weight: 500; }
-.grant-group-meta {
-    font-size: 0.75rem;
-    color: var(--slate);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
 }
 
 /* ===== Access management (U10-T04, AccessManagement.dc.html) ===== */
@@ -727,4 +582,409 @@ button.am-stat {
     margin: 0 0 6px;
     font-size: 14.5px;
     line-height: 1.5;
+}
+
+/* ===== Grant access (U10-T06, GrantAccess.dc.html) ===== */
+
+.ga-page {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.ga-page .content-header {
+    margin-bottom: 0;
+}
+
+.ga-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 340px;
+    gap: 16px;
+    align-items: start;
+}
+
+.ga-col {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+}
+
+.ga-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    padding: 14px 18px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+}
+
+.ga-card h2 {
+    margin: 0 0 4px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.ga-label {
+    margin-top: 4px;
+    font-size: 13.5px;
+    font-weight: 500;
+}
+
+.ga-hint,
+.ga-hint-inline {
+    margin: 0;
+    font-size: 12.5px;
+    font-weight: 400;
+    color: var(--slate);
+}
+
+.ga-people {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    min-height: 42px;
+    padding: 4px 8px;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+}
+
+.ga-people:focus-within {
+    border-color: var(--brand-navy);
+}
+
+.ga-chips {
+    display: contents;
+}
+
+.ga-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 4px 3px 10px;
+    border-radius: 999px;
+    background: var(--brand-navy-tint);
+    color: var(--brand-navy);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.ga-chip button {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: inherit;
+    line-height: 1;
+}
+
+.ga-chip button:hover {
+    background: rgba(20, 36, 92, 0.12);
+}
+
+.ga-people-search {
+    flex: 1;
+    min-width: 140px;
+}
+
+.ga-people-search input,
+.ga-env-search input {
+    width: 100%;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    font: inherit;
+    font-size: 14px;
+}
+
+.ga-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 20;
+    max-height: 260px;
+    overflow-y: auto;
+    padding: 4px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: 0 12px 28px rgba(20, 36, 92, 0.14);
+}
+
+.ga-option {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: 7px;
+    background: none;
+    font: inherit;
+    font-size: 14px;
+    text-align: left;
+}
+
+.ga-option:hover,
+.ga-option:focus {
+    background: var(--surface-subtle);
+    outline: none;
+}
+
+.ga-option-email {
+    font-size: 12.5px;
+    color: var(--slate);
+}
+
+.ga-menu-empty {
+    padding: 8px 10px;
+}
+
+.ga-levels {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.ga-level {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: 9px;
+    background: #fff;
+    font: inherit;
+    font-size: 14px;
+    text-align: left;
+    color: var(--ink);
+}
+
+.ga-level span {
+    font-size: 12.5px;
+    color: var(--slate);
+}
+
+.ga-level[aria-checked="true"] {
+    border: 1.5px solid var(--brand-navy);
+    box-shadow: 0 0 0 3px var(--brand-navy-tint);
+}
+
+.ga-level:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: 2px;
+}
+
+.ga-for {
+    display: flex;
+    gap: 8px;
+}
+
+.ga-for .form-select,
+.ga-for .form-control {
+    flex: 1;
+}
+
+.ga-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    font-size: 14px;
+}
+
+.ga-envs {
+    padding: 0;
+    overflow: hidden;
+}
+
+.ga-envs-head {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px 18px 10px;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.ga-env-search {
+    display: flex;
+    align-items: center;
+    height: 36px;
+    padding: 0 10px;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+}
+
+.ga-env-list {
+    max-height: calc(100vh - 330px);
+    overflow-y: auto;
+}
+
+.ga-env {
+    padding: 10px 18px;
+    border-top: 1px solid var(--line-soft);
+}
+
+.ga-env:first-child {
+    border-top: 0;
+}
+
+.ga-env.is-on {
+    background: #fafbff;
+}
+
+.ga-env-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.ga-env-row input,
+.ga-groups input,
+.ga-part input,
+.ga-check input {
+    accent-color: var(--brand-navy);
+}
+
+.ga-env-row b {
+    display: block;
+    font-weight: 600;
+}
+
+.ga-env-part {
+    font-size: 12.5px;
+    color: var(--slate);
+}
+
+.ga-part,
+.ga-groups {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    margin: 6px 0 0 26px;
+    font-size: 13.5px;
+}
+
+.ga-preview {
+    position: sticky;
+    top: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+.ga-preview-head {
+    padding: 16px 18px 10px;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.ga-preview-head p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--slate);
+}
+
+.ga-rows {
+    max-height: calc(100vh - 380px);
+    overflow-y: auto;
+}
+
+.ga-row {
+    padding: 9px 18px;
+    border-top: 1px solid var(--line-soft);
+    font-size: 13.5px;
+}
+
+.ga-row:first-child {
+    border-top: 0;
+}
+
+.ga-row-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.ga-row-detail {
+    margin-top: 2px;
+    font-size: 12.5px;
+    color: var(--slate);
+}
+
+.ga-tag {
+    flex-shrink: 0;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 500;
+    white-space: nowrap;
+    background: var(--surface-muted);
+    color: #4a5368;
+}
+
+.ga-tag[data-tone="new"] {
+    background: var(--brand-green-tint);
+    color: var(--brand-green-text);
+}
+
+.ga-tag[data-tone="ext"] {
+    background: var(--brand-navy-tint);
+    color: var(--brand-navy);
+}
+
+.ga-problem {
+    padding: 8px 18px;
+    font-size: 13.5px;
+    color: var(--brand-red-text);
+}
+
+.ga-problem:empty {
+    display: none;
+}
+
+.ga-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 18px;
+    border-top: 1px solid var(--line);
+    background: #fafbfd;
+}
+
+.ga-cancel {
+    font-size: 14px;
+    color: #2f4a9e;
+    text-decoration: none;
+}
+
+@media (max-width: 1199.98px) {
+    .ga-grid {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .ga-preview {
+        grid-column: 1 / -1;
+        position: static;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .ga-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ga-env-list,
+    .ga-rows {
+        max-height: none;
+    }
 }

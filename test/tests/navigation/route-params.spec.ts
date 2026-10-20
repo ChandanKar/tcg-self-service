@@ -112,7 +112,7 @@ test.describe('Route params and deep links', () => {
     expect(decodeURIComponent(new URL(req.url()).pathname)).toContain('/api/v1/environments/env 1/x');
   });
 
-  test('Manage access opens Access Management with the grant modal', async ({ page }) => {
+  test('Manage access opens Grant access with the environment chosen (U10-T06)', async ({ page }) => {
     test.skip(!canSignIn('admin'), 'Needs an admin sign-in');
     await page.context().setExtraHTTPHeaders({ 'X-User-Id': devIds.admin });
     await page.goto(`/home#/environments/${envId}`);
@@ -120,9 +120,9 @@ test.describe('Route params and deep links', () => {
 
     await page.locator('#btn-env-manage-access').click();
 
-    await expect(page).toHaveURL(/#\/access-management$/);
-    await expect(page.locator('#grant-modal-title')).toContainText('Grant Access', { timeout: 10_000 });
-    await expect(page.locator('#grant-modal-title')).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`#/access-management/grant\\?environmentId=${envId}$`));
+    await expect(page.locator('#content-area h1')).toHaveText('Grant access', { timeout: 10_000 });
+    await expect(page.locator(`[data-ga-env-pick="${envId}"]`)).toBeChecked();
   });
 
   test('?query survives load and refresh (Cost Management page state)', async ({ page }) => {

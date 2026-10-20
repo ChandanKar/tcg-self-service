@@ -163,7 +163,7 @@
    1030   topnav.css          .top-navbar (above Bootstrap's default .dropdown-menu)
    1031   mobile.css          .mobile-overlay (above .top-navbar)
    1032   mobile.css          .sidebar.mobile-open (above .mobile-overlay)
-   1060   access-management.css .access-autocomplete-menu
+   20     access-management.css .ga-menu (Grant access people search, inside its card)
    1070   slideout.css        .slideout-overlay
    1080   slideout.css        .slideout-panel
    3000   notification-bell.css .notification-dropdown
