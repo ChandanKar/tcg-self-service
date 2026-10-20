@@ -26,7 +26,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * One-click chat actions (E24-T04): approve runs exactly like the Pending Requests page and is
  * audited "via chat"; a link works once; bad links are 400; the normal permission checks apply;
- * POST needs CSRF.
+ * POST needs CSRF. U09-T08: the preview asks a question and names its source; a link that cannot
+ * be used says why in {@code code} (LINK_USED, LINK_EXPIRED, LINK_INVALID, STATE, NOT_ALLOWED),
+ * names the environment to people who can see it, and an admin to ask.
  */
 class ChatActionControllerIntegrationTest extends SecuredWebTestBase {
 
@@ -61,7 +63,9 @@ class ChatActionControllerIntegrationTest extends SecuredWebTestBase {
                 .andExpect(jsonPath("$.type").value("APPROVE_ACCESS_REQUEST"))
                 .andExpect(jsonPath("$.environmentName").value("Payments QA"))
                 .andExpect(jsonPath("$.description").value(org.hamcrest.Matchers.startsWith("Approve operator's request for USER access on Payments QA")))
-                .andExpect(jsonPath("$.confirmLabel").value("Approve"));
+                .andExpect(jsonPath("$.confirmLabel").value("Approve"))
+                .andExpect(jsonPath("$.title").value("Approve this access request?"))
+                .andExpect(jsonPath("$.source").value("From the Payments QA Teams channel"));
 
         mockMvc.perform(post(URL + token).with(asEnvAdmin()))
                 .andExpect(status().isOk())
@@ -70,8 +74,13 @@ class ChatActionControllerIntegrationTest extends SecuredWebTestBase {
         assertThat(decided.getStatus().name()).isEqualTo("APPROVED");
         assertThat(decided.getReviewDecisionNotes()).isEqualTo("Approved via chat");
 
-        expectError(mockMvc.perform(post(URL + token).with(asEnvAdmin())), 409);
-        expectError(mockMvc.perform(get(URL + token).with(asEnvAdmin())), 409);
+        expectError(mockMvc.perform(post(URL + token).with(asEnvAdmin())), 409)
+                .andExpect(jsonPath("$.code").value("LINK_USED"));
+        // U09-T08: a used link still names its environment, so the page can link to it.
+        expectError(mockMvc.perform(get(URL + token).with(asAdmin())), 409)
+                .andExpect(jsonPath("$.code").value("LINK_USED"))
+                .andExpect(jsonPath("$.environmentId").value(env.getEnvironmentId()))
+                .andExpect(jsonPath("$.environmentName").value("Payments QA"));
         awaitAsync(() -> assertThat(auditLogs.findAll())
                 .filteredOn(a -> a.getAction() == AuditAction.CHAT_ACTION_EXECUTED && Boolean.TRUE.equals(a.getSuccess()))
                 .singleElement()
@@ -85,13 +94,19 @@ class ChatActionControllerIntegrationTest extends SecuredWebTestBase {
     void badLinksAre400AndChangeNothing() throws Exception {
         String expired = tokens.issue(ChatActionType.APPROVE_ACCESS_REQUEST, env.getEnvironmentId(), request.getRequestId(),
                 Duration.ofSeconds(-1));
-        expectError(mockMvc.perform(post(URL + expired).with(asAdmin())), 400);
+        expectError(mockMvc.perform(post(URL + expired).with(asAdmin())), 400)
+                .andExpect(jsonPath("$.code").value("LINK_EXPIRED"))
+                .andExpect(jsonPath("$.message").value("This link has expired"))
+                .andExpect(jsonPath("$.environmentName").value("Payments QA"));
         String token = approveLink();
-        expectError(mockMvc.perform(post(URL + token.substring(0, token.length() - 2) + "xx").with(asAdmin())), 400);
+        expectError(mockMvc.perform(post(URL + token.substring(0, token.length() - 2) + "xx").with(asAdmin())), 400)
+                .andExpect(jsonPath("$.code").value("LINK_INVALID"))
+                .andExpect(jsonPath("$.environmentId").doesNotExist());
         // E24-T05: an extend link for an environment whose lease already ended explains that.
         String lease = tokens.issue(ChatActionType.EXTEND_LEASE, env.getEnvironmentId(), null);
         expectError(mockMvc.perform(post(URL + lease).with(asAdmin())), 409)
-                .andExpect(jsonPath("$.message").value("The lease on Payments QA already ended, so there is nothing to extend"));
+                .andExpect(jsonPath("$.message").value("The lease on Payments QA already ended, so there is nothing to extend"))
+                .andExpect(jsonPath("$.code").value("STATE"));
         assertThat(accessService.getAccessRequest(request.getRequestId()).getStatus().name()).isEqualTo("PENDING");
     }
 
@@ -113,6 +128,40 @@ class ChatActionControllerIntegrationTest extends SecuredWebTestBase {
 
         // Still usable by someone who may approve.
         mockMvc.perform(post(URL + token).with(asAdmin())).andExpect(status().isOk());
+    }
+
+    @Test
+    void aViewerIsToldWhatTheyCanDoAndWhoToAsk() throws Exception {
+        grantEnv(viewer, env.getEnvironmentId(), AccessLevel.VIEWER);
+        grantEnv(envAdmin, env.getEnvironmentId(), AccessLevel.ADMIN);
+        String extend = tokens.issue(ChatActionType.EXTEND_LEASE, env.getEnvironmentId(), null);
+        String adminName = envAdmin.getDisplayName() != null ? envAdmin.getDisplayName() : envAdmin.getEmail();
+
+        expectError(mockMvc.perform(get(URL + extend).with(asViewer())), 403)
+                .andExpect(jsonPath("$.code").value("NOT_ALLOWED"))
+                .andExpect(jsonPath("$.message").value("You can view Payments QA but not change its lease. Ask its admin, " + adminName + "."))
+                .andExpect(jsonPath("$.adminName").value(adminName))
+                .andExpect(jsonPath("$.environmentId").value(env.getEnvironmentId()));
+    }
+
+    @Test
+    void someoneWithoutAccessIsNotToldTheEnvironmentOrItsAdmins() throws Exception {
+        String stop = tokens.issue(ChatActionType.STOP_ENVIRONMENT, env.getEnvironmentId(), null);
+        expectError(mockMvc.perform(get(URL + stop).with(asViewer())), 403)
+                .andExpect(jsonPath("$.code").value("NOT_ALLOWED"))
+                .andExpect(jsonPath("$.message").value("You don't have access to this environment. Ask for it on Request access."))
+                .andExpect(jsonPath("$.environmentName").doesNotExist())
+                .andExpect(jsonPath("$.adminName").doesNotExist());
+    }
+
+    @Test
+    void theStopPreviewAsksAQuestion() throws Exception {
+        String stop = tokens.issue(ChatActionType.STOP_ENVIRONMENT, env.getEnvironmentId(), null);
+        mockMvc.perform(get(URL + stop).with(asAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Stop Payments QA?"))
+                .andExpect(jsonPath("$.source").value("From the Payments QA Teams channel"))
+                .andExpect(jsonPath("$.description").value("Every running VM in Payments QA stops, in reverse start order."));
     }
 
     @Test

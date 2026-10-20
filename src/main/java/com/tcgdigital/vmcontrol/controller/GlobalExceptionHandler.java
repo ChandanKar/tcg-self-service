@@ -57,11 +57,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(ValidationException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(ValidationException ex) {
         log.warn("Validation error: {}", ex.getMessage());
-        return ResponseEntity.badRequest().body(Map.of(
-                "error", "Validation Error",
-                "message", ex.getMessage(),
-                "timestamp", Instant.now().toString()
-        ));
+        Map<String, Object> body = body("Validation Error", ex.getMessage());
+        if (ex.getCode() != null) body.put("code", ex.getCode());
+        return ResponseEntity.badRequest().body(body);
     }
 
     @ExceptionHandler(CircularDependencyException.class)
@@ -85,7 +83,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<Map<String, Object>> handleConflict(ConflictException ex) {
         log.warn("Conflict: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(body("Conflict", ex.getMessage()));
+        Map<String, Object> body = body("Conflict", ex.getMessage());
+        if (ex.getCode() != null) body.put("code", ex.getCode());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
     @ExceptionHandler(LockAlreadyHeldException.class)

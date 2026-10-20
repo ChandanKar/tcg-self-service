@@ -33,6 +33,11 @@ import java.util.UUID;
 @Service
 public class ChatActionTokenService {
 
+    /** Error codes of a link that cannot be used (U09-T08), in the error body's {@code code}. */
+    public static final String LINK_EXPIRED = "LINK_EXPIRED";
+    public static final String LINK_INVALID = "LINK_INVALID";
+    public static final String LINK_USED = "LINK_USED";
+
     private static final Base64.Encoder B64 = Base64.getUrlEncoder().withoutPadding();
     private static final Base64.Decoder B64D = Base64.getUrlDecoder();
 
@@ -96,15 +101,15 @@ public class ChatActionTokenService {
     public Claims verify(String token) {
         Claims claims = parse(token);
         if (Instant.now().isAfter(claims.expiresAt())) {
-            throw new ValidationException("This link has expired");
+            throw new ValidationException("This link has expired", LINK_EXPIRED);
         }
         ChatActionToken stored = tokenRepository.findById(claims.jti())
-                .orElseThrow(() -> new ValidationException("This link is not valid"));
+                .orElseThrow(() -> new ValidationException("This link is not valid", LINK_INVALID));
         if (stored.getActionType() != claims.type()) {
-            throw new ValidationException("This link is not valid");
+            throw new ValidationException("This link is not valid", LINK_INVALID);
         }
         if (stored.getUsedAt() != null) {
-            throw new ConflictException("This link was already used");
+            throw new ConflictException("This link was already used", LINK_USED);
         }
         return claims;
     }
@@ -112,7 +117,7 @@ public class ChatActionTokenService {
     /** Uses the link: exactly one caller wins, any other gets 409. Call inside the action's transaction. */
     public void markUsed(String jti, String userId) {
         if (tokenRepository.markUsed(jti, userId, new Timestamp(System.currentTimeMillis())) != 1) {
-            throw new ConflictException("This link was already used");
+            throw new ConflictException("This link was already used", LINK_USED);
         }
     }
 
@@ -121,28 +126,28 @@ public class ChatActionTokenService {
             throw new ValidationException("Chat actions are not configured");
         }
         if (token == null) {
-            throw new ValidationException("This link is not valid");
+            throw new ValidationException("This link is not valid", LINK_INVALID);
         }
         int dot = token.indexOf('.');
         if (dot <= 0 || dot != token.lastIndexOf('.')) {
-            throw new ValidationException("This link is not valid");
+            throw new ValidationException("This link is not valid", LINK_INVALID);
         }
         String body = token.substring(0, dot);
         byte[] signature;
         try {
             signature = B64D.decode(token.substring(dot + 1));
         } catch (IllegalArgumentException e) {
-            throw new ValidationException("This link is not valid");
+            throw new ValidationException("This link is not valid", LINK_INVALID);
         }
         if (!MessageDigest.isEqual(sign(body), signature)) {
-            throw new ValidationException("This link is not valid");
+            throw new ValidationException("This link is not valid", LINK_INVALID);
         }
         try {
             JsonNode p = objectMapper.readTree(B64D.decode(body));
             return new Claims(p.get("jti").asText(), ChatActionType.valueOf(p.get("type").asText()),
                     text(p, "envId"), text(p, "targetId"), Instant.ofEpochSecond(p.get("exp").asLong()));
         } catch (Exception e) {
-            throw new ValidationException("This link is not valid");
+            throw new ValidationException("This link is not valid", LINK_INVALID);
         }
     }
 

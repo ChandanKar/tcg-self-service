@@ -1,0 +1,179 @@
+/*
+ * Teams confirm page (U09-T08, ChatAction.dc.html): one card with the source, the question, what
+ * happens, the choices as large radio chips, who is signed in, "Open <environment> instead" and
+ * the action; outcome cards with a coloured dot.
+ */
+
+.chat-action-page {
+    display: flex;
+    justify-content: center;
+}
+
+.ca-checking {
+    color: var(--slate);
+}
+
+.ca-card {
+    width: 100%;
+    max-width: 560px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.ca-head {
+    padding: 22px 24px 6px;
+}
+
+.ca-source {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--slate);
+}
+
+.ca-card h1 {
+    margin: 6px 0 0;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+}
+
+.ca-description {
+    margin: 6px 0 0;
+    font-size: 14.5px;
+    line-height: 1.5;
+    color: #3a4256;
+}
+
+.ca-choices {
+    margin: 0;
+    padding: 12px 24px 4px;
+    border: 0;
+}
+
+.ca-choices legend {
+    float: none;
+    width: auto;
+    margin-bottom: 8px;
+    padding: 0;
+    font-size: 13.5px;
+    font-weight: 500;
+}
+
+.ca-chip-row {
+    display: flex;
+    gap: 8px;
+}
+
+.ca-chip {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
+    border: 1px solid var(--line-strong);
+    border-radius: 9px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.ca-chip input {
+    accent-color: var(--brand-navy);
+}
+
+.ca-chip:has(input:checked) {
+    border: 1.5px solid var(--brand-navy);
+    background: #f5f7fc;
+    font-weight: 500;
+}
+
+.ca-chip:has(input:focus-visible) {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: 2px;
+}
+
+.ca-signed-in {
+    margin: 0;
+    padding: 14px 24px 8px;
+    font-size: 13px;
+    color: var(--slate);
+}
+
+.ca-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 14px 24px;
+    background: #fafbfd;
+    border-top: 1px solid var(--line);
+}
+
+.ca-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    font-size: 14px;
+    color: #2f4a9e;
+    text-decoration: none;
+}
+
+.ca-link:hover {
+    text-decoration: underline;
+}
+
+.ca-confirm {
+    min-height: 40px;
+    padding: 0 18px;
+}
+
+.ca-outcome-body {
+    display: grid;
+    grid-template-columns: 10px minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+    padding: 22px 24px;
+}
+
+.ca-outcome-body p {
+    margin: 4px 0 0;
+    font-size: 14.5px;
+    line-height: 1.5;
+    color: #3a4256;
+}
+
+.ca-outcome .ca-dot {
+    width: 10px;
+    height: 10px;
+    margin-top: 10px;
+    border-radius: 50%;
+    background: #9aa4b8;
+}
+
+.ca-outcome[data-tone="green"] .ca-dot { background: #12915e; }
+.ca-outcome[data-tone="gold"] .ca-dot { background: #d9a21b; }
+.ca-outcome[data-tone="red"] .ca-dot { background: var(--brand-red); }
+
+@media (max-width: 480px) {
+    .ca-head,
+    .ca-choices,
+    .ca-signed-in,
+    .ca-foot,
+    .ca-outcome-body {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .ca-foot {
+        flex-direction: column-reverse;
+        align-items: stretch;
+    }
+
+    .ca-confirm {
+        width: 100%;
+    }
+}

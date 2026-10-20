@@ -669,3 +669,17 @@ body.app-shell {
     font-size: 12px;
     opacity: 0.85;
 }
+
+/* A bare page (U09-T08, the Teams confirm page): no side menu, no bottom bar and no top-bar
+   tools, the content centred. Set by the page on body and removed when it is left. */
+body.bare-page #sidebar,
+body.bare-page #mobile-nav,
+body.bare-page .top-navbar .nav-right,
+body.bare-page #toggleSidebar {
+    display: none !important;
+}
+
+body.bare-page .main-content {
+    margin-left: 0 !important;
+    padding: 48px 16px;
+}

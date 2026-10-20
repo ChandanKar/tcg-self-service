@@ -95,9 +95,14 @@ class ChatActionServiceTest {
         assertThat(preview.choices()).containsExactly(60, 120, 240);
         assertThat(preview.defaultChoice()).isEqualTo(120);
         assertThat(preview.description()).contains("It now stops at 10:15 UTC");
+        // U09-T08: a question, where it came from, and the end for the reader's own clock.
+        assertThat(preview.title()).isEqualTo("Extend the lease on Dev QA?");
+        assertThat(preview.source()).isEqualTo("From the Dev QA Teams channel");
+        assertThat(preview.currentEnd()).isEqualTo(Instant.parse("2026-10-13T10:15:00Z"));
 
         ChatActionService.Result result = service.execute("t", "user-1", null);
         assertThat(result.message()).isEqualTo("Dev QA now runs until 12:15 UTC.");
+        assertThat(result.endsAt()).isEqualTo(Instant.parse("2026-10-13T12:15:00Z"));
         verify(tokens).markUsed("jti-1", "user-1");
         verify(audit).logAction(eq("user-1"), any(), eq("chat_action"), eq("jti-1"), anyString(), contains("via chat"));
     }
@@ -137,8 +142,10 @@ class ChatActionServiceTest {
         when(snoozes.snooze(ENV, 4, "Snoozed via chat", "user-1")).thenReturn(snooze);
 
         assertThat(service.preview("t").choices()).containsExactly(1, 4, 8);
-        assertThat(service.execute("t", "user-1", null).message())
-                .isEqualTo("Idle auto-stop is paused for Dev QA until 16:00 UTC.");
+        assertThat(service.preview("t").title()).isEqualTo("Snooze idle auto-stop on Dev QA?");
+        ChatActionService.Result result = service.execute("t", "user-1", null);
+        assertThat(result.message()).isEqualTo("Idle auto-stop is paused for Dev QA until 16:00 UTC.");
+        assertThat(result.endsAt()).isEqualTo(Instant.parse("2026-10-13T16:00:00Z"));
         verify(tokens).markUsed("jti-1", "user-1");
     }
 
@@ -187,6 +194,7 @@ class ChatActionServiceTest {
         when(approvals.approve("req-1", "user-1", "Approved via chat")).thenReturn(pending);
 
         assertThat(service.preview("t").description()).isEqualTo("Approve the request to start Dev QA (a group, 8 h).");
+        assertThat(service.preview("t").title()).isEqualTo("Approve this start?");
         assertThat(service.execute("t", "user-1", null).message()).isEqualTo("Approved; waiting for the other approvers.");
         verify(tokens).markUsed("jti-1", "user-1");
 

@@ -39,4 +39,41 @@ public class ChatActionController {
     public ChatActionService.Result execute(@PathVariable String token, @RequestBody(required = false) ExecuteRequest body) {
         return actionService.execute(token, userService.getCurrentUserId(), body == null ? null : body.choice());
     }
+
+    /**
+     * A link that cannot be used answers with the usual status and body plus {@code code}, the
+     * environment (when the caller can see it) and an admin to ask (U09-T08), so the confirm page
+     * can say what happened instead of a generic error.
+     */
+    @ExceptionHandler({com.tcgdigital.vmcontrol.exception.ValidationException.class,
+            com.tcgdigital.vmcontrol.exception.ConflictException.class,
+            com.tcgdigital.vmcontrol.exception.UnauthorizedException.class,
+            com.tcgdigital.vmcontrol.exception.ResourceNotFoundException.class,
+            org.springframework.security.access.AccessDeniedException.class})
+    public org.springframework.http.ResponseEntity<java.util.Map<String, Object>> linkFailure(
+            RuntimeException ex, jakarta.servlet.http.HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        String token = uri.substring(uri.lastIndexOf('/') + 1);
+        String userId;
+        try {
+            userId = userService.getCurrentUserId();
+        } catch (RuntimeException e) {
+            userId = null;
+        }
+        ChatActionService.Failure f = actionService.failure(token, ex, userId);
+        java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("error", switch (f.status()) {
+            case 400 -> "Validation Error";
+            case 403 -> "Forbidden";
+            case 404 -> "Not Found";
+            default -> "Conflict";
+        });
+        body.put("message", f.message());
+        body.put("code", f.code());
+        if (f.environmentId() != null) body.put("environmentId", f.environmentId());
+        if (f.environmentName() != null) body.put("environmentName", f.environmentName());
+        if (f.adminName() != null) body.put("adminName", f.adminName());
+        body.put("timestamp", java.time.Instant.now().toString());
+        return org.springframework.http.ResponseEntity.status(f.status()).body(body);
+    }
 }

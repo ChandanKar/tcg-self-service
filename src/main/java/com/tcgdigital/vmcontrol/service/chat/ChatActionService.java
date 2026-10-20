@@ -98,19 +98,39 @@ public class ChatActionService {
 
     /**
      * What the confirm page shows. choices/defaultChoice: minutes (extend) or hours (snooze) the
-     * user may pick; empty for actions without a choice.
+     * user may pick; empty for actions without a choice. title: the question ("Extend the lease on
+     * Payments Dev?"); source: where the link came from (U09-T08); currentEnd: when the lease ends
+     * now (extend only), so the page can say it in the reader's time.
      */
     public record Preview(String type, String environmentId, String environmentName, String description,
                           String confirmLabel, Instant expiresAt, List<Integer> choices, Integer defaultChoice,
-                          String choiceUnit) {
+                          String choiceUnit, String title, String source, Instant currentEnd) {
         Preview(String type, String environmentId, String environmentName, String description, String confirmLabel,
-                Instant expiresAt) {
-            this(type, environmentId, environmentName, description, confirmLabel, expiresAt, List.of(), null, null);
+                Instant expiresAt, String title) {
+            this(type, environmentId, environmentName, description, confirmLabel, expiresAt, List.of(), null, null,
+                    title, sourceLine(environmentName), null);
         }
     }
 
-    /** What happened. */
-    public record Result(String type, String environmentId, String message) {}
+    static String sourceLine(String environmentName) {
+        return "From the " + environmentName + " Teams channel";
+    }
+
+    /** What happened. endsAt: the lease's new end (extend) or the snooze's end, for the reader's time. */
+    public record Result(String type, String environmentId, String message, Instant endsAt) {
+        public Result(String type, String environmentId, String message) {
+            this(type, environmentId, message, null);
+        }
+    }
+
+    /**
+     * Why a link could not be used, for the confirm page (U09-T08): code LINK_INVALID,
+     * LINK_EXPIRED, LINK_USED, NOT_ALLOWED, NOT_FOUND, STATE (the environment moved on, e.g. the
+     * lease already ended) or REFUSED (the action's own rules said no). The environment and an
+     * admin to ask are named only to someone who can see the environment.
+     */
+    public record Failure(int status, String code, String message, String environmentId, String environmentName,
+                          String adminName) {}
 
     @Transactional(readOnly = true)
     public Preview preview(String token) {
@@ -120,12 +140,13 @@ public class ChatActionService {
             case APPROVE_ACCESS_REQUEST -> {
                 EnvironmentAccessRequest request = checkApprove(claims);
                 yield new Preview(claims.type().name(), claims.environmentId(), name(environment),
-                        describe(request, environment), "Approve", claims.expiresAt());
+                        describe(request, environment), "Approve", claims.expiresAt(), "Approve this access request?");
             }
             case STOP_ENVIRONMENT -> {
                 securityService.assertCanOperate(claims.environmentId());
                 yield new Preview(claims.type().name(), claims.environmentId(), name(environment),
-                        "Stop every running VM in " + name(environment) + ".", "Stop environment", claims.expiresAt());
+                        "Every running VM in " + name(environment) + " stops, in reverse start order.", "Stop environment",
+                        claims.expiresAt(), "Stop " + name(environment) + "?");
             }
             case EXTEND_LEASE -> {
                 securityService.assertCanOperate(claims.environmentId());
@@ -133,7 +154,8 @@ public class ChatActionService {
                 yield new Preview(claims.type().name(), claims.environmentId(), name(environment),
                         "Keep " + name(environment) + " running longer. It now stops at " + TIME.format(end)
                                 + "; 2 hours more would be " + TIME.format(later(end, DEFAULT_EXTEND_MINUTES)) + ".",
-                        "Extend", claims.expiresAt(), EXTEND_MINUTES, DEFAULT_EXTEND_MINUTES, "minutes");
+                        "Extend", claims.expiresAt(), EXTEND_MINUTES, DEFAULT_EXTEND_MINUTES, "minutes",
+                        "Extend the lease on " + name(environment) + "?", sourceLine(name(environment)), end);
             }
             case APPROVE_OPERATION -> {
                 com.tcgdigital.vmcontrol.model.ApprovalRequest request = heldRequest(claims);
@@ -142,21 +164,23 @@ public class ChatActionService {
                                 ? "keep " + name(environment) + " running longer" : "start " + name(environment))
                                 + (request.getScopeSummary() == null ? "" : " (" + request.getScopeSummary() + ")")
                                 + (request.getEstimatedCost() == null ? "" : ", about $" + request.getEstimatedCost().toPlainString()) + ".",
-                        "Approve", claims.expiresAt());
+                        "Approve", claims.expiresAt(), request.getRequestType() == com.tcgdigital.vmcontrol.model.ApprovalRequest.Type.EXTEND
+                                ? "Approve keeping " + name(environment) + " running longer?" : "Approve this start?");
             }
             case CREATE_JIRA_TICKET -> {
                 securityService.assertCanAdminister(claims.environmentId());
                 yield new Preview(claims.type().name(), claims.environmentId(), name(environment),
                         "Create a Jira ticket for the cost anomaly in " + name(environment)
                                 + ". If one exists already, you get that one.",
-                        "Create ticket", claims.expiresAt());
+                        "Create ticket", claims.expiresAt(), "Create a Jira ticket for " + name(environment) + "?");
             }
             case SNOOZE_IDLE_STOP -> {
                 securityService.assertCanOperate(claims.environmentId());
                 assertStillRunning(claims.environmentId(), environment);
                 yield new Preview(claims.type().name(), claims.environmentId(), name(environment),
                         "Pause idle auto-stop for " + name(environment) + ", so it keeps running while it looks idle.",
-                        "Snooze", claims.expiresAt(), SNOOZE_HOURS, DEFAULT_SNOOZE_HOURS, "hours");
+                        "Snooze", claims.expiresAt(), SNOOZE_HOURS, DEFAULT_SNOOZE_HOURS, "hours",
+                        "Snooze idle auto-stop on " + name(environment) + "?", sourceLine(name(environment)), null);
             }
         };
     }
@@ -240,7 +264,8 @@ public class ChatActionService {
                 String message = outcome.applied()
                         ? envName + " now runs until " + TIME.format(outcome.lease().getEndsAt().toInstant()) + "."
                         : "That is beyond " + envName + "'s maximum, so the owners were asked to approve it.";
-                return new Result(claims.type().name(), claims.environmentId(), message);
+                return new Result(claims.type().name(), claims.environmentId(), message,
+                        outcome.applied() ? outcome.lease().getEndsAt().toInstant() : null);
             }
             case APPROVE_OPERATION -> {
                 heldRequest(claims);
@@ -269,10 +294,68 @@ public class ChatActionService {
                 com.tcgdigital.vmcontrol.model.IdleStopSnooze snooze =
                         snoozeService.snooze(claims.environmentId(), hours, "Snoozed " + VIA_CHAT, userId);
                 return new Result(claims.type().name(), claims.environmentId(),
-                        "Idle auto-stop is paused for " + envName + " until " + TIME.format(snooze.getSnoozedUntil().toInstant()) + ".");
+                        "Idle auto-stop is paused for " + envName + " until " + TIME.format(snooze.getSnoozedUntil().toInstant()) + ".",
+                        snooze.getSnoozedUntil().toInstant());
             }
         }
         throw new IllegalStateException("Unhandled chat action " + claims.type());
+    }
+
+    /**
+     * Describes why the link could not be used (U09-T08). The environment comes from the link
+     * itself when its signature is good, so an expired or used link can still point at it.
+     */
+    @Transactional(readOnly = true)
+    public Failure failure(String token, RuntimeException e, String userId) {
+        ChatActionTokenService.Claims claims = null;
+        try {
+            claims = tokenService.parse(token);
+        } catch (RuntimeException ignored) {
+            // an invalid link names no environment
+        }
+        Environment environment = claims == null || claims.environmentId() == null ? null
+                : environmentRepository.findById(claims.environmentId()).orElse(null);
+        boolean canView = environment != null && securityService.canViewEnvironment(environment.getEnvironmentId());
+        String envId = canView ? environment.getEnvironmentId() : null;
+        String envName = canView ? name(environment) : null;
+
+        if (e instanceof ValidationException v) {
+            return new Failure(400, v.getCode() != null ? v.getCode() : "REFUSED", v.getMessage(), envId, envName, null);
+        }
+        if (e instanceof com.tcgdigital.vmcontrol.exception.ConflictException c) {
+            return new Failure(409, c.getCode() != null ? c.getCode() : "STATE", c.getMessage(), envId, envName, null);
+        }
+        if (e instanceof ResourceNotFoundException) {
+            return new Failure(404, "NOT_FOUND", e.getMessage(), envId, envName, null);
+        }
+        // 403: say what the person can do there, and who to ask.
+        if (!canView) {
+            return new Failure(403, "NOT_ALLOWED", "You don't have access to this environment. Ask for it on Request access.",
+                    null, null, null);
+        }
+        String admin = accessService.reviewerNames(List.of(envId), userId)
+                .getOrDefault(envId, List.of()).stream().findFirst().orElse(null);
+        boolean platform = EnvironmentAccessService.PLATFORM_ADMINISTRATORS.equals(admin);
+        String ask = admin == null ? "" : platform ? " Ask a platform administrator." : " Ask its admin, " + admin + ".";
+        String message;
+        if (e.getMessage() != null && e.getMessage().startsWith("You cannot approve your own")) {
+            message = e.getMessage() + ".";
+        } else {
+            String can = securityService.canOperateInEnvironment(envId) ? "use" : "view";
+            message = "You can " + can + " " + envName + " but not " + notAllowed(claims.type()) + "." + ask;
+        }
+        return new Failure(403, "NOT_ALLOWED", message, envId, envName, platform ? null : admin);
+    }
+
+    private static String notAllowed(ChatActionType type) {
+        return switch (type) {
+            case EXTEND_LEASE -> "change its lease";
+            case STOP_ENVIRONMENT -> "stop it";
+            case SNOOZE_IDLE_STOP -> "pause its idle auto-stop";
+            case APPROVE_ACCESS_REQUEST -> "approve access to it";
+            case APPROVE_OPERATION -> "approve this request";
+            case CREATE_JIRA_TICKET -> "open Jira tickets for it";
+        };
     }
 
     /** The reviewer administers the request's environment and is not its requester; the link matches it. */

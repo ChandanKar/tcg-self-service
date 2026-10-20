@@ -45,7 +45,8 @@ class ChatActionTokenServiceTest extends AbstractIntegrationTest {
     @Test
     void expiredTamperedOrForeignLinksAre400() {
         String expired = tokens.issue(ChatActionType.STOP_ENVIRONMENT, "env-1", null, Duration.ofSeconds(-5));
-        assertThatThrownBy(() -> tokens.verify(expired)).isInstanceOf(ValidationException.class).hasMessage("This link has expired");
+        assertThatThrownBy(() -> tokens.verify(expired)).isInstanceOf(ValidationException.class).hasMessage("This link has expired")
+                .extracting(e -> ((ValidationException) e).getCode()).isEqualTo(ChatActionTokenService.LINK_EXPIRED);
 
         String token = tokens.issue(ChatActionType.STOP_ENVIRONMENT, "env-1", null);
         String[] parts = token.split("\\.");
@@ -54,7 +55,8 @@ class ChatActionTokenServiceTest extends AbstractIntegrationTest {
                 new String(java.util.Base64.getUrlDecoder().decode(parts[0])).replace("STOP_ENVIRONMENT", "EXTEND_LEASE").getBytes())
                 + "." + parts[1];
         for (String bad : List.of(forged, parts[0] + ".AAAA", parts[0], "", "a.b.c", token + "x")) {
-            assertThatThrownBy(() -> tokens.verify(bad)).as(bad).isInstanceOf(ValidationException.class);
+            assertThatThrownBy(() -> tokens.verify(bad)).as(bad).isInstanceOf(ValidationException.class)
+                    .extracting(e -> ((ValidationException) e).getCode()).isEqualTo(ChatActionTokenService.LINK_INVALID);
         }
 
         Object target = AopTestUtils.getTargetObject(tokens);
@@ -94,7 +96,8 @@ class ChatActionTokenServiceTest extends AbstractIntegrationTest {
         }
         pool.shutdown();
         assertThat(wins).isEqualTo(1);
-        assertThatThrownBy(() -> tokens.verify(token)).isInstanceOf(ConflictException.class);
+        assertThatThrownBy(() -> tokens.verify(token)).isInstanceOf(ConflictException.class)
+                .extracting(e -> ((ConflictException) e).getCode()).isEqualTo(ChatActionTokenService.LINK_USED);
     }
 
     @Test
