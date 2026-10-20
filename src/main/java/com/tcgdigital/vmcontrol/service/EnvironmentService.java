@@ -150,7 +150,12 @@ public class EnvironmentService {
      * server-side-paginated "My Environments" table (admin view).
      */
     public Page<Environment> getAllActiveEnvironments(String search, Pageable pageable) {
-        return environmentRepository.searchActive(blankToNull(search), pageable);
+        return getAllActiveEnvironments(search, null, pageable);
+    }
+
+    /** As above, filtered to environments running something (true), nothing (false) or all (null). */
+    public Page<Environment> getAllActiveEnvironments(String search, Boolean running, Pageable pageable) {
+        return environmentRepository.searchActive(blankToNull(search), running, pageable);
     }
 
     /**
@@ -158,7 +163,11 @@ public class EnvironmentService {
      * the admin "include inactive" variant.
      */
     public Page<Environment> getAllEnvironments(String search, Pageable pageable) {
-        return environmentRepository.searchAll(blankToNull(search), pageable);
+        return getAllEnvironments(search, null, pageable);
+    }
+
+    public Page<Environment> getAllEnvironments(String search, Boolean running, Pageable pageable) {
+        return environmentRepository.searchAll(blankToNull(search), running, pageable);
     }
 
     /**
@@ -166,11 +175,19 @@ public class EnvironmentService {
      * to — backs the server-side-paginated "My Environments" table (regular-user view).
      */
     public Page<Environment> getEnvironmentsForCurrentUser(String search, Pageable pageable) {
+        return getEnvironmentsForCurrentUser(search, null, pageable);
+    }
+
+    /**
+     * As above with the Running / Stopped filter (U06-T04); only VMs the user can see decide
+     * whether an environment runs something.
+     */
+    public Page<Environment> getEnvironmentsForCurrentUser(String search, Boolean running, Pageable pageable) {
         String userId = userService.getCurrentUserId();
         Timestamp now = new Timestamp(System.currentTimeMillis());
         // DISTINCT environments — a user with an ENVIRONMENT grant plus GROUP grants in the
         // same environment must still see it once, not once per grant.
-        return accessRepository.findDistinctActiveEnvironmentsForUser(userId, blankToNull(search), now, pageable);
+        return accessRepository.findDistinctActiveEnvironmentsForUser(userId, blankToNull(search), now, running, pageable);
     }
 
     private String blankToNull(String value) {

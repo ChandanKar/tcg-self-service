@@ -56,6 +56,17 @@ public interface EnvironmentRepository extends JpaRepository<Environment, String
     List<Environment> findActiveEc2Environments();
 
     /**
+     * The list's Running / Stopped filter (U06-T04): with {@code :running} true only environments
+     * with an active VM in state RUNNING, with false only those without one, with null all.
+     */
+    String RUNNING_FILTER =
+           "AND (:running IS NULL " +
+           "     OR (:running = true AND EXISTS (SELECT 1 FROM Vm v WHERE v.group.environment = e " +
+           "         AND v.isActive = true AND v.status = 'RUNNING')) " +
+           "     OR (:running = false AND NOT EXISTS (SELECT 1 FROM Vm v WHERE v.group.environment = e " +
+           "         AND v.isActive = true AND v.status = 'RUNNING'))) ";
+
+    /**
      * Paginated, optionally name/description-filtered active environments — backs the
      * server-side-paginated "My Environments" table. A null {@code search} short-circuits the
      * filter, matching the same query plan as the unfiltered case.
@@ -64,8 +75,14 @@ public interface EnvironmentRepository extends JpaRepository<Environment, String
            "AND (:search IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
            "     OR LOWER(e.displayName) LIKE LOWER(CONCAT('%', :search, '%')) " +
            "     OR LOWER(e.description) LIKE LOWER(CONCAT('%', :search, '%'))) " +
+           RUNNING_FILTER +
            "ORDER BY e.name")
-    Page<Environment> searchActive(@Param("search") String search, Pageable pageable);
+    Page<Environment> searchActive(@Param("search") String search, @Param("running") Boolean running,
+                                   Pageable pageable);
+
+    default Page<Environment> searchActive(String search, Pageable pageable) {
+        return searchActive(search, null, pageable);
+    }
 
     /**
      * Same as {@link #searchActive} but including inactive environments — the admin
@@ -75,8 +92,14 @@ public interface EnvironmentRepository extends JpaRepository<Environment, String
            "WHERE (:search IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
            "     OR LOWER(e.displayName) LIKE LOWER(CONCAT('%', :search, '%')) " +
            "     OR LOWER(e.description) LIKE LOWER(CONCAT('%', :search, '%'))) " +
+           RUNNING_FILTER +
            "ORDER BY e.name")
-    Page<Environment> searchAll(@Param("search") String search, Pageable pageable);
+    Page<Environment> searchAll(@Param("search") String search, @Param("running") Boolean running,
+                                Pageable pageable);
+
+    default Page<Environment> searchAll(String search, Pageable pageable) {
+        return searchAll(search, null, pageable);
+    }
 
     boolean existsByEksClusterName(String eksClusterName);
 

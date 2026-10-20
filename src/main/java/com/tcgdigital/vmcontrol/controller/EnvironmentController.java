@@ -173,7 +173,10 @@ public class EnvironmentController {
             summary = "List environments, paginated",
             description = "Server-side-paginated, optionally name/description-filtered variant of the " +
                     "environments list, for the \"My Environments\" table. Admins see all environments; " +
-                    "regular users see only environments they have access to."
+                    "regular users see only environments they have access to. state=RUNNING or STOPPED " +
+                    "keeps environments with or without a running VM. Each row carries myAccess and " +
+                    "monthToDateCost; the X-Total-Vms and X-Running-Vms headers count the VMs of the whole " +
+                    "filtered set (the environment count is page.totalElements)."
     )
     public ResponseEntity<Page<EnvironmentDTO>> listEnvironmentsPaged(
             @Parameter(description = "Include inactive environments (admin only)")
@@ -183,15 +186,14 @@ public class EnvironmentController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @Parameter(description = "Add groupStates: VM state counts per group, in start order (U05-T03)")
-            @RequestParam(required = false, defaultValue = "false") boolean includeGroups) {
+            @RequestParam(required = false, defaultValue = "false") boolean includeGroups,
+            @Parameter(description = "RUNNING: environments with a running VM; STOPPED: those without one (U06-T04)")
+            @RequestParam(required = false) String state) {
 
         Pageable pageable = com.tcgdigital.vmcontrol.controller.support.Paging.of(page, size,
                 com.tcgdigital.vmcontrol.controller.support.Paging.DEFAULT_MAX_SIZE); // 400 on page < 0, size clamped
-        Page<Environment> environments = securityService.isEnvAdmin()
-                ? (includeInactive
-                        ? environmentService.getAllEnvironments(search, pageable)
-                        : environmentService.getAllActiveEnvironments(search, pageable))
-                : environmentService.getEnvironmentsForCurrentUser(search, pageable);
+        Boolean running = runningFilter(state);
+        Page<Environment> environments = pageOfEnvironments(includeInactive, search, running, pageable);
 
         List<String> environmentIds = environments.getContent().stream()
                 .map(Environment::getEnvironmentId)
@@ -205,8 +207,95 @@ public class EnvironmentController {
         if (includeGroups) {
             withGroupStates(dtos.getContent());
         }
+        withAccessAndCost(environments.getContent(), dtos.getContent());
 
-        return ResponseEntity.ok(dtos);
+        // The header line counts the whole filtered set, not this page (U06-T04).
+        List<Environment> all = environments.getTotalPages() <= 1
+                ? environments.getContent()
+                : pageOfEnvironments(includeInactive, search, running, Pageable.unpaged()).getContent();
+        long[] totals = fleetTotals(all);
+        return ResponseEntity.ok()
+                .header("X-Total-Vms", String.valueOf(totals[0]))
+                .header("X-Running-Vms", String.valueOf(totals[1]))
+                .body(dtos);
+    }
+
+    private Page<Environment> pageOfEnvironments(boolean includeInactive, String search, Boolean running,
+                                                 Pageable pageable) {
+        return securityService.isEnvAdmin()
+                ? (includeInactive
+                        ? environmentService.getAllEnvironments(search, running, pageable)
+                        : environmentService.getAllActiveEnvironments(search, running, pageable))
+                : environmentService.getEnvironmentsForCurrentUser(search, running, pageable);
+    }
+
+    /** state=RUNNING → true, STOPPED → false, absent → null (all); anything else is a 400. */
+    private static Boolean runningFilter(String state) {
+        if (state == null || state.isBlank()) {
+            return null;
+        }
+        return switch (state.trim().toUpperCase(java.util.Locale.ROOT)) {
+            case "RUNNING" -> Boolean.TRUE;
+            case "STOPPED" -> Boolean.FALSE;
+            default -> throw new com.tcgdigital.vmcontrol.exception.ValidationException(
+                    "state must be one of RUNNING, STOPPED");
+        };
+    }
+
+    /**
+     * "Your access" and "This month" for a page of rows (U06-T04), from one cost call: the
+     * viewer's environment-wide level and the month-to-date estimate (none for group-only grants).
+     */
+    private void withAccessAndCost(List<Environment> environments, List<EnvironmentDTO> dtos) {
+        if (environments.isEmpty()) {
+            return;
+        }
+        Map<String, MyEnvironmentCostDTO> rows = environmentCostService.getCostRowsFor(
+                userService.getCurrentUser(), environments);
+        for (EnvironmentDTO dto : dtos) {
+            MyEnvironmentCostDTO row = rows.get(dto.getEnvironmentId());
+            if (row != null) {
+                dto.setMyAccess(row.myLevel());
+                dto.setMonthToDateCost(row.monthToDateEstimated());
+            }
+        }
+    }
+
+    /**
+     * {VMs, running VMs} across the given environments; a group-scoped viewer counts only the
+     * groups they can see, as in their rows.
+     */
+    private long[] fleetTotals(List<Environment> environments) {
+        List<String> ids = environments.stream().map(Environment::getEnvironmentId).toList();
+        if (ids.isEmpty()) {
+            return new long[] {0, 0};
+        }
+        Map<String, List<String>> visible = new java.util.HashMap<>();
+        for (String id : ids) {
+            if (!securityService.hasEnvironmentWideView(id)) {
+                visible.put(id, securityService.getVisibleGroupIds(id));
+            }
+        }
+        List<String> wide = ids.stream().filter(id -> !visible.containsKey(id)).toList();
+        Map<String, EnvironmentService.EnvironmentCounts> counts = wide.isEmpty()
+                ? Map.of() : environmentService.getBatchCounts(wide);
+        long vms = 0;
+        long running = 0;
+        for (EnvironmentService.EnvironmentCounts c : counts.values()) {
+            vms += c.vmCount();
+            running += c.runningVmCount();
+        }
+        if (!visible.isEmpty()) {
+            Map<String, List<GroupStateCountsDTO>> states =
+                    environmentService.getGroupStateCounts(List.copyOf(visible.keySet()), visible);
+            for (List<GroupStateCountsDTO> groups : states.values()) {
+                for (GroupStateCountsDTO g : groups) {
+                    vms += g.total();
+                    running += g.running();
+                }
+            }
+        }
+        return new long[] {vms, running};
     }
 
     @GetMapping("/available")

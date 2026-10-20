@@ -58,6 +58,33 @@ public class EnvironmentDTO {
     @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
     private List<GroupStateCountsDTO> groupStates;
 
+    /**
+     * The list's "Your access" and "This month" (U06-T04, set on /environments/page only): the
+     * viewer's environment-wide level (ADMIN, USER or VIEWER; ADMIN for administrators; null for a
+     * group-only grant) and this month's estimated cost. Null, and left out, when not computed.
+     */
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    private String myAccess;
+
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    private java.math.BigDecimal monthToDateCost;
+
+    public String getMyAccess() {
+        return myAccess;
+    }
+
+    public void setMyAccess(String myAccess) {
+        this.myAccess = myAccess;
+    }
+
+    public java.math.BigDecimal getMonthToDateCost() {
+        return monthToDateCost;
+    }
+
+    public void setMonthToDateCost(java.math.BigDecimal monthToDateCost) {
+        this.monthToDateCost = monthToDateCost;
+    }
+
     public List<GroupStateCountsDTO> getGroupStates() {
         return groupStates;
     }

@@ -135,6 +135,7 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
            "AND (:search IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
            "     OR LOWER(e.displayName) LIKE LOWER(CONCAT('%', :search, '%')) " +
            "     OR LOWER(e.description) LIKE LOWER(CONCAT('%', :search, '%'))) " +
+           VISIBLE_RUNNING_FILTER +
            "ORDER BY e.name",
            countQuery =
            "SELECT COUNT(DISTINCT e.environmentId) FROM Environment e JOIN EnvironmentAccess ea ON ea.environment = e " +
@@ -144,12 +145,35 @@ public interface EnvironmentAccessRepository extends JpaRepository<EnvironmentAc
            "AND e.isActive = true " +
            "AND (:search IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
            "     OR LOWER(e.displayName) LIKE LOWER(CONCAT('%', :search, '%')) " +
-           "     OR LOWER(e.description) LIKE LOWER(CONCAT('%', :search, '%')))")
+           "     OR LOWER(e.description) LIKE LOWER(CONCAT('%', :search, '%'))) " +
+           VISIBLE_RUNNING_FILTER)
     Page<Environment> findDistinctActiveEnvironmentsForUser(
             @Param("userId") String userId,
             @Param("search") String search,
             @Param("now") Timestamp now,
+            @Param("running") Boolean running,
             Pageable pageable);
+
+    default Page<Environment> findDistinctActiveEnvironmentsForUser(String userId, String search, Timestamp now,
+                                                                    Pageable pageable) {
+        return findDistinctActiveEnvironmentsForUser(userId, search, now, null, pageable);
+    }
+
+    /**
+     * The list's Running / Stopped filter for a user (U06-T04): only VMs the user can see count —
+     * every VM under an environment-wide grant, else those in groups they hold a grant on — so a
+     * hidden group's state never shows through the filter.
+     */
+    String VISIBLE_RUNNING_VM =
+           "SELECT 1 FROM Vm v WHERE v.group.environment = e AND v.isActive = true AND v.status = 'RUNNING' " +
+           "AND EXISTS (SELECT 1 FROM EnvironmentAccess g WHERE g.user.userId = :userId AND g.environment = e " +
+           "    AND g.status = 'ACTIVE' AND (g.expiresAt IS NULL OR g.expiresAt > :now) " +
+           "    AND (g.scopeType = 'ENVIRONMENT' OR g.scopeId = v.group.groupId))";
+
+    String VISIBLE_RUNNING_FILTER =
+           "AND (:running IS NULL " +
+           "     OR (:running = true AND EXISTS (" + VISIBLE_RUNNING_VM + ")) " +
+           "     OR (:running = false AND NOT EXISTS (" + VISIBLE_RUNNING_VM + "))) ";
 
     // ============= Scope-aware finders (env or group) =============
 

@@ -17,6 +17,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -206,5 +207,90 @@ class EnvironmentListControllerTest extends SecuredWebTestBase {
                 .andExpect(jsonPath(group + "stoppedVmCount").value(contains(3)))
                 .andExpect(jsonPath(group + "busyVmCount").value(contains(1)))
                 .andExpect(jsonPath(group + "unknownVmCount").value(contains(0)));
+    }
+
+    // ---------------------------------------------------------------- U06-T04: filter, access, cost, totals
+
+    /** env runs 2 of 5 VMs; a second environment "bill-<tag>" has 3 stopped VMs. */
+    private Environment runningAndStopped() {
+        VmGroup app = newGroup(env, "App");
+        vms(app, VmStatus.RUNNING, 2);
+        vms(app, VmStatus.STOPPED, 3);
+        Environment stopped = newEnvironment("bill-" + tag);
+        vms(newGroup(stopped, "App"), VmStatus.STOPPED, 3);
+        grantEnv(operator, stopped.getEnvironmentId(), AccessLevel.USER);
+        return stopped;
+    }
+
+    @Test
+    void stateRunningKeepsEnvironmentsWithARunningVmAndTheTotalsFollow() throws Exception {
+        Environment stopped = runningAndStopped();
+
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).param("state", "RUNNING").with(asAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[*].environmentId").value(contains(env.getEnvironmentId())))
+                .andExpect(jsonPath("$.page.totalElements").value(1))
+                .andExpect(header().string("X-Total-Vms", "5"))
+                .andExpect(header().string("X-Running-Vms", "2"));
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).param("state", "stopped").with(asUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[*].environmentId").value(contains(stopped.getEnvironmentId())))
+                .andExpect(header().string("X-Total-Vms", "3"))
+                .andExpect(header().string("X-Running-Vms", "0"));
+    }
+
+    @Test
+    void theTotalsCountTheWholeFilteredSetNotThePage() throws Exception {
+        runningAndStopped();
+
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).param("size", "1").with(asUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.page.totalElements").value(2))
+                .andExpect(header().string("X-Total-Vms", "8"))
+                .andExpect(header().string("X-Running-Vms", "2"));
+    }
+
+    @Test
+    void anUnknownStateIsA400NamingTheAllowedValues() throws Exception {
+        mockMvc.perform(get("/api/v1/environments/page").param("state", "FOO").with(asUser()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("state must be one of RUNNING, STOPPED"));
+    }
+
+    @Test
+    void eachRowCarriesTheViewersAccessAndThisMonthsCost() throws Exception {
+        grantEnv(viewer, env.getEnvironmentId(), AccessLevel.VIEWER);
+
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).with(asUser()))
+                .andExpect(jsonPath(row("myAccess")).value(contains("USER")))
+                .andExpect(jsonPath(row("monthToDateCost")).value(contains(0.0)));
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).with(asViewer()))
+                .andExpect(jsonPath(row("myAccess")).value(contains("VIEWER")));
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).with(asAdmin()))
+                .andExpect(jsonPath(row("myAccess")).value(contains("ADMIN")));
+    }
+
+    @Test
+    void aGroupScopedViewerFiltersAndCountsOnlyTheGroupsTheySee() throws Exception {
+        VmGroup mine = newGroup(env, "Mine");
+        VmGroup other = newGroup(env, "Other");
+        vms(mine, VmStatus.STOPPED, 2);
+        vms(other, VmStatus.RUNNING, 3);
+        grantGroup(viewer, mine.getGroupId(), AccessLevel.VIEWER);
+
+        // Only a hidden group runs: to this viewer the environment is stopped.
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).param("state", "RUNNING").with(asViewer()))
+                .andExpect(jsonPath("$.content", empty()));
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).param("state", "STOPPED").with(asViewer()))
+                .andExpect(jsonPath("$.content[*].environmentId").value(contains(env.getEnvironmentId())))
+                .andExpect(jsonPath(row("myAccess")).value(empty()))     // group grant only: left out
+                .andExpect(jsonPath(row("monthToDateCost")).value(empty()))
+                .andExpect(header().string("X-Total-Vms", "2"))
+                .andExpect(header().string("X-Running-Vms", "0"));
+        // The operator sees the whole environment.
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).param("state", "RUNNING").with(asUser()))
+                .andExpect(jsonPath("$.content[*].environmentId").value(contains(env.getEnvironmentId())))
+                .andExpect(header().string("X-Running-Vms", "3"));
     }
 }
