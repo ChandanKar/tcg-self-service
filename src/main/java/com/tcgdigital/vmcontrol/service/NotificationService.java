@@ -233,6 +233,27 @@ public class NotificationService {
         }
     }
 
+    /**
+     * One message for everything a bulk grant gave a person (U10-T02): "Operator on Payments Dev
+     * until 20 Nov; View only on CRM UAT, Application group, no end date". Email only when the
+     * granter chose to email people: their click is the opt-in, like the stop notice.
+     */
+    public void notifyBulkAccessGranted(String userId, List<String> lines, boolean email, String actorUserId) {
+        if (lines == null || lines.isEmpty()) {
+            return;
+        }
+        String title = lines.size() == 1 ? "New access: " + lines.get(0) : "New access in " + lines.size() + " places";
+        String message = "You can now use " + String.join("; ", lines) + ".";
+        create(userId, NotificationType.ACCESS_GRANTED, title, message, "ACCESS", null);
+        if (email) {
+            userRepository.findById(userId)
+                    .filter(user -> Boolean.TRUE.equals(user.getIsActive()) && !isBlank(user.getEmail()))
+                    .ifPresent(user -> emailService.sendHtml(List.of(user.getEmail()), title,
+                            EmailTemplates.eventEmail(title, com.tcgdigital.vmcontrol.service.support.ProviderIdRedactor.redact(message)),
+                            null, null, "BULK_ACCESS_GRANTED", null, actorUserId));
+        }
+    }
+
     public void notifyAccessLevelChanged(String userId, String environmentName, String environmentId,
                                          AccessLevel previousLevel, AccessLevel newLevel) {
         String title = "Access level changed: " + environmentName;

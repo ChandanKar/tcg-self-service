@@ -473,6 +473,43 @@ public class EnvironmentAccessService {
         return results;
     }
 
+    // ============= Bulk grants (U10-T02, BulkAccessGrantService) =============
+
+    /** The grant in force for (user, scope), for a bulk plan. */
+    public Optional<EnvironmentAccess> activeGrant(String userId, AccessScopeType scopeType, String scopeId) {
+        return accessRepository.findActiveByUserAndScope(userId, scopeType, scopeId, new Timestamp(System.currentTimeMillis()));
+    }
+
+    /**
+     * Applies one bulk row through the same upsert and audit as a direct grant, inside the
+     * caller's transaction, without the per-grant message (the bulk grant sends one message per
+     * person). {@code group} null = the whole environment. True when it created the grant or
+     * changed its level (access-granted automation is then due for the environment).
+     */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public boolean applyBulkRow(User actor, Environment environment, VmGroup group, User target, AccessLevel level,
+                                Integer durationDays, boolean clearExpiry, String notes) {
+        GrantSpec spec = group == null
+                ? GrantSpec.directEnv(environment, target, actor, level, durationDays, clearExpiry, notes)
+                : GrantSpec.directGroup(environment, group, target, actor, level, durationDays, clearExpiry, notes);
+        GrantOutcome outcome = applyGrant(spec);
+        if (outcome.created() && platformEvents != null) {
+            platformEvents.publish(com.tcgdigital.vmcontrol.service.events.PlatformEventType.ACCESS_GRANTED,
+                    environment.getEnvironmentId(), environment.getName(), java.util.Map.of(
+                            "userId", target.getUserId(), "accessLevel", String.valueOf(level)));
+        }
+        return outcome.created() || outcome.levelChanged();
+    }
+
+    /** Runs the access-granted automation rules of an environment after commit (once per bulk grant). */
+    public void accessGrantedAutomation(String environmentId) {
+        fireAccessGrantedAutomation(environmentId);
+    }
+
+    public int getGrantMaxDurationDays() {
+        return grantMaxDurationDays;
+    }
+
     /**
      * Change an existing grant's level and/or expiry in place. The grant keeps its scope and
      * initiation. Authorization is the caller's responsibility (done in the controller).

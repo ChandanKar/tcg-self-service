@@ -209,6 +209,28 @@ class NotificationServiceTest {
     }
 
     @Test
+    void aBulkGrantIsOneMessageAndNoEmailUnlessAsked() {
+        service.notifyBulkAccessGranted("user-regular",
+                List.of("Operator on Env A until 20 Nov", "View only on Env B, no end date"), false, "user-admin");
+
+        verify(notificationRepository).save(argThat(n -> "user-regular".equals(n.getUserId())
+                && "New access in 2 places".equals(n.getTitle())
+                && n.getMessage().equals("You can now use Operator on Env A until 20 Nov; View only on Env B, no end date.")));
+        verifyNoInteractions(emailService);
+    }
+
+    @Test
+    void aBulkGrantEmailsWhenTheGranterChoseTo() {
+        when(userRepository.findById("user-regular")).thenReturn(Optional.of(regularUser));
+
+        service.notifyBulkAccessGranted("user-regular", List.of("Operator on Env A until 20 Nov"), true, "user-admin");
+
+        verify(notificationRepository).save(argThat(n -> "New access: Operator on Env A until 20 Nov".equals(n.getTitle())));
+        verify(emailService).sendHtml(eq(List.of("regular@tcg.com")), eq("New access: Operator on Env A until 20 Nov"),
+                anyString(), eq(null), eq(null), eq("BULK_ACCESS_GRANTED"), eq(null), eq("user-admin"));
+    }
+
+    @Test
     void notifyAccessRequestedForReviewers_emailGoesToAllAdminOnly_notEnvAdmin() {
         settingValues.put("notification.email.access-requested.enabled", "true");
 

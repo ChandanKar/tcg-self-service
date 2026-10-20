@@ -42,17 +42,20 @@ public class AccessGrantController {
     private final UserService userService;
     private final UserOnboardingService userOnboardingService;
     private final VmGroupRepository vmGroupRepository;
+    private final com.tcgdigital.vmcontrol.service.BulkAccessGrantService bulkGrants;
 
     public AccessGrantController(EnvironmentAccessService accessService,
                                 SecurityService securityService,
                                 UserService userService,
                                 UserOnboardingService userOnboardingService,
-                                VmGroupRepository vmGroupRepository) {
+                                VmGroupRepository vmGroupRepository,
+                                com.tcgdigital.vmcontrol.service.BulkAccessGrantService bulkGrants) {
         this.accessService = accessService;
         this.securityService = securityService;
         this.userService = userService;
         this.userOnboardingService = userOnboardingService;
         this.vmGroupRepository = vmGroupRepository;
+        this.bulkGrants = bulkGrants;
     }
 
     @PostMapping
@@ -120,6 +123,28 @@ public class AccessGrantController {
                 status, search, com.tcgdigital.vmcontrol.controller.support.Paging.of(page, size, 100));
         List<EnvironmentAccessDTO> rows = toDtos(grants.getContent());
         return new org.springframework.data.domain.PageImpl<>(rows, grants.getPageable(), grants.getTotalElements());
+    }
+
+    /**
+     * What granting one level to many people on many environments or groups would do (U10-T02):
+     * one row per person and scope, New / Extends / Upgrades / No change with the reason. Nothing
+     * is written. Every target must be one the caller manages (403 otherwise).
+     */
+    @PostMapping("/bulk/preview")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(summary = "Preview a bulk grant")
+    public com.tcgdigital.vmcontrol.dto.BulkGrantPlanDTO bulkPreview(
+            @Valid @RequestBody com.tcgdigital.vmcontrol.dto.BulkGrantRequestDTO dto) {
+        return bulkGrants.preview(userService.getCurrentUserId(), dto);
+    }
+
+    /** Applies a bulk grant, all or nothing; returns what was done (same shape as the preview). */
+    @PostMapping("/bulk")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(summary = "Grant access to many people on many environments or groups")
+    public ResponseEntity<com.tcgdigital.vmcontrol.dto.BulkGrantPlanDTO> bulkGrant(
+            @Valid @RequestBody com.tcgdigital.vmcontrol.dto.BulkGrantRequestDTO dto) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(bulkGrants.apply(userService.getCurrentUserId(), dto));
     }
 
     @GetMapping("/summary")
