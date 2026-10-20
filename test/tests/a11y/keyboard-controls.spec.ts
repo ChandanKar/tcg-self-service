@@ -3,7 +3,7 @@ import { signIn, canSignIn, devIds } from '../../fixtures/auth';
 import { seedEnvironment } from '../../fixtures/seed';
 
 /**
- * E13-T09: environment group headers, automation day pills and trigger cards work from the
+ * E13-T09: environment row actions, automation day pills and trigger cards work from the
  * keyboard and announce their state.
  */
 
@@ -23,28 +23,26 @@ test.describe('Keyboard controls', () => {
     await page.waitForLoadState('networkidle');
   });
 
-  test('a group header expands with Enter and reports aria-expanded', async ({ page }) => {
+  test('every row action in Groups and VMs is a focusable button named after its target', async ({ page }) => {
     // The test schema has no VMs, so the environment's groups are faked.
-    const vm = (id: string) => ({ vmId: id, name: `vm-${id}`, provider: 'AWS', region: 'ap-south-1',
-      status: 'STOPPED', sequencePosition: 1 });
+    const vm = (id: string, status = 'STOPPED') => ({ vmId: id, name: `vm-${id}`, provider: 'AWS', region: 'ap-south-1',
+      status, sequencePosition: 1 });
     await page.route(/\/api\/v1\/environments\/[^/]+\/vms(\?.*)?$/, route => route.fulfill({ json: [
       { group: { groupId: 'g1', name: 'web', displayName: 'Web tier', sequencePosition: 1 }, vms: [vm('a1')] },
-      { group: { groupId: 'g2', name: 'db', displayName: 'Database tier', sequencePosition: 2 }, vms: [vm('b1')] },
+      { group: { groupId: 'g2', name: 'db', displayName: 'Database tier', sequencePosition: 2 }, vms: [vm('b1', 'RUNNING')] },
     ] }));
     await page.evaluate(id => { location.hash = '#/environments/' + id; }, seededEnvId);
 
-    const toggles = page.locator('.group-card-toggle');
-    await expect(toggles).toHaveCount(2, { timeout: 15_000 });
-    // A small environment opens every group; each one closes and opens on its own.
-    const second = toggles.nth(1);
-    await expect(second).toHaveAttribute('aria-expanded', 'true');
-    await second.focus();
-    await page.keyboard.press('Enter');
-    await expect(second).toHaveAttribute('aria-expanded', 'false');
-    await expect(page.locator(`#${await second.getAttribute('aria-controls')}`)).toHaveClass(/group-collapsed/);
-    await expect(toggles.nth(0)).toHaveAttribute('aria-expanded', 'true');
-    await page.keyboard.press(' ');
-    await expect(second).toHaveAttribute('aria-expanded', 'true');
+    // U07-T03: one table with group rows and VM rows instead of collapsible group cards.
+    const table = page.locator('#env-vms');
+    await expect(table.locator('.env-group-row')).toHaveCount(2, { timeout: 15_000 });
+    for (const name of ['Start group Web tier', 'Stop group Database tier', 'Start vm-a1', 'Stop vm-b1',
+      'Details of vm-a1', 'Details of vm-b1']) {
+      const button = table.getByRole('button', { name, exact: true });
+      await button.focus();
+      await expect(button).toBeFocused();
+    }
+    await expect(page.locator('.group-card-toggle')).toHaveCount(0);
   });
 
   test('day pills toggle with Space; trigger type moves with the arrow keys', async ({ page }) => {

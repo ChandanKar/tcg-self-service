@@ -52,10 +52,14 @@ test.describe('Environment page by access level', () => {
     const envId = await environmentWithUserAt(playwright, 'VIEWER');
     await open(page, envId);
 
-    await expect(page.locator('.env-viewonly-note')).toContainText('view-only access');
-    await expect(page.locator('.env-viewonly-note a')).toHaveAttribute('href', /^#\/request-access\?env=/);
+    // U07-T03: the note says what they can do and when their access ends; Ask for operator access.
+    await expect(page.locator('.env-viewonly-note')).toContainText('You can see this environment but not start or stop it.');
+    await expect(page.locator('.env-viewonly-note')).toContainText(/Your view access ends on \d{1,2} [A-Z][a-z]{2}\./);
+    await expect(page.locator('.env-viewonly-note').getByRole('link', { name: 'Ask for operator access' }))
+      .toHaveAttribute('href', /^#\/request-access\?environmentId=/);
     await expect(page.locator('#btn-env-action')).toHaveCount(0);
     await expect(page.locator('[data-action="group-action"]')).toHaveCount(0);
+    await expect(page.locator('[data-action="start-vm"], [data-action="stop-vm"]')).toHaveCount(0);
     await expect(page.locator('[data-lock-action="acquire"]')).toHaveCount(0);
     await expect(page.locator('#btn-env-action-stop')).toHaveCount(0);
     await expect(page.locator('#btn-env-insights')).toBeVisible();
@@ -94,5 +98,71 @@ test.describe('Environment page by access level', () => {
     await expect(page.locator('.env-settings')).toBeVisible();
     await expect.poll(() => asked.length).toBeGreaterThan(0);
     await expect(page.locator('[data-action="env-settings-notify"]')).toBeVisible();
+  });
+});
+
+/** U07-T03: the Groups and VMs table on faked VMs (the test schema has none that run). */
+test.describe('Groups and VMs table', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.user || !devIds.admin || !canSignIn('user'), 'Needs TEST_DEV_USER_ID and TEST_DEV_ADMIN_ID (dev mode)');
+  });
+
+  const at = (h: number, m: number) => { const d = new Date(); d.setHours(h, m, 0, 0); return d.toISOString(); };
+  const vm = (id: string, name: string, status: string, o: any = {}) => ({ vmId: id, name, provider: 'AWS',
+    region: 'ap-south-1', status, sequencePosition: 1, ...o });
+  const groups = (ids: { db: string; app: string; web: string }) => [
+    { group: { groupId: ids.db, name: 'db', displayName: 'Database', sequencePosition: 1 }, vms: [
+      vm('v1', 'pay-db-primary', 'RUNNING', { privateIp: '10.20.1.11', instanceType: 'r6g.large', cpuAvg24h: 23.2, stateSince: at(8, 2) }),
+      vm('v2', 'pay-db-replica', 'RUNNING', { privateIp: '10.20.1.12', instanceType: 'r6g.large', cpuAvg24h: 9, stateSince: at(8, 2) }),
+      vm('v3', 'pay-cache', 'RUNNING', { privateIp: '10.20.1.20', instanceType: 't4g.medium', cpuAvg24h: 4, stateSince: at(8, 3) })] },
+    { group: { groupId: ids.app, name: 'app', displayName: 'Application', sequencePosition: 2, dependsOnGroupIds: [ids.db] }, vms: [
+      vm('v4', 'pay-api-01', 'RUNNING', { privateIp: '10.20.2.31', instanceType: 'm6i.large', cpuAvg24h: 31 }),
+      vm('v5', 'pay-api-02', 'ERROR', { privateIp: '10.20.2.32', instanceType: 'm6i.large' })] },
+    { group: { groupId: ids.web, name: 'web', displayName: 'Web', sequencePosition: 3, dependsOnGroupIds: [ids.app] }, vms: [
+      vm('v6', 'web-01', 'STOPPED', { privateIp: '10.20.3.41', instanceType: 't3.medium' }),
+      vm('v7', 'web-02', 'STOPPED', { privateIp: '10.20.3.42', instanceType: 't3.medium' })] },
+  ];
+
+  async function openWith(page: any, envId: string, role: 'user' | 'admin') {
+    await page.route(/\/api\/v1\/environments\/[^/]+\/vms(\?.*)?$/, (route: any) =>
+      route.fulfill({ json: groups({ db: 'g-db', app: 'g-app', web: 'g-web' }) }));
+    await signIn(page, role);
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate((id: string) => { location.hash = '#/environments/' + id; }, envId);
+    await expect(page.locator('#env-vms .env-group-row')).toHaveCount(3, { timeout: 15_000 });
+  }
+
+  test('an operator: 3 group rows, 7 VM rows with IP, size, running since and CPU; Retry for a failed VM', async ({ page, playwright }) => {
+    const envId = await environmentWithUserAt(playwright, 'USER');
+    await openWith(page, envId, 'user');
+
+    const table = page.locator('#env-vms');
+    await expect(table.locator('.env-vm-row')).toHaveCount(7);
+    const primary = table.locator('.env-vm-row', { hasText: 'pay-db-primary' });
+    await expect(primary.locator('.env-vm-ip')).toHaveText('10.20.1.11');
+    await expect(primary.locator('.env-vm-size')).toHaveText('r6g.large');
+    await expect(primary.locator('.env-vm-state')).toHaveText('Running since 08:02');
+    await expect(primary.locator('.env-vm-cpu')).toHaveText('23%');
+    await expect(table.locator('.env-vm-row', { hasText: 'web-01' }).locator('.env-vm-cpu')).toHaveText('—');
+
+    const db = table.locator('.env-group-row[data-group-id="g-db"]');
+    await expect(db.getByRole('button')).toHaveText(['Stop group']);
+    const appRow = table.locator('.env-group-row[data-group-id="g-app"]');
+    await expect(appRow).toContainText('Start order 2 · after Database');
+    await expect(appRow.getByRole('button')).toHaveText(['Start group', 'Stop group']);
+
+    const failed = table.locator('.env-vm-row', { hasText: 'pay-api-02' });
+    await expect(failed.locator('.env-vm-state')).toHaveText('Failed to start');
+    await expect(failed.getByRole('button', { name: 'Retry pay-api-02' })).toBeVisible();
+    await expect(table).not.toContainText(/i-[0-9a-f]{8,17}/);
+  });
+
+  test('a viewer: Details on every VM, no start, stop or group buttons', async ({ page, playwright }) => {
+    const envId = await environmentWithUserAt(playwright, 'VIEWER');
+    await openWith(page, envId, 'user');
+
+    await expect(page.locator('#env-vms').getByRole('button', { name: /^Details of / })).toHaveCount(7);
+    await expect(page.locator('#env-vms [data-action="start-vm"], #env-vms [data-action="stop-vm"], #env-vms [data-action="group-action"]'))
+      .toHaveCount(0);
   });
 });

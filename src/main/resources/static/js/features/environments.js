@@ -690,18 +690,14 @@ const Environments = (function() {
         } catch (e) { lockSection = ''; }
 
         const unknownVms = countVmsWithStatus(env, 'UNKNOWN');
+        // "17 Nov", as on Home (HomeModel.day).
+        const ends = env.viewerAccessEndsAt && typeof HomeModel !== 'undefined' ? HomeModel.day(env.viewerAccessEndsAt) : '';
         const viewOnly = canOperate ? '' : `
             <div class="env-viewonly-note" role="note">
                 <i class="fas fa-eye" aria-hidden="true"></i>
-                <span>You have view-only access to this environment. To start or stop its VMs,
-                    <a href="#/request-access?env=${encodeURIComponent(env.environmentId)}">ask for operator access</a>.</span>
+                <span>You can see this environment but not start or stop it.${ends ? Utils.html` Your view access ends on ${ends}.` : ''}</span>
+                <a class="env-viewonly-ask" href="#/request-access?environmentId=${encodeURIComponent(env.environmentId)}">Ask for operator access</a>
             </div>`;
-
-        // Groups: all open while the environment is small, otherwise the first one.
-        const openAll = totalVms <= 30;
-        const groupsHtml = (env.groups || []).map((group, idx) =>
-            buildGroupCard(group, env, openAll || idx === 0, canOperate)
-        ).join('');
 
         const settings = typeof EnvSettingsPanel !== 'undefined' && EnvSettingsPanel.isAvailable(env)
             ? '<button type="button" class="btn btn-ghost" id="btn-env-settings">Settings</button>' : '';
@@ -731,11 +727,9 @@ const Environments = (function() {
                         <div id="env-approval-banner"></div>
                         <div id="env-lease-section"></div>
                         ${buildStartOrder(env)}
-                        <section class="env-section" aria-labelledby="env-groups-title">
-                            <h2 class="visually-hidden" id="env-groups-title">Groups and VMs</h2>
-                            <div id="env-groups-container">
-                                ${groupsHtml || '<div class="alert alert-secondary py-2 small">No groups configured for this environment.</div>'}
-                            </div>
+                        <section id="env-vms" aria-labelledby="env-vms-title">
+                            <h2 class="visually-hidden" id="env-vms-title">Groups and VMs</h2>
+                            ${EnvVmTable.render(env, { canOperate, rdsNote: rdsAutoStartNote })}
                         </section>
                     </div>
                     <aside id="env-aside" class="env-aside" aria-label="About this environment">
@@ -753,155 +747,16 @@ const Environments = (function() {
             </div>`;
     }
 
-    function countVmsWithStatus(env, status) {
-        return (env.groups || []).reduce((n, g) => n + (g.vms || []).filter(v => v.status === status).length, 0);
+    /**
+     * Whether the environment is large enough for the group-list layout (U07-T04): more than 12 VMs
+     * and groups together. Until that layout lands every environment uses the one table.
+     */
+    function useLargeLayout(env) {
+        return getEnvironmentVms(env).length + (env.groups || []).length > 12;
     }
 
-    /**
-     * Build group card — collapsible accordion.
-     * @param {boolean} expanded - whether the group starts open
-     * @param {boolean} canOperate - the viewer may start/stop (otherwise no action buttons)
-     */
-    function buildGroupCard(groupData, env, expanded, envCanOperate = false) {
-        const group = groupData.group || groupData;
-        const vms   = groupData.vms || [];
-        // An operator of only some groups gets Start/Stop on those groups alone (U02-T02).
-        const canOperate = typeof groupData.viewerCanOperate === 'boolean'
-            ? groupData.viewerCanOperate && envCanOperate
-            : envCanOperate;
-
-        const runningCount = vms.filter(v => v.status === 'RUNNING').length || 0;
-        const transitioningCount = vms.filter(v => isTransitionalStatus(v.status)).length || 0;
-        const totalCount   = vms.length;
-        const statusClass  = transitioningCount > 0 ? 'bg-info' :
-                             runningCount === 0 ? 'bg-secondary' :
-                             runningCount === totalCount ? 'bg-success' : 'bg-warning';
-
-        // Dependency ids shown as the groups' names (escaped); an id no longer present reads 'removed group'.
-        let dependsIds = [];
-        if (Array.isArray(group.dependsOnGroupIds)) {
-            dependsIds = group.dependsOnGroupIds;
-        } else if (typeof group.dependsOnGroupIds === 'string' && group.dependsOnGroupIds) {
-            try {
-                const parsed = JSON.parse(group.dependsOnGroupIds);
-                dependsIds = Array.isArray(parsed) ? parsed : [];
-            } catch (e) { dependsIds = []; }
-        }
-        const groupNames = {};
-        (env && env.groups || []).forEach(gd => {
-            const g = gd.group || gd;
-            if (g && g.groupId) groupNames[g.groupId] = g.displayName || g.name;
-        });
-        const orderText = `Start order ${Utils.escapeHtml(String(group.sequencePosition ?? '-'))}`
-            + (dependsIds.length > 0
-                ? ` · after ${Utils.escapeHtml(dependsIds.map(id => groupNames[id] || 'removed group').join(', '))}`
-                : '');
-
-        // VM rows — compact icon-only action buttons
-        const vmRows = vms.map(vm => {
-            const providerConfig = Config.CLOUD_ICONS[vm.provider] || { icon: 'fas fa-cloud', color: '#6b7280' };
-            const statusConfig   = Config.STATUS.vm[vm.status] || Config.STATUS.vm.UNKNOWN;
-
-            return `
-                <tr>
-                    <td class="td-primary" data-label="VM Name"><strong>${Utils.escapeHtml(vm.name)}</strong></td>
-                    <td data-label="Location">
-                        <span><i class="${providerConfig.icon}" style="color:${providerConfig.color};"></i>
-                        <span class="ms-1" style="font-size:0.8rem;">${Utils.escapeHtml(vm.region || '')}</span></span>
-                        ${vm.provider === 'AWS_RDS' ? `<span class="badge text-bg-light border ms-1 vm-rds-badge">${vm.rdsKind === 'CLUSTER' ? 'Aurora cluster' : 'DB instance'}</span>` : ''}
-                        ${vm.purchaseOption === 'SPOT' ? '<span class="badge text-bg-info ms-1 vm-spot-badge" title="Runs on Spot capacity: AWS can interrupt it">Spot</span>' : ''}
-                    </td>
-                    <td data-label="Status">
-                        <span class="status-badge ${statusConfig.class}">
-                            <i class="fas ${statusConfig.icon}"></i> ${statusConfig.label}
-                        </span>
-                        ${rdsAutoStartNote(vm)}
-                    </td>
-                    <td data-label="Order">${vm.sequencePosition || '-'}</td>
-                    <td class="td-actions">
-                        <button type="button" class="btn btn-sm btn-ghost btn-action"
-                                data-vm-id="${vm.vmId}" data-action="vm-details"
-                                data-bs-toggle="tooltip" title="Details, metrics and history" aria-label="Details">
-                            <i class="fas fa-circle-info" aria-hidden="true"></i>
-                        </button>
-                        ${!canOperate ? '' : isTransitionalStatus(vm.status) ?
-                            `<button type="button" class="btn btn-sm btn-outline-secondary btn-action ms-1" disabled
-                                     data-bs-toggle="tooltip" title="Operation in progress" aria-label="Operation in progress">
-                                <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-                            </button>` :
-                        vm.status === 'RUNNING' ?
-                            `<button type="button" class="btn btn-sm btn-outline-danger btn-vm-op ms-1"
-                                     data-vm-id="${vm.vmId}" data-action="stop-vm" aria-label="Stop VM">
-                                <i class="fas fa-stop" aria-hidden="true"></i> Stop
-                            </button>` :
-                            `<button type="button" class="btn btn-sm btn-outline-success btn-vm-op ms-1"
-                                     data-vm-id="${vm.vmId}" data-action="start-vm" aria-label="Start VM">
-                                <i class="fas fa-play" aria-hidden="true"></i> Start
-                            </button>`
-                        }
-                    </td>
-                </tr>`;
-        }).join('');
-
-        // Group action buttons
-        const groupBtns = !canOperate ? '' : transitioningCount > 0 ?
-            `<button class="btn btn-sm btn-secondary" disabled data-bs-toggle="tooltip" title="Operation in progress">
-                <i class="fas fa-spinner fa-spin"></i> In Progress
-            </button>` :
-            runningCount === 0 ?
-            `<button class="btn btn-sm btn-tonal btn-success" data-group-id="${group.groupId}" data-action="group-action" data-action-type="start">
-                <i class="fas fa-play-circle"></i> Start
-            </button>` :
-            runningCount === totalCount ?
-            `<button class="btn btn-sm btn-tonal btn-danger" data-group-id="${group.groupId}" data-action="group-action" data-action-type="stop">
-                <i class="fas fa-stop-circle"></i> Stop
-            </button>` :
-            `<button class="btn btn-sm btn-tonal btn-success me-1" data-group-id="${group.groupId}" data-action="group-action" data-action-type="start">
-                <i class="fas fa-play-circle"></i> Start
-            </button>
-            <button class="btn btn-sm btn-tonal btn-danger" data-group-id="${group.groupId}" data-action="group-action" data-action-type="stop">
-                <i class="fas fa-stop-circle"></i> Stop
-            </button>`;
-
-        const collapseId = `group-collapse-${group.groupId}`;
-
-        const vmTableHtml = vms.length > 0 ? `
-            <div class="group-vm-table-wrapper table-cards-wrap">
-                <table class="table table-sm table-hover mb-0 group-vm-table table-cards">
-                    <thead class="table-light sticky-top">
-                        <tr>
-                            <th>VM Name</th>
-                            <th>Location</th>
-                            <th>Status</th>
-                            <th>Order</th>
-                            <th><span class="visually-hidden">Actions</span></th>
-                        </tr>
-                    </thead>
-                    <tbody>${vmRows}</tbody>
-                </table>
-            </div>` :
-            `<p class="px-3 py-2 mb-0 text-muted small">No VMs in this group</p>`;
-
-        return `
-            <div class="group-card mb-2">
-                <div class="group-card-header d-flex justify-content-between align-items-center">
-                    <button type="button" class="group-card-toggle d-flex align-items-center gap-2 flex-grow-1"
-                            data-collapse-target="${collapseId}" aria-expanded="${expanded ? 'true' : 'false'}"
-                            aria-controls="${collapseId}" style="min-width:0;overflow:hidden;">
-                        <i class="fas fa-chevron-${expanded ? 'down' : 'right'} group-chevron flex-shrink-0"
-                           style="font-size:0.68rem;color:#94a3b8;transition:transform 0.2s;"></i>
-                        <strong class="flex-shrink-0" style="font-size:0.875rem;">${Utils.escapeHtml(group.displayName || group.name)}</strong>
-                        <span class="badge ${statusClass} flex-shrink-0" style="font-size:0.68rem;padding:0.2em 0.45em;">${runningCount}/${totalCount}</span>
-                        <small class="text-muted text-truncate" style="font-size:0.75rem;min-width:0;">${orderText}</small>
-                    </button>
-                    <div class="flex-shrink-0 ms-2">
-                        ${groupBtns}
-                    </div>
-                </div>
-                <div id="${collapseId}" class="group-card-body${expanded ? '' : ' group-collapsed'}">
-                    ${vmTableHtml}
-                </div>
-            </div>`;
+    function countVmsWithStatus(env, status) {
+        return (env.groups || []).reduce((n, g) => n + (g.vms || []).filter(v => v.status === status).length, 0);
     }
 
     /**
@@ -1007,51 +862,31 @@ const Environments = (function() {
             EnvSettingsPanel.open(env);
         });
 
-        $('[data-action="group-action"]').off('click').on('click', function(e) {
-            e.preventDefault();
-            const groupId = $(this).data('group-id');
-            const actionType = $(this).data('action-type');
-            if (actionType === 'start') startGroup(envId, groupId);
-            else stopGroup(envId, groupId);
-        });
-
-        // VM actions
-        $('[data-action="start-vm"]').off('click').on('click', function(e) {
-            e.preventDefault();
-            const vmId = $(this).data('vm-id');
-            console.log('Start VM button clicked:', vmId);
-            startVm(envId, vmId);
-        });
-
-        $('[data-action="stop-vm"]').off('click').on('click', function(e) {
-            e.preventDefault();
-            const vmId = $(this).data('vm-id');
-            console.log('Stop VM button clicked:', vmId);
-            stopVm(envId, vmId);
-        });
-
-        $('[data-action="vm-details"]').off('click').on('click', function(e) {
-            e.preventDefault();
-            const vmId = $(this).data('vm-id');
-            console.log('VM Details button clicked:', vmId);
-            showVmDetails(envId, vmId);
-        });
-
-        // Group open/close: each group on its own.
-        $('#content-area').off('click.envDetail', '.group-card-toggle')
-            .on('click.envDetail', '.group-card-toggle', function() {
-                const $body = $('#' + $(this).data('collapse-target'));
-                const open = $body.hasClass('group-collapsed');
-                $body.toggleClass('group-collapsed', !open);
-                $(this).attr('aria-expanded', String(open)).find('.group-chevron')
-                    .toggleClass('fa-chevron-down', open)
-                    .toggleClass('fa-chevron-right', !open);
+        // Group and VM actions in the Groups and VMs table (U07-T03): delegated, so a re-rendered table
+        // needs no new bindings; the environment is read from the page at click time.
+        const $area = $('#content-area');
+        $area.off('click.envDetail', '#env-vms [data-action]')
+            .on('click.envDetail', '#env-vms [data-action]', function(e) {
+                const action = this.getAttribute('data-action');
+                const id = currentEnvironment && currentEnvironment.environmentId;
+                if (!id) return;
+                e.preventDefault();
+                if (action === 'group-action') {
+                    const groupId = this.getAttribute('data-group-id');
+                    if (this.getAttribute('data-action-type') === 'start') startGroup(id, groupId);
+                    else stopGroup(id, groupId);
+                } else if (action === 'start-vm') {
+                    startVm(id, this.getAttribute('data-vm-id'));
+                } else if (action === 'stop-vm') {
+                    stopVm(id, this.getAttribute('data-vm-id'));
+                } else if (action === 'vm-details') {
+                    showVmDetails(id, this.getAttribute('data-vm-id'));
+                }
             });
 
-        // Init tooltips — header actions and VM buttons, not group headers
+        // Tooltips on the header actions
         document.querySelectorAll(
-            '#env-detail-view .env-detail-actions [data-bs-toggle="tooltip"], ' +
-            '#env-groups-container [data-bs-toggle="tooltip"]'
+            '#env-detail-view .env-detail-actions [data-bs-toggle="tooltip"]'
         ).forEach(el => {
             if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
                 const ex = bootstrap.Tooltip.getInstance(el);

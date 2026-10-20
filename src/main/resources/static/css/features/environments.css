@@ -112,6 +112,134 @@
     color: var(--brand-navy);
 }
 
+/* Groups and VMs table (U07-T03, EnvDetail.dc.html) */
+.env-vm-table {
+    width: 100%;
+    font-size: var(--fs-body);
+}
+
+.env-vm-table thead th {
+    padding: 10px;
+    background: var(--surface-subtle);
+    border-bottom: 0;
+    color: var(--slate);
+    font-size: 12.5px;
+    font-weight: 500;
+    text-align: left;
+}
+
+.env-vm-table th:first-child,
+.env-vm-table td:first-child {
+    padding-left: 18px;
+}
+
+.env-vm-table th:last-child,
+.env-vm-table td:last-child {
+    padding-right: 18px;
+    text-align: right;
+}
+
+.env-vm-table tbody td,
+.env-vm-table tbody th {
+    padding: 9px 10px;
+    border-top: 1px solid var(--line-soft);
+    border-bottom: 0;
+    vertical-align: middle;
+}
+
+.env-group-row > * {
+    background: #fafbfd;
+    border-top-color: var(--line) !important;
+}
+
+.env-group-row th {
+    font-weight: 600;
+    text-align: left;
+}
+
+.env-group-order {
+    margin-left: 6px;
+    font-weight: 400;
+    font-size: var(--fs-caption);
+    color: var(--slate);
+}
+
+.env-vm-row td.env-vm-name {
+    padding-left: 30px;
+    font-weight: 500;
+}
+
+.env-vm-ip,
+.env-vm-size,
+.env-vm-cpu {
+    color: #3a4256;
+    font-size: var(--fs-caption);
+}
+
+.env-vm-state-text {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.env-vm-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1.5px solid #9aa4b8;
+    flex-shrink: 0;
+}
+
+.state-running .env-vm-dot { background: var(--brand-green); border-color: var(--brand-green); }
+.state-waiting .env-vm-dot { background: var(--brand-gold); border-color: var(--brand-gold); }
+.state-failed .env-vm-dot { background: var(--brand-red); border-color: var(--brand-red); }
+.state-failed { color: var(--brand-red-text); }
+.state-unknown .env-vm-dot { border-style: dashed; }
+
+.env-vm-actions,
+.env-group-actions {
+    white-space: nowrap;
+}
+
+.env-vm-actions .btn,
+.env-group-actions .btn {
+    height: 28px;
+    padding: 0 10px;
+    font-size: var(--fs-caption);
+}
+
+.env-vm-actions .btn + .btn,
+.env-group-actions .btn + .btn {
+    margin-left: 8px;
+}
+
+.env-vm-details {
+    padding: 0 4px;
+    text-decoration: none;
+}
+
+.vm-badge {
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--surface-muted);
+    color: var(--slate);
+    font-size: var(--fs-small);
+    font-weight: 500;
+}
+
+.env-vm-none td,
+.env-vms-empty {
+    padding: 12px 18px;
+    color: var(--slate);
+}
+
+.env-viewonly-ask {
+    margin-left: auto;
+    white-space: nowrap;
+    font-weight: 500;
+}
+
 .env-settings {
     display: flex;
     flex-direction: column;
