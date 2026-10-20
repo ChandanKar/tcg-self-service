@@ -166,3 +166,82 @@ test.describe('Groups and VMs table', () => {
       .toHaveCount(0);
   });
 });
+
+/** U07-T04: a large environment (EnvDetailLarge.dc.html), 54 faked VMs in 4 groups. */
+test.describe('Large environment', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.user || !devIds.admin || !canSignIn('user'), 'Needs TEST_DEV_USER_ID and TEST_DEV_ADMIN_ID (dev mode)');
+  });
+
+  const defs = [
+    { id: 'g-db', name: 'Database', prefix: 'pm-db', states: 'RRRRRRRR' },
+    { id: 'g-api', name: 'Application', prefix: 'pm-api', states: 'RRRRRRRRRRRRRRSSSS' },
+    { id: 'g-web', name: 'Web', prefix: 'pm-web', states: 'RRRRRRRRRRRRSSSS' },
+    { id: 'g-batch', name: 'Batch', prefix: 'pm-batch', states: 'RRRRRRRRRRES' },
+  ];
+  const STATUS: Record<string, string> = { R: 'RUNNING', S: 'STOPPED', E: 'ERROR' };
+  const fake = defs.map((d, gi) => ({
+    group: { groupId: d.id, name: d.name.toLowerCase(), displayName: d.name, sequencePosition: gi + 1 },
+    vms: d.states.split('').map((c, i) => ({ vmId: `${d.prefix}-${i}`, name: `${d.prefix}-${String(i + 1).padStart(2, '0')}`,
+      provider: 'AWS', region: 'ap-south-1', status: STATUS[c], sequencePosition: i + 1,
+      privateIp: `10.40.${gi + 1}.${i + 11}`, instanceType: 'm6i.large' })),
+  }));
+
+  async function open(page: any, envId: string) {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.route(/\/api\/v1\/environments\/[^/]+\/vms(\?.*)?$/, (route: any) => route.fulfill({ json: fake }));
+    await signIn(page, 'user');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate((id: string) => { location.hash = '#/environments/' + id; }, envId);
+    await expect(page.getByRole('navigation', { name: 'Groups' })).toBeVisible({ timeout: 15_000 });
+  }
+
+  test('the summary strip, the group list and the failed VM first; paging, filters and no page scrollbar', async ({ page, playwright }) => {
+    const envId = await environmentWithUserAt(playwright, 'USER');
+    await open(page, envId);
+
+    const summary = page.getByRole('region', { name: 'All 54 VMs in start order' });
+    await expect(summary).toContainText('44 running');
+    await expect(summary).toContainText('9 stopped');
+    await expect(summary).toContainText('1 failed to start');
+    await expect(summary).toContainText('Start order: Database → Application → Web → Batch');
+
+    const groups = page.getByRole('navigation', { name: 'Groups' });
+    await expect(groups).toContainText('4 groups');
+    await expect(groups.locator('[data-group-id="g-api"]')).toContainText('2nd · Application14/18');
+    // The first group with a problem is chosen first.
+    await expect(groups.locator('[aria-current="true"]')).toHaveAttribute('data-group-id', 'g-batch');
+    await page.getByRole('group', { name: 'Show' }).getByRole('button', { name: 'Problems' }).click();
+    await expect(page.locator('#env-vms .env-vm-row')).toHaveCount(1);
+    await expect(page.getByRole('button', { name: 'Retry pm-batch-11' })).toBeVisible();
+    expect(await page.locator('#mainContent').evaluate((el: HTMLElement) => el.scrollWidth <= el.clientWidth)).toBeTruthy();
+
+    await groups.locator('[data-group-id="g-api"]').click();
+    await expect(page.locator('#env-group-panel-title')).toHaveText('Application · 18 VMs');
+    await expect(page.locator('#env-vms .env-vm-row')).toHaveCount(10);
+    const pager = page.locator('#env-vms .pager');
+    await pager.getByRole('button', { name: 'Next' }).click();
+    await expect(pager.locator('.pager-range')).toHaveText('11–18 of 18');
+    await expect(pager.getByRole('button', { name: 'Next' })).toBeDisabled();
+    await expect(page.locator('#env-vms .env-vm-row')).toHaveCount(8);
+
+    await page.getByRole('group', { name: 'Show' }).getByRole('button', { name: 'Problems' }).click();
+    await expect(page.locator('#env-vms')).toContainText('Nothing matches this filter');
+  });
+
+  test('a refresh after an operation keeps the group, filter and page', async ({ page, playwright }) => {
+    const envId = await environmentWithUserAt(playwright, 'USER');
+    await open(page, envId);
+    await page.getByRole('navigation', { name: 'Groups' }).locator('[data-group-id="g-web"]').click();
+    await page.getByRole('group', { name: 'Show' }).getByRole('button', { name: 'Running' }).click();
+    await page.locator('#env-vms .pager').getByRole('button', { name: 'Next' }).click();
+    await expect(page.locator('#env-vms .pager-range')).toHaveText('11–12 of 12');
+
+    await page.evaluate((id: string) => window.dispatchEvent(new CustomEvent('vm-operation-status', { detail: { envId: id } })), envId);
+    await page.waitForTimeout(1500);
+    await expect(page.getByRole('navigation', { name: 'Groups' }).locator('[aria-current="true"]')).toHaveAttribute('data-group-id', 'g-web');
+    await expect(page.getByRole('group', { name: 'Show' }).getByRole('button', { name: 'Running' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#env-vms .pager-range')).toHaveText('11–12 of 12');
+  });
+});
+

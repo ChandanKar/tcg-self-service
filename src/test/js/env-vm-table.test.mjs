@@ -61,3 +61,47 @@ test('start order text names the groups it waits for', () => {
     assert.equal(M.orderText({ sequencePosition: 3, dependsOnGroupIds: '["g2"]' }, names), 'Start order 3 · after Application');
     assert.equal(M.orderText({ sequencePosition: 2, dependsOnGroupIds: ['gone'] }, names), 'Start order 2 · after removed group');
 });
+
+// U07-T04: large environments
+const many = (status, n) => Array.from({ length: n }, () => ({ status }));
+
+test('counts: running, stopped and failed to start across VMs', () => {
+    const M = load();
+    const vms = [...many('RUNNING', 44), ...many('STOPPED', 9), ...many('ERROR', 1)];
+    assert.deepEqual({ ...M.countByState(vms) }, { running: 44, stopped: 9, failed: 1, total: 54 });
+});
+
+test('filters: running, stopped, problems (failed, gone, drifted), all', () => {
+    const M = load();
+    const vms = [{ status: 'RUNNING' }, { status: 'STOPPED' }, { status: 'ERROR' }, { status: 'NOT_FOUND' },
+        { status: 'RUNNING', stateDriftDetected: true }];
+    assert.equal(M.filterVms(vms, 'running').length, 2);
+    assert.equal(M.filterVms(vms, 'stopped').length, 1);
+    assert.equal(M.filterVms(vms, 'problems').length, 3);
+    assert.equal(M.filterVms(vms, 'all').length, 5);
+    assert.equal(M.filterVms(vms, 'bogus').length, 5);
+});
+
+test('paging: 10 per page, the second page of 18 is 11–18, out-of-range pages clamp', () => {
+    const M = load();
+    const list = Array.from({ length: 18 }, (_, i) => i + 1);
+    const second = M.pageOf(list, 1);
+    assert.deepEqual([second.from, second.to, second.total, second.pages, second.page], [11, 18, 18, 2, 1]);
+    assert.equal(second.items.length, 8);
+    assert.equal(M.pageOf(list, 9).page, 1);
+    assert.deepEqual([M.pageOf([], 0).from, M.pageOf([], 0).to], [0, 0]);
+});
+
+test('group note and the group chosen first (the first with a problem)', () => {
+    const M = load();
+    assert.equal(M.groupNote([...many('RUNNING', 10), { status: 'ERROR' }, { status: 'STOPPED' }]), '1 failed · 1 stopped');
+    assert.equal(M.groupNote([...many('RUNNING', 14), ...many('STOPPED', 4)]), '4 stopped');
+    assert.equal(M.groupNote(many('RUNNING', 8)), 'All running');
+    const env = { groups: [
+        { group: { groupId: 'web', sequencePosition: 3 }, vms: [{ status: 'ERROR' }] },
+        { group: { groupId: 'db', sequencePosition: 1 }, vms: [{ status: 'RUNNING' }] },
+    ] };
+    assert.equal(M.defaultGroupId(env), 'web');
+    env.groups[0].vms = [{ status: 'STOPPED' }];
+    assert.equal(M.defaultGroupId(env), 'db');
+});

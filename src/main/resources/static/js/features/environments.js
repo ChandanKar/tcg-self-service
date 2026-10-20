@@ -680,6 +680,8 @@ const Environments = (function() {
         const canOperate = env.viewerCanOperate === true;
         const isEnvAdmin = typeof Auth !== 'undefined' && Auth.isEnvAdmin && Auth.isEnvAdmin();
         const envName = env.displayName || env.name;
+        // More than 12 VMs and groups: the group list with one group's VMs (EnvDetailLarge.dc.html).
+        const large = useLargeLayout(env);
 
         // Lock section
         let lockSection = '';
@@ -720,16 +722,18 @@ const Environments = (function() {
                         ${headerOperationButtons(env)}`
                 })}
 
-                <div class="env-body">
+                <div class="env-body${large ? ' env-body-wide' : ''}">
                     <div id="env-main" class="env-main">
                         ${viewOnly}
                         ${lockSection}
                         <div id="env-approval-banner"></div>
                         <div id="env-lease-section"></div>
-                        ${buildStartOrder(env)}
+                        ${large ? '' : buildStartOrder(env)}
                         <section id="env-vms" aria-labelledby="env-vms-title">
                             <h2 class="visually-hidden" id="env-vms-title">Groups and VMs</h2>
-                            ${EnvVmTable.render(env, { canOperate, rdsNote: rdsAutoStartNote })}
+                            <div id="env-vms-body">${large
+                                ? EnvVmTable.renderLarge(env, largeStateFor(env), vmTableOptions(env))
+                                : EnvVmTable.render(env, vmTableOptions(env))}</div>
                         </section>
                     </div>
                     <aside id="env-aside" class="env-aside" aria-label="About this environment">
@@ -753,6 +757,24 @@ const Environments = (function() {
      */
     function useLargeLayout(env) {
         return getEnvironmentVms(env).length + (env.groups || []).length > 12;
+    }
+
+    // The large layout's group, filter and page per environment; kept across the refreshes that
+    // follow an operation (U07-T04).
+    const largeState = {};
+
+    function largeStateFor(env) {
+        return largeState[env.environmentId] || (largeState[env.environmentId] = { groupId: null, filter: 'all', page: 0 });
+    }
+
+    function vmTableOptions(env) {
+        return { canOperate: env.viewerCanOperate === true, rdsNote: rdsAutoStartNote };
+    }
+
+    function renderLargeVms() {
+        const env = currentEnvironment;
+        if (!env) return;
+        $('#env-vms-body').html(EnvVmTable.renderLarge(env, largeStateFor(env), vmTableOptions(env)));
     }
 
     function countVmsWithStatus(env, status) {
@@ -881,6 +903,16 @@ const Environments = (function() {
                     stopVm(id, this.getAttribute('data-vm-id'));
                 } else if (action === 'vm-details') {
                     showVmDetails(id, this.getAttribute('data-vm-id'));
+                } else if (action === 'env-large-group') {
+                    Object.assign(largeStateFor(currentEnvironment),
+                        { groupId: this.getAttribute('data-group-id'), filter: 'all', page: 0 });
+                    renderLargeVms();
+                } else if (action === 'env-large-filter') {
+                    Object.assign(largeStateFor(currentEnvironment), { filter: this.getAttribute('data-filter'), page: 0 });
+                    renderLargeVms();
+                } else if (action === 'env-large-page') {
+                    largeStateFor(currentEnvironment).page = Math.max(0, (Number(this.getAttribute('data-page')) || 1) - 1);
+                    renderLargeVms();
                 }
             });
 

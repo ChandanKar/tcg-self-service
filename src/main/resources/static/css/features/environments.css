@@ -240,6 +240,151 @@
     font-weight: 500;
 }
 
+/* Large environments (U07-T04, EnvDetailLarge.dc.html) */
+.env-body-wide {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.env-body-wide .env-aside {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    align-items: start;
+}
+
+#env-vms-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.env-large-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 18px;
+}
+
+.env-large-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    font-size: var(--fs-caption);
+    color: var(--slate);
+}
+
+.env-large-counts b {
+    color: var(--ink);
+    font-weight: 500;
+}
+
+.env-large-counts .state-failed b {
+    color: inherit;
+}
+
+.env-large-body {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    gap: 14px;
+    align-items: start;
+}
+
+.env-group-list-head {
+    padding: 10px 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--slate);
+}
+
+.env-group-pick {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    padding: 10px 14px;
+    border: 0;
+    border-top: 1px solid var(--line-soft);
+    background: #fff;
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.env-group-pick:hover {
+    background: var(--surface-subtle);
+}
+
+.env-group-pick.is-current {
+    background: var(--brand-navy-tint);
+    box-shadow: inset 3px 0 0 var(--brand-gold);
+}
+
+.env-group-pick:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: -2px;
+}
+
+.env-group-pick-row {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    font-size: var(--fs-body);
+}
+
+.env-group-pick-row b {
+    font-weight: 600;
+}
+
+.env-group-pick-row .mono {
+    font-size: var(--fs-caption);
+    color: #3a4256;
+}
+
+.env-group-pick-note {
+    font-size: var(--fs-small);
+    color: var(--slate);
+}
+
+.env-group-panel-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.env-group-panel-head h2 {
+    flex: 1;
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.env-group-panel-head h2 span {
+    font-weight: 400;
+    color: var(--slate);
+}
+
+.env-vm-table-large tbody tr {
+    height: 38px;
+}
+
+.env-vm-table-large tbody td {
+    padding-top: 4px;
+    padding-bottom: 4px;
+}
+
+.env-vm-table-large .env-vm-row td.env-vm-name {
+    padding-left: 16px;
+}
+
+@media (max-width: 900px) {
+    .env-large-body {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
 .env-settings {
     display: flex;
     flex-direction: column;

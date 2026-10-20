@@ -2,8 +2,11 @@
  * VM Self-Service Platform - Groups and VMs table (U07-T03, EnvDetail.dc.html)
  * One table for the environment page: a row per group ("Database · Start order 1 · after …" with
  * Start group / Stop group) followed by its VMs (name, IP address, size, state, CPU over 24 h,
- * Details and Start / Stop / Retry). The words and rules are pure functions (EnvVmTable.model) so
- * src/test/js/env-vm-table.test.mjs checks them on their own. No instance ids for anyone here.
+ * Details and Start / Stop / Retry). Large environments (U07-T04, EnvDetailLarge.dc.html) get
+ * renderLarge instead: one strip of all VMs with the counts, a group list, and the chosen group's
+ * VMs with All / Running / Stopped / Problems and 10 per page. The words and rules are pure
+ * functions (EnvVmTable.model) so src/test/js/env-vm-table.test.mjs checks them on their own. No
+ * instance ids for anyone here.
  */
 const EnvVmTable = (function() {
     'use strict';
@@ -115,7 +118,8 @@ const EnvVmTable = (function() {
                 <td class="env-vm-size" data-label="Size"><span class="mono">${vm.instanceType || '—'}</span></td>
                 <td class="env-vm-state" data-label="State"><span class="env-vm-state-text state-${s.kind}"><span class="env-vm-dot" aria-hidden="true"></span>${s.text}</span>`
             + rdsNote(vm, opts.rdsNote) + Utils.html`</td>
-                <td class="env-vm-cpu" data-label="CPU 24 h"><span class="mono">${cpu(vm)}</span></td>
+` + (opts.noCpu ? '' : Utils.html`
+                <td class="env-vm-cpu" data-label="CPU 24 h"><span class="mono">${cpu(vm)}</span></td>`) + Utils.html`
                 <td class="td-actions env-vm-actions">
                     <button type="button" class="btn btn-sm btn-link env-vm-details" data-vm-id="${vm.vmId}" data-action="vm-details" aria-label="Details of ${name}">Details</button>`
             + button + '</td></tr>';
@@ -175,7 +179,164 @@ const EnvVmTable = (function() {
             </div>`;
     }
 
-    return { render, model: { state, cpu, vmAction, groupActions, orderText } };
+    // ---------------------------------------------------------------- large environments (U07-T04)
+
+    const PROBLEM = ['ERROR', 'NOT_FOUND', 'TERMINATED'];
+    const isProblem = vm => PROBLEM.includes(vm.status) || vm.stateDriftDetected === true;
+    const PAGE_SIZE = 10;
+    const FILTERS = [
+        { key: 'all', label: 'All' },
+        { key: 'running', label: 'Running' },
+        { key: 'stopped', label: 'Stopped' },
+        { key: 'problems', label: 'Problems' },
+    ];
+
+    /** {running, stopped, failed, total}; failed counts VMs that failed to start (ERROR). */
+    function countByState(vms) {
+        const list = Array.isArray(vms) ? vms : [];
+        return {
+            running: list.filter(v => v.status === 'RUNNING').length,
+            stopped: list.filter(v => v.status === 'STOPPED').length,
+            failed: list.filter(v => v.status === 'ERROR').length,
+            total: list.length,
+        };
+    }
+
+    /** The VMs a filter keeps: all, running, stopped, or problems (failed, gone, drifted). */
+    function filterVms(vms, filter) {
+        const list = Array.isArray(vms) ? vms : [];
+        switch (filter) {
+            case 'running': return list.filter(v => v.status === 'RUNNING');
+            case 'stopped': return list.filter(v => v.status === 'STOPPED');
+            case 'problems': return list.filter(isProblem);
+            default: return list.slice();
+        }
+    }
+
+    /** One page (0-based, clamped): {items, page, pages, from, to, total}; from/to are 1-based. */
+    function pageOf(list, page, size = PAGE_SIZE) {
+        const total = list.length;
+        const pages = Math.max(1, Math.ceil(total / size));
+        const p = Math.min(Math.max(0, Number(page) || 0), pages - 1);
+        const items = list.slice(p * size, p * size + size);
+        return { items, page: p, pages, from: total ? p * size + 1 : 0, to: p * size + items.length, total };
+    }
+
+    /** "1 failed · 2 stopped", "4 stopped" or "All running" for the group list. */
+    function groupNote(vms) {
+        const c = countByState(vms);
+        if (c.failed) return `${c.failed} failed` + (c.stopped ? ` · ${c.stopped} stopped` : '');
+        if (c.stopped) return `${c.stopped} stopped`;
+        return c.total ? (c.running === c.total ? 'All running' : `${c.total - c.running} not running`) : 'No VMs';
+    }
+
+    const ORDINAL = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th'));
+
+    function sortedGroups(env) {
+        return (env.groups || []).slice().sort((a, b) =>
+            ((a.group || a).sequencePosition ?? 0) - ((b.group || b).sequencePosition ?? 0));
+    }
+
+    /** The group chosen first: the first with a problem, else the first in start order. */
+    function defaultGroupId(env) {
+        const groups = sortedGroups(env);
+        const withProblem = groups.find(gd => (gd.vms || []).some(isProblem));
+        const chosen = withProblem || groups[0];
+        return chosen ? (chosen.group || chosen).groupId : null;
+    }
+
+    /**
+     * The large layout. state = {groupId, filter, page}; an unknown group falls back to
+     * defaultGroupId. opts as for render, plus canOperate.
+     */
+    function renderLarge(env, state = {}, opts = {}) {
+        const groups = sortedGroups(env);
+        if (!groups.length) {
+            return '<div class="panel env-vms-empty">No groups configured for this environment.</div>';
+        }
+        const all = groups.flatMap(gd => gd.vms || []);
+        const c = countByState(all);
+        const names = groups.map(gd => (gd.group || gd).displayName || (gd.group || gd).name);
+        const strip = PowerStrip.render(PowerStrip.fromVmGroups(groups), { large: true, showCount: false });
+        const summary = `
+            <section class="panel env-large-summary" aria-label="All ${c.total} VMs in start order">
+                ${strip}
+                <div class="env-large-counts">
+                    <span><b class="mono">${c.running}</b> running</span>
+                    <span><b class="mono">${c.stopped}</b> stopped</span>
+                    ${c.failed ? `<span class="state-failed"><b class="mono">${c.failed}</b> failed to start</span>` : ''}
+                    <span>${Utils.escapeHtml('Start order: ' + names.join(' → '))}</span>
+                </div>
+            </section>`;
+
+        const groupId = groups.some(gd => (gd.group || gd).groupId === state.groupId) ? state.groupId : defaultGroupId(env);
+        const filter = FILTERS.some(f => f.key === state.filter) ? state.filter : 'all';
+        const list = groups.map((gd, i) => {
+            const g = gd.group || gd;
+            const vms = gd.vms || [];
+            const counts = countByState(vms);
+            const current = g.groupId === groupId;
+            return Utils.html`<button type="button" class="env-group-pick${current ? ' is-current' : ''}" data-action="env-large-group"
+                    data-group-id="${g.groupId}" aria-current="${current ? 'true' : 'false'}">
+                    <span class="env-group-pick-row"><b>${ORDINAL(i + 1)} · ${names[i]}</b><span class="mono">${counts.running}/${counts.total}</span></span>
+                    <span class="env-group-pick-note${counts.failed ? ' state-failed' : ''}">${groupNote(vms)}</span>
+                </button>`;
+        }).join('');
+
+        const selected = groups.find(gd => (gd.group || gd).groupId === groupId);
+        const group = selected.group || selected;
+        const vms = selected.vms || [];
+        const canOperate = !!opts.canOperate && (typeof selected.viewerCanOperate === 'boolean' ? selected.viewerCanOperate : true);
+        const shown = filterVms(vms, filter);
+        const pg = pageOf(shown, state.page);
+        const o = { now: opts.now || new Date(), rdsNote: opts.rdsNote, noCpu: true };
+        const rows = pg.items.length ? pg.items.map(vm => vmRow(vm, canOperate, o)).join('')
+            : '<tr class="env-vm-row env-vm-none"><td colspan="5">Nothing matches this filter</td></tr>';
+        const groupButtons = groupActions(vms, canOperate).map(a => a === 'busy'
+            ? '<button type="button" class="btn btn-sm btn-secondary" disabled>In progress</button>'
+            : a === 'stop'
+                ? Utils.html`<button type="button" class="btn btn-sm btn-danger" data-group-id="${group.groupId}" data-action="group-action" data-action-type="stop" aria-label="Stop group ${group.displayName || group.name}">Stop group</button>`
+                : Utils.html`<button type="button" class="btn btn-sm btn-outline-success" data-group-id="${group.groupId}" data-action="group-action" data-action-type="start" aria-label="Start group ${group.displayName || group.name}">Start group</button>`
+        ).join('');
+        const pager = pg.total
+            ? Pagination.buildPager({ totalItems: pg.total, page: pg.page + 1, pageSize: PAGE_SIZE, action: 'env-large-page', key: 'env-vms' })
+            : '<div class="pager"><span class="pager-range">Nothing matches this filter</span></div>';
+
+        return summary + `
+            <div class="env-large-body">
+                <nav class="panel env-group-list" aria-label="Groups">
+                    <div class="env-group-list-head">${groups.length} group${groups.length === 1 ? '' : 's'}</div>
+                    ${list}
+                </nav>
+                <section class="panel env-group-panel" aria-labelledby="env-group-panel-title">
+                    <div class="env-group-panel-head">
+                        <h2 id="env-group-panel-title">${Utils.escapeHtml(group.displayName || group.name)} · <span>${vms.length} VM${vms.length === 1 ? '' : 's'}</span></h2>
+                        ${FilterGroup.markup({ label: 'Show', options: FILTERS, active: filter, action: 'env-large-filter' })}
+                        <span class="env-group-actions">${groupButtons}</span>
+                    </div>
+                    <div class="table-cards-wrap">
+                        <table class="table mb-0 env-vm-table env-vm-table-large table-cards">
+                            <thead>
+                                <tr>
+                                    <th scope="col">VM</th>
+                                    <th scope="col">IP address</th>
+                                    <th scope="col">Size</th>
+                                    <th scope="col">State</th>
+                                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>
+                    <div class="panel-foot">${pager}</div>
+                </section>
+            </div>`;
+    }
+
+    return {
+        render, renderLarge, defaultGroupId,
+        model: { state, cpu, vmAction, groupActions, orderText, countByState, filterVms, pageOf, groupNote, defaultGroupId },
+    };
 })();
 
 if (typeof window !== 'undefined') window.EnvVmTable = EnvVmTable;
