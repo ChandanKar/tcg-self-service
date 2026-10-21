@@ -1,42 +1,264 @@
-/* Settings page (E29-T04): label and description, state, control; stacked on phones. */
-.settings-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 12rem 16rem;
-    gap: 0.75rem 1rem;
-    align-items: center;
-    padding: 0.75rem 0;
-    border-top: 1px solid var(--border-color);
-}
+/*
+ * Settings page (E29-T04, U14-T07 Settings.dc.html): a menu of sections on the left (gold marker on
+ * the current one), the section's rows on the right, and the bar of changes not saved at its foot.
+ */
 
-.settings-group .settings-row:first-of-type {
-    border-top: none;
-    padding-top: 0;
-}
-
-.settings-text code,
-.settings-readonly {
-    font-size: 0.75rem;
-    word-break: break-all;
-}
-
-.settings-state {
+.settings-page {
     display: flex;
     flex-direction: column;
-    gap: 0.15rem;
-    align-items: flex-start;
+    gap: 16px;
 }
 
-.settings-control .settings-number {
-    max-width: 9rem;
+.settings-page .content-header {
+    margin-bottom: 0;
 }
 
-.settings-control .settings-reset {
-    display: inline-block;
-    margin-top: 0.25rem;
+.st-layout {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
 }
 
-@media (max-width: 768px) {
-    .settings-row {
-        grid-template-columns: 1fr;
+.st-note {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.st-pad {
+    padding: 16px 20px;
+}
+
+/* Section menu */
+.st-nav {
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.st-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 9px 16px;
+    border: 0;
+    background: #fff;
+    font: inherit;
+    font-size: 14px;
+    color: var(--ink);
+    text-align: left;
+    cursor: pointer;
+}
+
+.st-nav-item span:first-child {
+    flex: 1;
+}
+
+.st-nav-item:hover {
+    background: var(--surface-subtle);
+}
+
+.st-nav-item[aria-current="page"] {
+    background: var(--brand-navy-tint);
+    color: var(--brand-navy);
+    font-weight: 600;
+    box-shadow: inset 3px 0 0 var(--brand-gold);
+}
+
+.st-count {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.st-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--brand-gold);
+}
+
+/* Section panel */
+.st-panel {
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    min-width: 0;
+}
+
+.st-head {
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.st-head h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.st-head h2:focus {
+    outline: none;
+}
+
+.st-head p {
+    margin: 4px 0 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.st-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px 20px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--line-soft);
+}
+
+.st-head + .st-row {
+    border-top: 0;
+}
+
+.st-text {
+    display: flex;
+    flex: 1 1 360px;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.st-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ink);
+}
+
+.st-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.st-key {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--slate-light);
+    overflow-wrap: anywhere;
+}
+
+.st-error {
+    font-size: 13px;
+    color: var(--brand-red-text);
+}
+
+.st-side {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.st-state {
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.st-state-changed {
+    color: var(--brand-gold-text);
+    font-weight: 500;
+}
+
+.st-state-set {
+    color: var(--brand-navy);
+}
+
+.st-side .form-switch {
+    display: flex;
+    min-height: 0;
+    padding-left: 0;
+}
+
+.st-side .form-switch .st-switch {
+    width: 2.4em;
+    height: 1.3em;
+    margin: 0;
+    cursor: pointer;
+}
+
+.st-number {
+    width: 9rem;
+    font-family: var(--font-mono);
+}
+
+.st-value {
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: var(--surface-muted);
+    color: var(--ink);
+    font-size: 12.5px;
+    overflow-wrap: anywhere;
+}
+
+.st-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 13px;
+    color: var(--brand-navy);
+    cursor: pointer;
+}
+
+.st-link:hover {
+    text-decoration: underline;
+}
+
+/* Changes not saved */
+.st-bar {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 20px;
+    border-top: 1px solid var(--line);
+    border-radius: 0 0 12px 12px;
+    background: var(--brand-gold-tint);
+}
+
+.st-bar-text {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--brand-gold-text);
+}
+
+@media (max-width: 767.98px) {
+    .st-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .st-nav {
+        flex-direction: row;
+        overflow-x: auto;
+    }
+
+    .st-nav-item {
+        width: auto;
+        white-space: nowrap;
+    }
+
+    .st-text {
+        flex-basis: 100%;
     }
 }

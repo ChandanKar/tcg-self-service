@@ -189,6 +189,8 @@ const Config = (function() {
         // Runtime settings (E29-T01), admin only
         settings: {
             list: `${API_BASE_URL}/settings`,
+            // Save several at once, all or none (U14-T07)
+            batch: `${API_BASE_URL}/settings`,
             item: (key) => `${API_BASE_URL}/settings/${encodeURIComponent(key)}`
         },
 
