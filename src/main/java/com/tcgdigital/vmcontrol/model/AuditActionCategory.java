@@ -30,7 +30,8 @@ public enum AuditActionCategory {
             AuditAction.ACCESS_REQUESTED, AuditAction.ACCESS_GRANTED, AuditAction.ACCESS_LEVEL_CHANGED,
             AuditAction.ACCESS_DENIED, AuditAction.ACCESS_REVOKED,
             AuditAction.USER_CREATED, AuditAction.USER_ONBOARDED, AuditAction.USER_UPDATED, AuditAction.USER_DEACTIVATED,
-            AuditAction.USER_PROMOTED_TO_ADMIN, AuditAction.USER_PROMOTED_TO_ENV_ADMIN, AuditAction.USER_LOGIN_CONFLICT)),
+            AuditAction.USER_PROMOTED_TO_ADMIN, AuditAction.USER_PROMOTED_TO_ENV_ADMIN, AuditAction.USER_LOGIN_CONFLICT,
+            AuditAction.USER_PROFILE_UPDATED)),
     SETTINGS(EnumSet.of(
             AuditAction.ENVIRONMENT_CREATED, AuditAction.ENVIRONMENT_UPDATED, AuditAction.ENVIRONMENT_DELETED,
             AuditAction.GROUP_CREATED, AuditAction.GROUP_UPDATED, AuditAction.GROUP_DELETED,

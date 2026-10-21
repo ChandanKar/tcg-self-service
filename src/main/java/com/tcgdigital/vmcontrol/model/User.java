@@ -36,6 +36,14 @@ public class User {
     @Column(name = "company_name", length = 300)
     private String companyName;
 
+    /** U13-T01: the person's department (from Add people or the directory). */
+    @Column(name = "department", length = 100)
+    private String department;
+
+    /** U13-T01: free-text project code, letters, digits, dot, dash and underscore. */
+    @Column(name = "project_code", length = 50)
+    private String projectCode;
+
     @Column(name = "legacy_user_id")
     private Integer legacyUserId;
 
@@ -193,6 +201,22 @@ public class User {
 
     public void setCompanyName(String companyName) {
         this.companyName = companyName;
+    }
+
+    public String getDepartment() {
+        return department;
+    }
+
+    public void setDepartment(String department) {
+        this.department = department;
+    }
+
+    public String getProjectCode() {
+        return projectCode;
+    }
+
+    public void setProjectCode(String projectCode) {
+        this.projectCode = projectCode;
     }
 
     public Integer getLegacyUserId() {

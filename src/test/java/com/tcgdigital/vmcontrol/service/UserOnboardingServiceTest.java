@@ -61,7 +61,7 @@ class UserOnboardingServiceTest {
         when(userRepository.findByAzureAdObjectId("oid-x")).thenReturn(Optional.empty());
         when(userRepository.findByEmail("real@corp.com")).thenReturn(Optional.empty());
         User created = user("new-1", "real@corp.com", true);
-        when(userService.createOnboardedUser("real@corp.com", "Real Name", "oid-x", false, false, ACTOR))
+        when(userService.createOnboardedUser("real@corp.com", "Real Name", "oid-x", false, false, ACTOR, null, null))
                 .thenReturn(created);
 
         UserOnboardingService.OnboardResult result = service.onboard(
@@ -69,7 +69,7 @@ class UserOnboardingServiceTest {
 
         assertSame(created, result.user());
         assertTrue(result.grants().isEmpty());
-        verify(userService).createOnboardedUser("real@corp.com", "Real Name", "oid-x", false, false, ACTOR);
+        verify(userService).createOnboardedUser("real@corp.com", "Real Name", "oid-x", false, false, ACTOR, null, null);
         verifyNoInteractions(environmentAccessService);
     }
 
@@ -78,12 +78,12 @@ class UserOnboardingServiceTest {
         when(graphDirectoryService.isEnabled()).thenReturn(false);
         when(userRepository.findByEmail("typed@corp.com")).thenReturn(Optional.empty());
         when(userService.createOnboardedUser(eq("typed@corp.com"), eq("Typed"), isNull(),
-                eq(false), eq(false), eq(ACTOR))).thenReturn(user("new-2", "typed@corp.com", true));
+                eq(false), eq(false), eq(ACTOR), isNull(), isNull())).thenReturn(user("new-2", "typed@corp.com", true));
 
         service.onboard(dto("oid-x", "typed@corp.com", "Typed"), ACTOR);
 
         verify(graphDirectoryService, never()).fetchByObjectId(any());
-        verify(userService).createOnboardedUser("typed@corp.com", "Typed", null, false, false, ACTOR);
+        verify(userService).createOnboardedUser("typed@corp.com", "Typed", null, false, false, ACTOR, null, null);
     }
 
     @Test
@@ -99,11 +99,11 @@ class UserOnboardingServiceTest {
     void manualPath_displayNameDefaultsToEmailLocalPart() {
         when(userRepository.findByEmail("jane.doe@corp.com")).thenReturn(Optional.empty());
         when(userService.createOnboardedUser(eq("jane.doe@corp.com"), eq("jane.doe"), isNull(),
-                anyBoolean(), anyBoolean(), eq(ACTOR))).thenReturn(user("new-3", "jane.doe@corp.com", true));
+                anyBoolean(), anyBoolean(), eq(ACTOR), isNull(), isNull())).thenReturn(user("new-3", "jane.doe@corp.com", true));
 
         service.onboard(dto(null, "jane.doe@corp.com", null), ACTOR);
 
-        verify(userService).createOnboardedUser("jane.doe@corp.com", "jane.doe", null, false, false, ACTOR);
+        verify(userService).createOnboardedUser("jane.doe@corp.com", "jane.doe", null, false, false, ACTOR, null, null);
     }
 
     @Test
@@ -116,7 +116,7 @@ class UserOnboardingServiceTest {
 
         assertEquals("existing-1", ex.getUserId());
         assertTrue(ex.isActive());
-        verify(userService, never()).createOnboardedUser(any(), any(), any(), anyBoolean(), anyBoolean(), any());
+        verify(userService, never()).createOnboardedUser(any(), any(), any(), anyBoolean(), anyBoolean(), any(), any(), any());
     }
 
     @Test
@@ -148,7 +148,7 @@ class UserOnboardingServiceTest {
     void withInitialGrant_delegatesToGrantScoped_withOnboardedUsersEmail() {
         when(userRepository.findByEmail("grantee@corp.com")).thenReturn(Optional.empty());
         when(userService.createOnboardedUser(eq("grantee@corp.com"), any(), isNull(),
-                anyBoolean(), anyBoolean(), eq(ACTOR))).thenReturn(user("new-9", "grantee@corp.com", true));
+                anyBoolean(), anyBoolean(), eq(ACTOR), isNull(), isNull())).thenReturn(user("new-9", "grantee@corp.com", true));
         when(environmentAccessService.grantScoped(eq(ACTOR), any(AccessGrantRequestDTO.class)))
                 .thenReturn(List.of(mock(EnvironmentAccess.class)));
 
@@ -200,7 +200,7 @@ class UserOnboardingServiceTest {
                         "priya.nair@corp.com", false, null));
         when(userRepository.findByAzureAdObjectId("oid-g")).thenReturn(Optional.empty());
         when(userRepository.findByEmail("priya.nair@corp.com")).thenReturn(Optional.empty());
-        when(userService.createOnboardedUser("priya.nair@corp.com", "Priya Nair", "oid-g", false, false, ACTOR))
+        when(userService.createOnboardedUser("priya.nair@corp.com", "Priya Nair", "oid-g", false, false, ACTOR, null, null))
                 .thenReturn(user("new-g", "priya.nair@corp.com", true));
         when(environmentAccessService.grantScoped(eq(ACTOR), any(AccessGrantRequestDTO.class)))
                 .thenReturn(List.of(mock(EnvironmentAccess.class)));
@@ -217,7 +217,7 @@ class UserOnboardingServiceTest {
 
         assertEquals(1, result.grants().size());
         // onboarded with no admin / env-admin rights
-        verify(userService).createOnboardedUser("priya.nair@corp.com", "Priya Nair", "oid-g", false, false, ACTOR);
+        verify(userService).createOnboardedUser("priya.nair@corp.com", "Priya Nair", "oid-g", false, false, ACTOR, null, null);
 
         ArgumentCaptor<AccessGrantRequestDTO> captor = ArgumentCaptor.forClass(AccessGrantRequestDTO.class);
         verify(environmentAccessService).grantScoped(eq(ACTOR), captor.capture());
@@ -229,5 +229,31 @@ class UserOnboardingServiceTest {
         assertEquals(List.of("grp-1", "grp-2"), sent.getGroupIds());
         assertEquals(30, sent.getDurationDays());
         assertEquals("temp cover for release", sent.getNotes());
+    }
+
+    /** U13-T01: a department typed on Add people wins over the directory's; the project code goes through. */
+    @Test
+    void directoryPath_bodyDepartmentBeatsDirectoryDepartment() {
+        when(graphDirectoryService.isEnabled()).thenReturn(true);
+        when(graphDirectoryService.fetchByObjectId("oid-d"))
+                .thenReturn(new DirectoryUserDTO("oid-d", "Neha Gupta", "neha@corp.com", "neha@corp.com", false, null, "Finance"));
+        when(userRepository.findByAzureAdObjectId("oid-d")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("neha@corp.com")).thenReturn(Optional.empty());
+        when(userService.createOnboardedUser(any(), any(), any(), anyBoolean(), anyBoolean(), any(), any(), any()))
+                .thenReturn(user("new-d", "neha@corp.com", true));
+
+        OnboardUserDTO body = dto("oid-d", null, null);
+        body.setDepartment(" Engineering ");
+        body.setProjectCode("DLK-204");
+        service.onboard(body, ACTOR);
+        verify(userService).createOnboardedUser("neha@corp.com", "Neha Gupta", "oid-d", false, false, ACTOR, "Engineering", "DLK-204");
+
+        // Without one in the body, the directory's department is used.
+        when(graphDirectoryService.fetchByObjectId("oid-e"))
+                .thenReturn(new DirectoryUserDTO("oid-e", "Ravi", "ravi@corp.com", "ravi@corp.com", false, null, "Finance"));
+        when(userRepository.findByAzureAdObjectId("oid-e")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("ravi@corp.com")).thenReturn(Optional.empty());
+        service.onboard(dto("oid-e", null, null), ACTOR);
+        verify(userService).createOnboardedUser("ravi@corp.com", "Ravi", "oid-e", false, false, ACTOR, "Finance", null);
     }
 }

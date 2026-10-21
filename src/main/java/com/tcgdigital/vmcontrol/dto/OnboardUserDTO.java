@@ -43,6 +43,30 @@ public class OnboardUserDTO {
     private boolean admin = false;
 
     private boolean envAdmin = false;
+    /** U13-T01: optional; a value here wins over the directory's department. */
+    @Size(max = 100, message = "Department can be at most 100 characters.")
+    private String department;
+    /** U13-T01: optional, letters, digits, dot, dash and underscore. */
+    @Size(max = 50, message = "Project code can be at most 50 characters.")
+    @jakarta.validation.constraints.Pattern(regexp = "^$|[A-Za-z0-9._-]+",
+            message = "Project code can only use letters, digits, dot, dash and underscore.")
+    private String projectCode;
+
+    public String getDepartment() {
+        return department;
+    }
+
+    public void setDepartment(String department) {
+        this.department = department;
+    }
+
+    public String getProjectCode() {
+        return projectCode;
+    }
+
+    public void setProjectCode(String projectCode) {
+        this.projectCode = projectCode;
+    }
 
     @Valid
     private InitialGrant initialGrant;

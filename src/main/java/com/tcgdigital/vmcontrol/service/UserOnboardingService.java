@@ -87,6 +87,8 @@ public class UserOnboardingService {
         String email;
         String displayName;
         String azureAdObjectId;
+        // U13-T01: the body's department wins over the directory's.
+        String department = trimToNull(dto.getDepartment());
 
         if (directoryObjectId != null && graphDirectoryService.isEnabled()) {
             DirectoryUserDTO directoryUser = graphDirectoryService.fetchByObjectId(directoryObjectId);
@@ -96,6 +98,9 @@ public class UserOnboardingService {
                 throw new ValidationException("Directory user " + directoryObjectId + " has no email or UPN");
             }
             displayName = firstNonBlank(directoryUser.displayName(), localPart(email));
+            if (department == null) {
+                department = trimToNull(directoryUser.department());
+            }
         } else {
             if (directoryObjectId != null) {
                 log.warn("directoryObjectId supplied but directory lookup is off — onboarding manually/unverified");
@@ -120,7 +125,7 @@ public class UserOnboardingService {
         }
 
         User user = userService.createOnboardedUser(email, displayName, azureAdObjectId,
-                dto.isAdmin(), dto.isEnvAdmin(), actorUserId);
+                dto.isAdmin(), dto.isEnvAdmin(), actorUserId, department, dto.getProjectCode());
 
         List<EnvironmentAccess> grants = List.of();
         OnboardUserDTO.InitialGrant initialGrant = dto.getInitialGrant();

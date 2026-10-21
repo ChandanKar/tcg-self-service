@@ -37,7 +37,7 @@ public class GraphDirectoryService {
     private static final int MIN_QUERY_LENGTH = 2;
     private static final int DEFAULT_TOP = 15;
     private static final int MAX_TOP = 25;
-    private static final String SELECT_FIELDS = "id,displayName,mail,userPrincipalName";
+    private static final String SELECT_FIELDS = "id,displayName,mail,userPrincipalName,department";
 
     private final ObjectProvider<RestClient> graphRestClientProvider;
     private final UserRepository userRepository;
@@ -119,7 +119,8 @@ public class GraphDirectoryService {
                     email,
                     gu.userPrincipalName(),
                     existing.isPresent(),
-                    existing.map(User::getUserId).orElse(null)));
+                    existing.map(User::getUserId).orElse(null),
+                    gu.department()));
         }
         return results;
     }
@@ -164,7 +165,7 @@ public class GraphDirectoryService {
             throw new ValidationException("No directory user with id " + directoryObjectId);
         }
         String email = gu.mail() != null ? gu.mail() : gu.userPrincipalName();
-        return new DirectoryUserDTO(gu.id(), gu.displayName(), email, gu.userPrincipalName(), false, null);
+        return new DirectoryUserDTO(gu.id(), gu.displayName(), email, gu.userPrincipalName(), false, null, gu.department());
     }
 
     /** Strip characters that would break out of the {@code $search} token or the request. */
@@ -274,6 +275,6 @@ public class GraphDirectoryService {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record GraphUser(String id, String displayName, String mail, String userPrincipalName) {
+    private record GraphUser(String id, String displayName, String mail, String userPrincipalName, String department) {
     }
 }

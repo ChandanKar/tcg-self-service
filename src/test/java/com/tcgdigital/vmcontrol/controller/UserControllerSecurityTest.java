@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -61,5 +62,19 @@ class UserControllerSecurityTest extends SecuredWebTestBase {
     @Test
     void nonAdminCannotListUsers() throws Exception {
         expectError(mockMvc.perform(get("/api/v1/users").param("includeInactive", "true").with(asUser())), 403);
+    }
+
+    /** U13-T01: only administrators set a person's department and project code. */
+    @Test
+    void onlyAdminsPatchAProfile() throws Exception {
+        String body = "{\"department\":\"Finance\",\"projectCode\":\"FIN-1\"}";
+        expectError(mockMvc.perform(patch("/api/v1/users/" + operator.getUserId() + "/profile").with(asUser())
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(body)), 403);
+        expectError(mockMvc.perform(patch("/api/v1/users/" + operator.getUserId() + "/profile").with(asEnvAdmin())
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(body)), 403);
+        mockMvc.perform(patch("/api/v1/users/" + operator.getUserId() + "/profile").with(asAdmin())
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.projectCode").value("FIN-1"));
     }
 }

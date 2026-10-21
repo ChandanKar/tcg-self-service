@@ -10,6 +10,7 @@ package com.tcgdigital.vmcontrol.dto;
  * @param email             {@code mail}, or {@code userPrincipalName} when {@code mail} is null
  * @param alreadyInApp      true when an {@code app_user} row already exists for this person
  * @param appUserId         that existing row's id when {@code alreadyInApp}, else null
+ * @param department        the directory's department, to prefill Add people (U13-T01); may be null
  */
 public record DirectoryUserDTO(
         String directoryObjectId,
@@ -17,5 +18,11 @@ public record DirectoryUserDTO(
         String email,
         String userPrincipalName,
         boolean alreadyInApp,
-        String appUserId
-) {}
+        String appUserId,
+        String department
+) {
+    public DirectoryUserDTO(String directoryObjectId, String displayName, String email, String userPrincipalName,
+                            boolean alreadyInApp, String appUserId) {
+        this(directoryObjectId, displayName, email, userPrincipalName, alreadyInApp, appUserId, null);
+    }
+}

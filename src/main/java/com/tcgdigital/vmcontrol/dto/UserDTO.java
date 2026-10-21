@@ -42,6 +42,25 @@ public class UserDTO {
     private boolean signsInWithMicrosoft;
     /** MICROSOFT, PASSWORD, MICROSOFT_AND_PASSWORD, or NONE for service accounts (they use API tokens). */
     private String signInMethod;
+    /** U13-T01 */
+    private String department;
+    private String projectCode;
+
+    public String getDepartment() {
+        return department;
+    }
+
+    public void setDepartment(String department) {
+        this.department = department;
+    }
+
+    public String getProjectCode() {
+        return projectCode;
+    }
+
+    public void setProjectCode(String projectCode) {
+        this.projectCode = projectCode;
+    }
 
     public boolean isSignsInWithMicrosoft() {
         return signsInWithMicrosoft;
@@ -94,6 +113,8 @@ public class UserDTO {
         String method = signInMethodOf(user);
         dto.setSignInMethod(method);
         dto.setSignsInWithMicrosoft(method.startsWith("MICROSOFT"));
+        dto.setDepartment(user.getDepartment());
+        dto.setProjectCode(user.getProjectCode());
         return dto;
     }
 

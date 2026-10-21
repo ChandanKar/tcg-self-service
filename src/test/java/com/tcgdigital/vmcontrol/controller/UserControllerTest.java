@@ -188,8 +188,40 @@ class UserControllerTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(2)));
     }
+
+    // ---- U13-T01: department and project code
+
+    @Test
+    @DisplayName("An onboarded person keeps their department and project code")
+    void onboardWithDepartmentAndProjectCode() throws Exception {
+        mockMvc.perform(post("/api/v1/users").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"neha@example.com\",\"displayName\":\"Neha Gupta\","
+                                + "\"department\":\"Engineering\",\"projectCode\":\"DLK-204\"}"))
+                .andExpect(status().is2xxSuccessful());
+        mockMvc.perform(get("/api/v1/users"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.email == 'neha@example.com')].department").value("Engineering"))
+                .andExpect(jsonPath("$[?(@.email == 'neha@example.com')].projectCode").value("DLK-204"));
+    }
+
+    @Test
+    @DisplayName("PATCH /profile sets, validates and clears department and project code")
+    void profilePatch() throws Exception {
+        mockMvc.perform(patch("/api/v1/users/{userId}/profile", testUser.getUserId()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"department\":\" Finance \",\"projectCode\":\"FIN_7.2\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.department").value("Finance"))
+                .andExpect(jsonPath("$.projectCode").value("FIN_7.2"));
+
+        mockMvc.perform(patch("/api/v1/users/{userId}/profile", testUser.getUserId()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"department\":\"Finance\",\"projectCode\":\"DLK 204\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Project code can only use letters, digits, dot, dash and underscore."));
+
+        mockMvc.perform(patch("/api/v1/users/{userId}/profile", testUser.getUserId()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"department\":\"\",\"projectCode\":\"  \"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.department").doesNotExist())
+                .andExpect(jsonPath("$.projectCode").doesNotExist());
+    }
 }
-
-
-
-

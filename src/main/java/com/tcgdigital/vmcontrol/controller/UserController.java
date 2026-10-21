@@ -323,6 +323,21 @@ public class UserController {
         return ResponseEntity.ok(UserDTO.fromEntity(user));
     }
 
+    /** U13-T01: a person's department and project code; blank clears. */
+    public record UpdateUserProfileDTO(String department, String projectCode) {}
+
+    @PatchMapping("/{userId}/profile")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Set a person's department and project code",
+            description = "Blank values clear them. The project code may use letters, digits, dot, dash and underscore. Requires admin role.")
+    public ResponseEntity<UserDTO> updateUserProfile(
+            @Parameter(description = "User ID") @PathVariable String userId,
+            @RequestBody UpdateUserProfileDTO dto) {
+        User user = userService.updateProfile(userId, dto == null ? null : dto.department(),
+                dto == null ? null : dto.projectCode(), userService.getCurrentUserId());
+        return ResponseEntity.ok(UserDTO.fromEntity(user));
+    }
+
     @DeleteMapping("/{userId}")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(

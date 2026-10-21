@@ -114,6 +114,7 @@ public enum AuditAction {
     USER_PROMOTED_TO_ADMIN,
     USER_PROMOTED_TO_ENV_ADMIN,
     USER_LOGIN_CONFLICT,
+    USER_PROFILE_UPDATED,
 
     // System operations
     SYSTEM_CONFIG_UPDATED,

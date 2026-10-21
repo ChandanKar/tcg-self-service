@@ -173,7 +173,17 @@ public class UserService {
     @Transactional
     public User createOnboardedUser(String email, String displayName, String azureAdObjectId,
                                     boolean admin, boolean envAdmin, String actorUserId) {
+        return createOnboardedUser(email, displayName, azureAdObjectId, admin, envAdmin, actorUserId, null, null);
+    }
+
+    /** With the person's department and project code (U13-T01); blank values are stored as null. */
+    @Transactional
+    public User createOnboardedUser(String email, String displayName, String azureAdObjectId,
+                                    boolean admin, boolean envAdmin, String actorUserId,
+                                    String department, String projectCode) {
         User user = new User();
+        user.setDepartment(cleanDepartment(department));
+        user.setProjectCode(cleanProjectCode(projectCode));
         user.setUserId(java.util.UUID.randomUUID().toString());
         user.setEmail(email);
         user.setDisplayName(displayName);
@@ -190,6 +200,55 @@ public class UserService {
         auditService.logUserOnboarded(actorUserId, saved.getUserId(), saved.getEmail(),
                 azureAdObjectId != null ? "directory" : "manual");
         return saved;
+    }
+
+    /** Letters, digits, dot, dash and underscore; blank is null (U13-T01). */
+    public static String cleanProjectCode(String projectCode) {
+        String code = projectCode == null ? null : projectCode.trim();
+        if (code == null || code.isEmpty()) {
+            return null;
+        }
+        if (!code.matches("[A-Za-z0-9._-]+")) {
+            throw new ValidationException("Project code can only use letters, digits, dot, dash and underscore.");
+        }
+        if (code.length() > 50) {
+            throw new ValidationException("Project code can be at most 50 characters.");
+        }
+        return code;
+    }
+
+    /** Trimmed, at most 100 characters; blank is null (U13-T01). */
+    public static String cleanDepartment(String department) {
+        String value = department == null ? null : department.trim();
+        if (value == null || value.isEmpty()) {
+            return null;
+        }
+        if (value.length() > 100) {
+            throw new ValidationException("Department can be at most 100 characters.");
+        }
+        return value;
+    }
+
+    /** An administrator sets a person's department and project code, audited with the old and new values. */
+    @Transactional
+    public User updateProfile(String userId, String department, String projectCode, String actorUserId) {
+        User user = getUserById(userId);
+        String newDepartment = cleanDepartment(department);
+        String newCode = cleanProjectCode(projectCode);
+        String before = profileText(user.getDepartment(), user.getProjectCode());
+        user.setDepartment(newDepartment);
+        user.setProjectCode(newCode);
+        User saved = userRepository.save(user);
+        String after = profileText(newDepartment, newCode);
+        if (!before.equals(after)) {
+            auditService.logChange(actorUserId, com.tcgdigital.vmcontrol.model.AuditAction.USER_PROFILE_UPDATED, "user", userId, saved.getEmail(),
+                    before, after, "Profile of " + saved.getEmail() + " updated: " + after);
+        }
+        return saved;
+    }
+
+    private static String profileText(String department, String projectCode) {
+        return "department=" + (department == null ? "" : department) + ", projectCode=" + (projectCode == null ? "" : projectCode);
     }
 
     /**
