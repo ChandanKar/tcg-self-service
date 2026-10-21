@@ -293,6 +293,25 @@ class AuditFilterIntegrationTest extends SecuredWebTestBase {
         rowOf("LOCK_ACQUIRED", env1, "succeeded");
     }
 
+    /** U12-T05: Recent runs asks for the three run actions at once; the stats follow the same list. */
+    @Test
+    void severalActionsMatchAnyOfThemAndCombineWithTheirCategory() throws Exception {
+        seedCategories();
+        String runs = "action=AUTOMATION_RULE_TRIGGERED&action=AUTOMATION_RULE_SKIPPED&action=AUTOMATION_RULE_FAILED";
+        mockMvc.perform(get(url("logs", "category=AUTOMATION&" + runs)).with(asAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(3))
+                .andExpect(jsonPath("$.content[*].action", everyItem(org.hamcrest.Matchers.startsWith("AUTOMATION_RULE_"))));
+        mockMvc.perform(get(url("logs", runs + "&environmentId=" + env1.getEnvironmentId())).with(asAdmin()))
+                .andExpect(jsonPath("$.content.length()").value(2));
+        mockMvc.perform(get(url("logs", "category=AUTOMATION&" + runs + "&success=false")).with(asAdmin()))
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].action").value("AUTOMATION_RULE_FAILED"));
+        // An action outside the category drops out; the one inside stays.
+        mockMvc.perform(get(url("logs", "category=AUTOMATION&action=LOCK_ACQUIRED&action=AUTOMATION_RULE_SKIPPED")).with(asAdmin()))
+                .andExpect(jsonPath("$.content.length()").value(1));
+    }
+
     @Test
     void aCategoryReturnsOnlyItsActions() throws Exception {
         seedCategories();

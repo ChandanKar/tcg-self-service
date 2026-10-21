@@ -13,6 +13,10 @@ const AutomationRules = (function() {
     let holidayCalendars = []; // named on the Holiday calendars tab for environment admins (E19-T02)
     let scopeOptionsCache = {}; // environmentId -> { groups: [...], vms: [...] }
     let accessForm = null; // { rule } while the access-rule panel is open (U12-T04)
+    // Recent runs (U12-T05): the filters, the page and the page's rows from the audit log.
+    let runs = { page: 1, environmentId: '', result: '', data: null, seq: 0 };
+    const RUN_ACTIONS = ['AUTOMATION_RULE_TRIGGERED', 'AUTOMATION_RULE_SKIPPED', 'AUTOMATION_RULE_FAILED'];
+    const RUN_DAYS = 30;
     let saving = false; // one Save in flight at a time (a double click created two rules)
 
     /** Labels for lastRunReason (V31). */
@@ -62,6 +66,7 @@ const AutomationRules = (function() {
         tab = TABS.some(t => t.key === q.tab) ? q.tab : 'schedules';
         currentPage = 1;
         accessForm = null;
+        runs = { page: 1, environmentId: '', result: '', data: null, seq: 0 };
         showLoading();
         fetchInitialData();
     }
@@ -233,6 +238,45 @@ const AutomationRules = (function() {
             : `Starts ${target} when an access request is approved, in ${rule.createdByDisplayName ? `${rule.createdByDisplayName}'s` : "the rule owner's"} name`;
     }
 
+    /** A run's result from its audit row: Started / Stopped / Skipped / Failed. */
+    function runResult(row) {
+        if (row.action === 'AUTOMATION_RULE_FAILED') return 'Failed';
+        if (row.action === 'AUTOMATION_RULE_SKIPPED') return 'Skipped';
+        return /\bSTOP\b/.test(row.details || '') ? 'Stopped' : 'Started';
+    }
+
+    /**
+     * What happened, in words: "on schedule", "when Asha Rao took the lock", "environment was locked
+     * by Asha Rao", "holiday (Diwali)", "nothing to do", or the error.
+     */
+    function runDetail(row) {
+        const text = String(row.details || '');
+        if (row.action === 'AUTOMATION_RULE_TRIGGERED') {
+            const how = (text.match(/\(([^)]*)\)\s*$/) || [])[1] || '';
+            if (how === 'lock acquired') return `when ${row.userDisplayName || 'someone'} took the lock`;
+            if (how === 'access approved') return 'when access was approved';
+            return 'on schedule';
+        }
+        if (row.action === 'AUTOMATION_RULE_FAILED') return row.errorMessage || text || 'failed';
+        const why = text.replace(/^Skipped:\s*/, '');
+        const locked = why.match(/^Environment locked by (.+)$/);
+        if (locked) return `environment was locked by ${locked[1]}`;
+        if (/^Nothing to do\b/.test(why)) return 'nothing to do';
+        if (/^by override: /.test(why)) return `skipped by override: ${why.slice('by override: '.length)}`;
+        return why ? why.charAt(0).toLowerCase() + why.slice(1) : 'skipped';
+    }
+
+    /** GET /audit/logs for the tab: the run actions of the last 30 days, 10 a page. */
+    function runsUrl(state, now) {
+        const actions = state.result === 'SKIPPED' ? ['AUTOMATION_RULE_SKIPPED']
+            : state.result === 'FAILED' ? ['AUTOMATION_RULE_FAILED'] : RUN_ACTIONS;
+        const from = new Date((now || new Date()).getTime() - RUN_DAYS * DAY_MS).toISOString();
+        const params = ['category=AUTOMATION', ...actions.map(a => `action=${a}`), `from=${encodeURIComponent(from)}`,
+            `page=${state.page - 1}`, `size=${PAGE_SIZE}`];
+        if (state.environmentId) params.push(`environmentId=${encodeURIComponent(state.environmentId)}`);
+        return `${Config.API.audit.logs}?${params.join('&')}`;
+    }
+
     // ============= Render =============
 
     function render() {
@@ -385,18 +429,71 @@ const AutomationRules = (function() {
         HolidayCalendars.render($('#ar-holidays-pane'), list => { holidayCalendars = list; }, { canEdit: Auth.isAdmin() });
     }
 
-    /** "Recent runs": the last run of each rule (U12-T05 brings the full history). */
+    /** "Recent runs" (U12-T05): every run of the last 30 days from the audit log, 10 a page. */
     function renderRecentRuns() {
-        const recent = rules.filter(r => r.lastRunAt).slice()
-            .sort((a, b) => new Date(b.lastRunAt) - new Date(a.lastRunAt)).slice(0, 20);
-        $('#ar-content').html(recent.length ? `<div class="ar-runs">${recent.map(r => Utils.html`
-            <div class="ar-run" data-rule-id="${r.ruleId}">
-                <span class="ar-run-when">${clockText(r.lastRunAt)}</span>
-                <span class="ar-run-what"><b>${r.name}</b> · ${r.environmentName || ''}${Utils.raw(r.lastRunDetail ? Utils.html`<span>${r.lastRunDetail}</span>` : '')}</span>
-                <span class="ar-run-status ar-run-${String(r.lastRunStatus || '').toLowerCase()}">${
-                    r.lastRunStatus === 'SUCCESS' ? 'Done' : r.lastRunStatus === 'SKIPPED' ? 'Skipped' : r.lastRunStatus === 'FAILED' ? 'Failed' : ''}</span>
-            </div>`).join('')}</div>`
-            : '<div class="ar-empty">No rule has run yet.</div>');
+        const envOptions = administered().map(e => Utils.html`<option value="${e.environmentId}"${Utils.raw(runs.environmentId === e.environmentId ? ' selected' : '')}>${e.displayName || e.name}</option>`).join('');
+        const result = [['', 'Any result'], ['SKIPPED', 'Skipped'], ['FAILED', 'Failed']]
+            .map(([v, l]) => `<option value="${v}"${runs.result === v ? ' selected' : ''}>${l}</option>`).join('');
+        $('#ar-content').html(`<div class="ar-runs-bar">
+                <label class="ar-runs-filter">Environment
+                    <select class="form-select form-select-sm" id="ar-runs-env"><option value="">All environments</option>${envOptions}</select></label>
+                <label class="ar-runs-filter">Result
+                    <select class="form-select form-select-sm" id="ar-runs-result">${result}</select></label>
+                <span class="ar-runs-span">Last ${RUN_DAYS} days</span>
+            </div>
+            <div id="ar-runs-list"><div class="ar-empty" role="status">Loading runs…</div></div>
+            <div id="ar-runs-pager"></div>`);
+        loadRuns();
+    }
+
+    async function loadRuns() {
+        const seq = ++runs.seq;
+        let page;
+        try {
+            page = await apiGetQuiet(runsUrl(runs));
+        } catch (error) {
+            if (seq !== runs.seq || !isActive()) return;
+            $('#ar-runs-list').html(Utils.html`<div class="alert alert-danger" role="alert">${serverMessage(error, 'Could not load the runs.')}</div>`);
+            return;
+        }
+        if (seq !== runs.seq || !isActive() || tab !== 'runs') return;
+        runs.data = page || { content: [], totalElements: 0 };
+        drawRuns();
+    }
+
+    function runRuleHtml(row) {
+        const rule = rules.find(r => r.ruleId === row.targetId);
+        if (rule && rule.triggerType === 'SCHEDULE') {
+            return Utils.html`<a href="#/automation-rules/${encodeURIComponent(rule.ruleId)}">${row.targetName || rule.name}</a>`;
+        }
+        if (rule) {
+            return Utils.html`<button type="button" class="ar-act ar-run-rule" data-rule-id="${rule.ruleId}">${row.targetName || rule.name}</button>`;
+        }
+        return Utils.html`<span>${row.targetName || 'Deleted rule'}</span>`;
+    }
+
+    function drawRuns() {
+        const list = runs.data.content || [];
+        const total = runs.data.totalElements || 0;
+        if (!list.length) {
+            $('#ar-runs-list').html(`<div class="ar-empty">No runs in the last ${RUN_DAYS} days${runs.environmentId || runs.result ? ' that match' : ''}.</div>`);
+            $('#ar-runs-pager').empty();
+            return;
+        }
+        $('#ar-runs-list').html(`<div class="ar-runs-wrap"><table class="ar-runs-table" id="ar-runs-table">
+                <thead><tr><th scope="col">When</th><th scope="col">Rule</th><th scope="col">Environment</th><th scope="col">Result</th><th scope="col">Detail</th></tr></thead>
+                <tbody>${list.map(row => {
+                    const result = runResult(row);
+                    return Utils.html`<tr>
+                        <td class="ar-runs-when">${clockText(row.createdAt)}</td>
+                        <td>${Utils.raw(runRuleHtml(row))}</td>
+                        <td>${row.environmentName || ''}</td>
+                        <td><span class="ar-result ar-result-${result.toLowerCase()}">${result}</span></td>
+                        <td class="ar-runs-detail">${runDetail(row)}</td>
+                    </tr>`;
+                }).join('')}</tbody></table></div>`);
+        $('#ar-runs-pager').html(total > PAGE_SIZE ? Pagination.buildPager({ page: runs.page, pageSize: PAGE_SIZE,
+            totalItems: total, action: 'ar-runs-page', key: 'runs' }) : '');
     }
 
     // ============= Events =============
@@ -415,6 +512,23 @@ const AutomationRules = (function() {
                 const key = TABS[(next + TABS.length) % TABS.length].key;
                 selectTab(key);
                 document.getElementById(`ar-tab-${key}`).focus();
+            })
+            .on('change' + NS, '#ar-runs-env, #ar-runs-result', () => {
+                runs.environmentId = $('#ar-runs-env').val();
+                runs.result = $('#ar-runs-result').val();
+                runs.page = 1;
+                loadRuns();
+            })
+            .on('click' + NS, '[data-action="ar-runs-page"]', function() {
+                runs.page = Number(this.dataset.page) || 1;
+                loadRuns();
+            })
+            .on('click' + NS, '.ar-run-rule', function() {
+                const rule = rules.find(r => r.ruleId === this.dataset.ruleId);
+                if (!rule) return;
+                selectTab('access');
+                accessForm = { rule };
+                renderAccessRules();
             })
             .on('click' + NS, '[data-action="ar-page"]', function() {
                 currentPage = Number(this.dataset.page) || 1;
@@ -655,7 +769,7 @@ const AutomationRules = (function() {
 
     return {
         load,
-        model: { clockText, nextText, countsOf, skippedDay, scheduleLine, accessLine, hhmm, windowsOf }
+        model: { clockText, nextText, countsOf, skippedDay, scheduleLine, accessLine, hhmm, windowsOf, runResult, runDetail, runsUrl }
     };
 })();
 

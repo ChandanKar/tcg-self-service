@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 
 const STATIC = fileURLToPath(new URL('../../main/resources/static/', import.meta.url));
-const context = vm.createContext({ Intl, Date });
+const context = vm.createContext({ Intl, Date, Config: { API: { audit: { logs: '/api/v1/audit/logs' } } } });
 context.window = context;
 vm.runInContext(readFileSync(STATIC + 'js/ui/week-strip.js', 'utf8') + '\nthis.WeekStrip = WeekStrip;', context);
 vm.runInContext(readFileSync(STATIC + 'js/features/automation-rules.js', 'utf8') + '\nthis.A = AutomationRules;', context);
@@ -46,4 +46,29 @@ test('the schedule line: summary, zone, holidays, local time and a recent skip',
         'Starts CRM UAT when someone takes the lock, in their name');
     assert.equal(M.accessLine({ accessGrantMode: 'ACCESS_APPROVED', scopeType: 'GROUP', scopeName: 'Web', environmentName: 'CRM UAT',
         createdByDisplayName: 'Asha' }), "Starts Web in CRM UAT when an access request is approved, in Asha's name");
+});
+
+test('Recent runs: the result and the detail of each run from its audit row', () => {
+    assert.equal(M.runResult({ action: 'AUTOMATION_RULE_TRIGGERED', details: 'Triggered STOP (schedule)' }), 'Stopped');
+    assert.equal(M.runResult({ action: 'AUTOMATION_RULE_TRIGGERED', details: 'Triggered START (lock acquired)' }), 'Started');
+    assert.equal(M.runResult({ action: 'AUTOMATION_RULE_SKIPPED' }), 'Skipped');
+    assert.equal(M.runResult({ action: 'AUTOMATION_RULE_FAILED' }), 'Failed');
+    assert.equal(M.runDetail({ action: 'AUTOMATION_RULE_TRIGGERED', details: 'Triggered STOP (schedule)' }), 'on schedule');
+    assert.equal(M.runDetail({ action: 'AUTOMATION_RULE_TRIGGERED', details: 'Triggered START (lock acquired)', userDisplayName: 'Asha Rao' }),
+        'when Asha Rao took the lock');
+    assert.equal(M.runDetail({ action: 'AUTOMATION_RULE_SKIPPED', details: 'Skipped: Environment locked by Asha Rao' }),
+        'environment was locked by Asha Rao');
+    assert.equal(M.runDetail({ action: 'AUTOMATION_RULE_SKIPPED', details: 'Skipped: holiday (Diwali)' }), 'holiday (Diwali)');
+    assert.equal(M.runDetail({ action: 'AUTOMATION_RULE_SKIPPED', details: 'Skipped: Nothing to do: all targets already in the requested state' }),
+        'nothing to do');
+    assert.equal(M.runDetail({ action: 'AUTOMATION_RULE_SKIPPED', details: 'Skipped: by override: release (Ravi)' }),
+        'skipped by override: release (Ravi)');
+    assert.equal(M.runDetail({ action: 'AUTOMATION_RULE_FAILED', errorMessage: 'AWS said no' }), 'AWS said no');
+});
+
+test('Recent runs asks for the run actions of the last 30 days, 10 a page', () => {
+    const url = M.runsUrl({ page: 2, environmentId: 'e1', result: '' }, new Date(Date.UTC(2026, 9, 31)));
+    assert.equal(url, '/api/v1/audit/logs?category=AUTOMATION&action=AUTOMATION_RULE_TRIGGERED&action=AUTOMATION_RULE_SKIPPED'
+        + '&action=AUTOMATION_RULE_FAILED&from=2026-10-01T00%3A00%3A00.000Z&page=1&size=10&environmentId=e1');
+    assert.match(M.runsUrl({ page: 1, environmentId: '', result: 'SKIPPED' }), /category=AUTOMATION&action=AUTOMATION_RULE_SKIPPED&from=/);
 });

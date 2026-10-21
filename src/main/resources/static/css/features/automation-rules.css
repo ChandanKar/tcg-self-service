@@ -605,47 +605,103 @@
     color: var(--text-secondary);
 }
 
-.ar-runs {
+.ar-runs-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px 16px;
+    margin-bottom: 10px;
+}
+
+.ar-runs-filter {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    font-size: var(--fs-small);
+    font-weight: 500;
+}
+
+.ar-runs-filter .form-select {
+    min-width: 12rem;
+}
+
+.ar-runs-span {
+    padding-bottom: 6px;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.ar-runs-wrap {
+    overflow-x: auto;
     background: #fff;
     border: 1px solid var(--line);
     border-radius: 12px;
 }
 
-.ar-run {
-    display: grid;
-    grid-template-columns: 140px minmax(0, 1fr) auto;
-    gap: 12px;
-    align-items: center;
-    padding: 10px 16px;
-    border-top: 1px solid var(--line-soft);
+.ar-runs-table {
+    width: 100%;
+    border-collapse: collapse;
     font-size: var(--fs-body);
 }
 
-.ar-run:first-child {
-    border-top: 0;
+.ar-runs-table th {
+    padding: 9px 12px;
+    font-size: var(--fs-small);
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-align: left;
+    white-space: nowrap;
 }
 
-.ar-run-when {
+.ar-runs-table td {
+    padding: 9px 12px;
+    border-top: 1px solid var(--line-soft);
+    vertical-align: top;
+}
+
+.ar-runs-table th:first-child,
+.ar-runs-table td:first-child {
+    padding-left: 16px;
+}
+
+.ar-runs-when {
+    white-space: nowrap;
     color: var(--text-secondary);
 }
 
-.ar-run-what span {
-    display: block;
-    font-size: var(--fs-small);
+.ar-runs-detail {
     color: var(--text-secondary);
+    overflow-wrap: anywhere;
 }
 
-.ar-run-status {
-    font-size: var(--fs-small);
+.ar-result {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: var(--fs-caption);
     font-weight: 600;
+    white-space: nowrap;
 }
 
-.ar-run-skipped {
+.ar-result-started,
+.ar-result-stopped {
+    background: var(--brand-green-tint);
+    color: var(--brand-green-text);
+}
+
+.ar-result-skipped {
+    background: var(--brand-gold-tint);
     color: var(--brand-gold-text);
 }
 
-.ar-run-failed {
+.ar-result-failed {
+    background: var(--brand-red-tint);
     color: var(--brand-red-text);
+}
+
+#ar-runs-pager {
+    margin-top: 10px;
 }
 
 @media (max-width: 767.98px) {
@@ -653,13 +709,6 @@
         grid-template-columns: minmax(0, 1fr);
     }
 
-    .ar-run {
-        grid-template-columns: minmax(0, 1fr) auto;
-    }
-
-    .ar-run-when {
-        grid-column: 1 / -1;
-    }
 }
 
 /* Ten schedules fit 1440x900: the list scrolls inside the page (U12-T02). */

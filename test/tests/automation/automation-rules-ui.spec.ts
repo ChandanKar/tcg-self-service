@@ -375,3 +375,79 @@ test.describe('Schedule editor', () => {
     await expect(page.locator('#ag-panel')).toBeVisible();
   });
 });
+
+/**
+ * U12-T05: Recent runs lists every run of the last 30 days from the audit log (faked here), 10 a
+ * page, with the result and what happened.
+ */
+test.describe('Recent runs', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+  });
+
+  function runRow(i: number, schedule: any) {
+    const kinds = [
+      { action: 'AUTOMATION_RULE_SKIPPED', details: 'Skipped: Environment locked by Asha Rao', success: true },
+      { action: 'AUTOMATION_RULE_TRIGGERED', details: 'Triggered STOP (schedule)', success: true },
+      { action: 'AUTOMATION_RULE_SKIPPED', details: 'Skipped: holiday (Diwali)', success: true },
+      { action: 'AUTOMATION_RULE_FAILED', details: 'AWS said no', errorMessage: 'AWS said no', success: false },
+    ];
+    return { logId: `log-${i}`, targetType: 'automation_rule', targetId: schedule.ruleId, targetName: schedule.name,
+      environmentId: ENV.environmentId, environmentName: ENV.name, userDisplayName: 'Admin',
+      createdAt: new Date(Date.now() - i * 3600_000).toISOString(), ...kinds[i % kinds.length] };
+  }
+
+  test('25 runs: 10 a page, the lock holder named, filters and the rule link', async ({ page }) => {
+    const fake = new FakeRules();
+    const schedule = rule({ name: 'Office hours' });
+    fake.rules = [schedule];
+    const all = Array.from({ length: 25 }, (_, i) => runRow(i, schedule));
+    const asked: URL[] = [];
+    await page.route(/\/api\/v1\/audit\/logs\?/, route => {
+      const url = new URL(route.request().url());
+      asked.push(url);
+      const actions = url.searchParams.getAll('action');
+      const rows = all.filter(r => actions.includes(r.action));
+      const n = Number(url.searchParams.get('page')), size = Number(url.searchParams.get('size'));
+      return route.fulfill({ status: 200, contentType: 'application/json',
+        body: JSON.stringify({ content: rows.slice(n * size, n * size + size), totalElements: rows.length }) });
+    });
+    await open(page, fake);
+    await page.getByRole('tab', { name: 'Recent runs' }).click();
+
+    const rows = page.locator('#ar-runs-table tbody tr');
+    await expect(rows).toHaveCount(10);
+    await expect(page.locator('#ar-runs-pager .pager-range')).toHaveText('1–10 of 25');
+    expect(asked[0].searchParams.get('category')).toBe('AUTOMATION');
+    expect(asked[0].searchParams.getAll('action')).toEqual(['AUTOMATION_RULE_TRIGGERED', 'AUTOMATION_RULE_SKIPPED', 'AUTOMATION_RULE_FAILED']);
+    expect(Date.now() - new Date(asked[0].searchParams.get('from')!).getTime()).toBeGreaterThan(29.9 * 86400_000);
+    // U12-T05 acceptance: a skip because the environment was locked names the holder.
+    await expect(rows.nth(0).locator('.ar-result')).toHaveText('Skipped');
+    await expect(rows.nth(0)).toContainText('environment was locked by Asha Rao');
+    await expect(rows.nth(1).locator('.ar-result')).toHaveText('Stopped');
+    await expect(rows.nth(1)).toContainText('on schedule');
+    await expect(rows.nth(2)).toContainText('holiday (Diwali)');
+    await expect(rows.nth(3).locator('.ar-result')).toHaveText('Failed');
+
+    await page.locator('#ar-runs-pager [data-action="ar-runs-page"]', { hasText: 'Next' }).click();
+    await expect(page.locator('#ar-runs-pager .pager-range')).toHaveText('11–20 of 25');
+
+    await page.locator('#ar-runs-result').selectOption('SKIPPED');
+    await expect(page.locator('#ar-runs-pager .pager-range')).toHaveText('1–10 of 13');
+    expect(asked[asked.length - 1].searchParams.getAll('action')).toEqual(['AUTOMATION_RULE_SKIPPED']);
+    await page.locator('#ar-runs-env').selectOption(ENV.environmentId);
+    await expect.poll(() => asked[asked.length - 1].searchParams.get('environmentId')).toBe(ENV.environmentId);
+
+    await rows.first().getByRole('link', { name: 'Office hours' }).click();
+    await expect(page).toHaveURL(new RegExp(`#/automation-rules/${schedule.ruleId}$`));
+  });
+
+  test('no runs: says so', async ({ page }) => {
+    await page.route(/\/api\/v1\/audit\/logs\?/, route => route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ content: [], totalElements: 0 }) }));
+    await open(page, new FakeRules());
+    await page.getByRole('tab', { name: 'Recent runs' }).click();
+    await expect(page.locator('#ar-runs-list')).toHaveText('No runs in the last 30 days.');
+    await expect(page.locator('#ar-runs-table')).toHaveCount(0);
+  });
+});
