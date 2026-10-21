@@ -4,14 +4,13 @@
  * (U06-T02, Dashboard.dc.html): a one-line summary, "Needs you" tiles and up to four environment
  * cards with power strips. Administrators get their own Home (U14-T01, admin-home.js): needs
  * attention, fleet right now, spend this month and platform health. Both refresh quietly every 30 s.
- * The chart option builders below stay for System health's Fleet use tab (U14-T09).
+ * The old dashboard's charts moved to System health's Fleet use tab (U14-T09, fleet-use.js).
  */
 const Dashboard = (function() {
     'use strict';
 
     let dashboardData = null;
     let isLoading = false;
-    let chartRegistry = new Map();
     let lastRenderSignature = null;
 
     /** Router loader (see the page contract in core/router.js). */
@@ -67,22 +66,17 @@ const Dashboard = (function() {
         isLoading = false;
         lastRenderSignature = dashboardSignature(data);
         disposeTooltips();
-        disposeCharts();
         $('#content-area').html(buildDashboardHtml(data));
         bindEvents();
         if (isAdmin(data)) AdminHome.fill(data); else loadRecentActivity();
-        initCharts(data);
         initTooltips();
-        $(window).off('resize.dashboardCharts').on('resize.dashboardCharts', resizeCharts);
     }
 
     /** Runs when the user leaves the dashboard (ContentRouter.onLeave). */
     function teardown() {
         RealTime.stopPolling('dashboard');
         disposeTooltips();
-        disposeCharts();
         $('#content-area').off('.dashboardJump');
-        $(window).off('resize.dashboardCharts');
         isLoading = false;
     }
 
@@ -106,7 +100,6 @@ const Dashboard = (function() {
 
     function showError(message) {
         isLoading = false;
-        disposeCharts();
         $('#content-area').html(`
             <div class="content-view" id="dashboard-view">
                 <div class="content-header">
@@ -312,101 +305,6 @@ const Dashboard = (function() {
         `;
     }
 
-    function buildSchedulerHealthPanel(rows, prominent = false) {
-        const visibleRows = prominent ? rows : rows.slice(0, 4);
-        // Every job, its own schedule and (admins only) the instance holding its lock (E12-T05).
-        const body = visibleRows.length ? visibleRows.map(row => {
-            const ran = row.freshnessSeconds === null || row.freshnessSeconds === undefined
-                ? (row.status === 'DISABLED' ? 'switched off' : 'never ran')
-                : `${formatAge(row.freshnessSeconds)} ago`;
-            return Utils.html`
-            <div class="dashboard-scheduler-row" title="${row.owner ? 'Lock owner: ' + row.owner : ''}">
-                <span class="dashboard-dot ${schedulerTone(row.status)}"></span>
-                <div>
-                    <strong>${row.name || '-'}</strong>
-                    <small>${ran} · ${formatInterval(row.expectedIntervalSeconds)}</small>
-                </div>
-                <em class="${schedulerTone(row.status)}">${row.status || 'UNKNOWN'}</em>
-            </div>`;
-        }).join('') : `<div class="dashboard-empty-small">No scheduler data yet</div>`;
-
-        return `
-            <section class="dashboard-list-panel ${prominent ? 'dashboard-list-panel-prominent dashboard-wide dashboard-list-panel-scroll' : ''}" ${prominent ? 'id="dashboard-scheduler-health"' : ''}>
-                <div class="dashboard-panel-head">
-                    <h2>Scheduler Health</h2>
-                    <small>${rows.length}</small>
-                </div>
-                <div>${body}</div>
-            </section>
-        `;
-    }
-
-    /** "every 5 min", "hourly", "daily", "weekly" from an interval in seconds. */
-    function formatInterval(seconds) {
-        if (!seconds) return '';
-        if (seconds >= 7 * 86400) return 'weekly';
-        if (seconds >= 86400) return 'daily';
-        if (seconds === 3600) return 'hourly';
-        if (seconds >= 3600) return `every ${Math.round(seconds / 3600)} h`;
-        return `every ${Math.max(1, Math.round(seconds / 60))} min`;
-    }
-
-    function buildRiskCompliancePanel(rows) {
-        const total = rows.reduce((sum, row) => sum + (Number(row.count) || 0), 0);
-
-        return `
-            <section class="dashboard-chart-panel dashboard-wide" id="dashboard-risk-compliance-panel">
-                <div class="dashboard-panel-head">
-                    <h2>Risk & Compliance</h2>
-                    <small>${total} signals</small>
-                </div>
-                <div id="dash-risk-compliance" class="dashboard-chart dashboard-risk-chart"></div>
-            </section>
-        `;
-    }
-
-    function compactRiskText(row) {
-        const title = (row.title || '').toLowerCase();
-        if (title.includes('encryption')) return 'EBS';
-        if (title.includes('drift')) return 'State';
-        if (title.includes('metric')) return 'CloudWatch';
-        if (title.includes('idle')) return 'Waste';
-        if (title.includes('inventory')) return 'Inventory';
-        return row.description || '';
-    }
-
-    function schedulerTone(status) {
-        switch ((status || '').toUpperCase()) {
-            case 'HEALTHY':
-                return 'success';
-            case 'RUNNING':
-                return 'primary';
-            case 'LATE':
-                return 'warning';
-            case 'STALE':
-            case 'NEVER':
-                return 'danger';
-            default:
-                return 'info';
-        }
-    }
-
-    function riskToneColor(tone) {
-        switch ((tone || '').toLowerCase()) {
-            case 'success':
-                return '#10b981';
-            case 'warning':
-                return '#f59e0b';
-            case 'danger':
-                return '#ef4444';
-            case 'primary':
-                return '#2563eb';
-            case 'info':
-            default:
-                return '#3b82f6';
-        }
-    }
-
     function bindEvents() {
         $('#content-area').off('click.dashboardJump', '[data-dashboard-jump]')
             .on('click.dashboardJump', '[data-dashboard-jump]', function() {
@@ -416,263 +314,6 @@ const Dashboard = (function() {
                 target.classList.add('dashboard-panel-highlight');
                 setTimeout(() => target.classList.remove('dashboard-panel-highlight'), 1100);
             });
-    }
-
-    function initCharts(data) {
-        if (!window.echarts) return;
-        chart('dash-util-trend', buildTrendOption(data));
-        chart('dash-util-cpu', buildSingleTrendOption(data, 'cpuUtilization', 'CPU %', '#2563eb', 'percent'));
-        chart('dash-util-memory', buildSingleTrendOption(data, 'memoryUtilization', 'Memory %', '#7c3aed', 'percent'));
-        chart('dash-util-network', buildSingleTrendOption(data, 'networkBytes', 'Network MB', '#10b981', 'mb'));
-        chart('dash-vm-state', buildDonutOption(data.vmStatusCounts || {}, ['#10b981', '#64748b', '#f59e0b', '#ef4444'], true));
-        chart('dash-storage-mix', buildDonutOption(data.volumeTypeCounts || {}, ['#2563eb', '#10b981', '#f59e0b', '#7c3aed', '#3b82f6']));
-        chart('dash-coverage', buildGaugeOption(data.coverage?.metricsPercent || 0));
-        chart('dash-risk-compliance', buildRiskComplianceOption(data.riskCompliance || []));
-        setTimeout(resizeCharts, 40);
-    }
-
-    function chart(id, option) {
-        const el = document.getElementById(id);
-        if (!el || !window.echarts) return;
-        const instance = echarts.init(el, null, { renderer: 'svg' });
-        instance.setOption(option);
-        chartRegistry.set(id, instance);
-    }
-
-    function buildTrendOption(data) {
-        const points = data.utilizationTrend || [];
-        const labels = points.map(point => point.label);
-        return {
-            color: ['#2563eb', '#10b981', '#f59e0b'],
-            tooltip: {
-                trigger: 'axis',
-                confine: true,
-                valueFormatter: value => value
-            },
-            legend: { bottom: 0, textStyle: chartTextStyle() },
-            grid: { left: 36, right: 38, top: 18, bottom: 42 },
-            xAxis: { type: 'category', boundaryGap: false, data: labels, axisLabel: chartTextStyle() },
-            yAxis: [
-                {
-                    type: 'value',
-                    name: 'CPU',
-                    min: 0,
-                    max: 100,
-                    axisLabel: { ...chartTextStyle(), formatter: '{value}%' },
-                    splitLine: { lineStyle: { color: '#eef2f7' } }
-                },
-                {
-                    type: 'value',
-                    name: 'MB',
-                    position: 'right',
-                    min: 0,
-                    scale: true,
-                    axisLabel: { ...chartTextStyle(), formatter: compactNumber },
-                    splitLine: { show: false }
-                }
-            ],
-            series: [
-                {
-                    name: 'CPU %',
-                    type: 'line',
-                    yAxisIndex: 0,
-                    smooth: true,
-                    data: points.map(point => Number(point.cpuUtilization || 0)),
-                    tooltip: { valueFormatter: value => `${Math.round(Number(value) || 0)}%` }
-                },
-                {
-                    name: 'Network MB',
-                    type: 'line',
-                    yAxisIndex: 1,
-                    smooth: true,
-                    data: points.map(point => bytesToMb((point.networkInBytes || 0) + (point.networkOutBytes || 0))),
-                    tooltip: { valueFormatter: value => `${compactNumber(value)} MB` }
-                },
-                {
-                    name: 'Disk MB',
-                    type: 'line',
-                    yAxisIndex: 1,
-                    smooth: true,
-                    data: points.map(point => bytesToMb((point.diskReadBytes || 0) + (point.diskWriteBytes || 0))),
-                    tooltip: { valueFormatter: value => `${compactNumber(value)} MB` }
-                }
-            ]
-        };
-    }
-
-    /**
-     * Single-series variant of buildTrendOption used by the admin dashboard's split
-     * CPU / Memory / Network mini-charts (one metric each, in one row) instead of the combined
-     * multi-axis chart the non-admin dashboard still uses.
-     */
-    function buildSingleTrendOption(data, field, seriesName, color, unit) {
-        const points = data.utilizationTrend || [];
-        const labels = points.map(point => point.label);
-        const isPercent = unit === 'percent';
-        const values = points.map(point => extractTrendValue(point, field));
-        return {
-            color: [color],
-            tooltip: {
-                trigger: 'axis',
-                confine: true,
-                valueFormatter: value => isPercent ? `${Math.round(Number(value) || 0)}%` : `${compactNumber(value)} MB`
-            },
-            grid: { left: 36, right: 16, top: 18, bottom: 28 },
-            xAxis: { type: 'category', boundaryGap: false, data: labels, axisLabel: chartTextStyle() },
-            yAxis: {
-                type: 'value',
-                min: 0,
-                max: isPercent ? 100 : undefined,
-                scale: !isPercent,
-                axisLabel: { ...chartTextStyle(), formatter: isPercent ? '{value}%' : compactNumber },
-                splitLine: { lineStyle: { color: '#eef2f7' } }
-            },
-            series: [{
-                name: seriesName,
-                type: 'line',
-                smooth: true,
-                areaStyle: { opacity: 0.08 },
-                data: values
-            }]
-        };
-    }
-
-    function extractTrendValue(point, field) {
-        if (field === 'networkBytes') {
-            return bytesToMb((point.networkInBytes || 0) + (point.networkOutBytes || 0));
-        }
-        const raw = point[field];
-        return raw === null || raw === undefined ? null : Number(raw);
-    }
-
-    // VM states keep one colour each wherever they appear (green only ever means running).
-    const STATE_COLORS = { RUNNING: '#10b981', STOPPED: '#94a3b8', STARTING: '#3b82f6', STOPPING: '#f59e0b',
-        PENDING: '#3b82f6', ERROR: '#ef4444', UNKNOWN: '#cbd5e1' };
-
-    function stateLabel(key) {
-        const k = String(key || '');
-        return k.charAt(0) + k.slice(1).toLowerCase().replace(/_/g, ' ');
-    }
-
-    function buildDonutOption(values, colors, byState) {
-        const data = Object.entries(values).map(([name, value]) => byState
-            ? { name: stateLabel(name), value, itemStyle: STATE_COLORS[name] ? { color: STATE_COLORS[name] } : undefined }
-            : { name, value });
-        return {
-            color: colors,
-            tooltip: { trigger: 'item', confine: true },
-            legend: { bottom: 0, textStyle: chartTextStyle() },
-            series: [{
-                type: 'pie',
-                radius: ['44%', '68%'],
-                center: ['50%', '42%'],
-                label: { formatter: '{b}\n{c}', fontSize: 11 },
-                data: data.length ? data : [{ name: 'No data', value: 1 }]
-            }]
-        };
-    }
-
-    function buildGaugeOption(value) {
-        return {
-            color: ['#10b981'],
-            series: [{
-                type: 'gauge',
-                min: 0,
-                max: 100,
-                progress: { show: true, width: 14 },
-                axisLine: { lineStyle: { width: 14 } },
-                axisTick: { show: false },
-                splitLine: { show: false },
-                axisLabel: { show: false },
-                pointer: { width: 4 },
-                detail: { formatter: '{value}%', fontSize: 24, color: '#172033' },
-                title: { color: '#64748b', fontSize: 12 },
-                data: [{ value, name: 'metrics' }]
-            }]
-        };
-    }
-
-    function buildRiskComplianceOption(rows) {
-        const activeRows = rows
-            .filter(row => (Number(row.count) || 0) > 0)
-            .slice(0, 6);
-
-        if (!activeRows.length) {
-            return {
-                graphic: {
-                    type: 'text',
-                    left: 'center',
-                    top: 'middle',
-                    style: {
-                        text: 'No risk signals',
-                        fill: '#64748b',
-                        fontSize: 13,
-                        fontWeight: 600
-                    }
-                }
-            };
-        }
-
-        return {
-            color: activeRows.map(row => riskToneColor(row.tone)),
-            tooltip: {
-                trigger: 'axis',
-                axisPointer: { type: 'shadow' },
-                confine: true,
-                formatter: params => {
-                    const point = params && params[0];
-                    const row = point?.data?.raw || {};
-                    return `
-                        <strong>${Utils.escapeHtml(row.title || point?.name || '-')}</strong><br>
-                        ${Utils.escapeHtml(row.description || '')}<br>
-                        Count: ${Utils.escapeHtml(row.count ?? point?.value ?? 0)}
-                    `;
-                }
-            },
-            grid: { left: 82, right: 18, top: 12, bottom: 18 },
-            xAxis: {
-                type: 'value',
-                minInterval: 1,
-                axisLabel: chartTextStyle(),
-                splitLine: { lineStyle: { color: '#eef2f7' } }
-            },
-            yAxis: {
-                type: 'category',
-                inverse: true,
-                data: activeRows.map(row => compactRiskText(row)),
-                axisLabel: chartTextStyle(),
-                axisTick: { show: false },
-                axisLine: { show: false }
-            },
-            series: [{
-                type: 'bar',
-                barWidth: 14,
-                data: activeRows.map(row => ({
-                    value: Number(row.count) || 0,
-                    raw: row,
-                    itemStyle: {
-                        color: riskToneColor(row.tone),
-                        borderRadius: [0, 6, 6, 0]
-                    }
-                })),
-                label: {
-                    show: true,
-                    position: 'right',
-                    color: '#334155',
-                    fontSize: 11,
-                    fontWeight: 700
-                }
-            }]
-        };
-    }
-
-    function disposeCharts() {
-        chartRegistry.forEach(instance => instance.dispose());
-        chartRegistry.clear();
-    }
-
-    function resizeCharts() {
-        chartRegistry.forEach(instance => instance.resize());
     }
 
     function disposeTooltips() {
@@ -730,57 +371,6 @@ const Dashboard = (function() {
             needsYou: data.needsYou
         };
         return JSON.stringify(stable);
-    }
-
-    function chartTextStyle() {
-        return { fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", color: '#64748b' };
-    }
-
-    function bytesToMb(bytes) {
-        return Math.round((Number(bytes) || 0) / (1024 * 1024));
-    }
-
-    function compactNumber(value) {
-        const numeric = Number(value) || 0;
-        if (Math.abs(numeric) >= 1000) return `${(numeric / 1000).toFixed(1)}k`;
-        return `${Math.round(numeric)}`;
-    }
-
-    function percent(value, total) {
-        const safeTotal = Number(total) || 0;
-        if (safeTotal === 0) return 0;
-        return Math.round(((Number(value) || 0) / safeTotal) * 100);
-    }
-
-    function formatPercent(value) {
-        if (value === null || value === undefined || value === '') return '-';
-        const numeric = Number(value);
-        return Number.isNaN(numeric) ? '-' : `${Math.round(numeric)}%`;
-    }
-
-    function formatGiB(value) {
-        const numeric = Number(value) || 0;
-        if (numeric >= 1024) return `${(numeric / 1024).toFixed(1)} TiB`;
-        return `${numeric} GiB`;
-    }
-
-    function formatIdle(minutes) {
-        const value = Number(minutes) || 0;
-        if (value < 60) return `${value}m`;
-        const hours = Math.floor(value / 60);
-        const mins = value % 60;
-        return mins ? `${hours}h ${mins}m` : `${hours}h`;
-    }
-
-    function formatAge(seconds) {
-        const safeSeconds = Number(seconds);
-        if (!Number.isFinite(safeSeconds)) return 'unknown';
-        if (safeSeconds < 60) return `${Math.round(safeSeconds)}s`;
-        const minutes = Math.floor(safeSeconds / 60);
-        if (minutes < 60) return `${minutes}m`;
-        const hours = Math.floor(minutes / 60);
-        const remainingMinutes = minutes % 60;
-        return remainingMinutes ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
     }
 
     return {

@@ -122,4 +122,52 @@ test.describe('System Health', () => {
     await page.evaluate(() => ContentRouter.reload());
     await expect(page.getByRole('button', { name: 'Sync EKS now' })).toBeVisible({ timeout: 10_000 });
   });
+
+  test('Fleet use: asked for only when opened; lines, fleet state, coverage and risk rows that link to their fix (U14-T09)', async ({ page }) => {
+    let summaries = 0;
+    const MB = 1024 * 1024;
+    const point = (label: string, cpu: number, mem: number, net: number) => ({ label, cpuUtilization: cpu, memoryUtilization: mem,
+      networkInBytes: net * MB, networkOutBytes: 0, diskReadBytes: 0, diskWriteBytes: 0 });
+    await page.route(/\/api\/v1\/dashboard\/summary$/, route => { summaries++; return route.fulfill({ json: { persona: 'ADMIN', summary: {},
+      utilizationTrend: [point('06:00', 12, 44, 40), point('10:00', 41, 63, 230), point('17:00', 34, 59, 180)],
+      vmStatusCounts: { RUNNING: 41, STOPPED: 66, STARTING: 3, ERROR: 2 }, coverage: { metricsPercent: 94 },
+      riskCompliance: [{ tone: 'danger', title: 'EBS encryption', description: '9 volume(s) are not encrypted.', count: 9 },
+        { tone: 'success', title: 'State drift', description: 'No state drift detected.', count: 0 },
+        { tone: 'warning', title: 'Metric coverage', description: '94% of VMs have recent metric samples.', count: 3 }] } }); });
+    await openHealth(page);
+    summaries = 0; // Home, opened at sign-in, asks for the summary itself
+    await expect(page.locator('#sh-tiles .sh-tile')).toHaveCount(4, { timeout: 10_000 });
+    await page.waitForLoadState('networkidle');
+    // Acceptance: System health asks for no /dashboard/summary until Fleet use opens.
+    expect(summaries).toBe(0);
+
+    await page.getByRole('tab', { name: 'Fleet use' }).click();
+    await expect(page).toHaveURL(/#\/system-health\?tab=fleet$/);
+    const fleet = page.locator('#sh-panel-fleet');
+    await expect(fleet.locator('svg.fu-line')).toHaveCount(3, { timeout: 10_000 });
+    await expect(fleet.locator('svg.fu-line-cpu')).toHaveAttribute('aria-label', 'Average CPU over 24 hours, from 12% to 34%, peak 41%');
+    await expect(fleet).toContainText('Peak 41% at 10:00.');
+    await expect(fleet.locator('#fu-state .fu-legend[data-state="Running"]')).toContainText('41');
+    await expect(fleet.locator('#fu-state .fu-legend[data-state="Starting or stopping"]')).toContainText('3');
+    await expect(fleet.locator('#fu-state .fu-legend[data-state="Failed"]')).toContainText('2');
+    await expect(fleet.locator('#fu-state')).toContainText('112 VMs');
+    await expect(fleet.locator('#fu-coverage')).toContainText('94%');
+    const risks = fleet.locator('#fu-risk .fu-risk');
+    await expect(risks).toHaveCount(2);
+    await expect(risks.first()).toContainText('Unencrypted disks');
+    await expect(fleet.locator('#fu-risk')).toContainText('12 things to look at');
+    expect(summaries).toBe(1);
+    // Acceptance: a risk row opens the page where it is fixed.
+    await risks.first().click();
+    await expect(page).toHaveURL(/#\/waste$/);
+  });
+
+  test('Fleet use with no risk signals says nothing needs a look', async ({ page }) => {
+    await page.route(/\/api\/v1\/dashboard\/summary$/, route => route.fulfill({ json: { persona: 'ADMIN', summary: {}, utilizationTrend: [],
+      vmStatusCounts: {}, coverage: { metricsPercent: 100 }, riskCompliance: [{ tone: 'success', title: 'EBS encryption', description: 'ok', count: 0 }] } }));
+    await openHealth(page, '#/system-health?tab=fleet');
+    await expect(page.locator('#fu-risk .fu-clear')).toHaveText('Nothing needs a look.', { timeout: 10_000 });
+    await expect(page.locator('.fu-empty')).toHaveCount(3);
+  });
 });
+

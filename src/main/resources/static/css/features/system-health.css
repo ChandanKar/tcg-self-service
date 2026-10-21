@@ -252,6 +252,193 @@
     }
 }
 
+/* ---- Fleet use tab (U14-T09, SystemHealthFleet.dc.html) ---- */
+.fu-page {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.fu-use {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.fu-lower {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr);
+    gap: 14px;
+    align-items: start;
+}
+
+.fu-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px 18px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    min-width: 0;
+}
+
+.fu-card h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.fu-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.fu-now {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.fu-now b {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    color: var(--ink);
+}
+
+.fu-line {
+    width: 100%;
+    height: 90px;
+}
+
+.fu-line .fu-stroke {
+    fill: none;
+    stroke-width: 2;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+}
+
+.fu-line .fu-area {
+    stroke: none;
+    opacity: 0.08;
+}
+
+.fu-line-cpu .fu-stroke { stroke: var(--brand-navy); }
+.fu-line-cpu .fu-area,
+.fu-line-cpu .fu-end { fill: var(--brand-navy); }
+.fu-line-memory .fu-stroke { stroke: var(--brand-navy-hover); }
+.fu-line-memory .fu-area,
+.fu-line-memory .fu-end { fill: var(--brand-navy-hover); }
+.fu-line-network .fu-stroke { stroke: var(--brand-green); }
+.fu-line-network .fu-area,
+.fu-line-network .fu-end { fill: var(--brand-green); }
+
+.fu-bar {
+    display: flex;
+    height: 12px;
+    border-radius: 6px;
+    background: var(--surface-muted);
+    overflow: hidden;
+}
+
+.fu-seg {
+    display: block;
+    height: 100%;
+}
+
+.fu-run { background: var(--brand-green); }
+.fu-stop { background: var(--slate-light); }
+.fu-move,
+.fu-warn { background: var(--brand-gold); }
+.fu-fail,
+.fu-bad { background: var(--brand-red); }
+.fu-unknown,
+.fu-info { background: var(--line-strong); }
+
+.fu-legend {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+}
+
+.fu-legend > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.fu-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.fu-cov {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.fu-cov b {
+    font-size: 24px;
+    font-weight: 500;
+}
+
+.fu-risk {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 90px 32px;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    border-top: 1px solid var(--line-soft);
+    color: var(--ink);
+    text-decoration: none;
+}
+
+.fu-risk:hover b:first-child {
+    text-decoration: underline;
+}
+
+.fu-risk-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    font-size: 14px;
+}
+
+.fu-risk-text b {
+    font-weight: 500;
+}
+
+.fu-risk-text span {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+}
+
+.fu-risk-bar {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--surface-muted);
+}
+
+.fu-risk-bar span {
+    display: block;
+    height: 100%;
+    border-radius: 4px;
+}
+
+.fu-risk > .sh-mono {
+    text-align: right;
+}
+
+@media (max-width: 1199.98px) {
+    .fu-use,
+    .fu-lower {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
 /* ---- Reports tab: the 24-hour tables ---- */
 
 /* Compact audit summary card */

@@ -3,7 +3,9 @@
  * Now: four figures (VM state sync, drift in 24 h, actions in 24 h with the success rate, scheduled
  * jobs on time) and the scheduled jobs (GET /monitoring/scheduler-health: Job, Runs, Last run,
  * Status), problems first or all, 10 a page. Header: Sync VM state now, and Sync EKS now when an
- * EKS environment exists. Reports (?tab=reports) keeps the earlier 24-hour tables (audit summary,
+ * EKS environment exists. Fleet use (?tab=fleet, U14-T09, fleet-use.js) shows CPU, memory and network
+ * over 24 hours, the fleet's state, metrics coverage and risk and compliance, asked for only when
+ * opened. Reports (?tab=reports) keeps the earlier 24-hour tables (audit summary,
  * state changes, drift, lock compliance, VM operations, email log) and asks for them only when
  * opened. Every window is the last 24 hours as exact instants (E12-T06).
  */
@@ -190,11 +192,12 @@ const SystemHealth = (function () {
     /** Router loader (also used after a sync, which reloads through the router). */
     function load() {
         const q = ContentRouter.query ? ContentRouter.query() : {};
-        s = { token: ContentRouter.token(), tab: q.tab === 'reports' ? 'reports' : 'now', jobs: null, view: 'problems',
-            page: 1, reportsLoaded: false, eks: false };
+        s = { token: ContentRouter.token(), tab: ['reports', 'fleet'].includes(q.tab) ? q.tab : 'now', jobs: null, view: 'problems',
+            page: 1, reportsLoaded: false, fleetLoaded: false, eks: false };
         renderShell();
         loadNow();
         if (s.tab === 'reports') loadReports();
+        if (s.tab === 'fleet') loadFleet();
     }
 
     function current() {
@@ -202,7 +205,7 @@ const SystemHealth = (function () {
     }
 
     function renderShell() {
-        const tabs = [['now', 'Now'], ['reports', 'Reports']];
+        const tabs = [['now', 'Now'], ['fleet', 'Fleet use'], ['reports', 'Reports']];
         $('#content-area').html(`
         <div class="content-view sh-page" id="system-health-view">
             ${PageHeader.markup({ title: 'System health',
@@ -220,6 +223,7 @@ const SystemHealth = (function () {
                     <div id="sh-jobs-body"></div>
                 </section>
             </section>
+            <section class="sh-panel" id="sh-panel-fleet" role="tabpanel" aria-labelledby="sh-tab-fleet"${s.tab === 'fleet' ? '' : ' hidden'}></section>
             <section class="sh-panel" id="sh-panel-reports" role="tabpanel" aria-labelledby="sh-tab-reports"${s.tab === 'reports' ? '' : ' hidden'}>
                 <p class="sh-note">Loading the reports&hellip;</p>
             </section>
@@ -234,12 +238,19 @@ const SystemHealth = (function () {
         if (!s || tab === s.tab) return;
         s.tab = tab;
         $('.sh-tab').each(function() { this.setAttribute('aria-selected', String(this.dataset.shTab === tab)); });
-        $('#sh-panel-now').prop('hidden', tab !== 'now');
-        $('#sh-panel-reports').prop('hidden', tab !== 'reports');
+        ['now', 'fleet', 'reports'].forEach(key => $(`#sh-panel-${key}`).prop('hidden', tab !== key));
         try {
-            history.replaceState(null, '', tab === 'reports' ? '#/system-health?tab=reports' : '#/system-health');
+            history.replaceState(null, '', tab === 'now' ? '#/system-health' : `#/system-health?tab=${tab}`);
         } catch (e) { /* the address keeps the old tab */ }
         if (tab === 'reports') loadReports();
+        if (tab === 'fleet') loadFleet();
+    }
+
+    /** The Fleet use tab: asked for the first time it is opened. */
+    function loadFleet() {
+        if (s.fleetLoaded || typeof FleetUse === 'undefined') return;
+        s.fleetLoaded = true;
+        FleetUse.render('#sh-panel-fleet');
     }
 
     async function loadNow() {
