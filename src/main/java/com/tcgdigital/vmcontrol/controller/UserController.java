@@ -112,6 +112,22 @@ public class UserController {
         return ResponseEntity.status(HttpStatus.CREATED).body(body);
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.tcgdigital.vmcontrol.service.BulkOnboardingService bulkOnboardingService;
+
+    /** U13-T02: add many people with one role, optional access and a team each; dryRun previews. */
+    @PostMapping("/bulk-onboard")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Add many people at once",
+            description = "Each person from the directory or by email, with department, project code and team; one role for new "
+                    + "people; optional access. dryRun=true says who is new, existing or skipped and what access each gets, writing "
+                    + "nothing. Otherwise all of it is applied in one transaction. Requires admin role.")
+    public ResponseEntity<com.tcgdigital.vmcontrol.dto.BulkOnboardResultDTO> bulkOnboard(
+            @RequestParam(defaultValue = "true") boolean dryRun,
+            @Valid @RequestBody com.tcgdigital.vmcontrol.dto.BulkOnboardRequestDTO dto) {
+        return ResponseEntity.ok(bulkOnboardingService.run(dto, userService.getCurrentUserId(), dryRun));
+    }
+
     @GetMapping("/me")
     @Operation(
             summary = "Get current user",

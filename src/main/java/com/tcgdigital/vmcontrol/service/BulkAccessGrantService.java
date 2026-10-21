@@ -140,6 +140,22 @@ public class BulkAccessGrantService {
         return summary(plan);
     }
 
+    /**
+     * The rows a person who has no account yet would get (U13-T02, Add people): NEW on every target.
+     * Authorizes every target first, as a grant does, so a preview fails the same way an apply would.
+     */
+    @Transactional(readOnly = true)
+    public List<BulkGrantPlanDTO.Row> rowsForNewPerson(String name, String email, BulkGrantRequestDTO dto) {
+        if (dto.durationDays() != null && dto.durationDays() > accessService.getGrantMaxDurationDays()) {
+            throw new ValidationException("Access can be granted for at most " + accessService.getGrantMaxDurationDays() + " days");
+        }
+        Timestamp end = dto.durationDays() == null || Boolean.TRUE.equals(dto.clearExpiry()) ? null
+                : Timestamp.valueOf(LocalDateTime.now().plusDays(dto.durationDays()));
+        return scopes(dto).stream().map(scope -> new BulkGrantPlanDTO.Row(null, name, email,
+                scope.environment().getEnvironmentId(), envName(scope.environment()), scope.type().name(), scope.id(),
+                scope.name(), Outcome.NEW, null, null, dto.accessLevel().name(), end, null)).toList();
+    }
+
     // ---- planning ----
 
     private List<Planned> plan(String actorUserId, BulkGrantRequestDTO dto) {

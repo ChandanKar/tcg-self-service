@@ -49,6 +49,8 @@ const Config = (function() {
             reactivate: (id) => `${API_BASE_URL}/users/${id}/reactivate`,
             setPassword: (id) => `${API_BASE_URL}/users/${id}/password`,
             search: (query) => `${API_BASE_URL}/users/search?q=${encodeURIComponent(query)}`,
+            bulkOnboard: (dryRun) => `${API_BASE_URL}/users/bulk-onboard?dryRun=${dryRun ? 'true' : 'false'}`, // U13-T02
+            profile: (userId) => `${API_BASE_URL}/users/${encodeURIComponent(userId)}/profile`, // U13-T01
             admins: `${API_BASE_URL}/users/admins`,
             myProfile: `${API_BASE_URL}/users/me/profile`,
             myActivity: (limit = 25) => `${API_BASE_URL}/users/me/activity?limit=${limit}`
