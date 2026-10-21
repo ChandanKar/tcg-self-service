@@ -94,10 +94,14 @@ test.describe('Environment page by access level', () => {
     await page.waitForLoadState('networkidle');
     expect(asked).toEqual([]);
 
+    // U11-T07: Settings opens the settings page; Teams and webhooks are asked for on Notifications.
     await page.locator('#btn-env-settings').click();
-    await expect(page.locator('.env-settings')).toBeVisible();
+    await expect(page.locator('#es-panel')).toBeVisible({ timeout: 15_000 });
+    await page.waitForLoadState('networkidle');
+    expect(asked).toEqual([]);
+    await page.locator('[data-es-section="notifications"]').click();
     await expect.poll(() => asked.length).toBeGreaterThan(0);
-    await expect(page.locator('[data-action="env-settings-notify"]')).toBeVisible();
+    await expect(page.locator('#es-notify')).toBeVisible();
   });
 });
 

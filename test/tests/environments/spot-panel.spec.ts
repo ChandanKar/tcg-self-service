@@ -28,12 +28,13 @@ function summary(overrides: any = {}) {
   };
 }
 
-/** U07-T02: Spot, Teams and webhooks live in the environment's Settings panel. */
-async function openSettings(page: Page) {
+/** U11-T07: Spot, Teams and webhooks live on the environment's settings page; Settings opens it. */
+async function openSettings(page: Page, section = 'spot') {
   const settings = page.locator('#btn-env-settings');
   await expect(settings).toBeVisible({ timeout: 15_000 });
   await settings.click();
-  await expect(page.locator('.env-settings')).toBeVisible();
+  await expect(page.locator('#es-panel')).toBeVisible({ timeout: 15_000 });
+  await page.locator(`[data-es-section="${section}"]`).click();
 }
 
 async function openEnv(page: Page, envId: string, body: any, status = 200) {
@@ -93,7 +94,7 @@ test.describe('Spot panel', () => {
     const envId = await seedEnvironment(playwright, 'Spot off');
     await openEnv(page, envId, { message: 'Spot is not enabled' }, 404);
 
-    await expect(page.locator('#env-detail-view')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('#es-panel h2')).toHaveText('Spot', { timeout: 15_000 }); // U11-T07: Settings > Spot
     await page.waitForTimeout(500);
     await expect(page.locator('.spot-card')).toHaveCount(0);
   });

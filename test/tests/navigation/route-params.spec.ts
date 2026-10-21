@@ -223,6 +223,88 @@ test.describe('Environment settings', () => {
     await admin.dispose();
   });
 
+  test('Groups and start order: moving a group saves the order in one request (U11-T07)', async ({ page, playwright }) => {
+    const env = await seedEnv(playwright);
+    const admin = await api(playwright, devIds.admin);
+    const mk = async (name: string, pos: number, deps: string[] = []) => (await (await admin.post(
+      `/api/v1/environments/${env.environmentId}/groups`, { data: { name, displayName: name, sequencePosition: pos, dependsOnGroupIds: deps } })).json()).groupId;
+    const db = await mk('Database', 1);
+    const app = await mk('Application', 2, [db]);
+    await mk('Web', 3);
+    await admin.dispose();
+    const orders: any[] = [];
+    page.on('request', r => { if (r.method() === 'PUT' && r.url().endsWith('/groups/order')) orders.push(r.postDataJSON()); });
+
+    await open(page, `#/environments/${env.environmentId}/settings/groups`);
+    const rows = page.locator('.es-group');
+    await expect(rows).toHaveCount(3, { timeout: 15_000 });
+    await expect(rows.locator('.es-group-name b')).toHaveText(['1st · Database', '2nd · Application', '3rd · Web']);
+    await expect(rows.locator('.es-group-waits')).toHaveText(['Starts first', 'Waits for Database', 'Starts first']);
+    await expect(page.getByRole('button', { name: 'Move Database up' })).toBeDisabled();
+
+    await page.getByRole('button', { name: 'Move Web up' }).click();
+    await expect(rows.locator('.es-group-name b')).toHaveText(['1st · Database', '2nd · Web', '3rd · Application']);
+    expect(orders.length).toBe(1);
+
+    // Application waits for Database: it cannot go above it, and the server's reason shows.
+    await page.getByRole('button', { name: 'Move Application up' }).click();
+    await expect(rows.locator('.es-group-name b')).toHaveText(['1st · Database', '2nd · Application', '3rd · Web']);
+    await page.getByRole('button', { name: 'Move Application up' }).click();
+    await expect(page.locator('#es-groups-error')).toHaveText('Application waits for Database, so it cannot start first');
+    expect(app).toBeTruthy();
+  });
+
+  test('Running and stopping: no lease request while leases are off; Notifications says webhooks are off (U11-T07)', async ({ page, playwright }) => {
+    const env = await seedEnv(playwright);
+    const leaseCalls: string[] = [];
+    page.on('request', r => { if (/\/lease-policy$/.test(r.url())) leaseCalls.push(r.url()); });
+    await page.route(new RegExp(`/api/v1/environments/${env.environmentId}$`), async route => {
+      const res = await route.fetch();
+      const body = await res.json();
+      return route.fulfill({ response: res, json: { ...body, leaseEnabled: null } });
+    });
+    await open(page, `#/environments/${env.environmentId}/settings/running`);
+    await expect(page.locator('#es-leases-off')).toHaveText(
+      'Leases are switched off for the platform: environments run until someone stops them.', { timeout: 15_000 });
+    await expect(page.locator('#es-running-lines .es-line').last()).toContainText('Schedule:');
+    expect(leaseCalls).toEqual([]);
+
+    await page.evaluate(() => { (window as any).Capabilities.has = (f: string) => f !== 'webhooks' && f !== 'chat'; });
+    await page.locator('[data-es-section="notifications"]').click();
+    await expect(page.locator('#es-webhooks-off')).toHaveText(
+      'Webhooks are switched off for the platform. An administrator can switch them on in Settings › Integrations.');
+    await expect(page.locator('#env-webhook-panel')).toHaveCount(0);
+  });
+
+  test('Running and stopping: the lease settings save from the section (U11-T07)', async ({ page, playwright }) => {
+    const env = await seedEnv(playwright);
+    const puts: any[] = [];
+    await page.route(new RegExp(`/api/v1/environments/${env.environmentId}$`), async route => {
+      const res = await route.fetch();
+      return route.fulfill({ response: res, json: { ...(await res.json()), leaseEnabled: false } });
+    });
+    await page.route(new RegExp(`/api/v1/environments/${env.environmentId}/lease-policy$`), route => {
+      if (route.request().method() === 'PUT') {
+        puts.push(route.request().postDataJSON());
+        return route.fulfill({ json: { enabled: true, defaultMinutes: 240, maxMinutes: 480, effectiveDefaultMinutes: 240,
+          effectiveMaxMinutes: 480, platformMaxMinutes: 1440 } });
+      }
+      return route.fulfill({ json: { enabled: false, defaultMinutes: null, maxMinutes: null, effectiveDefaultMinutes: 480,
+        effectiveMaxMinutes: 720, platformMaxMinutes: 1440 } });
+    });
+    await open(page, `#/environments/${env.environmentId}/settings/running`);
+    await expect(page.locator('#lease-policy-enabled')).toBeVisible({ timeout: 15_000 });
+    await page.locator('#lease-policy-enabled').check();
+    await page.locator('#lease-policy-default').selectOption('240');
+    await page.locator('#lease-policy-max').selectOption('120');
+    await page.locator('#es-lease-save').click();
+    await expect(page.locator('#lease-policy-error')).toHaveText('The default cannot be longer than the longest without approval.');
+    await page.locator('#lease-policy-max').selectOption('480');
+    await page.locator('#es-lease-save').click();
+    await expect(page.getByText('Lease settings saved.')).toBeVisible();
+    expect(puts).toEqual([{ enabled: true, defaultMinutes: 240, maxMinutes: 480 }]);
+  });
+
   test('the registry opens it; users get the no-access page', async ({ page, playwright }) => {
     const env = await seedEnv(playwright);
     await open(page, `#/vm-registry?env=${env.environmentId}`);

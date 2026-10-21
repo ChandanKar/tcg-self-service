@@ -685,8 +685,9 @@ const Environments = (function() {
     /**
      * The environment page (EnvDetail.dc.html): the header with the meta line and actions, then a
      * main column (notes and banners, start order, groups and VMs) and the "About this environment"
-     * column (running count, cost, budget, idle auto-stop). Spot, Teams, webhooks and Notify open
-     * from Settings (EnvSettingsPanel).
+     * column (running count, cost, budget, idle auto-stop). Settings opens the environment's
+     * settings page for its admins (U11-T07: groups, leases, Spot, Teams, webhooks, the stop notice);
+     * others who may see its Spot state get the Spot side panel (EnvSettingsPanel).
      */
     function buildDetailHtml(env) {
         const totalVms = env.totalVms || 0;
@@ -919,7 +920,11 @@ const Environments = (function() {
 
         $('#btn-env-settings').off('click').on('click', function(e) {
             e.preventDefault();
-            EnvSettingsPanel.open(env);
+            if (env.viewerCanAdminister === true) {
+                window.location.hash = `#/environments/${encodeURIComponent(env.environmentId)}/settings`;
+            } else {
+                EnvSettingsPanel.open(env);
+            }
         });
 
         // Group and VM actions in the Groups and VMs table (U07-T03): delegated, so a re-rendered table

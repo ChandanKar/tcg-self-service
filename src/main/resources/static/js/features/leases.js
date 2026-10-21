@@ -279,51 +279,78 @@ const Leases = (function() {
         });
     }
 
-    function showPolicyDialog(envId, policy, onDone) {
+    /**
+     * The lease settings form (U11-T07): the dialog and Settings > Running and stopping share it.
+     * Ids: lease-policy-enabled / -default / -max / -error.
+     */
+    function policyFormHtml(policy) {
         const max = policy.platformMaxMinutes;
         const opts = (selected, fallback) => POLICY_OPTIONS.filter(m => m <= max)
             .map(m => `<option value="${m}" ${m === (selected || fallback) ? 'selected' : ''}>${minutesLabel(m)}</option>`).join('');
+        return `
+            <label class="lease-policy-switch">
+                <input type="checkbox" role="switch" id="lease-policy-enabled" ${policy.enabled ? 'checked' : ''}>
+                <span><b>Stop when the lease ends</b><span>Every start gets an end time. People are reminded before it ends, and can extend.</span></span>
+            </label>
+            <div class="lease-policy-lengths">
+                <label class="lease-policy-field">Default length<select class="form-select" id="lease-policy-default">${opts(policy.defaultMinutes, policy.effectiveDefaultMinutes)}</select></label>
+                <label class="lease-policy-field">Longest without approval<select class="form-select" id="lease-policy-max">${opts(policy.maxMinutes, policy.effectiveMaxMinutes)}</select></label>
+            </div>
+            <p class="lease-policy-limit">Platform limit: ${minutesLabel(max)}.</p>
+            <div class="lease-policy-error" id="lease-policy-error" role="alert"></div>`;
+    }
+
+    /** The form's values, or null with the error shown. */
+    function readPolicyForm() {
+        const body = {
+            enabled: $('#lease-policy-enabled').is(':checked'),
+            defaultMinutes: Number($('#lease-policy-default').val()),
+            maxMinutes: Number($('#lease-policy-max').val())
+        };
+        if (body.defaultMinutes > body.maxMinutes) {
+            $('#lease-policy-error').text('The default cannot be longer than the longest without approval.');
+            return null;
+        }
+        $('#lease-policy-error').text('');
+        return body;
+    }
+
+    /** Saves the policy; resolves to the saved policy, or rejects with the error shown in the form. */
+    function savePolicy(envId, body) {
+        return new Promise((resolve, reject) => {
+            ApiClient.put(Config.API.leases.policy(envId), body, { suppressGlobalError: true })
+                .done(saved => {
+                    policies[envId] = saved;
+                    Notifications.success('Lease settings saved.');
+                    resolve(saved);
+                })
+                .fail(xhr => {
+                    $('#lease-policy-error').text((xhr.responseJSON && xhr.responseJSON.message) || 'Could not save.');
+                    reject(xhr);
+                });
+        });
+    }
+
+    function showPolicyDialog(envId, policy, onDone) {
         Modals.show({
             id: 'leasePolicyModal',
             title: 'Lease settings',
-            body: `
-                <div class="form-check form-switch mb-3">
-                    <input class="form-check-input" type="checkbox" role="switch" id="lease-policy-enabled" ${policy.enabled ? 'checked' : ''}>
-                    <label class="form-check-label" for="lease-policy-enabled">Running environments stop when their lease ends</label>
-                </div>
-                <label class="form-label" for="lease-policy-default">Default length</label>
-                <select class="form-select mb-2" id="lease-policy-default">${opts(policy.defaultMinutes, policy.effectiveDefaultMinutes)}</select>
-                <label class="form-label" for="lease-policy-max">Maximum without approval</label>
-                <select class="form-select" id="lease-policy-max">${opts(policy.maxMinutes, policy.effectiveMaxMinutes)}</select>
-                <p class="small text-muted mt-2 mb-0">Platform limit: ${minutesLabel(max)}.</p>
-                <div class="text-danger small mt-2" id="lease-policy-error" role="alert"></div>`,
+            body: policyFormHtml(policy),
             buttons: [
                 { text: 'Cancel', class: 'btn-secondary', dismiss: true },
                 { text: 'Save', class: 'btn-primary', id: 'lease-policy-save' }
             ],
             onShow: function() {
                 $('#lease-policy-save').on('click', function() {
-                    const body = {
-                        enabled: $('#lease-policy-enabled').is(':checked'),
-                        defaultMinutes: Number($('#lease-policy-default').val()),
-                        maxMinutes: Number($('#lease-policy-max').val())
-                    };
-                    if (body.defaultMinutes > body.maxMinutes) {
-                        $('#lease-policy-error').text('The default cannot be longer than the maximum.');
-                        return;
-                    }
+                    const body = readPolicyForm();
+                    if (!body) return;
                     const $btn = $(this).prop('disabled', true);
-                    ApiClient.put(Config.API.leases.policy(envId), body, { suppressGlobalError: true })
-                        .done(saved => {
-                            policies[envId] = saved;
+                    savePolicy(envId, body)
+                        .then(() => {
                             Modals.hide('leasePolicyModal');
-                            Notifications.success('Lease settings saved.');
                             if (onDone) onDone();
                         })
-                        .fail(xhr => {
-                            $btn.prop('disabled', false);
-                            $('#lease-policy-error').text((xhr.responseJSON && xhr.responseJSON.message) || 'Could not save.');
-                        });
+                        .catch(() => $btn.prop('disabled', false));
                 });
             }
         });
@@ -361,11 +388,16 @@ const Leases = (function() {
         policyFor,
         showExtendDialog,
         showPolicyDialog,
+        policyFormHtml,
+        readPolicyForm,
+        savePolicy,
+        minutesLabel,
         runForOptions,
         extend: () => current && current.lease && showExtendDialog(current.env.environmentId, current.lease, current.policy,
             () => render(current.env)),
-        settings: () => current && current.policy && showPolicyDialog(current.env.environmentId, current.policy,
-            () => render(current.env)),
+        settings: () => {
+            if (current) window.location.hash = `#/environments/${encodeURIComponent(current.env.environmentId)}/settings/running`;
+        },
         decide
     };
 })();

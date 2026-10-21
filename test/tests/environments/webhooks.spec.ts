@@ -43,12 +43,13 @@ async function open(page: Page, envId: string, enabled: boolean) {
   return calls;
 }
 
-/** U07-T02: Spot, Teams and webhooks live in the environment's Settings panel. */
-async function openSettings(page: Page) {
+/** U11-T07: Spot, Teams and webhooks live on the environment's settings page; Settings opens it. */
+async function openSettings(page: Page, section = 'notifications') {
   const settings = page.locator('#btn-env-settings');
   await expect(settings).toBeVisible({ timeout: 15_000 });
   await settings.click();
-  await expect(page.locator('.env-settings')).toBeVisible();
+  await expect(page.locator('#es-panel')).toBeVisible({ timeout: 15_000 });
+  await page.locator(`[data-es-section="${section}"]`).click();
 }
 
 

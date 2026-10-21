@@ -3,8 +3,9 @@
  * #/environments/<id>/settings[/<section>]: one page per environment with a section list on the
  * left. Details (names, description, team, AWS account, production, the cost tags on its VMs) are
  * edited here with Save changes / Discard; Deactivate asks for the short name. Idle auto-stop, Budget
- * and Who has access open their own pages; U11-T07 fills Groups and start order, Running and
- * stopping, and Notifications.
+ * and Who has access open their own pages. Groups and start order, Running and stopping (leases,
+ * with the idle and schedule lines), Spot and Notifications (U11-T07) are sections too: the panels
+ * that were on the environment page live here now.
  */
 const EnvSettings = (function() {
     'use strict';
@@ -13,6 +14,7 @@ const EnvSettings = (function() {
         { key: 'details', label: 'Details' },
         { key: 'groups', label: 'Groups and start order' },
         { key: 'running', label: 'Running and stopping' },
+        { key: 'spot', label: 'Spot', feature: 'spot' },
         { key: 'idle', label: 'Idle auto-stop', link: id => `#/environments/${encodeURIComponent(id)}` },
         { key: 'budget', label: 'Budget', link: id => `#/budgets?scope=${encodeURIComponent(id)}` },
         { key: 'access', label: 'Who has access', link: id => `#/access-management/grant?environmentId=${encodeURIComponent(id)}` },
@@ -26,6 +28,49 @@ const EnvSettings = (function() {
 
     function sectionKey(key) {
         return SECTIONS.some(x => x.key === key && !x.link) ? key : 'details';
+    }
+
+    function hasFeature(feature) {
+        return typeof Capabilities !== 'undefined' && Capabilities.has(feature);
+    }
+
+    function ordinal(n) {
+        const mod100 = n % 100;
+        if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+        return `${n}${{ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th'}`;
+    }
+
+    /** The groups in start order, without Auto-Discovered. */
+    function startOrder(groups) {
+        return (groups || []).filter(g => g.name !== 'discovered')
+            .slice().sort((a, b) => (a.sequencePosition ?? 0) - (b.sequencePosition ?? 0));
+    }
+
+    /** "Starts first" / "Waits for Database" / "Waits for Database, Application". */
+    function waitsText(group, groups) {
+        const names = (group.dependsOnGroupIds || []).map(id => (groups || []).find(g => g.groupId === id))
+            .filter(Boolean).map(g => g.displayName || g.name);
+        return names.length ? `Waits for ${names.join(', ')}` : 'Starts first';
+    }
+
+    /** The order after moving one group up (-1) or down (+1), or null at an end. */
+    function moved(ids, groupId, step) {
+        const i = ids.indexOf(groupId);
+        const j = i + step;
+        if (i < 0 || j < 0 || j >= ids.length) return null;
+        const next = ids.slice();
+        next[i] = ids[j];
+        next[j] = groupId;
+        return next;
+    }
+
+    /** "Schedule: Office hours, Mon–Fri 08:00–20:00" (and how many more), or "Schedule: none". */
+    function scheduleText(rules) {
+        const on = (rules || []).filter(r => r.enabled);
+        if (!on.length) return 'Schedule: none';
+        const first = on[0];
+        const more = on.length > 1 ? ` (and ${on.length - 1} more)` : '';
+        return `Schedule: ${first.name}${first.scheduleSummary ? `, ${first.scheduleSummary}` : ''}${more}`;
     }
 
     function teamLabel(team) {
@@ -100,7 +145,7 @@ const EnvSettings = (function() {
 
     function render() {
         const id = s.env.environmentId;
-        const nav = SECTIONS.map(x => {
+        const nav = SECTIONS.filter(x => !x.feature || hasFeature(x.feature)).map(x => {
             const href = x.link ? x.link(id) : `#/environments/${encodeURIComponent(id)}/settings/${x.key}`;
             return Utils.html`<a class="es-nav-item${Utils.raw(x.key === 'deactivate' ? ' es-nav-danger' : '')}" href="${href}"
                 ${Utils.raw(x.link ? '' : `data-es-section="${x.key}"`)}${Utils.raw(x.key === s.section ? ' aria-current="page"' : '')}>${x.label}</a>`;
@@ -123,19 +168,145 @@ const EnvSettings = (function() {
     function renderSection() {
         const html = {
             details: detailsHtml,
-            groups: () => pointerHtml('Groups and start order', 'Groups start top to bottom and stop bottom to top. A group can also wait for specific groups.',
-                `#/vm-registry?env=${encodeURIComponent(s.env.environmentId)}`, 'Edit them in the VM registry'),
-            running: () => pointerHtml('Running and stopping', 'Leases, idle auto-stop and schedules decide when this environment runs.',
-                `#/environments/${encodeURIComponent(s.env.environmentId)}`, 'See them on the environment page'),
+            groups: () => '<div id="es-groups"><div class="vr-empty">Loading groups…</div></div>',
+            running: runningShellHtml,
+            spot: () => '<h2>Spot</h2><div id="env-spot-panel" class="es-embedded"><div class="vr-empty">Loading…</div></div>',
             notifications: notificationsHtml,
             deactivate: deactivateHtml
         }[s.section]();
         $('#es-panel').html(html);
         if (s.section === 'details') updateSaveBar();
+        if (s.section === 'groups') loadGroups();
+        if (s.section === 'running') loadRunning();
+        if (s.section === 'spot' && typeof SpotPanel !== 'undefined') SpotPanel.render(s.env);
+        if (s.section === 'notifications') {
+            if (hasFeature('chat') && typeof ChatChannels !== 'undefined') ChatChannels.renderEnvPanel(s.env);
+            if (hasFeature('webhooks') && typeof WebhooksPanel !== 'undefined') WebhooksPanel.renderEnvPanel(s.env);
+        }
     }
 
-    function pointerHtml(title, text, href, link) {
-        return Utils.html`<h2>${title}</h2><p class="es-text">${text}</p><p><a href="${href}">${link}</a></p>`;
+    // ---- Groups and start order
+
+    function isEks() {
+        return (s.env.serviceType || 'EC2') === 'EKS';
+    }
+
+    async function loadGroups() {
+        const token = s.token;
+        try {
+            const groups = await ApiClient.get(Config.API.groups.list(s.env.environmentId), { suppressGlobalError: true });
+            if (!ContentRouter.isCurrent(token) || s.section !== 'groups') return;
+            s.groups = groups || [];
+            drawGroups();
+        } catch (error) {
+            $('#es-groups').html('<div class="vr-empty">Could not load the groups.</div>');
+        }
+    }
+
+    function drawGroups(error) {
+        const list = startOrder(s.groups);
+        const eks = isEks();
+        const rows = list.map((g, i) => {
+            const name = g.displayName || g.name;
+            return Utils.html`<div class="es-group" data-group-id="${g.groupId}">
+                    <span class="es-group-move">
+                        <button type="button" class="es-icon" data-es-move="-1" aria-label="Move ${name} up"${Utils.raw(i === 0 ? ' disabled' : '')}>▲</button>
+                        <button type="button" class="es-icon" data-es-move="1" aria-label="Move ${name} down"${Utils.raw(i === list.length - 1 ? ' disabled' : '')}>▼</button>
+                    </span>
+                    <span class="es-group-name"><b>${ordinal(i + 1)} · ${name}</b><span>${g.vmCount || 0} ${eks ? 'node' : 'VM'}${(g.vmCount || 0) === 1 ? '' : 's'}</span></span>
+                    <span class="es-group-waits">${waitsText(g, s.groups)}</span>
+                    <span class="es-group-actions">
+                        <button type="button" class="vr-act" data-es-group-edit aria-label="Edit ${name}">Edit</button>
+                        ${Utils.raw(eks ? '' : Utils.html`<button type="button" class="vr-act vr-danger" data-es-group-delete aria-label="Delete ${name}"
+                            ${Utils.raw(g.vmCount > 0 ? 'disabled title="Move or remove its VMs first"' : '')}>Delete</button>`)}
+                    </span>
+                </div>`;
+        }).join('');
+        $('#es-groups').html(Utils.html`
+            <div class="es-section-head"><h2>Groups and start order</h2>
+                ${Utils.raw(eks ? '' : '<button type="button" class="vr-link" id="es-group-add">Add a group</button>')}</div>
+            <p class="es-text">Groups start top to bottom and stop bottom to top. A group can also wait for specific groups.</p>
+            <div class="acd-error" id="es-groups-error" role="alert">${error || ''}</div>
+            ${Utils.raw(rows || '<div class="es-text">No groups yet.</div>')}`);
+    }
+
+    async function moveGroup(groupId, step) {
+        const ids = startOrder(s.groups).map(g => g.groupId);
+        const next = moved(ids, groupId, step);
+        if (!next) return;
+        $('#es-groups [data-es-move]').prop('disabled', true);
+        try {
+            s.groups = await ApiClient.put(Config.API.groups.reorder(s.env.environmentId), { groupIds: next }, { suppressGlobalError: true });
+            drawGroups();
+            const $row = $(`#es-groups .es-group[data-group-id="${groupId}"] [data-es-move="${step}"]`);
+            ($row.prop('disabled') ? $(`#es-groups .es-group[data-group-id="${groupId}"] [data-es-move]`).not(':disabled') : $row).first().trigger('focus');
+        } catch (xhr) {
+            drawGroups((xhr && xhr.responseJSON && xhr.responseJSON.message) || "The order wasn't saved. Try again.");
+        }
+    }
+
+    function groupDialogEnv() {
+        return { environmentId: s.env.environmentId, environmentName: s.env.displayName || s.env.name };
+    }
+
+    function deleteGroup(groupId) {
+        const g = (s.groups || []).find(x => x.groupId === groupId);
+        if (!g || g.vmCount > 0) return;
+        Modals.confirm('Delete group', `Delete "${g.displayName || g.name}"? This cannot be undone.`, () => {
+            ApiClient.delete(Config.API.groups.delete(s.env.environmentId, groupId), { suppressGlobalError: true })
+                .done(() => { Notifications.success('Group deleted.'); loadGroups(); })
+                .fail(xhr => drawGroups((xhr.responseJSON && xhr.responseJSON.message) || "The group wasn't deleted."));
+        }, { confirmText: 'Delete', confirmClass: 'btn-danger' });
+    }
+
+    // ---- Running and stopping
+
+    function runningShellHtml() {
+        const leases = s.env.leaseEnabled === null || s.env.leaseEnabled === undefined
+            ? '<p class="es-text" id="es-leases-off">Leases are switched off for the platform: environments run until someone stops them.</p>'
+            : '<div id="es-lease-form"><div class="vr-empty">Loading…</div></div>';
+        return `<h2>Leases</h2>${leases}
+            <div class="es-lines" id="es-running-lines"></div>`;
+    }
+
+    async function loadRunning() {
+        const token = s.token;
+        const envId = s.env.environmentId;
+        const leaseOn = s.env.leaseEnabled !== null && s.env.leaseEnabled !== undefined;
+        const quiet = { suppressGlobalError: true };
+        const [policy, idle, rules] = await Promise.all([
+            leaseOn ? ApiClient.get(Config.API.leases.policy(envId), quiet).catch(() => null) : Promise.resolve(null),
+            hasFeature('idleStop') ? ApiClient.get(Config.API.idleStop.status(envId), quiet).catch(() => null) : Promise.resolve(null),
+            ApiClient.get(Config.API.automationRules.list(envId), quiet).catch(() => null)
+        ]);
+        if (!ContentRouter.isCurrent(token) || s.section !== 'running') return;
+        if (leaseOn) {
+            $('#es-lease-form').html(policy && typeof Leases !== 'undefined'
+                ? `${Leases.policyFormHtml(policy)}<div class="es-save"><button type="button" class="btn btn-primary" id="es-lease-save">Save lease settings</button></div>`
+                : '<p class="es-text">The lease settings could not be loaded.</p>');
+        }
+        const lines = [];
+        if (idle && idle.featureEnabled && typeof IdleStop !== 'undefined') {
+            const rule = (idle.rules || []).find(r => r.scopeType === 'ENVIRONMENT') || (idle.rules || [])[0] || null;
+            lines.push(Utils.html`<div class="es-line"><span>Idle auto-stop: <b>${IdleStop.model.modeText(idle, rule)}</b></span>
+                <a href="#/environments/${s.env.environmentId}">Idle auto-stop</a></div>`);
+        }
+        if (Array.isArray(rules)) {
+            lines.push(Utils.html`<div class="es-line"><span>${scheduleText(rules)}</span><a href="#/automation-rules">Automation rules</a></div>`);
+        }
+        $('#es-running-lines').html(lines.join(''));
+    }
+
+    async function saveLease() {
+        const body = Leases.readPolicyForm();
+        if (!body) return;
+        const $btn = $('#es-lease-save').prop('disabled', true);
+        try {
+            await Leases.savePolicy(s.env.environmentId, body);
+        } catch (e) {
+            // the form shows why
+        }
+        $btn.prop('disabled', false);
     }
 
     function detailsHtml() {
@@ -175,9 +346,14 @@ const EnvSettings = (function() {
     }
 
     function notificationsHtml() {
-        return `<h2>Notifications</h2>
-            <p class="es-text">Tell everyone who can use this environment that it is being stopped, with a reason if you like.</p>
-            <p><button type="button" class="btn btn-outline-primary" id="es-notify">Email everyone with access…</button></p>`;
+        const chat = hasFeature('chat') ? '<div id="env-chat-panel" class="es-embedded"></div>' : '';
+        const webhooks = hasFeature('webhooks')
+            ? '<div id="env-webhook-panel" class="es-embedded"></div>'
+            : `<div class="es-subhead">Webhooks</div>
+               <p class="es-text" id="es-webhooks-off">Webhooks are switched off for the platform. An administrator can switch them on in Settings › Integrations.</p>`;
+        return `<div class="es-section-head"><h2>Notifications</h2>
+                <button type="button" class="vr-link" id="es-notify">Email everyone with access…</button></div>
+            ${chat}${webhooks}`;
     }
 
     function deactivateHtml() {
@@ -294,13 +470,25 @@ const EnvSettings = (function() {
             .on('click' + NS, '#es-save-btn', () => save())
             .on('click' + NS, '#es-discard', () => renderSection())
             .on('click' + NS, '#es-notify', () => RegistryDialogs.notifyStop(s.env))
+            .on('click' + NS, '[data-es-move]', function() {
+                moveGroup($(this).closest('.es-group').data('group-id'), Number(this.dataset.esMove));
+            })
+            .on('click' + NS, '[data-es-group-edit]', function() {
+                const g = (s.groups || []).find(x => x.groupId === $(this).closest('.es-group').data('group-id'));
+                if (g) RegistryDialogs.editGroup(groupDialogEnv(), g, s.groups, loadGroups);
+            })
+            .on('click' + NS, '[data-es-group-delete]', function() {
+                deleteGroup($(this).closest('.es-group').data('group-id'));
+            })
+            .on('click' + NS, '#es-group-add', () => RegistryDialogs.editGroup(groupDialogEnv(), null, s.groups || [], loadGroups))
+            .on('click' + NS, '#es-lease-save', () => saveLease())
             .on('input' + NS, '#es-confirm', function() {
                 $('#es-deactivate').prop('disabled', this.value.trim() !== s.env.name);
             })
             .on('click' + NS, '#es-deactivate', () => deactivate());
     }
 
-    return { load, model: { sectionKey, teamLabel, detailsOf, changes, isDirty, SECTIONS } };
+    return { load, model: { sectionKey, teamLabel, detailsOf, changes, isDirty, SECTIONS, ordinal, startOrder, waitsText, moved, scheduleText } };
 })();
 
 if (typeof window !== 'undefined') window.EnvSettings = EnvSettings;

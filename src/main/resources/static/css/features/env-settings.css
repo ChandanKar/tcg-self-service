@@ -195,3 +195,175 @@
         box-shadow: inset 0 -3px 0 var(--brand-gold);
     }
 }
+
+/* ===== Groups and start order, Running and stopping, Spot, Notifications (U11-T07) ===== */
+
+.es-section-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.es-section-head h2 {
+    margin: 0;
+}
+
+.es-group {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 0;
+    border-top: 1px solid var(--line-soft);
+    font-size: var(--fs-body);
+}
+
+.es-group-move {
+    display: flex;
+    gap: 4px;
+}
+
+.es-icon {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    background: #fff;
+    font-size: 11px;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.es-icon:disabled {
+    color: var(--line-strong);
+    cursor: default;
+}
+
+.es-icon:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: 1px;
+}
+
+.es-group-name b {
+    font-weight: 600;
+}
+
+.es-group-name span {
+    display: block;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.es-group-waits {
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.es-group-actions {
+    white-space: nowrap;
+}
+
+.es-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.es-line {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: var(--surface-subtle);
+    font-size: var(--fs-body);
+}
+
+.es-subhead {
+    margin: 16px 0 6px;
+    font-size: var(--fs-small);
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.es-embedded:empty {
+    display: none;
+}
+
+.es-embedded {
+    margin-top: 12px;
+}
+
+/* The lease settings form: Settings > Running and stopping and the Lease settings dialog share it. */
+.lease-policy-switch {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0 0 12px;
+    font-size: var(--fs-body);
+}
+
+.lease-policy-switch input {
+    width: 16px;
+    height: 16px;
+    margin-top: 3px;
+    accent-color: var(--brand-navy);
+}
+
+.lease-policy-switch span span {
+    display: block;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.lease-policy-lengths {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 220px));
+    gap: 12px;
+}
+
+.lease-policy-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: 0;
+    font-size: var(--fs-small);
+    font-weight: 500;
+}
+
+.lease-policy-limit {
+    margin: 8px 0 0;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.lease-policy-error {
+    margin-top: 6px;
+    font-size: var(--fs-small);
+    color: var(--brand-red-text);
+}
+
+.lease-policy-error:empty {
+    display: none;
+}
+
+@media (max-width: 767.98px) {
+    .es-group {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .es-group-waits,
+    .es-group-actions {
+        grid-column: 2;
+    }
+
+    .lease-policy-lengths {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
