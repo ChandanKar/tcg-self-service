@@ -503,13 +503,10 @@ const ApiAccess = (function() {
         }).catch(e => Notifications.showError(message(e, 'Could not switch it on.')));
     }
 
-    // ---- Webhooks (U14-T05 brings the full list here)
+    // ---- Webhooks (U14-T05): every webhook, its events, Send test and recent deliveries
 
     function drawWebhooks() {
-        const enabled = typeof Capabilities !== 'undefined' && Capabilities.has('webhooks');
-        $('#api-panel-webhooks').html(enabled
-            ? '<p class="api-note api-pad" id="api-webhooks-note">Webhooks are set up on each environment for now: open the environment, then Settings › Webhooks.</p>'
-            : '<p class="api-note api-pad" id="api-webhooks-note">Webhooks are switched off.</p>');
+        if (typeof WebhooksPanel !== 'undefined') WebhooksPanel.mountAll('#api-panel-webhooks');
     }
 
     return { load, newToken, revokeAny, newAccount, newAccountToken, deactivate, reactivate,
