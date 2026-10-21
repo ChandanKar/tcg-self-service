@@ -24,6 +24,12 @@ const RealTime = (function() {
     let isPageVisible = true;
     let sessionLost = false;
 
+    // Live updates (U17-T04): after this long without a successful poll, while polls fail on the
+    // network or a gateway, "Reconnecting…" shows under the top bar until the next success.
+    const RECONNECT_AFTER_MS = 10000;
+    const NETWORK_FAILURES = [0, 502, 503, 504];
+    let lastSuccessAt = Date.now();
+
     const NOTIFICATION_COUNT_INTERVAL = 60000;
 
     /**
@@ -77,15 +83,22 @@ const RealTime = (function() {
     }
 
     /**
-     * GET for background polls: failures never raise the global error toast, and a 401 stops
-     * all polling with one "session expired" notice instead of redirecting from a poll.
-     * Page polls should use this too.
+     * GET for background polls: failures never raise the global error toast; a 401 stops all
+     * polling and opens the signed-out dialog (no redirect from a poll); network failures for more
+     * than 10 s show "Reconnecting…" until a poll succeeds. Page polls should use this too.
      */
     function pollGet(url) {
         return ApiClient.get(url, { suppressGlobalError: true })
+            .done(function() {
+                lastSuccessAt = Date.now();
+                showReconnecting(false);
+            })
             .fail(function(xhr) {
-                if (xhr && xhr.status === 401) {
+                const status = xhr ? xhr.status : 0;
+                if (status === 401) {
                     onSessionLost();
+                } else if (NETWORK_FAILURES.includes(status) && Date.now() - lastSuccessAt > RECONNECT_AFTER_MS) {
+                    showReconnecting(true);
                 }
             });
     }
@@ -94,9 +107,17 @@ const RealTime = (function() {
         if (sessionLost) return;
         sessionLost = true;
         stopAllPolling();
-        if (typeof Notifications !== 'undefined') {
-            Notifications.warning('Your session has expired. Reload the page to sign in again.', 0);
-        }
+        showReconnecting(false);
+        if (typeof SessionEnded !== 'undefined') SessionEnded.show();
+    }
+
+    /** The strip under the top bar: "Reconnecting… VM lights may be a minute behind." (role=status). */
+    function showReconnecting(on) {
+        const strip = typeof document !== 'undefined' && document.getElementById('reconnect-strip');
+        if (!strip || strip.hidden === !on) return;
+        strip.hidden = !on;
+        // The live region announces the text when it appears.
+        strip.textContent = on ? 'Reconnecting… VM lights may be a minute behind.' : '';
     }
 
     /**
@@ -214,38 +235,6 @@ const RealTime = (function() {
             });
     }
 
-    /**
-     * Show connection status indicator
-     */
-    function showConnectionStatus(status) {
-        let $indicator = $('#connection-status');
-
-        if (!$indicator.length) {
-            $indicator = $('<div id="connection-status"></div>');
-            $('body').append($indicator);
-        }
-
-        $indicator.removeClass('connected disconnected reconnecting');
-
-        switch (status) {
-            case 'connected':
-                $indicator.addClass('connected').html(
-                    '<i class="fas fa-wifi"></i> Connected'
-                ).fadeIn().delay(2000).fadeOut();
-                break;
-            case 'disconnected':
-                $indicator.addClass('disconnected').html(
-                    '<i class="fas fa-wifi-slash"></i> Disconnected - Retrying...'
-                ).fadeIn();
-                break;
-            case 'reconnecting':
-                $indicator.addClass('reconnecting').html(
-                    '<i class="fas fa-sync fa-spin"></i> Reconnecting...'
-                ).fadeIn();
-                break;
-        }
-    }
-
     // Public API
     return {
         init,
@@ -255,7 +244,8 @@ const RealTime = (function() {
         activePolls,
         pollGet,
         updatePendingBadge,
-        showConnectionStatus
+        showReconnecting,
+        onSessionLost
     };
 })();
 

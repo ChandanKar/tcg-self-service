@@ -82,7 +82,10 @@ const ApiClient = (function() {
     function request(method, url, data = null, options = {}) {
         // quietServerErrors: the caller shows its own error for 5xx/network failures (e.g. a
         // panel with Retry, E08-T09); auth errors (401/403) still get the global handling.
-        const { suppressGlobalError = false, quietServerErrors = false } = options;
+        // A 401 always ends the session (the signed-out dialog, U17-T04), even with
+        // suppressGlobalError, except for signInCheck: the first "who am I" call, whose caller
+        // sends a signed-out visitor to the login page.
+        const { suppressGlobalError = false, quietServerErrors = false, signInCheck = false } = options;
 
         const ajaxOptions = {
             url: url,
@@ -112,11 +115,21 @@ const ApiClient = (function() {
         return $.ajax(ajaxOptions)
             .fail(function(xhr, status, error) {
                 console.error(`API Error [${method} ${url}]:`, error);
+                if (xhr.status === 401) {
+                    if (!signInCheck) sessionEnded();
+                    return;
+                }
                 const quiet = suppressGlobalError || (quietServerErrors && (xhr.status === 0 || xhr.status >= 500));
                 if (!quiet) {
                     handleApiError(xhr, status, error);
                 }
             });
+    }
+
+    /** Session ended (U17-T04): one "You've been signed out" dialog, no toast and no timed redirect. */
+    function sessionEnded() {
+        if (typeof RealTime !== 'undefined' && RealTime.onSessionLost) RealTime.onSessionLost();
+        else if (typeof SessionEnded !== 'undefined') SessionEnded.show();
     }
 
     /**
@@ -143,15 +156,9 @@ const ApiClient = (function() {
             }
         }
 
-        // Handle session expiry
         if (xhr.status === 401) {
-            // Redirect to login after showing message
-            setTimeout(() => {
-                if (/^\/home\/?$/.test(window.location.pathname) && window.location.hash) {
-                    sessionStorage.setItem('vmcontrol.intendedRoute', window.location.hash);
-                }
-                window.location.href = '/login.html';
-            }, 2000);
+            sessionEnded();
+            return;
         }
 
         // Show notification if available

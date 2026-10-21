@@ -36,19 +36,63 @@ test.describe('Background polls', () => {
     await expect(errorToasts(page)).toHaveCount(0);
   });
 
-  test('a 401 from a poll stops polling with one notice and no redirect', async ({ page }) => {
+  test('a 401 from a poll stops polling and opens the signed-out dialog once, with no redirect (U17-T04)', async ({ page }) => {
     await page.clock.install();
     await page.route(COUNT_URL, (route) => route.fulfill({ status: 401, body: '{"error":"Unauthorized"}' }));
 
     await signIn(page, 'user');
     await page.waitForFunction(() => typeof RealTime !== 'undefined');
-    await expect(warningToasts(page)).toHaveCount(1, { timeout: 10_000 });
-    await expect(warningToasts(page)).toContainText('session has expired');
+    const dialog = page.getByRole('alertdialog', { name: "You've been signed out" });
+    await expect(dialog).toBeVisible({ timeout: 10_000 });
+    await expect(dialog).toContainText('After 60 minutes without activity. Sign in again to carry on where you were.');
+    await expect(page.getByRole('button', { name: 'Sign in again' })).toBeFocused();
+    await expect(warningToasts(page)).toHaveCount(0);
 
     await page.clock.runFor(130_000);
     await expect(page).toHaveURL(/\/home/);
-    await expect(warningToasts(page)).toHaveCount(1);
+    await expect(page.locator('.session-ended')).toHaveCount(1);
     expect(await page.evaluate(() => RealTime.activePolls())).toEqual([]);
+  });
+
+  test('a 401 on a page request opens the same dialog; Escape keeps it; Sign in again keeps the page (U17-T04)', async ({ page }) => {
+    await signIn(page, 'user');
+    await appReady(page);
+    await page.evaluate(() => { location.hash = '#/activity-logs'; });
+    await expect(page.locator('#content-area h1')).toHaveText('My activity', { timeout: 15_000 });
+    await page.route('**/api/v1/audit/logs/my?**', route => route.fulfill({ status: 401, body: '{"error":"Unauthorized"}' }));
+    await page.getByRole('button', { name: '30 days' }).click();
+    const dialog = page.getByRole('alertdialog', { name: "You've been signed out" });
+    await expect(dialog).toBeVisible();
+    await expect(errorToasts(page)).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeVisible();
+    await page.waitForTimeout(2_500);
+    await expect(page).toHaveURL(/\/home#\/activity-logs/);       // no timed jump to the login page
+    await page.getByRole('button', { name: 'Sign in again' }).click();
+    await expect(page).toHaveURL(/\/login\.html\?expired/);
+    expect(await page.evaluate(() => sessionStorage.getItem('vmcontrol.intendedRoute'))).toBe('#/activity-logs');
+  });
+
+  test('polls failing on the network for over 10 s show "Reconnecting…", the next success clears it (U17-T04)', async ({ page }) => {
+    await page.clock.install();
+    // The network goes away: every read fails, not just one poll.
+    let down = false;
+    await page.route('**/api/v1/**', (route) => down && route.request().method() === 'GET'
+      ? route.abort('internetdisconnected') : route.continue());
+    await signIn(page, 'user');
+    await appReady(page);
+    const strip = page.locator('#reconnect-strip');
+    await expect(strip).toBeHidden();
+
+    down = true;
+    await page.clock.runFor(61_000);
+    await expect(strip).toBeVisible();
+    await expect(strip).toHaveAttribute('role', 'status');
+    await expect(strip).toHaveText('Reconnecting… VM lights may be a minute behind.');
+
+    down = false;
+    await page.clock.runFor(61_000);
+    await expect(strip).toBeHidden();
   });
 
   test('the bell does not poll while the tab is hidden and catches up when visible', async ({ page }) => {

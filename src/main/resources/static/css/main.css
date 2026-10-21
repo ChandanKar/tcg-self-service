@@ -167,7 +167,7 @@
    1070   slideout.css        .slideout-overlay
    1080   slideout.css        .slideout-panel
    3000   notification-bell.css .notification-dropdown
-   9999   toasts.css/loading.css #notification-container / #connection-status
+   9999   toasts.css #notification-container; 10000 loading.css .session-ended-backdrop
    10000  main.css            .skip-link (always wins on keyboard focus)
    ================================================ */
 

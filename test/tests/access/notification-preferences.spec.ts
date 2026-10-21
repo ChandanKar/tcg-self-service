@@ -32,6 +32,8 @@ async function ready(page: Page) {
   });
   await signIn(page, 'user');
   await page.waitForFunction(() => typeof MyAccount !== 'undefined' && typeof ContentRouter !== 'undefined');
+  // The first page closes any open slide-out when it renders, so open My account only after it (as in 2575ca4).
+  await expect(page.locator('#content-area h1').first()).toBeVisible({ timeout: 15_000 });
   await page.waitForLoadState('networkidle');
   return puts;
 }

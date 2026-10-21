@@ -678,10 +678,13 @@ const Config = (function() {
 
     // Rows per page on the new screens: they fit 1440x900 by paging, not scrolling (U04-T02).
     const PAGE_SIZE = 10;
+    // The server's idle timeout (server.servlet.session.timeout, 60 min by default): the signed-out dialog names it.
+    const SESSION_IDLE_MINUTES = 60;
 
     return {
         API_BASE_URL,
         PAGE_SIZE,
+        SESSION_IDLE_MINUTES,
         AUTH,
         API,
         UI,

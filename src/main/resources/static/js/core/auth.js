@@ -45,7 +45,7 @@ const Auth = (function() {
      */
     async function loadCurrentUser() {
         return new Promise((resolve, reject) => {
-            ApiClient.get(Config.API.auth.currentUser)
+            ApiClient.get(Config.API.auth.currentUser, { signInCheck: true })
                 .done(function(user) {
                     resolve(user);
                 })
