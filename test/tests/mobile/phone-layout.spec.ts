@@ -331,3 +331,66 @@ test.describe('Phone Home', () => {
     await expect(page.locator('.phone-home')).toHaveCount(0);
   });
 });
+
+/**
+ * U16-T05: every page each persona can open, at 390 x 844: nothing scrolls sideways (content may
+ * scroll inside its own box), wide tables are labelled cards, and buttons, tabs and fields are at
+ * least 44 px tall (a field inside a <label> is tapped through the label).
+ */
+test.describe('Phone sweep (every route, every persona)', () => {
+  test.describe.configure({ timeout: 300_000 });
+
+  for (const persona of ['admin-001', 'dev-user-001', 'user-001', 'user-002']) {
+    test(`${persona}: every route fits a phone`, async ({ page }) => {
+      test.skip(!devIds.admin, 'Needs the dev X-User-Id header (TEST_DEV_ADMIN_ID)');
+      await page.context().setExtraHTTPHeaders({ 'X-User-Id': persona });
+      await page.goto('/home');
+      await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+      await expect(page.locator('#content-area h1').first()).toBeVisible({ timeout: 15_000 });
+      const hashes: string[] = await page.evaluate(() => Array.from(new Set(ContentRouter._routeKeys()
+        .map((k: string) => { try { return ContentRouter.hashFor(k); } catch (e) { return null; } })
+        .filter(Boolean))));
+      hashes.push('#/environments/' + seededEnvId);
+
+      const problems: string[] = [];
+      for (const hash of hashes) {
+        await page.evaluate(h => { location.hash = h; }, hash);
+        await page.waitForLoadState('networkidle');
+        await page.waitForTimeout(500);
+        const found = await page.evaluate(w => {
+          const out: string[] = [];
+          if (document.documentElement.scrollWidth > w) out.push(`page is ${document.documentElement.scrollWidth}px wide`);
+          const scrollsInside = (el: Element) => {
+            for (let a = el.parentElement; a && a.id !== 'content-area'; a = a.parentElement) {
+              const o = getComputedStyle(a).overflowX;
+              if (o === 'auto' || o === 'scroll' || o === 'hidden') return true;
+            }
+            return false;
+          };
+          const name = (el: Element) => `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}.${String(el.className).trim().split(/\s+/).slice(0, 2).join('.')}`;
+          Array.from(document.querySelectorAll('#content-area *')).forEach(el => {
+            const r = el.getBoundingClientRect();
+            if (r.width > 0 && r.right > w + 1 && !scrollsInside(el)
+              && !Array.from(el.children).some(c => c.getBoundingClientRect().right > w + 1)) out.push(`${name(el)} ends at ${Math.round(r.right)}px`);
+          });
+          Array.from(document.querySelectorAll('#content-area table:not([data-cards="off"])')).forEach(t => {
+            const table = t as HTMLTableElement;
+            if (table.getBoundingClientRect().width === 0 || !table.tBodies.length) return;
+            if (table.scrollWidth > (table.parentElement as HTMLElement).clientWidth + 1) out.push(`${name(table)} scrolls sideways instead of showing cards`);
+          });
+          document.querySelectorAll('#content-area button:not(.btn-link), #content-area .btn:not(.btn-link), #content-area [role=tab], '
+            + '#content-area select, #content-area input:not([type=hidden]):not([type=checkbox]):not([type=radio])').forEach(el => {
+            const r = el.getBoundingClientRect();
+            if (r.width === 0 || r.height === 0 || getComputedStyle(el).visibility === 'hidden') return;
+            const target = el.tagName === 'INPUT' && el.parentElement!.tagName === 'LABEL' ? el.parentElement! : el;
+            const h = target.getBoundingClientRect().height;
+            if (h < 43.5) out.push(`${name(el)} is ${Math.round(h)}px tall`);
+          });
+          return out.slice(0, 5);
+        }, WIDTH);
+        found.forEach(f => problems.push(`${hash}: ${f}`));
+      }
+      expect(problems, problems.join('\n')).toEqual([]);
+    });
+  }
+});

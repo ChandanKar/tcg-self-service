@@ -73,11 +73,35 @@
     min-width: 84px;
 }
 
-/* Phones (E13-T05): 44px touch targets do not fit seven buttons on one line; let them wrap. */
+/* The page as "2 / 5" in place of the page numbers, on a phone only (U16-T05). */
+.pg-compact {
+    display: none;
+}
+
+/* Phones: first, previous, "2 / 5", next and last, each 44 px, on one line. */
 @media (max-width: 767.98px) {
     .pagination-controls {
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         justify-content: center;
+        align-items: center;
         width: 100%;
+    }
+
+    .pagination-controls .pg-num {
+        display: none;
+    }
+
+    .pg-compact {
+        display: inline-block;
+        min-width: 56px;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+        color: var(--text-secondary);
+    }
+
+    .pg-btn,
+    .pager-btn {
+        min-width: 44px;
+        min-height: 44px;
     }
 }

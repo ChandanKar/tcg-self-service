@@ -64,7 +64,7 @@ const Pagination = (function() {
         for (let i = rangeStart; i <= rangeEnd; i++) {
             const label = zeroIndexed ? i + 1 : i;
             const current = i === page ? ' aria-current="page"' : '';
-            pageButtons += `<button type="button" class="${BTN_CLASS} ${i === page ? 'active' : ''}" data-page="${i}" aria-label="Page ${label}"${current}>${label}</button>`;
+            pageButtons += `<button type="button" class="${BTN_CLASS} pg-num ${i === page ? 'active' : ''}" data-page="${i}" aria-label="Page ${label}"${current}>${label}</button>`;
         }
 
         const atFirst = page <= first;
@@ -76,6 +76,7 @@ const Pagination = (function() {
                 <button type="button" class="${BTN_CLASS}" data-page="${first}" ${atFirst ? 'disabled' : ''} title="First page" aria-label="First page"><i class="fas fa-angle-double-left" aria-hidden="true"></i></button>
                 <button type="button" class="${BTN_CLASS}" data-page="${page - 1}" ${atFirst ? 'disabled' : ''} title="Previous page" aria-label="Previous page"><i class="fas fa-chevron-left" aria-hidden="true"></i></button>
                 ${pageButtons}
+                <span class="pg-compact" aria-hidden="true">${displayPage} / ${totalPages}</span>
                 <button type="button" class="${BTN_CLASS}" data-page="${page + 1}" ${atLast ? 'disabled' : ''} title="Next page" aria-label="Next page"><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
                 <button type="button" class="${BTN_CLASS}" data-page="${last}" ${atLast ? 'disabled' : ''} title="Last page" aria-label="Last page"><i class="fas fa-angle-double-right" aria-hidden="true"></i></button>
             </div>

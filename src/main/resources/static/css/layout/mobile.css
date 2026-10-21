@@ -515,3 +515,27 @@ button.mobile-nav-item.active {
         font-size: 16px;
     }
 }
+
+/*
+ * U16-T05: 44px touch targets on a phone for the page's buttons, tabs, period/filter toggles and
+ * fields. Text links in sentences keep their size.
+ */
+@media (max-width: 768px) {
+    #content-area button:not(.btn-link),
+    #content-area .btn:not(.btn-link),
+    #content-area [role="tab"],
+    #content-area label:has(> input[type="search"]),
+    #content-area label:has(> input[type="text"]),
+    #content-area .form-control:not(textarea),
+    #content-area .form-select,
+    #content-area .filter-option,
+    #content-area .activity-period,
+    .no-access-btn {
+        min-height: 44px;
+    }
+
+    #content-area .form-check-input {
+        width: 22px;
+        height: 22px;
+    }
+}

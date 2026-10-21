@@ -5,6 +5,9 @@
  * `data-label` (see css/components/tables.css). Rather than repeat every header in every row's
  * markup, this fills in missing data-labels from the table's own <thead>, for tables rendered now
  * and for rows re-rendered later. Cells that already carry a data-label keep it.
+ *
+ * U16-T05: on a phone any other table in the page that would scroll sideways becomes cards too
+ * (class table-cards-auto, its first cell as the card's title). A table opts out with data-cards="off".
  */
 const TableCards = (function() {
     'use strict';
@@ -37,8 +40,23 @@ const TableCards = (function() {
         });
     }
 
+    const PHONE_QUERY = '(max-width: 767.98px)';
+
+    /** On a phone: page tables wider than their box (and shown) become cards. */
+    function autoCards() {
+        if (!window.matchMedia || !window.matchMedia(PHONE_QUERY).matches) return;
+        const area = document.getElementById('content-area');
+        if (!area) return;
+        area.querySelectorAll('table:not(.table-cards):not([data-cards="off"])').forEach(table => {
+            if (!table.tHead || !table.tBodies.length || !table.parentElement) return;
+            if (table.getBoundingClientRect().width === 0) return;   // in a hidden tab: checked when it shows
+            if (table.scrollWidth > table.parentElement.clientWidth + 1) table.classList.add('table-cards', 'table-cards-auto');
+        });
+    }
+
     /** Label every card table inside `root` (default: the whole document). */
     function label(root) {
+        autoCards();
         (root || document).querySelectorAll('table.table-cards').forEach(labelTable);
     }
 
@@ -54,7 +72,12 @@ const TableCards = (function() {
 
     function init() {
         label(document);
-        new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
+        // `hidden` too: a tab panel shown later may hold a wide table.
+        new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
+        if (window.matchMedia) {
+            const media = window.matchMedia(PHONE_QUERY);
+            if (media.addEventListener) media.addEventListener('change', schedule);
+        }
     }
 
     if (document.readyState === 'loading') {

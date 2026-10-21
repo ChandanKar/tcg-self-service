@@ -480,7 +480,7 @@ const VmRegistry = (function() {
             ? 'No node groups synced yet. Sync node groups now to bring them in.'
             : `No groups yet.${canAdministerCurrent() ? ' Add a group, then add VMs from AWS to it.' : ''}`}</td></tr></tbody>`;
         $('#vr-tree-wrap').html(`
-            <table class="vr-tree" id="vr-tree">
+            <table class="vr-tree" id="vr-tree" data-cards="off">
                 <thead><tr>
                     <th scope="col">Group / VM</th><th scope="col">Size</th><th scope="col">Start order</th>
                     <th scope="col">Notes</th><th scope="col"><span class="visually-hidden">Actions</span></th>
@@ -632,7 +632,7 @@ const VmRegistry = (function() {
             const total = result.totalElements || vms.length;
             const pager = total > VM_PAGE_SIZE ? `<tr class="vr-page-row"><td colspan="5">${Pagination.buildPager({ page: page + 1,
                 pageSize: VM_PAGE_SIZE, totalItems: total, action: 'vr-review-page', key: state })}</td></tr>` : '';
-            $list.html(`<table class="vr-tree vr-review-table">
+            $list.html(`<table class="vr-tree vr-review-table" data-cards="off">
                     <tbody>${vms.map(vm => vmRowHtml(vm, { showGroup: true })).join('')}${pager}</tbody>
                 </table>`);
         } catch (error) {
