@@ -49,7 +49,7 @@ async function openRegister(page: Page, rdsEnabled: boolean) {
   await page.evaluate(() => { location.hash = '#/vm-registry'; });
   await page.waitForFunction(() => typeof VmRegistry !== 'undefined' && (window as any).VmRegistryState?.environments?.length > 0);
   await page.evaluate(id => VmRegistry.manageGroups(id), ENV_ID);
-  await expect(page.locator('#manageGroupsModal')).toBeVisible();
+  await expect(page.locator('#vr-tree')).toBeVisible(); // U11-T03: the groups are on the page
   await page.evaluate(() => VmRegistry.openVmForm('g-data'));
   await expect(page.locator('#registerVmModal')).toBeVisible();
   return posts;

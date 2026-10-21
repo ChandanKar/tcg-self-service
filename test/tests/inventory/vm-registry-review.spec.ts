@@ -124,11 +124,11 @@ async function openRegistry(page: Page, fake: FakeRegistry) {
   await page.evaluate(() => { location.hash = '#/vm-registry'; });
   await page.waitForFunction(() => typeof VmRegistry !== 'undefined' && (window as any).VmRegistryState?.environments?.length > 0);
   await page.evaluate(id => VmRegistry.manageGroups(id), ENV_ID);
-  await expect(page.locator('#manageGroupsModal')).toBeVisible();
+  await expect(page.locator('#vr-tree')).toBeVisible();
   await expect(page.locator('#vrReviewCard')).toBeVisible();
 }
 
-const row = (page: Page, name: string) => page.locator('#groupsContentArea tr', { hasText: name });
+const row = (page: Page, name: string) => page.locator('#vr-tree tr', { hasText: name });
 const chip = (page: Page, text: string) => page.locator('#vrReviewArea [data-action="vr-review-state"]', { hasText: text });
 
 test.describe('VM registry review UI', () => {
@@ -136,21 +136,21 @@ test.describe('VM registry review UI', () => {
     test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
   });
 
-  test('badges and Needs-attention counts; Acknowledge clears a pending VM', async ({ page }) => {
+  test('notes and Needs-attention counts; Mark reviewed clears a pending VM', async ({ page }) => {
     const fake = new FakeRegistry();
     await openRegistry(page, fake);
 
     await expect(chip(page, 'Pending review (2)')).toBeVisible();
     await expect(chip(page, 'Drift (1)')).toBeVisible();
     await expect(chip(page, 'Removed or inactive (1)')).toBeVisible();
-    await expect(row(page, 'found-1').locator('.status-badge.review')).toHaveText(/Pending review/);
-    await expect(row(page, 'web-1').locator('.status-badge.drift')).toHaveText(/Drift/);
+    await expect(row(page, 'found-1').locator('.vr-note.vr-warn')).toHaveText('Found by discovery');
+    await expect(row(page, 'web-1').locator('.vr-note.vr-warn')).toHaveText('State changed outside the platform');
     await expect(row(page, 'web-2').locator('[data-action="vr-ack-vm"]')).toHaveCount(0);
 
     await row(page, 'found-1').locator('[data-action="vr-ack-vm"]').click();
 
     await expect(chip(page, 'Pending review (1)')).toBeVisible();
-    await expect(row(page, 'found-1').locator('.status-badge.review')).toHaveCount(0);
+    await expect(row(page, 'found-1').locator('.vr-note.vr-warn')).toHaveCount(0);
   });
 
   test('Move takes a pending VM out of Auto-Discovered without a page reload', async ({ page }) => {
@@ -165,8 +165,8 @@ test.describe('VM registry review UI', () => {
 
     await expect(page.locator('#moveVmModal')).toBeHidden();
     expect(fake.moves).toEqual([{ targetGroupId: 'g-web' }]);
-    await expect(page.locator('div.card[data-group-id="g-disc"] tr', { hasText: 'found-2' })).toHaveCount(0);
-    await expect(page.locator('div.card[data-group-id="g-web"]')).toContainText('27/27 VMs');
+    await expect(page.locator('tbody[data-group-id="g-disc"] tr', { hasText: 'found-2' })).toHaveCount(0);
+    await expect(page.locator('tbody[data-group-id="g-web"] .vr-count')).toHaveText('27 VMs');
     expect(await page.evaluate(() => (window as any).__noReload)).toBe(true);
   });
 
@@ -191,12 +191,15 @@ test.describe('VM registry review UI', () => {
     const fake = new FakeRegistry();
     await openRegistry(page, fake);
 
-    await page.locator('[data-group-id="g-web"] [data-action="vr-group-vm-page"]', { hasText: 'Next' }).click();
-    await row(page, 'web-26').locator('[data-action="vr-edit-vm"]').click();
+    // U11-T03: a group shows 10 VMs at a time.
+    await expect(page.locator('tbody[data-group-id="g-web"] .vr-vm-row')).toHaveCount(10);
+    await page.locator('tbody[data-group-id="g-web"] [data-action="vr-group-page"]', { hasText: 'Next' }).click();
+    await expect(page.locator('tbody[data-group-id="g-web"] .pager-range')).toHaveText('11–20 of 26');
+    await row(page, 'web-12').locator('[data-action="vr-edit-vm"]').click();
 
     await expect(page.locator('#registerVmModal')).toBeVisible();
-    await expect(page.locator('#vmName')).toHaveValue('web-26');
-    await expect(page.locator('#vmSequencePosition')).toHaveValue('26');
+    await expect(page.locator('#vmName')).toHaveValue('web-12');
+    await expect(page.locator('#vmSequencePosition')).toHaveValue('12');
   });
 
   test('at phone width the review strip wraps and nothing scrolls the page sideways', async ({ page }) => {
@@ -221,5 +224,116 @@ test.describe('VM registry review UI', () => {
 
     await expect(page.getByText(/Remove "WEB-3" from the platform\? Its history is kept and discovery will ignore this instance/))
       .toBeVisible();
+  });
+});
+
+/**
+ * U11-T03 (VmRegistry.dc.html): the environments on the left (8 a page), the selected one's groups
+ * and VMs on the right, the selection in the address, and a banner for what needs a look. The
+ * environment list, each environment's groups and the review summary are faked in the browser.
+ */
+test.describe('VM registry layout', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+  });
+
+  const envs = Array.from({ length: 21 }, (_, i) => ({
+    environmentId: `env-l${String(i + 1).padStart(2, '0')}`, name: `layout-${i + 1}`, displayName: `Layout ${String(i + 1).padStart(2, '0')}`,
+    isActive: true, serviceType: 'EC2', groupCount: 2, vmCount: 3, viewerCanAdminister: true,
+    groupStates: [{ groupId: 'g1', sequencePosition: 1, running: 2, busy: 0, stopped: 0, failed: 0, unknown: 0 },
+      { groupId: 'g2', sequencePosition: 2, running: 0, busy: 0, stopped: 1, failed: 0, unknown: 0 }],
+  }));
+
+  async function fakeList(page: Page, summary: unknown[] = []) {
+    const json = (route: Route, body: unknown) => route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
+    await page.route(/\/api\/v1\/environments(\?.*)?$/, route => route.request().method() === 'GET' ? json(route, envs) : route.continue());
+    await page.route(/\/api\/v1\/environments\/review-summary$/, route => json(route, summary));
+    await page.route(/\/api\/v1\/environments\/env-l\d+\/vms\/review\/counts$/, route => json(route, { drift: 1, pending: 0, inactive: 0 }));
+    await page.route(/\/api\/v1\/environments\/env-l\d+\/vms\/review\?/, route => json(route,
+      { content: [], page: { size: 10, number: 0, totalElements: 0, totalPages: 1 } }));
+    await page.route(/\/api\/v1\/environments\/env-l\d+\/vms$/, route => {
+      const db = { groupId: 'g-db', name: 'db', displayName: 'Database', sequencePosition: 1, dependsOnGroupIds: [], vmCount: 1 };
+      const app = { groupId: 'g-app', name: 'app', displayName: 'Application', sequencePosition: 2, dependsOnGroupIds: ['g-db'], vmCount: 40 };
+      const vmOf = (n: number, patch = {}) => ({ vmId: `vm-${n}`, name: `app-${n}`, displayName: `app-${n}`, groupId: 'g-app',
+        instanceType: 'm6i.large', isActive: true, status: 'RUNNING', provider: 'AWS', ...patch });
+      return json(route, [
+        { group: db, vms: [{ vmId: 'vm-db', name: 'pay-db', displayName: 'pay-db', groupId: 'g-db', instanceType: 'r6g.large',
+          isActive: true, status: 'RUNNING', provider: 'AWS', stateDriftDetected: true }] },
+        { group: app, vms: Array.from({ length: 25 }, (_, i) => vmOf(i + 1)) },
+      ]);
+    });
+  }
+
+  async function open(page: Page, hash = '#/vm-registry') {
+    await signIn(page, 'admin');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate(h => { location.hash = h; }, hash);
+    await expect(page.locator('#vr-tree')).toBeVisible({ timeout: 15_000 });
+  }
+
+  test('8 environments a page, the first selected with its groups and VMs, the selection in the address', async ({ page }) => {
+    await fakeList(page);
+    await open(page);
+
+    await expect(page.locator('#vr-env-list .vr-env')).toHaveCount(8);
+    await expect(page.locator('#vm-registry-pagination .pager-range')).toHaveText('1–8 of 21');
+    await expect(page.locator('.vr-env[aria-current="true"] .vr-env-name')).toHaveText('Layout 01');
+    await expect(page.locator('.vr-env').first().locator('.vr-env-meta')).toHaveText('layout-1 · 2 groups · 3 VMs');
+    await expect(page.locator('.vr-env').first().locator('.power-strip')).toBeVisible();
+    await expect(page.locator('#vr-sel-title')).toHaveText('Layout 01');
+    await expect(page).toHaveURL(/#\/vm-registry\?env=env-l01$/);
+
+    // The tree: groups in start order with what they wait for, VMs indented with size and notes.
+    await expect(page.locator('.vr-group-row .vr-order')).toHaveText(['1st', '2nd · after Database']);
+    const db = page.locator('.vr-vm-row', { hasText: 'pay-db' });
+    await expect(db.locator('.vr-size')).toHaveText('r6g.large');
+    await expect(db.locator('.vr-note.vr-warn')).toHaveText('State changed outside the platform');
+    await expect(page.locator('tbody[data-group-id="g-app"] .vr-vm-row')).toHaveCount(10);
+    await expect(page.locator('tbody[data-group-id="g-app"] .pager-range')).toHaveText('1–10 of 40');
+
+    await page.locator('#vm-registry-pagination [data-action="vr-env-page"]', { hasText: 'Next' }).click();
+    await expect(page.locator('#vm-registry-pagination .pager-range')).toHaveText('9–16 of 21');
+    await page.locator('.vr-env', { hasText: 'Layout 12' }).click();
+    await expect(page.locator('#vr-sel-title')).toHaveText('Layout 12');
+    await expect(page).toHaveURL(/#\/vm-registry\?env=env-l12$/);
+
+    // Opening the address again opens that environment, on its page of the list.
+    await page.reload();
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await expect(page.locator('#vr-sel-title')).toHaveText('Layout 12', { timeout: 15_000 });
+    await expect(page.locator('#vm-registry-pagination .pager-range')).toHaveText('9–16 of 21');
+
+    await page.locator('#searchEnvironments').fill('layout 2');
+    await expect(page.locator('#vr-env-list .vr-env')).toHaveCount(2); // Layout 20 and 21
+    await expect(page.locator('#vr-sel-title')).toHaveText('Layout 20');
+  });
+
+  test('fits 1440x900 without a page scrollbar', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await fakeList(page);
+    await open(page);
+    const overflow = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
+
+  test('the banner adds up what needs a look and Review them opens the first environment on that list', async ({ page }) => {
+    await fakeList(page, [{ environmentId: 'env-l12', name: 'Layout 12', drift: 1, pending: 0 },
+      { environmentId: 'env-l03', name: 'Layout 03', drift: 0, pending: 2 }]);
+    await open(page);
+
+    await expect(page.locator('.vr-banner')).toHaveText(/3 VMs need a look:\s+1 changed outside the platform, 2 found in AWS and not in a group\.\s+Review them/);
+    await page.locator('.vr-banner').click();
+    await expect(page.locator('#vr-sel-title')).toHaveText('Layout 12');
+    await expect(page.locator('#vrReviewArea [data-action="vr-review-state"][aria-pressed="true"]')).toHaveText(/Drift/);
+  });
+
+  test('users get the no-access page and no registry controls', async ({ page }) => {
+    test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
+    await signIn(page, 'user');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate(() => { location.hash = '#/vm-registry'; });
+    await expect(page.locator('[data-no-access] h1').first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('[data-action="vr-create-environment"], [data-action="vr-edit-environment"], [data-action="vr-delete-environment"]'))
+      .toHaveCount(0);
   });
 });

@@ -1,120 +1,387 @@
 /**
- * VM Registry Feature Styles
- * Admin > VM Registry view — environments, groups, and VMs management table.
- * Mirrors Dashboard table layout and density.
+ * VM Registry Feature Styles (U11-T03, VmRegistry.dc.html)
+ * The environments on the left, the selected one's groups and VMs on the right.
  */
 
-/* ── Top-level container: fills #content-area exactly like #dashboard-view ── */
-.vm-registry-container {
+.vr-page {
     display: flex;
     flex-direction: column;
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
-}
-/* Prevent header & filter row from shrinking when card grows */
-.vm-registry-container > .content-header,
-.vm-registry-container > .row {
-    flex-shrink: 0;
+    gap: 16px;
 }
 
-/* ── Container & Card ── */
-.vm-registry-container .card {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    overflow: hidden;
-}
-.vm-registry-card-body {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    overflow: hidden;
-    padding: 0.4rem 0.6rem 0.3rem !important;
-}
-
-/* ── Scrollable Table Wrapper ── */
-.vm-registry-table-wrapper {
-    flex: 1;
-    overflow-y: auto;
-    min-height: 0;
-}
-/* Scrollbar — see main.css for the shared ::-webkit-scrollbar rules */
-.vm-registry-table-wrapper #environmentsTableWrapper {
-    height: 100%;
-}
-
-/* Table fills wrapper height so filler row can expand */
-.vm-registry-table-wrapper #environmentsTableWrapper .table {
-    table-layout: fixed;
-    width: 100%;
-    height: 100%;
+.vr-page .content-header {
     margin-bottom: 0;
 }
-.vm-registry-table-wrapper #environmentsTableWrapper .table tbody {
-    height: 100%;
+
+/* ── Needs a look ── */
+.vr-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 16px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
+    font: inherit;
+    font-size: var(--fs-body);
+    text-align: left;
+    cursor: pointer;
 }
 
-/* Sticky header — matches Dashboard */
-.vm-registry-table-wrapper #environmentsTableWrapper .table thead {
-    position: sticky;
-    top: 0;
-    z-index: 1;
+.vr-banner:hover,
+.vr-banner:focus-visible {
+    box-shadow: inset 0 0 0 1px var(--brand-gold-line);
+}
+
+.vr-banner-dot {
+    flex-shrink: 0;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--brand-gold);
+}
+
+.vr-banner-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.vr-banner b {
+    font-weight: 600;
+}
+
+/* ── Two panes ── */
+.vr-grid {
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.vr-master,
+.vr-detail {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+/* ── Environment list ── */
+.vr-master-tools {
+    display: flex;
+    gap: 8px;
+    padding: 10px;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.vr-search {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    height: 34px;
+    margin: 0;
+    padding: 0 10px;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    color: var(--text-secondary);
+}
+
+.vr-search:focus-within {
+    border-color: var(--brand-navy);
+}
+
+.vr-search input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    font: inherit;
+    font-size: var(--fs-body);
+    color: var(--ink);
+}
+
+.vr-master-tools .form-select {
+    width: auto;
+    height: 34px;
+    padding-top: 0;
+    padding-bottom: 0;
+    font-size: var(--fs-small);
+}
+
+.vr-env {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 12px;
+    border: 0;
+    border-top: 1px solid var(--line-soft);
+    background: #fff;
+    font: inherit;
+    color: var(--ink);
+    text-align: left;
+    cursor: pointer;
+}
+
+.vr-env:first-child {
+    border-top: 0;
+}
+
+.vr-env:hover {
     background: var(--surface-subtle);
 }
 
-/* Pagination bar — see components/pagination.css for .pagination-bar-wrap */
-
-/* ── Column Widths ── */
-#environmentsTable thead th:nth-child(1),
-#environmentsTable tbody td:nth-child(1) { width: 40%; text-align: left; }
-#environmentsTable thead th:nth-child(2),
-#environmentsTable tbody td:nth-child(2) { width: 20%; }
-#environmentsTable thead th:nth-child(3),
-#environmentsTable tbody td:nth-child(3) { width: 10%; }
-#environmentsTable thead th:nth-child(4),
-#environmentsTable tbody td:nth-child(4) { width: 7%; }
-#environmentsTable thead th:nth-child(5),
-#environmentsTable tbody td:nth-child(5) { width: 8%; }
-#environmentsTable thead th:nth-child(6),
-#environmentsTable tbody td:nth-child(6) { width: 13%; }
-#environmentsTable thead th:nth-child(7),
-#environmentsTable tbody td:nth-child(7) {
-    white-space: nowrap;
-    width: 130px;
+.vr-env[aria-current="true"] {
+    background: var(--brand-navy-tint);
+    box-shadow: inset 3px 0 0 var(--brand-gold);
 }
 
-/* ── Action Buttons ── */
-#environmentsTable tbody td:last-child .btn {
-    height: 28px;
-    padding: 0.18rem 0.5rem;
-    font-size: 0.81rem;
+.vr-env:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: -2px;
 }
-#environmentsTable tbody td:last-child .btn + .btn { margin-left: 4px; }
 
-/* ── Table Typography & Spacing — match Dashboard baseline (uses CSS variables) ── */
-.vm-registry-table-wrapper .table td,
-.vm-registry-table-wrapper .table th {
-    padding: var(--table-cell-padding, 0.28rem 0.55rem);
-    font-size: var(--table-body-font, 0.81rem);
-    vertical-align: middle;
-    line-height: 1.5;
+.vr-env-text {
+    flex: 1;
+    min-width: 0;
 }
-.vm-registry-table-wrapper .table thead th {
-    font-size: var(--table-header-font, 0.7rem);
+
+.vr-env-name {
+    display: block;
+    overflow: hidden;
+    font-size: var(--fs-body);
     font-weight: 600;
-    letter-spacing: 0.03em;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
-/* ── Filler Row — expands to fill leftover vertical space (same as Dashboard) ── */
-.vm-registry-filler-row {
-    height: 100%;
+.vr-env-meta {
+    display: block;
+    overflow: hidden;
+    font-size: var(--fs-caption);
+    color: var(--text-secondary);
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
-.vm-registry-filler-row td {
-    border: none !important;
-    background: transparent !important;
-    padding: 0 !important;
-    pointer-events: none;
+
+.vr-master-pager .pager {
+    padding: 8px 12px;
+    border-top: 1px solid var(--line-soft);
+}
+
+.vr-empty {
+    padding: 20px 16px;
+    font-size: var(--fs-body);
+    color: var(--text-secondary);
+}
+
+/* ── Selected environment ── */
+.vr-detail {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - var(--topnav-height, 56px) - 210px);
+    min-height: 240px;
+}
+
+.vr-detail-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.vr-detail-title {
+    flex: 1;
+    min-width: 180px;
+}
+
+.vr-detail-title h2 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+}
+
+.vr-detail-meta {
+    font-family: var(--font-mono);
+    font-size: var(--fs-caption);
+    color: var(--text-secondary);
+}
+
+.vr-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--fs-small);
+    color: var(--brand-navy);
+    cursor: pointer;
+}
+
+.vr-link:hover {
+    text-decoration: underline;
+}
+
+.vr-link:disabled {
+    color: var(--text-secondary);
+    cursor: default;
+    text-decoration: none;
+}
+
+.vr-danger,
+.vr-danger:hover {
+    color: var(--brand-red-text);
+}
+
+.vr-review:empty {
+    display: none;
+}
+
+.vr-review {
+    padding: 10px 18px 0;
+}
+
+.vr-review .card {
+    margin-bottom: 10px !important;
+}
+
+/* ── Groups and VMs ── */
+.vr-tree-wrap {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+}
+
+.vr-tree {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--fs-body);
+}
+
+.vr-tree thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 9px 10px;
+    background: var(--surface-subtle);
+    font-size: var(--fs-small);
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.vr-tree thead th:first-child {
+    padding-left: 18px;
+}
+
+.vr-tree td,
+.vr-tree tbody th {
+    padding: 9px 10px;
+    border-top: 1px solid var(--line-soft);
+    vertical-align: middle;
+}
+
+.vr-tree .vr-name {
+    padding-left: 18px;
+}
+
+.vr-tree .vr-indent {
+    padding-left: 34px;
+}
+
+.vr-group-row {
+    background: var(--surface-subtle);
+}
+
+.vr-group-row th {
+    font-weight: 600;
+}
+
+.vr-count {
+    margin-left: 6px;
+    font-size: var(--fs-caption);
+    font-weight: 400;
+    color: var(--text-secondary);
+}
+
+.vr-size {
+    font-family: var(--font-mono);
+    font-size: var(--fs-small);
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+.vr-order {
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+.vr-note {
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.vr-note.vr-warn {
+    color: var(--brand-gold-text);
+}
+
+.vr-muted,
+.vr-removed .vr-name {
+    color: var(--text-secondary);
+}
+
+.vr-actions {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.vr-act {
+    margin-left: 12px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--fs-small);
+    color: var(--brand-navy);
+    cursor: pointer;
+}
+
+.vr-act:hover {
+    text-decoration: underline;
+}
+
+.vr-act:disabled {
+    color: var(--text-secondary);
+    cursor: default;
+    text-decoration: none;
+}
+
+.vr-act.vr-danger:not(:disabled) {
+    color: var(--brand-red-text);
+}
+
+.vr-page-row td {
+    padding: 4px 18px 4px 34px;
+}
+
+/* ── Phone: the list above, the selected environment below ── */
+@media (max-width: 767.98px) {
+    .vr-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .vr-detail {
+        max-height: none;
+    }
+
+    .vr-tree {
+        min-width: 640px;
+    }
 }

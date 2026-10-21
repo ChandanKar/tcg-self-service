@@ -47,10 +47,13 @@ test.describe('VM registry follows what the server allows', () => {
     await page.evaluate(() => { location.hash = '#/vm-registry'; });
     await page.waitForFunction(() => typeof VmRegistry !== 'undefined' && (window as any).VmRegistryState?.environments?.length > 0);
 
-    const mineRow = page.locator(`tr[data-env-id="${mine.environmentId}"]`);
-    const otherRow = page.locator(`tr[data-env-id="${other.environmentId}"]`);
-    await expect(mineRow.locator('[data-action="vr-edit-environment"]')).toBeVisible();
-    await expect(otherRow.locator('[data-action="vr-edit-environment"]')).toHaveCount(0);
-    await expect(otherRow).toContainText('View only');
+    // U11-T03: the selected environment's header carries the change controls.
+    await page.evaluate(id => VmRegistry.selectEnvironment(id), mine.environmentId);
+    await expect(page.locator('#vr-sel-title')).toHaveText(`Caps mine ${stamp}`);
+    await expect(page.locator('#vr-detail-head [data-action="vr-edit-environment"]')).toBeVisible();
+    await expect(page.locator('#vr-detail-head [data-action="vr-delete-environment"]')).toBeVisible();
+    await page.evaluate(id => VmRegistry.selectEnvironment(id), other.environmentId);
+    await expect(page.locator('#vr-sel-title')).toHaveText(`Caps other ${stamp}`);
+    await expect(page.locator('#vr-detail-head [data-action]')).toHaveCount(0);
   });
 });
