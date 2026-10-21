@@ -126,6 +126,10 @@ const Config = (function() {
             list: (envId) => `${API_BASE_URL}/environments/${envId}/vms`,
             get: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}`,
             register: (envId) => `${API_BASE_URL}/environments/${envId}/vms`,
+            // Add VMs from AWS (U11-T01): candidates with their status here, and several into one group
+            candidates: (envId, params = {}) => `${API_BASE_URL}/environments/${envId}/vms/candidates?`
+                + new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '')).toString(),
+            batchRegister: (envId) => `${API_BASE_URL}/environments/${envId}/vms/batch`,
             update: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}`,
             delete: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}`,
             inventory: (envId, vmId) => `${API_BASE_URL}/environments/${envId}/vms/${vmId}/inventory`,

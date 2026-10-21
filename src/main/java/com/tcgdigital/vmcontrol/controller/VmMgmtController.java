@@ -61,6 +61,7 @@ public class VmMgmtController {
     private final EnvironmentService environmentService;
 
     private final com.tcgdigital.vmcontrol.service.VmAdviceService adviceService;
+    private final com.tcgdigital.vmcontrol.service.VmCandidateService candidateService;
 
     public VmMgmtController(VmService vmService, VmGroupService groupService,
                              SecurityService securityService, UserService userService,
@@ -68,7 +69,8 @@ public class VmMgmtController {
                              VmMetricsService metricsService,
                              VmListDetailsService detailsService,
                              EnvironmentService environmentService,
-                             com.tcgdigital.vmcontrol.service.VmAdviceService adviceService) {
+                             com.tcgdigital.vmcontrol.service.VmAdviceService adviceService,
+                             com.tcgdigital.vmcontrol.service.VmCandidateService candidateService) {
         this.vmService = vmService;
         this.groupService = groupService;
         this.securityService = securityService;
@@ -78,6 +80,7 @@ public class VmMgmtController {
         this.detailsService = detailsService;
         this.environmentService = environmentService;
         this.adviceService = adviceService;
+        this.candidateService = candidateService;
     }
 
     @GetMapping
@@ -380,6 +383,56 @@ public class VmMgmtController {
         Vm created = vmService.registerVm(dto, userService.getCurrentUserId(), userService.isCurrentUserAdmin());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(detailsService.toDto(created));
+    }
+
+    @GetMapping("/candidates")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(
+            summary = "Instances that can be added to the environment (U11-T01)",
+            description = "The EC2 instances (source=EC2) or RDS databases (source=RDS) of the account and region, each "
+                    + "with an opaque reference to add it by, its name, size, zone, IP and state, and what it is to this "
+                    + "environment: AVAILABLE, DISCOVERED_UNGROUPED (found by discovery here; adding moves it), "
+                    + "IN_ENVIRONMENT, STALE or REMOVED. Cloud ids are included for administrators only."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "The candidates",
+                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = com.tcgdigital.vmcontrol.dto.VmCandidateDTO.class)))),
+            @ApiResponse(responseCode = "403", description = "Not an admin of this environment"),
+            @ApiResponse(responseCode = "404", description = "Environment not found, or RDS support is off")
+    })
+    public ResponseEntity<List<com.tcgdigital.vmcontrol.dto.VmCandidateDTO>> listCandidates(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId,
+            @Parameter(description = "AWS region", example = "ap-south-1") @RequestParam String region,
+            @Parameter(description = "AWS account ref; the default account when omitted") @RequestParam(required = false) String accountRef,
+            @Parameter(description = "EC2 (default) or RDS") @RequestParam(defaultValue = "EC2")
+            com.tcgdigital.vmcontrol.service.VmCandidateService.Source source) {
+        securityService.assertCanAdminister(environmentId);
+        return ResponseEntity.ok(candidateService.listCandidates(environmentId, source, region, accountRef,
+                userService.getCurrentUserId()));
+    }
+
+    @PostMapping("/batch")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(
+            summary = "Add several instances to a group (U11-T01)",
+            description = "Registers the picked candidates (by reference) in one group of the environment, or in a new "
+                    + "group made at the end of the start order, after the group's current VMs. A VM found by discovery "
+                    + "in this environment is moved there instead. All or nothing: an instance already in an environment "
+                    + "refuses the batch, naming it."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "The VMs added",
+                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = VmDTO.class)))),
+            @ApiResponse(responseCode = "400", description = "An instance is already registered, a reference is out of date, or the input is invalid"),
+            @ApiResponse(responseCode = "403", description = "Not an admin of this environment")
+    })
+    public ResponseEntity<List<VmDTO>> registerBatch(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId,
+            @Valid @RequestBody com.tcgdigital.vmcontrol.dto.BatchRegisterVmsDTO dto) {
+        securityService.assertCanAdminister(environmentId);
+        List<Vm> added = candidateService.registerBatch(environmentId, dto, userService.getCurrentUserId());
+        candidateService.tagNewVmsSafely(environmentId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(added.stream().map(detailsService::toDto).toList());
     }
 
     @PutMapping("/{vmId}")
