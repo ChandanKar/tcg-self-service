@@ -35,6 +35,40 @@ test.describe('Toasts and modals', () => {
     expect(await page.evaluate(() => Utils.escapeHtml(0))).toBe('0');
   });
 
+  test('toasts: bottom right, 6 s unless hovered, errors stay until closed, one action (U17-T03)', async ({ page }) => {
+    test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
+    await signIn(page, 'user');
+    await page.waitForFunction(() => typeof Notifications !== 'undefined');
+
+    const [held, quick, broke] = await page.evaluate(() => [
+      Notifications.success('Access given to 4 people on 2 environments.'),
+      Notifications.success('Payments Dev is starting.'),
+      Notifications.error("Couldn't stop CRM UAT: Rahul Verma holds the lock until 14:30."),
+    ]);
+    const viewport = page.viewportSize()!;
+    const box = await page.locator('#notification-container').boundingBox();
+    expect(box!.x + box!.width).toBeGreaterThan(viewport.width - 40);
+    expect(box!.y + box!.height).toBeGreaterThan(viewport.height - 60);
+
+    await page.locator(`#${held}`).hover();
+    await expect(page.locator(`#${broke}`)).toHaveAttribute('role', 'alert');
+    await page.waitForTimeout(6_800);
+    await expect(page.locator(`#${quick}`)).toHaveCount(0);
+    await expect(page.locator(`#${held}`)).toBeVisible();          // paused while hovered
+    await expect(page.locator(`#${broke}`)).toBeVisible();         // errors stay until closed
+    await page.locator(`#${broke} .toast-close`).click();
+    await expect(page.locator(`#${broke}`)).toHaveCount(0);
+
+    const watch = await page.evaluate(() => {
+      (window as any).watched = 0;
+      return Notifications.info('Payments Dev is starting. Database first.', undefined,
+        { action: { label: 'Watch', onClick: () => { (window as any).watched++; } } });
+    });
+    await page.locator(`#${watch}`).getByRole('button', { name: 'Watch' }).click();
+    await expect(page.locator(`#${watch}`)).toHaveCount(0);
+    expect(await page.evaluate(() => (window as any).watched)).toBe(1);
+  });
+
   test('opening and closing the group dialog five times leaves no stray backdrop', async ({ page }) => {
     test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
     await signIn(page, 'admin');

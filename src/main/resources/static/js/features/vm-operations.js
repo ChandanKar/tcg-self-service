@@ -367,6 +367,10 @@ const VmOperations = (function() {
         renderStages(execution);
 
         const finished = OperationStages.statusText(execution);
+        $('#progress-result').remove();
+        if (finished && (execution.status === 'PARTIAL_SUCCESS') && partlyDone(execution).failures.length) {
+            $('#progress-status-text').after(`<div id="progress-result">${partialBlock(execution)}</div>`);
+        }
         if (finished) {
             const tone = execution.status === 'COMPLETED' ? 'done' : execution.status === 'CANCELLED' ? 'cancelled'
                 : execution.status === 'FAILED' ? 'failed' : 'problems';
@@ -388,6 +392,54 @@ const VmOperations = (function() {
             $live.text('Getting ready…');
         }
         $('#btn-cancel-operation').prop('hidden', !RUNNING_STATUSES.includes(execution.status));
+    }
+
+    /** What ran and what did not, from the steps: {opType, verb, didnt, done, total, failures}. */
+    function partlyDone(execution) {
+        const up = v => String(v || '').toUpperCase();
+        const steps = (execution && execution.details || []).filter(s => !s.targetType || up(s.targetType) === 'VM');
+        const opType = up(execution && execution.operationType) === 'STOP' ? 'STOP' : 'START';
+        return {
+            opType,
+            verb: opType === 'STOP' ? 'Stopped' : 'Started',
+            didnt: opType === 'STOP' ? 'stop' : 'start',
+            done: steps.filter(s => up(s.status) === 'COMPLETED').length,
+            total: steps.length,
+            failures: steps.filter(s => up(s.status) === 'FAILED')
+                .map(s => ({ vmId: s.targetId, name: s.targetName || s.targetId || 'A VM', reason: s.errorMessage || '' }))
+        };
+    }
+
+    /** The environment as the confirm dialog and the history panel need it. */
+    function envOf(execution) {
+        return { environmentId: execution.environmentId, name: execution.environmentName, displayName: execution.environmentName, groups: [] };
+    }
+
+    /** "Started 5 of 6 VMs. pay-api-02 didn't start: …" with Retry pay-api-02 and See steps (U17-T03). */
+    function partialBlock(execution) {
+        const p = partlyDone(execution);
+        const env = envOf(execution);
+        return UiStates.partial({
+            verb: p.verb, didnt: p.didnt, done: p.done, total: p.total,
+            failures: p.failures.map(f => Object.assign({}, f, { onRetry: () => retryVm(env, p.opType, f) })),
+            onSteps: () => seeSteps(env)
+        });
+    }
+
+    /** Retry one VM: the progress dialog closes and the start (or stop) confirm opens for that VM. */
+    function retryVm(env, opType, vm) {
+        Modals.hide('operationProgressModal');
+        if (typeof OperationConfirm === 'undefined') return;
+        OperationConfirm.open({
+            env, opType, scope: { level: 'vm', vmId: vm.vmId, name: vm.name },
+            onConfirm: minutes => opType === 'STOP' ? stopVm(env.environmentId, vm.vmId, vm.name)
+                : startVm(env.environmentId, vm.vmId, vm.name, minutes)
+        });
+    }
+
+    function seeSteps(env) {
+        Modals.hide('operationProgressModal');
+        if (typeof OperationHistory !== 'undefined') OperationHistory.open(env);
     }
 
     function toMillis(ts) {
@@ -458,11 +510,15 @@ const VmOperations = (function() {
                         if (operation) {
                             operation.state = 'completed';
                         }
-                        const details = execution.details || [];
-                        const anyFailed = details.some(s => (s.status || '').toUpperCase() === 'FAILED');
-                        Notifications.warning(anyFailed
-                            ? 'Operation completed with some failures. Check the details for more information.'
-                            : 'Operation completed. Some steps were skipped because a dependency did not start.');
+                        // U17-T03: say what ran and why the rest did not, with See steps.
+                        const p = partlyDone(execution);
+                        if (p.failures.length) {
+                            const why = p.failures.map(f => `${f.name} didn't ${p.didnt}${f.reason ? `: ${f.reason.replace(/\.$/, '')}` : ''}.`).join(' ');
+                            Notifications.warning(`${p.verb} ${p.done} of ${p.total} VMs. ${why}`, undefined,
+                                { action: { label: 'See steps', onClick: () => seeSteps(envOf(execution)) } });
+                        } else {
+                            Notifications.warning('Done, but some VMs were skipped because a VM they wait for did not start.');
+                        }
                         resolve(execution);
                     } else if (execution.status === 'FAILED') {
                         stopThis();

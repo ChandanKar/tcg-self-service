@@ -92,3 +92,24 @@ test('loading: outlines shaped like the content, delayed 300 ms by the ui-loadin
     assert.match(css, /\.ui-loading,[\s\S]*?animation: ui-loading-appear 0s linear 300ms both;/);
     assert.match(css, /prefers-reduced-motion: reduce/);
 });
+
+test('partly done: what ran, why each other VM did not, a retry per VM and See steps (U17-T03)', () => {
+    const { S, handlers } = load();
+    let retried = '';
+    let steps = 0;
+    const out = S.partial({ verb: 'Started', didnt: 'start', done: 5, total: 6,
+        failures: [{ name: 'pay-api-02', reason: 'AWS has no capacity for that size in ap-south-1a right now.', onRetry: () => { retried = 'pay-api-02'; } }],
+        onSteps: () => { steps++; } });
+    assert.match(out, /role="alert"/);
+    assert.match(out, /class="ui-state-title">Started 5 of 6 VMs\.</);
+    assert.ok(out.includes("pay-api-02 didn&#39;t start: AWS has no capacity for that size in ap-south-1a right now.")
+        || out.includes("pay-api-02 didn't start: AWS has no capacity for that size in ap-south-1a right now."));
+    assert.match(out, />Retry pay-api-02</);
+    assert.match(out, />See steps</);
+    const ids = [...out.matchAll(/data-ui-cb="(\d+)"/g)].map(m => m[1]);
+    assert.equal(ids.length, 2);
+    ids.forEach(id => handlers['ui-state-callback']({ getAttribute: () => id }));
+    assert.equal(retried, 'pay-api-02');
+    assert.equal(steps, 1);
+    assert.ok(!out.includes('ui-state-glyph'));
+});

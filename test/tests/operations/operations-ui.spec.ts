@@ -221,6 +221,18 @@ test.describe('Operations UI', () => {
     await expect(page.locator('#btn-cancel-operation')).toBeHidden();
     await expect(page.locator('#btn-close-progress')).toHaveText('Close');
     await expect(page.locator('.op-progress-time')).toHaveText('2:20 in all');
+
+    // U17-T03: partly done says what ran, why the rest did not, a retry for that VM and See steps.
+    const result = page.locator('#progress-result .ui-state-partial');
+    await expect(result).toHaveAttribute('role', 'alert');
+    await expect(result.locator('.ui-state-title')).toHaveText('Started 3 of 4 VMs.');
+    await expect(result.locator('.ui-state-text')).toHaveText("crm-api-01 didn't start: AWS has no m5.large capacity in eu-west-1a right now.");
+    await expect(result.getByRole('button', { name: 'Retry crm-api-01' })).toBeVisible();
+    const toast = page.locator('#notification-container .toast-warning').last();
+    await expect(toast).toContainText("Started 3 of 4 VMs. crm-api-01 didn't start");
+    await expect(toast.getByRole('button', { name: 'See steps' })).toBeVisible();
+    await result.getByRole('button', { name: 'See steps' }).click();
+    await expect(page.locator('#dynamicSlideoutPanel[data-variant="op-history"]')).toBeVisible();
   });
 
   test('U08-T04: the history panel pages runs, names who started them, expands steps, retries a failed VM and cancels', async ({ page }) => {

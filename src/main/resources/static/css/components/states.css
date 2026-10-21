@@ -71,6 +71,20 @@
     color: var(--slate);
 }
 
+/* Partly done: like couldn't-load, with a gold rule (U17-T03). */
+.ui-state-partial {
+    align-items: flex-start;
+    gap: 4px;
+    text-align: left;
+    padding: 14px 16px;
+    border-left: 3px solid var(--brand-gold, #D9A21B);
+    background: #fff;
+}
+
+.ui-state-partial .ui-state-actions {
+    justify-content: flex-start;
+}
+
 /* Loading outlines: nothing for the first 300 ms, then the shape of the content. */
 @keyframes ui-loading-appear {
     from { visibility: hidden; }

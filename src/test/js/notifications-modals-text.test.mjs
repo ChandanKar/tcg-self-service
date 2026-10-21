@@ -94,6 +94,48 @@ test('danger maps to the error style and icon; ids are unique', () => {
     assert.ok(icon.classes.includes('fa-exclamation-circle'));
 });
 
+/** Notifications with setTimeout recorded: [{ms}] per call (U17-T03). */
+function loadTimed() {
+    const jq = makeJQuery();
+    const timers = [];
+    const context = vm.createContext({ $: jq.$, document: { getElementById: () => null },
+        setTimeout: (fn, ms) => { timers.push(ms); return timers.length; }, clearTimeout: () => {} });
+    vm.runInContext(js('ui/notifications.js') + '\nthis.Notifications = Notifications;', context);
+    return { Notifications: context.Notifications, jq, timers };
+}
+
+test('toasts stay 6 s; errors stay until closed; a given duration wins', () => {
+    const { Notifications, timers } = loadTimed();
+    Notifications.success('Saved');
+    Notifications.info('Starting');
+    Notifications.warning('Careful');
+    assert.deepEqual(timers, [6000, 6000, 6000]);
+    Notifications.error('Broke');
+    Notifications.showError('Broke', { title: 'Lock' });
+    assert.deepEqual(timers, [6000, 6000, 6000]);
+    Notifications.warning('Longer', 8000);
+    assert.equal(timers.at(-1), 8000);
+});
+
+test('hover or focus pauses the toast; leaving starts it again', () => {
+    const { Notifications, jq } = loadTimed();
+    const id = Notifications.success('Saved');
+    const toast = jq.elements.find(e => e.attrs.id === id);
+    for (const ev of ['mouseenter', 'focusin', 'mouseleave', 'focusout']) assert.equal(typeof toast.handlers[ev], 'function', ev);
+});
+
+test('the one action is a button whose label is text', () => {
+    const { Notifications, jq } = loadTimed();
+    Notifications.info('Starting', undefined, { action: { label: PAYLOAD, onClick: () => {} } });
+    const action = jq.elements.find(e => e.source === '<button type="button" class="toast-action"></button>');
+    assert.equal(action.textValue, PAYLOAD);
+    assert.equal(action.htmlValue, null);
+    assert.equal(typeof action.handlers.click, 'function');
+    Notifications.showError('Broke', { retryAction: () => {} });
+    const retry = jq.elements.filter(e => e.source === '<button type="button" class="toast-action"></button>').at(-1);
+    assert.equal(retry.textValue, 'Try again');
+});
+
 test('toast markup has no inline event handlers', () => {
     const source = js('ui/notifications.js');
     assert.doesNotMatch(source, /onclick=/);

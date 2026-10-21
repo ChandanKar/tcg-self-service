@@ -5,6 +5,9 @@
  *   UiStates.empty({title, text, action})            nothing yet: a title, one sentence, one action
  *   UiStates.filtered({title, text, clearLabel, onClear | clearAction})
  *                                                     filters hide everything: names the filter, offers to show all
+ *   UiStates.partial({verb, done, total, failures, onSteps})
+ *                                                     partly done: "Started 5 of 6 VMs. pay-api-02 didn't start: …"
+ *                                                     + Retry pay-api-02 + See steps (U17-T03)
  *   UiStates.loading(shape, {count})                 outlines shaped like the content ('rows', 'cards', 'lines');
  *                                                     they appear only after 300 ms (CSS), so a quick answer never flashes
  *   UiStates.failed({what, xhr, onRetry | retryAction}) / UiStates.failedPage({title, what, xhr}) for a whole page
@@ -59,7 +62,7 @@ const UiStates = (function() {
     function block(kind, role, title, text, actions, titleId, className) {
         const id = titleId ? html` id="${titleId}"` : '';
         const extra = className ? ' ' + String(className).replace(/[^\w -]/g, '') : '';
-        return html`<div class="ui-state ui-state-${kind}${raw(extra)}" role="${role}">${raw(kind === 'failed' ? '' : GLYPH)}
+        return html`<div class="ui-state ui-state-${kind}${raw(extra)}" role="${role}">${raw(kind === 'failed' || kind === 'partial' ? '' : GLYPH)}
                 <p class="ui-state-title"${raw(id)}>${title}</p>${raw(text ? html`<p class="ui-state-text">${text}</p>` : '')}${raw(actions ? `<div class="ui-state-actions">${actions}</div>` : '')}
             </div>`;
     }
@@ -111,6 +114,23 @@ const UiStates = (function() {
             `${reason(status)} The rest of the page still works.`, retry + refHtml, o.titleId, o.className);
     }
 
+    /**
+     * Partly done (an operation that ran on some VMs only): what ran, why each of the others did not,
+     * a retry per failed VM (up to three) and See steps. failures: [{name, reason, onRetry}].
+     */
+    function partial(opts) {
+        const o = opts || {};
+        const fails = (o.failures || []).filter(f => f && f.name);
+        const didnt = o.didnt || 'start';
+        const text = fails.map(f => `${f.name} didn't ${didnt}${f.reason ? `: ${String(f.reason).replace(/\.$/, '')}` : ''}.`).join(' ');
+        const retries = fails.slice(0, 3).filter(f => typeof f.onRetry === 'function')
+            .map(f => actionHtml({ label: `Retry ${f.name}`, onClick: f.onRetry }, false)).join('');
+        const steps = o.onSteps ? actionHtml({ label: 'See steps', onClick: o.onSteps }, false)
+            : o.stepsHref ? actionHtml({ label: 'See steps', href: o.stepsHref }, false) : '';
+        return block('partial', 'alert', `${o.verb || 'Finished'} ${Number(o.done) || 0} of ${Number(o.total) || 0} VMs.`,
+            text, retries + steps, o.titleId, o.className);
+    }
+
     /** A whole page that couldn't load: its heading, then the panel; Try again reloads the route. */
     function failedPage(opts) {
         const o = opts || {};
@@ -145,7 +165,7 @@ const UiStates = (function() {
         $(container).attr('aria-busy', 'false').html(markup);
     }
 
-    return { empty, filtered, failed, failedPage, loading, mountLoading, mount, model: { reason, refOf } };
+    return { empty, filtered, failed, failedPage, partial, loading, mountLoading, mount, model: { reason, refOf } };
 })();
 
 window.UiStates = UiStates;
