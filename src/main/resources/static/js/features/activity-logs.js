@@ -204,16 +204,11 @@ const ActivityLogs = (function() {
         if (!logs.length) {
             const filtered = state.environmentId || state.category;
             const when = countLine(0, state.period, state.customStart, state.customEnd).replace(/^0 actions /, '');
+            // U17-T01: the shared states; the filtered one names the filters it applies.
             return filtered
-                ? Utils.html`<div class="activity-empty">
-                    <p class="activity-empty-title">No actions match these filters</p>
-                    <p>Nothing of this kind ${when}.</p>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="al-clear-filters-btn">Show all actions</button>
-                </div>`
-                : Utils.html`<div class="activity-empty">
-                    <p class="activity-empty-title">Nothing ${when}</p>
-                    <p>What you start, stop, lock or request shows up here.</p>
-                </div>`;
+                ? UiStates.filtered({ title: 'No actions match these filters', text: `${filterNames()}: nothing of this kind ${when}.`,
+                    clearLabel: 'Show all actions', clearAction: 'activity-clear-filters' })
+                : UiStates.empty({ title: `Nothing ${when}`, text: 'What you start, stop, lock or request shows up here.' });
         }
         const body = rowsWithDays(logs).map(r => r.day !== undefined
             ? Utils.html`<tr class="activity-day"><th colspan="4" scope="rowgroup">${r.day}</th></tr>`
@@ -228,12 +223,15 @@ const ActivityLogs = (function() {
             </div>`;
     }
 
-    function errorMarkup() {
-        return `<div class="activity-empty" role="alert">
-                <p class="activity-empty-title">Your activity didn't load</p>
-                <p>The server didn't answer. The filters still work.</p>
-                <button type="button" class="btn btn-outline-secondary btn-sm" data-action="activity-retry">Try again</button>
-            </div>`;
+    /** "Environment Payments Dev · Start and stop", the filters in force. */
+    function filterNames() {
+        const env = environments.find(e => e.id === state.environmentId);
+        const cat = CATEGORIES.find(c => c[0] === state.category);
+        return [env ? `Environment ${env.name}` : '', state.category && cat ? cat[1] : ''].filter(Boolean).join(' · ');
+    }
+
+    function errorMarkup(xhr) {
+        return UiStates.failed({ what: 'Your activity', xhr, retryAction: 'activity-retry' });
     }
 
     function drawResults(t) {
@@ -248,9 +246,9 @@ const ActivityLogs = (function() {
                     onPageChange: p => { state.page = p; drawResults(ContentRouter.token()); }
                 });
             }
-        }).catch(() => {
+        }).catch(xhr => {
             if (!ContentRouter.isCurrent(t)) return;
-            $('#al-results').html(errorMarkup()).attr('aria-busy', 'false');
+            $('#al-results').html(errorMarkup(xhr)).attr('aria-busy', 'false');
         });
     }
 
@@ -289,7 +287,7 @@ const ActivityLogs = (function() {
             .on('click' + NS, '#al-filters-btn', () => openFilterSheet(true))
             .on('click' + NS, '#al-filters-done', () => openFilterSheet(false))
             .on('keydown' + NS, '#al-filter-sheet.is-open', e => { if (e.key === 'Escape') openFilterSheet(false); })
-            .on('click' + NS, '#al-clear-filters-btn', function() {
+            .on('click' + NS, '#content-area [data-action="activity-clear-filters"]', function() {
                 state.environmentId = '';
                 state.category = '';
                 $('#al-environment-filter, #al-action-filter').val('');

@@ -154,7 +154,43 @@ test.describe('My activity', () => {
 
     await page.locator('#al-action-filter').selectOption({ label: 'Access' });
     await expect(page.getByText('No actions match these filters')).toBeVisible();
+    // U17-T01: the message names the filters it applies.
+    await expect(page.locator('.ui-state-filtered .ui-state-text')).toContainText(/^Environment Activity .* · Access: nothing of this kind/);
     await page.getByRole('button', { name: 'Show all actions' }).click();
     await expect(page.locator('#al-action-filter')).toHaveValue('');
+  });
+
+  test("a 500 shows didn't load, Try again and the server's ref (U17-T01)", async ({ page }) => {
+    let fail = true;
+    await page.route('**/api/v1/audit/logs/my?**', (route: Route) => fail
+      ? route.fulfill({ status: 500, json: { error: 'Internal Server Error', message: 'An unexpected error occurred.', ref: '7f3a92c1' } })
+      : route.fulfill({ json: { content: [], page: { size: 10, number: 0, totalElements: 0, totalPages: 0 } } }));
+    await open(page);
+    const panel = page.locator('#al-results .ui-state-failed');
+    await expect(panel).toBeVisible();
+    await expect(panel).toHaveAttribute('role', 'alert');
+    await expect(panel.locator('.ui-state-title')).toHaveText("Your activity didn't load");
+    await expect(panel).toContainText('Something failed on the server. The rest of the page still works.');
+    await expect(panel.locator('.ui-state-ref')).toHaveText('ref 7f3a92c1');
+    fail = false;
+    await panel.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.locator('#al-results .ui-state-empty')).toBeVisible();
+  });
+
+  test('loading outlines stay hidden for the first 300 ms, then show (U17-T01)', async ({ page }) => {
+    await open(page);
+    const visibility = await page.evaluate(async () => {
+      const box = document.createElement('div');
+      document.getElementById('content-area')!.appendChild(box);
+      (window as any).UiStates.mountLoading(box, 'rows');
+      const outline = box.querySelector('.ui-loading') as HTMLElement;
+      const early = getComputedStyle(outline).visibility;
+      await new Promise(r => setTimeout(r, 450));
+      const later = getComputedStyle(outline).visibility;
+      const busy = box.getAttribute('aria-busy');
+      box.remove();
+      return { early, later, busy };
+    });
+    expect(visibility).toEqual({ early: 'hidden', later: 'visible', busy: 'true' });
   });
 });

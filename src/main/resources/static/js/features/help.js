@@ -71,7 +71,8 @@ const Help = (function() {
                         ${here ? Utils.raw('aria-current="page"') : ''} data-topic="${t.id}">${t.title}</a>`;
                 }).join(''))}
             </div>`).join('')
-            : Utils.html`<p class="help-no-results" id="help-no-results">No topic matches "${q}".</p>`);
+            : UiStates.filtered({ title: `No topic matches "${q}".`, text: 'Try another word, or clear the search to see every topic.',
+                clearLabel: 'Clear search', clearAction: 'help-clear-search', titleId: 'help-no-results' }));
     }
 
     function legendHtml() {
@@ -135,3 +136,8 @@ window.Help = Help;
 window.HelpLink = HelpLink;
 
 Actions.register('help-search', el => Help.search(el.value), 'input');
+// U17-T01: "Clear search" on the no-match message.
+Actions.register('help-clear-search', () => {
+    $('#help-search').val('').trigger('focus');
+    Help.search('');
+});

@@ -1,0 +1,147 @@
+/* ================================================
+   Empty, filtered, loading and couldn't-load states (U17-T01, States.dc.html) — js/ui/states.js
+   ================================================ */
+
+.ui-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 32px 20px;
+    text-align: center;
+}
+
+.ui-state-glyph {
+    display: inline-flex;
+    gap: 4px;
+    margin-bottom: 6px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+}
+
+.ui-state-glyph span {
+    width: 9px;
+    height: 18px;
+    border: 1px solid #B9C2D2;
+    border-radius: 3px;
+}
+
+.ui-state-title {
+    margin: 0;
+    font-size: var(--fs-card-title, 15px);
+    font-weight: 600;
+    color: var(--ink);
+    text-wrap: balance;
+}
+
+.ui-state-text {
+    max-width: 46ch;
+    margin: 0;
+    color: var(--slate);
+    font-size: var(--fs-body, 14px);
+}
+
+.ui-state-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+/* Couldn't load: left-aligned, with a red rule, like the board. */
+.ui-state-failed {
+    align-items: flex-start;
+    text-align: left;
+    padding: 16px 18px;
+    border-left: 3px solid var(--brand-red, #C2412D);
+    background: #fff;
+}
+
+.ui-state-failed .ui-state-actions {
+    justify-content: flex-start;
+}
+
+.ui-state-ref {
+    font-family: var(--font-mono, 'IBM Plex Mono', monospace);
+    font-size: 12px;
+    color: var(--slate);
+}
+
+/* Loading outlines: nothing for the first 300 ms, then the shape of the content. */
+@keyframes ui-loading-appear {
+    from { visibility: hidden; }
+    to { visibility: visible; }
+}
+
+@keyframes ui-outline-pulse {
+    0%, 100% { opacity: 0.65; }
+    50% { opacity: 1; }
+}
+
+.ui-loading,
+.skeleton-table,
+.skeleton-card,
+.skeleton-metric {
+    animation: ui-loading-appear 0s linear 300ms both;
+}
+
+.ui-loading {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px 16px;
+}
+
+.ui-outline {
+    display: block;
+    height: 12px;
+    width: 100%;
+    border-radius: 6px;
+    background: #EEF1F5;
+    animation: ui-outline-pulse 1.6s ease-in-out infinite;
+}
+
+.ui-outline-short {
+    width: 40%;
+}
+
+.ui-outline-title {
+    width: 60%;
+    height: 14px;
+}
+
+.ui-outline-row {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) 72px;
+    align-items: center;
+    gap: 12px;
+}
+
+.ui-outline-dot {
+    height: 18px;
+}
+
+.ui-loading-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+.ui-outline-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ui-outline {
+        animation: none;
+    }
+}

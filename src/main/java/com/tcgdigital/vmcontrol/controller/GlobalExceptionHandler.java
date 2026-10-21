@@ -24,12 +24,15 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 /**
  * Maps exceptions to HTTP responses that share one body shape: {@code error}, {@code message},
  * {@code timestamp} (plus extra fields in a few cases). Framework errors such as an unknown path,
  * a wrong HTTP method, a bad parameter type or a duplicate key get their 4xx status, not a 500.
+ * A 500 also carries {@code ref}, 8 hex characters logged with the stack trace, so the "didn't
+ * load" panel (U17-T01) can quote it and support can find the failure in the log.
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
@@ -42,6 +45,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         body.put("message", message);
         body.put("timestamp", Instant.now().toString());
         return body;
+    }
+
+    /** A short reference for one server failure: 8 hex characters. */
+    static String newRef() {
+        return String.format("%08x", ThreadLocalRandom.current().nextInt());
+    }
+
+    /** The 500 body with a fresh ref, logged with the stack trace. */
+    private static ResponseEntity<Map<String, Object>> serverError(String what, Exception ex) {
+        String ref = newRef();
+        log.error("{} [ref {}]: ", what, ref, ex);
+        Map<String, Object> body = body("Internal Server Error", "An unexpected error occurred. Please try again or contact support.");
+        body.put("ref", ref);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)
@@ -248,22 +265,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, Object>> handleRuntimeException(RuntimeException ex) {
-        log.error("Runtime exception: ", ex);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                "error", "Internal Server Error",
-                "message", "An unexpected error occurred. Please try again or contact support.",
-                "timestamp", Instant.now().toString()
-        ));
+        return serverError("Runtime exception", ex);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleException(Exception ex) {
-        log.error("Unexpected exception: ", ex);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                "error", "Internal Server Error",
-                "message", "An unexpected error occurred. Please try again or contact support.",
-                "timestamp", Instant.now().toString()
-        ));
+        return serverError("Unexpected exception", ex);
     }
 }
 

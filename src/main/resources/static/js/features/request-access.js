@@ -142,7 +142,7 @@ const RequestAccess = (function() {
             bind();
         } catch (e) {
             if (!ContentRouter.isCurrent(token)) return;
-            $('#content-area').html('<div class="error-state"><h4>Couldn\'t load Request access</h4><p>Try again in a moment.</p></div>');
+            $('#content-area').html(UiStates.failed({ what: 'Request access', xhr: e, onRetry: () => ContentRouter.reload() }));
         }
     }
 
@@ -218,9 +218,10 @@ const RequestAccess = (function() {
         const list = filtered();
         const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
         if (s.page >= pages) s.page = pages - 1;
-        if (!s.envs.length) return '<p class="ra-empty">You can use every environment.</p>';
+        if (!s.envs.length) return UiStates.empty({ title: 'You can use every environment.', text: 'There is nothing left to ask for.' });
         if (!list.length) {
-            return Utils.html`<p class="ra-empty">No environments match "${s.query}". <button type="button" class="btn btn-link p-0 align-baseline" data-ra-clear>Clear search</button></p>`;
+            return UiStates.filtered({ title: `No environments match "${s.query}".`, text: 'Check the spelling, or clear the search to see them all.',
+                clearLabel: 'Clear search', clearData: { 'ra-clear': '1' } });
         }
         return list.slice(s.page * PAGE_SIZE, (s.page + 1) * PAGE_SIZE).map(env => {
             const tag = envTag(env, s.waitingEnvIds, s.viewEnvIds);
@@ -303,7 +304,8 @@ const RequestAccess = (function() {
 
     function mineHtml() {
         if (!s.requests.length) {
-            return '<section class="ra-card" aria-labelledby="ra-mine-title"><h2 id="ra-mine-title" class="ra-card-title">Your requests</h2><p class="ra-empty">You have not asked for access yet.</p></section>';
+            return '<section class="ra-card" aria-labelledby="ra-mine-title"><h2 id="ra-mine-title" class="ra-card-title">Your requests</h2>'
+                + UiStates.empty({ title: 'You have not asked for access yet.', text: 'Pick an environment on the Request tab and say why you need it.' }) + '</section>';
         }
         const page = s.requests.slice(s.minePage * PAGE_SIZE, (s.minePage + 1) * PAGE_SIZE);
         return `<section class="ra-card" aria-labelledby="ra-mine-title"><h2 id="ra-mine-title" class="ra-card-title">Your requests</h2>

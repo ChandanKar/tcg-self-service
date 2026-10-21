@@ -177,7 +177,8 @@ const Templates = (function() {
 
     function drawCatalogue() {
         if (!templates.length) {
-            $('#templates-body').html('<p class="text-muted">No templates are available to you yet.</p>');
+            $('#templates-body').html(UiStates.empty({ title: 'No templates are available to you yet.',
+                text: 'An admin publishes templates; ask for access to an environment meanwhile.', action: { label: 'Request access', href: '#/request-access' } }));
             return;
         }
         $('#templates-body').html(`<div class="templates-grid">${templates.map(t => {

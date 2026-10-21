@@ -18,6 +18,8 @@ const Approvals = (function() {
     };
     let pageToken = null;
     let state = null;
+    /** Why each list failed to load (the jqXHR), for the couldn't-load panel. */
+    const failures = {};
 
     function call(method, url, data) {
         return new Promise((resolve, reject) => {
@@ -149,8 +151,8 @@ const Approvals = (function() {
                 <div id="approvals-body"></div>
             </div>`);
         const token = pageToken;
-        Promise.all([call('GET', Config.API.approvals.list('to-review')).catch(() => null),
-            call('GET', Config.API.approvals.list('mine')).catch(() => null)]).then(([review, mine]) => {
+        Promise.all([call('GET', Config.API.approvals.list('to-review')).catch(x => { failures.review = x; return null; }),
+            call('GET', Config.API.approvals.list('mine')).catch(x => { failures.mine = x; return null; })]).then(([review, mine]) => {
             if (!ContentRouter.isCurrent(token)) return;
             state.review = review;
             state.mine = mine;
@@ -163,8 +165,8 @@ const Approvals = (function() {
         if (!state) return;
         state.tab = tab === 'mine' ? 'mine' : 'review';
         const token = pageToken;
-        Promise.all([call('GET', Config.API.approvals.list('to-review')).catch(() => null),
-            call('GET', Config.API.approvals.list('mine')).catch(() => null)]).then(([review, mine]) => {
+        Promise.all([call('GET', Config.API.approvals.list('to-review')).catch(x => { failures.review = x; return null; }),
+            call('GET', Config.API.approvals.list('mine')).catch(x => { failures.mine = x; return null; })]).then(([review, mine]) => {
             if (!ContentRouter.isCurrent(token)) return;
             state.review = review;
             state.mine = mine;
@@ -233,10 +235,12 @@ const Approvals = (function() {
         const shown = list.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
         let body;
         if (failed) {
-            body = `<div class="cost-panel-error" role="alert"><span>Couldn't load approvals.</span>
-                <button type="button" class="btn btn-sm btn-ghost" data-action="approvals-tab" data-tab="${tab}">Retry</button></div>`;
+            body = UiStates.failed({ what: tab === 'review' ? 'Approvals to review' : 'Your approval requests', xhr: failures[tab],
+                retryAction: 'approvals-tab', retryData: { tab } });
         } else if (!list.length) {
-            body = `<p class="approvals-empty">${tab === 'review' ? 'Nothing waits for your approval.' : 'You have not asked for any approvals.'}</p>`;
+            body = tab === 'review'
+                ? UiStates.empty({ title: 'Nothing waits for your approval.', text: 'Starts and extensions that need your yes show up here.' })
+                : UiStates.empty({ title: 'You have not asked for any approvals.', text: 'A start or an extension that needs a yes shows up here with its answer.' });
         } else if (tab === 'review') {
             body = `<div class="approval-cards">${shown.map(card).join('')}</div>`;
         } else {
