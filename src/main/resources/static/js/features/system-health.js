@@ -1,27 +1,94 @@
 /**
- * VM Self-Service Platform - System Health
- * Wired to all monitoring + audit-report endpoints:
- *   GET  /monitoring/sync-status
- *   POST /monitoring/sync
- *   GET  /monitoring/state-changes
- *   GET  /monitoring/drift-events
- *   GET  /monitoring/drift-events/report
- *   GET  /audit/report
- *   GET  /audit/report/locks
- *   GET  /audit/report/vm-operations
- *   GET  /audit/actions  (used to populate action labels)
- * Drift and audit sections, and the sync buttons, are shown to environment admins only; every
- * window is the last 24 hours as exact instants (E12-T06).
+ * VM Self-Service Platform - System health (U14-T02, SystemHealth.dc.html), administrators only.
+ * Now: four figures (VM state sync, drift in 24 h, actions in 24 h with the success rate, scheduled
+ * jobs on time) and the scheduled jobs (GET /monitoring/scheduler-health: Job, Runs, Last run,
+ * Status), problems first or all, 10 a page. Header: Sync VM state now, and Sync EKS now when an
+ * EKS environment exists. Reports (?tab=reports) keeps the earlier 24-hour tables (audit summary,
+ * state changes, drift, lock compliance, VM operations, email log) and asks for them only when
+ * opened. Every window is the last 24 hours as exact instants (E12-T06).
  */
 
 const SystemHealth = (function () {
     'use strict';
+
+    const PAGE_SIZE = 10;
+    let s = null; // {token, tab, jobs, view, page, reportsLoaded, eks}
+
+    // ─── pure model (node tests: src/test/js/system-health.test.mjs) ─────────
+
+    function plural(n, one, many) {
+        return `${Number(n).toLocaleString('en-US')} ${n === 1 ? one : (many || one + 's')}`;
+    }
+
+    /** "45 s", "4 min", "3 h", "2 days". */
+    function span(seconds) {
+        const x = Math.max(0, Number(seconds) || 0);
+        if (x < 60) return `${Math.round(x)} s`;
+        if (x < 3600) return `${Math.round(x / 60)} min`;
+        if (x < 86400) return `${Math.round(x / 3600)} h`;
+        return plural(Math.round(x / 86400), 'day');
+    }
+
+    /** "Today 09:40", "Yesterday 01:00", "18 Oct 01:00", or "—" for a job that never ran. */
+    function lastRun(ts, now = new Date()) {
+        if (!ts) return '—';
+        const d = new Date(ts);
+        if (!Number.isFinite(d.getTime())) return '—';
+        const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const diff = Math.round((today - day) / 86400000);
+        if (diff === 0) return `Today ${time}`;
+        if (diff === 1) return `Yesterday ${time}`;
+        return `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} ${time}`;
+    }
+
+    /** The status pill: {text, kind} with kind ok, late or off. */
+    function status(job) {
+        if (job.status === 'OFF') return { text: 'Switched off', kind: 'off' };
+        if (job.status === 'LATE') {
+            return { text: job.lateBySeconds === null || job.lateBySeconds === undefined ? 'Never ran' : `${span(job.lateBySeconds)} late`, kind: 'late' };
+        }
+        return { text: job.running ? 'Running' : 'On time', kind: 'ok' };
+    }
+
+    /** The jobs in the chosen order: problems first (as the server sends them) or the catalog's order. */
+    function ordered(jobs, view) {
+        const list = (jobs || []).slice();
+        return view === 'all' ? list.sort((a, b) => a.position - b.position) : list;
+    }
+
+    /** The four figures of the Now tab. */
+    function tiles({ syncStatus, jobs, driftCount, stats }, now = new Date()) {
+        const sync = syncStatus || {};
+        const list = jobs || [];
+        const stateJob = list.find(j => j.jobName === 'vm_state_sync');
+        const synced = sync.lastSyncTime ? (now.getTime() - new Date(sync.lastSyncTime).getTime()) / 1000 : null;
+        const enabled = list.filter(j => j.status !== 'OFF');
+        const late = list.filter(j => j.status === 'LATE').length;
+        return {
+            sync: {
+                value: sync.syncInProgress ? 'Syncing now' : synced === null ? 'Not yet' : `${span(synced)} ago`,
+                fresh: synced !== null && (!stateJob || stateJob.status !== 'LATE'),
+                sub: `${plural(Number(sync.totalVmsSynced) || 0, 'VM')}${stateJob ? `, ${stateJob.cadence.charAt(0).toLowerCase()}${stateJob.cadence.slice(1)}` : ''}`
+            },
+            drift: { value: driftCount === null || driftCount === undefined ? '—' : String(driftCount) },
+            actions: stats ? { value: Number(stats.total || 0).toLocaleString('en-US'), rate: `${Number(stats.successRate) || 0}% succeeded` }
+                : { value: '—', rate: 'Not available' },
+            jobs: { value: `${enabled.length - late}/${enabled.length}`, sub: late ? `${late} late` : 'All on time', late }
+        };
+    }
 
     // ─── helpers ─────────────────────────────────────────────────────────────
 
     /** "from=...&to=..." for an exact instant range (E12-T06). */
     function rangeQuery(range) {
         return `from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`;
+    }
+
+    function lastDay() {
+        const to = new Date();
+        return { from: new Date(to.getTime() - 86400000).toISOString(), to: to.toISOString() };
     }
 
     function relativeTime(ts) {
@@ -84,9 +151,9 @@ const SystemHealth = (function () {
     }
 
     /** Drift events in the range: the first page of rows plus the total across the range. */
-    function fetchDriftEvents(range) {
+    function fetchDriftEvents(range, size = 20) {
         return new Promise(resolve => {
-            ApiClient.get(`${Config.API.monitoring.driftEvents}?page=0&size=20&${rangeQuery(range)}`,
+            ApiClient.get(`${Config.API.monitoring.driftEvents}?page=0&size=${size}&${rangeQuery(range)}`,
                 { suppressGlobalError: true })
                 .done(data => {
                     const events = Array.isArray(data) ? data : ((data && data.content) || []);
@@ -94,7 +161,7 @@ const SystemHealth = (function () {
                         ? Number(data.page.totalElements) : events.length;
                     resolve({ events, total });
                 })
-                .fail(() => resolve({ events: [], total: 0 }));
+                .fail(() => resolve({ events: [], total: null }));
         });
     }
 
@@ -120,51 +187,140 @@ const SystemHealth = (function () {
 
     // ─── public: load ─────────────────────────────────────────────────────────
 
-    /** Router loader (also used by Refresh/Retry, which reload through the router). */
-    async function load() {
-        const t = ContentRouter.token();
-        showLoading();
+    /** Router loader (also used after a sync, which reloads through the router). */
+    function load() {
+        const q = ContentRouter.query ? ContentRouter.query() : {};
+        s = { token: ContentRouter.token(), tab: q.tab === 'reports' ? 'reports' : 'now', jobs: null, view: 'problems',
+            page: 1, reportsLoaded: false, eks: false };
+        renderShell();
+        loadNow();
+        if (s.tab === 'reports') loadReports();
+    }
 
-        // A true last-24-hours window, not "yesterday and today" (E12-T06).
-        const to = new Date();
-        const range = { from: new Date(to.getTime() - 86400000).toISOString(), to: to.toISOString() };
-        // Drift and audit reports are environment-admin endpoints; other roles skip them.
-        const canAdmin = Auth.isEnvAdmin();
+    function current() {
+        return s && ContentRouter.isCurrent(s.token);
+    }
 
+    function renderShell() {
+        const tabs = [['now', 'Now'], ['reports', 'Reports']];
+        $('#content-area').html(`
+        <div class="content-view sh-page" id="system-health-view">
+            ${PageHeader.markup({ title: 'System health',
+                summaryHtml: "Whether the platform's background work is running on time.",
+                actionsHtml: `<button type="button" class="btn btn-secondary" id="trigger-eks-sync-btn" data-action="sh-trigger-eks-sync" hidden>Sync EKS now</button>
+                    <button type="button" class="btn btn-primary" id="trigger-sync-btn" data-action="sh-trigger-sync">Sync VM state now</button>`,
+                helpPage: typeof HelpLink !== 'undefined' ? 'system-health' : null, helpLabel: 'System health' })}
+            <div class="sh-tabs" role="tablist" aria-label="System health">${tabs.map(([key, label]) => `<button type="button" role="tab"
+                class="sh-tab" id="sh-tab-${key}" data-sh-tab="${key}" aria-controls="sh-panel-${key}" aria-selected="${key === s.tab}">${label}</button>`).join('')}</div>
+            <section class="sh-panel" id="sh-panel-now" role="tabpanel" aria-labelledby="sh-tab-now"${s.tab === 'now' ? '' : ' hidden'}>
+                <div class="sh-tiles" id="sh-tiles"><p class="sh-note">Loading&hellip;</p></div>
+                <section class="sh-card sh-jobs" aria-labelledby="sh-jobs-title">
+                    <div class="sh-card-head"><h2 id="sh-jobs-title">Scheduled jobs</h2>
+                        <div class="sh-toggle" role="group" aria-label="Show" id="sh-jobs-view"></div></div>
+                    <div id="sh-jobs-body"></div>
+                </section>
+            </section>
+            <section class="sh-panel" id="sh-panel-reports" role="tabpanel" aria-labelledby="sh-tab-reports"${s.tab === 'reports' ? '' : ' hidden'}>
+                <p class="sh-note">Loading the reports&hellip;</p>
+            </section>
+        </div>`);
+        $('#system-health-view').off('.sh')
+            .on('click.sh', '[data-sh-tab]', function() { switchTab(this.dataset.shTab); })
+            .on('click.sh', '[data-sh-view]', function() { s.view = this.dataset.shView; s.page = 1; drawJobs(); })
+            .on('click.sh', '[data-action="sh-page"]', function() { s.page = Number(this.dataset.page) || 1; drawJobs(); });
+    }
+
+    function switchTab(tab) {
+        if (!s || tab === s.tab) return;
+        s.tab = tab;
+        $('.sh-tab').each(function() { this.setAttribute('aria-selected', String(this.dataset.shTab === tab)); });
+        $('#sh-panel-now').prop('hidden', tab !== 'now');
+        $('#sh-panel-reports').prop('hidden', tab !== 'reports');
         try {
-            const [
-                syncStatus,
-                stateChanges,
-                drift,
-                auditReport,
-                lockReport,
-                vmOpsReport,
-                emailLog
-            ] = await Promise.all([
-                fetchSyncStatus(),
-                fetchStateChanges(),
-                canAdmin ? fetchDriftEvents(range) : Promise.resolve({ events: [], total: 0 }),
-                canAdmin ? fetchAuditReport(range) : Promise.resolve(null),
-                canAdmin ? fetchLockReport(range) : Promise.resolve([]),
-                canAdmin ? fetchVmOpsReport(range) : Promise.resolve([]),
-                fetchEmailLog()
-            ]);
-            if (!ContentRouter.isCurrent(t)) return;
+            history.replaceState(null, '', tab === 'reports' ? '#/system-health?tab=reports' : '#/system-health');
+        } catch (e) { /* the address keeps the old tab */ }
+        if (tab === 'reports') loadReports();
+    }
 
-            render({
-                canAdmin, syncStatus, stateChanges, driftEvents: drift.events,
-                driftCount: drift.total, auditReport, lockReport, vmOpsReport, emailLog
-            });
-        } catch (err) {
-            if (!ContentRouter.isCurrent(t)) return;
-            console.error('System Health load error:', err);
-            showError('Failed to load system health data.');
+    async function loadNow() {
+        const token = s.token;
+        const range = lastDay();
+        const statsUrl = `${Config.API.audit.stats}?${rangeQuery(range)}`;
+        const [syncStatus, jobs, drift, stats, envs] = await Promise.all([
+            fetchSyncStatus(),
+            apiFetch(Config.API.monitoring.schedulerHealth, null),
+            fetchDriftEvents(range, 1),
+            apiFetch(statsUrl, null),
+            apiFetch(Config.API.environments.list, [])
+        ]);
+        if (!ContentRouter.isCurrent(token)) return;
+        s.jobs = jobs;
+        s.eks = (Array.isArray(envs) ? envs : []).some(e => e.serviceType === 'EKS' && e.isActive !== false);
+        $('#trigger-eks-sync-btn').prop('hidden', !s.eks);
+        const t = tiles({ syncStatus, jobs, driftCount: drift.total, stats });
+        $('#sh-tiles').html(Utils.html`
+            <div class="sh-tile"><div class="sh-tile-label">VM state sync</div>
+                <div class="sh-tile-value"><span class="sh-dot sh-dot-${t.sync.fresh ? 'ok' : 'late'}" aria-hidden="true"></span>${t.sync.value}</div>
+                <div class="sh-tile-sub">${t.sync.sub}</div></div>
+            <div class="sh-tile"><div class="sh-tile-label">Drift, 24 h</div>
+                <div class="sh-tile-value">${t.drift.value}</div>
+                <div class="sh-tile-sub">VMs changed outside the platform</div></div>
+            <div class="sh-tile"><div class="sh-tile-label">Actions, 24 h</div>
+                <div class="sh-tile-value">${t.actions.value}</div>
+                <div class="sh-tile-sub">${t.actions.rate} · <a href="#/audit-logs-all">Audit log</a></div></div>
+            <div class="sh-tile" id="sh-tile-jobs"><div class="sh-tile-label">Scheduled jobs</div>
+                <div class="sh-tile-value">${jobs ? t.jobs.value : '—'}</div>
+                <div class="sh-tile-sub${Utils.raw(t.jobs.late ? ' sh-late-text' : '')}">${jobs ? t.jobs.sub : 'Not available'}</div></div>`);
+        drawJobs();
+    }
+
+    function drawJobs() {
+        if (!s.jobs) {
+            $('#sh-jobs-view').html('');
+            $('#sh-jobs-body').html('<p class="sh-note sh-pad">The scheduled jobs are not available right now.</p>');
+            return;
         }
+        $('#sh-jobs-view').html(`<button type="button" class="sh-toggle-btn" data-sh-view="problems" aria-pressed="${s.view === 'problems'}">Problems first</button>`
+            + `<button type="button" class="sh-toggle-btn" data-sh-view="all" aria-pressed="${s.view === 'all'}">All ${s.jobs.length}</button>`);
+        const list = ordered(s.jobs, s.view);
+        const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+        s.page = Math.min(Math.max(1, s.page), pages);
+        const now = new Date();
+        const rows = Pagination.slice(list, s.page, PAGE_SIZE).map(j => {
+            const st = status(j);
+            return Utils.html`<tr data-job="${j.jobName}"><td class="sh-job-name">${j.name}</td><td>${j.cadence}</td>
+                <td class="sh-mono">${lastRun(j.lastRunAt, now)}</td><td><span class="sh-pill sh-pill-${st.kind}">${st.text}</span></td></tr>`;
+        }).join('');
+        $('#sh-jobs-body').html(`<div class="sh-table-scroll"><table class="sh-jobs-table" id="sh-jobs-table">
+                <thead><tr><th scope="col">Job</th><th scope="col">Runs</th><th scope="col">Last run</th><th scope="col">Status</th></tr></thead>
+                <tbody>${rows}</tbody></table></div>
+            ${list.length > PAGE_SIZE ? `<div class="sh-foot">${Pagination.buildPager({ page: s.page, pageSize: PAGE_SIZE, totalItems: list.length,
+                action: 'sh-page', key: 'jobs' })}</div>` : ''}`);
+    }
+
+    /** The Reports tab: asked for the first time it is opened. */
+    async function loadReports() {
+        if (s.reportsLoaded) return;
+        s.reportsLoaded = true;
+        const token = s.token;
+        const range = lastDay();
+        const canAdmin = Auth.isEnvAdmin();
+        const [stateChanges, drift, auditReport, lockReport, vmOpsReport, emailLog] = await Promise.all([
+            fetchStateChanges(),
+            canAdmin ? fetchDriftEvents(range) : Promise.resolve({ events: [], total: 0 }),
+            canAdmin ? fetchAuditReport(range) : Promise.resolve(null),
+            canAdmin ? fetchLockReport(range) : Promise.resolve([]),
+            canAdmin ? fetchVmOpsReport(range) : Promise.resolve([]),
+            fetchEmailLog()
+        ]);
+        if (!ContentRouter.isCurrent(token)) return;
+        $('#sh-panel-reports').html(reportsHtml({ canAdmin, stateChanges, driftEvents: drift.events,
+            driftCount: drift.total || 0, auditReport, lockReport, vmOpsReport, emailLog }));
     }
 
     // ─── trigger sync ─────────────────────────────────────────────────────────
 
-    /** Reload System Health after a delay, unless the user has left by then. */
+    /** Reload System health after a delay, unless the user has left by then. */
     function reloadLaterIfCurrent(ms) {
         const t = ContentRouter.token();
         const id = setTimeout(() => {
@@ -175,48 +331,48 @@ const SystemHealth = (function () {
 
     function triggerSync() {
         const $btn = $('#trigger-sync-btn');
-        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Syncing…');
+        $btn.prop('disabled', true).text('Syncing…');
 
         apiPost(Config.API.monitoring.triggerSync)
             .done(() => {
-                Notifications.show('State sync triggered — refreshing in 3s…', 'success');
+                Notifications.show('State sync started. Refreshing in 3 s…', 'success');
                 reloadLaterIfCurrent(3000);
             })
             .fail(xhr => {
                 if (xhr && xhr.status === 409) {
-                    Notifications.show('Sync already in progress', 'warning');
+                    Notifications.show('A sync is already running.', 'warning');
                 } else {
                     Notifications.show('Failed to trigger sync', 'error');
                 }
-                $btn.prop('disabled', false).html('<i class="fas fa-sync me-1"></i>Trigger State Sync');
+                $btn.prop('disabled', false).text('Sync VM state now');
             });
     }
 
     function triggerEksSync() {
         const $btn = $('#trigger-eks-sync-btn');
-        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Syncing EKS…');
+        $btn.prop('disabled', true).text('Syncing EKS…');
 
         apiPost(Config.API.monitoring.triggerEksSync)
             .done(data => {
                 const n = data && data.nodeGroupsSynced != null ? data.nodeGroupsSynced : 0;
-                Notifications.show(`EKS sync complete — ${n} node group(s) processed`, 'success');
+                Notifications.show(`EKS sync done: ${n} node group${n === 1 ? '' : 's'} checked.`, 'success');
                 reloadLaterIfCurrent(2000);
             })
             .fail(xhr => {
                 if (xhr && xhr.status === 503) {
-                    Notifications.show('EKS not available — check AWS credentials in .env', 'warning');
+                    Notifications.show('EKS is not available: check the AWS credentials.', 'warning');
                 } else {
                     Notifications.show('EKS sync failed', 'error');
                 }
             })
             .always(() => {
-                $btn.prop('disabled', false).html('<i class="fab fa-aws me-1"></i>EKS Sync Now');
+                $btn.prop('disabled', false).text('Sync EKS now');
             });
     }
 
-    // ─── render ───────────────────────────────────────────────────────────────
+    // ─── Reports ──────────────────────────────────────────────────────────────
 
-    function render({ canAdmin, syncStatus, stateChanges, driftEvents, driftCount, auditReport, lockReport, vmOpsReport, emailLog }) {
+    function reportsHtml({ canAdmin, stateChanges, driftEvents, driftCount, auditReport, lockReport, vmOpsReport, emailLog }) {
 
         const auditTotal    = auditReport ? (auditReport.totalActions || 0) : 0;
         // Counted by the server over the whole window (E12-T06), not from the 20-row sample.
@@ -231,66 +387,7 @@ const SystemHealth = (function () {
             ? (topEnvList[0].environmentName || topEnvList[0].environmentId || '—')
             : '—';
 
-        const syncBadge = syncStatus.syncInProgress
-            ? '<span class="badge bg-warning text-dark"><i class="fas fa-spinner fa-spin me-1"></i>Syncing</span>'
-            : '<span class="badge bg-success"><i class="fas fa-check me-1"></i>Idle</span>';
-
-        const html = `
-        <div class="content-view" id="system-health-view">
-
-            <!-- Header -->
-            <div class="content-header d-flex justify-content-between align-items-center">
-                <div>
-                    <h1><i class="fas fa-heartbeat me-2"></i>System Health</h1>
-                    <p class="text-muted mb-0">Live platform health and state synchronization</p>
-                </div>
-                <div class="d-flex gap-2 flex-shrink-0">
-                    ${canAdmin ? `
-                    <button class="btn btn-sm btn-primary" id="trigger-sync-btn" data-action="sh-trigger-sync">
-                        <i class="fas fa-sync me-1"></i>Trigger Sync
-                    </button>
-                    <button class="btn btn-sm btn-tonal btn-warning" id="trigger-eks-sync-btn" data-action="sh-trigger-eks-sync">
-                        <i class="fab fa-aws me-1"></i>EKS Sync Now
-                    </button>` : ''}
-                    <button class="btn btn-sm btn-ghost" data-action="sh-reload">
-                        <i class="fas fa-redo me-1"></i>Refresh
-                    </button>
-                </div>
-            </div>
-
-            <!-- Key Metrics -->
-            <div class="row g-2 mb-3">
-                <div class="col-md-3">
-                    <div class="metric-card">
-                        <div class="metric-title">Sync Status</div>
-                        <div class="metric-value">${syncBadge}</div>
-                        <div class="metric-subtitle">Platform state</div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="metric-card">
-                        <div class="metric-title">Last State Sync</div>
-                        <div class="metric-value">${relativeTime(syncStatus.lastSyncTime)}</div>
-                        <div class="metric-subtitle">${syncStatus.totalVmsSynced || 0} VMs synced</div>
-                    </div>
-                </div>
-                ${canAdmin ? `
-                <div class="col-md-3">
-                    <div class="metric-card">
-                        <div class="metric-title">Drift Events (24h)</div>
-                        <div class="metric-value ${driftCount > 0 ? 'text-warning' : 'text-success'}">${driftCount}</div>
-                        <div class="metric-subtitle">${syncStatus.syncErrors || 0} sync error(s)</div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="metric-card">
-                        <div class="metric-title">Audit Actions (24h)</div>
-                        <div class="metric-value">${auditTotal.toLocaleString()}</div>
-                        <div class="metric-subtitle">${successText} success rate</div>
-                    </div>
-                </div>` : ''}
-            </div>
-
+        return `
             ${canAdmin ? `
             <!-- Audit Summary -->
             <div class="card sh-summary-card mb-3">
@@ -390,9 +487,7 @@ const SystemHealth = (function () {
                 </div>
             </div>
 
-        </div>`;
-
-        $('#content-area').html(html);
+`;
     }
 
     // ─── table builders ───────────────────────────────────────────────────────
@@ -501,7 +596,7 @@ const SystemHealth = (function () {
             </div>`;
     }
 
-    // ─── loading / error states ───────────────────────────────────────────────
+    // ─── shared ──────────────────────────────────────────────────────────────
 
     function emptyState(msg, success = false) {
         const cls = success ? 'text-success' : 'text-muted';
@@ -511,34 +606,12 @@ const SystemHealth = (function () {
                 </div>`;
     }
 
-    function showLoading() {
-        $('#content-area').html(`
-            <div class="d-flex justify-content-center align-items-center" style="min-height:400px;">
-                <div class="text-center">
-                    <div class="spinner-border text-primary mb-3" role="status"></div>
-                    <p class="text-muted">Loading system health…</p>
-                </div>
-            </div>`);
-    }
-
-    function showError(message) {
-        $('#content-area').html(`
-            <div class="d-flex justify-content-center align-items-center" style="min-height:400px;">
-                <div class="text-center">
-                    <i class="fas fa-exclamation-triangle text-danger fa-3x mb-3"></i>
-                    <h5>Error</h5>
-                    <p class="text-muted">${Utils.escapeHtml(message)}</p>
-                    <button class="btn btn-primary" data-action="sh-reload">Retry</button>
-                </div>
-            </div>`);
-    }
-
-    return { load, triggerSync, triggerEksSync };
+    return { load, triggerSync, triggerEksSync, model: { span, lastRun, status, ordered, tiles } };
 })();
 
-window.SystemHealth = SystemHealth;
+if (typeof window !== 'undefined') window.SystemHealth = SystemHealth;
 
-Actions.registerAll({
+if (typeof Actions !== 'undefined') Actions.registerAll({
     'sh-trigger-sync': () => SystemHealth.triggerSync(),
     'sh-trigger-eks-sync': () => SystemHealth.triggerEksSync(),
     'sh-reload': () => ContentRouter.reload()

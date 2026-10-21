@@ -53,6 +53,9 @@ public class MonitoringController {
     private final SecurityService securityService;
     private final com.tcgdigital.vmcontrol.service.ScheduledJobLockService jobLockService;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.tcgdigital.vmcontrol.service.SchedulerHealthService schedulerHealthService;
+
     public MonitoringController(StateSyncService stateSyncService,
                                 EksSyncService eksSyncService,
                                 VmInventoryService inventoryService,
@@ -71,6 +74,14 @@ public class MonitoringController {
         this.metricsService = metricsService;
         this.archiveService = archiveService;
         this.userRepository = userRepository;
+    }
+
+    @GetMapping("/scheduler-health")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Scheduled jobs for System health",
+            description = "Every scheduled job with how often it runs, its last run and On time / late / switched off, problems first (U14-T02)")
+    public ResponseEntity<List<com.tcgdigital.vmcontrol.dto.SchedulerJobDTO>> getSchedulerHealth() {
+        return ResponseEntity.ok(schedulerHealthService.forSystemHealth());
     }
 
     @GetMapping("/sync-status")

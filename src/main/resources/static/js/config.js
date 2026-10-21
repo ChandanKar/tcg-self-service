@@ -386,7 +386,9 @@ const Config = (function() {
             stateChanges: `${API_BASE_URL}/monitoring/state-changes`,
             driftEvents: `${API_BASE_URL}/monitoring/drift-events`,
             driftCount: `${API_BASE_URL}/monitoring/drift-events/count`,
-            driftReport: `${API_BASE_URL}/monitoring/drift-events/report`
+            driftReport: `${API_BASE_URL}/monitoring/drift-events/report`,
+            // System health's scheduled jobs, problems first (U14-T02); administrators only
+            schedulerHealth: `${API_BASE_URL}/monitoring/scheduler-health`
         },
 
         // Notifications

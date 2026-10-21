@@ -89,8 +89,8 @@ public class SchedulerJobCatalog {
                     "webhooks.enabled", false),
             cron("carbon_ingestion", "Carbon export (daily)", "carbon.cron", "0 0 6 * * *", "carbon.enabled", false));
 
-    /** A job as the health view needs it. */
-    public record Job(String jobName, String label, Duration expectedInterval, boolean enabled) {
+    /** A job as the health view needs it; cron is its expression, or null for a fixed-rate job (U14-T02). */
+    public record Job(String jobName, String label, Duration expectedInterval, boolean enabled, String cron) {
     }
 
     private final Environment environment;
@@ -103,14 +103,21 @@ public class SchedulerJobCatalog {
         boolean schedulingOn = environment.getProperty("app.scheduling.enabled", Boolean.class, true);
         return SPECS.stream().map(spec -> new Job(spec.jobName(), spec.label(), interval(spec),
                 schedulingOn && (spec.enabledProperty() == null
-                        || environment.getProperty(spec.enabledProperty(), Boolean.class, spec.enabledByDefault()))))
+                        || environment.getProperty(spec.enabledProperty(), Boolean.class, spec.enabledByDefault())),
+                cron(spec)))
                 .toList();
     }
 
+    private String cron(Spec spec) {
+        if (spec.cronProperty() == null && spec.defaultCron() == null) {
+            return null;
+        }
+        return spec.cronProperty() == null ? spec.defaultCron() : environment.getProperty(spec.cronProperty(), spec.defaultCron());
+    }
+
     private Duration interval(Spec spec) {
-        if (spec.cronProperty() != null || spec.defaultCron() != null) {
-            String expression = spec.cronProperty() == null ? spec.defaultCron()
-                    : environment.getProperty(spec.cronProperty(), spec.defaultCron());
+        String expression = cron(spec);
+        if (expression != null) {
             return cronPeriod(expression);
         }
         long value = environment.getProperty(spec.rateProperty(), Long.class, spec.defaultRate());

@@ -1,52 +1,258 @@
 /*
- * System Health Feature Styles
- * Compact density matching dashboard baseline
+ * System health (U14-T02, SystemHealth.dc.html): Now (four figures and the scheduled jobs) and
+ * Reports (the 24-hour tables, below "Reports tab").
  */
 
 #system-health-view {
     flex: 1;
     display: flex;
     flex-direction: column;
+    gap: 16px;
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
 }
-/* Scrollbar — see main.css for the shared ::-webkit-scrollbar rules */
 
-/* Compact header — same as dashboard */
 #system-health-view .content-header {
-    margin-bottom: 0.5rem;
+    margin-bottom: 0;
     flex-shrink: 0;
 }
 
-/* Compact metric cards — matches dashboard density */
-#system-health-view .metric-card {
-    padding: 0.6rem 0.85rem;
-    border-radius: 8px;
-    cursor: default;
+.sh-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    border-bottom: 1px solid var(--line);
 }
-#system-health-view .metric-card:hover {
-    transform: none;
+
+.sh-tab {
+    margin-bottom: -1px;
+    padding: 8px 14px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: none;
+    font: inherit;
+    font-size: var(--fs-body);
+    color: var(--text-secondary);
+    cursor: pointer;
 }
-#system-health-view .metric-card .metric-title {
-    font-size: 0.68rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--text-caption);
-    margin-bottom: 0.2rem;
+
+.sh-tab[aria-selected="true"] {
+    border-bottom-color: var(--brand-navy);
+    color: var(--brand-navy);
     font-weight: 600;
 }
-#system-health-view .metric-card .metric-value {
-    font-size: var(--font-size-2xl, 1.5rem);
-    font-weight: 700;
-    line-height: 1.2;
-    margin-bottom: 0;
+
+.sh-tab:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: -2px;
 }
-#system-health-view .metric-card .metric-subtitle {
-    font-size: 0.68rem;
-    color: var(--text-caption);
-    margin-top: 0.1rem;
+
+.sh-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
+
+.sh-panel[hidden] {
+    display: none;
+}
+
+.sh-note {
+    margin: 0;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.sh-pad {
+    padding: 14px 20px;
+}
+
+.sh-mono {
+    font-family: var(--font-mono);
+}
+
+/* Now: four figures */
+.sh-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+}
+
+.sh-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 18px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+}
+
+.sh-tile-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.sh-tile-value {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 24px;
+    font-weight: 500;
+    color: var(--ink);
+}
+
+.sh-tile-sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.sh-tile-sub a {
+    text-decoration: none;
+}
+
+.sh-late-text {
+    color: var(--brand-gold-text);
+}
+
+.sh-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--brand-green);
+}
+
+.sh-dot-late {
+    background: var(--brand-gold);
+}
+
+/* Now: the scheduled jobs */
+.sh-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.sh-card-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.sh-card-head h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.sh-toggle {
+    display: inline-flex;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.sh-toggle-btn {
+    padding: 5px 12px;
+    border: 0;
+    background: #fff;
+    font: inherit;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.sh-toggle-btn + .sh-toggle-btn {
+    border-left: 1px solid var(--line);
+}
+
+.sh-toggle-btn[aria-pressed="true"] {
+    background: var(--brand-navy-tint);
+    color: var(--brand-navy);
+    font-weight: 500;
+}
+
+.sh-table-scroll {
+    overflow-x: auto;
+}
+
+.sh-jobs-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.sh-jobs-table th {
+    padding: 8px 20px;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-align: left;
+}
+
+.sh-jobs-table td {
+    padding: 9px 20px;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.sh-jobs-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.sh-job-name {
+    font-weight: 500;
+}
+
+.sh-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.sh-pill-ok {
+    background: var(--brand-green-tint);
+    color: var(--brand-green-text);
+}
+
+.sh-pill-late {
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
+}
+
+.sh-pill-off {
+    background: var(--surface-muted);
+    color: var(--slate);
+}
+
+.sh-foot {
+    padding: 10px 20px;
+    border-top: 1px solid var(--line-soft);
+}
+
+.sh-foot .pager {
+    padding: 0;
+    border: 0;
+}
+
+@media (max-width: 575.98px) {
+    .sh-jobs-table th,
+    .sh-jobs-table td {
+        padding: 8px 12px;
+    }
+}
+
+/* ---- Reports tab: the 24-hour tables ---- */
 
 /* Compact audit summary card */
 #system-health-view .sh-summary-card .card-header {

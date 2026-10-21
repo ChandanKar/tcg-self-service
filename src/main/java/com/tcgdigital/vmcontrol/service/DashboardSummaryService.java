@@ -32,10 +32,9 @@ public class DashboardSummaryService {
     private final VmIdleSummaryRepository idleSummaryRepository;
     private final VmVolumeSnapshotRepository volumeRepository;
     private final EnvironmentLockRepository lockRepository;
-    private final ScheduledJobLockRepository scheduledJobLockRepository;
     private final EnvironmentAccessRequestRepository accessRequestRepository;
     private final SecurityService securityService;
-    private final SchedulerJobCatalog jobCatalog;
+    private final SchedulerHealthService schedulerHealthService;
 
     // Home (U06-T01): cost, leases, grants and prices. Field-injected so the constructor and its
     // tests stay as they were; absent beans leave the extra fields empty.
@@ -63,12 +62,11 @@ public class DashboardSummaryService {
                                    VmIdleSummaryRepository idleSummaryRepository,
                                    VmVolumeSnapshotRepository volumeRepository,
                                    EnvironmentLockRepository lockRepository,
-                                   ScheduledJobLockRepository scheduledJobLockRepository,
                                    EnvironmentAccessRequestRepository accessRequestRepository,
                                    @org.springframework.context.annotation.Lazy SecurityService securityService,
-                                   SchedulerJobCatalog jobCatalog) {
+                                   SchedulerHealthService schedulerHealthService) {
         this.securityService = securityService;
-        this.jobCatalog = jobCatalog;
+        this.schedulerHealthService = schedulerHealthService;
         this.environmentService = environmentService;
         this.userService = userService;
         this.vmRepository = vmRepository;
@@ -77,7 +75,6 @@ public class DashboardSummaryService {
         this.idleSummaryRepository = idleSummaryRepository;
         this.volumeRepository = volumeRepository;
         this.lockRepository = lockRepository;
-        this.scheduledJobLockRepository = scheduledJobLockRepository;
         this.accessRequestRepository = accessRequestRepository;
     }
 
@@ -499,45 +496,9 @@ public class DashboardSummaryService {
                 .toList();
     }
 
-    /**
-     * Every scheduled job from the catalog (E12-T05): DISABLED when switched off, RUNNING while its
-     * lock is held, NEVER without a lock row, else HEALTHY / LATE / STALE against 1.5x and 3x its
-     * own interval. Lock owners (host names) are shown to admins only.
-     */
+    /** Every scheduled job against its own schedule (E12-T05), from {@link SchedulerHealthService}. */
     List<DashboardSummaryDTO.SchedulerHealthDTO> buildSchedulerHealth(boolean admin) {
-        Timestamp now = new Timestamp(System.currentTimeMillis());
-        Map<String, ScheduledJobLock> locksByName = scheduledJobLockRepository.findAll().stream()
-                .collect(Collectors.toMap(ScheduledJobLock::getLockName, Function.identity(), (left, right) -> left));
-        return jobCatalog.jobs().stream().map(job -> {
-            ScheduledJobLock lock = locksByName.get(job.jobName());
-            long intervalSeconds = job.expectedInterval().toSeconds();
-            Timestamp lastRunAt = lock == null ? null : lock.getAcquiredAt();
-            Timestamp lockedUntil = lock == null ? null : lock.getLockedUntil();
-            return new DashboardSummaryDTO.SchedulerHealthDTO(
-                    job.label(),
-                    schedulerStatus(job.enabled(), lastRunAt, lockedUntil, intervalSeconds, now),
-                    lastRunAt,
-                    lockedUntil,
-                    freshnessSeconds(lastRunAt, now),
-                    admin && lock != null ? lock.getLockedBy() : null,
-                    intervalSeconds);
-        }).toList();
-    }
-
-    static String schedulerStatus(boolean enabled, Timestamp lastRunAt, Timestamp lockedUntil,
-                                  long intervalSeconds, Timestamp now) {
-        if (!enabled) return "DISABLED";
-        if (lockedUntil != null && lockedUntil.after(now)) return "RUNNING";
-        if (lastRunAt == null) return "NEVER";
-        long age = Math.max(0, (now.getTime() - lastRunAt.getTime()) / 1000);
-        if (age <= intervalSeconds * 3 / 2) return "HEALTHY";
-        if (age <= intervalSeconds * 3) return "LATE";
-        return "STALE";
-    }
-
-    private Long freshnessSeconds(Timestamp timestamp, Timestamp now) {
-        if (timestamp == null) return null;
-        return Math.max(0, (now.getTime() - timestamp.getTime()) / 1000);
+        return schedulerHealthService.jobs(admin);
     }
 
     private List<DashboardSummaryDTO.RiskComplianceDTO> buildRiskCompliance(
