@@ -1,6 +1,6 @@
 /*
  * Teams (E23-T03, U13-T07 Teams.dc.html): a card per team, two to a row at 1440, with its
- * environments' power strips and this month's VM hours; the opened team's details below.
+ * environments' power strips and this month's VM hours. A team's own page is team-detail.css.
  */
 
 .teams-page {
@@ -38,11 +38,6 @@
     border-radius: 12px;
 }
 
-.tm-card-open {
-    border-color: var(--brand-navy);
-    box-shadow: inset 3px 0 0 var(--brand-gold);
-}
-
 .tm-head {
     display: flex;
     justify-content: space-between;
@@ -54,6 +49,15 @@
     margin: 0;
     font-size: 16px;
     font-weight: 600;
+}
+
+.tm-head h2 a {
+    color: var(--ink);
+    text-decoration: none;
+}
+
+.tm-head h2 a:hover {
+    text-decoration: underline;
 }
 
 .tm-mono {
@@ -147,16 +151,6 @@
 
 .tm-link:hover {
     text-decoration: underline;
-}
-
-/* The opened team's details (members, Entra group, quotas) until U13-T08's team page */
-.team-members li {
-    padding: 0.25rem 0;
-    border-bottom: 1px solid var(--border-color);
-}
-
-#team-detail .btn-link {
-    color: var(--brand-navy-hover);
 }
 
 @media (max-width: 991.98px) {

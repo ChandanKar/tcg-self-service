@@ -520,6 +520,7 @@ const HelpContent = (function() {
         'user-management': 'getting-started',
         'user-management-add': 'getting-started',
         'teams': 'teams',
+        'team-detail': 'teams',
         'aws-accounts': 'getting-started',
         'api-access': 'getting-started',
         'settings': 'settings',

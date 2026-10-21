@@ -28,15 +28,20 @@ test.describe('Teams', () => {
     await page.locator('#team-cost-center').fill('CC-42');
     await page.locator('#team-save-btn').click();
 
-    await expect(page.locator('#team-detail-title')).toHaveText(name, { timeout: 10_000 });
-    await expect(page.locator('#teams-cards .tm-card', { hasText: name })).toHaveCount(1); // U13-T07: cards
-    await expect(page.locator('#team-detail')).toContainText('cost center CC-42');
+    // U13-T08: a new team opens its own page.
+    await expect(page.locator('#team-detail-view h1')).toHaveText(name, { timeout: 10_000 });
+    await expect(page.locator('#team-detail-view .content-header')).toContainText('cost centre CC-42 · 0 environments · 0 members');
 
-    const firstUser = await page.locator('#team-add-user option:not([value=""])').first().getAttribute('value');
-    expect(firstUser).toBeTruthy();
-    await page.locator('#team-add-user').selectOption(firstUser!);
-    await page.locator('[data-action="team-add-member"]').click();
-    await expect(page.locator('.team-members')).toContainText('Manual');
+    await page.locator('#td-add-people').click();
+    await page.locator('#td-pick input[type="checkbox"]').first().check();
+    await expect(page.locator('#td-add-confirm')).toHaveText('Add 1 person');
+    await page.locator('#td-add-confirm').click();
+    await expect(page.locator('#td-member-table .td-tag-manual')).toHaveText('Added by hand', { timeout: 10_000 });
+    await expect(page.locator('#td-member-table [data-td-remove]')).toHaveCount(1);
+    await expect(page.locator('#team-detail-view .content-header')).toContainText('1 member');
+
+    await page.locator('#team-detail-view .page-breadcrumb a', { hasText: 'Teams' }).click();
+    await expect(page.locator('#teams-cards .tm-card').first()).toBeVisible(); // back on the cards (U13-T07)
   });
 
   test('the environment modal offers teams instead of a free-text owner', async ({ page }) => {
@@ -45,7 +50,7 @@ test.describe('Teams', () => {
     await page.locator('[data-action="team-new"]').click();
     await page.locator('#team-display').fill(name);
     await page.locator('#team-save-btn').click();
-    await expect(page.locator('#team-detail-title')).toHaveText(name, { timeout: 10_000 });
+    await expect(page.locator('#team-detail-view h1')).toHaveText(name, { timeout: 10_000 });
 
     await page.evaluate('Modals.showCreateEnvironment(function() {})');
     const picker = page.locator('#cem-team');
@@ -140,7 +145,7 @@ test.describe('Team cards', () => {
     const people = cards.filter({ hasText: 'People' });
     await expect(people.locator('.tm-env-none')).toContainText('No environments yet.');
     await expect(people.locator('.tm-quota-none')).toHaveText('No monthly limit');
-    await expect(payments.getByRole('button', { name: 'Members of Payments' })).toBeVisible();
+    await expect(payments.getByRole('link', { name: 'Members of Payments' })).toHaveAttribute('href', '#/teams/t1'); // U13-T08
   });
 
   test('with quotas off there is no bar and no quota request', async ({ page }) => {
@@ -150,6 +155,116 @@ test.describe('Team cards', () => {
     await expect(page.locator('#teams-cards .tm-card')).toHaveCount(4);
     await expect(page.locator('.tm-quota')).toHaveCount(0);
     expect(quotaCalls).toEqual([]);
+  });
+});
+
+/**
+ * U13-T08 (TeamDetail.dc.html): the team's page. Members with their source (Remove only for people
+ * added by hand), 8 a page, Sync now, the monthly limits aside (hidden while quotas are off) and the
+ * environments dialog. The team and its members are faked; the requests the page sends are checked.
+ */
+test.describe('Team page', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+  });
+
+  const TEAM = { teamId: 'tp1', name: 'payments', displayName: 'Payments', costCenter: 'CC-4410', active: true, memberCount: 14,
+    entraGroupId: 'g-1', entraGroupName: 'SG-Payments', entraMemberCount: 12, lastSyncedAt: null,
+    environments: [{ environmentId: 'env-pay-dev', name: 'pay-dev', displayName: 'Payments Dev', production: false }],
+    quotas: [{ quotaId: 'q1', metric: 'VM_HOURS', limit: 4000, enforcement: 'WARN', warnPercent: 80, active: true, used: 3400, percent: 85 }] };
+  const MEMBERS = Array.from({ length: 14 }, (_, i) => ({ userId: `u${String(i).padStart(2, '0')}`, displayName: `Person ${String(i).padStart(2, '0')}`,
+    email: `p${i}@example.com`, source: i < 12 ? 'ENTRA' : 'MANUAL' }));
+
+  async function openTeam(page: Page, opts: { quotasOn?: boolean } = {}) {
+    const calls = { overview: 0, quotas: [] as string[] };
+    await page.route(/\/api\/v1\/users\/me\/capabilities$/, async route => {
+      const response = await route.fetch();
+      const caps = await response.json();
+      return route.fulfill({ response, body: JSON.stringify({ ...caps, features: { ...caps.features, quotas: opts.quotasOn !== false } }) });
+    });
+    await page.route(/\/api\/v1\/teams\/tp1\/overview$/, route => { calls.overview++;
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TEAM) }); });
+    await page.route(/\/api\/v1\/teams\/tp1\/members$/, route => route.request().method() === 'GET'
+      ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MEMBERS) }) : route.continue());
+    page.on('request', r => { if (/\/quotas|quota-usage/.test(r.url())) calls.quotas.push(r.method() + ' ' + r.url()); });
+    await signIn(page, 'admin');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate(() => { location.hash = '#/teams/tp1'; });
+    await expect(page.locator('#team-detail-view h1')).toHaveText('Payments', { timeout: 15_000 });
+    return calls;
+  }
+
+  test('header, Entra line, 8 members a page, Remove only for people added by hand', async ({ page }) => {
+    await openTeam(page);
+    const view = page.locator('#team-detail-view');
+    await expect(view.locator('.content-header')).toContainText('payments · cost centre CC-4410 · 1 environment · 14 members');
+    await expect(page.locator('#td-entra')).toContainText('Linked to Entra group SG-Payments · 12 members from it');
+    const rows = page.locator('#td-member-table tbody tr');
+    await expect(rows).toHaveCount(8);
+    await expect(page.locator('#td-members .pager-range')).toHaveText('1–8 of 14');
+    await expect(page.locator('#td-members')).toContainText('People from the Entra group are removed there.');
+    // Acceptance: an Entra member's row has no Remove.
+    await expect(rows.first().locator('.td-tag')).toHaveText('Entra');
+    await expect(rows.first().locator('[data-td-remove]')).toHaveCount(0);
+    await page.locator('#td-members .pager-btn', { hasText: 'Next' }).click();
+    await expect(rows).toHaveCount(6);
+    await expect(page.locator('#td-member-table .td-tag-manual')).toHaveCount(2);
+    await expect(page.getByRole('button', { name: 'Remove Person 12' })).toBeVisible();
+    await expect(page.locator('#td-member-table [data-td-remove]')).toHaveCount(2);
+    // The sidebar keeps Teams selected.
+    await expect(page.locator('#teams-link .sidebar-menu-link')).toHaveClass(/active/);
+  });
+
+  test('Sync now shows the counts and reloads the team', async ({ page }) => {
+    const calls = await openTeam(page);
+    await page.route(/\/api\/v1\/teams\/tp1\/sync$/, route => route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ added: 2, removed: 1, skippedUnknown: 0 }) }));
+    const before = calls.overview;
+    await page.locator('#td-sync').click();
+    await expect(page.locator('.notification-toast', { hasText: 'Synced: 2 added, 1 removed.' })).toBeVisible();
+    await expect.poll(() => calls.overview).toBeGreaterThan(before);
+  });
+
+  test('the limits: used of limit with the warning point; Save sends the chosen rule', async ({ page }) => {
+    await openTeam(page);
+    const hours = page.locator('#td-limits .td-limit[data-metric="VM_HOURS"]');
+    await expect(hours).toContainText('3,400 h of 4,000 h');
+    await expect(hours.locator('.td-bar')).toHaveAttribute('aria-label', '85% of the vm hours limit used; warning at 80%');
+    await expect(hours.locator('.td-bar-fill')).toHaveClass(/td-bar-warn/);
+    await expect(page.locator('#td-limits .td-limit[data-metric="COST"]')).toContainText('No limit');
+    let sent: any = null;
+    await page.route(/\/api\/v1\/teams\/tp1\/quotas$/, route => { sent = route.request().postDataJSON();
+      return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }); });
+    await hours.locator('[data-td-limit="limit"]').fill('3000');
+    await hours.locator('[data-td-limit="enforcement"]').selectOption({ label: 'Block new starts' });
+    await page.locator('#td-limits button[type="submit"]').click();
+    await expect.poll(() => sent).toEqual([{ metric: 'VM_HOURS', limit: 3000, enforcement: 'BLOCK', warnPercent: 80 }]);
+  });
+
+  test('with quotas off there is no limits block and no quota request', async ({ page }) => {
+    const calls = await openTeam(page, { quotasOn: false });
+    await expect(page.locator('#td-envs-title')).toBeVisible();
+    await expect(page.locator('#td-limits')).toHaveCount(0);
+    expect(calls.quotas).toEqual([]);
+  });
+
+  test('the environments dialog sends the ticked environments', async ({ page }) => {
+    await page.route(/\/api\/v1\/environments$/, route => route.request().method() === 'GET'
+      ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([
+        { environmentId: 'env-pay-dev', name: 'pay-dev', displayName: 'Payments Dev', isActive: true, teamId: 'tp1', teamName: 'Payments' },
+        { environmentId: 'env-crm', name: 'crm', displayName: 'CRM UAT', isActive: true, teamId: 'other', teamName: 'CRM' }]) }) : route.continue());
+    await openTeam(page);
+    await expect(page.locator('.td-envs a')).toHaveText('Payments Dev');
+    let sent: any = null;
+    await page.route(/\/api\/v1\/teams\/tp1\/environments$/, route => { sent = route.request().postDataJSON();
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TEAM) }); });
+    await page.locator('#td-change-envs').click();
+    const dialog = page.locator('#teamEnvsModal');
+    await expect(dialog.locator('input[value="env-pay-dev"]')).toBeChecked();
+    await expect(dialog).toContainText('now in CRM');
+    await dialog.locator('input[value="env-crm"]').check();
+    await page.locator('#td-envs-save').click();
+    await expect.poll(() => sent).toEqual({ environmentIds: ['env-crm', 'env-pay-dev'] });
   });
 });
 

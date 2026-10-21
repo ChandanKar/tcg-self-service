@@ -2,8 +2,8 @@
  * Teams page (E23-T03, U13-T07 Teams.dc.html): one card per team with its cost centre, members
  * ("6 people · synced from Entra group "Payments Engineering""), each environment with its power
  * strip, and this month's VM hours against the team's limit (red over 90%; no bar while quotas are
- * off), 6 cards a page. Admins create and edit teams; Members and Environments open the team's
- * detail below the cards (members by hand, the Entra group, quotas) until U13-T08's page.
+ * off), 6 cards a page. Admins create and edit teams; Members and Environments open the team's page
+ * (U13-T08, team-detail.js). Also the team picker of the environment dialogs.
  */
 const Teams = (function() {
     'use strict';
@@ -45,6 +45,10 @@ const Teams = (function() {
             label: `${percent}% of the monthly VM hours used` };
     }
 
+    function teamHash(teamId) {
+        return '#/teams/' + encodeURIComponent(teamId);
+    }
+
     // ---- page ----
 
     function load() {
@@ -53,9 +57,13 @@ const Teams = (function() {
             $('#content-area').html('<div class="alert alert-danger m-3">Access denied. Admin only.</div>');
             return;
         }
-        // ?team=<id> opens that team's details (and the page with its card).
+        // Old links: #/teams?team=<id> now opens the team's page.
         const q = ContentRouter.query ? ContentRouter.query() : {};
-        state = { teams: null, environments: {}, selectedId: q.team || null, members: [], users: null, error: false, page: 1 };
+        if (q.team) {
+            window.location.replace(teamHash(q.team));
+            return;
+        }
+        state = { teams: null, environments: {}, page: 1 };
         $('#content-area').html(`
             <div class="content-view teams-page" id="teams-view">
                 ${PageHeader.markup({ title: 'Teams',
@@ -66,7 +74,6 @@ const Teams = (function() {
                     helpPage: typeof HelpLink !== 'undefined' ? 'teams' : null, helpLabel: 'Teams' })}
                 <div id="teams-gaps"></div>
                 <div id="teams-list"><div class="ar-empty" role="status">Loading teams…</div></div>
-                <div id="team-detail"></div>
             </div>`);
         refresh();
         drawGaps();
@@ -89,9 +96,7 @@ const Teams = (function() {
             state.teams = teams || [];
             state.environments = {};
             (Array.isArray(envs) ? envs : []).forEach(e => { state.environments[e.environmentId] = e; });
-            state.error = false;
             drawList();
-            if (state.selectedId) select(state.selectedId);
         }).catch(() => {
             if (!ContentRouter.isCurrent(token)) return;
             $('#teams-list').html(`<div class="cost-panel-error" role="alert"><span>Couldn't load teams.</span>
@@ -108,9 +113,10 @@ const Teams = (function() {
     function cardHtml(t) {
         const quotasOn = typeof Capabilities !== 'undefined' && Capabilities.has('quotas');
         const hours = vmHours(t);
+        const page = teamHash(t.teamId);
         const envs = (t.environments || []).length ? t.environments.map(e => Utils.html`<div class="tm-env">
                 <a href="#/environments/${e.environmentId}">${e.displayName || e.name}</a>${Utils.raw(stripHtml(e.environmentId))}</div>`).join('')
-            : Utils.html`<div class="tm-env-none">No environments yet. <button type="button" class="tm-link" data-action="team-envs" data-id="${t.teamId}">Add environments</button></div>`;
+            : Utils.html`<div class="tm-env-none">No environments yet. <a class="tm-link" href="${page}">Add environments</a></div>`;
         let quota = '';
         if (quotasOn) {
             quota = hours ? Utils.html`<div class="tm-quota">
@@ -118,15 +124,15 @@ const Teams = (function() {
                     <div class="tm-bar${Utils.raw(hours.over ? ' tm-bar-over' : '')}" role="img" aria-label="${hours.label}"><span style="width:${Math.min(100, hours.percent)}%"></span></div>
                 </div>` : '<div class="tm-quota tm-quota-none">No monthly limit</div>';
         }
-        return Utils.html`<article class="tm-card${Utils.raw(t.teamId === state.selectedId ? ' tm-card-open' : '')}" data-team-id="${t.teamId}">
-                <div class="tm-head"><h2>${t.displayName}</h2>${Utils.raw(t.costCenter ? Utils.html`<span class="tm-mono tm-cc">${t.costCenter}</span>` : '')}</div>
+        return Utils.html`<article class="tm-card" data-team-id="${t.teamId}">
+                <div class="tm-head"><h2><a href="${page}">${t.displayName}</a></h2>${Utils.raw(t.costCenter ? Utils.html`<span class="tm-mono tm-cc">${t.costCenter}</span>` : '')}</div>
                 <div class="tm-members">${membersText(t)}</div>
                 <div class="tm-envs">${Utils.raw(envs)}</div>
                 ${Utils.raw(quota)}
                 <div class="tm-links">
                     <button type="button" class="tm-link" data-action="team-edit-card" data-id="${t.teamId}" aria-label="Edit ${t.displayName}">Edit</button>
-                    <button type="button" class="tm-link" data-action="team-select" data-id="${t.teamId}" aria-label="Members of ${t.displayName}">Members</button>
-                    <button type="button" class="tm-link" data-action="team-envs" data-id="${t.teamId}" aria-label="Environments of ${t.displayName}">Environments</button>
+                    <a class="tm-link" href="${page}" aria-label="Members of ${t.displayName}">Members</a>
+                    <a class="tm-link" href="${page}" aria-label="Environments of ${t.displayName}">Environments</a>
                 </div>
             </article>`;
     }
@@ -145,127 +151,11 @@ const Teams = (function() {
                 action: 'team-page', key: 'teams' }) : ''}`);
     }
 
-    function select(teamId) {
-        state.selectedId = teamId;
-        const team = (state.teams || []).find(t => t.teamId === teamId);
-        if (!team) {
-            $('#team-detail').html('');
-            return;
-        }
-        state.page = Math.floor(state.teams.indexOf(team) / PAGE_SIZE) + 1; // the opened team's card is on the page shown
-        drawList();
-        const token = pageToken;
-        Promise.allSettled([call('GET', Config.API.teams.members(teamId)),
-            state.users ? Promise.resolve(state.users) : call('GET', Config.API.users.list)]).then(([members, users]) => {
-            if (!ContentRouter.isCurrent(token) || state.selectedId !== teamId) return;
-            state.members = members.status === 'fulfilled' ? (members.value || []) : [];
-            if (users.status === 'fulfilled') state.users = users.value || [];
-            drawDetail(team, members.status === 'rejected');
-            drawQuotas(teamId);
-            const el = document.getElementById('team-detail');
-            if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
-        });
-    }
-
-    function drawDetail(team, membersFailed) {
-        const memberIds = new Set(state.members.map(m => m.userId));
-        const candidates = (state.users || []).filter(u => !memberIds.has(u.userId) && u.isActive !== false);
-        const memberRows = state.members.length ? state.members.map(m => Utils.html`
-            <li class="d-flex justify-content-between align-items-center gap-2">
-                <span>${m.displayName || m.email || m.userId}<span class="badge text-bg-light border ms-1">${m.source === 'ENTRA' ? 'Entra' : 'Manual'}</span></span>
-                <button type="button" class="btn btn-sm btn-ghost" data-action="team-remove-member" data-user="${m.userId}"
-                    aria-label="Remove ${m.displayName || m.email || m.userId}"><i class="fas fa-times" aria-hidden="true"></i></button>
-            </li>`).join('') : '<li class="text-muted small">No members yet.</li>';
-        $('#team-detail').html(Utils.html`
-            <section class="card" aria-labelledby="team-detail-title"><div class="card-body">
-                <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
-                    <div><h2 class="h5 mb-0" id="team-detail-title">${team.displayName}</h2>
-                        <div class="small text-muted">${team.name}${team.costCenter ? ' · cost center ' + team.costCenter : ''}</div></div>
-                    <div class="d-flex gap-1">
-                        <button type="button" class="btn btn-sm btn-ghost" data-action="team-edit">Edit</button>
-                        ${Utils.raw(team.active ? '<button type="button" class="btn btn-sm btn-ghost text-danger" data-action="team-deactivate">Deactivate</button>' : '')}
-                    </div>
-                </div>
-                <h3 class="h6 mt-3">Entra group</h3>
-                <div class="small mb-2">${team.entraGroupId
-                    ? Utils.raw(Utils.html`Linked to ${team.entraGroupName || team.entraGroupId}
-                        <button type="button" class="btn btn-sm btn-ghost" data-action="team-sync">Sync now</button>
-                        <button type="button" class="btn btn-sm btn-ghost" data-action="team-unlink">Unlink</button>`)
-                    : 'Not linked: members are managed here by hand.'}</div>
-                <div class="d-flex gap-2 mb-2">
-                    <label class="visually-hidden" for="team-group-search">Search Entra groups</label>
-                    <input type="search" class="form-control form-control-sm" id="team-group-search" placeholder="Search Entra groups to link">
-                    <button type="button" class="btn btn-sm btn-ghost" data-action="team-group-search">Search</button>
-                </div>
-                <ul class="list-unstyled small" id="team-group-results" aria-live="polite"></ul>
-                <h3 class="h6 mt-3">Monthly quotas</h3>
-                <div id="team-quotas" class="mb-2"><div class="text-muted small">Loading quotas…</div></div>
-                <h3 class="h6 mt-3">Members</h3>
-                ${Utils.raw(membersFailed ? '<div class="text-danger small">Could not load the members.</div>' : '')}
-                <ul class="list-unstyled team-members">${Utils.raw(memberRows)}</ul>
-                <div class="d-flex gap-2">
-                    <label class="visually-hidden" for="team-add-user">User to add</label>
-                    <select class="form-select form-select-sm" id="team-add-user">
-                        <option value="">Add a member…</option>
-                        ${Utils.raw(candidates.map(u => Utils.html`<option value="${u.userId}">${u.displayName || u.email}</option>`).join(''))}
-                    </select>
-                    <button type="button" class="btn btn-sm btn-primary" data-action="team-add-member">Add</button>
-                </div>
-            </div></section>`);
-    }
-
-    // ============= Quotas (E25-T08) =============
-
-    const QUOTA_METRICS = [['VM_HOURS', 'Running VM-hours'], ['COST', 'Spend ($)']];
-
-    function drawQuotas(teamId) {
-        call('GET', Config.API.teams.quotas(teamId)).then(quotas => {
-            if (state.selectedId !== teamId) return;
-            const byMetric = {};
-            (quotas || []).forEach(q => { byMetric[q.metric] = q; });
-            const bars = (quotas || []).length && typeof CostPreview !== 'undefined'
-                ? quotas.map(q => CostPreview.quotaBar(q)).join('') : '<div class="small text-muted mb-2">No quotas: the team can run without a monthly limit.</div>';
-            const rows = QUOTA_METRICS.map(([metric, label]) => {
-                const q = byMetric[metric];
-                return Utils.html`<div class="row g-2 align-items-end mb-2 quota-row" data-metric="${metric}">
-                    <div class="col-12 col-sm-3"><div class="form-check mt-sm-4">
-                        <input class="form-check-input quota-on" type="checkbox" id="quota-on-${metric}" ${q ? 'checked' : ''}>
-                        <label class="form-check-label" for="quota-on-${metric}">${label}</label></div></div>
-                    <div class="col-4 col-sm-3"><label class="form-label small" for="quota-limit-${metric}">Limit</label>
-                        <input class="form-control form-control-sm quota-limit" type="number" min="1" step="${metric === 'COST' ? '0.01' : '1'}"
-                            id="quota-limit-${metric}" value="${q ? Number(q.limit) : ''}"></div>
-                    <div class="col-5 col-sm-4"><label class="form-label small" for="quota-enf-${metric}">When over</label>
-                        <select class="form-select form-select-sm quota-enforcement" id="quota-enf-${metric}">
-                            <option value="WARN" ${q && q.enforcement === 'WARN' ? 'selected' : ''}>Warn</option>
-                            <option value="REQUIRE_APPROVAL" ${q && q.enforcement === 'REQUIRE_APPROVAL' ? 'selected' : ''}>Needs approval</option>
-                            <option value="BLOCK" ${q && q.enforcement === 'BLOCK' ? 'selected' : ''}>Block</option></select></div>
-                    <div class="col-3 col-sm-2"><label class="form-label small" for="quota-warn-${metric}">Warn at %</label>
-                        <input class="form-control form-control-sm quota-warn" type="number" min="1" max="100" id="quota-warn-${metric}"
-                            value="${q ? q.warnPercent : 80}"></div></div>`;
-            }).join('');
-            $('#team-quotas').html(`${bars}${rows}<button type="button" class="btn btn-sm btn-primary" data-action="team-save-quotas">Save quotas</button>`);
-        }).catch(() => $('#team-quotas').html('<div class="text-danger small">Could not load the quotas.</div>'));
-    }
-
-    function saveQuotas() {
-        const team = selectedTeam();
-        if (!team) return;
-        const body = $('#team-quotas .quota-row').map(function() {
-            const $r = $(this);
-            if (!$r.find('.quota-on').is(':checked')) return null;
-            return { metric: $r.data('metric'), limit: Number($r.find('.quota-limit').val()),
-                enforcement: $r.find('.quota-enforcement').val(), warnPercent: Number($r.find('.quota-warn').val()) || 80 };
-        }).get();
-        call('PUT', Config.API.teams.quotas(team.teamId), body)
-            .then(() => { Notifications.show('Quotas saved.', 'success'); drawQuotas(team.teamId); })
-            .catch(e => Notifications.showError(serverMessage(e, 'Could not save the quotas.')));
-    }
-
-    function selectedTeam() {
-        return (state.teams || []).find(t => t.teamId === state.selectedId);
-    }
-
-    function openForm(team) {
+    /**
+     * The New team / Edit name and cost centre dialog. onSaved(team) runs after a save; without it a
+     * new team opens its page and an edited one refreshes the cards.
+     */
+    function openForm(team, onSaved) {
         Modals.show({
             id: 'teamModal',
             title: team ? `Edit team: ${team.displayName}` : 'New team',
@@ -275,7 +165,7 @@ const Teams = (function() {
                 <div class="mb-3"><label class="form-label" for="team-name">Short name</label>
                     <input type="text" class="form-control" id="team-name" maxlength="100" value="${team ? team.name : ''}" placeholder="made from the display name">
                     <div class="form-text">Letters, digits and dashes; used in tags and reports.</div></div>
-                <div class="mb-0"><label class="form-label" for="team-cost-center">Cost center</label>
+                <div class="mb-0"><label class="form-label" for="team-cost-center">Cost centre</label>
                     <input type="text" class="form-control" id="team-cost-center" maxlength="100" value="${team ? (team.costCenter || '') : ''}"></div>`,
             buttons: [{ text: 'Cancel', class: 'btn-secondary', dismiss: true },
                 { text: team ? 'Save' : 'Create team', class: 'btn-primary', id: 'team-save-btn' }],
@@ -288,66 +178,22 @@ const Teams = (function() {
             const $btn = $(this).prop('disabled', true);
             (team ? call('PUT', Config.API.teams.update(team.teamId), body) : call('POST', Config.API.teams.create, body))
                 .then(saved => {
-                    bootstrap.Modal.getInstance(document.getElementById('teamModal')).hide();
-                    state.selectedId = saved.teamId;
-                    refresh();
+                    Modals.hide('teamModal');
+                    if (onSaved) onSaved(saved);
+                    else if (!team) window.location.hash = teamHash(saved.teamId);
+                    else refresh();
                 })
                 .catch(e => { Notifications.showError(serverMessage(e, 'Could not save the team.')); $btn.prop('disabled', false); });
         });
     }
 
-    function deactivate() {
-        const team = selectedTeam();
+    function deactivate(team, onDone) {
         if (!team) return;
         Modals.confirm('Deactivate team', `Deactivate ${team.displayName}? It must own no active environments.`, () => {
             call('DELETE', Config.API.teams.delete(team.teamId))
-                .then(() => { Notifications.show('Team deactivated.', 'success'); refresh(); })
+                .then(() => { Notifications.show('Team deactivated.', 'success'); if (onDone) onDone(); else refresh(); })
                 .catch(e => Notifications.showError(serverMessage(e, 'Could not deactivate the team.')));
         }, { confirmText: 'Deactivate', confirmClass: 'btn-danger' });
-    }
-
-    function searchGroups() {
-        const q = ($('#team-group-search').val() || '').trim();
-        if (q.length < 2) { Notifications.showError('Type at least 2 characters.'); return; }
-        call('GET', Config.API.teams.entraGroups(q)).then(groups => {
-            $('#team-group-results').html((groups || []).length ? groups.map(g => Utils.html`
-                <li class="d-flex justify-content-between align-items-center gap-2"><span>${g.displayName}${g.mail ? ' · ' + g.mail : ''}</span>
-                <button type="button" class="btn btn-sm btn-ghost" data-action="team-link" data-group="${g.id}" data-group-name="${g.displayName}">Link</button></li>`).join('')
-                : '<li class="text-muted">No groups found.</li>');
-        }).catch(e => $('#team-group-results').html(Utils.html`<li class="text-muted">${serverMessage(e, 'Group search is unavailable.')}</li>`));
-    }
-
-    function link(groupId, groupName) {
-        const team = selectedTeam();
-        if (!team) return;
-        call('PUT', Config.API.teams.entraGroup(team.teamId), { groupId, groupName: groupName || null })
-            .then(() => { Notifications.show(groupId ? 'Entra group linked.' : 'Entra group unlinked.', 'success'); refresh(); })
-            .catch(e => Notifications.showError(serverMessage(e, 'Could not change the Entra group.')));
-    }
-
-    function sync() {
-        const team = selectedTeam();
-        if (!team) return;
-        call('POST', Config.API.teams.sync(team.teamId))
-            .then(r => { Notifications.show(`Synced: ${r.added} added, ${r.removed} removed, ${r.skippedUnknown} without an account.`, 'success'); refresh(); })
-            .catch(e => Notifications.showError(serverMessage(e, 'Could not sync the members.')));
-    }
-
-    function addMember() {
-        const team = selectedTeam();
-        const userId = $('#team-add-user').val();
-        if (!team || !userId) return;
-        call('POST', Config.API.teams.members(team.teamId), { userId })
-            .then(() => refresh())
-            .catch(e => Notifications.showError(serverMessage(e, 'Could not add the member.')));
-    }
-
-    function removeMember(userId) {
-        const team = selectedTeam();
-        if (!team) return;
-        call('DELETE', Config.API.teams.member(team.teamId, userId))
-            .then(() => refresh())
-            .catch(e => Notifications.showError(serverMessage(e, 'Could not remove the member.')));
     }
 
     /** Marks a team picker required when the server requires a team (E23-T04). */
@@ -373,8 +219,7 @@ const Teams = (function() {
     }
 
     return {
-        load, refresh, select, openForm, deactivate, searchGroups, link, sync, addMember, removeMember, options, markRequired, saveQuotas,
-        edit: () => openForm(selectedTeam()),
+        load, refresh, openForm, deactivate, options, markRequired,
         editTeam: id => openForm((state.teams || []).find(t => t.teamId === id)),
         page: n => { state.page = n; drawList(); },
         model: { membersText, vmHours }
@@ -386,18 +231,6 @@ if (typeof window !== 'undefined') window.Teams = Teams;
 if (typeof Actions !== 'undefined') Actions.registerAll({
     'team-new': () => Teams.openForm(null),
     'team-edit-card': el => Teams.editTeam(el.dataset.id),
-    // Environments open the team below the cards until U13-T08's team page.
-    'team-envs': el => Teams.select(el.dataset.id),
     'team-page': el => Teams.page(Number(el.dataset.page) || 1),
-    'team-refresh': () => Teams.refresh(),
-    'team-select': el => Teams.select(el.dataset.id),
-    'team-edit': () => Teams.edit(),
-    'team-deactivate': () => Teams.deactivate(),
-    'team-group-search': () => Teams.searchGroups(),
-    'team-link': el => Teams.link(el.dataset.group, el.dataset.groupName),
-    'team-unlink': () => Teams.link(null),
-    'team-sync': () => Teams.sync(),
-    'team-add-member': () => Teams.addMember(),
-    'team-remove-member': el => Teams.removeMember(el.dataset.user),
-    'team-save-quotas': () => Teams.saveQuotas()
+    'team-refresh': () => Teams.refresh()
 });

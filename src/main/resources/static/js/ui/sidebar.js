@@ -164,7 +164,8 @@ const Sidebar = (function() {
             : contentType === 'access-grant' ? 'access-management'
             : contentType === 'register-vms' || contentType === 'environment-settings' ? 'vm-registry'
             : contentType === 'automation-rule-new' || contentType === 'automation-rule-edit' ? 'automation-rules'
-            : contentType === 'user-management-add' ? 'user-management' : contentType;
+            : contentType === 'user-management-add' ? 'user-management'
+            : contentType === 'team-detail' ? 'teams' : contentType;
         $('.sidebar-menu-link').removeClass('active').removeAttr('aria-current');
         $(`.sidebar-menu-link[data-content="${key}"]`).addClass('active').attr('aria-current', 'page');
 

@@ -89,6 +89,13 @@ const ContentRouter = (function() {
             params: m => ({ ruleId: decodeURIComponent(m[1]) })
         },
         {
+            // A team's page (U13-T08).
+            contentType: 'team-detail',
+            pattern: /^#\/teams\/([^/?]+)$/,
+            build: p => (p && p.teamId) ? '#/teams/' + encodeURIComponent(p.teamId) : null,
+            params: m => ({ teamId: decodeURIComponent(m[1]) })
+        },
+        {
             // A help topic (E29-T07).
             contentType: 'help',
             pattern: /^#\/help\/([a-z0-9-]+)$/,
@@ -144,6 +151,7 @@ const ContentRouter = (function() {
         'user-management':    { role: 'ADMIN', label: 'Users' },
         'user-management-add': { role: 'ADMIN', label: 'Add people' },
         'teams':              { role: 'ADMIN', label: 'Teams' },
+        'team-detail':        { role: 'ADMIN', label: 'Team' },
         'aws-accounts':       { role: 'ADMIN', label: 'AWS accounts' },
         'api-access':         { role: 'ADMIN', label: 'API access' },
         'settings':           { role: 'ADMIN', label: 'Settings' },
@@ -223,6 +231,7 @@ const ContentRouter = (function() {
             'budgets':            () => window.Budgets?.load?.(),
             'waste':              () => window.Waste?.load?.(),
             'teams':              () => window.Teams?.load?.(),
+            'team-detail':        (params) => window.TeamDetail?.load?.(params),
             'aws-accounts':       () => window.AwsAccounts?.load?.(),
             'api-access':         () => window.ApiAccess?.load?.(),
             'chargeback':         () => window.Chargeback?.load?.(),

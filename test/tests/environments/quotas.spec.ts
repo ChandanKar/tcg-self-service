@@ -74,23 +74,39 @@ test.describe('Team quotas', () => {
     await expect(page.locator('#op-confirm-btn')).toHaveAttribute('title', 'The team quota would be exceeded');
   });
 
-  test('an admin sets a cost quota on the Teams page and sees the usage bar in dollars', async ({ page, playwright }) => {
+  test('an admin sets the monthly limits on the team page (real API)', async ({ page, playwright }) => {
     const { teamId, teamName } = await teamWithEnv(playwright, 'Quota edit');
+    await page.route(/\/api\/v1\/users\/me\/capabilities$/, async route => {
+      const response = await route.fetch();
+      const caps = await response.json();
+      return route.fulfill({ response, body: JSON.stringify({ ...caps, features: { ...caps.features, quotas: true } }) });
+    });
     await signIn(page, 'admin');
     await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
-    // U13-T07: #/teams?team=<id> opens the team (its card's page and its quotas below the cards).
+    // U13-T08: the old #/teams?team=<id> link opens the team's page.
     await page.evaluate(id => { location.hash = '#/teams?team=' + id; }, teamId);
-    await expect(page.locator('.tm-card-open')).toContainText(teamName, { timeout: 15_000 });
-    await expect(page.locator('#team-quotas')).toContainText('No quotas', { timeout: 10_000 });
+    await expect(page).toHaveURL(new RegExp(`#/teams/${teamId}$`), { timeout: 15_000 });
+    await expect(page.locator('#team-detail-view h1')).toHaveText(teamName, { timeout: 15_000 });
+    const hours = page.locator('#td-limits .td-limit[data-metric="VM_HOURS"]');
+    await expect(hours).toContainText('No limit');
 
-    await page.locator('#quota-on-COST').check();
-    await page.locator('#quota-limit-COST').fill('250');
-    await page.locator('#quota-enf-COST').selectOption('REQUIRE_APPROVAL');
-    await page.locator('[data-action="team-save-quotas"]').click();
+    // Acceptance: "Block new starts" at 3000 is saved as BLOCK with limit 3000.
+    await hours.locator('[data-td-limit="limit"]').fill('3000');
+    await hours.locator('[data-td-limit="enforcement"]').selectOption({ label: 'Block new starts' });
+    const cost = page.locator('#td-limits .td-limit[data-metric="COST"]');
+    await cost.locator('[data-td-limit="limit"]').fill('250');
+    await cost.locator('[data-td-limit="enforcement"]').selectOption({ label: 'Ask an owner to approve each start' });
+    await page.locator('#td-limits button[type="submit"]').click();
+    // The bars come back with the team's overview only while the server's quota switch is on.
+    await expect(page.locator('.notification-toast', { hasText: 'Limits saved.' })).toBeVisible({ timeout: 10_000 });
 
-    const bar = page.locator('#team-quotas .quota-bar[data-metric="COST"]');
-    await expect(bar).toContainText('Spend: $0.00 of $250.00', { timeout: 10_000 });
-    await expect(page.locator('#quota-enf-COST')).toHaveValue('REQUIRE_APPROVAL');
+    const api = await admin(playwright);
+    const quotas = await (await api.get(`/api/v1/teams/${teamId}/quotas`)).json();
+    await api.dispose();
+    const vmHours = quotas.find((q: any) => q.metric === 'VM_HOURS');
+    expect(vmHours.enforcement).toBe('BLOCK');
+    expect(Number(vmHours.limit)).toBe(3000);
+    expect(quotas.find((q: any) => q.metric === 'COST').enforcement).toBe('REQUIRE_APPROVAL');
   });
 
   test('My Account shows my teams quota usage', async ({ page }) => {
