@@ -431,7 +431,9 @@ const Config = (function() {
         serviceAccounts: {
             list: `${API_BASE_URL}/service-accounts`,
             item: (id) => `${API_BASE_URL}/service-accounts/${encodeURIComponent(id)}`,
-            tokens: (id) => `${API_BASE_URL}/service-accounts/${encodeURIComponent(id)}/tokens`
+            tokens: (id) => `${API_BASE_URL}/service-accounts/${encodeURIComponent(id)}/tokens`,
+            // Switch a deactivated service account on again (U14-T04)
+            reactivate: (id) => `${API_BASE_URL}/service-accounts/${encodeURIComponent(id)}/reactivate`
         },
 
         // RDS databases as VMs (E33-T02); 404 while rds.enabled is off

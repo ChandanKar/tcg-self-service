@@ -97,6 +97,29 @@ class ServiceAccountControllerTest extends SecuredWebTestBase {
     }
 
     @Test
+    void switchingOnAgainKeepsTheOldTokensRevoked() throws Exception {
+        String id = createAccount("revived", "USER");
+        Environment env = newEnvironment("Revived");
+        grantEnv(userRepository.findById(id).orElseThrow(), env.getEnvironmentId(), AccessLevel.USER);
+        String old = issue(id, "[\"environments:read\"]");
+        mockMvc.perform(delete(URL + "/" + id).with(asAdmin())).andExpect(status().isOk());
+
+        // U14-T04: Switch on: the account is active, its old token does not come back.
+        mockMvc.perform(post(URL + "/" + id + "/reactivate").with(asAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(true))
+                .andExpect(jsonPath("$.activeTokens").value(0));
+        mockMvc.perform(get("/api/v1/environments").header("Authorization", "Bearer " + old))
+                .andExpect(status().isUnauthorized());
+        String fresh = issue(id, "[\"environments:read\"]");
+        mockMvc.perform(get("/api/v1/environments/" + env.getEnvironmentId()).header("Authorization", "Bearer " + fresh))
+                .andExpect(status().isOk());
+
+        expectError(mockMvc.perform(post(URL + "/" + id + "/reactivate").with(asEnvAdmin())), 403);
+        expectError(mockMvc.perform(post(URL + "/" + id + "/reactivate").with(asUser())), 403);
+    }
+
+    @Test
     void onlyAdminsManageServiceAccountsAndNeverWithAToken() throws Exception {
         mockMvc.perform(get(URL).with(asEnvAdmin())).andExpect(status().isForbidden());
         mockMvc.perform(post(URL).with(asUser()).contentType(MediaType.APPLICATION_JSON)

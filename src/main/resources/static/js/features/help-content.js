@@ -458,6 +458,37 @@ const HelpContent = (function() {
             ]
         },
         {
+            id: 'api-access',
+            group: 'admin',
+            title: 'API access',
+            roles: ['ADMIN'],
+            optional: false,
+            keywords: ['api', 'token', 'bearer', 'service account', 'ci', 'pipeline', 'script', 'swagger', 'webhook'],
+            sections: [
+                {
+                    heading: 'Tokens',
+                    paragraphs: [
+                        'A token lets a script call the API as the person who made it: send it as Authorization: Bearer vmc_… . It can never do more than that person can, and only what its scopes allow.',
+                        'A token is shown once, when it is made. Revoke it on API access if it may have leaked; it stops working at once.'
+                    ]
+                },
+                {
+                    heading: 'Service accounts',
+                    paragraphs: [
+                        'For pipelines and tools that should not act as a person. Each has an owner, a role (user or environment admin) and gets environments in Access management like anyone else.',
+                        'Switching a service account off revokes its tokens. Switching it on again does not bring them back: make a new token.'
+                    ]
+                },
+                {
+                    heading: 'Switching tokens on',
+                    paragraphs: [
+                        'Tokens are off until the server is configured: set the token secret API_TOKEN_PEPPER (a long random value, kept secret), then API_TOKENS_ENABLED=true, and restart.',
+                        'The API reference (every endpoint and its fields) is at /swagger-ui.html on the server when API_DOCS_ENABLED is on.'
+                    ]
+                }
+            ]
+        },
+        {
             id: 'faq',
             group: 'cost',
             title: 'FAQ and troubleshooting',
@@ -522,7 +553,7 @@ const HelpContent = (function() {
         'teams': 'teams',
         'team-detail': 'teams',
         'aws-accounts': 'getting-started',
-        'api-access': 'getting-started',
+        'api-access': 'api-access',
         'settings': 'settings',
         'system-health': 'getting-started',
         // panels

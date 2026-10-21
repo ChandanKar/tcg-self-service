@@ -47,6 +47,12 @@ public class ServiceAccountController {
         return ResponseEntity.ok(service.deactivate(userId, userService.getCurrentUserId()));
     }
 
+    @PostMapping("/{userId}/reactivate")
+    @Operation(summary = "Switch a service account on again", description = "Its earlier tokens stay revoked; issue new ones.")
+    public ResponseEntity<ServiceAccountService.ServiceAccountView> reactivate(@PathVariable String userId) {
+        return ResponseEntity.ok(service.reactivate(userId, userService.getCurrentUserId()));
+    }
+
     @GetMapping("/{userId}/tokens")
     public ResponseEntity<List<ApiTokenDTO>> tokens(@PathVariable String userId) {
         return ResponseEntity.ok(service.tokens(userId));

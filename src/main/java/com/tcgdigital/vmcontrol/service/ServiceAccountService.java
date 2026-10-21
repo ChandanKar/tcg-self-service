@@ -105,6 +105,29 @@ public class ServiceAccountService {
         return view(account, Timestamp.from(Instant.now()));
     }
 
+    /**
+     * Switches a deactivated account on again (U14-T04). Its old tokens stay revoked: it gets new
+     * ones, so nothing that leaked while it was off works again. The owner must still be active.
+     */
+    @Transactional
+    public ServiceAccountView reactivate(String userId, String actorUserId) {
+        tokenService.requireEnabled();
+        User account = account(userId);
+        if (account.isActive()) {
+            return view(account, Timestamp.from(Instant.now()));
+        }
+        User owner = account.getServiceOwnerUserId() == null ? null : userRepository.findById(account.getServiceOwnerUserId())
+                .filter(u -> u.isActive() && !u.isServiceAccount()).orElse(null);
+        if (owner == null) {
+            throw new ValidationException("Its owner is no longer active: create a new service account with an active owner");
+        }
+        account.setIsActive(true);
+        userRepository.saveAndFlush(account);
+        auditService.logAction(actorUserId, AuditAction.SERVICE_ACCOUNT_REACTIVATED, "USER", userId, account.getEmail(),
+                "Switched on; earlier tokens stay revoked");
+        return view(account, Timestamp.from(Instant.now()));
+    }
+
     public List<ApiTokenDTO> tokens(String userId) {
         account(userId);
         return tokenService.list(userId);

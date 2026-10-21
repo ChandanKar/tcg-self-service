@@ -71,6 +71,8 @@ public enum AuditAction {
     // Service accounts (E34-T03)
     SERVICE_ACCOUNT_CREATED,
     SERVICE_ACCOUNT_DEACTIVATED,
+    /** A deactivated service account switched on again (U14-T04); its old tokens stay revoked. */
+    SERVICE_ACCOUNT_REACTIVATED,
     // Webhooks (E34-T06)
     WEBHOOK_CREATED,
     WEBHOOK_UPDATED,

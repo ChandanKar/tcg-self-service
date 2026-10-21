@@ -2,9 +2,12 @@
  * API tokens in the UI (E34-T05).
  *   ApiTokensUi - the "API tokens" tab of My Account: the user's own tokens, create (name, scopes the
  *                 role allows, lifetime), a one-time reveal with Copy, revoke. Hidden while tokens are off.
- *   ApiAccess   - #/api-access, admins only: every active token with its owner (revoke any), and
- *                 service accounts (create, issue and revoke their tokens, deactivate).
- * A token is shown once, in the reveal dialog; closing it removes the dialog and the token from the page.
+ *   ApiAccess   - #/api-access, admins only (U14-T04, ApiAccess.dc.html / ApiTabs.dc.html): tabs
+ *                 Tokens (every active token: name and prefix, owner, what it can do in words, last
+ *                 used, expiry, Revoke), Service accounts (owner, active tokens, New token, Switch off /
+ *                 Switch on) and Webhooks; a switched-off card while tokens are off, with no requests.
+ * A token is shown once: in My Account's reveal dialog, on the admin page in a card above the list;
+ * closing either removes the token from the page.
  */
 const ApiTokenScopes = [
     ['environments:read', 'Read environments, VMs and operations'],
@@ -92,8 +95,9 @@ const ApiTokensUi = (function() {
      * The create dialog, shared with service accounts: the scopes offered follow the role.
      * @param {{admin:boolean, envAdmin:boolean}} role
      * @param {function(object):Promise} send - posts the body and resolves with the created token
+     * @param {function(object)} [onCreated] - shows the created token itself instead of the reveal dialog
      */
-    function openCreate(title, role, send, onDone) {
+    function openCreate(title, role, send, onDone, onCreated) {
         const scopes = ApiTokenScopes.filter(([, , need]) => !need || (need === 'admin' ? role.admin : role.admin || role.envAdmin));
         Modals.show({
             id: 'apiTokenCreateModal',
@@ -127,7 +131,8 @@ const ApiTokensUi = (function() {
             $('#api-token-create').prop('disabled', true);
             send(body).then(created => {
                 Modals.hideWhenReady(document.getElementById('apiTokenCreateModal'));
-                reveal(created.token);
+                if (onCreated) onCreated(created);
+                else reveal(created.token);
                 if (onDone) onDone();
             }).catch(e => {
                 $('#api-token-create').prop('disabled', false);
@@ -184,10 +189,47 @@ const ApiAccess = (function() {
     'use strict';
 
     const QUIET = { suppressGlobalError: true };
-    let pageToken = null;
-    let page = 0;
-    let tokenPage = null;
-    let accounts = [];
+    const TABS = [['tokens', 'Tokens'], ['accounts', 'Service accounts'], ['webhooks', 'Webhooks']];
+    const SCOPE_WORDS = {
+        'environments:read': 'read environments', 'operations:write': 'start and stop', 'schedules:read': 'read schedules',
+        'schedules:write': 'change schedules', 'cost:read': 'read cost', 'audit:read': 'read the audit log',
+        'assistant:read': 'ask the assistant', 'access:write': 'grant access', 'admin': 'everything'
+    };
+    let s = null; // {token, tab, page, tokenPage, accounts, revealed}
+
+    // ---- pure model (node tests: src/test/js/api-access.test.mjs) ----
+
+    /** "Read environments, start and stop" from ['environments:read', 'operations:write']. */
+    function scopesText(scopes) {
+        const text = (scopes || []).map(x => SCOPE_WORDS[x] || x).join(', ');
+        return text ? text.charAt(0).toUpperCase() + text.slice(1) : '—';
+    }
+
+    /** "Today 06:00", "Yesterday 18:30", "Mon 09:00" within a week, else "18 Oct"; "Never". */
+    function used(ts, now = new Date()) {
+        if (!ts) return 'Never';
+        const d = new Date(ts);
+        const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate())
+            - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
+        if (days === 0) return `Today ${time}`;
+        if (days === 1) return `Yesterday ${time}`;
+        if (days > 1 && days < 7) return `${d.toLocaleDateString('en-GB', { weekday: 'short' })} ${time}`;
+        return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' });
+    }
+
+    /** "18 Jan 2027". */
+    function day(ts) {
+        return ts ? new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+    }
+
+    /** "2 active tokens", "1 active token", "no tokens". */
+    function tokensText(n) {
+        const count = Number(n) || 0;
+        return count ? `${count} active token${count === 1 ? '' : 's'}` : 'no tokens';
+    }
+
+    // ---- page ----
 
     function call(method, url, data) {
         return new Promise((resolve, reject) => {
@@ -199,134 +241,199 @@ const ApiAccess = (function() {
         return (e && e.responseJSON && e.responseJSON.message) || fallback;
     }
 
-    function date(ts) {
-        return ts ? new Date(ts).toLocaleDateString() : '—';
+    function current() {
+        return s && ContentRouter.isCurrent(s.token);
+    }
+
+    function on() {
+        return typeof Capabilities === 'undefined' || Capabilities.has('apiTokens');
     }
 
     function load() {
-        pageToken = ContentRouter.token();
-        page = 0;
         if (!Auth.isAdmin()) {
             $('#content-area').html('<div class="alert alert-danger m-3">Access denied. Admin only.</div>');
             return;
         }
+        const q = ContentRouter.query ? ContentRouter.query() : {};
+        s = { token: ContentRouter.token(), tab: TABS.some(([k]) => k === q.tab) ? q.tab : 'tokens', page: 1,
+            tokenPage: null, accounts: null, loaded: {} };
+        const enabled = on();
         $('#content-area').html(`
             <div class="content-view api-access-page" id="api-access-view">
-                <div class="content-header">
-                    <h1><i class="fas fa-key me-2" aria-hidden="true"></i>API access</h1>
-                    <p class="text-muted mb-0">Every active API token and the service accounts CI and automation use</p>
-                </div>
-                <section class="card mb-3"><div class="card-body">
-                    <h2 class="h6">Active tokens</h2>
-                    <div id="api-access-tokens"><div class="text-muted small"><i class="fas fa-spinner fa-spin"></i> Loading…</div></div>
-                </div></section>
-                <section class="card"><div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h2 class="h6 mb-0">Service accounts</h2>
-                        <button type="button" class="btn btn-sm btn-primary" data-action="sa-new"><i class="fas fa-plus" aria-hidden="true"></i> New service account</button>
-                    </div>
-                    <div id="api-access-accounts"><div class="text-muted small"><i class="fas fa-spinner fa-spin"></i> Loading…</div></div>
-                </div></section>
+                ${PageHeader.markup({ title: 'API access',
+                    summaryHtml: 'Tokens for scripts and tools, accounts for services, and webhooks that tell other systems what happened.',
+                    actionsHtml: enabled ? '<button type="button" class="btn btn-primary" id="api-new-token" data-action="api-admin-new-token">New token</button>' : '',
+                    helpPage: typeof HelpLink !== 'undefined' ? 'api-access' : null, helpLabel: 'API access' })}
+                <div id="api-access-body"></div>
             </div>`);
         // While API tokens are off, say so without asking for the lists (U02-T03).
-        if (typeof Capabilities !== 'undefined' && !Capabilities.has('apiTokens')) {
-            $('#api-access-tokens, #api-access-accounts').html(off({ status: 404 }));
+        if (!enabled) {
+            $('#api-access-body').html(`<section class="api-off" id="api-access-off" aria-labelledby="api-off-title">
+                <h2 id="api-off-title">API tokens are switched off</h2>
+                <p>Nobody can create or use a token until they are on. They are switched on in the server settings
+                    (<code>API_TOKENS_ENABLED</code>), after the token secret (<code>API_TOKEN_PEPPER</code>) is set; the setup guide explains both steps.</p>
+                <a class="btn btn-secondary" href="#/help/api-access">Setup guide</a>
+            </section>`);
             return;
         }
-        loadTokens();
-        loadAccounts();
+        $('#api-access-body').html(`
+            <div class="api-tabs" role="tablist" aria-label="API access">${TABS.map(([key, label]) => `<button type="button" role="tab"
+                class="api-tab" id="api-tab-${key}" data-api-tab="${key}" aria-controls="api-panel-${key}" aria-selected="${key === s.tab}">${label}</button>`).join('')}
+                <a class="api-ref" href="#/help/api-access">API reference</a></div>
+            ${TABS.map(([key]) => `<section class="api-panel" id="api-panel-${key}" role="tabpanel" aria-labelledby="api-tab-${key}"${key === s.tab ? '' : ' hidden'}></section>`).join('')}`);
+        $('#api-access-view').off('.api')
+            .on('click.api', '[data-api-tab]', function() { switchTab(this.dataset.apiTab); })
+            .on('click.api', '[data-action="api-admin-page"]', function() { s.page = Number(this.dataset.page) || 1; loadTokens(); })
+            .on('click.api', '#api-reveal-copy', copyReveal)
+            .on('click.api', '#api-reveal-close', () => $('#api-reveal').remove());
+        ContentRouter.onLeave(() => $('#api-reveal').remove());
+        show(s.tab);
     }
 
-    function off(e) {
-        return e && e.status === 404
-            ? '<div class="alert alert-info small mb-0">API tokens are off. Set api-tokens.enabled (with API_TOKEN_PEPPER) to use them.</div>'
-            : Utils.html`<div class="text-danger small" role="alert">${message(e, "Couldn't load this list.")}</div>`;
+    function switchTab(tab) {
+        if (!s || tab === s.tab) return;
+        s.tab = tab;
+        $('.api-tab').each(function() { this.setAttribute('aria-selected', String(this.dataset.apiTab === tab)); });
+        TABS.forEach(([key]) => $(`#api-panel-${key}`).prop('hidden', key !== tab));
+        $('#api-reveal').remove();
+        try {
+            history.replaceState(null, '', tab === 'tokens' ? '#/api-access' : `#/api-access?tab=${tab}`);
+        } catch (e) { /* the address keeps the old tab */ }
+        show(tab);
     }
+
+    function show(tab) {
+        $('#api-new-token').prop('hidden', tab !== 'tokens');
+        if (s.loaded[tab]) return;
+        s.loaded[tab] = true;
+        if (tab === 'tokens') loadTokens();
+        else if (tab === 'accounts') loadAccounts();
+        else drawWebhooks();
+    }
+
+    // ---- Tokens
 
     function loadTokens() {
-        const token = pageToken;
-        call('GET', Config.API.apiTokens.all(page)).then(data => {
+        const token = s.token;
+        if (!$('#api-admin-tokens').length) $('#api-panel-tokens').html('<p class="api-note api-pad">Loading tokens…</p>');
+        call('GET', Config.API.apiTokens.all(s.page - 1)).then(data => {
             if (!ContentRouter.isCurrent(token)) return;
-            tokenPage = data;
+            s.tokenPage = data;
             drawTokens();
-        }).catch(e => { if (ContentRouter.isCurrent(token)) $('#api-access-tokens').html(off(e)); });
+        }).catch(e => {
+            if (ContentRouter.isCurrent(token)) {
+                $('#api-panel-tokens').html(Utils.html`<p class="api-note api-pad" role="alert">${message(e, "Couldn't load the tokens.")}</p>`);
+            }
+        });
     }
 
     function drawTokens() {
-        const items = (tokenPage && tokenPage.content) || [];
-        const meta = (tokenPage && tokenPage.page) || {};
-        if (!items.length) {
-            $('#api-access-tokens').html('<p class="text-muted small mb-0">No active tokens.</p>');
-            return;
-        }
+        const items = (s.tokenPage && s.tokenPage.content) || [];
+        const meta = (s.tokenPage && s.tokenPage.page) || {};
+        const now = new Date();
         const rows = items.map(v => Utils.html`<tr data-token="${v.token.id}">
-                <td data-label="Owner">${v.ownerName || v.ownerUserId}${Utils.raw(v.ownerServiceAccount ? ' <span class="badge text-bg-light border">Service</span>' : '')}
-                    <div class="small text-muted">${v.ownerEmail || ''}</div></td>
-                <td data-label="Token"><strong>${v.token.name}</strong><div class="small text-muted"><code>vmc_${v.token.prefix}_…</code></div></td>
-                <td data-label="Scopes" class="small">${(v.token.scopes || []).join(', ')}</td>
-                <td data-label="Last used" class="small">${v.token.lastUsedAt ? date(v.token.lastUsedAt) : 'Never'}</td>
-                <td data-label="Expires" class="small">${date(v.token.expiresAt)}</td>
-                <td class="td-actions"><button type="button" class="btn btn-sm btn-ghost text-danger" data-action="api-admin-revoke" data-id="${v.token.id}">Revoke</button></td>
+                <td data-label="Name"><div class="api-name">${v.token.name}</div><div class="api-mono api-sub">vmc_${v.token.prefix}…</div></td>
+                <td data-label="Owner">${v.ownerName || v.ownerEmail || v.ownerUserId}${Utils.raw(v.ownerServiceAccount ? ' <span class="api-tag">Service</span>' : '')}</td>
+                <td data-label="Can">${scopesText(v.token.scopes)}</td>
+                <td data-label="Last used">${used(v.token.lastUsedAt, now)}</td>
+                <td data-label="Expires">${day(v.token.expiresAt)}</td>
+                <td class="api-actions"><button type="button" class="api-link api-danger" data-action="api-admin-revoke" data-id="${v.token.id}"
+                    aria-label="Revoke ${v.token.name}">Revoke</button></td>
             </tr>`).join('');
-        const pager = (meta.totalPages || 1) > 1 ? Utils.html`<div class="d-flex justify-content-end gap-2 align-items-center small">
-                <button type="button" class="btn btn-sm btn-ghost" data-action="api-admin-page" data-page="${page - 1}" ${page === 0 ? 'disabled' : ''}>Previous</button>
-                <span>Page ${page + 1} of ${meta.totalPages}</span>
-                <button type="button" class="btn btn-sm btn-ghost" data-action="api-admin-page" data-page="${page + 1}" ${page + 1 >= meta.totalPages ? 'disabled' : ''}>Next</button></div>` : '';
-        $('#api-access-tokens').html(`<div class="table-responsive"><table class="table table-sm table-cards" id="api-admin-tokens">
-            <thead><tr><th>Owner</th><th>Token</th><th>Scopes</th><th>Last used</th><th>Expires</th><th></th></tr></thead>
-            <tbody>${rows}</tbody></table></div>${pager}`);
+        const total = Number(meta.totalElements) || items.length;
+        const size = Number(meta.size) || 50;
+        $('#api-panel-tokens').html(items.length ? `<div class="api-card"><div class="api-scroll"><table class="api-table" id="api-admin-tokens">
+                <thead><tr><th scope="col">Name</th><th scope="col">Owner</th><th scope="col">Can</th><th scope="col">Last used</th><th scope="col">Expires</th>
+                <th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+                <tbody>${rows}</tbody></table></div>
+            ${total > size ? `<div class="api-foot">${Pagination.buildPager({ page: s.page, pageSize: size, totalItems: total, action: 'api-admin-page', key: 'tokens' })}</div>` : ''}</div>`
+            : '<p class="api-note api-pad">No active tokens. New token makes one for you; service accounts get theirs on their tab.</p>');
     }
 
-    function setPage(el) {
-        page = Math.max(0, Number(el.dataset.page) || 0);
-        loadTokens();
+    function newToken() {
+        ApiTokensUi.openCreate('New API token', { admin: true, envAdmin: true },
+            body => call('POST', Config.API.apiTokens.mine, body), null, created => {
+                revealInline('tokens', 'Token created for you', created);
+                loadTokens();
+            });
     }
 
     function revokeAny(el) {
-        const v = ((tokenPage && tokenPage.content) || []).find(x => x.token.id === el.dataset.id);
+        const v = ((s.tokenPage && s.tokenPage.content) || []).find(x => x.token.id === el.dataset.id);
         if (!v) return;
         Modals.confirm('Revoke token', `Revoke '${v.token.name}' of ${v.ownerName || v.ownerUserId}? It stops working at once.`, () => {
             call('DELETE', Config.API.apiTokens.item(v.token.id)).then(() => {
                 Notifications.success('Token revoked.');
                 loadTokens();
-                loadAccounts();
+                if (s.loaded.accounts) loadAccounts();
             }).catch(e => Notifications.showError(message(e, 'Could not revoke the token.')));
         }, { confirmText: 'Revoke', confirmClass: 'btn-danger' });
     }
 
+    /** A new token shown once inside the page; it leaves with the card, the tab or the page. */
+    function revealInline(tab, title, created) {
+        $('#api-reveal').remove();
+        const days = created.expiresAt ? Math.max(1, Math.round((new Date(created.expiresAt).getTime() - Date.now()) / 86400000)) : null;
+        // Above the panel, so reloading the list below does not take it away.
+        $(`#api-panel-${tab}`).before(Utils.html`<div class="api-reveal" id="api-reveal" role="status">
+                <div class="api-reveal-title">${title}</div>
+                <div class="api-reveal-row"><code class="api-mono" id="api-reveal-value"></code>
+                    <button type="button" class="api-link" id="api-reveal-copy">Copy</button></div>
+                <div class="api-sub">Copy it now; it isn't shown again. Can: ${scopesText(created.scopes)}${days ? ` · ends in ${days} days` : ''}</div>
+                <button type="button" class="api-link api-reveal-close" id="api-reveal-close">Done</button>
+            </div>`);
+        $('#api-reveal-value').text(created.token);
+    }
+
+    function copyReveal() {
+        const text = $('#api-reveal-value').text();
+        (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject())
+            .then(() => Notifications.success('Token copied.'))
+            .catch(() => {
+                const range = document.createRange();
+                range.selectNodeContents(document.getElementById('api-reveal-value'));
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(range);
+            });
+    }
+
+    // ---- Service accounts
+
     function loadAccounts() {
-        const token = pageToken;
+        const token = s.token;
         call('GET', Config.API.serviceAccounts.list).then(list => {
             if (!ContentRouter.isCurrent(token)) return;
-            accounts = list || [];
+            s.accounts = list || [];
             drawAccounts();
-        }).catch(e => { if (ContentRouter.isCurrent(token)) $('#api-access-accounts').html(off(e)); });
+        }).catch(e => {
+            if (ContentRouter.isCurrent(token)) {
+                $('#api-panel-accounts').html(Utils.html`<p class="api-note api-pad" role="alert">${message(e, "Couldn't load the service accounts.")}</p>`);
+            }
+        });
     }
 
     function drawAccounts() {
-        if (!accounts.length) {
-            $('#api-access-accounts').html('<p class="text-muted small mb-0">No service accounts yet.</p>');
-            return;
-        }
-        const rows = accounts.map(a => Utils.html`<tr data-account="${a.userId}">
-                <td data-label="Name"><strong>${a.name}</strong><div class="small text-muted">${a.email}</div></td>
-                <td data-label="Role">${a.role === 'ENV_ADMIN' ? 'Environment admin' : 'User'}</td>
-                <td data-label="Owner">${a.ownerName || '—'}</td>
-                <td data-label="Tokens">${a.activeTokens}</td>
-                <td data-label="State">${Utils.raw(a.active ? '<span class="badge text-bg-success">Active</span>' : '<span class="badge text-bg-light border">Deactivated</span>')}</td>
-                <td class="td-actions">${Utils.raw(a.active ? Utils.html`
-                    <button type="button" class="btn btn-sm btn-ghost" data-action="sa-token-new" data-id="${a.userId}">New token</button>
-                    <button type="button" class="btn btn-sm btn-ghost text-danger" data-action="sa-deactivate" data-id="${a.userId}">Deactivate</button>` : '')}</td>
-            </tr>`).join('');
-        $('#api-access-accounts').html(`<p class="small text-muted">Grant a service account environments in Access Management like any user.</p>
-            <div class="table-responsive"><table class="table table-sm table-cards" id="api-admin-accounts">
-            <thead><tr><th>Name</th><th>Role</th><th>Owner</th><th>Active tokens</th><th>State</th><th></th></tr></thead>
-            <tbody>${rows}</tbody></table></div>`);
+        const rows = s.accounts.map(a => Utils.html`<div class="api-account" data-account="${a.userId}">
+                <div class="api-account-line"><span><b class="api-mono">${a.name}</b> <span class="api-sub">· ${a.role === 'ENV_ADMIN' ? 'Environment admin' : 'User'}</span></span>
+                    <span class="api-state api-state-${a.active ? 'on' : 'off'}">${a.active ? 'Active' : 'Switched off'}</span></div>
+                <div class="api-account-line"><span class="api-sub">Owner ${a.ownerName || '—'} · ${tokensText(a.activeTokens)}</span>
+                    <span class="api-account-actions">${Utils.raw(a.active
+                        ? Utils.html`<button type="button" class="api-link" data-action="sa-token-new" data-id="${a.userId}" aria-label="New token for ${a.name}">New token</button>
+                            <button type="button" class="api-link api-danger" data-action="sa-deactivate" data-id="${a.userId}" aria-label="Switch off ${a.name}">Switch off</button>`
+                        : Utils.html`<button type="button" class="api-link" data-action="sa-reactivate" data-id="${a.userId}" aria-label="Switch on ${a.name}">Switch on</button>`)}</span></div>
+            </div>`).join('');
+        $('#api-panel-accounts').html(`<section class="api-card" aria-labelledby="api-sa-title" id="api-admin-accounts">
+                <div class="api-card-head"><div><h2 id="api-sa-title">Service accounts</h2>
+                    <div class="api-sub">For pipelines and tools. Each has a person who owns it. Give one environments in Access management like a person.</div></div>
+                    <button type="button" class="btn btn-secondary btn-sm" data-action="sa-new">New service account</button></div>
+                ${rows || '<p class="api-note api-pad">No service accounts yet.</p>'}
+            </section>`);
     }
 
     function newAccount() {
         call('GET', Config.API.users.list).then(users => {
-            const people = (users || []).filter(u => u.active && !u.serviceAccount);
+            const people = (users || []).filter(u => u.active !== false && u.isActive !== false && !u.serviceAccount);
             Modals.show({
                 id: 'serviceAccountModal',
                 title: 'New service account',
@@ -351,7 +458,7 @@ const ApiAccess = (function() {
                 $('#sa-create').prop('disabled', true);
                 call('POST', Config.API.serviceAccounts.list, body).then(() => {
                     Modals.hideWhenReady(document.getElementById('serviceAccountModal'));
-                    Notifications.success('Service account created. Grant it environments in Access Management.');
+                    Notifications.success('Service account created. Give it environments in Access management.');
                     loadAccounts();
                 }).catch(e => {
                     $('#sa-create').prop('disabled', false);
@@ -361,34 +468,66 @@ const ApiAccess = (function() {
         }).catch(e => Notifications.showError(message(e, "Couldn't load the users.")));
     }
 
-    function newToken(el) {
-        const a = accounts.find(x => x.userId === el.dataset.id);
+    function account(el) {
+        return (s.accounts || []).find(x => x.userId === el.dataset.id);
+    }
+
+    function newAccountToken(el) {
+        const a = account(el);
         if (!a) return;
         ApiTokensUi.openCreate('New token for ' + a.name, { admin: false, envAdmin: a.role === 'ENV_ADMIN' },
-            body => call('POST', Config.API.serviceAccounts.tokens(a.userId), body), () => { loadTokens(); loadAccounts(); });
+            body => call('POST', Config.API.serviceAccounts.tokens(a.userId), body), null, created => {
+                revealInline('accounts', `Token created for ${a.name}`, created);
+                loadAccounts();
+                if (s.loaded.tokens) loadTokens();
+            });
     }
 
     function deactivate(el) {
-        const a = accounts.find(x => x.userId === el.dataset.id);
+        const a = account(el);
         if (!a) return;
-        Modals.confirm('Deactivate service account', `Deactivate '${a.name}'? Its ${a.activeTokens} token(s) are revoked at once.`, () => {
-            call('DELETE', Config.API.serviceAccounts.item(a.userId)).then(() => { loadAccounts(); loadTokens(); })
-                .catch(e => Notifications.showError(message(e, 'Could not deactivate it.')));
-        }, { confirmText: 'Deactivate', confirmClass: 'btn-danger' });
+        Modals.confirm('Switch off service account', `Switch off '${a.name}'? Its ${tokensText(a.activeTokens)} stop working at once and stay revoked if you switch it on again.`, () => {
+            call('DELETE', Config.API.serviceAccounts.item(a.userId)).then(() => {
+                loadAccounts();
+                if (s.loaded.tokens) loadTokens();
+            }).catch(e => Notifications.showError(message(e, 'Could not switch it off.')));
+        }, { confirmText: 'Switch off', confirmClass: 'btn-danger' });
     }
 
-    return { load, setPage, revokeAny, newAccount, newToken, deactivate };
+    function reactivate(el) {
+        const a = account(el);
+        if (!a) return;
+        call('POST', Config.API.serviceAccounts.reactivate(a.userId)).then(() => {
+            Notifications.success(`${a.name} is on. Its earlier tokens stay revoked: make a new one.`);
+            loadAccounts();
+        }).catch(e => Notifications.showError(message(e, 'Could not switch it on.')));
+    }
+
+    // ---- Webhooks (U14-T05 brings the full list here)
+
+    function drawWebhooks() {
+        const enabled = typeof Capabilities !== 'undefined' && Capabilities.has('webhooks');
+        $('#api-panel-webhooks').html(enabled
+            ? '<p class="api-note api-pad" id="api-webhooks-note">Webhooks are set up on each environment for now: open the environment, then Settings › Webhooks.</p>'
+            : '<p class="api-note api-pad" id="api-webhooks-note">Webhooks are switched off.</p>');
+    }
+
+    return { load, newToken, revokeAny, newAccount, newAccountToken, deactivate, reactivate,
+        model: { scopesText, used, day, tokensText } };
 })();
 
-window.ApiTokensUi = ApiTokensUi;
-window.ApiAccess = ApiAccess;
+if (typeof window !== 'undefined') {
+    window.ApiTokensUi = ApiTokensUi;
+    window.ApiAccess = ApiAccess;
+}
 
-Actions.registerAll({
+if (typeof Actions !== 'undefined') Actions.registerAll({
     'api-token-new': () => ApiTokensUi.create(),
     'api-token-revoke': el => ApiTokensUi.revoke(el),
+    'api-admin-new-token': () => ApiAccess.newToken(),
     'api-admin-revoke': el => ApiAccess.revokeAny(el),
-    'api-admin-page': el => ApiAccess.setPage(el),
     'sa-new': () => ApiAccess.newAccount(),
-    'sa-token-new': el => ApiAccess.newToken(el),
-    'sa-deactivate': el => ApiAccess.deactivate(el)
+    'sa-token-new': el => ApiAccess.newAccountToken(el),
+    'sa-deactivate': el => ApiAccess.deactivate(el),
+    'sa-reactivate': el => ApiAccess.reactivate(el)
 });

@@ -1,0 +1,363 @@
+/*
+ * API access (U14-T04, ApiAccess.dc.html / ApiTabs.dc.html): tabs Tokens / Service accounts /
+ * Webhooks, a switched-off card, a new token shown once in a card above the list.
+ */
+
+.api-access-page {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.api-access-page .content-header {
+    margin-bottom: 0;
+}
+
+#api-access-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.api-note {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.api-pad {
+    padding: 14px 0;
+}
+
+.api-sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.api-mono {
+    font-family: var(--font-mono);
+}
+
+/* Switched off */
+.api-off {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    max-width: 720px;
+    padding: 24px 28px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+}
+
+.api-off h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.api-off p {
+    margin: 0;
+    color: var(--slate);
+}
+
+.api-off code {
+    color: var(--ink);
+}
+
+/* Tabs */
+.api-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    border-bottom: 1px solid var(--line);
+}
+
+.api-tab {
+    margin-bottom: -1px;
+    padding: 8px 14px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: none;
+    font: inherit;
+    font-size: var(--fs-body);
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.api-tab[aria-selected="true"] {
+    border-bottom-color: var(--brand-navy);
+    color: var(--brand-navy);
+    font-weight: 600;
+}
+
+.api-tab:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: -2px;
+}
+
+.api-ref {
+    margin-left: auto;
+    padding: 8px 0;
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.api-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.api-panel[hidden] {
+    display: none;
+}
+
+/* Cards and the tokens table */
+.api-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.api-card-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.api-card-head h2 {
+    margin: 0 0 2px;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.api-card > .api-pad {
+    padding: 14px 20px;
+}
+
+.api-scroll {
+    overflow-x: auto;
+}
+
+.api-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.api-table thead th {
+    padding: 12px;
+    background: var(--surface-subtle);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-align: left;
+}
+
+.api-table td {
+    padding: 12px;
+    border-top: 1px solid var(--line-soft);
+    color: var(--slate);
+    vertical-align: middle;
+}
+
+.api-table th:first-child,
+.api-table td:first-child {
+    padding-left: 20px;
+}
+
+.api-table th:last-child,
+.api-table td:last-child {
+    padding-right: 20px;
+}
+
+.api-name {
+    font-weight: 500;
+    color: var(--ink);
+}
+
+.api-table .api-sub {
+    font-size: 12.5px;
+}
+
+.api-tag {
+    margin-left: 6px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--brand-navy-tint);
+    color: var(--brand-navy);
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.api-actions {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.api-foot {
+    padding: 10px 20px;
+    border-top: 1px solid var(--line-soft);
+}
+
+.api-foot .pager {
+    padding: 0;
+    border: 0;
+}
+
+.api-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 13px;
+    color: var(--brand-navy);
+    cursor: pointer;
+}
+
+.api-link + .api-link {
+    margin-left: 14px;
+}
+
+.api-link:hover {
+    text-decoration: underline;
+}
+
+.api-danger {
+    color: var(--brand-red-text);
+}
+
+/* Service accounts */
+.api-account {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 20px;
+    border-top: 1px solid var(--line-soft);
+}
+
+.api-card-head + .api-account {
+    border-top: 0;
+}
+
+.api-account-line {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 6px 12px;
+    font-size: 14px;
+}
+
+.api-state {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.api-state-on {
+    color: var(--brand-green-text);
+}
+
+.api-state-off {
+    color: var(--text-secondary);
+}
+
+/* A new token, shown once */
+.api-reveal {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px 18px;
+    background: var(--brand-gold-tint);
+    border: 1px solid var(--brand-gold-line);
+    border-radius: 12px;
+}
+
+.api-reveal-title {
+    font-weight: 600;
+}
+
+.api-reveal-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+.api-reveal-row code {
+    padding: 4px 8px;
+    background: #fff;
+    border-radius: 6px;
+    color: var(--ink);
+    overflow-wrap: anywhere;
+}
+
+.api-reveal-close {
+    align-self: flex-start;
+}
+
+/* Phones: one card per token */
+@media (max-width: 767.98px) {
+    .api-table,
+    .api-table tbody,
+    .api-table tr,
+    .api-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .api-table thead {
+        display: none;
+    }
+
+    .api-table tr {
+        padding: 8px 16px;
+        border-top: 1px solid var(--line-soft);
+    }
+
+    .api-table td,
+    .api-table td:first-child,
+    .api-table td:last-child {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 4px 0;
+        border: 0;
+        text-align: right;
+        overflow-wrap: anywhere;
+    }
+
+    .api-table td::before {
+        content: attr(data-label);
+        flex-shrink: 0;
+        font-weight: 500;
+        color: var(--text-secondary);
+        text-align: left;
+    }
+
+    .api-table td:first-child {
+        display: block;
+        text-align: left;
+    }
+
+    .api-table td:first-child::before,
+    .api-table td.api-actions::before {
+        content: none;
+    }
+
+    .api-table td.api-actions {
+        justify-content: flex-start;
+    }
+
+    .api-ref {
+        margin-left: 0;
+    }
+}

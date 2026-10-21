@@ -47,7 +47,7 @@ public enum AuditActionCategory {
             AuditAction.AWS_ACCOUNT_CREATED, AuditAction.AWS_ACCOUNT_UPDATED, AuditAction.AWS_ACCOUNT_DEACTIVATED,
             AuditAction.AWS_ACCOUNT_VERIFIED,
             AuditAction.API_TOKEN_CREATED, AuditAction.API_TOKEN_REVOKED,
-            AuditAction.SERVICE_ACCOUNT_CREATED, AuditAction.SERVICE_ACCOUNT_DEACTIVATED,
+            AuditAction.SERVICE_ACCOUNT_CREATED, AuditAction.SERVICE_ACCOUNT_DEACTIVATED, AuditAction.SERVICE_ACCOUNT_REACTIVATED,
             AuditAction.SYSTEM_CONFIG_UPDATED)),
     AUTOMATION(EnumSet.of(
             AuditAction.AUTOMATION_RULE_CREATED, AuditAction.AUTOMATION_RULE_UPDATED, AuditAction.AUTOMATION_RULE_DELETED,
