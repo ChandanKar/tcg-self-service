@@ -141,3 +141,55 @@ test.describe('Phone layout (admin tables)', () => {
   }
 });
 
+
+/** U16-T02 (PhoneHome.dc.html): Home on a phone, from a faked summary. */
+test.describe('Phone Home', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
+  });
+
+  test('the summary line, the gold lease row and one card per environment with a large strip and one line', async ({ page }) => {
+    const soon = new Date(Date.now() + 2 * 3600000);
+    const hhmm = `${String(soon.getHours()).padStart(2, '0')}:${String(soon.getMinutes()).padStart(2, '0')}`;
+    const card = (id: string, displayName: string, over: Record<string, unknown>) => ({ environmentId: id, name: id, displayName,
+      totalVms: 0, runningVms: 0, transitionalVms: 0, startingVms: 0, failedVms: 0, groupStates: [], myAccess: 'USER', ...over });
+    await page.route(/\/api\/v1\/dashboard\/summary$/, async route => {
+      const response = await route.fetch();
+      const body = await response.json();
+      body.environments = [
+        card('e1', 'Payments Dev', { totalVms: 7, runningVms: 5, leaseEndsAt: soon.toISOString(),
+          groupStates: [{ name: 'Database', running: 3, total: 3 }, { name: 'Application', running: 2, total: 2 }, { name: 'Web', running: 0, total: 2 }] }),
+        card('e2', 'Analytics QA', { totalVms: 3, runningVms: 0, groupStates: [{ name: 'App', running: 0, total: 3 }] }),
+        card('e3', 'CRM UAT', { totalVms: 2, runningVms: 2, groupStates: [{ name: 'App', running: 2, total: 2 }] }),
+      ];
+      body.needsYou = [{ kind: 'LEASE_ENDING', environmentId: 'e1', environmentName: 'Payments Dev', at: soon.toISOString() }];
+      body.summary = { ...(body.summary || {}), monthToDateCost: 412.8 };
+      await route.fulfill({ response, json: body });
+    });
+    await signIn(page, 'user');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await go(page, '#/dashboard', '.phone-home');
+
+    // Acceptance: the summary line and three cards, each with a large strip and one status line.
+    await expect(page.locator('.phone-home .page-summary')).toHaveText('7/12 VMs running · $412.80 this month');
+    const cards = page.locator('.phone-home-card');
+    await expect(cards).toHaveCount(3);
+    for (let i = 0; i < 3; i++) {
+      await expect(cards.nth(i).locator('.power-strip')).toHaveCount(1);
+      await expect(cards.nth(i).locator('.phone-home-line')).toHaveCount(1);
+    }
+    await expect(cards.filter({ hasText: 'Payments Dev' })).toHaveAttribute('href', '#/environments/e1');
+    // Acceptance: a lease ending within 4 hours is a gold row with Extend above the cards.
+    const alert = page.locator('.phone-home-alert');
+    await expect(alert).toContainText(`Payments Dev stops at ${hhmm}`);
+    await expect(alert.locator('b')).toHaveText('Extend');
+    await expect(alert).toHaveAttribute('href', '#/environments/e1?extendLease=1');
+    await expect(page.locator('.home-lower')).toHaveCount(0);
+    await expectNoSideScroll(page);
+
+    // Wider than a phone, Home is the desktop layout again.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect(page.locator('.home-grid')).toBeVisible();
+    await expect(page.locator('.phone-home')).toHaveCount(0);
+  });
+});

@@ -10,6 +10,8 @@ const Dashboard = (function() {
     'use strict';
 
     let dashboardData = null;
+    /** Home is laid out for a phone under this width (U16-T02). */
+    const PHONE_QUERY = '(max-width: 768px)';
     let isLoading = false;
     let lastRenderSignature = null;
 
@@ -65,11 +67,24 @@ const Dashboard = (function() {
     function renderDashboard(data) {
         isLoading = false;
         lastRenderSignature = dashboardSignature(data);
+        lastRenderPhone = isPhone();
         disposeTooltips();
         $('#content-area').html(buildDashboardHtml(data));
         bindEvents();
-        if (isAdmin(data)) AdminHome.fill(data); else loadRecentActivity();
+        if (isAdmin(data)) AdminHome.fill(data); else if (!lastRenderPhone) loadRecentActivity();
         initTooltips();
+    }
+
+    // Crossing the phone width redraws Home in the other form (U16-T02), from the data it already has.
+    let lastRenderPhone = null;
+    if (typeof window !== 'undefined' && window.matchMedia) {
+        const media = window.matchMedia(PHONE_QUERY);
+        const redraw = () => {
+            if (lastRenderPhone === null || lastRenderPhone === isPhone()) return;
+            if (!document.getElementById('dashboard-view') || !dashboardData || isAdmin(dashboardData)) return;
+            renderDashboard(dashboardData);
+        };
+        if (media.addEventListener) media.addEventListener('change', redraw); else if (media.addListener) media.addListener(redraw);
     }
 
     /** Runs when the user leaves the dashboard (ContentRouter.onLeave). */
@@ -139,7 +154,45 @@ const Dashboard = (function() {
             ? '$' + amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
     }
 
+    /** Home on a phone (U16-T02): the same data in the PhoneHome.dc.html form. */
+    function isPhone() {
+        return typeof window !== 'undefined' && window.matchMedia && window.matchMedia(PHONE_QUERY).matches;
+    }
+
+    function buildPhoneHomeHtml(data) {
+        const cards = data.environments || [];
+        const t = HomeModel.totals(cards);
+        const now = new Date();
+        const summary = cards.length
+            ? Utils.html`<span class="mono">${t.running}</span>/<span class="mono">${t.total}</span> VMs running · `
+                + Utils.html`<span class="mono">${money(data.summary && data.summary.monthToDateCost)}</span> this month`
+            : 'Nothing to show yet.';
+        const alert = HomeModel.phoneAlert(data.needsYou || [], now);
+        const alertHtml = alert ? Utils.html`<a class="phone-home-alert" href="${alert.href}">
+                <span class="needs-you-dot" aria-hidden="true"></span>
+                <span class="phone-home-alert-text">${alert.environment} stops at <span class="mono">${alert.at}</span></span>
+                <b>Extend</b></a>` : '';
+        const items = HomeModel.pickCards(cards, 4).map(card => {
+            const chip = HomeModel.chip(card);
+            const strip = PowerStrip.render(PowerStrip.fromGroupStates(card.groupStates || []), { large: true });
+            return Utils.html`<a class="phone-home-card" href="#/environments/${encodeURIComponent(card.environmentId)}">
+                    <div class="phone-home-card-head"><b>${card.displayName || card.name}</b>
+                        <span class="chip chip-${chip.kind}">${chip.label}</span></div>`
+                + strip
+                + Utils.html`<div class="phone-home-line">${HomeModel.cardLine(card, now)}</div></a>`;
+        }).join('');
+        const more = cards.length > 4 ? `<a class="phone-home-more" href="#/my-environments">All ${cards.length} environments</a>` : '';
+        return `
+            <div class="content-view page home-page phone-home" id="dashboard-view">
+                ${PageHeader.markup({ title: 'Home', summaryHtml: summary })}
+                ${alertHtml}
+                ${cards.length ? `<section class="phone-home-cards" aria-label="Your environments">${items}${more}</section>` : buildHomeEmpty()}
+            </div>
+        `;
+    }
+
     function buildHomeHtml(data) {
+        if (isPhone()) return buildPhoneHomeHtml(data);
         const cards = data.environments || [];
         const t = HomeModel.totals(cards);
         const summary = cards.length

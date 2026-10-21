@@ -155,3 +155,18 @@ test('barely-used rows: running only, longest idle first, at most two', () => {
     assert.deepEqual(rows.map(v => v.vmId), ['c', 'd']);
     assert.equal(H.idleRows(null).length, 0);
 });
+
+// U16-T02: the phone Home's gold row.
+test('the phone alert: the soonest lease ending within 4 hours, else nothing', () => {
+    const H = load();
+    const items = [
+        { kind: 'LEASE_ENDING', environmentId: 'e2', environmentName: 'CRM UAT', at: at(0, 21, 30) },
+        { kind: 'LEASE_ENDING', environmentId: 'e1', environmentName: 'Payments Dev', at: at(0, 20, 0) },
+        { kind: 'ACCESS_ENDING', environmentName: 'X', at: at(0, 18, 0), referenceId: 'g' },
+    ];
+    assert.deepEqual(JSON.parse(JSON.stringify(H.phoneAlert(items, NOW))),
+        { environment: 'Payments Dev', at: '20:00', href: '#/environments/e1?extendLease=1' });
+    assert.equal(H.phoneAlert([{ kind: 'LEASE_ENDING', environmentId: 'e', at: at(0, 23, 0) }], NOW), null); // over 4 h away
+    assert.equal(H.phoneAlert([{ kind: 'LEASE_ENDING', environmentId: 'e', at: at(0, 17, 0) }], NOW), null); // already past
+    assert.equal(H.phoneAlert([], NOW), null);
+});

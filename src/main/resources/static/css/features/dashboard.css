@@ -678,3 +678,78 @@
         grid-template-columns: minmax(0, 1fr);
     }
 }
+
+/* ---- Home on a phone (U16-T02, PhoneHome.dc.html) ---- */
+.phone-home {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.phone-home .page-header {
+    margin-bottom: 0;
+}
+
+.phone-home-alert {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 44px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.phone-home-alert-text {
+    flex: 1;
+}
+
+.phone-home-alert b {
+    font-weight: 600;
+}
+
+.phone-home-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.phone-home-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 44px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #fff;
+    color: var(--ink);
+    text-decoration: none;
+}
+
+.phone-home-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.phone-home-card-head b {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.phone-home-line {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.phone-home-more {
+    align-self: center;
+    padding: 10px;
+    font-weight: 500;
+    text-decoration: none;
+}

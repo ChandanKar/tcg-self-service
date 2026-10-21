@@ -174,6 +174,24 @@ const HomeModel = (function() {
         return null;
     }
 
+    /**
+     * The phone Home's gold row (U16-T02, PhoneHome.dc.html): the lease ending soonest within 4 hours, as
+     * {environment, at, href}; null when none does.
+     */
+    function phoneAlert(items, now = new Date()) {
+        const soon = (Array.isArray(items) ? items : [])
+            .filter(i => i && i.kind === 'LEASE_ENDING' && toDate(i.at))
+            .map(i => ({ item: i, t: toDate(i.at).getTime() }))
+            .filter(x => x.t >= now.getTime() && x.t - now.getTime() <= 4 * 3600000)
+            .sort((a, b) => a.t - b.t)[0];
+        if (!soon) return null;
+        return {
+            environment: soon.item.environmentName || 'An environment',
+            at: when(soon.item.at, now),
+            href: `#/environments/${encodeURIComponent(soon.item.environmentId)}?extendLease=1`,
+        };
+    }
+
     /** The header line's numbers: running and total VMs and environments across the cards. */
     function totals(cards) {
         const list = Array.isArray(cards) ? cards : [];
@@ -245,7 +263,7 @@ const HomeModel = (function() {
             .slice(0, max);
     }
 
-    return { chip, cardLine, accessLabel, pickCards, needsYouItem, totals, when, day, inTime,
+    return { chip, cardLine, accessLabel, pickCards, needsYouItem, phoneAlert, totals, when, day, inTime,
         activityText, resultLabel, activityTime, idleRows };
 })();
 
