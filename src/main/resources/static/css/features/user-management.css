@@ -236,6 +236,64 @@
     color: var(--text-secondary);
 }
 
+/* Dialogs (U13-T04, UserDialogs.dc.html) */
+.um-dialog-sub {
+    margin: -4px 0 12px;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.um-dialog-note,
+.um-dialog-text {
+    margin: 6px 0 0;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.um-dialog-text {
+    font-size: var(--fs-body);
+    color: var(--ink);
+}
+
+.um-dialog-block {
+    margin: 10px 0 0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
+    font-size: var(--fs-small);
+}
+
+.um-password {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.um-checks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.um-checks li::before {
+    content: "\25CB";
+    margin-right: 6px;
+}
+
+.um-checks li.um-check-ok {
+    color: var(--brand-green-text);
+}
+
+.um-checks li.um-check-ok::before {
+    content: "\2713";
+}
+
 /* On a phone each person is a card: the header row goes, each cell says what it is. */
 @media (max-width: 767.98px) {
     .um-table,

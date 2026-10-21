@@ -224,4 +224,27 @@ class UserControllerTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.department").doesNotExist())
                 .andExpect(jsonPath("$.projectCode").doesNotExist());
     }
+
+    // ---- U13-T04
+
+    @Test
+    @DisplayName("PATCH /roles sets both flags at once; the last administrator stays")
+    void rolesPatchIsOneStepAndKeepsTheLastAdministrator() throws Exception {
+        testUser.setEnvAdmin(true);
+        userRepository.save(testUser);
+        mockMvc.perform(patch("/api/v1/users/{userId}/roles", testUser.getUserId()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"admin\":true,\"envAdmin\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.admin").value(true))
+                .andExpect(jsonPath("$.envAdmin").value(false));
+
+        // Two administrators now: the first may become a User; then the other is the last one.
+        mockMvc.perform(patch("/api/v1/users/{userId}/roles", adminUser.getUserId()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"admin\":false,\"envAdmin\":false}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(patch("/api/v1/users/{userId}/roles", testUser.getUserId()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"admin\":false,\"envAdmin\":false}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("There must always be at least one administrator."));
+    }
 }

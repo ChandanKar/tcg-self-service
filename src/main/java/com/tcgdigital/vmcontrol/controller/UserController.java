@@ -329,12 +329,10 @@ public class UserController {
         String currentUserId = userService.getCurrentUserId();
         User user = userService.getUserById(userId);
 
-        if (dto.getAdmin() != null) {
-            user = userService.setAdmin(userId, dto.getAdmin(), currentUserId);
-        }
-        if (dto.getEnvAdmin() != null) {
-            user = userService.setEnvAdmin(userId, dto.getEnvAdmin(), currentUserId);
-        }
+        // U13-T04: both flags in one step; a flag left out keeps its value.
+        boolean admin = dto.getAdmin() != null ? dto.getAdmin() : user.isAdmin();
+        boolean envAdmin = dto.getEnvAdmin() != null ? dto.getEnvAdmin() : user.isEnvAdmin();
+        user = userService.setRole(userId, admin, envAdmin, currentUserId);
 
         return ResponseEntity.ok(UserDTO.fromEntity(user));
     }

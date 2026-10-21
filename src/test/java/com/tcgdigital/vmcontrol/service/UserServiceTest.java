@@ -156,7 +156,7 @@ class UserServiceTest extends AbstractIntegrationTest {
         // When/Then
         assertThatThrownBy(() -> userService.toggleAdmin(testUser.getUserId(), testUser.getUserId()))
                 .isInstanceOf(Exception.class)
-                .hasMessageContaining("last admin");
+                .hasMessage("There must always be at least one administrator.");
     }
 
     @Test
@@ -179,7 +179,7 @@ class UserServiceTest extends AbstractIntegrationTest {
     void deactivateUser_preventsSelfDeactivation() {
         assertThatThrownBy(() -> userService.deactivateUser(testUser.getUserId(), testUser.getUserId()))
                 .isInstanceOf(Exception.class)
-                .hasMessageContaining("your own account");
+                .hasMessage("You can't deactivate yourself.");
     }
 
     @Test
@@ -232,5 +232,43 @@ class UserServiceTest extends AbstractIntegrationTest {
         assertThat(result).isPresent();
         assertThat(result.get().getUserId()).isEqualTo(testUser.getUserId());
     }
-}
 
+    // ---- U13-T04: one role in one step
+
+    @Test
+    @DisplayName("setRole sets both flags together and keeps the last administrator")
+    void setRole_setsBothFlagsAndGuardsTheLastAdministrator() {
+        User other = userRepository.save(User.fromAzureAd("oid-other", "other@example.com", "Other"));
+        testUser.setEnvAdmin(true);
+        userRepository.save(testUser);
+
+        User admin = userService.setRole(testUser.getUserId(), true, false, other.getUserId());
+        assertThat(admin.isAdmin()).isTrue();
+        assertThat(admin.isEnvAdmin()).isFalse();
+
+        // The only active administrator cannot become a User or an environment admin.
+        assertThatThrownBy(() -> userService.setRole(testUser.getUserId(), false, false, other.getUserId()))
+                .hasMessage("There must always be at least one administrator.");
+        assertThatThrownBy(() -> userService.setRole(testUser.getUserId(), false, true, other.getUserId()))
+                .hasMessage("There must always be at least one administrator.");
+        assertThat(userRepository.findById(testUser.getUserId()).orElseThrow().isAdmin()).isTrue();
+
+        // With a second administrator it can.
+        userService.setRole(other.getUserId(), true, false, testUser.getUserId());
+        User user = userService.setRole(testUser.getUserId(), false, false, other.getUserId());
+        assertThat(user.isAdmin()).isFalse();
+        assertThat(user.isEnvAdmin()).isFalse();
+    }
+
+    @Test
+    @DisplayName("Deactivate refuses yourself and the last administrator with sentences")
+    void deactivate_refusesYourselfAndTheLastAdministrator() {
+        User other = userRepository.save(User.fromAzureAd("oid-other2", "other2@example.com", "Other"));
+        testUser.setAdmin(true);
+        userRepository.save(testUser);
+        assertThatThrownBy(() -> userService.deactivateUser(testUser.getUserId(), testUser.getUserId()))
+                .hasMessage("You can't deactivate yourself.");
+        assertThatThrownBy(() -> userService.deactivateUser(testUser.getUserId(), other.getUserId()))
+                .hasMessage("There must always be at least one administrator.");
+    }
+}

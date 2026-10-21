@@ -160,18 +160,87 @@ test.describe('Users list', () => {
     await expect(page.locator('#users-table-body tr')).toHaveCount(2);
   });
 
-  test('Change role sends both role flags', async ({ page }) => {
+  /** U13-T04 (UserDialogs.dc.html). */
+  test('Change role: three choices, one request with both flags; the last administrator stays', async ({ page }) => {
     const users = crowd();
     await openList(page, users);
-    let sent: any = null;
-    await page.route(/\/api\/v1\/users\/u-2\/roles$/, route => {
-      sent = route.request().postDataJSON();
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...users[37], admin: true }) });
+    const sent: any[] = [];
+    await page.route(/\/api\/v1\/users\/u-(2|1)\/roles$/, route => {
+      sent.push(route.request().postDataJSON());
+      if (route.request().url().includes('/u-1/')) {
+        return route.fulfill({ status: 400, contentType: 'application/json',
+          body: JSON.stringify({ error: 'Validation', message: 'There must always be at least one administrator.' }) });
+      }
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...users[37], admin: true, envAdmin: false }) });
     });
     await page.locator('#user-search').fill('Sanjay');
     await page.getByRole('button', { name: 'Change role of Sanjay Rao' }).click();
-    await page.locator('#changeRoleModal input[name="um-role"][value="ADMIN"]').check();
-    await page.locator('#um-role-save').click();
-    await expect.poll(() => sent).toEqual({ admin: true, envAdmin: false });
+    const dialog = page.locator('#changeRoleModal');
+    await expect(dialog.locator('.modal-title')).toHaveText('Change role for Sanjay Rao');
+    await expect(dialog).toContainText('person2@x.com · signs in with Microsoft');
+    await expect(dialog.locator('.um-role-choice b')).toHaveText(['User', 'Environment admin', 'Administrator']);
+    await expect(dialog.locator('input[value="ENV_ADMIN"]')).toBeChecked();
+    await expect(dialog).toContainText('Sees instance IDs.');
+    await dialog.locator('input[value="ADMIN"]').check();
+    await dialog.getByRole('button', { name: 'Save role' }).click();
+    await expect(page.getByText('Role saved.')).toBeVisible();
+    expect(sent).toEqual([{ admin: true, envAdmin: false }]);
+
+    await page.locator('#user-search').fill('Meera');
+    await page.getByRole('button', { name: 'Change role of Meera Iyer' }).click();
+    await page.locator('#changeRoleModal input[value="USER"]').check();
+    await page.locator('#changeRoleModal').getByRole('button', { name: 'Save role' }).click();
+    await expect(page.locator('#um-role-error')).toHaveText('There must always be at least one administrator.');
+    await expect(page.locator('#changeRoleModal')).toBeVisible();
+  });
+
+  test('Set password: live checks, enabled only when both pass', async ({ page }) => {
+    await openList(page, crowd());
+    let body: any = null;
+    await page.route(/\/api\/v1\/users\/u-5\/password$/, route => {
+      body = route.request().postDataJSON();
+      return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    });
+    await page.locator('#user-search').fill('Ops');
+    await page.getByRole('button', { name: 'Set password for Ops service' }).click();
+    const dialog = page.locator('#setPasswordModal');
+    await expect(dialog.locator('.modal-title')).toHaveText('Set a password for Ops service');
+    const submit = dialog.getByRole('button', { name: 'Set password' });
+    await expect(submit).toBeDisabled();
+    await dialog.getByLabel('New password').fill('correct-horse-battery');
+    await dialog.getByLabel('Type it again').fill('correct-horse-batter');
+    await expect(dialog.locator('[data-check="length"]')).toHaveClass(/um-check-ok/);
+    await expect(dialog.locator('[data-check="match"]')).not.toHaveClass(/um-check-ok/);
+    await expect(submit).toBeDisabled();
+    await dialog.getByLabel('Type it again').fill('correct-horse-battery');
+    await expect(dialog.locator('[data-check="match"]')).toHaveClass(/um-check-ok/);
+    await submit.click();
+    await expect(page.getByText('Password set.')).toBeVisible();
+    expect(body).toEqual({ password: 'correct-horse-battery' });
+  });
+
+  test('Deactivate explains itself and is not offered for yourself', async ({ page }) => {
+    const users = crowd();
+    users.push(person(99, { userId: devIds.admin, displayName: 'Test Admin', admin: true }));
+    await openList(page, users);
+    await page.locator('#user-search').fill('Test Admin');
+    await page.getByRole('button', { name: 'Deactivate Test Admin' }).click();
+    const dialog = page.locator('#deactivateUserModal');
+    await expect(dialog.locator('.modal-title')).toHaveText('Deactivate Test Admin?');
+    await expect(dialog).toContainText('Test can no longer sign in. The audit log keeps the account');
+    await expect(dialog.locator('#um-deactivate-why')).toHaveText("You can't deactivate yourself.");
+    await expect(dialog.getByRole('button', { name: 'Deactivate' })).toBeDisabled();
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+
+    let deleted = '';
+    await page.route(/\/api\/v1\/users\/u-10$/, route => {
+      deleted = route.request().method();
+      return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    });
+    await page.locator('#user-search').fill('Person 10');
+    await page.getByRole('button', { name: 'Deactivate Person 10' }).click();
+    await page.locator('#deactivateUserModal').getByRole('button', { name: 'Deactivate' }).click();
+    await expect(page.getByText('Person 10 deactivated.')).toBeVisible();
+    expect(deleted).toBe('DELETE');
   });
 });

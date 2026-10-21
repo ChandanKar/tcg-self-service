@@ -47,3 +47,11 @@ test('filters: search, role (environment admins who are not administrators), sta
     assert.deepEqual(plain(M.filterList(people, '', '', 'inactive')).map(u => u.email), ['gone@x.com']);
     assert.equal(M.filterList(people, '', 'USER', 'active').length, 3);
 });
+
+test('U13-T04: the password checks: 12 to 72 characters, both match', () => {
+    assert.deepEqual(plain(M.passwordChecks('correct-horse-battery', 'correct-horse-battery')), { length: true, match: true });
+    assert.deepEqual(plain(M.passwordChecks('correct-horse-battery', 'correct-horse-batter')), { length: true, match: false });
+    assert.deepEqual(plain(M.passwordChecks('short', 'short')), { length: false, match: true });
+    assert.deepEqual(plain(M.passwordChecks('x'.repeat(73), 'x'.repeat(73))), { length: false, match: true });
+    assert.deepEqual(plain(M.passwordChecks('', '')), { length: false, match: false });
+});

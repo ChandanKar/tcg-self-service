@@ -302,6 +302,39 @@ public class UserService {
         return userRepository.searchActiveUsers(searchTerm);
     }
 
+    /** U13-T04: the reasons role and deactivate changes are refused, as the dialogs show them. */
+    public static final String LAST_ADMIN = "There must always be at least one administrator.";
+    public static final String NOT_YOURSELF = "You can't deactivate yourself.";
+
+    /** "Administrator", "Environment admin" or "User". */
+    static String roleName(boolean admin, boolean envAdmin) {
+        return admin ? "Administrator" : envAdmin ? "Environment admin" : "User";
+    }
+
+    /**
+     * Sets a person's role in one step (U13-T04): both flags together, one audit entry. The last
+     * active administrator keeps the role.
+     */
+    @Transactional
+    public User setRole(String userId, boolean admin, boolean envAdmin, String performedByUserId) {
+        User user = getUserById(userId);
+        if (user.isAdmin() && !admin && user.isActive() && userRepository.countByAdminTrueAndIsActiveTrue() <= 1) {
+            throw new ValidationException(LAST_ADMIN);
+        }
+        String before = roleName(user.isAdmin(), user.isEnvAdmin());
+        if (user.isAdmin() == admin && user.isEnvAdmin() == envAdmin) {
+            return user;
+        }
+        user.setAdmin(admin);
+        user.setEnvAdmin(envAdmin);
+        User saved = userRepository.save(user);
+        String after = roleName(admin, envAdmin);
+        log.info("User {} role set to {} by {}", userId, after, performedByUserId);
+        auditService.logChange(performedByUserId, com.tcgdigital.vmcontrol.model.AuditAction.USER_UPDATED, "user", userId,
+                saved.getEmail(), before, after, "Role of " + saved.getEmail() + " changed from " + before + " to " + after);
+        return saved;
+    }
+
     /**
      * Toggle admin role for a user.
      */
@@ -311,7 +344,7 @@ public class UserService {
 
         // Prevent removing the last admin
         if (user.isAdmin() && userRepository.countByAdminTrueAndIsActiveTrue() <= 1) {
-            throw new ValidationException("Cannot remove the last admin user");
+            throw new ValidationException(LAST_ADMIN);
         }
 
         boolean newAdminStatus = !user.isAdmin();
@@ -354,7 +387,7 @@ public class UserService {
 
         // Prevent removing the last admin
         if (user.isAdmin() && !isAdmin && userRepository.countByAdminTrueAndIsActiveTrue() <= 1) {
-            throw new ValidationException("Cannot remove the last admin user");
+            throw new ValidationException(LAST_ADMIN);
         }
 
         user.setAdmin(isAdmin);
@@ -391,14 +424,14 @@ public class UserService {
     public User deactivateUser(String userId, String performedByUserId) {
         User user = getUserById(userId);
 
-        // Prevent deactivating the last admin
-        if (user.isAdmin() && userRepository.countByAdminTrueAndIsActiveTrue() <= 1) {
-            throw new ValidationException("Cannot deactivate the last admin user");
-        }
-
         // Prevent self-deactivation
         if (userId.equals(performedByUserId)) {
-            throw new ValidationException("Cannot deactivate your own account");
+            throw new ValidationException(NOT_YOURSELF);
+        }
+
+        // Prevent deactivating the last admin
+        if (user.isAdmin() && userRepository.countByAdminTrueAndIsActiveTrue() <= 1) {
+            throw new ValidationException(LAST_ADMIN);
         }
 
         user.setIsActive(false);

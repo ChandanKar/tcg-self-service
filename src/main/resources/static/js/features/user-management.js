@@ -276,11 +276,7 @@ const UserManagement = (function() {
             })
             .on('click.userMgmt', '#user-management-view [data-action="deactivate"]', function(e) {
                 e.preventDefault();
-                const userId = $(this).data('user-id');
-                const user = allUsers.find(u => u.userId === userId);
-                Modals.confirm('Deactivate user', `Deactivate "${user?.displayName || user?.email}"? They can no longer sign in.`, function() {
-                    deactivateUser(userId);
-                }, { confirmText: 'Deactivate', confirmClass: 'btn-danger' });
+                showDeactivateDialog(allUsers.find(u => u.userId === $(this).data('user-id')));
             })
             .on('click.userMgmt', '#user-management-view [data-action="reactivate"]', function(e) {
                 e.preventDefault();
@@ -292,36 +288,67 @@ const UserManagement = (function() {
             });
     }
 
-    /** Change role: one of Administrator, Environment admin or User (U13-T04 brings the full dialog). */
+    // ---- dialogs (U13-T04, UserDialogs.dc.html) ----
+
+    const ROLES = [
+        ['USER', 'User', 'Uses the environments they have been given access to'],
+        ['ENV_ADMIN', 'Environment admin', 'Also approves requests, gives access and manages VMs, schedules and budgets'],
+        ['ADMIN', 'Administrator', 'Everything, including users, AWS accounts, cost and settings. Sees instance IDs.']
+    ];
+
+    function firstName(user) {
+        return String(user.displayName || user.email || '').split(/[\s@]/)[0];
+    }
+
+    function activeAdmins() {
+        return allUsers.filter(u => u.admin && u.active).length;
+    }
+
+    /** Why a person cannot be deactivated, or ''. */
+    function deactivateBlocker(user, meId) {
+        if (user.userId === meId) return "You can't deactivate yourself.";
+        if (user.admin && activeAdmins() <= 1) return 'There must always be at least one administrator.';
+        return '';
+    }
+
+    function dialogError(id, xhr, fallback) {
+        $(id).text((xhr && xhr.responseJSON && xhr.responseJSON.message) || fallback).prop('hidden', false);
+    }
+
+    /** Change role: User / Environment admin / Administrator, saved in one request. */
     function showChangeRoleModal(user) {
         if (!user) return;
+        const name = user.displayName || user.email;
         const current = user.admin ? 'ADMIN' : user.envAdmin ? 'ENV_ADMIN' : 'USER';
-        const option = (value, title, text) => `<label class="um-role-choice"><input type="radio" name="um-role" value="${value}"${current === value ? ' checked' : ''}>
-            <span><b>${title}</b><span>${text}</span></span></label>`;
+        const how = signInLabel(user) === 'Password' ? 'a password' : signInLabel(user);
+        const options = ROLES.map(([value, title, text]) => Utils.html`<label class="um-role-choice">
+                <input type="radio" name="um-role" value="${value}"${Utils.raw(current === value ? ' checked' : '')}>
+                <span><b>${title}</b><span>${text}</span></span></label>`).join('');
         Modals.show({
             id: 'changeRoleModal',
-            title: Utils.escapeHtml(`Change role of ${user.displayName || user.email}`),
+            title: Utils.escapeHtml(`Change role for ${name}`),
             html: true,
-            body: `<fieldset class="um-roles"><legend class="visually-hidden">Role</legend>
-                ${option('ADMIN', 'Administrator', 'Everything, on every environment.')}
-                ${option('ENV_ADMIN', 'Environment admin', 'Looks after environments: access, settings, schedules.')}
-                ${option('USER', 'User', 'Uses the environments they are given access to.')}</fieldset>
+            body: Utils.html`<p class="um-dialog-sub">${user.email} · signs in with ${how}</p>
+                <fieldset class="um-roles"><legend class="visually-hidden">Role</legend>${Utils.raw(options)}
+                <p class="um-dialog-note">Access to each environment is set separately, in Access management. There must always be at least one administrator.</p>
+                </fieldset>
                 <div class="re-error" id="um-role-error" role="alert" hidden></div>`,
             buttons: [{ text: 'Cancel', class: 'btn-secondary', dismiss: true },
-                { text: 'Change role', class: 'btn-primary', id: 'um-role-save' }],
+                { text: 'Save role', class: 'btn-primary', id: 'um-role-save' }],
             onShow: () => {
                 $('input[name="um-role"]:checked').trigger('focus');
                 $('#um-role-save').off('click').on('click', function() {
                     const role = $('input[name="um-role"]:checked').val();
+                    if (role === current) { Modals.hide('changeRoleModal'); return; }
                     const $btn = $(this).prop('disabled', true);
                     ApiClient.patch(Config.API.users.roles(user.userId), { admin: role === 'ADMIN', envAdmin: role === 'ENV_ADMIN' }, { suppressGlobalError: true })
                         .done(() => {
                             Modals.hide('changeRoleModal');
-                            Notifications.success('Role changed');
+                            Notifications.success('Role saved.');
                             fetchUsers();
                         })
                         .fail(xhr => {
-                            $('#um-role-error').text(xhr.responseJSON?.message || 'The role was not changed.').prop('hidden', false);
+                            dialogError('#um-role-error', xhr, 'The role was not saved. Try again.');
                             $btn.prop('disabled', false);
                         });
                 });
@@ -329,15 +356,40 @@ const UserManagement = (function() {
         });
     }
 
-    function deactivateUser(userId) {
-        ApiClient.delete(Config.API.users.get(userId))
-            .done(function() {
-                Notifications.success('User deactivated');
-                fetchUsers();
-            })
-            .fail(function(xhr) {
-                Notifications.error(xhr.responseJSON?.message || 'Failed to deactivate user');
-            });
+    /** Deactivate, with what it means; not offered for yourself or the last administrator. */
+    function showDeactivateDialog(user) {
+        if (!user) return;
+        const name = user.displayName || user.email;
+        const blocker = deactivateBlocker(user, Auth.getUserId ? Auth.getUserId() : null);
+        Modals.show({
+            id: 'deactivateUserModal',
+            title: Utils.escapeHtml(`Deactivate ${name}?`),
+            html: true,
+            body: Utils.html`<p class="um-dialog-text">${firstName(user)} can no longer sign in. The audit log keeps the account's history,
+                    and you can reactivate it later. You can't deactivate yourself or the last administrator.</p>
+                ${Utils.raw(blocker ? Utils.html`<p class="um-dialog-block" id="um-deactivate-why">${blocker}</p>` : '')}
+                <div class="re-error" id="um-deactivate-error" role="alert" hidden></div>`,
+            buttons: [{ text: 'Cancel', class: 'btn-secondary', dismiss: true },
+                { text: 'Deactivate', class: 'btn-danger', id: 'um-deactivate-confirm' }],
+            onShow: () => {
+                $('#deactivateUserModal').attr('role', 'alertdialog');
+                const $btn = $('#um-deactivate-confirm').prop('disabled', !!blocker);
+                if (blocker) $btn.attr('aria-describedby', 'um-deactivate-why');
+                $btn.off('click').on('click', function() {
+                    $btn.prop('disabled', true);
+                    ApiClient.delete(Config.API.users.get(user.userId), { suppressGlobalError: true })
+                        .done(() => {
+                            Modals.hide('deactivateUserModal');
+                            Notifications.success(`${name} deactivated.`);
+                            fetchUsers();
+                        })
+                        .fail(xhr => {
+                            dialogError('#um-deactivate-error', xhr, 'They were not deactivated. Try again.');
+                            $btn.prop('disabled', false);
+                        });
+                });
+            }
+        });
     }
 
     function reactivateUser(userId) {
@@ -356,36 +408,51 @@ const UserManagement = (function() {
     const PASSWORD_MIN = 12;
     const PASSWORD_MAX = 72;
 
+    /** The two live checks: length and both the same. */
+    function passwordChecks(password, again) {
+        return {
+            length: password.length >= PASSWORD_MIN && password.length <= PASSWORD_MAX,
+            match: password.length > 0 && password === again
+        };
+    }
+
     function showSetPasswordModal(user) {
         if (!user) return;
+        const name = user.displayName || user.email;
         Modals.show({
             id: 'setPasswordModal',
-            title: '<i class="fas fa-key me-2"></i>' + (user.hasPassword ? 'Reset Password' : 'Set Password'),
+            title: Utils.escapeHtml(`Set a password for ${name}`),
             html: true,
-            body: `
-                <p class="small text-muted mb-3">
-                    Password sign-in for <strong>${Utils.escapeHtml(user.displayName || user.email)}</strong>
-                    (username <code>${Utils.escapeHtml(user.username)}</code>). Entra ID sign-in is not affected.
-                    Share the new password with the user over a separate, secure channel.
-                </p>
-                <div id="set-password-error" class="alert alert-danger py-2 px-3 small" hidden></div>
-                <div class="mb-2">
-                    <label class="form-label" for="set-password-new">New password</label>
-                    <input type="password" class="form-control" id="set-password-new" autocomplete="new-password"
-                           minlength="${PASSWORD_MIN}" maxlength="${PASSWORD_MAX}">
-                    <div class="form-text">${PASSWORD_MIN}–${PASSWORD_MAX} characters.</div>
+            body: Utils.html`<p class="um-dialog-sub">For signing in with a username and password instead of Microsoft.${Utils.raw(user.username
+                    ? Utils.html` Username: <code>${user.username}</code>.` : '')}</p>
+                <div class="um-password">
+                    <label class="ap-field">New password
+                        <input type="password" class="form-control" id="set-password-new" autocomplete="new-password" maxlength="${PASSWORD_MAX}"></label>
+                    <label class="ap-field">Type it again
+                        <input type="password" class="form-control" id="set-password-confirm" autocomplete="new-password" maxlength="${PASSWORD_MAX}"></label>
+                    <ul class="um-checks" id="set-password-checks" aria-live="polite">
+                        <li data-check="length">${PASSWORD_MIN} to ${PASSWORD_MAX} characters<span class="visually-hidden um-check-state"></span></li>
+                        <li data-check="match">both match<span class="visually-hidden um-check-state"></span></li>
+                    </ul>
+                    <p class="um-dialog-note">Give it to ${firstName(user)} in person or by phone, not in the same email as the username.</p>
                 </div>
-                <div class="mb-2">
-                    <label class="form-label" for="set-password-confirm">Confirm password</label>
-                    <input type="password" class="form-control" id="set-password-confirm" autocomplete="new-password"
-                           maxlength="${PASSWORD_MAX}">
-                </div>`,
+                <div class="re-error" id="set-password-error" role="alert" hidden></div>`,
             buttons: [
                 { text: 'Cancel', class: 'btn-secondary', dismiss: true },
-                { text: 'Save Password', class: 'btn-primary', id: 'set-password-submit' }
+                { text: 'Set password', class: 'btn-primary', id: 'set-password-submit', disabled: true }
             ],
             onShow: function() {
                 $('#set-password-new').trigger('focus');
+                const update = () => {
+                    const c = passwordChecks($('#set-password-new').val() || '', $('#set-password-confirm').val() || '');
+                    [['length', c.length], ['match', c.match]].forEach(([key, ok]) => {
+                        $(`#set-password-checks [data-check="${key}"]`).toggleClass('um-check-ok', ok)
+                            .find('.um-check-state').text(ok ? ' (met)' : ' (not met)');
+                    });
+                    $('#set-password-submit').prop('disabled', !(c.length && c.match));
+                };
+                $('#set-password-new, #set-password-confirm').off('input').on('input', update);
+                update();
                 $('#set-password-submit').off('click').on('click', function() {
                     submitSetPassword(user);
                 });
@@ -395,32 +462,17 @@ const UserManagement = (function() {
 
     function submitSetPassword(user) {
         const password = $('#set-password-new').val() || '';
-        const confirm = $('#set-password-confirm').val() || '';
-        const $error = $('#set-password-error');
-
-        let problem = null;
-        if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX) {
-            problem = `Password must be between ${PASSWORD_MIN} and ${PASSWORD_MAX} characters.`;
-        } else if (password !== confirm) {
-            problem = 'The passwords do not match.';
-        }
-        if (problem) {
-            $error.text(problem).prop('hidden', false);
-            return;
-        }
-        $error.prop('hidden', true);
-
+        const c = passwordChecks(password, $('#set-password-confirm').val() || '');
+        if (!(c.length && c.match)) return;
         const $submit = $('#set-password-submit').prop('disabled', true);
-        ApiClient.put(Config.API.users.setPassword(user.userId), { password: password })
+        ApiClient.put(Config.API.users.setPassword(user.userId), { password: password }, { suppressGlobalError: true })
             .done(function() {
                 Modals.hide('setPasswordModal');
-                Notifications.success('Password saved');
+                Notifications.success('Password set.');
                 fetchUsers();
             })
             .fail(function(xhr) {
-                $error.text(xhr.responseJSON?.message || 'Failed to save password').prop('hidden', false);
-            })
-            .always(function() {
+                dialogError('#set-password-error', xhr, 'The password was not set. Try again.');
                 $submit.prop('disabled', false);
             });
     }
@@ -774,7 +826,7 @@ const UserManagement = (function() {
     // Public API
     return {
         load: load,
-        model: { roleLabel, signInLabel, signsInWithPasswordOnly, counts, lastSignIn, filterList }
+        model: { roleLabel, signInLabel, signsInWithPasswordOnly, counts, lastSignIn, filterList, passwordChecks }
     };
 })();
 
