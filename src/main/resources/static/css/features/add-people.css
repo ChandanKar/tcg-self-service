@@ -1,0 +1,450 @@
+/**
+ * Add people (U13-T05, AddUsers.dc.html): Who on the left (the list scrolls inside its card), Role,
+ * Access and the confirm bar on the right; fits 1440x900.
+ */
+
+.adp-page {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.adp-page .content-header {
+    margin-bottom: 0;
+}
+
+.adp-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 16px;
+    align-items: start;
+}
+
+.adp-side {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.adp-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+}
+
+.adp-card h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.adp-card h2 span {
+    font-size: var(--fs-small);
+    font-weight: 400;
+    color: var(--text-secondary);
+}
+
+.adp-who-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.adp-search {
+    position: relative;
+    flex: 1 1 320px;
+    max-width: 440px;
+    margin: 0;
+}
+
+.adp-search svg {
+    position: absolute;
+    top: 50%;
+    left: 11px;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+    pointer-events: none;
+}
+
+.adp-search .form-control {
+    padding-left: 34px;
+}
+
+.adp-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 5;
+    margin: 4px 0 0;
+    padding: 4px 0;
+    list-style: none;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: 0 8px 20px rgba(20, 36, 92, 0.12);
+}
+
+.adp-option,
+.adp-option-none {
+    padding: 7px 12px;
+    font-size: var(--fs-body);
+}
+
+.adp-option {
+    cursor: pointer;
+}
+
+.adp-option b {
+    font-weight: 500;
+}
+
+.adp-option span,
+.adp-option-none {
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.adp-option:hover,
+.adp-option:focus {
+    background: var(--brand-navy-tint);
+    outline: none;
+}
+
+.adp-table-wrap {
+    max-height: calc(100vh - var(--topnav-height, 56px) - 430px);
+    min-height: 120px;
+    overflow: auto;
+    border: 1px solid var(--line-soft);
+    border-radius: 8px;
+}
+
+.adp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--fs-body);
+}
+
+.adp-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 8px 10px;
+    background: var(--surface-subtle);
+    font-size: var(--fs-small);
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.adp-table td {
+    padding: 6px 10px;
+    border-top: 1px solid var(--line-soft);
+    vertical-align: middle;
+}
+
+.adp-table td:first-child {
+    min-width: 180px;
+}
+
+.adp-name {
+    font-weight: 500;
+}
+
+.adp-email,
+.adp-note {
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.adp-note {
+    margin: 0;
+}
+
+.adp-skip {
+    font-size: var(--fs-small);
+    color: var(--brand-gold-text);
+}
+
+.adp-row-skip td {
+    background: var(--brand-gold-tint);
+}
+
+.adp-empty td {
+    padding: 18px 12px;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.adp-source {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.adp-chip {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: var(--fs-caption);
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.adp-chip-directory {
+    background: var(--brand-green-tint);
+    color: var(--brand-green-text);
+}
+
+.adp-chip-manual {
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
+}
+
+.adp-chip-existing {
+    background: var(--surface-muted);
+    color: var(--text-secondary);
+}
+
+.adp-remove {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    line-height: 1;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.adp-remove:hover,
+.adp-remove:focus-visible {
+    background: var(--surface-muted);
+    color: var(--brand-red-text);
+}
+
+.adp-manual {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line-soft);
+}
+
+.adp-manual h3 {
+    margin: 0;
+    font-size: var(--fs-body);
+    font-weight: 600;
+}
+
+.adp-manual-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px;
+    align-items: end;
+}
+
+.adp-manual-grid .ap-field {
+    font-size: var(--fs-small);
+}
+
+.adp-roles {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.adp-role {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 8px 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: 9px;
+    background: #fff;
+    font: inherit;
+    text-align: left;
+    color: var(--ink);
+    cursor: pointer;
+}
+
+.adp-role[aria-checked="true"] {
+    border: 1.5px solid var(--brand-navy);
+    box-shadow: 0 0 0 3px var(--brand-navy-tint);
+}
+
+.adp-role b {
+    font-weight: 500;
+}
+
+.adp-role span {
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.adp-role:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: 2px;
+}
+
+.adp-access-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.adp-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--fs-small);
+    font-weight: 500;
+    color: var(--brand-navy);
+    cursor: pointer;
+}
+
+.adp-link:hover {
+    text-decoration: underline;
+}
+
+.adp-link.adp-danger {
+    color: var(--brand-red-text);
+}
+
+.adp-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    border-radius: 9px;
+    background: var(--surface-subtle);
+}
+
+.adp-picker[hidden] {
+    display: none;
+}
+
+.adp-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font-size: var(--fs-small);
+}
+
+.adp-groups legend {
+    float: none;
+    width: auto;
+    margin: 0 0 2px;
+    padding: 0;
+    font-size: var(--fs-small);
+    font-weight: 500;
+}
+
+.adp-picker-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.adp-access {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.adp-access-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+}
+
+.adp-access-name {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    font-size: var(--fs-body);
+}
+
+.adp-access-name b {
+    font-weight: 500;
+}
+
+.adp-access-name span span {
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.adp-access-sets {
+    display: flex;
+    gap: 8px;
+}
+
+.adp-access-sets select {
+    flex: 1;
+}
+
+.adp-confirm #adp-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: var(--fs-body);
+}
+
+.adp-skips {
+    font-size: var(--fs-small);
+    color: var(--brand-gold-text);
+}
+
+.adp-problem {
+    color: var(--brand-red-text);
+}
+
+.adp-confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* Below 1400 px the side column goes under the list, so the list keeps room for its fields. */
+@media (max-width: 1399.98px) {
+    .adp-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .adp-side {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        align-items: start;
+    }
+
+    .adp-table-wrap {
+        max-height: 320px;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .adp-manual-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .adp-side {
+        display: flex;
+    }
+}

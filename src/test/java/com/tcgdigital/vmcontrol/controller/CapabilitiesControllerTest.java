@@ -37,7 +37,8 @@ class CapabilitiesControllerTest extends SecuredWebTestBase {
         mockMvc.perform(get(URL).with(asViewer())).andExpect(status().isOk())
                 .andExpect(jsonPath("$.features.templates").value(false))
                 .andExpect(jsonPath("$.features.webhooks").value(false))
-                .andExpect(jsonPath("$.features.leases").exists());
+                .andExpect(jsonPath("$.features.leases").exists())
+                .andExpect(jsonPath("$.features.directory").value(false)); // U13-T05: off unless graph.directory.enabled
 
         settings.set("provisioning.enabled", "true", admin.getUserId());
 

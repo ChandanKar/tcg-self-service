@@ -29,6 +29,7 @@ const ContentRouter = (function() {
         'pending-requests':   '#/pending-requests',
         'activity-logs':      '#/activity-logs',
         'user-management':    '#/user-management',
+        'user-management-add': '#/user-management/add',
         'access-management':  '#/access-management',
         'access-grant':       '#/access-management/grant',
         'vm-registry':        '#/vm-registry',
@@ -141,6 +142,7 @@ const ContentRouter = (function() {
         'cost-setup':         { role: 'ADMIN', label: 'Cost setup' },
         // Administration
         'user-management':    { role: 'ADMIN', label: 'Users' },
+        'user-management-add': { role: 'ADMIN', label: 'Add people' },
         'teams':              { role: 'ADMIN', label: 'Teams' },
         'aws-accounts':       { role: 'ADMIN', label: 'AWS accounts' },
         'api-access':         { role: 'ADMIN', label: 'API access' },
@@ -206,6 +208,7 @@ const ContentRouter = (function() {
             // load() returns nothing, so `load() || fallback()` loaded these pages twice (two
             // fetches, two renders); use the fallback only when the module is missing.
             'user-management':    () => window.UserManagement ? window.UserManagement.load() : window.Features?.loadUserManagement?.(),
+            'user-management-add': () => window.AddPeople?.load?.(),
             'access-management':  () => window.AccessManagement ? window.AccessManagement.load() : window.Features?.loadAccessManagement?.(),
             'access-grant':       () => window.GrantAccessPage?.load?.(query()),
             'vm-registry':        () => window.VmRegistry?.load?.(),

@@ -518,6 +518,7 @@ const HelpContent = (function() {
         'chargeback': 'chargeback',
         'cost-setup': 'costs',
         'user-management': 'getting-started',
+        'user-management-add': 'getting-started',
         'teams': 'teams',
         'aws-accounts': 'getting-started',
         'api-access': 'getting-started',

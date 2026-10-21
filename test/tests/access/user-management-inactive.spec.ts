@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
+import { seedEnvironment } from '../../fixtures/seed';
 
 /**
  * E04-T09 (M21): User Management loads inactive users too, so the Inactive filter lists them and
@@ -242,5 +243,120 @@ test.describe('Users list', () => {
     await page.locator('#deactivateUserModal').getByRole('button', { name: 'Deactivate' }).click();
     await expect(page.getByText('Person 10 deactivated.')).toBeVisible();
     expect(deleted).toBe('DELETE');
+  });
+});
+
+/**
+ * U13-T05 (AddUsers.dc.html): Add people is a page. People by hand (several pasted at once) or from
+ * the directory, one role, access rows, a summary from the server's preview, and one commit.
+ * Runs against the smoke app (directory lookup off there; the directory test fakes it).
+ */
+test.describe('Add people', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+  });
+
+  async function openAdd(page: Page) {
+    await signIn(page, 'admin');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate(() => { location.hash = '#/user-management'; });
+    await page.getByRole('link', { name: 'Add people' }).click();
+    await expect(page).toHaveURL(/#\/user-management\/add$/);
+    await expect(page.locator('#add-people-view h1')).toHaveText('Add people', { timeout: 10_000 });
+  }
+
+  test('pasted addresses become rows; role and access give the summary; adding them returns to Users', async ({ page, playwright }) => {
+    const envId = await seedEnvironment(playwright, 'Add people');
+    const tag = Date.now();
+    const a = `ada.${tag}@onboard.test`;
+    const b = `bo.${tag}@onboard.test`;
+    await openAdd(page);
+    await expect(page.locator('#adp-summary')).toHaveText('Nobody to add yet.');
+    await expect(page.locator('#adp-submit')).toBeDisabled();
+
+    await page.locator('#adp-email').fill(`${a}; ${b}`);
+    await page.locator('#adp-dept').fill('Engineering');
+    await page.locator('#adp-project').fill('DLK-204');
+    await page.getByRole('button', { name: 'Add to list' }).click();
+    const rows = page.locator('#adp-people tbody tr');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0).locator('.adp-chip')).toHaveText('By hand');
+    await expect(rows.nth(1).getByLabel(/^Department for/)).toHaveValue('Engineering');
+
+    await page.getByRole('radio', { name: /^Environment admin/ }).click();
+    await page.getByRole('button', { name: 'Add environment' }).click();
+    await page.locator('#adp-pick-env').selectOption(envId);
+    await page.locator('#adp-pick-add').click();
+    await expect(page.locator('.adp-access-row')).toHaveCount(1);
+    await expect(page.locator('#adp-summary b')).toHaveText('Add 2 new people as Environment admin, 2 access grants', { timeout: 10_000 });
+    await expect(page.locator('#adp-submit')).toHaveText('Add 2 people');
+
+    const sent = page.waitForResponse(r => r.url().includes('/users/bulk-onboard?dryRun=false'));
+    await page.locator('#adp-submit').click();
+    const body = (await sent).request().postDataJSON();
+    expect(body.role).toBe('ENV_ADMIN');
+    expect(body.people.map((p: any) => p.email)).toEqual([a, b]);
+    expect(body.people[0]).toMatchObject({ department: 'Engineering', projectCode: 'DLK-204' });
+    expect(body.access).toEqual([{ environmentId: envId, scopeType: 'ENVIRONMENT', groupIds: [], accessLevel: 'USER', durationDays: 30 }]);
+
+    await expect(page).toHaveURL(/#\/user-management$/, { timeout: 10_000 });
+    await expect(page.getByText('Added 2 people.')).toBeVisible();
+    await page.locator('#user-search').fill(`${tag}@onboard.test`);
+    const added = page.locator('#users-table-body tr');
+    await expect(added).toHaveCount(2);
+    await expect(added.first().locator('td').nth(1)).toHaveText('Environment admin');
+    await expect(added.first().locator('.um-not-yet')).toHaveText('Not signed in yet');
+  });
+
+  test('from the directory: two people, a team for one, two environments', async ({ page, playwright }) => {
+    const admin = await api(playwright);
+    const team = await (await admin.post('/api/v1/teams', { data: { displayName: `Data ${Date.now()}` } })).json();
+    await admin.dispose();
+    const env1 = await seedEnvironment(playwright, 'Directory one');
+    const env2 = await seedEnvironment(playwright, 'Directory two');
+    const tag = Date.now();
+    await page.route(/\/api\/v1\/users\/me\/capabilities$/, async route => {
+      const response = await route.fetch();
+      const caps = await response.json();
+      return route.fulfill({ response, body: JSON.stringify({ ...caps, features: { ...caps.features, directory: true } }) });
+    });
+    await page.route(/\/api\/v1\/directory\/search\?/, route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([
+      { directoryObjectId: 'oid-n', displayName: 'Nikhil Banerjee', email: `nikhil.${tag}@corp.test`, alreadyInApp: false, department: 'Engineering' },
+      { directoryObjectId: 'oid-r', displayName: 'Ritu Kapoor', email: `ritu.${tag}@corp.test`, alreadyInApp: false, department: 'Quality' }]) }));
+    await openAdd(page);
+
+    const search = page.getByRole('combobox', { name: 'Find in the Microsoft directory' });
+    await search.fill('ni');
+    await page.getByRole('option', { name: /Nikhil Banerjee/ }).click();
+    await search.fill('ri');
+    await expect(page.getByRole('option', { name: /Ritu Kapoor/ })).toBeVisible();
+    await search.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    const rows = page.locator('#adp-people tbody tr');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0).locator('.adp-chip')).toHaveText('Directory');
+    await expect(rows.nth(1).getByLabel('Department for Ritu Kapoor')).toHaveValue('Quality');
+    await rows.nth(0).getByLabel('Team for Nikhil Banerjee').selectOption(team.teamId);
+
+    await page.getByRole('radio', { name: /^Environment admin/ }).click();
+    for (const envId of [env1, env2]) {
+      await page.getByRole('button', { name: 'Add environment' }).click();
+      await page.locator('#adp-pick-env').selectOption(envId);
+      await page.locator('#adp-pick-add').click();
+    }
+    await expect(page.locator('#adp-summary b')).toHaveText('Add 2 new people as Environment admin, 4 access grants', { timeout: 10_000 });
+    await expect(page.locator('#adp-submit')).toHaveText('Add 2 people');
+  });
+
+  test('Cancel with people in the list asks before discarding them', async ({ page }) => {
+    await openAdd(page);
+    await page.locator('#adp-email').fill('keep.me@onboard.test');
+    await page.getByRole('button', { name: 'Add to list' }).click();
+    await page.locator('#adp-cancel').click();
+    await expect(page.locator('#confirmModal')).toContainText('Discard the list?');
+    await page.locator('#confirmModal').getByRole('button', { name: 'Cancel' }).click();
+    await expect(page).toHaveURL(/#\/user-management\/add$/);
+    await expect(page.locator('#adp-people tbody tr')).toHaveCount(1);
   });
 });

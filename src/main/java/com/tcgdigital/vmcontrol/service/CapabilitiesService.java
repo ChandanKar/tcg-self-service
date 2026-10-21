@@ -35,7 +35,9 @@ public class CapabilitiesService {
             new Switch("jira", "jira.enabled", false),
             new Switch("budgetActions", "budgets.actions.enabled", false),
             new Switch("quotas", "quotas.enabled", false),
-            new Switch("awsOrganizations", "aws.organizations.enabled", false)
+            new Switch("awsOrganizations", "aws.organizations.enabled", false),
+            // U13-T05: Add people searches the Microsoft directory only when lookup is on.
+            new Switch("directory", "graph.directory.enabled", false)
     };
 
     private final UserService userService;

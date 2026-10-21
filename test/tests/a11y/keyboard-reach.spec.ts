@@ -83,6 +83,21 @@ test.describe('Keyboard reach', () => {
     await expect(help).toBeFocused();
   });
 
+  test('Add people is reached from Users by keyboard; its role choices move with the arrows (U13-T05)', async ({ page }) => {
+    await page.evaluate(() => { location.hash = '#/user-management'; });
+    await expect(page.locator('#users-table')).toBeVisible({ timeout: 10_000 });
+    expect(await tabUntil(page, el => el.id === 'btn-onboard-user', 80)).toBe(true);
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/#\/user-management\/add$/);
+    await expect(page.locator('.sidebar-menu-link[data-content="user-management"]')).toHaveAttribute('aria-current', 'page');
+    const user = page.getByRole('radio', { name: /^User/ });
+    await user.focus();
+    await page.keyboard.press('ArrowDown');
+    const envAdmin = page.getByRole('radio', { name: /^Environment admin/ });
+    await expect(envAdmin).toBeFocused();
+    await expect(envAdmin).toHaveAttribute('aria-checked', 'true');
+  });
+
   test('an admin page marks its link active and current', async ({ page }) => {
     await page.evaluate(() => { location.hash = '#/user-management'; });
     await expect(page.locator('#admin-menu')).toBeVisible();
