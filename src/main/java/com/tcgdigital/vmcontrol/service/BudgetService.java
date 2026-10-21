@@ -336,7 +336,8 @@ public class BudgetService {
                 spend.month().toString(), spend.asOf(), spend.toDate(), percent(spend.toDate(), budget.getMonthlyAmount()),
                 spend.forecast(), spend.forecast() == null ? null : percent(spend.forecast(), budget.getMonthlyAmount()),
                 budget.getCreatedByUserId(), budget.getCreatedAt(), budget.getUpdatedAt(), frozenUntil,
-                awsBudgetSync.lastError(budget.getBudgetId()).orElse(null));
+                awsBudgetSync.lastError(budget.getBudgetId()).orElse(null),
+                budget.getScopeType() == BudgetScopeType.TEAM ? environmentIds(budget).size() : 1);
     }
 
     private void audit(String userId, AuditAction action, Budget budget, String scopeName, String details) {

@@ -1,8 +1,10 @@
 /**
- * Budgets (E20-T05): the Budgets page (budgets you can see, their spend against the amount,
- * pending budget actions to approve) and the budget panel on the environment page (the bar, the
- * start-freeze banner with "Lift freeze", and "Set budget" for owners). Who may do what is decided
- * by the server; the page offers only what /budgets/config says the caller may budget.
+ * Budgets (E20-T05, U12-T07 Budgets.dc.html + CostDialogs.dc.html): the Budgets page (this month's
+ * spent and forecast totals, one row per budget with its bar, the forecast tick, a chip and what
+ * happens when it is reached; pending budget actions to approve), the New budget dialog, and the
+ * budget panel on the environment page (the bar, the start-freeze banner with "Lift freeze", and
+ * "Set budget" for owners). Who may do what is decided by the server; the page offers only what
+ * /budgets/config says the caller may budget.
  */
 const Budgets = (function() {
     'use strict';
@@ -29,17 +31,75 @@ const Budgets = (function() {
         return new Date(ts).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
     }
 
+    /** Whole dollars for the page: "$186". */
+    function dollars(v) {
+        return v === null || v === undefined ? '—' : `$${Math.round(Number(v)).toLocaleString('en-US')}`;
+    }
+
+    const MAX_THRESHOLDS = 4;
+
+    /** The row's chip: "<p>% reached" from 90 %, "Forecast over" when the forecast passes the amount, else "On track". */
+    function chipOf(b) {
+        const pct = Number(b.percentUsed || 0);
+        if (pct >= 90) return { text: `${Math.round(pct)}% reached`, tone: 'bad' };
+        if (Number(b.forecastPercent || 0) > 100) return { text: 'Forecast over', tone: 'warn' };
+        return { text: 'On track', tone: 'ok' };
+    }
+
+    /** What happens when the budget is reached, in words. */
+    function actionText(b, actionsEnabled) {
+        if (b.scopeType === 'TEAM') return 'Alerts only (team budgets cannot freeze or stop)';
+        const off = actionsEnabled === false ? ' (switched off by an administrator)' : '';
+        if (b.actionType === 'FREEZE_STARTS') return `When reached, an owner approves freezing starts${off}`;
+        if (b.actionType === 'STOP_ENVIRONMENT') return `When reached, an owner approves stopping it${off}`;
+        return 'Alerts only';
+    }
+
+    /** "· environment" / "· team · 3 environments" */
+    function kindText(b) {
+        if (b.scopeType !== 'TEAM') return 'environment';
+        const n = b.environmentCount;
+        return n === undefined || n === null ? 'team' : `team · ${n} environment${n === 1 ? '' : 's'}`;
+    }
+
+    /** Spent and forecast over environment budgets (team budgets cover the same spend). */
+    function totalsOf(budgets) {
+        const env = (budgets || []).filter(b => b.scopeType !== 'TEAM' && b.enabled !== false);
+        const sum = key => env.reduce((t, b) => t + Number(b[key] || 0), 0);
+        return { spent: sum('spendToDate'), forecast: sum('forecastMonthEnd'), count: env.length,
+            teams: (budgets || []).some(b => b.scopeType === 'TEAM') };
+    }
+
+    /** "October · day 19 of 31" */
+    function monthDay(now) {
+        const d = now || new Date();
+        const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        return `${d.toLocaleDateString('en-GB', { month: 'long' })} · day ${d.getDate()} of ${last}`;
+    }
+
+    /** Thresholds as the server takes them: 1 to 4 different whole percentages between 1 and 200. */
+    function thresholdProblem(list, value) {
+        const t = Number(value);
+        if (!Number.isInteger(t) || t < 1 || t > 200) return 'A whole percentage between 1 and 200.';
+        if (list.includes(t)) return `${t}% is already there.`;
+        if (list.length >= MAX_THRESHOLDS) return 'Up to 4.';
+        return '';
+    }
+
     function actionLabel(a) {
         return { FREEZE_STARTS: 'Freeze starts', STOP_ENVIRONMENT: 'Stop environment' }[a] || 'Alerts only';
     }
 
-    /** Spend against the amount, coloured at 75 / 90 / 100 %. */
+    /** Spend against the amount, coloured at 75 / 90 / 100 %, with the month-end forecast as a gold tick. */
     function bar(b) {
         const pct = Number(b.percentUsed || 0);
         const tone = pct >= 100 ? 'over' : pct >= 90 ? 'danger' : pct >= 75 ? 'warn' : 'ok';
-        return Utils.html`<div class="budget-bar budget-${tone}" role="progressbar" aria-valuemin="0" aria-valuemax="100"
-                aria-valuenow="${Math.min(100, Math.round(pct))}" aria-label="${pct}% of the monthly budget used">
-            <span style="width:${Math.min(100, pct)}%"></span></div>`;
+        const hasForecast = b.forecastPercent !== null && b.forecastPercent !== undefined;
+        const fpct = hasForecast ? Number(b.forecastPercent) : null;
+        const label = `${Math.round(pct)}% spent${hasForecast ? `, forecast ${Math.round(fpct)}%` : ''}`;
+        return Utils.html`<div class="budget-bar budget-${tone}" role="img" aria-label="${label}">
+            <span class="budget-fill" style="width:${Math.min(100, pct)}%"></span>${Utils.raw(hasForecast
+                ? `<span class="budget-tick" style="left:${Math.min(100, Math.max(0, fpct))}%"></span>` : '')}</div>`;
     }
 
     function summary(b) {
@@ -54,16 +114,14 @@ const Budgets = (function() {
         page = { data: {}, errors: {} };
         $('#content-area').html(`
             <div class="content-view budgets-page" id="budgets-view">
-                <div class="content-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <div>
-                        <h1><i class="fas fa-wallet me-2" aria-hidden="true"></i>Budgets ${typeof HelpLink !== 'undefined' ? HelpLink.button('budgets', 'Budgets') : ''}</h1>
-                        <p class="text-muted mb-0">Monthly budgets per environment or team, with alerts and approval-gated actions</p>
-                    </div>
-                    <button type="button" class="btn btn-primary" data-action="budget-new" id="budget-new-btn" hidden>
-                        <i class="fas fa-plus" aria-hidden="true"></i> New budget</button>
-                </div>
+                ${PageHeader.markup({ title: 'Budgets',
+                    summaryHtml: 'Monthly limits for environments and teams, with alerts at 50, 75, 90 and 100%.',
+                    actionsHtml: `<button type="button" class="btn btn-primary" data-action="budget-new" id="budget-new-btn" hidden>
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"></path></svg>
+                        New budget</button>`,
+                    helpPage: typeof HelpLink !== 'undefined' ? 'budgets' : null, helpLabel: 'Budgets' })}
                 <div id="budget-actions-panel"></div>
-                <div id="budget-list-panel"><div class="text-muted small p-2"><i class="fas fa-spinner fa-spin me-1" aria-hidden="true"></i>Loading budgets…</div></div>
+                <div id="budget-list-panel"><div class="ar-empty" role="status">Loading budgets…</div></div>
             </div>`);
         fetchPage();
     }
@@ -122,32 +180,44 @@ const Budgets = (function() {
         }
         const budgets = page.data.list;
         if (!budgets) return;
-        const rows = budgets.length ? budgets.map(b => Utils.html`
-            <tr>
-                <td data-label="Scope">${b.scopeType === 'TEAM'
-                    ? Utils.raw(Utils.html`<span class="badge text-bg-light border me-1">Team</span>${b.scopeName}`)
-                    : Utils.raw(Utils.html`<a href="#/environments/${b.scopeId}">${b.scopeName}</a>`)}
-                    ${Utils.raw(b.enabled ? '' : '<span class="badge text-bg-light border ms-1">Off</span>')}</td>
-                <td data-label="Budget">${money(b.monthlyAmount)}</td>
-                <td data-label="This month" class="budget-progress-cell">${Utils.raw(bar(b))}
-                    <div class="small">${money(b.spendToDate)} · ${b.percentUsed === null ? '—' : b.percentUsed + '%'}</div></td>
-                <td data-label="Forecast">${money(b.forecastMonthEnd)}</td>
-                <td data-label="Action">${actionLabel(b.actionType)}${Utils.raw(b.startFrozenUntil
-                    ? Utils.html`<div class="small text-danger"><i class="fas fa-snowflake" aria-hidden="true"></i> Frozen until ${day(b.startFrozenUntil)}</div>` : '')}</td>
-                <td data-label="" class="text-end text-nowrap">${Utils.raw(canEdit(b) ? Utils.html`
-                    <button type="button" class="btn btn-sm btn-ghost" data-action="budget-edit" data-id="${b.budgetId}" aria-label="Edit budget of ${b.scopeName}">
-                        <i class="fas fa-pen" aria-hidden="true"></i></button>
-                    <button type="button" class="btn btn-sm btn-ghost text-danger" data-action="budget-delete" data-id="${b.budgetId}" aria-label="Delete budget of ${b.scopeName}">
-                        <i class="fas fa-trash" aria-hidden="true"></i></button>` : '')}</td>
-            </tr>`).join('')
-            : '<tr><td colspan="6" class="text-muted text-center py-3">No budgets yet</td></tr>';
-        $('#budget-list-panel').html(`
-            <section class="card"><div class="card-body">
-                <div class="table-responsive"><table class="table table-sm table-cards mb-0" id="budgets-table">
-                    <thead><tr><th>Scope</th><th>Budget</th><th>This month</th><th>Forecast</th><th>Action</th><th><span class="visually-hidden">Actions</span></th></tr></thead>
-                    <tbody>${rows}</tbody></table></div>
-                ${budgets.length ? `<p class="small text-muted mb-0 mt-2">Spend uses AWS billing where available, otherwise the estimate, up to yesterday.</p>` : ''}
-            </div></section>`);
+        const actionsEnabled = config ? config.actionsEnabled : undefined;
+        if (!budgets.length) {
+            $('#budget-list-panel').html(`<div class="ar-empty">No budgets yet.${canCreate
+                ? ' Add one with New budget to be told before an environment or team spends too much.' : ''}</div>`);
+            return;
+        }
+        const t = totalsOf(budgets);
+        const totals = `<div class="bd-totals" id="budget-totals">
+                <span><span class="bd-swatch" aria-hidden="true"></span> Spent so far <b class="bd-mono">${dollars(t.spent)}</b></span>
+                <span><span class="bd-tick-key" aria-hidden="true"></span> Forecast for the month <b class="bd-mono">${dollars(t.forecast)}</b></span>
+                <span>${Utils.escapeHtml(monthDay())}</span>
+                ${t.teams ? '<span class="bd-note">Totals add up environment budgets; team budgets cover the same spend.</span>' : ''}
+            </div>`;
+        const rows = budgets.map(b => {
+            const chip = chipOf(b);
+            return Utils.html`
+            <article class="bd-row${Utils.raw(b.enabled ? '' : ' bd-row-off')}" data-budget-id="${b.budgetId}" data-scope-id="${b.scopeId}">
+                <div class="bd-head">
+                    <div><h2>${b.scopeType === 'TEAM' ? `${b.scopeName} team` : Utils.raw(Utils.html`<a href="#/environments/${b.scopeId}">${b.scopeName}</a>`)}</h2>
+                        <span class="bd-kind">· ${kindText(b)}</span>${Utils.raw(b.enabled ? '' : ' <span class="bd-chip bd-chip-off">Off</span>')}</div>
+                    <span class="bd-chip bd-chip-${chip.tone}">${chip.text}</span>
+                </div>
+                ${Utils.raw(bar(b))}
+                <div class="bd-line">
+                    <span><span class="bd-mono">${dollars(b.spendToDate)}</span> of <span class="bd-mono">${dollars(b.monthlyAmount)}</span>${Utils.raw(
+                        b.forecastMonthEnd === null || b.forecastMonthEnd === undefined ? ''
+                            : Utils.html` · forecast <span class="bd-mono">${dollars(b.forecastMonthEnd)}</span>`)}</span>
+                    <span class="bd-action">${actionText(b, actionsEnabled)}</span>
+                </div>
+                ${Utils.raw(b.startFrozenUntil ? Utils.html`<div class="bd-frozen">Starts frozen until ${day(b.startFrozenUntil)}</div>` : '')}
+                ${Utils.raw(canEdit(b) ? Utils.html`<div class="bd-links">
+                    <button type="button" class="bd-link" data-action="budget-edit" data-id="${b.budgetId}" aria-label="Edit budget of ${b.scopeName}">Edit</button>
+                    <button type="button" class="bd-link bd-danger" data-action="budget-delete" data-id="${b.budgetId}" aria-label="Delete budget of ${b.scopeName}">Delete</button>
+                </div>` : '')}
+            </article>`;
+        }).join('');
+        $('#budget-list-panel').html(`${totals}<div class="bd-list" id="budgets-list">${rows}</div>
+            <p class="bd-note">Spend uses AWS billing where available, otherwise the estimate, up to yesterday.</p>`);
     }
 
     function canEdit(b) {
@@ -216,61 +286,88 @@ const Budgets = (function() {
             .catch(e => Notifications.showError(serverMessage(e, 'Could not open the budget form.')));
     }
 
+    /** The three "When the budget is reached" choices; freeze and stop only for environments, while actions are on. */
+    function actionCardsHtml(selected, team, actionsEnabled) {
+        const why = team ? 'Not offered for team budgets.' : actionsEnabled ? '' : 'Switched off by an administrator.';
+        const cards = [
+            { value: 'NONE', name: 'Alert only', desc: 'Nothing changes for the people using it' },
+            { value: 'FREEZE_STARTS', name: 'Freeze new starts', desc: 'An owner approves first; running VMs keep running. An owner can lift it.' },
+            { value: 'STOP_ENVIRONMENT', name: 'Stop the environment', desc: 'An owner approves first.' }
+        ];
+        const value = why ? 'NONE' : selected;
+        return cards.map(c => {
+            const off = c.value !== 'NONE' && !!why;
+            return Utils.html`<label class="bd-choice${Utils.raw(off ? ' bd-choice-off' : '')}">
+                <input type="radio" name="budget-action" value="${c.value}"${Utils.raw(value === c.value ? ' checked' : '')}${Utils.raw(off ? ' disabled' : '')}>
+                <span><b>${c.name}</b><span>${off ? `${c.desc} ${why}` : c.desc}</span></span></label>`;
+        }).join('');
+    }
+
+    function thresholdChipsHtml(list) {
+        return list.slice().sort((a, b) => a - b).map(t => `<span class="bd-tchip" data-value="${t}">${t}%<button type="button"
+            class="bd-tchip-x" aria-label="Remove ${t}%">×</button></span>`).join('');
+    }
+
+    function readThresholds() {
+        return $('#budget-thresholds .bd-tchip').map(function() { return Number(this.dataset.value); }).get();
+    }
+
+    function drawThresholds(list) {
+        $('#budget-thresholds').html(thresholdChipsHtml(list));
+        const full = list.length >= MAX_THRESHOLDS;
+        $('#budget-threshold-input, #budget-threshold-add').prop('disabled', full);
+        $('#budget-threshold-count').text(`${list.length} of ${MAX_THRESHOLDS}`);
+    }
+
     function showForm(budget, preset, config) {
         const scopeType = budget ? budget.scopeType : (preset.scopeType || 'ENVIRONMENT');
         const scopeId = budget ? budget.scopeId : (preset.scopeId || '');
         const thresholds = budget ? budget.thresholds : [50, 75, 90, 100];
+        const teams = config.teams || [];
         const envOptions = (config.environments || []).map(e =>
             Utils.html`<option value="${e.environmentId}" ${e.environmentId === scopeId ? 'selected' : ''}>${e.name}</option>`).join('');
-        const teamOptions = (config.teams || []).map(t =>
+        const teamOptions = teams.map(t =>
             Utils.html`<option value="${t}" ${t === scopeId ? 'selected' : ''}>${t}</option>`).join('');
         const action = budget ? budget.actionType : 'NONE';
+        const fixed = !!budget || !!preset.scopeId;
         const body = `
-            <form id="budget-form" novalidate>
-                ${(config.teams || []).length ? Utils.html`<div class="mb-3">
-                    <label class="form-label" for="budget-scope-type">Budget for</label>
-                    <select class="form-select" id="budget-scope-type" ${budget ? 'disabled' : ''}>
-                        <option value="ENVIRONMENT" ${scopeType === 'ENVIRONMENT' ? 'selected' : ''}>An environment</option>
-                        <option value="TEAM" ${scopeType === 'TEAM' ? 'selected' : ''}>A team (all its environments)</option>
-                    </select></div>` : '<input type="hidden" id="budget-scope-type" value="ENVIRONMENT">'}
-                <div class="mb-3" id="budget-env-field" ${scopeType === 'TEAM' ? 'hidden' : ''}>
-                    <label class="form-label" for="budget-env">Environment</label>
-                    <select class="form-select" id="budget-env" ${budget || preset.scopeId ? 'disabled' : ''}>${envOptions}</select>
+            <form id="budget-form" class="bd-form" novalidate>
+                <p class="bd-intro">A monthly limit. It starts again on the 1st.</p>
+                <div class="bd-grid">
+                    ${teams.length ? Utils.html`<label class="ap-field">For
+                        <select class="form-select" id="budget-scope-type" ${fixed ? 'disabled' : ''}>
+                            <option value="ENVIRONMENT" ${scopeType === 'ENVIRONMENT' ? 'selected' : ''}>An environment</option>
+                            <option value="TEAM" ${scopeType === 'TEAM' ? 'selected' : ''}>A team</option>
+                        </select></label>` : '<input type="hidden" id="budget-scope-type" value="ENVIRONMENT">'}
+                    <label class="ap-field" id="budget-env-field" ${scopeType === 'TEAM' ? 'hidden' : ''}>Environment
+                        <select class="form-select" id="budget-env" ${fixed ? 'disabled' : ''}>${envOptions}</select></label>
+                    <label class="ap-field" id="budget-team-field" ${scopeType === 'TEAM' ? '' : 'hidden'}>Team
+                        <select class="form-select" id="budget-team" ${fixed ? 'disabled' : ''}>${teamOptions}</select></label>
                 </div>
-                <div class="mb-3" id="budget-team-field" ${scopeType === 'TEAM' ? '' : 'hidden'}>
-                    <label class="form-label" for="budget-team">Team</label>
-                    <select class="form-select" id="budget-team" ${budget ? 'disabled' : ''}>${teamOptions}</select>
+                <span class="pol-hint">You can't move a budget to something else later.</span>
+                <label class="ap-field">Monthly amount
+                    <span class="bd-amount"><span aria-hidden="true">$</span><input type="number" class="form-control bd-mono" id="budget-amount"
+                        min="1" max="10000000" step="1" required value="${budget ? Number(budget.monthlyAmount) : ''}" aria-label="Monthly amount in dollars"></span></label>
+                <div class="ap-field">
+                    <span id="budget-threshold-label">Alert when spend reaches <span class="pol-hint">Up to 4. Owners of the environment are told each time.</span></span>
+                    <div class="bd-tchips" role="group" aria-labelledby="budget-threshold-label">
+                        <span id="budget-thresholds">${thresholdChipsHtml(thresholds)}</span>
+                        <span class="bd-tadd">
+                            <input type="number" class="form-control form-control-sm bd-mono" id="budget-threshold-input" min="1" max="200" step="1"
+                                   placeholder="%" aria-label="Another alert, percent of the amount">
+                            <button type="button" class="btn btn-sm btn-secondary" id="budget-threshold-add">Add</button>
+                        </span>
+                        <span class="pol-hint" id="budget-threshold-count" aria-live="polite"></span>
+                    </div>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label" for="budget-amount">Monthly budget (USD)</label>
-                    <input type="number" class="form-control" id="budget-amount" min="1" max="10000000" step="1" required
-                           value="${budget ? Number(budget.monthlyAmount) : ''}">
-                </div>
-                <fieldset class="mb-3">
-                    <legend class="form-label fs-6">Alert at</legend>
-                    <div class="d-flex flex-wrap gap-2">${[50, 75, 90, 100].map(t => `
-                        <label class="budget-chip"><input type="checkbox" class="form-check-input budget-threshold" value="${t}"
-                            ${thresholds.includes(t) ? 'checked' : ''}> ${t}%</label>`).join('')}</div>
+                <label class="re-check bd-check"><input type="checkbox" id="budget-forecast" ${!budget || budget.forecastAlert ? 'checked' : ''}>
+                    Also alert when the forecast says it will go over</label>
+                <fieldset class="pol-fieldset" id="budget-actions">
+                    <legend>When the budget is reached</legend>
+                    <div id="budget-action-cards">${actionCardsHtml(action, scopeType === 'TEAM', config.actionsEnabled)}</div>
                 </fieldset>
-                <div class="form-check form-switch mb-3">
-                    <input class="form-check-input" type="checkbox" role="switch" id="budget-forecast" ${!budget || budget.forecastAlert ? 'checked' : ''}>
-                    <label class="form-check-label" for="budget-forecast">Also alert when the month-end forecast is over budget</label>
-                </div>
-                <div class="mb-3" id="budget-action-field" ${scopeType === 'TEAM' ? 'hidden' : ''}>
-                    <label class="form-label" for="budget-action">When the budget is used up</label>
-                    <select class="form-select" id="budget-action" ${config.actionsEnabled ? '' : 'disabled'} aria-describedby="budget-action-note">
-                        <option value="NONE" ${action === 'NONE' ? 'selected' : ''}>Alert only</option>
-                        <option value="FREEZE_STARTS" ${action === 'FREEZE_STARTS' ? 'selected' : ''}>Ask an owner to freeze starts</option>
-                        <option value="STOP_ENVIRONMENT" ${action === 'STOP_ENVIRONMENT' ? 'selected' : ''}>Ask an owner to stop the environment</option>
-                    </select>
-                    <div class="form-text" id="budget-action-note">${config.actionsEnabled
-                        ? 'Nothing happens until an owner other than you (or an admin) approves it.'
-                        : 'Budget actions are turned off on this server; budgets only send alerts.'}</div>
-                </div>
-                <div class="form-check form-switch mb-0">
-                    <input class="form-check-input" type="checkbox" role="switch" id="budget-enabled" ${!budget || budget.enabled ? 'checked' : ''}>
-                    <label class="form-check-label" for="budget-enabled">Enabled</label>
-                </div>
+                <label class="re-check bd-check"><input type="checkbox" id="budget-enabled" ${!budget || budget.enabled ? 'checked' : ''}> On</label>
+                <div class="re-error" id="budget-error" role="alert" hidden></div>
             </form>`;
         Modals.show({
             id: 'budgetModal',
@@ -278,30 +375,51 @@ const Budgets = (function() {
             body,
             buttons: [
                 { text: 'Cancel', class: 'btn-secondary', dismiss: true },
-                { text: budget ? 'Save' : 'Create budget', class: 'btn-primary', id: 'budget-save-btn' }
+                { text: budget ? 'Save budget' : 'Create budget', class: 'btn-primary', id: 'budget-save-btn' }
             ],
-            onShow: () => $('#budget-amount').trigger('focus')
+            onShow: () => $(fixed ? '#budget-amount' : (teams.length ? '#budget-scope-type' : '#budget-env')).trigger('focus')
         });
+        drawThresholds(thresholds);
+        const $error = $('#budget-error');
+        const fail = message => $error.text(message).prop('hidden', false);
         $('#budget-scope-type').on('change', function() {
             const team = $(this).val() === 'TEAM';
             $('#budget-env-field').prop('hidden', team);
             $('#budget-team-field').prop('hidden', !team);
-            $('#budget-action-field').prop('hidden', team);
+            const current = $('input[name="budget-action"]:checked').val() || 'NONE';
+            $('#budget-action-cards').html(actionCardsHtml(current, team, config.actionsEnabled));
         });
+        $('#budget-thresholds').on('click', '.bd-tchip-x', function() {
+            const value = Number($(this).closest('.bd-tchip').data('value'));
+            drawThresholds(readThresholds().filter(t => t !== value));
+            $('#budget-threshold-input').trigger('focus');
+        });
+        const addThreshold = () => {
+            const list = readThresholds();
+            const raw = $('#budget-threshold-input').val();
+            const problem = thresholdProblem(list, raw);
+            if (problem) { fail(problem); return; }
+            $error.prop('hidden', true);
+            drawThresholds(list.concat(Number(raw)));
+            $('#budget-threshold-input').val('');
+            if (list.length + 1 < MAX_THRESHOLDS) $('#budget-threshold-input').trigger('focus');
+        };
+        $('#budget-threshold-add').on('click', addThreshold);
+        $('#budget-threshold-input').on('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addThreshold(); } });
         $('#budget-save-btn').on('click', function() {
             const type = $('#budget-scope-type').val();
             const dto = {
                 scopeType: type,
                 scopeId: type === 'TEAM' ? $('#budget-team').val() : $('#budget-env').val(),
                 monthlyAmount: Number($('#budget-amount').val()),
-                thresholds: $('.budget-threshold:checked').map(function() { return Number(this.value); }).get(),
+                thresholds: readThresholds(),
                 forecastAlert: $('#budget-forecast').is(':checked'),
-                actionType: type === 'TEAM' ? 'NONE' : $('#budget-action').val(),
+                actionType: type === 'TEAM' ? 'NONE' : ($('input[name="budget-action"]:checked').val() || 'NONE'),
                 enabled: $('#budget-enabled').is(':checked')
             };
-            if (!dto.scopeId) { Notifications.showError('Choose what the budget is for.'); return; }
-            if (!(dto.monthlyAmount > 0)) { Notifications.showError('Enter a monthly budget above zero.'); return; }
-            if (!dto.thresholds.length) { Notifications.showError('Choose at least one alert threshold.'); return; }
+            if (!dto.scopeId) { fail('Choose what the budget is for.'); return; }
+            if (!(dto.monthlyAmount > 0)) { fail('Enter a monthly amount above zero.'); $('#budget-amount').trigger('focus'); return; }
+            if (!dto.thresholds.length) { fail('Add at least one alert.'); $('#budget-threshold-input').trigger('focus'); return; }
             const $btn = $(this).prop('disabled', true);
             (budget ? call('PUT', Config.API.budgets.update(budget.budgetId), dto) : call('POST', Config.API.budgets.create, dto))
                 .then(() => {
@@ -309,7 +427,7 @@ const Budgets = (function() {
                     Notifications.show(budget ? 'Budget saved.' : 'Budget created.', 'success');
                     refreshAfterDecision();
                 })
-                .catch(e => { Notifications.showError(serverMessage(e, 'Could not save the budget.')); $btn.prop('disabled', false); });
+                .catch(e => { fail(serverMessage(e, 'Could not save the budget.')); $btn.prop('disabled', false); });
         });
     }
 
@@ -429,13 +547,14 @@ const Budgets = (function() {
         remove,
         liftFreeze,
         retry: key => { delete page.errors[key]; fetchPage([key]); },
-        setForEnvironment: () => envPanel && openForm(null, { scopeType: 'ENVIRONMENT', scopeId: envPanel.env.environmentId })
+        setForEnvironment: () => envPanel && openForm(null, { scopeType: 'ENVIRONMENT', scopeId: envPanel.env.environmentId }),
+        model: { dollars, chipOf, actionText, kindText, totalsOf, monthDay, thresholdProblem }
     };
 })();
 
 window.Budgets = Budgets;
 
-Actions.registerAll({
+if (typeof Actions !== 'undefined') Actions.registerAll({
     'budget-new': () => Budgets.openForm(null),
     'budget-edit': el => Budgets.edit(el.dataset.id),
     'budget-delete': el => Budgets.remove(el.dataset.id),

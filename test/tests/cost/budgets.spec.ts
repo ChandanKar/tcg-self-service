@@ -19,7 +19,9 @@ async function open(page: Page, hash: string, role: 'admin' | 'user' = 'admin') 
 async function fillBudgetForm(page: Page, amount: string) {
   await expect(page.locator('#budgetModal')).toBeVisible();
   await page.locator('#budget-amount').fill(amount);
-  await expect(page.locator('#budget-action')).toBeDisabled(); // actions are off on the smoke app
+  // Actions are off on the smoke app: only Alert only can be chosen.
+  await expect(page.locator('input[name="budget-action"][value="FREEZE_STARTS"]')).toBeDisabled();
+  await expect(page.locator('input[name="budget-action"][value="NONE"]')).toBeChecked();
   await page.locator('#budget-save-btn').click();
   await expect(page.locator('#budgetModal')).toBeHidden({ timeout: 10_000 });
 }
@@ -39,9 +41,12 @@ test.describe('Budgets', () => {
     await page.locator('#budget-env').selectOption(environmentId);
     await fillBudgetForm(page, '500');
 
-    const row = page.locator('#budgets-table tr', { has: page.locator(`a[href="#/environments/${environmentId}"]`) });
-    await expect(row).toContainText('$500.00');
+    // U12-T07: a row with its bar, "$0 of $500" and the action in words.
+    const row = page.locator('#budgets-list .bd-row', { has: page.locator(`a[href="#/environments/${environmentId}"]`) });
+    await expect(row).toContainText('of $500');
     await expect(row.locator('.budget-bar')).toHaveCount(1);
+    await expect(row.locator('.bd-action')).toHaveText('Alerts only');
+    await expect(page.locator('#budget-totals')).toContainText(/October|January|February|March|April|May|June|July|August|September|November|December/);
     await expect(page.locator('#budgets-view')).toContainText('Spend uses AWS billing where available');
   });
 
@@ -133,5 +138,91 @@ test.describe('Budgets', () => {
     await expect(page.locator('#env-cost-card')).toBeVisible({ timeout: 15_000 });
     await page.waitForLoadState('networkidle');
     await expect(page.locator('#env-budget-panel')).toBeEmpty();
+  });
+
+  /** U12-T07 (Budgets.dc.html): month totals and a row per budget; the list is faked. */
+  test('rows: chips, forecast tick capped at the end, team rows and the totals', async ({ page }) => {
+    const b = (over: any) => ({ budgetId: `b-${Math.random()}`, scopeType: 'ENVIRONMENT', scopeId: 'env-x', scopeName: 'X', monthlyAmount: 100,
+      thresholds: [50, 75, 90, 100], forecastAlert: true, actionType: 'NONE', enabled: true, month: '2026-10', spendToDate: 0,
+      percentUsed: 0, forecastMonthEnd: 0, forecastPercent: 0, startFrozenUntil: null, environmentCount: 1, ...over });
+    await page.route(/\/api\/v1\/budgets$/, route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([
+      b({ scopeId: 'env-pay', scopeName: 'Payments Dev', monthlyAmount: 400, spendToDate: 186, percentUsed: 46.5, forecastMonthEnd: 310, forecastPercent: 77.5 }),
+      b({ scopeId: 'env-ana', scopeName: 'Analytics QA', monthlyAmount: 150, spendToDate: 122, percentUsed: 81.3, forecastMonthEnd: 205,
+        forecastPercent: 136.7, actionType: 'FREEZE_STARTS' }),
+      b({ scopeType: 'TEAM', scopeId: 'CRM', scopeName: 'CRM', monthlyAmount: 300, spendToDate: 288, percentUsed: 96, forecastMonthEnd: 470,
+        forecastPercent: 156.7, environmentCount: 3 }),
+    ]) }));
+    await open(page, '#/budgets');
+
+    const totals = page.locator('#budget-totals');
+    await expect(totals).toContainText('Spent so far $308', { timeout: 15_000 });
+    await expect(totals).toContainText('Forecast for the month $515');
+    await expect(totals).toContainText(/\w+ · day \d+ of \d+/);
+
+    const pay = page.locator('.bd-row', { hasText: 'Payments Dev' });
+    await expect(pay.locator('.bd-chip')).toHaveText('On track');
+    await expect(pay.locator('.bd-line')).toContainText('$186 of $400 · forecast $310');
+    await expect(pay.locator('.budget-bar')).toHaveAttribute('aria-label', '47% spent, forecast 78%');
+
+    // Acceptance: 122 of 150, forecast 205: Forecast over, the tick at the right end.
+    const ana = page.locator('.bd-row', { hasText: 'Analytics QA' });
+    await expect(ana.locator('.bd-chip')).toHaveText('Forecast over');
+    await expect(ana.locator('.budget-tick')).toHaveAttribute('style', 'left:100%');
+    await expect(ana.locator('.bd-action')).toContainText('When reached, an owner approves freezing starts');
+
+    const crm = page.locator('.bd-row', { hasText: 'CRM team' });
+    await expect(crm.locator('.bd-kind')).toHaveText('· team · 3 environments');
+    await expect(crm.locator('.bd-chip')).toHaveText('96% reached');
+    await expect(crm.locator('.bd-action')).toHaveText('Alerts only (team budgets cannot freeze or stop)');
+  });
+
+  test('the dialog: up to 4 alerts as chips, and a team budget cannot freeze or stop', async ({ page }) => {
+    let sent: any = null;
+    await page.route(/\/api\/v1\/budgets\/config$/, route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      actionsEnabled: true, environments: [{ environmentId: 'env-ana', name: 'Analytics QA' }], teams: ['CRM'] }) }));
+    await page.route(/\/api\/v1\/budgets$/, route => {
+      if (route.request().method() === 'POST') {
+        sent = route.request().postDataJSON();
+        return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ message: 'This environment already has a budget' }) });
+      }
+      return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+    });
+    await open(page, '#/budgets');
+    await page.locator('#budget-new-btn').click();
+    const dialog = page.locator('#budgetModal');
+    await expect(dialog).toContainText('A monthly limit. It starts again on the 1st.');
+    await expect(dialog).toContainText("You can't move a budget to something else later.");
+
+    // Acceptance: four thresholds, so Add is off and says 4 of 4.
+    await expect(dialog.locator('.bd-tchip')).toHaveText(['50%', '75%', '90%', '100%'].map(t => new RegExp(`^${t}`)));
+    await expect(page.locator('#budget-threshold-count')).toHaveText('4 of 4');
+    await expect(page.locator('#budget-threshold-add')).toBeDisabled();
+    await dialog.getByRole('button', { name: 'Remove 75%' }).click();
+    await expect(page.locator('#budget-threshold-count')).toHaveText('3 of 4');
+    await page.locator('#budget-threshold-input').fill('90');
+    await page.locator('#budget-threshold-add').click();
+    await expect(page.locator('#budget-error')).toHaveText('90% is already there.');
+    await page.locator('#budget-threshold-input').fill('120');
+    await page.locator('#budget-threshold-input').press('Enter');
+    await expect(page.locator('#budget-threshold-count')).toHaveText('4 of 4');
+
+    const freeze = page.locator('input[name="budget-action"][value="FREEZE_STARTS"]');
+    const stop = page.locator('input[name="budget-action"][value="STOP_ENVIRONMENT"]');
+    await expect(freeze).toBeEnabled();
+    await dialog.getByText('Freeze new starts').click();
+    await expect(freeze).toBeChecked();
+    // Acceptance: a team budget offers neither, and says why.
+    await page.locator('#budget-scope-type').selectOption('TEAM');
+    await expect(freeze).toBeDisabled();
+    await expect(stop).toBeDisabled();
+    await expect(page.locator('#budget-action-cards')).toContainText('Not offered for team budgets.');
+    await expect(page.locator('input[name="budget-action"][value="NONE"]')).toBeChecked();
+    await page.locator('#budget-scope-type').selectOption('ENVIRONMENT');
+
+    await page.locator('#budget-amount').fill('150');
+    await page.locator('#budget-save-btn').click();
+    await expect(page.locator('#budget-error')).toHaveText('This environment already has a budget');
+    expect(sent).toMatchObject({ scopeType: 'ENVIRONMENT', scopeId: 'env-ana', monthlyAmount: 150, thresholds: [50, 90, 100, 120],
+      forecastAlert: true, actionType: 'NONE', enabled: true });
   });
 });

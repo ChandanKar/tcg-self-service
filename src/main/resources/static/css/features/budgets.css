@@ -1,32 +1,37 @@
 /*
  * Budgets (E20-T05): the budget bar, the pending-action rows and the threshold chips.
  */
+/* The bar: spend as a fill, the month-end forecast as a gold tick (U12-T07). */
 .budget-bar {
+    position: relative;
     height: 0.5rem;
     border-radius: 999px;
-    background: var(--border-color);
-    overflow: hidden;
+    background: var(--surface-muted);
     margin: 0.35rem 0;
     min-width: 6rem;
 }
 
-.budget-bar span {
-    display: block;
-    height: 100%;
+.budget-bar .budget-fill {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
     border-radius: inherit;
-    background: var(--brand-green);
+    background: var(--brand-navy);
 }
 
-.budget-warn span {
+.budget-danger .budget-fill,
+.budget-over .budget-fill {
+    background: var(--brand-red);
+}
+
+.budget-tick {
+    position: absolute;
+    top: -4px;
+    bottom: -4px;
+    width: 2px;
+    margin-left: -1px;
     background: var(--brand-gold);
-}
-
-.budget-danger span {
-    background: var(--brand-red-text);
-}
-
-.budget-over span {
-    background: var(--brand-red-text);
 }
 
 .budget-progress-cell {
@@ -61,4 +66,318 @@
 .budget-env-empty .btn-link,
 .budget-env-card .btn-link {
     color: var(--brand-navy-hover);
+}
+
+/* ===== The page (U12-T07, Budgets.dc.html) ===== */
+
+.budgets-page {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.budgets-page .content-header {
+    margin-bottom: 0;
+}
+
+.bd-totals {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 18px;
+    margin-bottom: 12px;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.bd-totals b {
+    color: var(--ink);
+    font-weight: 600;
+}
+
+.bd-swatch {
+    display: inline-block;
+    width: 18px;
+    height: 8px;
+    border-radius: 2px;
+    background: var(--brand-navy);
+    vertical-align: middle;
+}
+
+.bd-tick-key {
+    display: inline-block;
+    width: 2px;
+    height: 14px;
+    background: var(--brand-gold);
+    vertical-align: middle;
+}
+
+.bd-mono {
+    font-family: var(--font-mono);
+}
+
+.bd-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.bd-row {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 18px 20px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+}
+
+.bd-row .budget-bar {
+    height: 12px;
+    border-radius: 6px;
+    margin: 0;
+}
+
+.bd-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.bd-head h2 {
+    display: inline;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.bd-head h2 a {
+    color: var(--ink);
+    text-decoration: none;
+}
+
+.bd-head h2 a:hover {
+    text-decoration: underline;
+}
+
+.bd-kind {
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.bd-row-off h2,
+.bd-row-off .bd-line {
+    color: var(--text-secondary);
+}
+
+.bd-chip {
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: var(--fs-caption);
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.bd-chip-ok {
+    background: var(--brand-green-tint);
+    color: var(--brand-green-text);
+}
+
+.bd-chip-warn {
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
+}
+
+.bd-chip-bad {
+    background: var(--brand-red-tint);
+    color: var(--brand-red-text);
+}
+
+.bd-chip-off {
+    background: var(--surface-muted);
+    color: var(--text-secondary);
+}
+
+.bd-line {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: var(--fs-body);
+}
+
+.bd-action,
+.bd-note {
+    color: var(--text-secondary);
+}
+
+.bd-note {
+    margin: 10px 0 0;
+    font-size: var(--fs-small);
+}
+
+.bd-frozen {
+    font-size: var(--fs-small);
+    color: var(--brand-red-text);
+}
+
+.bd-links {
+    display: flex;
+    gap: 14px;
+}
+
+.bd-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--fs-small);
+    color: var(--brand-navy);
+    cursor: pointer;
+}
+
+.bd-link:hover {
+    text-decoration: underline;
+}
+
+.bd-link.bd-danger {
+    color: var(--brand-red-text);
+}
+
+/* ===== New budget dialog (CostDialogs.dc.html) ===== */
+
+.bd-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.bd-intro {
+    margin: 0;
+    font-size: var(--fs-body);
+    color: var(--text-secondary);
+}
+
+.bd-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.bd-grid [hidden] {
+    display: none;
+}
+
+.bd-amount {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 220px;
+    font-weight: 400;
+}
+
+.bd-tchips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+#budget-thresholds {
+    display: contents;
+}
+
+.bd-tchip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 6px 0 10px;
+    border-radius: 999px;
+    background: var(--brand-navy-tint);
+    color: var(--brand-navy);
+    font-family: var(--font-mono);
+    font-size: var(--fs-small);
+    font-weight: 400;
+}
+
+.bd-tchip-x {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    line-height: 1;
+    color: inherit;
+    cursor: pointer;
+}
+
+.bd-tchip-x:hover,
+.bd-tchip-x:focus-visible {
+    background: var(--surface-muted);
+}
+
+.bd-tadd {
+    display: inline-flex;
+    gap: 6px;
+}
+
+.bd-tadd input {
+    width: 5rem;
+}
+
+.bd-check {
+    font-size: var(--fs-body);
+    color: var(--ink);
+}
+
+.bd-choice {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    font-size: var(--fs-body);
+    cursor: pointer;
+}
+
+.bd-choice + .bd-choice {
+    margin-top: 6px;
+}
+
+.bd-choice:has(input:checked) {
+    border: 1.5px solid var(--brand-navy);
+    background: var(--brand-navy-tint);
+}
+
+.bd-choice input {
+    margin-top: 4px;
+    accent-color: var(--brand-navy);
+}
+
+.bd-choice b {
+    display: block;
+    font-weight: 500;
+}
+
+.bd-choice span span {
+    display: block;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.bd-choice-off {
+    cursor: not-allowed;
+    opacity: 0.65;
+}
+
+@media (max-width: 575.98px) {
+    .bd-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }

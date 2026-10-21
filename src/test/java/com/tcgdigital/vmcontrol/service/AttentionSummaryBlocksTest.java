@@ -30,7 +30,7 @@ class AttentionSummaryBlocksTest {
         return new BudgetDTO("b-" + name, BudgetScopeType.ENVIRONMENT, "env-" + name, name, new BigDecimal("1000"),
                 List.of(50, 90, 100), false, BudgetActionType.NONE, enabled, null, "2026-10", null, null,
                 percentUsed == null ? null : new BigDecimal(percentUsed), null,
-                forecastPercent == null ? null : new BigDecimal(forecastPercent), "admin-001", null, null, null, null);
+                forecastPercent == null ? null : new BigDecimal(forecastPercent), "admin-001", null, null, null, null, 1);
     }
 
     private static DashboardSummaryDTO.SchedulerHealthDTO job(String label, String status, Long freshness, long interval) {

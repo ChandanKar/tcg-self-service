@@ -93,6 +93,9 @@ class BudgetServiceTest extends AbstractIntegrationTest {
         Budget team = budget(BudgetScopeType.TEAM, "Payments");
         assertThat(budgets.environmentIds(team)).containsExactlyInAnyOrder(env.getEnvironmentId(), other.getEnvironmentId());
         assertThat(budgets.spend(team, SEPTEMBER, SEPTEMBER.atDay(1)).toDate()).isEqualByComparingTo("35.00");
+        // U12-T07: "Payments team · 2 environments"
+        assertThat(budgets.toDto(team).environmentCount()).isEqualTo(2);
+        assertThat(budgets.toDto(budget(BudgetScopeType.ENVIRONMENT, env.getEnvironmentId())).environmentCount()).isEqualTo(1);
     }
 
     @Test

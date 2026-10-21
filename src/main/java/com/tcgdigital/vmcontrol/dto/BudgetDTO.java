@@ -36,5 +36,7 @@ public record BudgetDTO(
         /** Environment budgets: starts are frozen until then (E20-T03); null when not frozen. */
         Timestamp startFrozenUntil,
         /** "AWS sync failed: ..." when mirroring to AWS Budgets last failed (E20-T06); null otherwise. */
-        String awsSyncError) {
+        String awsSyncError,
+        /** The environments it covers: 1, or a team's active environments ("CRM team · 3 environments", U12-T07). */
+        int environmentCount) {
 }
