@@ -62,6 +62,18 @@ class SavingsReportServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void environmentRowsCarryTheirTeam() {
+        entry(MONTH.atDay(3), SavingsCause.SCHEDULE, "10", "1.00", "0.90");
+        ledger.flush();
+
+        // U15-T06: no team on the environment, so the team its ledger rows were written with.
+        SavingsBreakdownRowDTO row = reports.byEnvironment(MONTH).get(0);
+        assertThat(row.key()).isEqualTo(env.getEnvironmentId());
+        assertThat(row.team()).isEqualTo("Payments");
+        assertThat(reports.byTeam(MONTH).get(0).team()).isNull();
+    }
+
+    @Test
     void totalsByCauseEqualTheSumOfTheEntries() {
         entry(MONTH.atDay(1), SavingsCause.SCHEDULE, "14", "1.40", "1.30");
         entry(MONTH.atDay(2), SavingsCause.SCHEDULE, "14", "1.40", "1.30");

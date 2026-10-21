@@ -2,11 +2,12 @@ import { test, expect, type Page } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
 
 /**
- * E17-T07: the Savings leadership page. KPI tiles, the two charts and the two breakdown tables
- * render; a failing panel shows its own Retry; the tables sort; environment rows link to the
- * environment; the covered-hours note shows only when the summary reports covered entries; and
- * non-admins are refused. Breakdown rows and failures are faked in the browser; the rest hits
- * the smoke app (test schema, no AWS).
+ * E17-T07, U15-T06 (Savings.dc.html): the Savings page. Four tiles, Saved by bars, the efficiency
+ * line and the environments table with Team render; a failing panel shows its own Retry; the table
+ * sorts; environment rows link to the environment; the covered-hours note shows only when the
+ * summary reports covered entries; export and rebuild work from the header; and non-admins are
+ * refused. Breakdown rows and failures are faked in the browser; the rest hits the smoke app
+ * (test schema, no AWS).
  */
 
 declare const ContentRouter: any;
@@ -19,52 +20,63 @@ async function openSavings(page: Page, role: 'admin' | 'user' = 'admin') {
 }
 
 const ENV_ROWS = [
-  { key: 'env-a', label: 'Alpha', hours: 10, gross: 5, net: 4 },
-  { key: 'env-b', label: 'Bravo', hours: 30, gross: 20, net: 18 }
+  { key: 'env-a', label: 'Alpha', hours: 10, gross: 5, net: 4, team: null },
+  { key: 'env-b', label: 'Bravo', hours: 30, gross: 20, net: 18, team: 'Payments' }
 ];
+
+const now = new Date();
+const previous = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+const previousMonth = `${previous.getUTCFullYear()}-${String(previous.getUTCMonth() + 1).padStart(2, '0')}`;
 
 test.describe('Savings page', () => {
   test.beforeEach(() => {
     test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
   });
 
-  test('renders KPIs, charts and sortable breakdowns with environment links', async ({ page }) => {
+  test('renders the tiles, Saved by, the efficiency line and the sortable environments with their team', async ({ page }) => {
     await page.route(/\/api\/v1\/savings\/by-environment/, route =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ENV_ROWS) }));
+    await page.route(/\/api\/v1\/savings\/efficiency\/trend/, route => route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify([{ date: '2026-08-01', efficiencyPercent: 62 }, { date: '2026-10-01', efficiencyPercent: 81 }]) }));
     await openSavings(page);
 
-    await expect(page.locator('.savings-page .dashboard-kpi')).toHaveCount(4, { timeout: 15_000 });
-    await expect(page.locator('.dashboard-kpi', { hasText: 'Cost Efficiency' })).toBeVisible();
-    await expect(page.locator('#savings-cause-chart')).toBeVisible();
-    await expect(page.locator('#savings-trend-chart')).toBeVisible();
+    await expect(page.locator('.savings-tile')).toHaveCount(4, { timeout: 15_000 });
+    await expect(page.locator('.savings-tile .cost-kpi-label')).toHaveText(['Saved, net', 'Still on the table', 'Cost efficiency', 'Based on']);
+    await expect(page.locator('[data-kpi="net"]')).toContainText('before running storage and IPs');
+    await expect(page.locator('.savings-cause > span:first-child')).toHaveText(['Schedules', 'Idle auto-stop', 'Leases ending', 'Stopped by hand', 'Rightsizing']);
+    await expect(page.locator('#savings-trend-svg')).toHaveAttribute('aria-label', 'Cost efficiency from 62% to 81% over 90 days');
     await expect(page.locator('.cost-panel-error')).toHaveCount(0);
 
-    const envTable = page.locator('.cost-table-card', { hasText: 'By environment' });
+    const envTable = page.locator('.savings-envs');
     const firstCell = envTable.locator('tbody tr').first().locator('td').first();
     // Default sort is net, largest first.
     await expect(firstCell).toHaveText('Bravo');
+    // Acceptance: each row shows its team or a dash.
+    await expect(envTable.locator('tbody tr').first().locator('.savings-team')).toHaveText('Payments');
     await envTable.getByRole('button', { name: 'Net' }).click();
     await expect(firstCell).toHaveText('Alpha');
+    await expect(envTable.locator('tbody tr').first().locator('.savings-team')).toHaveText('—');
     await expect(envTable.getByRole('link', { name: 'Alpha' })).toHaveAttribute('href', '#/environments/env-a');
 
     // The sidebar shows the page to admins.
     await expect(page.locator('#savings-link')).toBeVisible();
   });
 
-  test('a failing daily request shows Retry on its panel only', async ({ page }) => {
+  test('a failing trend request shows Retry on its panel only', async ({ page }) => {
     let fail = true;
-    await page.route(/\/api\/v1\/savings\/daily/, route => fail
+    await page.route(/\/api\/v1\/savings\/efficiency\/trend/, route => fail
       ? route.fulfill({ status: 500, contentType: 'application/json', body: '{"message":"boom"}' })
-      : route.continue());
+      : route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ date: '2026-10-01', efficiencyPercent: 70 },
+        { date: '2026-10-02', efficiencyPercent: 71 }]) }));
     await openSavings(page);
 
     await expect(page.locator('.cost-panel-error')).toHaveCount(1, { timeout: 15_000 });
-    await expect(page.locator('.cost-panel-error')).toContainText("Couldn't load daily savings.");
-    await expect(page.locator('#savings-trend-chart')).toBeVisible();
+    await expect(page.locator('.cost-panel-error')).toContainText("Couldn't load the efficiency trend.");
+    await expect(page.locator('.savings-causes')).toBeVisible();
 
     fail = false;
     await page.locator('[data-action="savings-retry"]').click();
-    await expect(page.locator('#savings-cause-chart')).toBeVisible();
+    await expect(page.locator('#savings-trend-svg')).toBeVisible();
     await expect(page.locator('.cost-panel-error')).toHaveCount(0);
   });
 
@@ -76,25 +88,49 @@ test.describe('Savings page', () => {
       await route.fulfill({ response, body: JSON.stringify(body) });
     });
     await openSavings(page);
-    await expect(page.locator('.savings-note')).toContainText('Savings Plans/RIs', { timeout: 15_000 });
+    await expect(page.locator('.savings-note')).toContainText('Savings Plans or Reserved Instances', { timeout: 15_000 });
   });
 
-  test('changing the month refetches for that month', async ({ page }) => {
+  test('changing the month shows that month in the tiles and the cause bars', async ({ page }) => {
+    await page.route(/\/api\/v1\/savings\/summary\?month=/, async route => {
+      const month = new URL(route.request().url()).searchParams.get('month');
+      const response = await route.fetch();
+      const body = await response.json();
+      // The previous month gets its own figures.
+      if (month === previousMonth) {
+        body.realisedNet = 1846; body.realisedGross = 2071;
+        body.byCause = [{ key: 'SCHEDULE', label: 'Schedules', net: 1120, gross: 1200, hours: 300 }];
+      }
+      await route.fulfill({ response, body: JSON.stringify(body) });
+    });
     await openSavings(page);
-    await expect(page.locator('.savings-page .dashboard-kpi')).toHaveCount(4, { timeout: 15_000 });
+    await expect(page.locator('.savings-tile')).toHaveCount(4, { timeout: 15_000 });
     const second = await page.locator('#savings-month option').nth(1).getAttribute('value');
     const request = page.waitForRequest(r => r.url().includes(`/savings/summary?month=${second}`));
     await page.locator('#savings-month').selectOption(second!);
     await request;
     await expect(page).toHaveURL(new RegExp(`#/savings\\?month=${second}`));
+    // Acceptance: the four tiles and the cause bars show the chosen month's figures.
+    await expect(page.locator('[data-kpi="net"] .savings-tile-value')).toHaveText('$1,846');
+    await expect(page.locator('[data-kpi="net"]')).toContainText('$2,071 before running storage and IPs');
+    await expect(page.locator('.savings-cause[data-cause="SCHEDULE"]')).toContainText('$1,120');
   });
 
-  test('Export month downloads the ledger workbook', async ({ page }) => {
+  test('Export month, Excel downloads the ledger workbook; Rebuild the last 30 days asks first', async ({ page }) => {
+    let rebuilt = 0;
+    await page.route(/\/api\/v1\/savings\/backfill\?days=30$/, route => { rebuilt++; return route.fulfill({ status: 200, json: {} }); });
     await openSavings(page);
-    await expect(page.locator('.savings-page .dashboard-kpi')).toHaveCount(4, { timeout: 15_000 });
+    await expect(page.locator('.savings-tile')).toHaveCount(4, { timeout: 15_000 });
     const download = page.waitForEvent('download');
-    await page.locator('[data-action="savings-export"]').click();
+    await page.getByRole('button', { name: 'Export month, Excel' }).click();
     expect((await download).suggestedFilename()).toMatch(/^savings-ledger-\d{4}-\d{2}\.xlsx$/);
+
+    await page.getByRole('button', { name: 'Data actions' }).click();
+    await page.getByRole('menuitem', { name: 'Rebuild the last 30 days' }).click();
+    await expect(page.locator('.modal.show')).toContainText('Rebuild the savings ledger for the last 30 days?');
+    expect(rebuilt).toBe(0);
+    await page.locator('#confirmBtn').click();
+    await expect.poll(() => rebuilt).toBe(1);
   });
 
   test('non-admins are refused', async ({ page }) => {

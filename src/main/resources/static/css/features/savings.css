@@ -1,35 +1,189 @@
 /*
- * Savings leadership page (E17-T07). Reuses the Cost Management KPI grid and panels.
+ * Savings (E17-T07, U15-T06 Savings.dc.html): four tiles in one card, Saved by bars beside the
+ * efficiency line, and the environments table. Reuses .cost-card / .cost-kpi-* from cost-management.css.
  */
+.savings-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
 .savings-month {
     width: auto;
     min-width: 170px;
 }
 
-.savings-charts,
-.savings-tables {
+.savings-tiles {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem;
-    margin-bottom: 0.75rem;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    margin-bottom: 16px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
 }
 
-.savings-chart {
-    width: 100%;
-    height: 280px;
+.savings-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 18px 20px;
+    border-right: 1px solid var(--line-soft);
+    min-width: 0;
 }
 
-.savings-panel-title {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    margin: 0 0 0.5rem;
+.savings-tile:last-child {
+    border-right: 0;
+}
+
+.savings-tile-value {
+    font-size: 26px;
+    color: var(--ink);
+}
+
+.savings-tile-value.savings-tile-words {
+    margin-top: 6px;
+    font-size: 18px;
+}
+
+.savings-green,
+.savings-tile-value.savings-green {
+    color: var(--brand-green-text);
 }
 
 .savings-note {
-    font-size: 0.875rem;
+    margin: 0 0 16px;
+}
+
+.savings-pair {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.savings-causes,
+.savings-efficiency {
+    gap: 12px;
+    padding: 18px 20px;
+}
+
+.savings-causes h2,
+.savings-efficiency h2,
+.savings-card-title {
+    margin: 0 0 4px;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.savings-card-title {
+    margin: 0;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.savings-cause {
+    display: grid;
+    grid-template-columns: 130px minmax(0, 1fr) 70px;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+}
+
+.savings-cause .cost-mono {
+    text-align: right;
+}
+
+.savings-cause-bar {
+    height: 10px;
+    border-radius: 3px;
+    background: var(--surface-subtle);
+    overflow: hidden;
+}
+
+.savings-cause-bar > span {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    background: var(--success-color);
+}
+
+#savings-trend-svg {
+    display: block;
+    width: 100%;
+    height: 160px;
+}
+
+.savings-axis {
+    stroke: var(--line);
+}
+
+.savings-median {
+    stroke: var(--line);
+    stroke-dasharray: 4 4;
+}
+
+.savings-line {
+    fill: none;
+    stroke: var(--success-color);
+    stroke-width: 2.5;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+}
+
+.savings-chart-box {
+    position: relative;
+}
+
+.savings-median-label {
+    position: absolute;
+    left: 4px;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.savings-env-table {
+    width: 100%;
+    min-width: 520px;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.savings-env-table th {
+    padding: 10px 12px;
+    color: var(--text-secondary);
+    font-size: 12.5px;
+    font-weight: 500;
+    text-align: left;
+}
+
+.savings-env-table td {
+    padding: 11px 12px;
+    border-top: 1px solid var(--line-soft);
+}
+
+.savings-env-table th:first-child,
+.savings-env-table td:first-child {
+    padding-left: 20px;
+}
+
+.savings-env-table th:last-child,
+.savings-env-table td:last-child {
+    padding-right: 20px;
+}
+
+.savings-env-table .cost-num {
+    text-align: right;
+}
+
+.savings-team {
+    color: var(--text-secondary);
+}
+
+.savings-envs .pager {
+    padding: 8px 20px;
+    border-top: 1px solid var(--line-soft);
 }
 
 .savings-sort {
@@ -46,9 +200,13 @@
     outline-offset: 2px;
 }
 
-@media (max-width: 991.98px) {
-    .savings-charts,
-    .savings-tables {
+@media (max-width: 575.98px) {
+    .savings-pair {
         grid-template-columns: minmax(0, 1fr);
+    }
+
+    .savings-tile {
+        border-right: 0;
+        border-bottom: 1px solid var(--line-soft);
     }
 }

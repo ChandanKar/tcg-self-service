@@ -117,13 +117,28 @@ public class SavingsReportService {
         return byCause(entries(month, environmentId));
     }
 
+    /**
+     * Savings per environment with its team (U15-T06): the environment's team now, else the team its
+     * ledger rows were written with.
+     */
     @Transactional(readOnly = true)
     public List<SavingsBreakdownRowDTO> byEnvironment(YearMonth month) {
         List<SavingsLedgerEntry> entries = entries(month, null);
         Map<String, String> names = new HashMap<>();
+        Map<String, String> teams = new HashMap<>();
         environmentRepository.findAllById(entries.stream().map(SavingsLedgerEntry::getEnvironmentId).distinct().toList())
-                .forEach(e -> names.put(e.getEnvironmentId(), envName(e)));
-        return breakdown(entries, SavingsLedgerEntry::getEnvironmentId, id -> names.getOrDefault(id, id));
+                .forEach(e -> {
+                    names.put(e.getEnvironmentId(), envName(e));
+                    if (e.getTeam() != null) teams.put(e.getEnvironmentId(), teamName(e.getTeam()));
+                });
+        entries.stream().filter(e -> e.getTeam() != null && !e.getTeam().isBlank())
+                .forEach(e -> teams.putIfAbsent(e.getEnvironmentId(), e.getTeam()));
+        return breakdown(entries, SavingsLedgerEntry::getEnvironmentId, id -> names.getOrDefault(id, id)).stream()
+                .map(r -> r.withTeam(teams.get(r.key()))).toList();
+    }
+
+    private static String teamName(com.tcgdigital.vmcontrol.model.Team t) {
+        return t.getDisplayName() != null && !t.getDisplayName().isBlank() ? t.getDisplayName() : t.getName();
     }
 
     @Transactional(readOnly = true)

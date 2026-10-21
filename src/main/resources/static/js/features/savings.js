@@ -1,20 +1,22 @@
 /**
- * Savings leadership page (E17-T07): what the platform's schedules, leases, idle stops, manual stops
- * and rightsizing actually saved this month, next to what could still be saved and the Cost
- * Efficiency %. Admin only. Each panel loads on its own and shows its own error with Retry.
+ * Savings (E17-T07, U15-T06 Savings.dc.html): what stopping and resizing saved in a month after the
+ * storage and IPs that keep running, what is still on the table, cost efficiency against the AWS
+ * median and how much of it rests on AWS billing; savings by cause as bars, the 90-day efficiency
+ * line and savings by environment with its team. Admin only. Each panel loads on its own and shows
+ * its own error with Retry.
  */
 const Savings = (function() {
     'use strict';
 
     const TREND_DAYS = 90;
-    const CAUSE_COLORS = {
-        SCHEDULE: '#2563eb', LEASE: '#7c3aed', IDLE_STOP: '#059669', MANUAL_STOP: '#d97706',
-        RIGHTSIZING: '#0891b2', OTHER: '#64748b'
-    };
+    const PAGE_SIZE = 10;
+    const AWS_MEDIAN = 83;
+    /** The causes in the board's order, with the names people use. */
+    const CAUSES = [['SCHEDULE', 'Schedules'], ['IDLE_STOP', 'Idle auto-stop'], ['LEASE', 'Leases ending'],
+        ['MANUAL_STOP', 'Stopped by hand'], ['RIGHTSIZING', 'Rightsizing'], ['OTHER', 'Other']];
 
     let pageToken = null;
     let state = null;
-    const charts = new Map();
 
     function isActive() {
         return pageToken !== null && ContentRouter.isCurrent(pageToken);
@@ -26,12 +28,12 @@ const Savings = (function() {
         });
     }
 
-    function money(v) {
-        return Utils.formatCurrency(Number(v || 0));
+    function money0(v) {
+        return '$' + Math.round(Number(v || 0)).toLocaleString('en-US');
     }
 
-    function currentMonth() {
-        const d = new Date();
+    function currentMonth(now) {
+        const d = now || new Date();
         return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
     }
 
@@ -47,32 +49,64 @@ const Savings = (function() {
         return out.join('');
     }
 
+    // ---------------------------------------------------------------- model (node-tested)
+
+    /**
+     * "Based on": how much of the month AWS billing covers. Days with billing over the days of the
+     * month so far (the whole month once it is over).
+     */
+    function basis(check, month, now) {
+        const c = check || {};
+        const today = now || new Date();
+        const [y, m] = String(month).split('-').map(Number);
+        const length = new Date(Date.UTC(y, m, 0)).getUTCDate();
+        const elapsed = month === currentMonth(today) ? today.getUTCDate() : length;
+        const days = Number(c.daysWithActuals || 0);
+        const share = elapsed > 0 ? Math.min(100, Math.round(days / elapsed * 100)) : 0;
+        if (!days) return { label: 'Estimates', note: 'No AWS billing figures for this month yet', share: 0 };
+        return { label: share >= 50 ? 'Mostly AWS billing' : 'Mostly estimates', note: `${share}% billed, the rest estimated`, share };
+    }
+
+    /** The causes in order with their net saving and a bar width; Other only when it saved something. */
+    function causeBars(byCause) {
+        const net = new Map((byCause || []).map(r => [r.key, Math.max(0, Number(r.net) || 0)]));
+        const rows = CAUSES.filter(([key]) => key !== 'OTHER' || net.get(key) > 0)
+            .map(([key, label]) => ({ key, label, value: net.get(key) || 0 }));
+        const most = Math.max(1, ...rows.map(r => r.value));
+        return rows.map(r => ({ ...r, width: Math.round(r.value / most * 1000) / 10 }));
+    }
+
+    /** The efficiency line in a 440 × 150 box (0–100%), with the AWS median's height. */
+    function efficiencyLine(trend, width = 440, height = 150) {
+        const points = (trend || []).filter(p => p.efficiencyPercent !== null && p.efficiencyPercent !== undefined);
+        const y = v => Math.round((height - 10 - (Number(v) / 100) * (height - 20)) * 10) / 10;
+        const step = points.length > 1 ? width / (points.length - 1) : 0;
+        return {
+            points: points.map((p, i) => `${Math.round(i * step * 10) / 10},${y(p.efficiencyPercent)}`).join(' '),
+            median: y(AWS_MEDIAN),
+            first: points.length ? Math.round(Number(points[0].efficiencyPercent)) : null,
+            last: points.length ? Math.round(Number(points[points.length - 1].efficiencyPercent)) : null
+        };
+    }
+
     // ---------------------------------------------------------------- load
 
     function load() {
         pageToken = ContentRouter.token();
-        ContentRouter.onLeave(teardown);
         if (!Auth.isAdmin()) {
             $('#content-area').html('<div class="alert alert-danger m-3">Access denied. Admin only.</div>');
             return;
         }
         const q = ContentRouter.query ? ContentRouter.query() : {};
-        state = { month: /^\d{4}-\d{2}$/.test(q.month || '') ? q.month : currentMonth(), data: {}, errors: {}, sort: {} };
+        state = { month: /^\d{4}-\d{2}$/.test(q.month || '') ? q.month : currentMonth(), data: {}, errors: {},
+            sort: { by: 'net', dir: -1 }, page: 1 };
         render();
         fetchAll();
     }
 
-    function teardown() {
-        charts.forEach(c => c.dispose());
-        charts.clear();
-        $(window).off('resize.savingsCharts');
-    }
-
     const REQUESTS = {
         summary: () => `${Config.API.savings.summary}?month=${state.month}`,
-        daily: () => `${Config.API.savings.daily}?month=${state.month}`,
         byEnvironment: () => `${Config.API.savings.byEnvironment}?month=${state.month}`,
-        byTeam: () => `${Config.API.savings.byTeam}?month=${state.month}`,
         trend: () => `${Config.API.savings.trend}?days=${TREND_DAYS}`
     };
 
@@ -98,148 +132,114 @@ const Savings = (function() {
 
     function render() {
         const s = state.data.summary;
-        $('#content-area').html(Utils.html`
+        const dataMenu = typeof Menu !== 'undefined' ? Menu.markup({ id: 'savings-data-menu', label: 'Data actions', items: [
+            { text: 'Rebuild the last 30 days', action: 'savings-backfill' }] }) : '';
+        $('#content-area').html(`
             <div class="content-view savings-page">
-                <div class="content-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <div>
-                        <h1><i class="fas fa-piggy-bank me-2" aria-hidden="true"></i>Savings ${Utils.raw(typeof HelpLink !== 'undefined' ? HelpLink.button('savings', 'Savings') : '')}</h1>
-                        <p class="text-muted mb-0">What the platform saved, what could still be saved, and how efficient the fleet is</p>
-                    </div>
-                    <div class="d-flex gap-2 flex-wrap align-items-center">
+                ${PageHeader.markup({ title: 'Savings',
+                    summaryHtml: 'What stopping and resizing saved, after the storage and IP costs that keep running.',
+                    actionsHtml: Utils.html`<div class="savings-toolbar">
                         <label class="visually-hidden" for="savings-month">Month</label>
-                        <select id="savings-month" class="form-select form-select-sm savings-month">${Utils.raw(monthOptions(state.month))}</select>
-                        <button type="button" class="btn btn-sm btn-tonal btn-primary" data-action="savings-export">
-                            <i class="fas fa-file-excel" aria-hidden="true"></i> Export month</button>
-                        <button type="button" class="btn btn-sm btn-ghost" data-action="savings-backfill">
-                            <i class="fas fa-history" aria-hidden="true"></i> Backfill 30 days</button>
-                    </div>
+                        <select id="savings-month" class="form-select savings-month">${Utils.raw(monthOptions(state.month))}</select>
+                        <button type="button" class="btn btn-outline-secondary" data-action="savings-export">Export month, Excel</button>
+                        ${Utils.raw(dataMenu)}</div>`,
+                    helpPage: typeof HelpLink !== 'undefined' ? 'savings' : null, helpLabel: 'Savings' })}
+                ${panel('summary', () => tiles(s), 'the summary')}
+                ${s && s.fullyCoveredEntries > 0 ? `<p class="cost-note savings-note" role="status">Some scheduled hours show no
+                    compute saving because Savings Plans or Reserved Instances already pay for them.</p>` : ''}
+                <div class="savings-pair">
+                    ${panel('summary', () => causes(s), 'savings by cause')}
+                    ${panel('trend', () => efficiency(state.data.trend), 'the efficiency trend')}
                 </div>
-                ${Utils.raw(panel('summary', () => kpis(s), 'the summary'))}
-                ${Utils.raw(s && s.fullyCoveredEntries > 0 ? `<div class="alert alert-info savings-note" role="status">
-                    <i class="fas fa-info-circle me-1" aria-hidden="true"></i>
-                    Some scheduled hours show no compute saving because Savings Plans/RIs already cover them.</div>` : '')}
-                <div class="savings-charts">
-                    ${Utils.raw(panel('daily', () => `<section class="dashboard-chart-panel"><h2 class="savings-panel-title">Net savings by cause</h2>
-                        <div id="savings-cause-chart" class="savings-chart" role="img" aria-label="Net savings by cause per day"></div></section>`, 'daily savings'))}
-                    ${Utils.raw(panel('trend', () => `<section class="dashboard-chart-panel"><h2 class="savings-panel-title">Cost Efficiency % (${TREND_DAYS} days)</h2>
-                        <div id="savings-trend-chart" class="savings-chart" role="img" aria-label="Cost efficiency trend"></div></section>`, 'the efficiency trend'))}
-                </div>
-                <div class="savings-tables">
-                    ${Utils.raw(panel('byEnvironment', () => table('byEnvironment', 'By environment', state.data.byEnvironment, true), 'savings by environment'))}
-                    ${Utils.raw(panel('byTeam', () => table('byTeam', 'By team', state.data.byTeam, false), 'savings by team'))}
-                </div>
+                ${panel('byEnvironment', () => byEnvironment(state.data.byEnvironment), 'savings by environment')}
             </div>`);
-        drawCharts();
     }
 
     function panel(key, build, label) {
         if (state.errors[key]) {
-            return Utils.html`<section class="cost-table-card"><div class="cost-panel-error" role="alert">
-                <i class="fas fa-triangle-exclamation" aria-hidden="true"></i><span>Couldn't load ${label}.</span>
-                <button type="button" class="btn btn-sm btn-ghost" data-action="savings-retry" data-key="${key}">
-                    <i class="fas fa-sync" aria-hidden="true"></i> Retry</button></div></section>`;
+            return Utils.html`<section class="cost-card"><div class="cost-panel-error" role="alert">
+                <span>Couldn't load ${label}.</span>
+                <button type="button" class="btn btn-sm btn-ghost cost-retry" data-action="savings-retry" data-key="${key}">Retry</button></div></section>`;
         }
         if (state.data[key] === undefined) {
-            return '<div class="savings-loading text-muted small p-2"><i class="fas fa-spinner fa-spin me-1" aria-hidden="true"></i>Loading…</div>';
+            return '<p class="cost-note savings-loading">Loading…</p>';
         }
         return build();
     }
 
-    function kpi(label, value, icon, subtitle, title) {
-        return Utils.html`<div class="dashboard-kpi" title="${title || ''}">
-                <i class="fas ${icon}" aria-hidden="true"></i>
-                <div><strong>${value}</strong><span>${label}</span><small class="cost-kpi-subtitle">${subtitle}</small></div>
-            </div>`;
-    }
-
-    function kpis(s) {
+    function tiles(s) {
+        const b = basis(s.actualsCheck, state.month);
         const check = s.actualsCheck || {};
-        const quality = check.variancePercent === null || check.variancePercent === undefined
-            ? kpi('Estimate quality', '—', 'fa-scale-balanced', 'No actual billing for this month yet')
-            : kpi('Estimate quality', `${check.variancePercent > 0 ? '+' : ''}${check.variancePercent}%`, 'fa-scale-balanced',
-                `${check.withinTarget ? 'Within' : 'Outside'} the 15% target over ${check.daysWithActuals} day(s)`);
-        const efficiency = s.efficiencyPercent === null || s.efficiencyPercent === undefined ? '—' : `${s.efficiencyPercent}%`;
-        const share = s.offHoursShare ? ` Unscheduled VMs are assumed off ${Math.round(s.offHoursShare * 100)}% of the time.` : '';
-        return `<div class="dashboard-kpi-grid cost-kpi-grid">
-                ${kpi('Realised savings (net)', money(s.realisedNet), 'fa-piggy-bank', `${money(s.realisedGross)} before residual costs`)}
-                ${kpi('Potential savings', s.potentialSavings === null || s.potentialSavings === undefined ? '—' : money(s.potentialSavings),
-                    'fa-lightbulb', 'Largest open opportunity per VM, per month', 'Idle, rightsizing or off-hours, whichever is largest.' + share)}
-                ${kpi('Cost Efficiency', efficiency, 'fa-gauge-high', 'AWS median is about 83%',
-                    '1 - potential savings / optimisable spend; AWS median 83')}
-                ${quality}
-            </div>`;
+        const quality = check.variancePercent === null || check.variancePercent === undefined ? ''
+            : `Estimates were ${Math.abs(check.variancePercent)}% ${check.variancePercent > 0 ? 'above' : 'below'} AWS billing over ${check.daysWithActuals} day(s)`;
+        const share = s.offHoursShare ? ` VMs without a schedule are counted as off ${Math.round(s.offHoursShare * 100)}% of the time.` : '';
+        const tile = (key, label, value, note, title, cls) => Utils.html`<div class="savings-tile" data-kpi="${key}" title="${title || ''}">
+                <span class="cost-kpi-label">${label}</span><span class="savings-tile-value ${cls || ''}">${value}</span>
+                <span class="cost-kpi-note">${note}</span></div>`;
+        return `<section class="savings-tiles" aria-label="${Utils.escapeHtml(monthName(state.month))}">
+                ${tile('net', 'Saved, net', money0(s.realisedNet), `${money0(s.realisedGross)} before running storage and IPs`, '', 'cost-mono savings-green')}
+                ${tile('table', 'Still on the table', s.potentialSavings == null ? '—' : money0(s.potentialSavings),
+                    'a month, each VM counted once', 'Idle, rightsizing or off-hours, whichever is largest per VM.' + share, 'cost-mono')}
+                ${tile('efficiency', 'Cost efficiency', s.efficiencyPercent == null ? '—' : `${Math.round(Number(s.efficiencyPercent))}%`,
+                    `AWS customers' median is about ${AWS_MEDIAN}%`, '1 − potential savings / optimisable spend', 'cost-mono')}
+                ${tile('basis', 'Based on', b.label, b.note, quality, 'savings-tile-words')}
+            </section>`;
     }
 
-    function table(key, title, rows, linkEnvironments) {
-        const sort = state.sort[key] || { by: 'net', dir: -1 };
+    function monthName(month) {
+        const [y, m] = String(month).split('-').map(Number);
+        return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString([], { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    }
+
+    function causes(s) {
+        const rows = causeBars(s.byCause);
+        return Utils.html`<section class="cost-card savings-causes" aria-labelledby="savings-cause-title">
+                <h2 id="savings-cause-title">Saved by</h2>
+                ${Utils.raw(rows.map(r => Utils.html`<div class="savings-cause" data-cause="${r.key}"><span>${r.label}</span>
+                    <span class="savings-cause-bar"><span style="width:${String(r.width)}%"></span></span>
+                    <span class="cost-mono">${money0(r.value)}</span></div>`).join(''))}
+            </section>`;
+    }
+
+    function efficiency(trend) {
+        const line = efficiencyLine(trend);
+        const body = line.points
+            ? `<div class="savings-chart-box"><svg id="savings-trend-svg" viewBox="0 0 440 150" role="img" preserveAspectRatio="none"
+                    aria-label="Cost efficiency from ${line.first}% to ${line.last}% over ${TREND_DAYS} days">
+                    <line x1="0" y1="140" x2="440" y2="140" class="savings-axis"></line>
+                    <line x1="0" y1="${line.median}" x2="440" y2="${line.median}" class="savings-median"></line>
+                    <polyline points="${line.points}" class="savings-line"></polyline>
+                </svg><span class="savings-median-label" style="top: calc(${(line.median / 150 * 100).toFixed(1)}% - 18px)" aria-hidden="true">AWS median ${AWS_MEDIAN}%</span></div>`
+            : '<p class="cost-note">No efficiency figures yet; they are taken every night.</p>';
+        return `<section class="cost-card savings-efficiency" aria-labelledby="savings-eff-title">
+                <h2 id="savings-eff-title">Cost efficiency, ${TREND_DAYS} days</h2>${body}</section>`;
+    }
+
+    function byEnvironment(rows) {
+        const sort = state.sort;
         const sorted = (rows || []).slice().sort((a, b) => {
             const av = sort.by === 'label' ? String(a.label || '') : Number(a[sort.by] || 0);
             const bv = sort.by === 'label' ? String(b.label || '') : Number(b[sort.by] || 0);
             return (av > bv ? 1 : av < bv ? -1 : 0) * sort.dir;
         });
-        const head = (by, label) => Utils.html`<th><button type="button" class="savings-sort" data-action="savings-sort"
-            data-table="${key}" data-by="${by}" aria-sort="${sort.by === by ? (sort.dir > 0 ? 'ascending' : 'descending') : 'none'}">${label}</button></th>`;
-        const body = sorted.length ? sorted.map(r => Utils.html`<tr>
-                <td data-label="${linkEnvironments ? 'Environment' : 'Team'}">${linkEnvironments
-                    ? Utils.raw(Utils.html`<a href="#/environments/${r.key}">${r.label || r.key}</a>`) : (r.label || r.key)}</td>
-                <td data-label="Net">${money(r.net)}</td>
-                <td data-label="Gross">${money(r.gross)}</td>
-                <td data-label="Hours">${Number(r.hours || 0).toFixed(1)}</td>
-            </tr>`).join('') : '<tr><td colspan="4" class="text-muted text-center py-3">No savings recorded this month</td></tr>';
-        return `<section class="cost-table-card">
-                <h2 class="savings-panel-title">${Utils.escapeHtml(title)}</h2>
-                <div class="table-responsive"><table class="table table-sm table-cards mb-0">
-                    <thead><tr>${head('label', linkEnvironments ? 'Environment' : 'Team')}${head('net', 'Net')}${head('gross', 'Gross')}${head('hours', 'Hours')}</tr></thead>
+        const head = (by, label, numeric) => Utils.html`<th scope="col"${Utils.raw(numeric ? ' class="cost-num"' : '')}
+            aria-sort="${sort.by === by ? (sort.dir > 0 ? 'ascending' : 'descending') : 'none'}"><button type="button" class="savings-sort"
+            data-action="savings-sort" data-by="${by}">${label}</button></th>`;
+        const page = Pagination.slice(sorted, state.page, PAGE_SIZE);
+        const body = page.length ? page.map(r => Utils.html`<tr>
+                <td><a class="rs-name" href="#/environments/${r.key}">${r.label || r.key}</a></td>
+                <td class="savings-team">${r.team || '—'}</td>
+                <td class="cost-num cost-mono">${Math.round(Number(r.hours || 0)).toLocaleString('en-US')}</td>
+                <td class="cost-num cost-mono">${money0(r.gross)}</td>
+                <td class="cost-num cost-mono savings-green">${money0(r.net)}</td>
+            </tr>`).join('') : '<tr><td colspan="5" class="text-muted text-center py-3">No savings recorded this month.</td></tr>';
+        return `<section class="cost-card rs-table-card savings-envs" aria-labelledby="savings-env-title">
+                <h2 id="savings-env-title" class="savings-card-title">By environment</h2>
+                <div class="cost-scroll"><table class="cost-table savings-env-table">
+                    <thead><tr>${head('label', 'Environment')}<th scope="col">Team</th>${head('hours', 'Hours off', true)}${head('gross', 'Gross', true)}${head('net', 'Net', true)}</tr></thead>
                     <tbody>${body}</tbody></table></div>
+                ${sorted.length > PAGE_SIZE ? Pagination.buildPager({ page: state.page, totalItems: sorted.length, pageSize: PAGE_SIZE, action: 'savings-page' }) : ''}
             </section>`;
-    }
-
-    // ---------------------------------------------------------------- charts
-
-    function chart(id, option) {
-        const el = document.getElementById(id);
-        if (!el || !window.echarts) return;
-        if (charts.has(id)) charts.get(id).dispose();
-        const instance = echarts.init(el, null, { renderer: 'svg' });
-        instance.setOption(option);
-        charts.set(id, instance);
-    }
-
-    function drawCharts() {
-        charts.forEach(c => c.dispose());
-        charts.clear();
-        const daily = state.data.daily;
-        if (Array.isArray(daily)) {
-            const days = [...new Set(daily.map(p => p.date))].sort();
-            const causes = [...new Set(daily.map(p => p.cause))];
-            chart('savings-cause-chart', {
-                tooltip: { trigger: 'axis' },
-                legend: { bottom: 0 },
-                grid: { left: 50, right: 16, top: 16, bottom: 48 },
-                xAxis: { type: 'category', data: days.map(d => d.slice(5)) },
-                yAxis: { type: 'value', axisLabel: { formatter: v => '$' + v } },
-                series: causes.map(c => ({
-                    name: (daily.find(p => p.cause === c) || {}).label || c, type: 'bar', stack: 'net',
-                    itemStyle: { color: CAUSE_COLORS[c] || '#64748b' },
-                    data: days.map(d => {
-                        const p = daily.find(x => x.date === d && x.cause === c);
-                        return p ? Number(p.net) : 0;
-                    })
-                }))
-            });
-        }
-        const trend = state.data.trend;
-        if (Array.isArray(trend)) {
-            chart('savings-trend-chart', {
-                tooltip: { trigger: 'axis' },
-                grid: { left: 44, right: 16, top: 16, bottom: 32 },
-                xAxis: { type: 'category', data: trend.map(p => String(p.date).slice(5)) },
-                yAxis: { type: 'value', min: 0, max: 100, axisLabel: { formatter: v => v + '%' } },
-                series: [{ name: 'Cost Efficiency', type: 'line', smooth: true, data: trend.map(p => p.efficiencyPercent),
-                    itemStyle: { color: '#059669' } }]
-            });
-        }
-        $(window).off('resize.savingsCharts').on('resize.savingsCharts', () => charts.forEach(c => c.resize()));
     }
 
     // ---------------------------------------------------------------- actions
@@ -248,6 +248,7 @@ const Savings = (function() {
         state.month = month;
         state.data = {};
         state.errors = {};
+        state.page = 1;
         if (window.history && window.history.replaceState) {
             window.history.replaceState(null, '', `#/savings?month=${month}`);
         }
@@ -266,38 +267,46 @@ const Savings = (function() {
     }
 
     function backfill() {
-        Modals.confirm('Backfill savings', 'Rebuild the savings ledger for the last 30 days? This can take a minute.', () => {
+        Modals.confirm('Rebuild the last 30 days', 'Rebuild the savings ledger for the last 30 days? This can take a minute.', () => {
             ApiClient.post(`${Config.API.savings.backfill}?days=30`, {}, { suppressGlobalError: true })
                 .done(() => {
                     Notifications.success('Savings ledger rebuilt for the last 30 days.');
                     if (isActive()) { state.data = {}; render(); fetchAll(); }
                 })
                 .fail(() => Notifications.error('Could not rebuild the savings ledger.'));
-        }, { confirmText: 'Backfill', confirmClass: 'btn-primary' });
+        }, { confirmText: 'Rebuild', confirmClass: 'btn-primary' });
     }
 
-    function sortBy(table, by) {
-        const current = state.sort[table] || { by: 'net', dir: -1 };
-        state.sort[table] = { by, dir: current.by === by ? -current.dir : (by === 'label' ? 1 : -1) };
+    function sortBy(by) {
+        state.sort = { by, dir: state.sort.by === by ? -state.sort.dir : (by === 'label' ? 1 : -1) };
+        state.page = 1;
         render();
     }
 
-    $(document).on('change', '#savings-month', function() { changeMonth(this.value); });
+    function toPage(page) {
+        state.page = Math.max(1, Number(page) || 1);
+        render();
+    }
+
+    if (typeof $ !== 'undefined') $(document).on('change', '#savings-month', function() { changeMonth(this.value); });
 
     return {
         load,
         exportMonth,
         backfill,
         retry: key => { delete state.errors[key]; delete state.data[key]; render(); fetchAll([key]); },
-        sortBy
+        sortBy,
+        toPage,
+        model: { basis, causeBars, efficiencyLine }
     };
 })();
 
-window.Savings = Savings;
+if (typeof window !== 'undefined') window.Savings = Savings;
 
-Actions.registerAll({
+if (typeof Actions !== 'undefined') Actions.registerAll({
     'savings-export': () => Savings.exportMonth(),
     'savings-backfill': () => Savings.backfill(),
     'savings-retry': el => Savings.retry(el.dataset.key),
-    'savings-sort': el => Savings.sortBy(el.dataset.table, el.dataset.by)
+    'savings-sort': el => Savings.sortBy(el.dataset.by),
+    'savings-page': el => Savings.toPage(el.dataset.page)
 });
