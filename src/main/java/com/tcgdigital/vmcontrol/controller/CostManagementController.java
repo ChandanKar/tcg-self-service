@@ -398,9 +398,11 @@ public class CostManagementController {
     @PostMapping("/chargeback/{month}/finalize")
     @PreAuthorize("hasRole('ADMIN')")
     public com.tcgdigital.vmcontrol.dto.ChargebackDTO finalizeChargeback(
-            @org.springframework.web.bind.annotation.PathVariable String month) {
+            @org.springframework.web.bind.annotation.PathVariable String month,
+            @RequestParam(defaultValue = "false") boolean send) {
+        // U15-T09: send=true also emails finance; the answer's "emailed" says whether it did.
         return chargebackService.finalize(com.tcgdigital.vmcontrol.service.ChargebackService.parseMonth(month),
-                userService.getCurrentUserId());
+                userService.getCurrentUserId(), send);
     }
 
     @GetMapping("/chargeback/export")

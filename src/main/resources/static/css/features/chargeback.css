@@ -1,47 +1,415 @@
 /*
- * Chargeback page (E23-T08): the monthly statement and the split-rule editor.
+ * Chargeback (E23-T08, U15-T09 Chargeback.dc.html, ChargebackRules.dc.html): the statement with the
+ * missing-team banner, the shared cost rules list and inline editor with two asides, and the
+ * missing-tags tab. Reuses .cost-card / .cost-note from cost-management.css.
  */
-.chargeback-month {
-    width: auto;
-    min-width: 170px;
+.chargeback-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
 }
 
-.chargeback-page .nav-tabs .nav-link {
+.chargeback-month {
+    width: auto;
+    min-width: 190px;
+}
+
+.chargeback-page .tab-panel {
+    padding-top: 16px;
+}
+
+.chargeback-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
+    font-size: 14px;
+}
+
+.chargeback-banner > span {
+    flex: 1;
+}
+
+.chargeback-banner a {
+    color: var(--brand-gold-text);
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.chargeback-table {
+    width: 100%;
+    margin: 0;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.chargeback-table th {
+    padding: 12px;
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
+    font-size: 12.5px;
+    font-weight: 500;
+    text-align: left;
+}
+
+.chargeback-table td {
+    padding: 12px;
+    border-top: 1px solid var(--line-soft);
+}
+
+.chargeback-table th:first-child,
+.chargeback-table td:first-child {
+    padding-left: 20px;
+}
+
+.chargeback-table th:last-child,
+.chargeback-table td:last-child {
+    padding-right: 20px;
+}
+
+.chargeback-table .cost-num {
+    text-align: right;
+}
+
+.chargeback-toggle {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-weight: 500;
+    text-align: left;
     cursor: pointer;
 }
 
-.chargeback-unassigned td {
+.chargeback-cc {
+    font-size: 13px;
     color: var(--text-secondary);
 }
 
-.chargeback-detail td {
-    background: var(--surface-muted);
-    font-size: 0.875rem;
-    padding-left: 2rem;
+.chargeback-total {
+    font-weight: 500;
+}
+
+.chargeback-unassigned td {
+    background: #fffcf3;
 }
 
 .chargeback-totals th,
 .chargeback-totals td {
-    border-top: 2px solid var(--border-color);
+    background: var(--surface-subtle);
     font-weight: 600;
 }
 
-.csr-percent-group {
-    width: 9rem;
-    flex: 0 0 auto;
+.chargeback-detail td {
+    background: var(--surface-subtle);
+    font-size: 13px;
+    padding-left: 32px;
 }
 
-.csr-share .csr-team {
-    flex: 1 1 auto;
-    min-width: 0;
+.chargeback-shared {
+    margin-left: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.chargeback-foot {
+    margin: 12px 0 0;
+}
+
+.chargeback-h2 {
+    margin: 0 0 8px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+/* ---- Missing tags ---- */
+.chargeback-tags {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 14px;
+}
+
+.chargeback-tags .cost-card,
+.csr-aside .cost-card {
+    padding: 16px;
+}
+
+.chargeback-envs {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.chargeback-envs li {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 0;
+    border-top: 1px solid var(--line-soft);
+}
+
+.chargeback-tag-counts {
+    display: flex;
+    gap: 16px;
+    font-size: 14px;
+}
+
+.chargeback-tag-counts b {
+    font-size: 20px;
+    font-weight: 500;
+}
+
+.chargeback-missing {
+    color: var(--brand-red-text);
+}
+
+/* ---- Shared cost rules ---- */
+.csr-layout {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr) 300px;
+    gap: 14px;
+    align-items: start;
+}
+
+.csr-layout .csr-list {
+    padding: 0 0 8px;
+    gap: 0;
+    overflow: hidden;
+}
+
+.csr-list-title {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 12.5px;
+    color: var(--text-secondary);
+}
+
+.csr-rule {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    padding: 10px 16px;
+    border: 0;
+    border-bottom: 1px solid var(--line-soft);
+    background: #fff;
+    font: inherit;
+    font-size: 14px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.csr-rule b {
+    font-weight: 500;
+}
+
+.csr-rule[aria-current="true"] {
+    background: var(--brand-navy-tint);
+    box-shadow: inset 3px 0 0 var(--warning-color);
+}
+
+.csr-rule-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+}
+
+.csr-new {
+    padding: 8px 16px;
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.csr-layout .csr-editor {
+    padding: 0;
+    gap: 0;
+    overflow: hidden;
+}
+
+.csr-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.csr-head h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.csr-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px 18px;
+}
+
+.csr-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-size: 13.5px;
+    font-weight: 500;
+}
+
+.csr-field .form-select {
+    max-width: 320px;
+}
+
+.csr-methods {
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.csr-methods legend {
+    margin-bottom: 6px;
+    font-size: 13.5px;
+    font-weight: 500;
+}
+
+.csr-method-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.csr-method {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.csr-method.on {
+    border: 1.5px solid var(--ink);
+}
+
+.csr-share {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 110px 90px 28px;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-top: 1px solid var(--line-soft);
+    font-size: 14px;
+}
+
+.csr-share-head {
+    border-top: 0;
+    color: var(--text-secondary);
+    font-size: 12.5px;
+}
+
+.csr-share-head span:nth-child(2),
+.csr-share-head span:nth-child(3),
+.csr-amount,
+.csr-share-foot span:nth-child(3) {
+    text-align: right;
+}
+
+.csr-pct {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+}
+
+.csr-percent {
+    width: 72px;
+    text-align: right;
+}
+
+.csr-remove {
+    padding: 0;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 18px;
+}
+
+.csr-share-foot .btn-link {
+    justify-self: start;
+    text-decoration: none;
+}
+
+#csr-sum {
+    text-align: right;
+}
+
+.csr-ok {
+    color: var(--brand-green-text);
+}
+
+.csr-bad {
+    color: var(--brand-red-text);
+}
+
+.csr-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 12px 18px;
+    border-top: 1px solid var(--line-soft);
+    background: var(--surface-subtle);
+}
+
+.csr-aside {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.csr-big {
+    font-size: 24px;
+}
+
+@media (max-width: 1199.98px) {
+    .csr-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
 
 @media (max-width: 575.98px) {
-    .chargeback-detail td {
-        padding-left: 0.75rem;
+    .csr-method-grid {
+        grid-template-columns: minmax(0, 1fr);
     }
 
-    .csr-percent-group {
-        width: 7rem;
+    .csr-share {
+        grid-template-columns: minmax(0, 1fr) 90px 70px 24px;
+        gap: 6px;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .chargeback-table td::before {
+        font-family: var(--font-sans);
+        font-weight: 500;
+    }
+
+    .chargeback-detail td {
+        padding-left: 12px;
+    }
+
+    .chargeback-unassigned td,
+    .chargeback-totals td,
+    .chargeback-totals th {
+        background: transparent;
     }
 }

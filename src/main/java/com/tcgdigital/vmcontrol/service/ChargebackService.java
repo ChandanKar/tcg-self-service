@@ -114,6 +114,16 @@ public class ChargebackService {
     }
 
     /**
+     * Freezes a finished month and, when {@code send}, emails the workbook to finance as the monthly job
+     * does (U15-T09, "Finalise and send to finance"); the answer says whether it was emailed.
+     */
+    @Transactional
+    public ChargebackDTO finalize(YearMonth month, String actorId, boolean send) {
+        ChargebackDTO statement = finalize(month, actorId);
+        return send ? statement.withEmailed(sendToFinance(month, statement)) : statement;
+    }
+
+    /**
      * The monthly job (E23-T07): finalizes last month and emails the workbook to
      * chargeback.recipients. A month that is already FINAL is left alone, so a rerun sends nothing.
      */
@@ -124,12 +134,16 @@ public class ChargebackService {
             log.info("Chargeback {} is already final; nothing to send", month);
             return;
         }
-        ChargebackDTO statement = finalize(month, null);
+        sendToFinance(month, finalize(month, null));
+    }
+
+    /** Emails a final statement's workbook to chargeback.recipients; false when none is set. */
+    private boolean sendToFinance(YearMonth month, ChargebackDTO statement) {
         List<String> to = Arrays.stream(recipients == null ? new String[0] : recipients.split(","))
                 .map(String::trim).filter(s -> !s.isEmpty()).distinct().toList();
         if (to.isEmpty()) {
             log.warn("Chargeback {} finalized but chargeback.recipients is empty; no email sent", month);
-            return;
+            return false;
         }
         String html = "<p>The chargeback statement for <strong>" + month + "</strong> is final.</p>"
                 + "<p>Total: <strong>" + statement.totals().total().toPlainString() + "</strong> across "
@@ -137,6 +151,7 @@ public class ChargebackService {
                 + "<p>The per-team breakdown is attached.</p>";
         emailService.sendHtml(to, "Chargeback statement " + month, html, "chargeback-" + month + ".xlsx",
                 toXlsx(statement), "CHARGEBACK_STATEMENT", null, null);
+        return true;
     }
 
     private static String escape(String s) {

@@ -1,11 +1,14 @@
 import { test, expect, type Page } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
 import { seedEnvironment } from '../../fixtures/seed';
+import { withFeatures } from '../../fixtures/capabilities';
 
 /**
- * E23-T08: the Chargeback page. The statement (faked) expands per team and finalizes behind a
- * type-to-confirm; the split-rule editor (real API) keeps Save disabled until fixed percentages
- * add up to 100; at phone width the statement is cards. Non-admins are refused.
+ * E23-T08, U15-T09 (Chargeback.dc.html, ChargebackRules.dc.html): the Chargeback page. The statement
+ * (faked) shows the missing-team banner, expands per team and is finalised and sent behind a
+ * type-to-confirm; the inline rule editor (real API) keeps Save rule disabled until fixed percentages
+ * add up to 100; Missing tags lists environments with no team and tags the VMs; at phone width the
+ * statement is cards. Non-admins are refused.
  */
 
 declare const ContentRouter: any;
@@ -43,9 +46,9 @@ async function fakeStatement(page: Page) {
   let finalized = false;
   await page.route(/\/api\/v1\/cost-management\/chargeback\?month=/, route => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify(statement(finalized ? 'FINAL' : 'DRAFT')) }));
-  await page.route(/\/api\/v1\/cost-management\/chargeback\/[0-9-]+\/finalize$/, route => {
+  await page.route(/\/api\/v1\/cost-management\/chargeback\/[0-9-]+\/finalize\?send=true$/, route => {
     finalized = true;
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(statement('FINAL')) });
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...statement('FINAL'), emailed: true }) });
   });
   return () => finalized;
 }
@@ -66,14 +69,19 @@ test.describe('Chargeback page', () => {
     test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
   });
 
-  test('a draft statement expands per team and finalizes behind a typed month', async ({ page }) => {
+  test('a draft statement: the missing-team banner, the columns, expands per team, finalised and sent behind a typed month', async ({ page }) => {
     const finalized = await fakeStatement(page);
     await open(page);
 
     await expect(page.locator('#chargeback-status')).toHaveText('DRAFT', { timeout: 15_000 });
     await expect(page.locator('#chargeback-month')).toHaveValue(MONTH);
-    await expect(page.locator('#chargeback-grand-total')).toHaveText('$370.00');
-    await expect(page.locator('#chargeback-source')).toContainText('Estimates only');
+    await expect(page.locator('#chargeback-grand-total')).toHaveText('$370');
+    await expect(page.locator('#chargeback-table thead th')).toHaveText(['Team', 'Cost centre', 'Own environments', 'Share of shared',
+      'Total', 'From AWS billing']);
+    await expect(page.locator('#chargeback-banner')).toContainText('1 environment has no team, so $20 sits in Unassigned.');
+    await expect(page.locator('#chargeback-banner').getByRole('link', { name: 'Assign teams' })).toHaveAttribute('href', '#/teams');
+    await expect(page.locator('#chargeback-foot')).toContainText("Draft. It is finalised early in");
+    await expect(page.getByRole('tab', { name: 'Missing tags · 1', exact: false })).toBeVisible();
 
     const toggle = page.locator('.chargeback-toggle', { hasText: 'Team X' });
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
@@ -82,13 +90,16 @@ test.describe('Chargeback page', () => {
     await expect(page.locator('.chargeback-detail')).toContainText('Shared S');
     await expect(page.locator('.chargeback-detail')).toContainText('shared');
 
-    await page.locator('#chargeback-finalize').click();
+    // Acceptance: Finalise and send, confirmed by typing the month; the answer says finance was emailed.
+    await page.getByRole('button', { name: 'Finalise and send to finance' }).click();
     await expect(page.locator('#btn-destructive-confirm')).toBeDisabled();
     await page.locator('#confirm-text-input').fill(MONTH);
     await page.locator('#btn-destructive-confirm').click();
     await expect.poll(finalized).toBe(true);
     await expect(page.locator('#chargeback-status')).toHaveText('FINAL');
+    await expect(page.locator('#chargeback-foot')).toContainText("Final. The numbers don't change.");
     await expect(page.locator('#chargeback-finalize')).toHaveCount(0);
+    await expect(page.locator('.toast, .notification-toast').first()).toContainText('finalised and sent to finance');
   });
 
   test('the current month cannot be finalized and downloads hit the export endpoint', async ({ page }) => {
@@ -103,12 +114,14 @@ test.describe('Chargeback page', () => {
     await open(page, `#/chargeback?month=${current}`);
     await expect(page.locator('#chargeback-status')).toHaveText('DRAFT', { timeout: 15_000 });
     await expect(page.locator('#chargeback-finalize')).toHaveCount(0);
+    await expect(page.locator('#chargeback-month option:checked')).toContainText('(so far)');
+    await expect(page.locator('#chargeback-foot')).toHaveText('So far this month; the numbers change until the month ends.');
 
     const download = page.waitForEvent('download');
-    await page.locator('[data-action="chargeback-download"][data-format="csv"]').click();
-    expect((await download).suggestedFilename()).toBe(`chargeback-${current}.csv`);
+    await page.getByRole('button', { name: 'Download, Excel' }).click();
+    expect((await download).suggestedFilename()).toBe(`chargeback-${current}.xlsx`);
     expect(exports[0]).toContain(`month=${current}`);
-    expect(exports[0]).toContain('format=csv');
+    expect(exports[0]).toContain('format=xlsx');
   });
 
   test('fixed percentages must add up to 100 before a rule can be saved', async ({ page, playwright }) => {
@@ -119,31 +132,53 @@ test.describe('Chargeback page', () => {
     expect(envId && x && y).toBeTruthy();
 
     await open(page, '#/chargeback?tab=rules');
-    await expect(page.locator('#split-rules-table')).toBeVisible({ timeout: 15_000 });
-    await page.locator('[data-action="chargeback-rule-new"]').click();
-    const modal = page.locator('#splitRuleModal');
-    await expect(modal).toBeVisible();
-    await modal.locator('#csr-environment').selectOption(envId);
-    await modal.locator('#csr-method').selectOption('FIXED_PERCENT');
-    const teams = modal.locator('.csr-team');
-    const percents = modal.locator('.csr-percent');
+    await expect(page.locator('.csr-list')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('.csr-list-title')).toHaveText('One rule per environment');
+    await page.getByRole('button', { name: '+ New rule' }).click();
+    const editor = page.locator('#csr-editor');
+    await editor.locator('#csr-environment').selectOption(envId);
+    await editor.getByRole('radio', { name: 'Fixed percentages' }).check();
+    const teams = editor.locator('.csr-team');
+    const percents = editor.locator('.csr-percent');
     await teams.nth(0).selectOption(x);
     await teams.nth(1).selectOption(y);
     await percents.nth(0).fill('60');
     await percents.nth(1).fill('35');
 
-    await expect(modal.locator('#csr-sum')).toHaveText('Sum = 95.00% (must be 100%)');
-    await expect(modal.locator('#csr-save')).toBeDisabled();
+    // Acceptance: shares adding up to 95% keep Save rule disabled and say so.
+    await expect(editor.locator('#csr-sum')).toHaveText('95%, needs 100%');
+    await expect(editor.getByRole('button', { name: 'Save rule' })).toBeDisabled();
     await percents.nth(1).fill('40');
-    await expect(modal.locator('#csr-sum')).toHaveText('Sum = 100.00%');
-    await expect(modal.locator('#csr-save')).toBeEnabled();
-    await modal.locator('#csr-save').click();
+    await expect(editor.locator('#csr-sum')).toHaveText('100% ✓');
+    await expect(editor.getByRole('button', { name: 'Save rule' })).toBeEnabled();
+    await editor.getByRole('button', { name: 'Save rule' }).click();
 
-    const row = page.locator('#split-rules-table tbody tr', { hasText: `Split X ${stamp} 60%` });
-    await expect(row).toHaveCount(1, { timeout: 10_000 });
-    await expect(row).toContainText('Shared CI');
-    await expect(row).toContainText(`Split Y ${stamp} 40%`);
-    await expect(row).toContainText('Fixed percentages');
+    const rule = page.locator('.csr-rule', { hasText: 'Shared CI' });
+    await expect(rule.first()).toContainText('Fixed percentages · 2 teams', { timeout: 10_000 });
+    await expect(page.locator('#csr-editor .csr-percent').nth(0)).toHaveValue('60');
+    await expect(page.getByRole('button', { name: 'Delete rule' })).toBeVisible();
+  });
+
+  test('Missing tags lists environments with no team; Tag the N now writes the tags and refreshes the count', async ({ page }) => {
+    await fakeStatement(page);
+    let reconciled = 0;
+    await page.route(/\/api\/v1\/cost-management\/tags\/status$/, route => route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ tagged: reconciled ? 53 : 47, untagged: reconciled ? 0 : 6 }) }));
+    await page.route(/\/api\/v1\/cost-management\/tags\/reconcile$/, route => {
+      reconciled++;
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ tagged: 6, failed: 0, total: 6 }) });
+    });
+    await withFeatures(page, { costTagging: true });
+    await open(page, '#/chargeback?tab=tags');
+
+    await expect(page.getByRole('tab', { name: 'Missing tags · 7' })).toHaveAttribute('aria-selected', 'true', { timeout: 15_000 });
+    await expect(page.locator('#chargeback-untagged-envs')).toContainText('Loose');
+    await expect(page.locator('#chargeback-tags-card')).toContainText('6 missing');
+    // Acceptance: with 6 VMs untagged and tagging on, Tag the 6 now runs the reconcile and the count refreshes.
+    await page.getByRole('button', { name: 'Tag the 6 now' }).click();
+    await expect.poll(() => reconciled).toBe(1);
+    await expect(page.locator('#chargeback-tags-card')).toContainText('0 missing');
+    await expect(page.getByRole('tab', { name: 'Missing tags · 1' })).toBeVisible();
   });
 
   test('at phone width the statement is cards', async ({ page }) => {

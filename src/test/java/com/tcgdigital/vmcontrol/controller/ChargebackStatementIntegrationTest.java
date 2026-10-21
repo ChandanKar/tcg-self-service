@@ -83,6 +83,37 @@ class ChargebackStatementIntegrationTest extends SecuredWebTestBase {
     }
 
     @Test
+    void finaliseAndSendEmailsFinanceOnceOrSaysNothingWasSent() throws Exception {
+        cost(newEnvironment("Sent"), 1, "40.00");
+        Object target = AopTestUtils.getTargetObject(chargebackService);
+        EmailService real = (EmailService) ReflectionTestUtils.getField(target, "emailService");
+        EmailService email = Mockito.mock(EmailService.class);
+        ReflectionTestUtils.setField(target, "emailService", email);
+        ReflectionTestUtils.setField(target, "recipients", "finance@example.com");
+        try {
+            // U15-T09: with recipients, the month is FINAL and one email goes out.
+            mockMvc.perform(post(URL + "/" + MONTH + "/finalize").param("send", "true").with(asAdmin()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value("FINAL"))
+                    .andExpect(jsonPath("$.emailed").value(true));
+            verify(email).sendHtml(eq(List.of("finance@example.com")), eq("Chargeback statement " + MONTH), anyString(),
+                    eq("chargeback-" + MONTH + ".xlsx"), any(), eq("CHARGEBACK_STATEMENT"), isNull(), isNull());
+
+            // Without recipients a month is still finalised, and the answer says nothing was sent.
+            ReflectionTestUtils.setField(target, "recipients", "");
+            YearMonth earlier = MONTH.minusMonths(1);
+            mockMvc.perform(post(URL + "/" + earlier + "/finalize").param("send", "true").with(asAdmin()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value("FINAL"))
+                    .andExpect(jsonPath("$.emailed").value(false));
+            Mockito.verifyNoMoreInteractions(email);
+        } finally {
+            ReflectionTestUtils.setField(target, "emailService", real);
+            ReflectionTestUtils.setField(target, "recipients", "");
+        }
+    }
+
+    @Test
     void onlyFinishedMonthsAndOnlyAdmins() throws Exception {
         expectError(mockMvc.perform(post(URL + "/" + YearMonth.now() + "/finalize").with(asAdmin())), 400);
         expectError(mockMvc.perform(post(URL + "/" + YearMonth.now().plusMonths(1) + "/finalize").with(asAdmin())), 400);
