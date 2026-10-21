@@ -8,6 +8,10 @@ import com.tcgdigital.vmcontrol.model.PurchaseOption;
 import com.tcgdigital.vmcontrol.model.SpotPolicy;
 import com.tcgdigital.vmcontrol.model.Vm;
 import com.tcgdigital.vmcontrol.model.VmStatus;
+import com.tcgdigital.vmcontrol.model.AuditAction;
+import com.tcgdigital.vmcontrol.model.AuditLog;
+import com.tcgdigital.vmcontrol.model.VmStateHistory;
+import com.tcgdigital.vmcontrol.repository.AuditLogRepository;
 import com.tcgdigital.vmcontrol.repository.EnvironmentRepository;
 import com.tcgdigital.vmcontrol.repository.VmRepository;
 import com.tcgdigital.vmcontrol.repository.VmStateHistoryRepository;
@@ -39,11 +43,21 @@ public class SpotSummaryService {
     private final SecurityService securityService;
     private final SpotPolicyService spotPolicy;
     private final SpotConversionService conversionService;
+    private final SpotOpportunityService opportunityService;
+    private final SpotFallbackService fallbackService;
+    private final AuditLogRepository auditLogRepository;
+
+    /** Interruptions listed on the Spot page at most. */
+    private static final int RECENT_INTERRUPTIONS = 20;
 
     public SpotSummaryService(EnvironmentRepository environmentRepository, VmRepository vmRepository,
                               VmStateHistoryRepository stateHistoryRepository, CostDataProvider costDataProvider,
                               SecurityService securityService, SpotPolicyService spotPolicy,
-                              SpotConversionService conversionService) {
+                              SpotConversionService conversionService, SpotOpportunityService opportunityService,
+                              SpotFallbackService fallbackService, AuditLogRepository auditLogRepository) {
+        this.opportunityService = opportunityService;
+        this.fallbackService = fallbackService;
+        this.auditLogRepository = auditLogRepository;
         this.environmentRepository = environmentRepository;
         this.vmRepository = vmRepository;
         this.stateHistoryRepository = stateHistoryRepository;
@@ -71,15 +85,20 @@ public class SpotSummaryService {
 
         Instant now = Instant.now();
         BigDecimal savings = BigDecimal.ZERO;
+        Map<String, BigDecimal> savedByVm = new java.util.HashMap<>();
         List<Vm> spotVms = vms.stream().filter(v -> v.getPurchaseOption() == PurchaseOption.SPOT).toList();
         if (!spotVms.isEmpty()) {
-            for (CostDataProvider.VmCostEstimate e : costDataProvider.estimateCosts(spotVms,
-                    Timestamp.from(now.minus(WINDOW)), Timestamp.from(now)).values()) {
+            for (Map.Entry<String, CostDataProvider.VmCostEstimate> entry : costDataProvider.estimateCosts(spotVms,
+                    Timestamp.from(now.minus(WINDOW)), Timestamp.from(now)).entrySet()) {
+                CostDataProvider.VmCostEstimate e = entry.getValue();
                 if (e.onDemandEquivalentCost() != null && e.cost() != null) {
-                    savings = savings.add(e.onDemandEquivalentCost().subtract(e.cost()));
+                    BigDecimal saved = e.onDemandEquivalentCost().subtract(e.cost());
+                    savedByVm.put(entry.getKey(), saved);
+                    savings = savings.add(saved);
                 }
             }
         }
+        Map<String, SpotOpportunityService.Estimate> estimates = opportunityService.estimates(vms);
 
         List<SpotSummaryDTO.SpotVm> rows = vms.stream().map(v -> {
             boolean eks = v.getProvider() == CloudProvider.AWS_EKS;
@@ -88,9 +107,13 @@ public class SpotSummaryService {
                     && v.getPurchaseOption() == PurchaseOption.ON_DEMAND && !v.isStandby() && v.getSpotPartnerVmId() == null
                     && v.getStatus() == VmStatus.RUNNING;
             boolean revertible = canAdminister && conversion && eks && v.getSpotPartnerVmId() != null;
+            SpotOpportunityService.Estimate est = estimates.get(v.getVmId());
+            boolean onSpot = v.getPurchaseOption() == PurchaseOption.SPOT;
+            BigDecimal monthly = onSpot ? savedByVm.get(v.getVmId()) : (est == null ? null : est.savings());
             return new SpotSummaryDTO.SpotVm(v.getVmId(), v.getDisplayName(), eks ? "EKS_NODE_GROUP" : "EC2",
                     v.getPurchaseOption().name(), v.isSpotExcluded(), v.isStandby(), partner == null ? null : partner.getDisplayName(),
-                    v.isSpotFallbackActive(), v.getStatus() == null ? null : v.getStatus().name(), convertible, revertible);
+                    v.isSpotFallbackActive(), v.getStatus() == null ? null : v.getStatus().name(), convertible, revertible,
+                    est == null ? null : est.instanceType(), est == null ? null : est.nodeCount(), monthly, !onSpot && monthly != null);
         }).toList();
 
         return new SpotSummaryDTO(environmentId, env.getSpotPolicy().name(), Boolean.TRUE.equals(env.getIsProduction()),
@@ -98,6 +121,29 @@ public class SpotSummaryService {
                 vms.stream().anyMatch(Vm::isSpotFallbackActive),
                 stateHistoryRepository.countBySourceInEnvironmentSince(SpotInterruptionRecorder.CHANGE_SOURCE, environmentId,
                         Timestamp.from(now.minus(WINDOW))),
-                savings, rows);
+                savings, rows, recentInterruptions(environmentId, now), fallbackService.graceMinutes());
+    }
+
+    /**
+     * The last 30 days' interruptions, newest first, each with how long the on-demand standby ran: until
+     * the next "Spot capacity back" for that node group, or null while it is still running.
+     */
+    private List<SpotSummaryDTO.Interruption> recentInterruptions(String environmentId, Instant now) {
+        Timestamp from = Timestamp.from(now.minus(WINDOW));
+        List<VmStateHistory> rows = stateHistoryRepository.findBySourceInEnvironmentSince(
+                SpotInterruptionRecorder.CHANGE_SOURCE, environmentId, from).stream().limit(RECENT_INTERRUPTIONS).toList();
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+        List<AuditLog> cleared = auditLogRepository.findByActionAndTargetIdInAndCreatedAtGreaterThanEqualOrderByCreatedAtAsc(
+                AuditAction.SPOT_FALLBACK_CLEARED.name(), rows.stream().map(h -> h.getVm().getVmId()).distinct().toList(), from);
+        return rows.stream().map(h -> {
+            Long minutes = cleared.stream()
+                    .filter(a -> a.getTargetId().equals(h.getVm().getVmId()) && !a.getCreatedAt().before(h.getChangedAt()))
+                    .findFirst()
+                    .map(a -> Math.max(1, Duration.between(h.getChangedAt().toInstant(), a.getCreatedAt().toInstant()).toMinutes()))
+                    .orElse(null);
+            return new SpotSummaryDTO.Interruption(h.getVm().getDisplayName(), h.getChangedAt().toInstant(), minutes);
+        }).toList();
     }
 }

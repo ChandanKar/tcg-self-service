@@ -114,6 +114,13 @@ public interface VmStateHistoryRepository extends JpaRepository<VmStateHistory, 
     /** How many changes of one source happened in [from, to), e.g. Spot interruptions (E31-T07). */
     long countByChangeSourceAndChangedAtBetween(String changeSource, java.sql.Timestamp from, java.sql.Timestamp to);
 
+    /** The rows of one source for one environment's VMs since a time, newest first, VM loaded (U11-T08). */
+    @org.springframework.data.jpa.repository.Query("SELECT h FROM VmStateHistory h JOIN FETCH h.vm v WHERE h.changeSource = :source "
+            + "AND v.group.environment.environmentId = :environmentId AND h.changedAt >= :from ORDER BY h.changedAt DESC")
+    List<VmStateHistory> findBySourceInEnvironmentSince(@org.springframework.data.repository.query.Param("source") String changeSource,
+                                                        @org.springframework.data.repository.query.Param("environmentId") String environmentId,
+                                                        @org.springframework.data.repository.query.Param("from") java.sql.Timestamp from);
+
     /** The same, for the VMs of one environment (E31-T08). */
     @org.springframework.data.jpa.repository.Query("SELECT COUNT(h) FROM VmStateHistory h WHERE h.changeSource = :source "
             + "AND h.vm.group.environment.environmentId = :environmentId AND h.changedAt >= :from")

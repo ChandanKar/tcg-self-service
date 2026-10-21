@@ -56,5 +56,5 @@ test('U11-T07: the schedule line', () => {
     assert.equal(M.scheduleText([{ name: 'Night stop', enabled: false }]), 'Schedule: none');
     assert.equal(M.scheduleText([{ name: 'Office hours', enabled: true, scheduleSummary: 'Mon–Fri 08:00–20:00' },
         { name: 'Weekend', enabled: true }]), 'Schedule: Office hours, Mon–Fri 08:00–20:00 (and 1 more)');
-    assert.deepEqual(plain(M.SECTIONS.find(x => x.key === 'spot')), { key: 'spot', label: 'Spot', feature: 'spot' });
+    assert.deepEqual(plain(M.SECTIONS.find(x => x.key === 'spot')), { key: 'spot', label: 'Spot', feature: 'spot', eksOnly: true });
 });

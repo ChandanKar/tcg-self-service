@@ -14,7 +14,7 @@ const EnvSettings = (function() {
         { key: 'details', label: 'Details' },
         { key: 'groups', label: 'Groups and start order' },
         { key: 'running', label: 'Running and stopping' },
-        { key: 'spot', label: 'Spot', feature: 'spot' },
+        { key: 'spot', label: 'Spot', feature: 'spot', eksOnly: true },
         { key: 'idle', label: 'Idle auto-stop', link: id => `#/environments/${encodeURIComponent(id)}` },
         { key: 'budget', label: 'Budget', link: id => `#/budgets?scope=${encodeURIComponent(id)}` },
         { key: 'access', label: 'Who has access', link: id => `#/access-management/grant?environmentId=${encodeURIComponent(id)}` },
@@ -145,7 +145,8 @@ const EnvSettings = (function() {
 
     function render() {
         const id = s.env.environmentId;
-        const nav = SECTIONS.filter(x => !x.feature || hasFeature(x.feature)).map(x => {
+        const eks = (s.env.serviceType || 'EC2') === 'EKS';
+        const nav = SECTIONS.filter(x => (!x.feature || hasFeature(x.feature)) && (!x.eksOnly || eks)).map(x => {
             const href = x.link ? x.link(id) : `#/environments/${encodeURIComponent(id)}/settings/${x.key}`;
             return Utils.html`<a class="es-nav-item${Utils.raw(x.key === 'deactivate' ? ' es-nav-danger' : '')}" href="${href}"
                 ${Utils.raw(x.link ? '' : `data-es-section="${x.key}"`)}${Utils.raw(x.key === s.section ? ' aria-current="page"' : '')}>${x.label}</a>`;
@@ -170,15 +171,15 @@ const EnvSettings = (function() {
             details: detailsHtml,
             groups: () => '<div id="es-groups"><div class="vr-empty">Loading groups…</div></div>',
             running: runningShellHtml,
-            spot: () => '<h2>Spot</h2><div id="env-spot-panel" class="es-embedded"><div class="vr-empty">Loading…</div></div>',
+            spot: () => '',
             notifications: notificationsHtml,
             deactivate: deactivateHtml
         }[s.section]();
-        $('#es-panel').html(html);
+        $('#es-panel').html(html).toggleClass('es-panel-wide', s.section === 'spot');
         if (s.section === 'details') updateSaveBar();
         if (s.section === 'groups') loadGroups();
         if (s.section === 'running') loadRunning();
-        if (s.section === 'spot' && typeof SpotPanel !== 'undefined') SpotPanel.render(s.env);
+        if (s.section === 'spot' && typeof SpotPage !== 'undefined') SpotPage.render(s.env, $('#es-panel')); // U11-T08
         if (s.section === 'notifications') {
             if (hasFeature('chat') && typeof ChatChannels !== 'undefined') ChatChannels.renderEnvPanel(s.env);
             if (hasFeature('webhooks') && typeof WebhooksPanel !== 'undefined') WebhooksPanel.renderEnvPanel(s.env);

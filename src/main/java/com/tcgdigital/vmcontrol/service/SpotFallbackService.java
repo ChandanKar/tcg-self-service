@@ -80,6 +80,11 @@ public class SpotFallbackService {
         return settings == null ? enabled : settings.overrideOr("spot.fallback.enabled", enabled);
     }
 
+    /** Minutes a Spot node group may stay short of capacity before its standby starts (U11-T08 shows it). */
+    public int graceMinutes() {
+        return grace();
+    }
+
     private int grace() {
         return settings == null ? graceMinutes : settings.overrideOr("spot.fallback.grace-minutes", graceMinutes);
     }

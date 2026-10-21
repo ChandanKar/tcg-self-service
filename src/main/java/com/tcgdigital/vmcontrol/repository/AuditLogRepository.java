@@ -85,6 +85,10 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, String> {
      */
     List<AuditLog> findTop100ByOrderByCreatedAtDesc();
 
+    /** One action on some targets since a time, oldest first (U11-T08: when a Spot standby went back to 0). */
+    List<AuditLog> findByActionAndTargetIdInAndCreatedAtGreaterThanEqualOrderByCreatedAtAsc(
+            String action, java.util.Collection<String> targetIds, Timestamp from);
+
     /**
      * Find failed operations.
      */

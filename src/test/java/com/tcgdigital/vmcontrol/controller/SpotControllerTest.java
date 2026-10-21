@@ -142,4 +142,63 @@ class SpotControllerTest extends SecuredWebTestBase {
         expectError(mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
                 "/api/v1/environments/" + env.getEnvironmentId() + "/spot-summary").with(asViewer())), 404);
     }
+
+    // ---- U11-T08: sizes, savings, recent interruptions and how long the standby ran
+
+    @Autowired private com.tcgdigital.vmcontrol.repository.VmStateHistoryRepository stateHistory;
+    @Autowired private com.tcgdigital.vmcontrol.repository.AuditLogRepository auditLogs;
+
+    @Test
+    void theSummaryListsSizesAndTheInterruptionsWithHowLongTheStandbyRan() throws Exception {
+        com.tcgdigital.vmcontrol.model.VmGroup nodes = newGroup(env, "nodes");
+        Vm spot = newVm(nodes, "app-nodes-spot", VmStatus.RUNNING);
+        spot.setProvider(com.tcgdigital.vmcontrol.model.CloudProvider.AWS_EKS);
+        spot.setPurchaseOption(com.tcgdigital.vmcontrol.model.PurchaseOption.SPOT);
+        spot.setMetadata("{\"instanceType\":\"c6i.xlarge\",\"desiredSize\":2}");
+        spot = vmRepository.saveAndFlush(spot);
+        Vm onDemand = newVm(nodes, "batch-nodes", VmStatus.RUNNING);
+        onDemand.setProvider(com.tcgdigital.vmcontrol.model.CloudProvider.AWS_EKS);
+        onDemand.setMetadata("{\"instanceType\":\"c6i.2xlarge\",\"desiredSize\":3}");
+        vmRepository.saveAndFlush(onDemand);
+
+        // Two interruptions of app-nodes-spot: the older one's standby ran 22 minutes, the newer still runs.
+        String older = interruption(spot, 3 * 24 * 60);
+        String newer = interruption(spot, 30);
+        com.tcgdigital.vmcontrol.model.AuditLog cleared = auditLogs.saveAndFlush(com.tcgdigital.vmcontrol.model.AuditLog.builder()
+                .logId(java.util.UUID.randomUUID().toString())
+                .action(com.tcgdigital.vmcontrol.model.AuditAction.SPOT_FALLBACK_CLEARED)
+                .targetType("vm").targetId(spot.getVmId()).targetName("app-nodes-spot")
+                .details("Spot capacity is back").build());
+        jdbcTemplate.update("UPDATE audit_log SET created_at = DATE_SUB(UTC_TIMESTAMP(), INTERVAL ? MINUTE) WHERE audit_id = ?",
+                3 * 24 * 60 - 22, cleared.getLogId());
+        // An older one, outside the 30 days, is not listed.
+        interruption(spot, 40 * 24 * 60);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+                        "/api/v1/environments/" + env.getEnvironmentId() + "/spot-summary").with(asEnvAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fallbackGraceMinutes").value(10))
+                .andExpect(jsonPath("$.interruptions30d").value(2))
+                .andExpect(jsonPath("$.vms[?(@.name == 'app-nodes-spot')].instanceType").value("c6i.xlarge"))
+                .andExpect(jsonPath("$.vms[?(@.name == 'app-nodes-spot')].nodeCount").value(2))
+                .andExpect(jsonPath("$.vms[?(@.name == 'batch-nodes')].nodeCount").value(3))
+                .andExpect(jsonPath("$.vms[?(@.name == 'batch-nodes')].purchaseOption").value("ON_DEMAND"))
+                .andExpect(jsonPath("$.recentInterruptions.length()").value(2))
+                .andExpect(jsonPath("$.recentInterruptions[0].vmName").value("app-nodes-spot"))
+                .andExpect(jsonPath("$.recentInterruptions[0].standbyMinutes").doesNotExist())
+                .andExpect(jsonPath("$.recentInterruptions[1].standbyMinutes").value(22));
+        assertThat(older).isNotEqualTo(newer);
+    }
+
+    /** A Spot interruption of the VM, so many minutes ago. */
+    private String interruption(Vm vm, int minutesAgo) {
+        com.tcgdigital.vmcontrol.model.VmStateHistory h = stateHistory.saveAndFlush(com.tcgdigital.vmcontrol.model.VmStateHistory.builder()
+                .historyId(java.util.UUID.randomUUID().toString())
+                .vm(vm).previousStatus(VmStatus.RUNNING).newStatus(VmStatus.RUNNING)
+                .changeSource(com.tcgdigital.vmcontrol.service.SpotInterruptionRecorder.CHANGE_SOURCE)
+                .details("Spot capacity lost").build());
+        jdbcTemplate.update("UPDATE vm_state_history SET created_at = DATE_SUB(UTC_TIMESTAMP(), INTERVAL ? MINUTE) WHERE history_id = ?",
+                minutesAgo, h.getHistoryId());
+        return h.getHistoryId();
+    }
 }

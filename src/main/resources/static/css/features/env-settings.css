@@ -367,3 +367,185 @@
         grid-template-columns: minmax(0, 1fr);
     }
 }
+
+/* ===== Spot (U11-T08, SpotSettings.dc.html) ===== */
+
+.es-panel.es-panel-wide {
+    max-width: 1040px;
+}
+
+.spot-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+}
+
+.spot-policy-choice {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.spot-policy-choice legend {
+    margin-bottom: 6px;
+    font-size: var(--fs-body);
+    font-weight: 600;
+}
+
+.spot-radio {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0;
+    font-size: var(--fs-body);
+}
+
+.spot-radio input,
+.spot-ack input {
+    width: 16px;
+    height: 16px;
+    margin-top: 3px;
+    accent-color: var(--brand-navy);
+}
+
+.spot-radio span span {
+    display: block;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.spot-ack {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0 0 0 26px;
+    font-size: var(--fs-small);
+}
+
+.spot-ack[hidden] {
+    display: none;
+}
+
+.spot-save {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    margin: 10px 0 14px;
+}
+
+.spot-table-wrap {
+    overflow-x: auto;
+}
+
+.spot-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--fs-body);
+}
+
+.spot-table th {
+    padding: 8px 10px;
+    background: var(--surface-subtle);
+    font-size: var(--fs-small);
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.spot-table td {
+    padding: 9px 10px;
+    border-top: 1px solid var(--line-soft);
+    vertical-align: middle;
+}
+
+.spot-name {
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.spot-name span {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: var(--fs-small);
+    font-weight: 400;
+    color: var(--text-secondary);
+}
+
+.spot-chip {
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: var(--surface-muted);
+    font-size: var(--fs-small);
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+.spot-chip-on {
+    background: var(--brand-navy-tint);
+    color: var(--brand-navy);
+}
+
+.spot-saves {
+    white-space: nowrap;
+}
+
+.spot-busy {
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.spot-how {
+    margin-top: 12px;
+}
+
+.spot-aside {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 12px;
+}
+
+.spot-box {
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font-size: var(--fs-small);
+}
+
+.spot-box h3 {
+    margin: 0 0 8px;
+    font-size: var(--fs-body);
+    font-weight: 600;
+}
+
+.spot-box p {
+    margin: 0 0 8px;
+}
+
+.spot-muted {
+    color: var(--text-secondary);
+}
+
+.spot-int {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 0;
+    border-top: 1px solid var(--line-soft);
+}
+
+.spot-int span:last-child {
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.spot-saved {
+    margin-top: 10px;
+}
+

@@ -68,6 +68,62 @@ public class SpotOpportunityService {
         this.clock = clock;
     }
 
+    /** A VM's size and what moving it to Spot would save a month (U11-T08); null fields when unknown. */
+    public record Estimate(String instanceType, Integer nodeCount, BigDecimal savings) {
+    }
+
+    /**
+     * The size of each VM and, for on-demand ones that could move, the saving a month (U11-T08):
+     * the same arithmetic as {@link #list()}, without asking AWS for placement scores.
+     */
+    public Map<String, Estimate> estimates(List<Vm> vms) {
+        Map<String, Estimate> out = new HashMap<>();
+        if (vms == null || vms.isEmpty()) {
+            return out;
+        }
+        Map<String, String> typeByVmId = ec2Types(vms);
+        List<Vm> candidates = vms.stream()
+                .filter(v -> v.getPurchaseOption() != PurchaseOption.SPOT && !v.isSpotExcluded() && !v.isStandby())
+                .toList();
+        Instant now = clock.instant();
+        Map<String, CostDataProvider.VmCostEstimate> costs = candidates.isEmpty() ? Map.of()
+                : costDataProvider.estimateCosts(candidates, Timestamp.from(now.minus(Duration.ofDays(WINDOW_DAYS))), Timestamp.from(now));
+        for (Vm vm : vms) {
+            boolean eks = vm.getProvider() == CloudProvider.AWS_EKS;
+            EstimatedCostProvider.EksNodeInfo info = eks ? EstimatedCostProvider.eksNodeInfo(vm.getMetadata()) : null;
+            String type = eks ? info.instanceType() : typeByVmId.get(vm.getVmId());
+            Integer nodes = eks ? Integer.valueOf(Math.max(1, info.nodeCount())) : null;
+            BigDecimal savings = null;
+            if (candidates.contains(vm) && type != null) {
+                savings = priced(vm, type, nodes == null ? 1 : nodes, costs.get(vm.getVmId())).savings();
+            }
+            out.put(vm.getVmId(), new Estimate(type, nodes, savings));
+        }
+        return out;
+    }
+
+    private record Priced(BigDecimal onDemandMonthly, BigDecimal spotMonthly, BigDecimal savings) {
+    }
+
+    private Priced priced(Vm vm, String type, int nodes, CostDataProvider.VmCostEstimate estimate) {
+        BigDecimal hours = estimate == null || estimate.runtimeHours() == null ? BigDecimal.ZERO : estimate.runtimeHours();
+        PricingReferenceService.PriceLookupResult onDemand = pricing.lookupHourlyRate("AWS", type, vm.getRegion());
+        BigDecimal spotRate = spotPriceService.lookupSpotRate(type, vm.getRegion(), null).orElse(null);
+        BigDecimal onDemandMonthly = onDemand.priceKnown() ? money(onDemand.hourlyRate(), hours, nodes) : null;
+        BigDecimal spotMonthly = spotRate != null ? money(spotRate, hours, nodes) : null;
+        BigDecimal savings = onDemandMonthly != null && spotMonthly != null ? onDemandMonthly.subtract(spotMonthly) : null;
+        return new Priced(onDemandMonthly, spotMonthly, savings);
+    }
+
+    private Map<String, String> ec2Types(List<Vm> vms) {
+        Map<String, String> typeByVmId = new HashMap<>();
+        List<String> ec2Ids = vms.stream().filter(v -> v.getProvider() == CloudProvider.AWS).map(Vm::getVmId).toList();
+        if (!ec2Ids.isEmpty()) {
+            inventoryRepository.findInstanceTypesByVmIds(ec2Ids).forEach(p -> typeByVmId.put(p.getVmId(), p.getInstanceType()));
+        }
+        return typeByVmId;
+    }
+
     /** Every opportunity, biggest saving first; empty while Spot is off. */
     public List<SpotOpportunityDTO> list() {
         if (!spotPolicyService.isEnabled()) {
@@ -85,11 +141,7 @@ public class SpotOpportunityService {
         Instant now = clock.instant();
         Map<String, CostDataProvider.VmCostEstimate> estimates = costDataProvider.estimateCosts(vms,
                 Timestamp.from(now.minus(Duration.ofDays(WINDOW_DAYS))), Timestamp.from(now));
-        Map<String, String> typeByVmId = new HashMap<>();
-        List<String> ec2Ids = vms.stream().filter(v -> v.getProvider() == CloudProvider.AWS).map(Vm::getVmId).toList();
-        if (!ec2Ids.isEmpty()) {
-            inventoryRepository.findInstanceTypesByVmIds(ec2Ids).forEach(p -> typeByVmId.put(p.getVmId(), p.getInstanceType()));
-        }
+        Map<String, String> typeByVmId = ec2Types(vms);
 
         List<SpotOpportunityDTO> rows = new ArrayList<>();
         for (Vm vm : vms) {
@@ -97,13 +149,10 @@ public class SpotOpportunityService {
             EstimatedCostProvider.EksNodeInfo info = eks ? EstimatedCostProvider.eksNodeInfo(vm.getMetadata()) : null;
             String type = eks ? info.instanceType() : typeByVmId.get(vm.getVmId());
             int nodes = eks ? Math.max(1, info.nodeCount()) : 1;
-            CostDataProvider.VmCostEstimate estimate = estimates.get(vm.getVmId());
-            BigDecimal hours = estimate == null || estimate.runtimeHours() == null ? BigDecimal.ZERO : estimate.runtimeHours();
-            PricingReferenceService.PriceLookupResult onDemand = pricing.lookupHourlyRate("AWS", type, vm.getRegion());
-            BigDecimal spotRate = spotPriceService.lookupSpotRate(type, vm.getRegion(), null).orElse(null);
-            BigDecimal onDemandMonthly = onDemand.priceKnown() ? money(onDemand.hourlyRate(), hours, nodes) : null;
-            BigDecimal spotMonthly = spotRate != null ? money(spotRate, hours, nodes) : null;
-            BigDecimal savings = onDemandMonthly != null && spotMonthly != null ? onDemandMonthly.subtract(spotMonthly) : null;
+            Priced p = priced(vm, type, nodes, estimates.get(vm.getVmId()));
+            BigDecimal onDemandMonthly = p.onDemandMonthly();
+            BigDecimal spotMonthly = p.spotMonthly();
+            BigDecimal savings = p.savings();
             rows.add(new SpotOpportunityDTO(vm.getVmId(), vm.getDisplayName(),
                     vm.getGroup().getEnvironment().getEnvironmentId(), vm.getGroup().getEnvironment().getDisplayName(),
                     eks ? "EKS_NODE_GROUP" : "EC2", type, eks ? nodes : null, onDemandMonthly, spotMonthly, savings,
