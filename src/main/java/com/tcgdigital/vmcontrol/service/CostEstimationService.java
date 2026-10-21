@@ -282,10 +282,23 @@ public class CostEstimationService {
 
     /** Candidates of one direction (SCALE_DOWN, SCALE_UP, MODERNIZE) or all when null (E30-T05). */
     public Page<RightsizingCandidateDTO> getRightsizingCandidates(String direction, Pageable pageable) {
+        return getRightsizingCandidates(direction, null, null, pageable);
+    }
+
+    /**
+     * Candidates filtered by direction, by kind of change (SMALLER, LARGER, NEWER, GRAVITON) and by
+     * agreement ("AWS": Compute Optimizer agrees or made the suggestion), each ignored when blank (U15-T03).
+     */
+    public Page<RightsizingCandidateDTO> getRightsizingCandidates(String direction, String kind, String agreement,
+                                                                 Pageable pageable) {
         List<RightsizingCandidateDTO> all = buildRightsizingCandidates(buildBundles());
         if (direction != null && !direction.isBlank()) {
             all = all.stream().filter(c -> direction.equalsIgnoreCase(c.direction())).toList();
         }
+        all = all.stream()
+                .filter(c -> RightsizingKind.matches(kind, c.direction(), c.currentInstanceType(), c.suggestedInstanceType()))
+                .filter(c -> RightsizingKind.agreementMatches(agreement, c.agreement()))
+                .toList();
         Page<RightsizingCandidateDTO> page = paginate(all, pageable);
         Map<String, com.tcgdigital.vmcontrol.model.ExternalTicket> tickets = jiraTickets(
                 com.tcgdigital.vmcontrol.model.ExternalTicket.SourceType.RIGHTSIZING,

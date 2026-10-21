@@ -407,6 +407,19 @@ class CostEstimationServiceTest {
     }
 
     @Test
+    void theKindAndAgreementFiltersKeepOnlyMatchingSuggestions() {
+        quietVm("m5.large");
+
+        // U15-T03: a same-size newer x86 type is a newer generation, not smaller, not Graviton
+        assertEquals(1, service.getRightsizingCandidates(null, "NEWER", null, PageRequest.of(0, 25)).getTotalElements());
+        assertEquals(0, service.getRightsizingCandidates(null, "SMALLER", null, PageRequest.of(0, 25)).getTotalElements());
+        assertEquals(0, service.getRightsizingCandidates(null, "GRAVITON", null, PageRequest.of(0, 25)).getTotalElements());
+        // only the local rule suggests it, so AWS does not agree
+        assertEquals(0, service.getRightsizingCandidates(null, null, "AWS", PageRequest.of(0, 25)).getTotalElements());
+        assertEquals(1, service.getRightsizingCandidates(null, "", "", PageRequest.of(0, 25)).getTotalElements());
+    }
+
+    @Test
     void computeOptimizerFindingOptimizedWhileTheRuleSaysScaleDownIsADisagreement() {
         when(computeOptimizerService.getAllRecommendations(com.tcgdigital.vmcontrol.service.CloudTarget.of(REGION)))
                 .thenReturn(Map.of(INSTANCE_ID, co("OPTIMIZED")));

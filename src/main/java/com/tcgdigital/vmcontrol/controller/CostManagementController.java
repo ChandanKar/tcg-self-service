@@ -161,12 +161,22 @@ public class CostManagementController {
     public ResponseEntity<Page<RightsizingCandidateDTO>> getRightsizingCandidates(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "25") int size,
-            @RequestParam(required = false) String direction) {
+            @RequestParam(required = false) String direction,
+            @RequestParam(required = false) String kind,
+            @RequestParam(required = false) String agreement) {
         if (direction != null && !direction.isBlank() && !java.util.Set.of("SCALE_DOWN", "SCALE_UP", "MODERNIZE")
                 .contains(direction.toUpperCase(java.util.Locale.ROOT))) {
             throw new com.tcgdigital.vmcontrol.exception.ValidationException("direction must be SCALE_DOWN, SCALE_UP or MODERNIZE");
         }
-        return ResponseEntity.ok(costEstimationService.getRightsizingCandidates(direction,
+        // U15-T03: the Rightsizing tab's Kind of change and Agreement filters.
+        if (kind != null && !kind.isBlank() && !java.util.Set.of("SMALLER", "LARGER", "NEWER", "GRAVITON")
+                .contains(kind.toUpperCase(java.util.Locale.ROOT))) {
+            throw new com.tcgdigital.vmcontrol.exception.ValidationException("kind must be SMALLER, LARGER, NEWER or GRAVITON");
+        }
+        if (agreement != null && !agreement.isBlank() && !"AWS".equalsIgnoreCase(agreement)) {
+            throw new com.tcgdigital.vmcontrol.exception.ValidationException("agreement must be AWS");
+        }
+        return ResponseEntity.ok(costEstimationService.getRightsizingCandidates(direction, kind, agreement,
                 com.tcgdigital.vmcontrol.controller.support.Paging.of(page, size, 100)));
     }
 

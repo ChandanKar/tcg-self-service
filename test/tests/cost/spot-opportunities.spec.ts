@@ -1,7 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
+import { withFeatures } from '../../fixtures/capabilities';
 
-/** E31-T04: the Spot opportunities panel lists savings and placement scores; it is hidden when empty. */
+/**
+ * E31-T04, U15-T03: the Spot opportunities section under the Rightsizing table lists savings and placement
+ * scores; it is hidden when empty, and not asked for while Spot pricing is off.
+ */
 
 declare const ContentRouter: any;
 
@@ -17,12 +21,17 @@ const ROWS = [
     reason: 'Requires relaunch as a Spot instance' },
 ];
 
-async function openCost(page: any, rows: any[]) {
-  await page.route(/\/api\/v1\/cost-management\/spot-opportunities\?/, (route: any) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: page1(rows) }));
+async function openCost(page: any, rows: any[], spotPricing = true) {
+  const asked: string[] = [];
+  await page.route(/\/api\/v1\/cost-management\/spot-opportunities\?/, (route: any) => {
+    asked.push(route.request().url());
+    return route.fulfill({ status: 200, contentType: 'application/json', body: page1(rows) });
+  });
+  await withFeatures(page, { spotPricing });
   await signIn(page, 'admin');
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
   await page.evaluate(() => { location.hash = '#/cost-management?tab=rightsizing'; });
+  return asked;
 }
 
 test('Spot opportunities show savings, placement and who can convert', async ({ page }) => {
@@ -47,4 +56,14 @@ test('with no opportunities the panel is not shown', async ({ page }) => {
 
   await expect(page.locator('#cost-rightsizing-table')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('#cost-spot-table')).toHaveCount(0);
+});
+
+test('while Spot pricing is off the section is not asked for', async ({ page }) => {
+  test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+  const asked = await openCost(page, ROWS, false);
+
+  await expect(page.locator('#cost-rightsizing-table')).toBeVisible({ timeout: 15_000 });
+  await page.waitForLoadState('networkidle');
+  await expect(page.locator('#cost-spot-table')).toHaveCount(0);
+  expect(asked).toEqual([]);
 });

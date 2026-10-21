@@ -16,6 +16,8 @@ const CostManagement = (function() {
     'use strict';
 
     const PAGE_SIZE = 10;
+    /** The Rightsizing tab lists 8 suggestions a page (U15-T03). */
+    const RS_PAGE_SIZE = 8;
     const TREND_DAYS = 90;
     const EXPORT_SIZE = 100000;
 
@@ -78,8 +80,11 @@ const CostManagement = (function() {
         reservationCoverage: [],
         idle: emptyPageState(),
         rightsizing: emptyPageState(),
-        /** '' (all), SCALE_DOWN, SCALE_UP or MODERNIZE (E30-T05). */
-        rightsizingDirection: '',
+        /** Kind of change ('' all, SMALLER, NEWER, GRAVITON, LARGER) and agreement ('' or AWS), U15-T03. */
+        rightsizingKind: '',
+        rightsizingAgreement: '',
+        /** The first page of every suggestion, for Overview's biggest savings (U15-T02). */
+        rightsizingTop: emptyPageState(),
         anomalies: [],
         spotOpportunities: [],
         anomalyMonitors: [],
@@ -127,6 +132,8 @@ const CostManagement = (function() {
         state.breakdownBy = BREAKDOWN_BY.some(([k]) => k === params.by) ? params.by : 'environment';
         state.idle.page = parsePageParam(params.idle);
         state.rightsizing.page = parsePageParam(params.rightsizing);
+        state.rightsizingKind = RightsizingKind.FILTERS.some(([k]) => k && k === params.kind) ? params.kind : '';
+        state.rightsizingAgreement = params.agreement === 'AWS' ? 'AWS' : '';
         state.reconciliation.page = parsePageParam(params.reconciliation);
     }
 
@@ -141,6 +148,8 @@ const CostManagement = (function() {
         if (state.breakdownBy !== 'environment') params.set('by', state.breakdownBy);
         if (state.idle.page) params.set('idle', state.idle.page);
         if (state.rightsizing.page) params.set('rightsizing', state.rightsizing.page);
+        if (state.rightsizingKind) params.set('kind', state.rightsizingKind);
+        if (state.rightsizingAgreement) params.set('agreement', state.rightsizingAgreement);
         if (state.reconciliation.page) params.set('reconciliation', state.reconciliation.page);
         const query = params.toString();
         const hash = '#/cost-management' + (query ? `?${query}` : '');
@@ -214,9 +223,12 @@ const CostManagement = (function() {
             apply: d => { state.carbon = d && d.month ? d : null; } },
         forecast: { url: () => Config.API.costManagement.forecast(30, 14), apply: d => { state.forecast = d || null; } },
         idle: { url: () => Config.API.costManagement.idleWaste(state.idle.page, PAGE_SIZE), apply: d => { state.idle = mapPage(d); } },
-        rightsizing: { url: () => Config.API.costManagement.rightsizing(state.rightsizing.page, PAGE_SIZE, state.rightsizingDirection), apply: d => { state.rightsizing = mapPage(d); } },
+        rightsizing: { url: () => rightsizingUrl(state.rightsizing.page), apply: d => { state.rightsizing = mapPage(d); } },
+        rightsizingTop: { url: () => Config.API.costManagement.rightsizing(0, PAGE_SIZE), apply: d => { state.rightsizingTop = mapPage(d); } },
         anomalies: { url: () => Config.API.costAnomalies.list(ANOMALY_DAYS), apply: d => { state.anomalies = (d && d.content) || []; } },
-        spotOpportunities: { url: () => Config.API.costManagement.spotOpportunities(0, 100), apply: d => { state.spotOpportunities = (d && d.content) || []; } },
+        // Spot savings need captured Spot prices: not asked for while spot.pricing.enabled is off (U15-T03).
+        spotOpportunities: { url: () => Config.API.costManagement.spotOpportunities(0, 100), feature: 'spotPricing',
+            apply: d => { state.spotOpportunities = (d && d.content) || []; } },
         anomalyMonitors: { url: () => Config.API.costAnomalies.monitors, apply: d => { state.anomalyMonitors = d || []; } },
         eksEnvironments: {
             url: () => Config.API.environments.list,
@@ -323,7 +335,7 @@ const CostManagement = (function() {
 
     const TABLE_CONFIG = {
         idle: { url: (p) => Config.API.costManagement.idleWaste(p, PAGE_SIZE), render: () => renderIdleTable() },
-        rightsizing: { url: (p) => Config.API.costManagement.rightsizing(p, PAGE_SIZE, state.rightsizingDirection), render: () => renderRightsizingTable() },
+        rightsizing: { url: (p) => rightsizingUrl(p), render: () => renderRightsizingTable() },
         reconciliation: { clientPaged: true, render: () => renderReconciliationTable() }
     };
 
@@ -441,7 +453,7 @@ const CostManagement = (function() {
             keys: ['spendByEnvironment', 'spendByVmType', 'spendByAccount', 'teamTrend'], label: 'spend by environment',
             build: () => buildBreakdown()
         },
-        savings: { keys: ['rightsizing', 'idle'], label: 'the biggest savings', build: () => buildTopSavings() },
+        savings: { keys: ['rightsizingTop', 'idle'], label: 'the biggest savings', build: () => buildTopSavings() },
         trend: {
             keys: ['trend', 'forecast'], label: 'the spend trend', chartPanel: true, wide: true,
             build: () => buildTrendChart(),
@@ -459,7 +471,7 @@ const CostManagement = (function() {
         },
         reconciliation: { keys: ['reconciliation'], label: 'estimated vs. actual cost', build: () => buildReconciliationTable() },
         idle: { keys: ['idle'], label: 'idle VMs', build: () => buildIdleWasteTable() },
-        rightsizing: { keys: ['rightsizing'], label: 'rightsizing recommendations', build: () => buildRightsizingTable() },
+        rightsizing: { keys: ['rightsizing', 'summary'], label: 'rightsizing suggestions', build: () => buildRightsizingTable() },
         spot: { keys: ['spotOpportunities'], label: 'Spot opportunities', build: () => buildSpotPanel() },
         carbon: {
             keys: ['carbon'], label: 'carbon footprint', build: () => buildCarbonPanel(),
@@ -868,8 +880,8 @@ const CostManagement = (function() {
     // ---- the biggest savings to act on (U15-T02) ----
 
     function buildTopSavings() {
-        const rows = topSavings(state.rightsizing.content, state.idle.content);
-        const all = state.rightsizing.totalElements || 0;
+        const rows = topSavings(state.rightsizingTop.content, state.idle.content);
+        const all = state.rightsizingTop.totalElements || 0;
         return Utils.html`<section class="cost-card cost-savings" aria-labelledby="cost-savings-title">
                 <div class="cost-card-head"><h2 id="cost-savings-title">Biggest savings to act on</h2>
                     ${Utils.raw(all ? Utils.html`<a href="${Config.API.costManagement.rightsizingExport()}" download="rightsizing-${todayStamp()}.xlsx">All ${all} suggestion${all === 1 ? '' : 's'}, Excel</a>` : '')}</div>
@@ -1545,20 +1557,82 @@ const CostManagement = (function() {
 
     // Rightsizing
 
+    /** One page of suggestions with the tab's filters. */
+    function rightsizingUrl(page) {
+        return Config.API.costManagement.rightsizing(page, RS_PAGE_SIZE, '', state.rightsizingKind, state.rightsizingAgreement);
+    }
+
+    /** "14 VMs are bigger than they need to be · $1,180 a month to save" (scale-down suggestions that save). */
+    function rightsizingHeadline() {
+        const s = state.summary;
+        if (!s) return `${state.rightsizing.totalElements || 0} suggestion${state.rightsizing.totalElements === 1 ? '' : 's'}`;
+        const n = s.rightsizingCandidateCount || 0;
+        if (!n) return 'No VM is bigger than it needs to be';
+        return `<b class="cost-mono">${n}</b> VM${n === 1 ? ' is' : 's are'} bigger than ${n === 1 ? 'it needs' : 'they need'} to be
+            · <b class="cost-mono rs-save">${money0(s.rightsizingPotentialSavings)}</b> a month to save`;
+    }
+
+    function buildRightsizingFilters() {
+        const larger = (state.summary && state.summary.scaleUpCandidateCount > 0) || state.rightsizingKind === 'LARGER';
+        const kinds = RightsizingKind.FILTERS.filter(([k]) => k !== 'LARGER' || larger).map(([k, label]) =>
+            `<option value="${k}"${k === state.rightsizingKind ? ' selected' : ''}>${label}</option>`).join('');
+        const agree = [['', 'Any source'], ['AWS', 'AWS agrees']].map(([k, label]) =>
+            `<option value="${k}"${k === state.rightsizingAgreement ? ' selected' : ''}>${label}</option>`).join('');
+        return `<div class="rs-controls">
+                <select class="form-select form-select-sm" id="rs-kind" aria-label="Kind of change" data-action-change="cost-rs-kind">${kinds}</select>
+                <select class="form-select form-select-sm" id="rs-agreement" aria-label="Agreement" data-action-change="cost-rs-agreement">${agree}</select>
+                <a class="btn btn-ghost btn-sm" id="rs-excel" href="${Config.API.costManagement.rightsizingExport()}" download="rightsizing-${todayStamp()}.xlsx">Excel</a>
+            </div>`;
+    }
+
     function buildRightsizingTable() {
-        return buildTableCard({
-            title: 'Rightsizing Recommendations',
-            subtitle: `${state.rightsizing.totalElements} candidate(s) — scale-down, scale-up and newer generations, from CPU and memory utilization and AWS Compute Optimizer`,
-            toolbarHtml: buildRightsizingFilter(),
-            tableId: 'cost-rightsizing-table',
-            bodyId: 'cost-rightsizing-table-body',
-            paginationId: 'cost-rightsizing-pagination',
-            columns: ['VM', 'Direction', 'Current → Suggested', 'Source', { label: 'Avg CPU', numeric: true }, { label: 'Peak CPU', numeric: true }, { label: 'Mem avg', numeric: true }, { label: 'Mem peak', numeric: true }, { label: 'Current Cost', numeric: true }, { label: 'Est. Savings', numeric: true }, 'Action'],
-            rowsHtml: buildRightsizingRows(state.rightsizing.content),
-            pageState: state.rightsizing,
-            tableKey: 'rightsizing',
-            exportUrl: Config.API.costManagement.rightsizingExport()
-        });
+        const safe = safeResizeOn();
+        return `<section class="rs-panel" aria-labelledby="rs-headline">
+                <div class="rs-head">
+                    <p class="rs-headline" id="rs-headline">${rightsizingHeadline()}</p>
+                    ${buildRightsizingFilters()}
+                </div>
+                <div class="rs-layout">
+                    <div class="cost-card rs-table-card">
+                        <div class="cost-scroll"><table class="cost-table rs-table" id="cost-rightsizing-table">
+                            <thead><tr><th scope="col">VM</th><th scope="col">Change</th><th scope="col">Peak CPU / memory</th>
+                                <th scope="col" class="cost-num">Saves a month</th><th scope="col"><span class="visually-hidden">Action</span></th></tr></thead>
+                            <tbody id="cost-rightsizing-table-body">${buildRightsizingRows(state.rightsizing.content)}</tbody>
+                        </table></div>
+                        <div id="cost-rightsizing-pagination">${rightsizingPager()}</div>
+                    </div>
+                    <aside class="cost-card rs-aside" aria-labelledby="rs-how-title">
+                        <h2 id="rs-how-title">How a safe resize works</h2>
+                        <ol>
+                            <li>You confirm the new size; the VM must not be locked or mid-operation.</li>
+                            <li>Stops the VM, changes its size, starts it again.</li>
+                            <li>If it isn't healthy within 10 minutes, it goes back to the old size and starts.</li>
+                        </ol>
+                        <p class="cost-note">Suggestions use the last 30 days of CPU and memory. Savings count only once a resize has finished.</p>
+                        ${safe ? '' : `<p class="rs-off" id="rs-safe-off">Safe resize is switched off, so no VM can be resized from here.
+                            An administrator can turn it on in <a href="#/settings">Settings</a>.</p>`}
+                    </aside>
+                </div>
+            </section>`;
+    }
+
+    function rightsizingPager() {
+        if (!state.rightsizing.totalElements) return '';
+        return Pagination.buildPager({ page: state.rightsizing.page + 1, totalItems: state.rightsizing.totalElements,
+            pageSize: RS_PAGE_SIZE, action: 'cost-rs-page', key: 'rightsizing' });
+    }
+
+    function safeResizeOn() {
+        return typeof Capabilities !== 'undefined' && Capabilities.has('safeResize');
+    }
+
+    function setRightsizingFilter(which, value) {
+        if (which === 'kind') {
+            state.rightsizingKind = RightsizingKind.FILTERS.some(([k]) => k === value) ? value : '';
+        } else {
+            state.rightsizingAgreement = value === 'AWS' ? 'AWS' : '';
+        }
+        changePage('rightsizing', 0);
     }
 
     /** "EKS · 3 nodes" for a node-group row (E26-T02). */
@@ -1566,60 +1640,78 @@ const CostManagement = (function() {
         return row.nodeCount ? ` <span class="badge text-bg-light border eks-nodes">EKS · ${Number(row.nodeCount)} node${row.nodeCount === 1 ? '' : 's'}</span>` : '';
     }
 
+    /** A whole percentage, or null (pct, above, keeps one decimal for commitments). */
+    function wholePct(v) {
+        return v == null ? null : `${Math.round(Number(v))}%`;
+    }
+
+    /** "22% / 38%": peak CPU and memory, memory a dash with why when the CloudWatch agent is missing. */
+    function peakCell(row) {
+        const mem = row.memoryDataAvailable && row.peakMemoryUtilization != null ? wholePct(row.peakMemoryUtilization)
+            : '<span class="text-muted rightsizing-mem-unknown" title="CloudWatch agent not reporting memory">—</span>';
+        return `${wholePct(row.peakCpuUtilization) || '—'} / ${mem}`;
+    }
+
+    function savesCell(row) {
+        if (row.estimatedMonthlySavings == null) return '<span class="text-muted">Unknown</span>';
+        const approx = row.priceApproximate ? '<span title="Rate from another region — approximate">&asymp;</span>' : '';
+        const partial = row.costKnown === false ? ' <i class="fas fa-triangle-exclamation cost-partial-icon" title="Instance pricing unknown for this VM — storage cost only"></i>' : '';
+        return approx + money0(row.estimatedMonthlySavings) + partial;
+    }
+
+    /** The VM, linked to its details in its environment (EKS node groups have no VM page). */
+    function vmCell(row, i) {
+        const name = Utils.escapeHtml(row.vmName || row.vmId);
+        const link = row.nodeCount || !row.environmentId ? `<span class="rs-name">${name}</span>`
+            : `<a class="rs-name" href="#/environments/${encodeURIComponent(row.environmentId)}?vm=${encodeURIComponent(row.vmId)}">${name}</a>`;
+        return `${link}${eksNodes(row)}<span class="rs-sub">${Utils.escapeHtml(row.environmentName || 'Unknown environment')}</span>${optionsToggle(row, i)}`;
+    }
+
+    /** "m5.2xlarge → m6a.xlarge" over "Smaller, newer · AWS agrees". */
+    function changeCell(row) {
+        if (!row.suggestedInstanceType) {
+            const tooFull = (row.reasons || []).includes('MEMORY_WOULD_NOT_FIT');
+            return `<span class="cost-mono">${Utils.escapeHtml(row.currentInstanceType || '-')}</span>
+                <span class="rs-sub"${tooFull ? ' data-reason="MEMORY_WOULD_NOT_FIT"' : ''}>${tooFull
+                    ? 'A smaller type would not hold the memory peak' : 'No smaller type found'}</span>`;
+        }
+        const kind = RightsizingKind.label(row);
+        const agree = agreementBadge(row);
+        return `<span class="cost-mono">${Utils.escapeHtml(row.currentInstanceType || '-')} → ${Utils.escapeHtml(row.suggestedInstanceType)}</span>
+            <span class="rs-sub">${Utils.escapeHtml(kind)}${kind && agree ? ' · ' : ''}${agree}</span>`;
+    }
+
     function buildRightsizingRows(rows) {
         if (!rows.length) {
-            return `<tr><td colspan="11" class="text-center text-muted py-4">No rightsizing candidates found.</td></tr>`;
+            const filtered = state.rightsizingKind || state.rightsizingAgreement;
+            return `<tr><td colspan="5" class="text-center text-muted py-4">${filtered
+                ? 'No suggestion matches these filters.' : 'No VM needs a different size right now.'}</td></tr>`;
         }
         return rows.map((row, i) => `
-            <tr>
-                <td class="cost-vm-cell" title="${Utils.escapeHtml(row.environmentName || 'Unknown environment')}">${Utils.escapeHtml(row.vmName || row.vmId)}${eksNodes(row)}${optionsToggle(row, i)}</td>
-                <td>${buildRightsizingDirectionBadge(row)}${reasonChips(row)}</td>
-                <td>${Utils.escapeHtml(row.currentInstanceType || '-')} &rarr; ${Utils.escapeHtml(row.suggestedInstanceType || 'n/a')}</td>
-                <td>${buildRightsizingSourceBadge(row)}${agreementBadge(row)}</td>
-                <td class="cost-num">${row.avgCpuUtilization != null ? Number(row.avgCpuUtilization).toFixed(1) + '%' : '-'}</td>
-                <td class="cost-num">${row.peakCpuUtilization != null ? Number(row.peakCpuUtilization).toFixed(1) + '%' : '-'}</td>
-                <td class="cost-num">${memoryCell(row, row.avgMemoryUtilization)}</td>
-                <td class="cost-num">${memoryCell(row, row.peakMemoryUtilization)}</td>
-                <td class="cost-num">${costCell(row.currentMonthlyCost, true, row.priceApproximate)}</td>
-                <td class="cost-num">${row.estimatedMonthlySavings != null ? costCell(row.estimatedMonthlySavings, row.costKnown, row.priceApproximate) : '<span class="text-muted">Unknown</span>'}</td>
-                <td>${buildRightsizingApplyButton(row)}
+            <tr data-rs-vm="${Utils.escapeHtml(row.vmId)}">
+                <td class="rs-vm">${vmCell(row, i)}</td>
+                <td class="rs-change">${changeCell(row)}</td>
+                <td class="cost-mono rs-peak">${peakCell(row)}</td>
+                <td class="cost-num cost-mono rs-saves">${savesCell(row)}</td>
+                <td class="rs-action">${buildRightsizingApplyButton(row)}
                     ${typeof JiraTickets !== 'undefined' ? '<div class="mt-1">' + JiraTickets.cell('RIGHTSIZING', row.vmId, row.jiraKey, row.jiraUrl) + '</div>' : ''}</td>
             </tr>
             ${alternativesRow(row, i)}
         `).join('');
     }
 
-    const DIRECTIONS = [['', 'All'], ['SCALE_DOWN', 'Scale down'], ['SCALE_UP', 'Scale up'], ['MODERNIZE', 'Modernize']];
-
-    /** Direction filter pills over the rightsizing table (E30-T05). */
-    function buildRightsizingFilter() {
-        return `<div class="rightsizing-filter" role="group" aria-label="Recommendation type">${DIRECTIONS.map(([value, label]) => `
-            <button type="button" class="btn btn-sm ${state.rightsizingDirection === value ? 'btn-primary' : 'btn-outline-secondary'}"
-                    data-action="cost-rightsizing-direction" data-direction="${value}"
-                    aria-pressed="${state.rightsizingDirection === value}">${label}</button>`).join('')}</div>`;
-    }
-
-    function setRightsizingDirection(direction) {
-        state.rightsizingDirection = DIRECTIONS.some(([v]) => v === direction) ? direction : '';
-        $('.rightsizing-filter [data-action="cost-rightsizing-direction"]').each(function() {
-            const on = String(this.dataset.direction) === state.rightsizingDirection;
-            $(this).toggleClass('btn-primary', on).toggleClass('btn-outline-secondary', !on).attr('aria-pressed', String(on));
-        });
-        changePage('rightsizing', 0);
-    }
-
-    const AGREEMENT = {
-        AGREE: ['text-bg-success', 'AWS agrees', 'Compute Optimizer and the local rules point the same way'],
-        DISAGREE: ['text-bg-warning', 'AWS disagrees', 'Compute Optimizer and the local rules point different ways'],
-        ONLY_AWS: ['text-bg-info', 'AWS only', 'Only Compute Optimizer flags this VM'],
-        ONLY_RULE: ['text-bg-light border', 'Rule only', 'Compute Optimizer has no opinion on this VM']
+    const AGREEMENT_TITLES = {
+        AGREE: 'Compute Optimizer and the local rules point the same way',
+        ONLY_AWS: 'Only Compute Optimizer flags this VM',
+        DISAGREE: 'Compute Optimizer and the local rules point different ways'
     };
 
-    /** Whether AWS Compute Optimizer and the local rules agree (E30-T05). */
+    /** What AWS Compute Optimizer thinks of the suggestion (E30-T05); nothing when only the local rule speaks. */
     function agreementBadge(row) {
-        const a = AGREEMENT[row.agreement];
-        if (!a) return '';
-        return `<div class="mt-1"><span class="badge ${a[0]} rightsizing-agreement" data-agreement="${Utils.escapeHtml(row.agreement)}" title="${a[2]}">${a[1]}</span></div>`;
+        const text = RightsizingKind.agreementText(row);
+        if (!text) return '';
+        return `<span class="rightsizing-agreement${row.agreement === 'DISAGREE' ? ' rs-disagree' : ''}" data-agreement="${Utils.escapeHtml(row.agreement)}"
+            title="${AGREEMENT_TITLES[row.agreement] || ''}">${text}</span>`;
     }
 
     function rowKey(row, i) {
@@ -1647,13 +1739,16 @@ const CostManagement = (function() {
      * go ahead with the safe stop-resize-start.
      */
     function applyButton(row, targetType) {
-        const usable = row.vmStatus === 'STOPPED' || row.vmStatus === 'RUNNING';
-        return `<button class="btn btn-tonal btn-sm btn-primary rightsizing-apply-btn" ${usable ? '' : 'disabled'}
-                    title="${usable ? 'Apply this instance type change (checks run first)' : 'The VM must be running or stopped'}"
+        const safe = safeResizeOn();
+        const usable = safe && (row.vmStatus === 'STOPPED' || row.vmStatus === 'RUNNING');
+        const why = !safe ? 'Safe resize is switched off in Settings'
+            : usable ? 'Change the instance type (checks run first)' : 'The VM must be running or stopped';
+        return `<button type="button" class="btn btn-link btn-sm rightsizing-apply-btn" ${usable ? '' : 'disabled'}
+                    title="${why}"
                     data-vm-id="${Utils.escapeHtml(row.vmId)}" data-vm-name="${Utils.escapeHtml(row.vmName || row.vmId)}"
                     data-vm-status="${Utils.escapeHtml(row.vmStatus || '')}"
                     data-current-type="${Utils.escapeHtml(row.currentInstanceType || '-')}"
-                    data-target-type="${Utils.escapeHtml(targetType)}">Apply</button>`;
+                    data-target-type="${Utils.escapeHtml(targetType)}">Resize safely…</button>`;
     }
 
     /** The alternatives of one recommendation, shown under its row on demand (E30-T05). */
@@ -1672,7 +1767,7 @@ const CostManagement = (function() {
                 <td>${optionApply(row, o)}</td>
             </tr>`).join('');
         return `<tr class="rightsizing-alternatives" id="${rowKey(row, i)}" hidden>
-            <td colspan="11">
+            <td colspan="5">
                 <table class="table table-sm mb-0 rightsizing-options-table" aria-label="Options for ${Utils.escapeHtml(row.vmName || row.vmId)}">
                     <thead><tr><th>Type</th><th>Option</th><th>Architecture</th><th class="cost-num">Cost after</th>
                         <th class="cost-num">Saving</th><th class="cost-num">AWS risk</th><th>Action</th></tr></thead>
@@ -1698,36 +1793,9 @@ const CostManagement = (function() {
         return Number(value).toFixed(1) + '%';
     }
 
-    const REASON_LABELS = {
-        CPU_LOW: 'CPU low', CPU_HIGH: 'CPU high', MEMORY_LOW: 'Memory low', MEMORY_HIGH: 'Memory high',
-        MEMORY_UNKNOWN: 'Memory unknown', MEMORY_WOULD_NOT_FIT: 'Memory would not fit',
-        NEWER_GENERATION: 'Newer generation', AWS_OVER_PROVISIONED: 'AWS: over-provisioned'
-    };
-
-    /** Why the VM is listed, as small chips under the direction badge (E30-T03). */
-    function reasonChips(row) {
-        const reasons = Array.isArray(row.reasons) ? row.reasons : [];
-        if (!reasons.length) return '';
-        return '<div class="rightsizing-reasons mt-1">' + reasons.map(r => {
-            const warn = r === 'MEMORY_WOULD_NOT_FIT' ? ' text-bg-warning' : ' text-bg-light border';
-            return `<span class="badge${warn} rightsizing-reason" data-reason="${Utils.escapeHtml(r)}">${Utils.escapeHtml(REASON_LABELS[r] || r)}</span>`;
-        }).join(' ') + '</div>';
-    }
-
-    function buildRightsizingDirectionBadge(row) {
-        if (row.direction === 'MODERNIZE') {
-            return '<span class="badge bg-success"><i class="fas fa-sync-alt"></i> Modernize</span>';
-        }
-        return row.direction === 'SCALE_UP'
-            ? '<span class="badge bg-warning text-dark"><i class="fas fa-arrow-up"></i> Scale Up</span>'
-            : '<span class="badge bg-info text-dark"><i class="fas fa-arrow-down"></i> Scale Down</span>';
-    }
-
     function buildRightsizingApplyButton(row) {
         if (!row.suggestedInstanceType) {
-            const why = (row.reasons || []).includes('MEMORY_WOULD_NOT_FIT')
-                ? ' title="A smaller type would not hold the observed memory peak"' : '';
-            return `<span class="text-muted small"${why}>No suggestion</span>`;
+            return '<span class="text-muted small">No suggestion</span>';
         }
         if (row.nodeCount) {
             // EKS node groups change their instance type in EKS (node group / launch template), E26-T02.
@@ -1740,20 +1808,9 @@ const CostManagement = (function() {
         return applyButton(row, row.suggestedInstanceType);
     }
 
-    function buildRightsizingSourceBadge(row) {
-        if (row.source === 'compute-optimizer') {
-            const title = row.findingLevel ? ` title="${Utils.escapeHtml(row.findingLevel)}"` : '';
-            return `<span class="badge bg-primary"${title}>Compute Optimizer</span>`;
-        }
-        if (row.source === 'newer-generation') {
-            return '<span class="badge bg-secondary">Newer generation</span>';
-        }
-        return `<span class="badge bg-secondary">CPU Rule</span>`;
-    }
-
     function renderRightsizingTable() {
         $('#cost-rightsizing-table-body').html(buildRightsizingRows(state.rightsizing.content));
-        $('#cost-rightsizing-pagination').html(buildPagination('rightsizing', state.rightsizing));
+        $('#cost-rightsizing-pagination').html(rightsizingPager());
     }
 
     // VM Cost Detail
@@ -2110,7 +2167,7 @@ const CostManagement = (function() {
         load,
         changePage,
         showWorkloads: mountWorkloads,
-        setRightsizingDirection,
+        setRightsizingFilter,
         toggleOptions,
         setForecastRange,
         openFocusExport,
@@ -2126,13 +2183,15 @@ if (typeof window !== 'undefined') window.CostManagement = CostManagement;
 if (typeof Actions !== 'undefined') Actions.registerAll({
     'cost-reload': () => ContentRouter.reload(),
     'cost-change-page': el => CostManagement.changePage(el.dataset.pageKey, Number(el.dataset.page)),
-    'cost-rightsizing-direction': el => CostManagement.setRightsizingDirection(el.dataset.direction || ''),
+    'cost-rs-page': el => CostManagement.changePage('rightsizing', Number(el.dataset.page) - 1),
     'cost-rightsizing-options': el => CostManagement.toggleOptions(el),
     'cost-forecast-range': el => CostManagement.setForecastRange(el.dataset.range),
     'cost-focus-export': () => CostManagement.openFocusExport()
 });
 if (typeof Actions !== 'undefined') {
     Actions.register('cost-eks-env', el => CostManagement.showWorkloads(el.value), 'change');
+    Actions.register('cost-rs-kind', el => CostManagement.setRightsizingFilter('kind', el.value), 'change');
+    Actions.register('cost-rs-agreement', el => CostManagement.setRightsizingFilter('agreement', el.value), 'change');
     Actions.register('cost-carbon-month', el => CostManagement.setCarbonMonth(el.value), 'change');
     Actions.register('cost-breakdown-by', el => CostManagement.setBreakdownBy(el.value), 'change');
 }

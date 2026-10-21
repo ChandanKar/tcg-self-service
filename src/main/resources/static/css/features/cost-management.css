@@ -428,3 +428,169 @@
         gap: 10px;
     }
 }
+
+/* ---- Rightsizing tab (U15-T03, Rightsizing.dc.html) ---- */
+.rs-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+
+.rs-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.rs-headline {
+    margin: 0;
+    font-size: 15px;
+}
+
+.rs-headline b {
+    font-weight: 500;
+}
+
+.rs-save,
+.rs-saves {
+    color: var(--success-color);
+}
+
+.rs-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.rs-controls .form-select {
+    width: auto;
+}
+
+.rs-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 14px;
+    align-items: start;
+}
+
+.rs-table-card {
+    padding: 0;
+    overflow: hidden;
+}
+
+/* The containing block of the visually hidden header, so the scroll box clips it too. */
+.rs-table-card .cost-scroll {
+    position: relative;
+}
+
+.rs-table {
+    width: 100%;
+    min-width: 640px; /* narrower screens scroll the table inside its card */
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.rs-table .rs-vm,
+.rs-table .rs-change .cost-mono {
+    white-space: nowrap;
+}
+
+.rs-table thead th {
+    padding: 9px 8px;
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
+    font-size: 12.5px;
+    font-weight: 500;
+    text-align: left;
+}
+
+.rs-table thead th:first-child,
+.rs-table td:first-child {
+    padding-left: 16px;
+}
+
+.rs-table thead th:last-child,
+.rs-table td:last-child {
+    padding-right: 16px;
+}
+
+.rs-table td {
+    padding: 8px;
+    border-top: 1px solid var(--line-soft);
+    vertical-align: top;
+}
+
+.rs-table .cost-num {
+    text-align: right;
+}
+
+.rs-name {
+    color: var(--ink);
+    font-weight: 500;
+    text-decoration: none;
+}
+
+a.rs-name:hover {
+    text-decoration: underline;
+}
+
+.rs-sub {
+    display: block;
+    font-family: var(--font-sans, inherit);
+    font-size: 12.5px;
+    color: var(--text-secondary);
+}
+
+.rs-change .cost-mono,
+.rs-peak {
+    font-size: 13px;
+}
+
+.rs-disagree {
+    color: var(--danger-color);
+}
+
+.rs-action {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.rs-action .rightsizing-apply-btn {
+    padding: 0;
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+#cost-rightsizing-pagination .pager {
+    padding: 8px 16px;
+    border-top: 1px solid var(--line-soft);
+}
+
+.rs-aside h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.rs-aside ol {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 13.5px;
+    line-height: 1.6;
+}
+
+.rs-off {
+    margin: 0;
+    font-size: 13px;
+    color: var(--danger-color);
+}
+
+@media (max-width: 1199.98px) {
+    .rs-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

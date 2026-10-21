@@ -1,9 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
+import { withFeatures } from '../../fixtures/capabilities';
 
 /**
- * E30-T05: one recommendation per VM — the direction filter, the AWS agreement badge, and the
- * alternatives with a Graviton option that needs an ARM64 image and so offers no Apply.
+ * E30-T05, U15-T03 (Rightsizing.dc.html): one recommendation per VM — the Kind of change and Agreement
+ * filters (on the server), the change with its kind and what AWS thinks, and the alternatives with a
+ * Graviton option that needs an ARM64 image and so offers no Resize safely….
  */
 
 declare const ContentRouter: any;
@@ -37,29 +39,86 @@ const DISAGREE = {
   reasons: ['CPU_LOW', 'MEMORY_UNKNOWN'], agreement: 'DISAGREE', applicable: true, applicableReason: null, alternatives: [],
 };
 
-test('direction filter, agreement badge and alternatives with a Graviton option', async ({ page }) => {
-  test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
-  const directions: string[] = [];
-  await page.route(/\/api\/v1\/cost-management\/rightsizing\?/, route => {
-    const direction = new URL(route.request().url()).searchParams.get('direction') || '';
-    directions.push(direction);
-    const rows = direction === 'MODERNIZE' ? [MODERNIZE] : direction ? [] : [DISAGREE, MODERNIZE];
+const GRAVITON = {
+  ...DISAGREE, vmId: 'vm-g', vmName: 'search-index', currentInstanceType: 'c5.2xlarge', suggestedInstanceType: 'c7g.xlarge',
+  peakCpuUtilization: 26, estimatedMonthlySavings: 126, source: 'compute-optimizer', agreement: 'AGREE', reasons: ['AWS_OVER_PROVISIONED'],
+  applicable: false, applicableReason: 'Requires an ARM64 image',
+};
+
+/** Serves the rows the server would keep for the kind and agreement filters, and records what was asked. */
+async function openRightsizing(page: any) {
+  const asked: string[] = [];
+  await page.route(/\/api\/v1\/cost-management\/rightsizing\?/, (route: any) => {
+    const params = new URL(route.request().url()).searchParams;
+    const kind = params.get('kind') || '';
+    const agreement = params.get('agreement') || '';
+    asked.push(`${kind}|${agreement}|${params.get('size')}`);
+    let rows = [DISAGREE, MODERNIZE, GRAVITON];
+    if (kind === 'NEWER') rows = [MODERNIZE, GRAVITON];
+    if (kind === 'GRAVITON') rows = [GRAVITON];
+    if (kind === 'SMALLER') rows = [DISAGREE, GRAVITON];
+    if (agreement === 'AWS') rows = rows.filter(r => r.agreement === 'AGREE' || r.agreement === 'ONLY_AWS');
     return route.fulfill({ status: 200, contentType: 'application/json', body: page1(rows) });
   });
+  await withFeatures(page, { safeResize: true });
   await signIn(page, 'admin');
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
   await page.evaluate(() => { location.hash = '#/cost-management?tab=rightsizing'; });
+  await expect(page.locator('#cost-rightsizing-table-body tr[data-rs-vm]')).toHaveCount(3, { timeout: 15_000 });
+  return asked;
+}
 
+test.describe('Rightsizing suggestions (U15-T03)', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+  });
+
+  test('rows: the change with its kind and what AWS thinks, peaks, savings and Resize safely…', async ({ page }) => {
+    const asked = await openRightsizing(page);
+    expect(asked[0]).toBe('||8'); // 8 a page, no filter
+    const body = page.locator('#cost-rightsizing-table-body');
+    const quiet = body.locator('tr[data-rs-vm="vm-d"]');
+    await expect(quiet.locator('.rs-change')).toContainText('t3.xlarge → t3.large');
+    await expect(quiet.locator('.rs-change')).toContainText('Smaller · AWS disagrees');
+    await expect(quiet.locator('[data-agreement="DISAGREE"]')).toHaveText('AWS disagrees');
+    await expect(quiet.locator('.rs-peak')).toHaveText('9% / —');
+    await expect(quiet.locator('.rs-saves')).toHaveText('$60');
+    await expect(quiet.getByRole('button', { name: 'Resize safely…' })).toBeEnabled();
+    await expect(quiet.getByRole('link', { name: 'quiet' })).toHaveAttribute('href', '#/environments/e?vm=vm-d');
+    await expect(body.locator('tr[data-rs-vm="vm-g"] .rs-change')).toContainText('Smaller, Graviton · AWS agrees');
+    await expect(body.locator('tr[data-rs-vm="vm-m"] .rs-change')).toContainText('Newer generation');
+    await expect(page.locator('#rs-kind option')).toHaveText(['All suggestions', 'Smaller size', 'Newer generation', 'Graviton (ARM)']);
+    await expect(page.locator('.rs-aside h2')).toHaveText('How a safe resize works');
+    await expect(page.locator('#rs-safe-off')).toHaveCount(0);
+  });
+
+  test('Graviton (ARM) keeps only Graviton targets; AWS agrees keeps what Compute Optimizer confirms', async ({ page }) => {
+    const asked = await openRightsizing(page);
+    const rows = page.locator('#cost-rightsizing-table-body tr[data-rs-vm]');
+    // Acceptance: Graviton (ARM) leaves only rows whose target is a Graviton family.
+    await page.locator('#rs-kind').selectOption({ label: 'Graviton (ARM)' });
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText('c7g.xlarge');
+    await expect(page).toHaveURL(/[?&]kind=GRAVITON/);
+    // Acceptance: AWS agrees leaves only rows Compute Optimizer confirms.
+    await page.locator('#rs-kind').selectOption('');
+    await page.locator('#rs-agreement').selectOption({ label: 'AWS agrees' });
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText('search-index');
+    await expect(page).toHaveURL(/[?&]agreement=AWS/);
+    expect(asked).toEqual(expect.arrayContaining(['GRAVITON||8', '|AWS|8']));
+  });
+});
+
+test('the kind filter and alternatives with a Graviton option', async ({ page }) => {
+  test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+  await openRightsizing(page);
   const body = page.locator('#cost-rightsizing-table-body');
-  await expect(body.locator('[data-agreement="DISAGREE"]')).toHaveText('AWS disagrees', { timeout: 15_000 });
 
-  // filter to modernize
-  const filter = page.locator('.rightsizing-filter');
-  await filter.getByRole('button', { name: 'Modernize' }).click();
-  await expect(filter.getByRole('button', { name: 'Modernize' })).toHaveAttribute('aria-pressed', 'true');
+  // filter to newer generations
+  await page.locator('#rs-kind').selectOption({ label: 'Newer generation' });
   await expect(body).not.toContainText('quiet');
-  await expect(body).toContainText('Modernize');
-  expect(directions).toContain('MODERNIZE');
+  await expect(body).toContainText('old-gen');
 
   // the alternatives open under the row
   const toggle = body.getByRole('button', { name: 'Options (3)' });
@@ -76,6 +135,6 @@ test('direction filter, agreement badge and alternatives with a Graviton option'
   await expect(options.locator('tr[data-option="m7i.large"] .rightsizing-apply-btn')).toBeEnabled();
 
   // back to all
-  await filter.getByRole('button', { name: 'All' }).click();
+  await page.locator('#rs-kind').selectOption({ label: 'All suggestions' });
   await expect(body).toContainText('quiet');
 });

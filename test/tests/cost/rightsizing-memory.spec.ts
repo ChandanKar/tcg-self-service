@@ -15,7 +15,7 @@ function page1(rows: any[]) {
 const BASE = { environmentId: 'e', environmentName: 'Dev', avgCpuUtilization: 4, peakCpuUtilization: 12,
   costKnown: true, source: 'cpu-threshold-rule', findingLevel: null, vmStatus: 'RUNNING', priceApproximate: false, nodeCount: null };
 
-test('memory columns, the agent-missing dash and the reason chips', async ({ page }) => {
+test('the memory peak, the agent-missing dash and why there is no suggestion', async ({ page }) => {
   test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
   await page.route(/\/api\/v1\/cost-management\/rightsizing\?/, route => route.fulfill({ status: 200, contentType: 'application/json',
     body: page1([
@@ -34,22 +34,19 @@ test('memory columns, the agent-missing dash and the reason chips', async ({ pag
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
   await page.evaluate(() => { location.hash = '#/cost-management?tab=rightsizing'; });
 
+  // U15-T03: one Peak CPU / memory column; the kind line says why there is no suggestion.
   const table = page.locator('#cost-rightsizing-table');
-  await expect(table.locator('thead')).toContainText('Mem avg', { timeout: 15_000 });
-  await expect(table.locator('thead')).toContainText('Mem peak');
+  await expect(table.locator('thead')).toContainText('Peak CPU / memory', { timeout: 15_000 });
 
   const withAgent = page.locator('#cost-rightsizing-table-body tr', { hasText: 'with-agent' });
-  await expect(withAgent).toContainText('21.5%');
-  await expect(withAgent).toContainText('34.3%');
-  await expect(withAgent.locator('.rightsizing-reason')).toHaveText(['CPU low', 'Memory low']);
+  await expect(withAgent.locator('.rs-peak')).toHaveText('12% / 34%');
 
   const noAgent = page.locator('#cost-rightsizing-table-body tr', { hasText: 'no-agent' });
-  await expect(noAgent.locator('.rightsizing-mem-unknown')).toHaveCount(2);
-  await expect(noAgent.locator('.rightsizing-mem-unknown').first()).toHaveAttribute('title', 'CloudWatch agent not reporting memory');
-  await expect(noAgent.locator('[data-reason="MEMORY_UNKNOWN"]')).toHaveText('Memory unknown');
+  await expect(noAgent.locator('.rightsizing-mem-unknown')).toHaveCount(1);
+  await expect(noAgent.locator('.rightsizing-mem-unknown')).toHaveAttribute('title', 'CloudWatch agent not reporting memory');
 
   const tooFull = page.locator('#cost-rightsizing-table-body tr', { hasText: 'too-full' });
-  await expect(tooFull.locator('[data-reason="MEMORY_WOULD_NOT_FIT"]')).toHaveText('Memory would not fit');
+  await expect(tooFull.locator('[data-reason="MEMORY_WOULD_NOT_FIT"]')).toHaveText('A smaller type would not hold the memory peak');
   await expect(tooFull).toContainText('No suggestion');
   await expect(tooFull.locator('.rightsizing-apply-btn')).toHaveCount(0);
 });

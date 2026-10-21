@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
+import { withFeatures } from '../../fixtures/capabilities';
 
 /**
  * E30-T07: Apply lists the safe-resize checks, needs the restart option for a running VM,
@@ -41,10 +42,11 @@ async function openApply(page: Page, checks: any[], statuses: any[]) {
   let i = 0;
   await page.route(/\/api\/v1\/cost-management\/rightsizing\/resizes\/rz-1$/, route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(statuses[Math.min(i++, statuses.length - 1)]) }));
+  await withFeatures(page, { safeResize: true });
   await signIn(page, 'admin');
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
   await page.evaluate(() => { location.hash = '#/cost-management?tab=rightsizing'; });
-  await page.locator('#cost-rightsizing-table-body .rightsizing-apply-btn').click({ timeout: 15_000 });
+  await page.locator('#cost-rightsizing-table-body').getByRole('button', { name: 'Resize safely…' }).click({ timeout: 15_000 });
   await expect(page.locator('#rightsizingApplyModal')).toBeVisible();
   return posts;
 }
@@ -102,4 +104,26 @@ test.describe('Rightsizing Apply dialog', () => {
     await expect(modal.locator('#rs-apply-confirm')).toBeDisabled();
     await expect(modal.locator('#rs-mode-note')).toHaveText('Fix the failed checks to apply this change.');
   });
+
+  test('a locked VM: the precheck says who holds the lock (U15-T03)', async ({ page }) => {
+    await openApply(page, [PASSING[0],
+      { name: 'Environment lock', passed: false, message: 'Environment is locked by Priya Nair until 18:00' }, ...PASSING.slice(2)], []);
+    const modal = page.locator('#rightsizingApplyModal');
+    await expect(modal.locator('.rs-check.text-danger')).toContainText('Environment is locked by Priya Nair until 18:00');
+    await expect(modal.locator('#rs-apply-confirm')).toBeDisabled();
+  });
+
+  test('with safe resize switched off, Resize safely… is disabled and the aside says why (U15-T03)', async ({ page }) => {
+    await page.route(/\/api\/v1\/cost-management\/rightsizing\?/, route =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: page1([ROW]) }));
+    await withFeatures(page, { safeResize: false });
+    await signIn(page, 'admin');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate(() => { location.hash = '#/cost-management?tab=rightsizing'; });
+    const button = page.locator('#cost-rightsizing-table-body').getByRole('button', { name: 'Resize safely…' });
+    await expect(button).toBeDisabled({ timeout: 15_000 });
+    await expect(button).toHaveAttribute('title', 'Safe resize is switched off in Settings');
+    await expect(page.locator('#rs-safe-off')).toContainText('Safe resize is switched off');
+  });
 });
+
