@@ -28,6 +28,11 @@ public class AuthenticationService {
     private final AuditService auditService;
     private final boolean passwordLoginEnabled;
 
+    /** Live settings (U14-T06): password sign-in can be switched off without a restart. Absent in unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.context.annotation.Lazy
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
     public AuthenticationService(UserRepository userRepository, PasswordEncoder passwordEncoder,
                                  AuditService auditService,
                                  @Value("${auth.password-login.enabled:true}") boolean passwordLoginEnabled) {
@@ -37,9 +42,9 @@ public class AuthenticationService {
         this.passwordLoginEnabled = passwordLoginEnabled;
     }
 
-    /** Whether POST /api/auth/login is served at all ({@code auth.password-login.enabled}). */
+    /** Whether POST /api/auth/login is served at all ({@code auth.password-login.enabled}, live from Settings). */
     public boolean isPasswordLoginEnabled() {
-        return passwordLoginEnabled;
+        return settings == null ? passwordLoginEnabled : settings.getBoolean("auth.password-login.enabled", passwordLoginEnabled);
     }
 
     /**
@@ -48,7 +53,7 @@ public class AuthenticationService {
      */
     @Transactional
     public User authenticateUser(String username, String password) throws UnauthorizedException {
-        if (!passwordLoginEnabled) {
+        if (!isPasswordLoginEnabled()) {
             throw new UnauthorizedException("Invalid username or password.");
         }
         if (username == null || username.isBlank() || password == null || password.isBlank()) {

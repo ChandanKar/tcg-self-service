@@ -59,6 +59,52 @@ class SettingsControllerIntegrationTest extends SecuredWebTestBase {
     }
 
     @Test
+    void aSectionsChangesAreSavedTogetherOrNotAtAll() throws Exception {
+        String cpu = "vm.metrics.idle.cpu-threshold-percent";
+        String days = "retention.audit-log.days";
+        // Acceptance: two valid changes and one out-of-range number: 400 names it, nothing is stored.
+        expectError(mockMvc.perform(put(URL).with(asAdmin()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"changes\":[{\"key\":\"" + KEY + "\",\"value\":\"true\"},{\"key\":\"" + days
+                        + "\",\"value\":\"400\"},{\"key\":\"" + cpu + "\",\"value\":\"500\"}]}")), 400)
+                .andExpect(jsonPath("$.message", org.hamcrest.Matchers.containsString(cpu)));
+        mockMvc.perform(get(URL).with(asAdmin()))
+                .andExpect(jsonPath("$[?(@.key == '" + KEY + "')].source").value("DEFAULT"))
+                .andExpect(jsonPath("$[?(@.key == '" + days + "')].source").value("DEFAULT"));
+
+        mockMvc.perform(put(URL).with(asAdmin()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"changes\":[{\"key\":\"" + KEY + "\",\"value\":\"true\"},{\"key\":\"" + days + "\",\"value\":\"400\"}]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[1].value").value("400"));
+        assertThat(settings.getBoolean(KEY, false)).isTrue();
+        assertThat(settings.getInt(days, 0)).isEqualTo(400);
+        settings.reset(KEY, admin.getUserId());
+        settings.reset(days, admin.getUserId());
+        mockMvc.perform(put(URL).with(asUser()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"changes\":[{\"key\":\"" + KEY + "\",\"value\":\"true\"}]}")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void everySettingIsInOneOfTheEightSections() throws Exception {
+        String json = mockMvc.perform(get(URL).with(asAdmin())).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        java.util.List<String> groups = com.jayway.jsonpath.JsonPath.read(json, "$[*].group");
+        assertThat(new java.util.LinkedHashSet<>(groups)).containsExactly("Notifications", "Access and security",
+                "Environments and leases", "Automation", "Cost", "Integrations", "AWS", "Data retention");
+    }
+
+    @Test
+    void passwordSignInCanBeSwitchedOffWithoutARestart() throws Exception {
+        // The sign-in page and the login check read the same live switch (AuthenticationService.isPasswordLoginEnabled).
+        mockMvc.perform(get("/api/auth/options")).andExpect(jsonPath("$.passwordLoginEnabled").value(true));
+        settings.set("auth.password-login.enabled", "false", admin.getUserId());
+        try {
+            mockMvc.perform(get("/api/auth/options")).andExpect(jsonPath("$.passwordLoginEnabled").value(false));
+        } finally {
+            settings.reset("auth.password-login.enabled", admin.getUserId());
+        }
+    }
+
+    @Test
     void everyEndpointIsForAdminsOnly() throws Exception {
         for (var who : new org.springframework.test.web.servlet.request.RequestPostProcessor[]{asEnvAdmin(), asUser(), asViewer()}) {
             mockMvc.perform(get(URL).with(who)).andExpect(status().isForbidden());

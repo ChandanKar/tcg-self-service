@@ -112,7 +112,10 @@ class SettingsServiceTest {
     @Test
     void noSecretIsEverRegistered() {
         Pattern secret = Pattern.compile("(password|secret|token|api-key|signing-key|access-key|credential)", Pattern.CASE_INSENSITIVE);
-        assertThat(SettingsRegistry.DEFINITIONS).noneMatch(d -> secret.matcher(d.key()).find());
+        // An on/off switch such as auth.password-login.enabled or api-tokens.enabled is not a secret (U14-T06).
+        assertThat(SettingsRegistry.DEFINITIONS).noneMatch(d -> secret.matcher(d.key()).find() && !d.key().endsWith(".enabled"));
+        assertThat(SettingsRegistry.DEFINITIONS).filteredOn(d -> secret.matcher(d.key()).find())
+                .allMatch(d -> d.type() == SettingDefinition.Type.BOOLEAN || !d.editable());
     }
 
     @Test
@@ -133,5 +136,37 @@ class SettingsServiceTest {
         assertThat(SettingsRegistry.DEFINITIONS).extracting(SettingDefinition::key).doesNotHaveDuplicates();
         assertThat(SettingsRegistry.DEFINITIONS).filteredOn(d -> d.type() == SettingDefinition.Type.INT || d.type() == SettingDefinition.Type.DECIMAL)
                 .allSatisfy(d -> assertThat(d.min()).isNotNull());
+    }
+
+    @Test
+    void aBatchIsCheckedWholeAndNothingIsStoredWhenOneChangeIsWrong() {
+        assertThatThrownBy(() -> service.updateAll(java.util.List.of(
+                new SettingsService.Change(FLAG, "true"),
+                new SettingsService.Change(CPU, "500"),
+                new SettingsService.Change("entraid.enabled", "false"),
+                new SettingsService.Change("no.such.key", "1")), "admin"))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining(CPU + " must be between 0 and 100")
+                .hasMessageContaining("entraid.enabled is read-only")
+                .hasMessageContaining("no.such.key is not a setting")
+                .hasMessageNotContaining(FLAG);
+        verify(repository, never()).save(any());
+
+        var saved = service.updateAll(java.util.List.of(new SettingsService.Change(FLAG, "TRUE"), new SettingsService.Change(CPU, "7.5")), "admin");
+        assertThat(saved).extracting(v -> v.definition().key()).containsExactly(FLAG, CPU);
+        verify(repository, times(2)).save(any());
+        verify(audit, times(2)).logAction(eq("admin"), eq(AuditAction.SYSTEM_CONFIG_UPDATED), any(), any(), any(), any());
+    }
+
+    @Test
+    void everySettingIsInOneOfTheEightSectionsAndTheyComeInOrder() {
+        assertThat(SettingsRegistry.DEFINITIONS).allSatisfy(d -> assertThat(SettingsRegistry.SECTIONS).contains(d.group()));
+        var groups = service.list().stream().map(v -> v.definition().group()).distinct().toList();
+        assertThat(groups).containsExactlyElementsOf(SettingsRegistry.SECTIONS);
+        assertThat(SettingsRegistry.find("auth.password-login.enabled").orElseThrow().editable()).isTrue();
+        for (String startupOnly : java.util.List.of("security.env-admin.scope", "security.csp.report-only", "lease.enabled",
+                "locks.expiry.enabled", "automation.idle-stop.enabled")) {
+            assertThat(SettingsRegistry.find(startupOnly).orElseThrow().editable()).as(startupOnly).isFalse();
+        }
     }
 }

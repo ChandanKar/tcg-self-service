@@ -11,6 +11,7 @@ import static com.tcgdigital.vmcontrol.service.settings.SettingDefinition.*;
  * Every setting the Settings page knows (E29-T01). Tier 1: flags and thresholds the code reads
  * at call time, editable live. Tier 2: shown read-only (they are wired at startup). Secrets
  * (passwords, keys, tokens) are never registered, so they can neither be read nor written here.
+ * Each belongs to one of the eight sections of the Settings page (U14-T06, Settings.dc.html).
  */
 public final class SettingsRegistry {
 
@@ -18,6 +19,11 @@ public final class SettingsRegistry {
     }
 
     private static final String JOB_SWITCH = " The job itself must be enabled at startup for this to take effect.";
+    private static final String RESTART = " Set %s in the server settings and restart.";
+
+    /** The Settings page's sections, in order (U14-T06). */
+    public static final List<String> SECTIONS = List.of("Notifications", "Access and security", "Environments and leases",
+            "Automation", "Cost", "Integrations", "AWS", "Data retention");
 
     public static final List<SettingDefinition> DEFINITIONS = List.of(
             // Notifications
@@ -42,93 +48,120 @@ public final class SettingsRegistry {
             flag("Notifications", "notification.email.weekly-rightsizing-report.enabled", "Weekly rightsizing email", "Email the weekly rightsizing report.", false),
 
             // Cost management
-            flag("Cost management", "cost.snapshot.enabled", "Daily cost snapshots", "Record each environment's estimated cost every day.", true),
-            flag("Cost management", "cost.actuals.enabled", "Actual costs", "Ingest real costs from AWS Cost Explorer daily (billed API).", true),
-            flag("Cost management", "cost.optimizer.enabled", "Compute Optimizer", "Use AWS Compute Optimizer recommendations for rightsizing.", true),
-            flag("Cost management", "cost.reservations.enabled", "Reservation coverage", "Record Savings Plan and RI coverage daily (billed API).", true),
-            flag("Cost management", "cost.aws-forecast.enabled", "AWS cost forecast", "Capture AWS's 90-day and 18-month cost forecast weekly (billed API).", true),
-            flag("Cost management", "carbon.enabled", "Carbon footprint", "Ingest the AWS carbon emissions Data Export from S3 daily.", false),
-            flag("Cost management", "cost.tagging.enabled", "Cost-allocation tagging", "Tag AWS resources with their environment and team.", false),
+            flag("Cost", "cost.snapshot.enabled", "Daily cost snapshots", "Record each environment's estimated cost every day.", true),
+            flag("Cost", "cost.actuals.enabled", "Actual costs", "Ingest real costs from AWS Cost Explorer daily (billed API).", true),
+            flag("Cost", "cost.optimizer.enabled", "Compute Optimizer", "Use AWS Compute Optimizer recommendations for rightsizing.", true),
+            flag("Cost", "cost.reservations.enabled", "Reservation coverage", "Record Savings Plan and RI coverage daily (billed API).", true),
+            flag("Cost", "cost.aws-forecast.enabled", "AWS cost forecast", "Capture AWS's 90-day and 18-month cost forecast weekly (billed API).", true),
+            flag("Cost", "carbon.enabled", "Carbon footprint", "Ingest the AWS carbon emissions Data Export from S3 daily.", false),
+            flag("Cost", "cost.tagging.enabled", "Cost-allocation tagging", "Tag AWS resources with their environment and team.", false),
 
             // Rightsizing
-            decimal("Rightsizing", "rightsizing.scale-down.cpu-threshold", "Scale-down CPU %",
+            decimal("Cost", "rightsizing.scale-down.cpu-threshold", "Scale-down CPU %",
                     "Average CPU below which a VM is a scale-down candidate.", "15", "1", "100"),
-            integer("Rightsizing", "rightsizing.scale-down.consecutive-days", "Scale-down days",
+            integer("Cost", "rightsizing.scale-down.consecutive-days", "Scale-down days",
                     "Days in a row the CPU must stay below the threshold.", 3, 1, 90),
-            decimal("Rightsizing", "rightsizing.scale-up.cpu-threshold", "Scale-up CPU %",
+            decimal("Cost", "rightsizing.scale-up.cpu-threshold", "Scale-up CPU %",
                     "CPU above which a VM needs more capacity.", "70", "1", "100"),
-            integer("Rightsizing", "rightsizing.scale-up.consecutive-minutes", "Scale-up minutes",
+            integer("Cost", "rightsizing.scale-up.consecutive-minutes", "Scale-up minutes",
                     "Minutes in a row the CPU must stay above the threshold.", 15, 1, 1440),
-            integer("Rightsizing", "rightsizing.post-resize-cooldown-days", "Cooldown after a resize",
+            integer("Cost", "rightsizing.post-resize-cooldown-days", "Cooldown after a resize",
                     "Days a resized VM is not recommended again.", 14, 0, 365),
-            flag("Rightsizing", "rightsizing.memory.enabled", "Memory-aware rightsizing",
+            flag("Cost", "rightsizing.memory.enabled", "Memory-aware rightsizing",
                     "Use memory (CloudWatch agent) as well as CPU; off returns the CPU-only rules.", true),
-            decimal("Rightsizing", "rightsizing.scale-down.memory-peak-threshold", "Scale-down memory peak %",
+            decimal("Cost", "rightsizing.scale-down.memory-peak-threshold", "Scale-down memory peak %",
                     "Daily memory peak every recent day must stay below for a scale-down.", "60", "1", "100"),
-            decimal("Rightsizing", "rightsizing.scale-up.memory-threshold", "Scale-up memory %",
+            decimal("Cost", "rightsizing.scale-up.memory-threshold", "Scale-up memory %",
                     "Memory above which (in every sample of the scale-up window) a VM needs more capacity.", "85", "1", "100"),
-            integer("Rightsizing", "rightsizing.memory.headroom-percent", "Memory headroom %",
+            integer("Cost", "rightsizing.memory.headroom-percent", "Memory headroom %",
                     "Spare memory a smaller type must keep above the observed peak.", 20, 0, 200),
-            flag("Rightsizing", "rightsizing.safe-resize.enabled", "Safe resize of running VMs",
+            flag("Cost", "rightsizing.safe-resize.enabled", "Safe resize of running VMs",
                     "Apply may stop a running VM, change its type and start it again, rolling back on failure.", false),
 
             // Provisioning (E32)
-            flag("Provisioning", "provisioning.enabled", "Environment templates",
+            flag("Environments and leases", "provisioning.enabled", "Environment templates",
                     "Users can request new environments from approved templates.", false),
-            integer("Provisioning", "provisioning.timeout-minutes", "Build time-out minutes",
+            integer("Environments and leases", "provisioning.timeout-minutes", "Build time-out minutes",
                     "How long a build may take before the request fails.", 60, 5, 720),
-            flag("Provisioning", "provisioning.destroy.enabled", "Destroy at end of lifetime",
+            flag("Environments and leases", "provisioning.destroy.enabled", "Destroy at end of lifetime",
                     "Destroy provisioned environments in AWS when their lifetime ends.", false),
 
             // RDS (E33)
-            flag("RDS", "rds.enabled", "RDS databases",
+            flag("Environments and leases", "rds.enabled", "RDS databases",
                     "Start and stop RDS DB instances and Aurora clusters registered as VMs.", false),
-            flag("RDS", "rds.keep-stopped.enabled", "Keep stopped databases stopped",
+            flag("Environments and leases", "rds.keep-stopped.enabled", "Keep stopped databases stopped",
                     "Stop again a database AWS started after seven days stopped.", false),
-            integer("RDS", "rds.idle.max-connections", "Idle database connections",
+            integer("Environments and leases", "rds.idle.max-connections", "Idle database connections",
                     "Most database connections an idle database may have in a sample.", 0, 0, 1000),
-            decimal("RDS", "rds.idle.cpu-threshold-percent", "Idle database CPU %",
+            decimal("Environments and leases", "rds.idle.cpu-threshold-percent", "Idle database CPU %",
                     "CPU below which a database with no connections counts as idle.", "5", "0", "100"),
 
             // Spot (E31)
-            flag("Spot", "spot.pricing.enabled", "Spot pricing",
+            flag("Cost", "spot.pricing.enabled", "Spot pricing",
                     "Capture Spot prices daily and price Spot VMs and node groups at them.", false),
-            flag("Spot", "spot.enabled", "Spot opt-in",
+            flag("Environments and leases", "spot.enabled", "Spot opt-in",
                     "Environment admins may allow Spot in interruptible, non-production environments.", false),
-            flag("Spot", "spot.eks.conversion.enabled", "Convert node groups to Spot",
+            flag("Environments and leases", "spot.eks.conversion.enabled", "Convert node groups to Spot",
                     "Create a Spot twin of an EKS node group and keep the on-demand one as standby.", false),
-            integer("Spot", "spot.eks.min-instance-types", "Spot instance types",
+            integer("Environments and leases", "spot.eks.min-instance-types", "Spot instance types",
                     "Fewest same-size instance types a Spot twin may use.", 3, 1, 10),
-            flag("Spot", "spot.fallback.enabled", "On-demand fallback",
+            flag("Environments and leases", "spot.fallback.enabled", "On-demand fallback",
                     "Start a Spot twin's on-demand standby when it is short of Spot capacity.", false),
-            integer("Spot", "spot.fallback.grace-minutes", "Fallback grace minutes",
+            integer("Environments and leases", "spot.fallback.grace-minutes", "Fallback grace minutes",
                     "How long a Spot twin may be short of capacity before the standby starts.", 10, 1, 240),
 
             // Idle detection
-            decimal("Idle detection", "vm.metrics.idle.cpu-threshold-percent", "Idle CPU %",
+            decimal("Automation", "vm.metrics.idle.cpu-threshold-percent", "Idle CPU %",
                     "CPU below which a running VM counts as idle.", "5", "0", "100"),
-            integer("Idle detection", "vm.metrics.idle.network-threshold-bytes-per-period", "Idle network bytes",
+            integer("Automation", "vm.metrics.idle.network-threshold-bytes-per-period", "Idle network bytes",
                     "Network bytes per sample period below which a VM counts as idle.", 1048576, 0, 10_000_000_000L),
-            integer("Idle detection", "vm.metrics.idle.disk-threshold-bytes-per-period", "Idle disk bytes",
+            integer("Automation", "vm.metrics.idle.disk-threshold-bytes-per-period", "Idle disk bytes",
                     "Disk bytes per sample period below which a VM counts as idle.", 1048576, 0, 10_000_000_000L),
-            integer("Idle detection", "vm.metrics.idle.minimum-duration-minutes", "Idle for at least (minutes)",
+            integer("Automation", "vm.metrics.idle.minimum-duration-minutes", "Idle for at least (minutes)",
                     "How long a VM must stay quiet to be reported idle.", 30, 5, 10080),
 
             // Sync and discovery
-            flag("Sync and discovery", "vm.state.sync.enabled", "State sync", "Reconcile VM states with the cloud." + JOB_SWITCH, true),
-            flag("Sync and discovery", "vm.inventory.sync.enabled", "Inventory sync", "Refresh instance types and volumes." + JOB_SWITCH, true),
-            flag("Sync and discovery", "cloudwatch.metric.enable", "Metrics collection", "Collect CloudWatch metrics for running VMs." + JOB_SWITCH, true),
-            flag("Sync and discovery", "vm.metrics.archive.enabled", "Metrics archive", "Archive raw metric samples daily." + JOB_SWITCH, true),
-            flag("Sync and discovery", "vm.discovery.enabled", "VM discovery", "Discover and register EC2 instances." + JOB_SWITCH, false),
-            flag("Sync and discovery", "eks.sync.auto-register.enabled", "EKS auto-registration", "Register newly found EKS clusters." + JOB_SWITCH, false),
-            flag("Sync and discovery", "eks.sync.status-refresh.enabled", "EKS status refresh", "Refresh EKS node-group status." + JOB_SWITCH, true),
+            flag("AWS", "vm.state.sync.enabled", "State sync", "Reconcile VM states with the cloud." + JOB_SWITCH, true),
+            flag("AWS", "vm.inventory.sync.enabled", "Inventory sync", "Refresh instance types and volumes." + JOB_SWITCH, true),
+            flag("AWS", "cloudwatch.metric.enable", "Metrics collection", "Collect CloudWatch metrics for running VMs." + JOB_SWITCH, true),
+            flag("AWS", "vm.metrics.archive.enabled", "Metrics archive", "Archive raw metric samples daily." + JOB_SWITCH, true),
+            flag("AWS", "vm.discovery.enabled", "VM discovery", "Discover and register EC2 instances." + JOB_SWITCH, false),
+            flag("AWS", "eks.sync.auto-register.enabled", "EKS auto-registration", "Register newly found EKS clusters." + JOB_SWITCH, false),
+            flag("AWS", "eks.sync.status-refresh.enabled", "EKS status refresh", "Refresh EKS node-group status." + JOB_SWITCH, true),
 
             // Automation and governance
-            flag("Automation and governance", "automation.rules.enabled", "Automation rules", "Run calendar and access-grant automation rules." + JOB_SWITCH, true),
-            flag("Automation and governance", "approvals.enabled", "Cost-aware approvals", "Hold starts that match an approval policy.", false),
-            flag("Automation and governance", "quotas.enabled", "Team quotas", "Check monthly team quotas on start.", false),
-            flag("Automation and governance", "allocation.require-team", "Require a team", "Refuse environments without an owning team.", false),
-            flag("Automation and governance", "chat.enabled", "Microsoft Teams messages", "Send notifications to Teams channels.", false),
+            flag("Automation", "automation.rules.enabled", "Automation rules", "Run calendar and access-grant automation rules." + JOB_SWITCH, true),
+            flag("Automation", "approvals.enabled", "Cost-aware approvals", "Hold starts that match an approval policy.", false),
+            flag("Cost", "quotas.enabled", "Team quotas", "Check monthly team quotas on start.", false),
+            flag("Environments and leases", "allocation.require-team", "Require a team", "Refuse environments without an owning team.", false),
+            flag("Integrations", "chat.enabled", "Microsoft Teams messages", "Send notifications to Teams channels.", false),
+
+            // Access and security (U14-T06): password sign-in is read at every login
+            flag("Access and security", "auth.password-login.enabled", "Username and password sign-in",
+                    "Keep it next to Microsoft sign-in. Turn off only in an emergency: password sign-in is then refused.", true),
+            readOnly("Access and security", "security.env-admin.scope", "Environment admins' reach",
+                    "global: environment admins manage every environment; assigned: only those they hold admin access to."
+                            + String.format(RESTART, "SECURITY_ENV_ADMIN_SCOPE")),
+            readOnly("Access and security", "security.csp.report-only", "Content security policy: report only",
+                    "true reports scripts from other sites; false blocks them." + String.format(RESTART, "SECURITY_CSP_REPORT_ONLY")),
+
+            // Environments and leases, Automation (U14-T06): their jobs exist only when switched on at startup
+            readOnly("Environments and leases", "lease.enabled", "Leases",
+                    "Environments that opt in stop when their lease ends." + String.format(RESTART, "LEASE_ENABLED")),
+            readOnly("Environments and leases", "locks.expiry.enabled", "Expire locks",
+                    "End locks at the time their holder chose." + String.format(RESTART, "LOCKS_EXPIRY_ENABLED")),
+            readOnly("Automation", "automation.idle-stop.enabled", "Idle auto-stop",
+                    "Stop environments whose VMs have been idle for the set time." + String.format(RESTART, "AUTOMATION_IDLE_STOP_ENABLED")),
+
+            // Integrations and AWS (U14-T06): wired at startup
+            readOnly("Integrations", "api-tokens.enabled", "API tokens",
+                    "Tokens for scripts, tools and service accounts; needs API_TOKEN_PEPPER." + String.format(RESTART, "API_TOKENS_ENABLED")),
+            readOnly("Integrations", "webhooks.enabled", "Webhooks",
+                    "Signed messages to other systems when things happen; needs CHAT_SECRET_KEY." + String.format(RESTART, "WEBHOOKS_ENABLED")),
+            readOnly("Integrations", "graph.directory.enabled", "Microsoft directory lookup",
+                    "Find people in Microsoft Entra when adding them." + String.format(RESTART, "GRAPH_DIRECTORY_ENABLED")),
+            readOnly("AWS", "aws.organizations.enabled", "Find accounts in AWS Organizations",
+                    "List the organization's member accounts on AWS accounts." + String.format(RESTART, "AWS_ORGANIZATIONS_ENABLED")),
 
             // Data retention
             flag("Data retention", "retention.enabled", "Data retention", "Purge old rows daily." + JOB_SWITCH, false),
@@ -139,28 +172,28 @@ public final class SettingsRegistry {
             integer("Data retention", "retention.email-log.days", "Email log days", "Days the email log is kept.", 180, 7, 3650),
 
             // Tier 2: read-only
-            readOnly("Restart required", "entraid.enabled", "Microsoft Entra ID sign-in", "Chooses the security configuration at startup."),
-            readOnly("Restart required", "aws.region", "Default AWS region", "Fallback region for AWS calls."),
-            readOnly("Restart required", "spring.mail.host", "SMTP host", "Mail server, wired at startup."),
-            readOnly("Restart required", "spring.mail.port", "SMTP port", "Mail server port, wired at startup."),
-            readOnly("Restart required", "vm.metrics.archive.cron", "Metrics archive schedule", "Cron, read at startup."),
-            readOnly("Restart required", "cost.snapshot.cron", "Cost snapshot schedule", "Cron, read at startup."),
-            readOnly("Restart required", "cost.tagging.cron", "Tag reconciliation schedule", "Cron, read at startup."),
-            readOnly("Restart required", "cost.actuals.cron", "Actual cost schedule", "Cron, read at startup."),
-            readOnly("Restart required", "cost.reservations.cron", "Reservation coverage schedule", "Cron, read at startup."),
-            readOnly("Restart required", "cost.aws-forecast.cron", "AWS forecast schedule", "Cron, read at startup."),
-            readOnly("Restart required", "carbon.cron", "Carbon export schedule", "Cron, read at startup."),
-            readOnly("Restart required", "cost.optimizer.cron", "Compute Optimizer capture schedule", "Cron, read at startup."),
-            readOnly("Restart required", "spot.pricing.cron", "Spot price capture schedule", "Cron, read at startup."),
-            readOnly("Restart required", "spot.fallback.cron", "Spot fallback schedule", "Cron, read at startup."),
-            readOnly("Restart required", "provisioning.cron", "Provisioning schedule", "Cron, read at startup."),
-            readOnly("Restart required", "notification.weekly-reports.cron", "Weekly report schedule", "Cron, read at startup."),
-            readOnly("Restart required", "retention.cron", "Retention schedule", "Cron, read at startup."),
-            readOnly("Restart required", "savings.ledger.cron", "Savings ledger schedule", "Cron, read at startup."),
-            readOnly("Restart required", "budgets.evaluation.cron", "Budget evaluation schedule", "Cron, read at startup."),
-            readOnly("Restart required", "cost.anomalies.cron", "Cost anomaly schedule", "Cron, read at startup."),
-            readOnly("Restart required", "waste.sweep.cron", "Waste sweep schedule", "Cron, read at startup."),
-            readOnly("Restart required", "chargeback.cron", "Chargeback schedule", "Cron, read at startup."));
+            readOnly("Access and security", "entraid.enabled", "Microsoft Entra ID sign-in", "Chooses the security configuration at startup."),
+            readOnly("AWS", "aws.region", "Default AWS region", "Fallback region for AWS calls."),
+            readOnly("Notifications", "spring.mail.host", "SMTP host", "Mail server, wired at startup."),
+            readOnly("Notifications", "spring.mail.port", "SMTP port", "Mail server port, wired at startup."),
+            readOnly("AWS", "vm.metrics.archive.cron", "Metrics archive schedule", "Cron, read at startup."),
+            readOnly("Cost", "cost.snapshot.cron", "Cost snapshot schedule", "Cron, read at startup."),
+            readOnly("Cost", "cost.tagging.cron", "Tag reconciliation schedule", "Cron, read at startup."),
+            readOnly("Cost", "cost.actuals.cron", "Actual cost schedule", "Cron, read at startup."),
+            readOnly("Cost", "cost.reservations.cron", "Reservation coverage schedule", "Cron, read at startup."),
+            readOnly("Cost", "cost.aws-forecast.cron", "AWS forecast schedule", "Cron, read at startup."),
+            readOnly("Cost", "carbon.cron", "Carbon export schedule", "Cron, read at startup."),
+            readOnly("Cost", "cost.optimizer.cron", "Compute Optimizer capture schedule", "Cron, read at startup."),
+            readOnly("Cost", "spot.pricing.cron", "Spot price capture schedule", "Cron, read at startup."),
+            readOnly("Environments and leases", "spot.fallback.cron", "Spot fallback schedule", "Cron, read at startup."),
+            readOnly("Environments and leases", "provisioning.cron", "Provisioning schedule", "Cron, read at startup."),
+            readOnly("Notifications", "notification.weekly-reports.cron", "Weekly report schedule", "Cron, read at startup."),
+            readOnly("Data retention", "retention.cron", "Retention schedule", "Cron, read at startup."),
+            readOnly("Cost", "savings.ledger.cron", "Savings ledger schedule", "Cron, read at startup."),
+            readOnly("Cost", "budgets.evaluation.cron", "Budget evaluation schedule", "Cron, read at startup."),
+            readOnly("Cost", "cost.anomalies.cron", "Cost anomaly schedule", "Cron, read at startup."),
+            readOnly("Cost", "waste.sweep.cron", "Waste sweep schedule", "Cron, read at startup."),
+            readOnly("Cost", "chargeback.cron", "Chargeback schedule", "Cron, read at startup."));
 
     private static final Map<String, SettingDefinition> BY_KEY = new LinkedHashMap<>();
 

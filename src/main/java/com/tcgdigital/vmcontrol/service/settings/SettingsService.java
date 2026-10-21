@@ -158,7 +158,10 @@ public class SettingsService {
     public List<SettingView> list() {
         Map<String, AppSetting> overrides = new java.util.HashMap<>();
         repository.findAll().forEach(s -> overrides.put(s.getSettingKey(), s));
-        return SettingsRegistry.DEFINITIONS.stream().map(d -> {
+        // The Settings page's sections in order; within one, the registry's order (U14-T06).
+        return SettingsRegistry.DEFINITIONS.stream()
+                .sorted(java.util.Comparator.comparingInt(d -> SettingsRegistry.SECTIONS.indexOf(d.group())))
+                .map(d -> {
             String fromProperties = environment.getProperty(d.key());
             String defaultValue = fromProperties != null && !fromProperties.isEmpty() ? fromProperties : d.fallback();
             AppSetting override = d.editable() ? overrides.get(d.key()) : null;
@@ -182,6 +185,51 @@ public class SettingsService {
         auditService.logAction(actorId, AuditAction.SYSTEM_CONFIG_UPDATED, "setting", null, key,
                 key + ": " + old + " -> " + normalized);
         return view(definition);
+    }
+
+    /** One change of a batch save. */
+    public record Change(String key, String value) {
+    }
+
+    /**
+     * Saves a section's changes together (U14-T06): every change is checked first, and one unknown,
+     * read-only or out-of-range value refuses them all, naming each. Then all are written in this
+     * transaction and audited one by one.
+     */
+    @Transactional
+    public List<SettingView> updateAll(List<Change> changes, String actorId) {
+        if (changes == null || changes.isEmpty()) {
+            throw new ValidationException("No changes to save");
+        }
+        java.util.Map<String, String> normalized = new java.util.LinkedHashMap<>();
+        List<String> problems = new java.util.ArrayList<>();
+        for (Change c : changes) {
+            String key = c == null ? null : c.key();
+            if (key == null || key.isBlank()) {
+                problems.add("a change without a key");
+                continue;
+            }
+            if (normalized.containsKey(key)) {
+                problems.add(key + " is listed twice");
+                continue;
+            }
+            java.util.Optional<SettingDefinition> definition = SettingsRegistry.find(key);
+            if (definition.isEmpty()) {
+                problems.add(key + " is not a setting");
+            } else if (!definition.get().editable()) {
+                problems.add(key + " is read-only: change it in the server settings and restart");
+            } else {
+                try {
+                    normalized.put(key, validate(definition.get(), c.value()));
+                } catch (ValidationException e) {
+                    problems.add(e.getMessage());
+                }
+            }
+        }
+        if (!problems.isEmpty()) {
+            throw new ValidationException("Nothing was saved: " + String.join("; ", problems));
+        }
+        return normalized.entrySet().stream().map(e -> set(e.getKey(), e.getValue(), actorId)).toList();
     }
 
     @Transactional

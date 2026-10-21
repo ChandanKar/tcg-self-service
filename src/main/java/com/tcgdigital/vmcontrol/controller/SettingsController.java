@@ -43,6 +43,9 @@ public class SettingsController {
 
     public record UpdateSettingRequest(String value) {}
 
+    /** A section's changes, saved together (U14-T06). */
+    public record UpdateSettingsRequest(List<SettingsService.Change> changes) {}
+
     private final SettingsService settingsService;
     private final UserService userService;
     private final com.tcgdigital.vmcontrol.repository.UserRepository userRepository;
@@ -58,6 +61,16 @@ public class SettingsController {
     @PreAuthorize("hasRole('ADMIN')")
     public List<SettingDTO> list() {
         List<SettingsService.SettingView> views = settingsService.list();
+        java.util.Map<String, String> names = names(views);
+        return views.stream().map(v -> SettingDTO.from(v, names)).toList();
+    }
+
+    /** Saves several settings at once: all of them, or none with every problem named (U14-T06). */
+    @PutMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<SettingDTO> updateAll(@RequestBody UpdateSettingsRequest request) {
+        List<SettingsService.SettingView> views = settingsService.updateAll(request == null ? null : request.changes(),
+                userService.getCurrentUserId());
         java.util.Map<String, String> names = names(views);
         return views.stream().map(v -> SettingDTO.from(v, names)).toList();
     }
