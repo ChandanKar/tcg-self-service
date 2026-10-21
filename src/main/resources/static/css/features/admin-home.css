@@ -1,0 +1,329 @@
+/*
+ * Administrator's Home (U14-T01, AdminDashboard.dc.html): Needs attention tiles (three a row at
+ * 1440), Fleet right now and Spend this month side by side, and one platform-health line.
+ */
+
+.admin-home .mono {
+    font-family: var(--font-mono);
+    color: var(--ink);
+}
+
+.ah-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+}
+
+.ah-card h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.ah-note {
+    margin: 0;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.ah-pad {
+    padding: 16px 20px;
+}
+
+/* Needs attention */
+.ah-attention {
+    overflow: hidden;
+}
+
+.ah-attention > h2 {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.ah-tile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    margin: 0 -1px -1px 0;
+}
+
+.ah-tile {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 20px;
+    border-right: 1px solid var(--line-soft);
+    border-bottom: 1px solid var(--line-soft);
+    color: var(--ink);
+    text-decoration: none;
+}
+
+.ah-tile:hover {
+    background: var(--surface-subtle);
+}
+
+.ah-tile:hover .ah-tile-title {
+    text-decoration: underline;
+}
+
+.ah-tile svg {
+    color: var(--slate-light);
+    flex-shrink: 0;
+}
+
+.ah-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 34px;
+    height: 34px;
+    padding: 0 6px;
+    border-radius: 9px;
+    font-family: var(--font-mono);
+    font-size: 15px;
+    font-weight: 500;
+}
+
+.ah-badge-navy {
+    background: var(--brand-navy-tint);
+    color: var(--brand-navy);
+}
+
+.ah-badge-gold {
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
+}
+
+.ah-badge-red {
+    background: var(--brand-red-tint);
+    color: var(--brand-red-text);
+}
+
+.ah-tile-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.ah-tile-title {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.ah-tile-detail {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+/* Fleet right now, Spend this month */
+.ah-pair {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 16px;
+}
+
+.ah-fleet,
+.ah-spend {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 18px 20px;
+    min-width: 0;
+}
+
+.ah-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.ah-card-head a {
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.ah-fleet-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 9px 0;
+    border-top: 1px solid var(--line-soft);
+    color: var(--ink);
+    text-decoration: none;
+}
+
+.ah-fleet-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 14px;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ah-fleet-row:hover .ah-fleet-name {
+    text-decoration: underline;
+}
+
+#ah-spend-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.ah-spend-chart {
+    width: 100%;
+    height: 130px;
+}
+
+.ah-spend-chart line,
+.ah-spend-chart polyline {
+    fill: none;
+}
+
+.ah-spend-chart .ah-axis {
+    stroke: var(--line);
+}
+
+.ah-spend-chart .ah-plan {
+    stroke: var(--line-strong);
+    stroke-dasharray: 4 4;
+}
+
+.ah-spend-chart .ah-spent {
+    stroke: var(--brand-navy);
+    stroke-width: 2.5;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+}
+
+.ah-spend-chart .ah-forecast {
+    stroke: var(--brand-gold);
+    stroke-width: 2;
+    stroke-dasharray: 3 4;
+    vector-effect: non-scaling-stroke;
+}
+
+.ah-spend-chart .ah-today {
+    fill: var(--brand-navy);
+}
+
+.ah-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.ah-key {
+    display: inline-block;
+    width: 14px;
+    height: 3px;
+    vertical-align: middle;
+}
+
+.ah-key-spent {
+    background: var(--brand-navy);
+}
+
+.ah-key-forecast {
+    background: var(--brand-gold);
+}
+
+.ah-key-plan {
+    height: 0;
+    border-top: 2px dashed var(--line-strong);
+}
+
+.ah-top {
+    display: flex;
+    flex-direction: column;
+    font-size: 14px;
+}
+
+.ah-top-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 0;
+    border-top: 1px solid var(--line-soft);
+    color: var(--ink);
+    text-decoration: none;
+}
+
+.ah-top-row:hover span:first-child {
+    text-decoration: underline;
+}
+
+/* Platform health */
+.ah-health {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    color: var(--ink);
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.ah-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--brand-green);
+}
+
+.ah-health-warn .ah-dot {
+    background: var(--brand-gold);
+}
+
+.ah-health-bad .ah-dot {
+    background: var(--brand-red);
+}
+
+.ah-health-text {
+    flex: 1;
+}
+
+.ah-health-text b {
+    font-weight: 500;
+}
+
+.ah-health-warn .ah-health-text b {
+    color: var(--brand-gold-text);
+}
+
+.ah-health-bad .ah-health-text b {
+    color: var(--brand-red-text);
+}
+
+.ah-health-text span {
+    color: var(--text-secondary);
+}
+
+.ah-health .ah-health-link {
+    color: var(--brand-navy);
+}
+
+.ah-health:hover .ah-health-link {
+    text-decoration: underline;
+}
+
+@media (max-width: 575.98px) {
+    .ah-pair {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ah-tile-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

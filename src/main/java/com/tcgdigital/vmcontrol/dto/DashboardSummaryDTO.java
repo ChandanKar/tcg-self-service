@@ -35,7 +35,7 @@ public record DashboardSummaryDTO(
             Integer driftedVms,
             Integer lockedEnvironments,
             Integer pendingAccessRequests,
-            /** Month to date across the viewer's environments ("$X this month"); null for administrators. */
+            /** Month to date across the viewer's environments ("$X this month"); for administrators across all (U14-T01). */
             BigDecimal monthToDateCost
     ) {}
 
@@ -73,7 +73,7 @@ public record DashboardSummaryDTO(
             BigDecimal avgCpuUtilization,
             Integer allocatedStorageGib,
             Boolean locked,
-            // Home (U06-T01); null for administrators until U14 replaces their dashboard
+            // Home (U06-T01); administrators get it too (U14-T01, the two largest environments this month)
             BigDecimal monthToDateCost,
             /** ADMIN, USER or VIEWER; null for a group-only grant. */
             String myAccess,

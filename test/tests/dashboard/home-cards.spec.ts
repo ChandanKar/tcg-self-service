@@ -231,12 +231,12 @@ test.describe('Home', () => {
     await expect(page.getByRole('region', { name: 'Needs you' })).toHaveCount(0);
   });
 
-  test('an administrator still gets the fleet dashboard', async ({ page }) => {
+  test('an administrator gets their own Home, not the environment cards (U14-T01)', async ({ page }) => {
     test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
     await signIn(page, 'admin');
     await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
-    await expect(page.locator('#content-area .content-header h1').first()).toHaveText('Dashboard', { timeout: 15_000 });
-    await expect(page.locator('.dashboard-kpi-grid')).toBeVisible();
+    await expect(page.locator('#content-area .content-header h1').first()).toHaveText('Home', { timeout: 15_000 });
+    await expect(page.locator('.admin-home #ah-att-title')).toHaveText('Needs attention');
     await expect(page.locator('.home-card')).toHaveCount(0);
   });
 

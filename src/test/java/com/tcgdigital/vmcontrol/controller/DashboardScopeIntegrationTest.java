@@ -131,13 +131,18 @@ class DashboardScopeIntegrationTest extends SecuredWebTestBase {
 
     @Test
     void theAdminSummaryKeepsItsFieldsAndHasNothingForHome() throws Exception {
+        Environment env = newEnvironment("Admin home");
+        newVm(newGroup(env, "app"), "app-1", VmStatus.RUNNING);
         mockMvc.perform(get("/api/v1/dashboard/summary").with(asAdmin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.persona").value("ADMIN"))
                 .andExpect(jsonPath("$.schedulerHealth").isArray())
                 .andExpect(jsonPath("$.riskCompliance").isArray())
                 .andExpect(jsonPath("$.summary.pendingAccessRequests").isNumber())
-                .andExpect(jsonPath("$.needsYou").isEmpty());
+                .andExpect(jsonPath("$.needsYou").isEmpty())
+                // U14-T01: Home's spend line and fleet strips
+                .andExpect(jsonPath("$.summary.monthToDateCost").isNumber())
+                .andExpect(jsonPath(card(env, "groupStates[0].running")).value(org.hamcrest.Matchers.contains(1)));
     }
 
     @Test

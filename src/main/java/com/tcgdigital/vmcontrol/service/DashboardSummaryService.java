@@ -141,7 +141,7 @@ public class DashboardSummaryService {
                 .filter(environmentIds::contains)
                 .collect(Collectors.toSet());
 
-        HomeExtras home = "ADMIN".equals(persona) ? HomeExtras.NONE : homeExtras(user, environments, visibleGroupIds);
+        HomeExtras home = "ADMIN".equals(persona) ? adminExtras(user, environments) : homeExtras(user, environments, visibleGroupIds);
 
         int pendingAccessRequests = "ADMIN".equals(persona)
                 ? Math.toIntExact(accessRequestRepository.countByStatus(AccessRequestStatus.PENDING))
@@ -223,6 +223,26 @@ public class DashboardSummaryService {
                       BigDecimal monthToDateCost,
                       List<DashboardSummaryDTO.NeedsYouDTO> needsYou) {
         static final HomeExtras NONE = new HomeExtras(Map.of(), Map.of(), Map.of(), Map.of(), null, List.of());
+    }
+
+    /**
+     * Admin Home (U14-T01): month to date in total and per environment ("$6,284 this month", the two
+     * largest environments) and every environment's power strip ("Fleet right now"). No locks,
+     * leases or "Needs you": the administrator's Home lists what needs attention instead.
+     */
+    private HomeExtras adminExtras(com.tcgdigital.vmcontrol.model.User user, List<Environment> environments) {
+        List<String> ids = environments.stream().map(Environment::getEnvironmentId).toList();
+        if (ids.isEmpty()) {
+            return new HomeExtras(Map.of(), Map.of(), Map.of(), Map.of(), BigDecimal.ZERO, List.of());
+        }
+        Map<String, com.tcgdigital.vmcontrol.dto.MyEnvironmentCostDTO> cost = environmentCostService == null
+                ? Map.of() : environmentCostService.getCostRowsFor(user, environments);
+        BigDecimal monthToDate = cost.values().stream()
+                .map(com.tcgdigital.vmcontrol.dto.MyEnvironmentCostDTO::monthToDateEstimated)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return new HomeExtras(cost, Map.of(), Map.of(), environmentService.getGroupStateCounts(ids, Map.of()),
+                money(monthToDate), List.of());
     }
 
     private HomeExtras homeExtras(com.tcgdigital.vmcontrol.model.User user, List<Environment> environments,

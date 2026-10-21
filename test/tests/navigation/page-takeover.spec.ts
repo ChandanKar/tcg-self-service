@@ -182,7 +182,7 @@ test.describe('Logs and Access Requests lifecycle', () => {
       await signIn(page, 'admin');
       await ready(page);
       await goTo(page, 'dashboard');
-      await expect(header(page)).toHaveText('Dashboard');
+      await expect(header(page)).toHaveText('Home');
 
       await delayRoute(page, '**/api/v1/audit/**', 3_000);
       await goTo(page, route);
@@ -191,7 +191,7 @@ test.describe('Logs and Access Requests lifecycle', () => {
       await page.waitForTimeout(3_500);
 
       await expect(page).toHaveURL(/#\/dashboard$/);
-      await expect(header(page)).toHaveText('Dashboard');
+      await expect(header(page)).toHaveText('Home');
     });
   }
 
@@ -199,7 +199,7 @@ test.describe('Logs and Access Requests lifecycle', () => {
     await signIn(page, 'admin');
     await ready(page);
     await goTo(page, 'dashboard');
-    await expect(header(page)).toHaveText('Dashboard');
+    await expect(header(page)).toHaveText('Home');
 
     await delayRoute(page, '**/api/v1/access-requests/**', 3_000);
     await goTo(page, 'request-access');
@@ -207,7 +207,7 @@ test.describe('Logs and Access Requests lifecycle', () => {
     await goTo(page, 'dashboard');
     await page.waitForTimeout(3_500);
 
-    await expect(header(page)).toHaveText('Dashboard');
+    await expect(header(page)).toHaveText('Home');
   });
 
   test("leaving Request Access removes its handlers, so a later [data-action=cancel] is not Access Requests'", async ({ page }) => {
@@ -216,9 +216,9 @@ test.describe('Logs and Access Requests lifecycle', () => {
     await goTo(page, 'request-access');
     await expect(header(page)).toContainText('Request access', { timeout: 10_000 });
     await goTo(page, 'dashboard');
-    await expect(header(page)).toHaveText('Dashboard');
-    // The loading header also reads "Dashboard": wait for the rendered page before injecting into it.
-    await expect(page.locator('.dashboard-persona')).toBeVisible({ timeout: 15_000 });
+    await expect(header(page)).toHaveText('Home');
+    // The loading header also reads "Home": wait for the rendered page before injecting into it.
+    await expect(page.locator('.admin-home')).toBeVisible({ timeout: 15_000 });
     await page.waitForLoadState('networkidle');
 
     const leftover = await page.evaluate(() => {
@@ -256,7 +256,7 @@ test.describe('Late responses never take over (all routes)', () => {
       await signIn(page, 'admin');
       await ready(page);
       await goTo(page, 'dashboard');
-      await expect(header(page)).toHaveText('Dashboard');
+      await expect(header(page)).toHaveText('Home');
 
       // Slow every API call; the dashboard summary (registered later, so it wins) stays fast.
       await delayRoute(page, '**/api/v1/**', 3_000);
@@ -265,11 +265,11 @@ test.describe('Late responses never take over (all routes)', () => {
       await goTo(page, route);
       await page.waitForTimeout(300);
       await goTo(page, 'dashboard');
-      await expect(header(page)).toHaveText('Dashboard', { timeout: 10_000 });
+      await expect(header(page)).toHaveText('Home', { timeout: 10_000 });
       await page.waitForTimeout(3_500);
 
       await expect(page).toHaveURL(/#\/dashboard$/);
-      await expect(header(page)).toHaveText('Dashboard');
+      await expect(header(page)).toHaveText('Home');
     });
   }
 
@@ -286,7 +286,7 @@ test.describe('Late responses never take over (all routes)', () => {
     await page.waitForTimeout(3_800);
 
     await expect(page).toHaveURL(/#\/dashboard$/);
-    await expect(header(page)).toHaveText('Dashboard');
+    await expect(header(page)).toHaveText('Home');
   });
 
   test("leaving User Management removes its row handlers, so a later [data-action=deactivate] is not its", async ({ page }) => {
@@ -295,7 +295,7 @@ test.describe('Late responses never take over (all routes)', () => {
     await goTo(page, 'user-management');
     await expect(header(page)).toContainText('Users', { timeout: 10_000 }); // U13-T03: the page is called Users
     await goTo(page, 'dashboard');
-    await expect(header(page)).toHaveText('Dashboard');
+    await expect(header(page)).toHaveText('Home');
     // The dashboard fills #content-area once its data arrives; with many environments that comes after
     // the header, so add the stray link only when the page has settled or the render removes it.
     await page.waitForLoadState('networkidle');
@@ -325,7 +325,7 @@ test.describe('Cost Management lifecycle', () => {
     await signIn(page, 'admin');
     await ready(page);
     await goTo(page, 'dashboard');
-    await expect(header(page)).toHaveText('Dashboard');
+    await expect(header(page)).toHaveText('Home');
 
     await delayRoute(page, '**/api/v1/cost-management/**', 3_000);
     await goTo(page, 'cost-management');
@@ -334,7 +334,7 @@ test.describe('Cost Management lifecycle', () => {
     await page.waitForTimeout(4_000);
 
     await expect(page).toHaveURL(/#\/dashboard$/);
-    await expect(header(page)).toHaveText('Dashboard');
+    await expect(header(page)).toHaveText('Home');
   });
 
   test('leaving Cost Management removes its resize handler and apply-button binding', async ({ page }) => {
@@ -345,7 +345,7 @@ test.describe('Cost Management lifecycle', () => {
     await page.waitForTimeout(1_500);
 
     await goTo(page, 'dashboard');
-    await expect(header(page)).toHaveText('Dashboard');
+    await expect(header(page)).toHaveText('Home');
 
     expect(await resizeHandlers(page, 'costManagementCharts')).toBe(0);
     const applyHandlers = await page.evaluate(() => {

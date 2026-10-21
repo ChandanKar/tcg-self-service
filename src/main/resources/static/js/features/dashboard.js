@@ -2,15 +2,15 @@
  * VM Self-Service Platform - Dashboard Feature
  * Role-aware dashboard backed by /api/v1/dashboard/summary. Everyone but administrators gets Home
  * (U06-T02, Dashboard.dc.html): a one-line summary, "Needs you" tiles and up to four environment
- * cards with power strips, refreshed quietly every 30 s. Administrators keep the fleet dashboard
- * until U14 replaces it.
+ * cards with power strips. Administrators get their own Home (U14-T01, admin-home.js): needs
+ * attention, fleet right now, spend this month and platform health. Both refresh quietly every 30 s.
+ * The chart option builders below stay for System health's Fleet use tab (U14-T09).
  */
 const Dashboard = (function() {
     'use strict';
 
     let dashboardData = null;
     let isLoading = false;
-    let autoRefreshEnabled = false;
     let chartRegistry = new Map();
     let lastRenderSignature = null;
 
@@ -26,9 +26,7 @@ const Dashboard = (function() {
             if (!ContentRouter.isCurrent(t)) return;
             dashboardData = data;
             renderDashboard(dashboardData);
-            if (autoRefreshEnabled || !isAdmin(data)) {
-                startAutoRefresh();
-            }
+            startAutoRefresh();
         } catch (error) {
             if (!ContentRouter.isCurrent(t)) return;
             console.error('Failed to load dashboard:', error);
@@ -72,7 +70,7 @@ const Dashboard = (function() {
         disposeCharts();
         $('#content-area').html(buildDashboardHtml(data));
         bindEvents();
-        if (!isAdmin(data)) loadRecentActivity();
+        if (isAdmin(data)) AdminHome.fill(data); else loadRecentActivity();
         initCharts(data);
         initTooltips();
         $(window).off('resize.dashboardCharts').on('resize.dashboardCharts', resizeCharts);
@@ -83,7 +81,7 @@ const Dashboard = (function() {
         RealTime.stopPolling('dashboard');
         disposeTooltips();
         disposeCharts();
-        $('#content-area').off('.dashboardJump .dashboardAutoRefresh');
+        $('#content-area').off('.dashboardJump');
         $(window).off('resize.dashboardCharts');
         isLoading = false;
     }
@@ -126,9 +124,9 @@ const Dashboard = (function() {
         `);
     }
 
-    /** Administrators see the Dashboard; everyone else Home (U06-T02). */
+    /** Everyone lands on Home (U06-T02, U14-T01). */
     function pageTitle() {
-        return typeof Auth !== 'undefined' && Auth.isAdmin() ? 'Dashboard' : 'Home';
+        return 'Home';
     }
 
     function isAdmin(data) {
@@ -136,71 +134,7 @@ const Dashboard = (function() {
     }
 
     function buildDashboardHtml(data) {
-        if (!isAdmin(data)) return buildHomeHtml(data);
-        const admin = true;
-        const subtitle = admin ? 'Global AWS fleet overview' : 'Overview of your environments and VMs';
-        return `
-            <div class="content-view dashboard-persona ${admin ? 'dashboard-admin' : 'dashboard-user'}" id="dashboard-view">
-                <div class="content-header d-flex justify-content-between align-items-start flex-shrink-0">
-                    <div>
-                        <h1>Dashboard</h1>
-                        <p>${subtitle}</p>
-                    </div>
-                    <div class="dashboard-header-actions">
-                        <button class="btn btn-ghost btn-sm" data-action="dashboard-refresh" title="Reload now">
-                            <i class="fas fa-sync" aria-hidden="true"></i> Refresh
-                        </button>
-                        <button class="btn btn-ghost btn-sm ${autoRefreshEnabled ? 'active' : ''}"
-                                id="dashboard-auto-refresh-toggle"
-                                type="button"
-                                aria-pressed="${autoRefreshEnabled}"
-                                title="Reload every 30 seconds">
-                            ${autoRefreshLabel()}
-                        </button>
-                    </div>
-                </div>
-
-                <div class="dashboard-body" tabindex="0" role="region" aria-label="Dashboard">
-                    ${buildMetricStrip(data)}
-                    ${buildAdminDashboard(data)}
-                </div>
-            </div>
-        `;
-    }
-
-    function autoRefreshLabel() {
-        return `<i class="fas ${autoRefreshEnabled ? 'fa-pause' : 'fa-play'}" aria-hidden="true"></i> ${autoRefreshEnabled ? 'Auto On' : 'Auto Off'}`;
-    }
-
-    function buildMetricStrip(data) {
-        const summary = data.summary || {};
-        const storage = data.storage || {};
-        const coverage = data.coverage || {};
-        // Administrators only; Home has no tiles (U06-T02).
-        return `
-            <div class="dashboard-kpi-grid">
-                ${buildKpi('Environments', summary.environments, 'fa-layer-group', 'Environments you can see')}
-                ${buildKpi('Total VMs', summary.totalVms, 'fa-server', 'Registered VMs in those environments')}
-                ${buildKpi('Running', summary.runningVms, 'fa-play-circle', `${percent(summary.runningVms, summary.totalVms)}% of your VMs`)}
-                ${buildKpi('Idle', summary.idleVms, 'fa-moon', 'Running VMs that have been barely used')}
-                ${buildKpi('Storage', formatGiB(storage.totalAllocatedStorageGib), 'fa-hard-drive', 'Allocated EBS storage')}
-                ${buildKpi('Coverage', `${coverage.metricsPercent || 0}%`, 'fa-signal', 'Share of VMs with recent metric samples')}
-            </div>
-        `;
-    }
-
-    function buildKpi(label, value, icon, title, targetId) {
-        return `
-            <div class="dashboard-kpi ${targetId ? 'dashboard-kpi-action' : ''}"
-                 ${targetId ? `data-dashboard-jump="${Utils.escapeHtml(targetId)}"` : ''}
-                 data-bs-toggle="tooltip" data-bs-placement="bottom" title="${Utils.escapeHtml(title || label)}">
-                <i class="fas ${icon}"></i>
-                <div>
-                    <strong>${value ?? 0}</strong>
-                    <span>${Utils.escapeHtml(label)}</span>
-                </div>
-            </div>
-        `;
+        return isAdmin(data) ? AdminHome.html(data) : buildHomeHtml(data);
     }
 
     // ---------------------------------------------------------------- Home (U06-T02)
@@ -378,49 +312,6 @@ const Dashboard = (function() {
         `;
     }
 
-    function buildAdminDashboard(data) {
-        return `
-            <div class="dashboard-layout dashboard-layout-admin">
-                <section class="dashboard-chart-panel dashboard-full">
-                    <div class="dashboard-panel-head">
-                        <h2>Global Utilization</h2>
-                        <small>Last 24h</small>
-                    </div>
-                    <div class="dashboard-trio-grid">
-                        <div class="dashboard-trio-item">
-                            <h3>CPU</h3>
-                            <div id="dash-util-cpu" class="dashboard-chart"></div>
-                        </div>
-                        <div class="dashboard-trio-item">
-                            <h3>Memory</h3>
-                            <div id="dash-util-memory" class="dashboard-chart"></div>
-                        </div>
-                        <div class="dashboard-trio-item">
-                            <h3>Network</h3>
-                            <div id="dash-util-network" class="dashboard-chart"></div>
-                        </div>
-                    </div>
-                </section>
-                <section class="dashboard-chart-panel dashboard-wide">
-                    <div class="dashboard-panel-head">
-                        <h2>Fleet State</h2>
-                        <small>${data.summary?.totalVms || 0} VMs</small>
-                    </div>
-                    <div id="dash-vm-state" class="dashboard-chart"></div>
-                </section>
-                <section class="dashboard-chart-panel dashboard-wide">
-                    <div class="dashboard-panel-head">
-                        <h2>Cloud Coverage</h2>
-                        <small>collection health</small>
-                    </div>
-                    <div id="dash-coverage" class="dashboard-chart"></div>
-                </section>
-                ${buildSchedulerHealthPanel(data.schedulerHealth || [], true)}
-                ${buildRiskCompliancePanel(data.riskCompliance || [])}
-            </div>
-        `;
-    }
-
     function buildSchedulerHealthPanel(rows, prominent = false) {
         const visibleRows = prominent ? rows : rows.slice(0, 4);
         // Every job, its own schedule and (admins only) the instance holding its lock (E12-T05).
@@ -525,12 +416,6 @@ const Dashboard = (function() {
                 target.classList.add('dashboard-panel-highlight');
                 setTimeout(() => target.classList.remove('dashboard-panel-highlight'), 1100);
             });
-
-        $('#content-area').off('click.dashboardAutoRefresh', '#dashboard-auto-refresh-toggle')
-            .on('click.dashboardAutoRefresh', '#dashboard-auto-refresh-toggle', function() {
-                setAutoRefresh(!autoRefreshEnabled);
-            });
-
     }
 
     function initCharts(data) {
@@ -814,29 +699,9 @@ const Dashboard = (function() {
         ContentRouter.navigate('dashboard');
     }
 
-    function setAutoRefresh(enabled) {
-        autoRefreshEnabled = enabled;
-        if (autoRefreshEnabled) {
-            startAutoRefresh();
-        } else {
-            RealTime.stopPolling('dashboard');
-        }
-        updateAutoRefreshButton();
-    }
-
     function startAutoRefresh() {
         // Page scoped: stops when the user leaves the dashboard.
         RealTime.startPolling('dashboard', silentRefresh, 30000, { immediate: false, pageScoped: true });
-    }
-
-    function updateAutoRefreshButton() {
-        const $button = $('#dashboard-auto-refresh-toggle');
-        if (!$button.length) return;
-        $button.toggleClass('active', autoRefreshEnabled)
-            .attr('aria-pressed', String(autoRefreshEnabled))
-            .html(`
-                ${autoRefreshLabel()}
-            `);
     }
 
     function getData() {
