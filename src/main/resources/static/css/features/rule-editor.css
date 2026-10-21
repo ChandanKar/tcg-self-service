@@ -1,0 +1,277 @@
+/**
+ * Schedule editor (U12-T03, RuleEditor.dc.html): one card with the fields, "This week" on a week
+ * strip, and Suggest / Cancel / Save schedule in the footer.
+ */
+
+.re-page {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.re-page .content-header {
+    margin-bottom: 0;
+}
+
+.re-card {
+    max-width: 760px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.re-body {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 20px 24px;
+}
+
+.re-grid {
+    display: grid;
+    gap: 14px;
+}
+
+.re-grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.re-grid-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.re-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    min-width: 0;
+    font-size: var(--fs-body);
+    font-weight: 500;
+    color: var(--ink);
+}
+
+.re-field > label {
+    margin: 0;
+}
+
+.re-field .form-control,
+.re-field .form-select {
+    height: 40px;
+    font-weight: 400;
+}
+
+.re-time {
+    font-family: var(--font-mono);
+}
+
+.re-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 2px 0 0;
+    font-size: var(--fs-small);
+    font-weight: 400;
+    color: var(--text-secondary);
+}
+
+.re-check input {
+    accent-color: var(--brand-navy);
+}
+
+.re-days {
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.re-legend {
+    float: none;
+    width: auto;
+    margin: 0 0 8px;
+    padding: 0;
+    font-size: var(--fs-body);
+    font-weight: 500;
+    color: var(--ink);
+}
+
+.re-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.re-pills .ar-day-pill {
+    width: 52px;
+    height: 36px;
+    border-radius: 8px;
+    font-size: var(--fs-small);
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.re-pills .ar-day-pill.on {
+    color: #fff;
+}
+
+#re-times {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.re-hint,
+.re-note {
+    margin: 0;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.re-small {
+    margin: 0;
+    font-size: var(--fs-small);
+}
+
+.re-link {
+    align-self: flex-start;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--fs-body);
+    color: var(--brand-navy);
+    cursor: pointer;
+}
+
+.re-link:hover {
+    text-decoration: underline;
+}
+
+.re-link:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: 2px;
+}
+
+.re-advanced-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    margin-top: 10px;
+}
+
+.re-error {
+    font-size: var(--fs-small);
+    font-weight: 400;
+    color: var(--brand-red-text);
+}
+
+.re-error[hidden] {
+    display: none;
+}
+
+.re-week {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 16px;
+    background: var(--surface-subtle);
+    border-radius: 10px;
+}
+
+.re-week-title {
+    margin: 0 0 2px;
+    font-size: var(--fs-small);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.re-week .week-track {
+    height: 12px;
+    border-radius: 3px;
+    background: var(--surface-muted);
+}
+
+.re-hours {
+    font-size: var(--fs-small);
+    color: var(--text-primary);
+}
+
+.re-preview-error {
+    color: var(--brand-red-text);
+}
+
+.re-overrides {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.re-override-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--fs-small);
+}
+
+.re-override-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.re-suggest-list {
+    margin: 4px 0;
+    padding-left: 18px;
+    font-size: var(--fs-body);
+}
+
+.re-suggest-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.re-page .ar-suggestion {
+    margin: 0;
+}
+
+.re-foot {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 24px;
+    background: var(--surface-subtle);
+    border-top: 1px solid var(--line);
+}
+
+.re-foot-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.ar-list-head {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 10px;
+}
+
+@media (max-width: 575.98px) {
+    .re-grid-2,
+    .re-grid-3 {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .re-body,
+    .re-foot {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+}

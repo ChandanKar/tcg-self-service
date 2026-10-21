@@ -62,25 +62,24 @@ test.describe('Holiday calendars', () => {
     await createCalendar(page, calendar);
     await page.getByRole('tab', { name: 'Schedules' }).click();
 
-    const shown = page.evaluate(() => new Promise(resolve =>
-      document.addEventListener('shown.bs.modal', () => resolve(true), { once: true })));
+    // U12-T03: New schedule opens the editor page; On holidays names the calendar in each choice.
     await page.locator('#ar-new-rule-btn').click();
-    await shown;
+    await expect(page.locator('#rule-editor-view #ar-form')).toBeVisible({ timeout: 10_000 });
     const ruleName = `Holiday rule ${Date.now()}`;
     await page.locator('#ar-environment').selectOption(environmentId);
     await page.locator('#ar-name').fill(ruleName);
 
-    await expect(page.locator('#ar-holiday-behavior')).toBeHidden();
-    await page.locator('#ar-holiday-calendar').selectOption({ label: calendar });
-    await expect(page.locator('#ar-holiday-behavior')).toBeVisible();
-    await expect(page.locator('#ar-holiday-skip-start')).toBeChecked();
-    await page.locator('#ar-holiday-skip-all').check();
+    const holidays = page.getByLabel('On holidays');
+    await expect(holidays.locator('option:checked')).toHaveText('Run as usual');
+    await expect(holidays.locator('option', { hasText: `Don't start on ${calendar} holidays` })).toHaveCount(1);
+    await holidays.selectOption({ label: `Don't start or stop on ${calendar} holidays` });
 
     const saved = page.waitForResponse(r => r.url().endsWith('/api/v1/automation-rules') && r.request().method() === 'POST');
     await page.locator('#ar-save-btn').click();
     const response = await saved;
     expect(response.status()).toBe(200);
     expect(response.request().postDataJSON()).toMatchObject({ holidayBehavior: 'SKIP_ALL' });
+    expect(response.request().postDataJSON().holidayCalendarId).toBeTruthy();
     expect((await response.json()).holidayCalendarName).toBe(calendar);
 
     await expect(page.locator('#ar-table-wrapper .ar-rule', { hasText: ruleName })).toContainText(`off on ${calendar} holidays`);

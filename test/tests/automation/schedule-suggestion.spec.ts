@@ -19,12 +19,9 @@ function officeHours(): number[] {
 async function openNewRule(page: Page, environmentId: string) {
   await signIn(page, 'admin');
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
-  await page.evaluate(() => { location.hash = '#/automation-rules'; });
-  await expect(page.locator('#automation-rules-view')).toBeVisible({ timeout: 10_000 });
-  const shown = page.evaluate(() => new Promise(resolve =>
-    document.addEventListener('shown.bs.modal', () => resolve(true), { once: true })));
-  await page.locator('#ar-new-rule-btn').click();
-  await shown;
+  // U12-T03: New schedule opens the schedule editor page.
+  await page.evaluate(() => { location.hash = '#/automation-rules/new'; });
+  await expect(page.locator('#rule-editor-view #ar-form')).toBeVisible({ timeout: 10_000 });
   await page.locator('#ar-environment').selectOption(environmentId);
 }
 
@@ -57,7 +54,8 @@ test.describe('Suggest from usage', () => {
     await page.locator('#ar-suggest-btn').click();
     const panel = page.locator('#ar-suggestion');
     await expect(panel.locator('.ar-heat-cell')).toHaveCount(168);
-    await expect(panel).toContainText('Mon, Tue, Wed, Thu, Fri 08:30–18:30');
+    await expect(panel).toContainText('Based on the last 4 weeks of use, in Asia/Kolkata');
+    await expect(panel).toContainText('Mon–Fri 08:30–18:30');
     await expect(panel).toContainText('about $4.91 a week saved');
     await expect(panel).toContainText('Confidence high');
     expect(requested).toContain(`environmentId=${environmentId}`);
@@ -67,13 +65,13 @@ test.describe('Suggest from usage', () => {
     page.on('request', r => { if (r.method() === 'POST' && /automation-rules$/.test(r.url())) posts++; });
     await page.locator('#ar-use-suggestion').click();
     await expect(panel).toBeHidden();
-    const windows = page.locator('#ar-windows .ar-window');
-    await expect(windows).toHaveCount(1);
-    await expect(windows.first().locator('.ar-start-time')).toHaveValue('08:30');
-    await expect(windows.first().locator('.ar-stop-time')).toHaveValue('18:30');
-    await expect(windows.first().locator('.ar-day-pill[data-day="SAT"]')).toHaveAttribute('aria-pressed', 'false');
-    // The preview follows the new windows; nothing was saved.
-    await expect(page.locator('#ar-preview li').first()).toContainText(/08:30|18:30/);
+    // One set of times: the simple editor holds them.
+    await expect(page.locator('#re-start')).toHaveValue('08:30');
+    await expect(page.locator('#re-stop')).toHaveValue('18:30');
+    await expect(page.locator('#re-days .ar-day-pill[data-day="FRI"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#re-days .ar-day-pill[data-day="SAT"]')).toHaveAttribute('aria-pressed', 'false');
+    // The week follows the new times; nothing was saved.
+    await expect(page.locator('#re-hours')).toContainText('Runs 50 hours a week instead of 168');
     expect(posts).toBe(0);
   });
 

@@ -507,6 +507,8 @@ const HelpContent = (function() {
         'register-vms': 'vm-registry',
         'environment-settings': 'vm-registry',
         'automation-rules': 'automation-rules',
+        'automation-rule-new': 'automation-rules',
+        'automation-rule-edit': 'automation-rules',
         'approval-policies': 'approvals',
         'budgets': 'budgets',
         'audit-logs-all': 'activity-logs',

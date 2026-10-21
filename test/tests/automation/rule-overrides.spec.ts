@@ -64,13 +64,14 @@ test.describe('Rule overrides', () => {
 
     await expect(row.locator('.ar-override-badge')).toHaveText('1 override');
 
+    // U12-T03: Edit opens the schedule editor page with its overrides.
     await row.locator('.ar-edit-btn').click();
     const overrides = page.locator('#ar-overrides');
     await expect(overrides).toContainText('Skip stop');
     await expect(overrides).toContainText('release tonight');
     await overrides.getByRole('button', { name: 'Remove override: release tonight' }).click();
     await expect(overrides).toContainText('None.');
-    await page.locator('#automationRuleModal .btn-close').click();
+    await page.getByRole('link', { name: 'Cancel' }).click();
     await expect(row.locator('.ar-override-badge')).toHaveCount(0);
   });
 });

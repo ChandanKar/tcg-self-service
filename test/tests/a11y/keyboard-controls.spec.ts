@@ -45,15 +45,10 @@ test.describe('Keyboard controls', () => {
     await expect(page.locator('.group-card-toggle')).toHaveCount(0);
   });
 
-  test('day pills toggle with Space; trigger type moves with the arrow keys', async ({ page }) => {
-    await page.evaluate(() => { location.hash = '#/automation-rules'; });
-    await page.waitForLoadState('networkidle');
-    // Bootstrap moves focus into the dialog on 'shown'; wait for it so it cannot steal focus later.
-    const shown = page.evaluate(() => new Promise(resolve =>
-      document.addEventListener('shown.bs.modal', () => resolve(true), { once: true })));
-    await page.locator('#ar-new-rule-btn').click();
-    await shown;
-    await expect(page.locator('#automationRuleModal')).toBeVisible();
+  test('day pills toggle with Space; the advanced list opens from the keyboard', async ({ page }) => {
+    // U12-T03: the schedule editor is a page.
+    await page.evaluate(() => { location.hash = '#/automation-rules/new'; });
+    await expect(page.locator('#rule-editor-view #ar-form')).toBeVisible({ timeout: 10_000 });
 
     const monday = page.locator('.ar-day-pill[data-day="MON"]');
     const before = await monday.getAttribute('aria-pressed');
@@ -64,15 +59,12 @@ test.describe('Keyboard controls', () => {
     const onDays = await page.locator('.ar-day-pill.on').evaluateAll(els => els.map(e => e.getAttribute('data-day')));
     expect(onDays.includes('MON')).toBe(after === 'true');
 
-    const schedule = page.locator('.ar-choice-card[data-trigger-type="SCHEDULE"]');
-    const grant = page.locator('.ar-choice-card[data-trigger-type="ACCESS_GRANT"]');
-    await expect(page.locator('[role="radiogroup"]')).toHaveCount(1);
-    await expect(schedule).toHaveAttribute('aria-checked', 'true');
-    await schedule.focus();
-    await page.keyboard.press('ArrowRight');
-    await expect(grant).toHaveAttribute('aria-checked', 'true');
-    await expect(grant).toBeFocused();
-    await expect(page.locator('#ar-access-grant-fields')).toBeVisible();
-    await expect(page.locator('#ar-schedule-fields')).toBeHidden();
+    const toggle = page.getByRole('button', { name: 'Advanced: different times per day' });
+    await toggle.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#ar-windows .ar-window')).toHaveCount(1);
+    // Focus stays on the toggle, which now goes back.
+    await expect(page.getByRole('button', { name: 'Same times every day' })).toBeFocused();
+    await expect(page.getByRole('button', { name: 'Same times every day' })).toHaveAttribute('aria-expanded', 'true');
   });
 });

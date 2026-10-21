@@ -34,6 +34,7 @@ const ContentRouter = (function() {
         'vm-registry':        '#/vm-registry',
         'audit-logs-all':     '#/audit-logs-all',
         'automation-rules':   '#/automation-rules',
+        'automation-rule-new': '#/automation-rules/new',
         'cost-management':    '#/cost-management',
         'savings':            '#/savings',
         'budgets':            '#/budgets',
@@ -80,6 +81,13 @@ const ContentRouter = (function() {
             params: m => ({ environmentId: decodeURIComponent(m[1]) })
         },
         {
+            // A schedule's editor (U12-T03); #/automation-rules/new is in ROUTES and matched first.
+            contentType: 'automation-rule-edit',
+            pattern: /^#\/automation-rules\/([^/?]+)$/,
+            build: p => (p && p.ruleId) ? '#/automation-rules/' + encodeURIComponent(p.ruleId) : null,
+            params: m => ({ ruleId: decodeURIComponent(m[1]) })
+        },
+        {
             // A help topic (E29-T07).
             contentType: 'help',
             pattern: /^#\/help\/([a-z0-9-]+)$/,
@@ -120,6 +128,8 @@ const ContentRouter = (function() {
         'environment-settings': { role: 'ENV_ADMIN', label: 'Environment settings' },
         'vm-registry':        { role: 'ENV_ADMIN', label: 'VM registry' },
         'automation-rules':   { role: 'ENV_ADMIN', label: 'Automation rules' },
+        'automation-rule-new': { role: 'ENV_ADMIN', label: 'New schedule' },
+        'automation-rule-edit': { role: 'ENV_ADMIN', label: 'Schedule' },
         'approval-policies':  { role: 'ENV_ADMIN', label: 'Approval policies' },
         'budgets':            { role: 'ENV_ADMIN', label: 'Budgets' },
         'audit-logs-all':     { role: 'ENV_ADMIN', label: 'Audit log' },
@@ -202,6 +212,8 @@ const ContentRouter = (function() {
             'register-vms':       (params) => window.RegisterVmsPage?.load?.(params, query()),
             'environment-settings': (params) => window.EnvSettings?.load?.(params),
             'automation-rules':   () => window.Features?.loadAutomationRules?.(),
+            'automation-rule-new': () => window.RuleEditor?.load?.({}),
+            'automation-rule-edit': (params) => window.RuleEditor?.load?.(params),
             'audit-logs-all':     () => AllLogs.loadAllAuditLogs(),
             'cost-management':    () => window.CostManagement?.load?.(),
             'savings':            () => window.Savings?.load?.(),
