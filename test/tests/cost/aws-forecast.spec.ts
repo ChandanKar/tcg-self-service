@@ -87,4 +87,24 @@ test.describe('AWS cost forecast', () => {
     expect(names).toContain('Platform forecast');
     expect(names).not.toContain('AWS forecast');
   });
+
+  test('three ranges: 14 days, 90 days (the default) and 18 months, one pressed at a time (U15-T02)', async ({ page }) => {
+    await open(page, true);
+    const pressed = page.locator('[data-action="cost-forecast-range"][aria-pressed="true"]');
+    await expect(pressed).toHaveText('90 days');
+    const historyPoints = () => page.evaluate(() => {
+      const opt = echarts.getInstanceByDom(document.getElementById('cost-chart-trend')).getOption();
+      return opt.series.find((x: any) => x.name === 'Estimated Cost').data.filter((v: any) => v !== null).length;
+    });
+    // Acceptance: 90 days shows every daily point of the trend (20 here), pressed.
+    expect(await historyPoints()).toBe(20);
+    await page.getByRole('button', { name: '14 days' }).click();
+    await expect(pressed).toHaveText('14 days');
+    await expect.poll(historyPoints).toBe(14);
+    await page.getByRole('button', { name: '90 days' }).click();
+    await expect(page.getByRole('button', { name: '90 days' })).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(historyPoints).toBe(20);
+    await expect(page.locator('[data-cost-panel="trend"] h2')).toHaveText('Daily spend, 90 days');
+  });
 });
+

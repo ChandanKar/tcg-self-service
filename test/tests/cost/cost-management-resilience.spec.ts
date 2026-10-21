@@ -47,8 +47,8 @@ test.describe('Cost Management resilience', () => {
     const trend = page.locator('[data-cost-panel="trend"]');
     await expect(trend.locator('.cost-panel-error')).toContainText("Couldn't load the spend trend.");
     // Every other panel rendered.
-    await expect(page.locator('[data-cost-panel="kpi"] .dashboard-kpi')).toHaveCount(4);
-    await expect(page.locator('#cost-chart-env')).toBeVisible();
+    await expect(page.locator('[data-cost-panel="kpi"] .cost-kpi')).toHaveCount(5);
+    await expect(page.locator('[data-cost-panel="breakdown"] #cost-by')).toBeVisible();
     await expect(page.locator('#cost-idle-table')).toBeVisible();
     await expect(page.locator('.cost-panel-error')).toHaveCount(1);
     // The panel explains the failure; no global "unexpected error" toast on top.
@@ -87,8 +87,8 @@ test.describe('Cost Management resilience', () => {
 
   test('leaving the page drops its resize handler and disposes its charts', async ({ page }) => {
     await openCostPage(page);
-    await expect(page.locator('#cost-chart-env svg')).toHaveCount(1);
-    const envChart = await page.evaluateHandle(() => document.getElementById('cost-chart-env'));
+    await expect(page.locator('#cost-chart-trend svg')).toHaveCount(1);
+    const envChart = await page.evaluateHandle(() => document.getElementById('cost-chart-trend'));
 
     await page.evaluate(() => { location.hash = '#/home'; });
     await expect(page.locator('#cost-report')).toHaveCount(0);
@@ -113,8 +113,8 @@ test.describe('Cost management tabs and menus', () => {
     page.on('request', r => { if (/\/api\/v1\/(cost-management|cost-anomalies)\//.test(r.url())) asked.push(new URL(r.url()).pathname); });
     await openCostPage(page);
     await page.waitForLoadState('networkidle');
-    // Acceptance: only Overview's keys are asked for, and the toolbar is two menu buttons.
-    expect(asked.some(u => u.endsWith('/rightsizing'))).toBe(false);
+    // Acceptance: only Overview's keys are asked for, and the toolbar is two menu buttons. (Overview
+    // reads rightsizing for its biggest savings since U15-T02.)
     expect(asked.some(u => u.includes('/commitment') || u.includes('/reservations'))).toBe(false);
     expect(asked.some(u => u.startsWith('/api/v1/cost-anomalies'))).toBe(false);
     expect(asked.some(u => u.endsWith('/vm-detail'))).toBe(false);
@@ -124,7 +124,6 @@ test.describe('Cost management tabs and menus', () => {
     await page.getByRole('tab', { name: 'Rightsizing' }).click();
     await expect(page).toHaveURL(/#\/cost-management\?tab=rightsizing$/);
     await expect(page.locator('#cost-rightsizing-table')).toBeVisible({ timeout: 10_000 });
-    expect(asked.some(u => u.endsWith('/rightsizing'))).toBe(true);
 
     // Acceptance: a tab opened directly is selected and loads.
     await page.evaluate(() => { location.hash = '#/cost-management?tab=commitments'; });

@@ -238,3 +238,193 @@
 /* Apply dialog checks and progress (E30-T07) */
 .rs-checks .rs-check { display: flex; gap: 6px; align-items: baseline; padding: 2px 0; }
 .rs-checks .rs-check strong { white-space: nowrap; }
+
+/* ================================================
+   Overview (U15-T02, CostOverview.dc.html): five figures, daily spend next to spend by environment
+   (or team, account, type) as bars, and the biggest savings to act on.
+   ================================================ */
+.cost-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 14px;
+    margin-bottom: 14px;
+}
+
+.cost-kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 16px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    min-width: 0;
+}
+
+.cost-kpi-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.cost-kpi-value {
+    font-family: var(--font-mono);
+    font-size: 24px;
+    font-weight: 500;
+    color: var(--ink);
+}
+
+.cost-kpi-note {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+}
+
+.cost-pair {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    gap: 14px;
+    align-items: stretch;
+    margin-bottom: 14px;
+}
+
+.cost-pair > .cost-panel-slot > section {
+    height: 100%;
+    margin-bottom: 0;
+}
+
+.cost-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px 18px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    min-width: 0;
+}
+
+.cost-card-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.cost-card-head h2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.cost-card-head h2 select {
+    width: auto;
+}
+
+.cost-card-head small,
+.cost-card-head a {
+    font-size: 13px;
+}
+
+.cost-card-head small {
+    color: var(--text-secondary);
+}
+
+.cost-mono {
+    font-family: var(--font-mono);
+}
+
+.cost-strong {
+    font-weight: 500;
+}
+
+/* Bars */
+.cost-bar-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(60px, 120px) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 0;
+    border-top: 1px solid var(--line-soft);
+    font-size: 14px;
+}
+
+.cost-bar-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cost-bar {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--surface-muted);
+}
+
+.cost-bar span {
+    display: block;
+    height: 100%;
+    border-radius: 4px;
+    background: var(--brand-navy);
+}
+
+.cost-bar-other .cost-bar span {
+    background: var(--slate-light);
+}
+
+.cost-bar-other .cost-bar-name {
+    color: var(--text-secondary);
+}
+
+/* Biggest savings */
+.cost-savings {
+    margin-bottom: 14px;
+}
+
+.cost-scroll {
+    overflow-x: auto;
+}
+
+.cost-savings-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.cost-savings-table th {
+    padding: 8px 12px 8px 0;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-align: left;
+}
+
+.cost-savings-table td {
+    padding: 9px 12px 9px 0;
+    border-top: 1px solid var(--line-soft);
+}
+
+.cost-savings-table .cost-num {
+    text-align: right;
+}
+
+@media (max-width: 1199.98px) {
+    .cost-pair {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* The trend panel keeps its dashboard-wide class; inside the pair it takes one column. */
+.cost-pair .dashboard-wide {
+    grid-column: auto;
+}
+
+@media (max-width: 575.98px) {
+    .cost-kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+}

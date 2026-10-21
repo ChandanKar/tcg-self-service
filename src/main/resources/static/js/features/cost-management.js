@@ -7,6 +7,10 @@
  * The toolbar is two menus: Data actions (fill in the last 30 days, write cost tags, fetch AWS
  * billing; each confirms first, switched-off ones hidden) and Export (this page as PDF or PNG, VM
  * cost detail as Excel, the month for finance as a FOCUS CSV).
+ * U15-T02: Overview has five figures (month to date with its share from AWS billing, the month-end
+ * forecast with AWS's, idle waste, rightsizing, priced VMs), daily spend over 14 days / 90 days /
+ * 18 months, spend by environment, team, account or VM type as bars (?by=), and the biggest savings
+ * to act on across rightsizing and idle VMs.
  */
 const CostManagement = (function() {
     'use strict';
@@ -14,7 +18,6 @@ const CostManagement = (function() {
     const PAGE_SIZE = 10;
     const TREND_DAYS = 90;
     const EXPORT_SIZE = 100000;
-    const TOP_N_SLICES = 8;
 
     // Fixed categorical order — never cycled/reassigned per filter. Last color is reserved for
     // the "Other" residual bucket so it always reads as neutral rather than competing for attention.
@@ -25,13 +28,16 @@ const CostManagement = (function() {
 
     /** The tabs, their panels in page order, and the feature a tab needs (U15-T01). */
     const TABS = [
-        { key: 'overview', label: 'Overview', panels: ['kpi', 'env', 'type', 'team', 'account', 'trend', 'workloads', 'idle', 'reconciliation'] },
+        { key: 'overview', label: 'Overview', panels: ['kpi', 'trend', 'breakdown', 'savings', 'workloads', 'idle', 'reconciliation'] },
         { key: 'rightsizing', label: 'Rightsizing', panels: ['rightsizing', 'spot'] },
         { key: 'commitments', label: 'Commitments', panels: ['reservations', 'commitments'] },
         { key: 'carbon', label: 'Carbon', panels: ['carbon'], feature: 'carbon' },
         { key: 'anomalies', label: 'Unusual spend', panels: ['anomalies'] }
     ];
-    const BREAKDOWN = ['env', 'type', 'team', 'account'];
+    /** Panels drawn side by side on a wide screen. */
+    const PAIRS = [['trend', 'breakdown']];
+    const BREAKDOWN_BY = [['environment', 'Environment'], ['team', 'Team'], ['account', 'Account'], ['type', 'VM type']];
+    const BAR_ROWS = 6;
 
     function tabsShown() {
         return TABS.filter(t => !t.feature || (typeof Capabilities !== 'undefined' && Capabilities.has(t.feature)));
@@ -63,7 +69,9 @@ const CostManagement = (function() {
         trend: [],
         forecast: null,
         // E35-T02: '14 days' (the trend with both forecasts) or '18 months' (AWS's monthly forecast)
-        forecastRange: 'short',
+        forecastRange: '90',
+        /** Spend broken down by environment, team, account or type (U15-T02). */
+        breakdownBy: 'environment',
         longRange: null,
         reconciliation: emptyPageState(),
         reconciliationAll: [],
@@ -116,6 +124,7 @@ const CostManagement = (function() {
     function restorePageStateFromHash() {
         const params = ContentRouter.query();
         state.tab = tabOf(params.tab).key;
+        state.breakdownBy = BREAKDOWN_BY.some(([k]) => k === params.by) ? params.by : 'environment';
         state.idle.page = parsePageParam(params.idle);
         state.rightsizing.page = parsePageParam(params.rightsizing);
         state.reconciliation.page = parsePageParam(params.reconciliation);
@@ -129,6 +138,7 @@ const CostManagement = (function() {
     function syncHash() {
         const params = new URLSearchParams();
         if (state.tab !== 'overview') params.set('tab', state.tab);
+        if (state.breakdownBy !== 'environment') params.set('by', state.breakdownBy);
         if (state.idle.page) params.set('idle', state.idle.page);
         if (state.rightsizing.page) params.set('rightsizing', state.rightsizing.page);
         if (state.reconciliation.page) params.set('reconciliation', state.reconciliation.page);
@@ -289,12 +299,11 @@ const CostManagement = (function() {
     }
 
     function tabHtml(tab) {
-        const panels = tab.panels;
-        const breakdown = panels.filter(name => BREAKDOWN.includes(name));
         let html = '';
-        panels.forEach(name => {
-            if (BREAKDOWN.includes(name)) {
-                if (name === breakdown[0]) html += `<div class="cost-breakdown-layout">${breakdown.map(panelSlot).join('')}</div>`;
+        tab.panels.forEach(name => {
+            const pair = PAIRS.find(p => p.includes(name) && p.every(n => tab.panels.includes(n)));
+            if (pair) {
+                if (name === pair[0]) html += `<div class="cost-pair">${pair.map(panelSlot).join('')}</div>`;
                 return;
             }
             html += panelSlot(name);
@@ -428,28 +437,11 @@ const CostManagement = (function() {
 
     const PANELS = {
         kpi: { keys: ['summary'], label: 'the cost summary', build: () => buildKpiStrip(state.summary) },
-        env: {
-            keys: ['spendByEnvironment'], label: 'spend by environment', chartPanel: true,
-            build: () => buildChartPanel('Spend by Environment', `${state.spendByEnvironment.length} environment(s)`, 'cost-chart-env'),
-            charts: () => [['cost-chart-env', buildEnvironmentPieOption(state.spendByEnvironment)]]
+        breakdown: {
+            keys: ['spendByEnvironment', 'spendByVmType', 'spendByAccount', 'teamTrend'], label: 'spend by environment',
+            build: () => buildBreakdown()
         },
-        type: {
-            keys: ['spendByVmType'], label: 'spend by VM type', chartPanel: true,
-            build: () => buildChartPanel('Spend by VM Type', `${state.spendByVmType.length} type(s)`, 'cost-chart-type'),
-            charts: () => [['cost-chart-type', buildVmTypePolarBarOption(state.spendByVmType)]]
-        },
-        account: {
-            // Only when spend spans more than one AWS account (E28-T11).
-            keys: ['spendByAccount'], label: 'spend by account', chartPanel: true,
-            build: () => state.spendByAccount.length > 1
-                ? buildChartPanel('Spend by Account', `${state.spendByAccount.length} AWS account(s)`, 'cost-chart-account') : '',
-            charts: () => state.spendByAccount.length > 1 ? [['cost-chart-account', buildEnvironmentPieOption(state.spendByAccount)]] : []
-        },
-        team: {
-            keys: ['teamTrend'], label: 'spend by team', chartPanel: true,
-            build: () => buildChartPanel('Spend by Team', `Trend, last ${TREND_DAYS} days`, 'cost-chart-team'),
-            charts: () => [['cost-chart-team', buildTeamStackedLineOption(state.teamTrend)]]
-        },
+        savings: { keys: ['rightsizing', 'idle'], label: 'the biggest savings', build: () => buildTopSavings() },
         trend: {
             keys: ['trend', 'forecast'], label: 'the spend trend', chartPanel: true, wide: true,
             build: () => buildTrendChart(),
@@ -707,52 +699,125 @@ const CostManagement = (function() {
 
     // ---- KPI strip ----
 
-    function buildKpiStrip(summary) {
-        if (!summary) return '';
-        const deltaText = summary.monthOverMonthChangePercent === null || summary.monthOverMonthChangePercent === undefined
-            ? 'No prior-period data yet'
-            : `${summary.monthOverMonthChangePercent >= 0 ? '+' : ''}${summary.monthOverMonthChangePercent}% vs prior 30 days`;
-        return `
-            <div class="dashboard-kpi-grid cost-kpi-grid">
-                ${buildKpi('Total Monthly Cost', Utils.formatCurrency(summary.totalMonthlyCost || 0), 'fa-dollar-sign', totalSubtitle(summary, deltaText))}
-                ${buildKpi('Idle Waste', Utils.formatCurrency(summary.idleWasteMonthlyCost || 0), 'fa-moon', `${summary.idleVmCount || 0} idle VM(s)`)}
-                ${buildKpi('Rightsizing Potential', Utils.formatCurrency(summary.rightsizingPotentialSavings || 0), 'fa-compress-arrows-alt', rightsizingSubtitle(summary))}
-                ${buildKpi('Pricing Coverage', `${summary.costKnownVmCount || 0} / ${summary.totalVmCount || 0}`, 'fa-tag', pricingSubtitle(summary))}
-                ${spotKpi(summary)}
-            </div>
-        `;
+    // ---- pure model (node tests: src/test/js/cost-overview.test.mjs) ----
+
+    function dayOf(value) {
+        const t = String(value || '').slice(0, 10);
+        return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : null;
+    }
+
+    function monthPrefix(now) {
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     }
 
     /**
-     * The month-over-month change, plus the EKS control-plane fee the total includes (E26-T03) and
-     * what Spot saved against on demand (E31-T02).
+     * This month so far from the daily trend: each day's AWS billing figure where it exists, else the
+     * estimate; and the share of the days that have a billing figure.
      */
-    function totalSubtitle(summary, deltaText) {
+    function monthToDate(trend, now = new Date()) {
+        const prefix = monthPrefix(now);
+        const days = (trend || []).filter(r => (dayOf(r.date) || '').startsWith(prefix));
+        let value = 0;
+        let billed = 0;
+        days.forEach(r => {
+            const actual = r.actualCost !== null && r.actualCost !== undefined;
+            value += Number(actual ? r.actualCost : r.estimatedCost) || 0;
+            if (actual) billed++;
+        });
+        return { days: days.length, value, billedShare: days.length ? Math.round((billed / days.length) * 100) : 0 };
+    }
+
+    /**
+     * The month-end forecast: month to date plus the average of the last 7 days for each day left;
+     * AWS's, when its daily forecast covers every day left in the month.
+     */
+    function monthEnd(trend, forecast, now = new Date()) {
+        const mtd = monthToDate(trend, now);
+        const recent = (trend || []).filter(r => dayOf(r.date)).slice(-7);
+        const daily = recent.length ? recent.reduce((sum, r) => sum + (Number(r.actualCost ?? r.estimatedCost) || 0), 0) / recent.length : 0;
+        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        const left = Math.max(0, daysInMonth - now.getDate());
+        const platform = mtd.days || recent.length ? mtd.value + daily * left : null;
+        const prefix = monthPrefix(now);
+        const today = `${prefix}-${String(now.getDate()).padStart(2, '0')}`;
+        const awsDays = ((forecast && forecast.awsDaily) || []).filter(p => (dayOf(p.periodStart) || '').startsWith(prefix) && dayOf(p.periodStart) > today);
+        const aws = left > 0 && awsDays.length >= left ? mtd.value + awsDays.reduce((sum, p) => sum + (Number(p.mean) || 0), 0) : null;
+        return { platform, aws };
+    }
+
+    /** Bars: the largest BAR_ROWS by cost and the rest as "Other". */
+    function topBars(rows, max = BAR_ROWS) {
+        const sorted = (rows || []).filter(r => Number(r.cost) > 0).slice().sort((a, b) => Number(b.cost) - Number(a.cost));
+        const top = sorted.slice(0, max).map(r => ({ label: r.label, cost: Number(r.cost) }));
+        const rest = sorted.slice(max).reduce((sum, r) => sum + Number(r.cost), 0);
+        if (rest > 0) top.push({ label: 'Other', cost: rest, other: true });
+        return top;
+    }
+
+    /** Each team's cost this month, from the per-team daily trend. */
+    function teamsThisMonth(teamTrend, now = new Date()) {
+        const prefix = monthPrefix(now);
+        const totals = new Map();
+        (teamTrend || []).forEach(p => {
+            if (!(dayOf(p.date) || '').startsWith(prefix)) return;
+            const team = p.team || 'No team';
+            totals.set(team, (totals.get(team) || 0) + (Number(p.estimatedCost) || 0));
+        });
+        return [...totals].map(([label, cost]) => ({ label, cost }));
+    }
+
+    /** The three biggest savings across rightsizing and idle VMs, in plain words. */
+    function topSavings(rightsizing, idle, max = 3) {
+        const pct = v => `${Math.round(Number(v))}%`;
+        const fromRightsizing = (rightsizing || []).filter(r => Number(r.estimatedMonthlySavings) > 0).map(r => ({
+            what: r.vmName || r.vmId, where: r.environmentName || '',
+            suggestion: `${r.currentInstanceType || '?'} → ${r.suggestedInstanceType || '?'}`
+                + (r.peakCpuUtilization != null ? `, CPU peaks at ${pct(r.peakCpuUtilization)}` : ''),
+            saves: Number(r.estimatedMonthlySavings) }));
+        const fromIdle = (idle || []).filter(r => Number(r.monthlyIdleCost) > 0).map(r => ({
+            what: r.vmName || r.vmId, where: r.environmentName || '',
+            suggestion: 'Stop it when idle, or add a schedule',
+            saves: Number(r.monthlyIdleCost) }));
+        return fromRightsizing.concat(fromIdle).sort((a, b) => b.saves - a.saves).slice(0, max);
+    }
+
+    function money0(v) {
+        return '$' + Math.round(Number(v) || 0).toLocaleString('en-US');
+    }
+
+    // ---- the five figures (U15-T02) ----
+
+    function buildKpiStrip(summary) {
+        if (!summary) return '';
+        const mtd = monthToDate(state.trend);
+        const end = monthEnd(state.trend, state.forecast);
         const fee = Number(summary.eksControlPlaneCost || 0);
+        const last30 = `Last 30 days ${Utils.formatCurrency(summary.totalMonthlyCost || 0)}${fee > 0 ? `, incl. ${Utils.formatCurrency(fee)} EKS control plane` : ''}.`;
+        const unpriced = Math.max(0, (summary.totalVmCount || 0) - (summary.costKnownVmCount || 0));
         const spot = Number(summary.spotSavings || 0);
-        let text = fee > 0 ? `${deltaText} · incl. ${Utils.formatCurrency(fee)} EKS control plane` : deltaText;
-        if (spot > 0) text += ` · Spot saved ${Utils.formatCurrency(spot)}`;
-        return text;
+        const tiles = [
+            ['Month to date', mtd.days ? money0(mtd.value) : '—',
+                (mtd.days ? (mtd.billedShare ? `${mtd.billedShare}% from AWS billing. ` : 'Estimated. ') : 'No figures for this month yet. ') + last30, 'mtd'],
+            ['Forecast', end.platform !== null ? money0(end.platform) : '—',
+                end.aws !== null ? `AWS forecasts ${money0(end.aws)}` : (end.platform !== null ? 'From the last 7 days' : 'Needs a few days of history'), 'forecast'],
+            ['Idle waste', money0(summary.idleWasteMonthlyCost), `a month, ${summary.idleVmCount || 0} VM${summary.idleVmCount === 1 ? '' : 's'} barely used`, 'idle'],
+            ['Rightsizing', money0(summary.rightsizingPotentialSavings),
+                `a month, ${summary.rightsizingCandidateCount || 0} VM${summary.rightsizingCandidateCount === 1 ? '' : 's'} too large`
+                + ((summary.scaleUpCandidateCount || 0) > 0 ? `, ${summary.scaleUpCandidateCount} need more` : ''), 'rightsizing'],
+            ['Priced VMs', `${summary.costKnownVmCount || 0} of ${summary.totalVmCount || 0}`,
+                (unpriced ? `${unpriced} ${unpriced === 1 ? 'has' : 'have'} no list price` : 'Every VM has a list price')
+                + ((summary.approximatePriceVmCount || 0) > 0 ? `, ${summary.approximatePriceVmCount} approximate` : ''), 'priced']
+        ];
+        if ((summary.spotVmCount || 0) > 0 || spot > 0) {
+            const interruptions = Number(summary.spotInterruptions30d || 0);
+            tiles.push(['Spot savings, 30 days', money0(spot), `${summary.spotVmCount || 0} on Spot, ${interruptions} interruption${interruptions === 1 ? '' : 's'}`, 'spot']);
+        }
+        return `<section class="cost-kpi-grid" aria-label="This month">${tiles.map(([label, value, note, key]) => Utils.html`
+            <div class="cost-kpi" data-kpi="${key}"><span class="cost-kpi-label">${label}</span>
+                <span class="cost-kpi-value">${value}</span><span class="cost-kpi-note">${note}</span></div>`).join('')}</section>`;
     }
 
-    /** Spot savings (30d) and interruptions (E31-T08); only when something runs on Spot. */
-    function spotKpi(summary) {
-        if (!(summary.spotVmCount > 0) && !(Number(summary.spotSavings) > 0)) return '';
-        const interruptions = Number(summary.spotInterruptions30d || 0);
-        return buildKpi('Spot savings (30d)', Utils.formatCurrency(Number(summary.spotSavings || 0)), 'fa-bolt',
-            `${summary.spotVmCount || 0} on Spot · ${interruptions} interruption${interruptions === 1 ? '' : 's'}`);
-    }
-
-    function rightsizingSubtitle(summary) {
-        const up = summary.scaleUpCandidateCount || 0;
-        return `${summary.rightsizingCandidateCount || 0} saving candidate(s)` + (up > 0 ? ` · ${up} need more capacity` : '');
-    }
-
-    function pricingSubtitle(summary) {
-        const approx = summary.approximatePriceVmCount || 0;
-        return 'VMs with a known instance price' + (approx > 0 ? `, ${approx} approximate` : '');
-    }
-
+    /** An icon tile, still used by the Commitments tab until U15 restyles it. */
     function buildKpi(label, value, icon, subtitle) {
         return `
             <div class="dashboard-kpi">
@@ -766,6 +831,56 @@ const CostManagement = (function() {
         `;
     }
 
+    // ---- spend by environment, team, account or type (U15-T02) ----
+
+    function breakdownRows(by) {
+        if (by === 'team') return teamsThisMonth(state.teamTrend);
+        const source = by === 'account' ? state.spendByAccount : by === 'type' ? state.spendByVmType : state.spendByEnvironment;
+        return (source || []).map(r => ({ label: r.dimensionLabel || r.dimensionKey || 'Unknown', cost: Number(r.cost) || 0 }));
+    }
+
+    function buildBreakdown() {
+        // The account choice only when spend spans more than one AWS account (E28-T11).
+        const choices = BREAKDOWN_BY.filter(([k]) => k !== 'account' || (state.spendByAccount || []).length > 1);
+        if (!choices.some(([k]) => k === state.breakdownBy)) state.breakdownBy = 'environment';
+        const rows = topBars(breakdownRows(state.breakdownBy));
+        const most = Math.max(1, ...rows.map(r => r.cost));
+        const period = state.breakdownBy === 'team' ? 'this month' : 'last 30 days';
+        return Utils.html`<section class="cost-card cost-breakdown" aria-labelledby="cost-by-title">
+                <div class="cost-card-head"><h2 id="cost-by-title"><label for="cost-by">By</label>
+                    <select class="form-select form-select-sm" id="cost-by" data-action-change="cost-breakdown-by">${Utils.raw(choices.map(([k, label]) =>
+                        Utils.html`<option value="${k}"${Utils.raw(k === state.breakdownBy ? ' selected' : '')}>${label === 'VM type' ? label : label.toLowerCase()}</option>`).join(''))}</select></h2>
+                    <small>${period}, estimated</small></div>
+                ${Utils.raw(rows.length ? rows.map(r => Utils.html`<div class="cost-bar-row${Utils.raw(r.other ? ' cost-bar-other' : '')}">
+                    <span class="cost-bar-name" title="${r.label}">${r.label}</span>
+                    <span class="cost-bar"><span style="width:${(r.cost / most * 100).toFixed(1)}%"></span></span>
+                    <span class="cost-mono">${money0(r.cost)}</span></div>`).join('')
+                    : '<p class="cost-note">No spend recorded yet.</p>')}
+            </section>`;
+    }
+
+    function setBreakdownBy(by) {
+        state.breakdownBy = BREAKDOWN_BY.some(([k]) => k === by) ? by : 'environment';
+        syncHash();
+        renderPanel('breakdown');
+    }
+
+    // ---- the biggest savings to act on (U15-T02) ----
+
+    function buildTopSavings() {
+        const rows = topSavings(state.rightsizing.content, state.idle.content);
+        const all = state.rightsizing.totalElements || 0;
+        return Utils.html`<section class="cost-card cost-savings" aria-labelledby="cost-savings-title">
+                <div class="cost-card-head"><h2 id="cost-savings-title">Biggest savings to act on</h2>
+                    ${Utils.raw(all ? Utils.html`<a href="${Config.API.costManagement.rightsizingExport()}" download="rightsizing-${todayStamp()}.xlsx">All ${all} suggestion${all === 1 ? '' : 's'}, Excel</a>` : '')}</div>
+                ${Utils.raw(rows.length ? Utils.html`<div class="cost-scroll"><table class="cost-savings-table" id="cost-savings-table">
+                    <thead><tr><th scope="col">What</th><th scope="col">Where</th><th scope="col">Suggestion</th><th scope="col" class="cost-num">Saves a month</th></tr></thead>
+                    <tbody>${Utils.raw(rows.map(r => Utils.html`<tr><td class="cost-strong">${r.what}</td><td>${r.where}</td><td>${r.suggestion}</td>
+                        <td class="cost-num cost-mono">${money0(r.saves)}</td></tr>`).join(''))}</tbody></table></div>`
+                    : '<p class="cost-note">Nothing to save right now: no VM is too large or sitting idle.</p>')}
+            </section>`;
+    }
+
     // ---- breakdown & trend charts ----
 
     function buildTrendChart() {
@@ -773,14 +888,13 @@ const CostManagement = (function() {
             <section class="dashboard-chart-panel dashboard-wide">
                 <div class="dashboard-panel-head d-flex justify-content-between align-items-start flex-wrap gap-2">
                     <div>
-                        <h2>Spend Trend</h2>
+                        <h2>${state.forecastRange === 'long' ? 'Monthly spend, 18 months ahead' : `Daily spend, ${state.forecastRange === '14' ? '14' : '90'} days`}</h2>
                         <small id="cost-trend-subtitle">${trendSubtitle()}</small>
                     </div>
-                    <div class="btn-group btn-group-sm" role="group" aria-label="Forecast range">
-                        <button type="button" class="btn btn-outline-secondary ${state.forecastRange === 'long' ? '' : 'active'}"
-                                data-action="cost-forecast-range" data-range="short" aria-pressed="${state.forecastRange !== 'long'}">14 days</button>
-                        <button type="button" class="btn btn-outline-secondary ${state.forecastRange === 'long' ? 'active' : ''}"
-                                data-action="cost-forecast-range" data-range="long" aria-pressed="${state.forecastRange === 'long'}">18 months</button>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Range">
+                        ${[['14', '14 days'], ['90', '90 days'], ['long', '18 months']].map(([range, label]) => `<button type="button"
+                            class="btn btn-outline-secondary ${state.forecastRange === range ? 'active' : ''}" data-action="cost-forecast-range"
+                            data-range="${range}" aria-pressed="${state.forecastRange === range}">${label}</button>`).join('')}
                     </div>
                 </div>
                 <div id="cost-chart-trend" class="dashboard-chart"></div>
@@ -796,7 +910,7 @@ const CostManagement = (function() {
                 ? `AWS forecast generated ${Utils.escapeHtml(lr.awsGeneratedOn)}; covers resources tagged tcg:managed-by &mdash; with the platform's run-rate`
                 : 'No AWS forecast captured yet (it runs weekly) &mdash; the platform run-rate only';
         }
-        const base = `Estimated, last ${TREND_DAYS} days`;
+        const base = `Estimated, last ${state.forecastRange === '14' ? 14 : TREND_DAYS} days`;
         const forecast = state.forecast;
         if (!forecast) return base;
         const aws = forecast.awsGeneratedOn && (forecast.awsDaily || []).length
@@ -852,7 +966,9 @@ const CostManagement = (function() {
 
     /** '14 days' or '18 months' (E35-T02); the long range is fetched the first time it is shown. */
     function setForecastRange(range) {
-        state.forecastRange = range === 'long' ? 'long' : 'short';
+        state.forecastRange = range === 'long' ? 'long' : range === '14' || range === 'short' ? '14' : '90';
+        $('#cost-chart-trend').closest('section').find('h2').first().text(state.forecastRange === 'long'
+            ? 'Monthly spend, 18 months ahead' : `Daily spend, ${state.forecastRange} days`);
         $('[data-action="cost-forecast-range"]').each(function() {
             const on = this.dataset.range === state.forecastRange;
             $(this).toggleClass('active', on).attr('aria-pressed', String(on));
@@ -1075,140 +1191,9 @@ const CostManagement = (function() {
         chartRegistry.forEach(instance => instance.resize());
     }
 
-    /**
-     * Collapses a dimension-breakdown list to its top N slices by cost plus one "Other" residual
-     * bucket, so a chart never has to render an unbounded number of categories/series.
-     */
-    function topSlicesWithOther(rows, topN, labelFn, valueFn) {
-        const sorted = [...rows].sort((a, b) => valueFn(b) - valueFn(a));
-        const top = sorted.slice(0, topN);
-        const rest = sorted.slice(topN);
-        const otherTotal = rest.reduce((sum, r) => sum + valueFn(r), 0);
-        const slices = top.map(r => ({ name: labelFn(r), value: valueFn(r) }));
-        if (otherTotal > 0) {
-            slices.push({ name: `Other (${rest.length})`, value: otherTotal });
-        }
-        return slices;
-    }
-
-    function buildEnvironmentPieOption(rows) {
-        if (!rows.length) return emptyChartOption('No spend data yet.');
-        const data = topSlicesWithOther(rows, TOP_N_SLICES, r => r.dimensionLabel, r => Number(r.cost) || 0);
-        return {
-            color: CATEGORICAL_COLORS,
-            // No legend — every slice is already direct-labeled with name + percent, and hover
-            // (tooltip) carries the exact dollar figure, so a legend would just repeat identity
-            // the chart already shows on its face.
-            tooltip: { trigger: 'item', confine: true, valueFormatter: value => Utils.formatCurrency(value) },
-            series: [{
-                type: 'pie',
-                radius: ['40%', '72%'],
-                center: ['50%', '50%'],
-                label: { show: false },
-                labelLine: { show: false },
-                itemStyle: { borderColor: '#fff', borderWidth: 2 },
-                data
-            }]
-        };
-    }
-
-    function buildVmTypePolarBarOption(rows) {
-        if (!rows.length) return emptyChartOption('No spend data yet.');
-        const sorted = [...rows].sort((a, b) => (Number(b.cost) || 0) - (Number(a.cost) || 0));
-        const labels = sorted.map(r => r.dimensionLabel);
-        const values = sorted.map(r => Number(r.cost) || 0);
-        return {
-            color: [CATEGORICAL_COLORS[0]],
-            tooltip: { trigger: 'item', confine: true, valueFormatter: value => Utils.formatCurrency(value) },
-            polar: { radius: ['20%', '75%'] },
-            angleAxis: {
-                type: 'value',
-                axisLabel: { ...chartTextStyle(), formatter: v => compactCurrency(v) },
-                splitLine: { lineStyle: { color: '#eef2f7' } }
-            },
-            radiusAxis: {
-                type: 'category',
-                data: labels,
-                axisLabel: chartTextStyle()
-            },
-            series: [{
-                type: 'bar',
-                data: values,
-                coordinateSystem: 'polar',
-                barCategoryGap: '30%',
-                itemStyle: { borderRadius: 4 }
-            }]
-        };
-    }
-
-    /**
-     * Pivots flat (date, team, cost) rows into one stacked line series per team — capped to the
-     * top N teams by total spend over the window (plus an "Other" series) so the chart never has
-     * an unbounded number of stacked lines.
-     */
-    function buildTeamStackedLineOption(rows) {
-        if (!rows.length) return emptyChartOption('No cost history yet — use Data actions › Fill in the last 30 days.');
-
-        const dates = [...new Set(rows.map(r => r.date))].sort();
-
-        const totalByTeam = new Map();
-        for (const row of rows) {
-            totalByTeam.set(row.team, (totalByTeam.get(row.team) || 0) + (Number(row.estimatedCost) || 0));
-        }
-        const rankedTeams = [...totalByTeam.entries()].sort((a, b) => b[1] - a[1]);
-        const topTeams = new Set(rankedTeams.slice(0, TOP_N_SLICES).map(([team]) => team));
-        const hasOther = rankedTeams.length > TOP_N_SLICES;
-
-        const costByTeamAndDate = new Map();
-        for (const row of rows) {
-            const seriesName = topTeams.has(row.team) ? row.team : 'Other';
-            if (!costByTeamAndDate.has(seriesName)) costByTeamAndDate.set(seriesName, new Map());
-            const byDate = costByTeamAndDate.get(seriesName);
-            byDate.set(row.date, (byDate.get(row.date) || 0) + (Number(row.estimatedCost) || 0));
-        }
-
-        const seriesNames = [...rankedTeams.filter(([team]) => topTeams.has(team)).map(([team]) => team)];
-        if (hasOther) seriesNames.push('Other');
-
-        const series = seriesNames.map((name, index) => ({
-            name,
-            type: 'line',
-            stack: 'total',
-            smooth: true,
-            showSymbol: false,
-            areaStyle: { opacity: 0.75 },
-            lineStyle: { width: 1 },
-            color: CATEGORICAL_COLORS[index % CATEGORICAL_COLORS.length],
-            data: dates.map(date => {
-                const byDate = costByTeamAndDate.get(name);
-                return byDate ? Math.round((byDate.get(date) || 0) * 100) / 100 : 0;
-            })
-        }));
-
-        return {
-            tooltip: {
-                trigger: 'axis',
-                confine: true,
-                valueFormatter: value => Utils.formatCurrency(value)
-            },
-            legend: { bottom: 0, type: 'scroll', textStyle: chartTextStyle() },
-            grid: { left: 52, right: 24, top: 18, bottom: 56 },
-            xAxis: {
-                type: 'category',
-                boundaryGap: false,
-                data: dates.map(d => (d || '').slice(5)),
-                axisLabel: chartTextStyle()
-            },
-            yAxis: {
-                type: 'value',
-                axisLabel: { ...chartTextStyle(), formatter: v => compactCurrency(v) },
-                splitLine: { lineStyle: { color: '#eef2f7' } }
-            },
-            series
-        };
-    }
-
-    function buildTrendOption(rows) {
+    function buildTrendOption(allRows) {
+        // 14 days: the last two weeks before the forecast; 90 days: all of the trend (U15-T02).
+        const rows = state.forecastRange === '14' ? allRows.slice(-14) : allRows;
         if (!rows.length) return emptyChartOption('No cost history yet — use Data actions › Fill in the last 30 days.');
 
         // Forecast points come from a separate endpoint/state slice (state.forecast) — only the
@@ -2081,7 +2066,7 @@ const CostManagement = (function() {
 
             // html2canvas cannot reliably snapshot live SVG-rendered ECharts, so swap each
             // chart <div> for a static <img> taken from the chart's own dataURL first.
-            ['cost-chart-env', 'cost-chart-type', 'cost-chart-team', 'cost-chart-trend', 'cost-chart-reservations', 'cost-chart-commitments', 'cost-chart-account', 'cost-chart-carbon'].forEach(id => {
+            ['cost-chart-trend', 'cost-chart-reservations', 'cost-chart-commitments', 'cost-chart-carbon'].forEach(id => {
                 const liveEl = document.getElementById(id);
                 const cloneEl = clone.querySelector('#' + id);
                 const instance = chartRegistry.get(id);
@@ -2129,14 +2114,16 @@ const CostManagement = (function() {
         toggleOptions,
         setForecastRange,
         openFocusExport,
-        setCarbonMonth
+        setCarbonMonth,
+        setBreakdownBy,
+        model: { monthToDate, monthEnd, topBars, teamsThisMonth, topSavings }
     };
 })();
 
 // Make available globally
-window.CostManagement = CostManagement;
+if (typeof window !== 'undefined') window.CostManagement = CostManagement;
 
-Actions.registerAll({
+if (typeof Actions !== 'undefined') Actions.registerAll({
     'cost-reload': () => ContentRouter.reload(),
     'cost-change-page': el => CostManagement.changePage(el.dataset.pageKey, Number(el.dataset.page)),
     'cost-rightsizing-direction': el => CostManagement.setRightsizingDirection(el.dataset.direction || ''),
@@ -2144,5 +2131,8 @@ Actions.registerAll({
     'cost-forecast-range': el => CostManagement.setForecastRange(el.dataset.range),
     'cost-focus-export': () => CostManagement.openFocusExport()
 });
-Actions.register('cost-eks-env', el => CostManagement.showWorkloads(el.value), 'change');
-Actions.register('cost-carbon-month', el => CostManagement.setCarbonMonth(el.value), 'change');
+if (typeof Actions !== 'undefined') {
+    Actions.register('cost-eks-env', el => CostManagement.showWorkloads(el.value), 'change');
+    Actions.register('cost-carbon-month', el => CostManagement.setCarbonMonth(el.value), 'change');
+    Actions.register('cost-breakdown-by', el => CostManagement.setBreakdownBy(el.value), 'change');
+}
