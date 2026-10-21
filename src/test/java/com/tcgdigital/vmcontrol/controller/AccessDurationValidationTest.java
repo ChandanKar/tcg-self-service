@@ -37,6 +37,9 @@ class AccessDurationValidationTest extends SecuredWebTestBase {
     @Autowired
     private EnvironmentAccessService accessService;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     private Environment env;
 
     @BeforeEach
@@ -109,6 +112,10 @@ class AccessDurationValidationTest extends SecuredWebTestBase {
                 .findFirst().orElseThrow();
         Instant expected = Instant.now().plus(Duration.ofDays(30));
         assertThat(Duration.between(grant.getExpiresAt().toInstant(), expected).abs()).isLessThan(Duration.ofMinutes(5));
+        // U12-T08: the audit row says how long ("Granted ... operator access, 30 days" in the audit log).
+        awaitAsync(() -> assertThat(jdbcTemplate.queryForList(
+                "SELECT details FROM audit_log WHERE action_type = 'ACCESS_GRANTED' AND environment_id = ?", String.class,
+                env.getEnvironmentId())).anySatisfy(d -> assertThat(d).startsWith("Access granted to").endsWith(". For 30 days")));
     }
 
     @Test

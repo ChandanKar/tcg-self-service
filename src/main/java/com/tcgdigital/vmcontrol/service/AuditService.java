@@ -789,9 +789,16 @@ public class AuditService {
     }
 
     public void logAccessGranted(String reviewerId, String userId, String environmentId, String environmentName, String accessLevel) {
+        logAccessGranted(reviewerId, userId, environmentId, environmentName, accessLevel, null);
+    }
+
+    /** With the grant's length when it ends ("... For 7 days", U12-T08: "Granted Neha Gupta operator access, 7 days"). */
+    public void logAccessGranted(String reviewerId, String userId, String environmentId, String environmentName, String accessLevel,
+                                 Integer durationDays) {
         logEnvironmentAction(auditUserId(reviewerId), AuditAction.ACCESS_GRANTED, environmentId, environmentName,
                 "environment_access", environmentId, environmentName,
-                String.format("Access granted to %s. Level: %s. Approved by %s", describeUser(userId), accessLevel, describeUser(reviewerId)));
+                String.format("Access granted to %s. Level: %s. Approved by %s", describeUser(userId), accessLevel, describeUser(reviewerId))
+                        + (durationDays == null ? "" : ". For " + durationDays + (durationDays == 1 ? " day" : " days")));
     }
 
     public void logAccessLevelChanged(String performedByUserId, String userId, String environmentId,

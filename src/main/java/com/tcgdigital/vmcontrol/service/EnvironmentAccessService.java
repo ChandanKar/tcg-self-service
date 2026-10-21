@@ -676,7 +676,7 @@ public class EnvironmentAccessService {
 
         if (created) {
             auditService.logAccessGranted(actorId, targetUserId, environmentId, environmentName,
-                    spec.level.getValue());
+                    spec.level.getValue(), spec.durationDays);
         } else if (levelChanged) {
             auditService.logAccessLevelChanged(actorId, targetUserId, environmentId, environmentName,
                     previousLevel.getValue(), spec.level.getValue());

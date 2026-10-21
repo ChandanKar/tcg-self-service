@@ -10,6 +10,8 @@ const STATIC = fileURLToPath(new URL('../../main/resources/static/', import.meta
 
 function load() {
     const context = vm.createContext({});
+    // U12-T08: the sentences moved to core/audit-text.js (AuditText), shared with the audit log.
+    vm.runInContext(readFileSync(STATIC + 'js/core/audit-text.js', 'utf8') + '\nthis.AuditText = AuditText;', context);
     vm.runInContext(readFileSync(STATIC + 'js/features/activity-logs.js', 'utf8') + '\nthis.ActivityLogs = ActivityLogs;', context);
     return context.ActivityLogs.model;
 }
@@ -53,7 +55,7 @@ test('locks', () => {
         'Kept the lock 2 hours longer');
     assert.equal(say({ action: 'LOCK_BROKEN',
         details: 'Lock broken by admin: sanjay. Original holder: Rahul Verma. Reason: Release window' }).text,
-        'Broke Rahul Verma\'s lock · "Release window"');
+        'Broke the lock held by Rahul Verma · "Release window"');
 });
 
 test('access and approvals: requests are Sent, decisions are Done', () => {
@@ -61,7 +63,7 @@ test('access and approvals: requests are Sent, decisions are Done', () => {
         { text: 'Asked for operator access', note: '', result: 'Sent', tone: 'wait' });
     assert.equal(say({ action: 'ACCESS_GRANTED',
         details: 'Access granted to Priya Nair (priya@x.com). Level: VIEWER. Approved by Sanjay Rao (sanjay@x.com)' }).text,
-        'Gave Priya Nair view-only access');
+        'Granted Priya Nair view-only access');
     assert.equal(say({ action: 'ACCESS_DENIED',
         details: 'Access denied for Priya Nair (priya@x.com). Denied by Sanjay Rao. Reason: Ask your lead first' }).text,
         'Turned down Priya Nair\'s request · "Ask your lead first"');
@@ -79,8 +81,9 @@ test('access and approvals: requests are Sent, decisions are Done', () => {
 });
 
 test('unknown actions fall back to the action name and target', () => {
+    // U12-T08: an added / changed / deleted thing reads as a sentence.
     assert.equal(say({ action: 'TEMPLATE_CREATED', actionDisplay: 'Template Created', targetName: 'Java stack' }).text,
-        'Template Created · Java stack');
+        'Added template "Java stack"');
     assert.equal(say({ action: 'SOMETHING_NEW' }).text, 'Something new');
 });
 
