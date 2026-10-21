@@ -19,4 +19,9 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, TeamMemb
     /** Members per team: [teamId, count]. */
     @Query("SELECT m.teamId, COUNT(m) FROM TeamMember m GROUP BY m.teamId")
     List<Object[]> countByTeam();
+
+    /** U13-T06: [teamId, members from a source, latest sync] per team. */
+    @Query("SELECT m.teamId, COUNT(m), MAX(m.syncedAt) FROM TeamMember m WHERE m.source = :source GROUP BY m.teamId")
+    List<Object[]> countAndLastSyncBySource(@org.springframework.data.repository.query.Param("source")
+                                            com.tcgdigital.vmcontrol.model.TeamMember.Source source);
 }

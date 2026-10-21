@@ -179,4 +179,20 @@ class QuotaIntegrationTest extends SecuredWebTestBase {
                     assertThat(n.getTitle()).isEqualTo("Team quota at 80%: Quota team");
                 });
     }
+
+    /** U13-T06: the team overview shows the same quota numbers as the usage endpoint. */
+    @Test
+    void theTeamOverviewShowsTheQuotaAsUsageDoes() throws Exception {
+        transition(VmStatus.STOPPED, VmStatus.RUNNING, Instant.now().minus(java.time.Duration.ofHours(3)));
+        quota("[{\"metric\":\"VM_HOURS\",\"limit\":4000,\"enforcement\":\"WARN\"}]");
+        String usage = mockMvc.perform(get("/api/v1/teams/" + team.getTeamId() + "/quota-usage").with(asAdmin()))
+                .andReturn().getResponse().getContentAsString();
+        Object used = com.jayway.jsonpath.JsonPath.read(usage, "$[0].used");
+        mockMvc.perform(get("/api/v1/teams/" + team.getTeamId() + "/overview").with(asAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.environments[0].environmentId").value(env.getEnvironmentId()))
+                .andExpect(jsonPath("$.quotas[0].metric").value("VM_HOURS"))
+                .andExpect(jsonPath("$.quotas[0].limit").value(4000))
+                .andExpect(jsonPath("$.quotas[0].used").value(used));
+    }
 }

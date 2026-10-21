@@ -253,15 +253,15 @@ const Teams = (function() {
         call('GET', Config.API.teams.entraGroups(q)).then(groups => {
             $('#team-group-results').html((groups || []).length ? groups.map(g => Utils.html`
                 <li class="d-flex justify-content-between align-items-center gap-2"><span>${g.displayName}${g.mail ? ' · ' + g.mail : ''}</span>
-                <button type="button" class="btn btn-sm btn-ghost" data-action="team-link" data-group="${g.id}">Link</button></li>`).join('')
+                <button type="button" class="btn btn-sm btn-ghost" data-action="team-link" data-group="${g.id}" data-group-name="${g.displayName}">Link</button></li>`).join('')
                 : '<li class="text-muted">No groups found.</li>');
         }).catch(e => $('#team-group-results').html(Utils.html`<li class="text-muted">${serverMessage(e, 'Group search is unavailable.')}</li>`));
     }
 
-    function link(groupId) {
+    function link(groupId, groupName) {
         const team = selectedTeam();
         if (!team) return;
-        call('PUT', Config.API.teams.entraGroup(team.teamId), { groupId })
+        call('PUT', Config.API.teams.entraGroup(team.teamId), { groupId, groupName: groupName || null })
             .then(() => { Notifications.show(groupId ? 'Entra group linked.' : 'Entra group unlinked.', 'success'); refresh(); })
             .catch(e => Notifications.showError(serverMessage(e, 'Could not change the Entra group.')));
     }
@@ -328,7 +328,7 @@ Actions.registerAll({
     'team-edit': () => Teams.edit(),
     'team-deactivate': () => Teams.deactivate(),
     'team-group-search': () => Teams.searchGroups(),
-    'team-link': el => Teams.link(el.dataset.group),
+    'team-link': el => Teams.link(el.dataset.group, el.dataset.groupName),
     'team-unlink': () => Teams.link(null),
     'team-sync': () => Teams.sync(),
     'team-add-member': () => Teams.addMember(),

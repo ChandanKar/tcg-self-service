@@ -117,4 +117,15 @@ class TeamServiceTest extends AbstractIntegrationTest {
 
         assertThat(costEstimationService.getSpendTrendByTeam(7)).extracting(p -> p.team()).contains("Search").doesNotContain("old free text");
     }
+
+    /** U13-T06: the linked group's name is kept, and cleared on unlink. */
+    @Test
+    void theLinkedGroupsNameIsKeptAndClearedOnUnlink() {
+        String id = teams.create("admin", new com.tcgdigital.vmcontrol.dto.TeamDTO.Request(null, "Linked " + java.util.UUID.randomUUID(), null)).teamId();
+        teams.linkEntraGroup(id, "grp-x", " SG-Data ", "admin");
+        assertThat(teamRepository.findById(id).orElseThrow().getEntraGroupName()).isEqualTo("SG-Data");
+        teams.linkEntraGroup(id, null, "SG-Data", "admin");
+        assertThat(teamRepository.findById(id).orElseThrow().getEntraGroupName()).isNull();
+        assertThat(teamRepository.findById(id).orElseThrow().getEntraGroupId()).isNull();
+    }
 }

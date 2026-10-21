@@ -90,6 +90,12 @@ public class TeamService {
     /** Links (or, with null, unlinks) the team's Entra group. */
     @Transactional
     public TeamDTO linkEntraGroup(String teamId, String groupId, String actorId) {
+        return linkEntraGroup(teamId, groupId, null, actorId);
+    }
+
+    /** With the group's display name, as the group search gave it (U13-T06); cleared on unlink. */
+    @Transactional
+    public TeamDTO linkEntraGroup(String teamId, String groupId, String groupName, String actorId) {
         Team team = team(teamId);
         String group = groupId == null || groupId.isBlank() ? null : groupId.trim();
         if (group != null) {
@@ -98,6 +104,7 @@ public class TeamService {
             });
         }
         team.setEntraGroupId(group);
+        team.setEntraGroupName(group == null || groupName == null || groupName.isBlank() ? null : groupName.trim());
         teamRepository.save(team);
         auditService.logAction(actorId, AuditAction.TEAM_UPDATED, "team", teamId, team.getDisplayName(),
                 group == null ? "Unlinked its Entra group" : "Linked Entra group " + group);

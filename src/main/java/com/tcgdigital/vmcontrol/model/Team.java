@@ -29,6 +29,10 @@ public class Team {
     @Column(name = "entra_group_id", length = 64)
     private String entraGroupId;
 
+    /** U13-T06: the linked group's display name (null when unlinked or unknown). */
+    @Column(name = "entra_group_name", length = 255)
+    private String entraGroupName;
+
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
@@ -53,6 +57,8 @@ public class Team {
     public void setCostCenter(String costCenter) { this.costCenter = costCenter; }
     public String getEntraGroupId() { return entraGroupId; }
     public void setEntraGroupId(String entraGroupId) { this.entraGroupId = entraGroupId; }
+    public String getEntraGroupName() { return entraGroupName; }
+    public void setEntraGroupName(String entraGroupName) { this.entraGroupName = entraGroupName; }
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
     public Timestamp getCreatedAt() { return createdAt; }

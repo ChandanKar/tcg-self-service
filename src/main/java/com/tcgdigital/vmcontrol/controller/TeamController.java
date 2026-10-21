@@ -33,6 +33,33 @@ public class TeamController {
         this.syncService = syncService;
     }
 
+    // ============= Overview (U13-T06) =============
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.tcgdigital.vmcontrol.service.TeamOverviewService overviewService;
+
+    @GetMapping("/overview")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Every active team with its environments, quotas (this month's use) and Entra group")
+    public java.util.List<com.tcgdigital.vmcontrol.dto.TeamOverviewDTO> overview() {
+        return overviewService.overview();
+    }
+
+    @GetMapping("/{teamId}/overview")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "One team with its environments, quotas (this month's use) and Entra group")
+    public com.tcgdigital.vmcontrol.dto.TeamOverviewDTO overview(@PathVariable String teamId) {
+        return overviewService.overview(teamId);
+    }
+
+    @PutMapping("/{teamId}/environments")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "The team's environments become exactly these; others it had are left without a team")
+    public com.tcgdigital.vmcontrol.dto.TeamOverviewDTO setEnvironments(@PathVariable String teamId,
+            @RequestBody com.tcgdigital.vmcontrol.dto.TeamOverviewDTO.EnvironmentsRequest body) {
+        return overviewService.setEnvironments(teamId, body == null ? null : body.environmentIds(), userService.getCurrentUserId());
+    }
+
     // ============= Quotas (E25-T07) =============
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -79,7 +106,8 @@ public class TeamController {
 
     // ============= Entra groups and members (E23-T02) =============
 
-    public record GroupLink(String groupId) {}
+    /** groupName: the group's display name from the group search (U13-T06). */
+    public record GroupLink(String groupId, String groupName) {}
 
     public record MemberRequest(@jakarta.validation.constraints.NotBlank(message = "Choose a user") String userId) {}
 
@@ -95,7 +123,8 @@ public class TeamController {
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Link (or with null, unlink) the team's Entra group; syncs its members at once when lookup is on")
     public TeamDTO linkEntraGroup(@PathVariable String teamId, @RequestBody GroupLink body) {
-        TeamDTO team = teamService.linkEntraGroup(teamId, body == null ? null : body.groupId(), userService.getCurrentUserId());
+        TeamDTO team = teamService.linkEntraGroup(teamId, body == null ? null : body.groupId(),
+                body == null ? null : body.groupName(), userService.getCurrentUserId());
         if (team.entraGroupId() != null && syncService.isAvailable()) {
             syncService.syncTeam(teamId);
             return teamService.get(teamId);

@@ -234,6 +234,10 @@ const Config = (function() {
             delete: (id) => `${API_BASE_URL}/teams/${encodeURIComponent(id)}`,
             entraGroups: (q) => `${API_BASE_URL}/teams/entra-groups?query=${encodeURIComponent(q)}`,
             entraGroup: (id) => `${API_BASE_URL}/teams/${encodeURIComponent(id)}/entra-group`,
+            // U13-T06: teams with environments, quotas and Entra group; a team's environments
+            overview: `${API_BASE_URL}/teams/overview`,
+            teamOverview: (id) => `${API_BASE_URL}/teams/${encodeURIComponent(id)}/overview`,
+            environments: (id) => `${API_BASE_URL}/teams/${encodeURIComponent(id)}/environments`,
             sync: (id) => `${API_BASE_URL}/teams/${encodeURIComponent(id)}/sync`,
             members: (id) => `${API_BASE_URL}/teams/${encodeURIComponent(id)}/members`,
             member: (id, userId) => `${API_BASE_URL}/teams/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}`,
