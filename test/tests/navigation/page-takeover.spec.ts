@@ -293,7 +293,7 @@ test.describe('Late responses never take over (all routes)', () => {
     await signIn(page, 'admin');
     await ready(page);
     await goTo(page, 'user-management');
-    await expect(header(page)).toContainText('User Management', { timeout: 10_000 });
+    await expect(header(page)).toContainText('Users', { timeout: 10_000 }); // U13-T03: the page is called Users
     await goTo(page, 'dashboard');
     await expect(header(page)).toHaveText('Dashboard');
     // The dashboard fills #content-area once its data arrives; with many environments that comes after
@@ -312,6 +312,7 @@ test.describe('Late responses never take over (all routes)', () => {
     await page.locator('#stray-deactivate').click();
     await page.waitForTimeout(500);
     await expect(page.locator('#confirmModal')).toHaveCount(0);
+    await expect(page.locator('#deactivateUserModal')).toHaveCount(0); // U13-T04's dialog
   });
 });
 
