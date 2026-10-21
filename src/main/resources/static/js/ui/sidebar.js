@@ -26,7 +26,7 @@ const Sidebar = (function() {
         return $('#sidebar').hasClass('mobile-open');
     }
 
-    /** Slide the sidebar in over a dimmed overlay and focus its first visible link. */
+    /** Open the menu (a full-screen sheet on a phone, U16-T01) and focus its first visible link. */
     function openDrawer(opener) {
         drawerOpener = opener || null;
         $('#sidebar').addClass('mobile-open');
@@ -47,6 +47,24 @@ const Sidebar = (function() {
         if (opener && document.body.contains(opener)) opener.focus();
     }
 
+    /** Tab and Shift+Tab stay inside the open menu (U16-T01). */
+    function trapFocus(e) {
+        const items = $('#sidebar').find('a[href], button').filter(':visible').toArray();
+        if (!items.length) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        } else if (!document.getElementById('sidebar').contains(document.activeElement)) {
+            e.preventDefault();
+            first.focus();
+        }
+    }
+
     function toggleDrawer(opener) {
         if (isDrawerOpen()) closeDrawer(); else openDrawer(opener);
     }
@@ -61,11 +79,18 @@ const Sidebar = (function() {
 
         // Phone drawer: More button, overlay, Escape, and growing past the phone breakpoint
         $(document).on('click', '#mobile-more-btn', function () { toggleDrawer(this); });
-        $(document).on('click', '#mobile-overlay', closeDrawer);
+        $(document).on('click', '#mobile-overlay, #phone-menu-close', closeDrawer);
+        $(document).on('click', '#phone-menu-help', () => closeDrawer());
+        $(document).on('click', '#phone-menu-signout', function () {
+            closeDrawer();
+            if (typeof Auth !== 'undefined') Auth.logout();
+        });
         $(document).on('keydown', function (e) {
             if (e.key === 'Escape' && isDrawerOpen()) {
                 e.preventDefault();
                 closeDrawer();
+            } else if (e.key === 'Tab' && isDrawerOpen()) {
+                trapFocus(e);
             }
         });
         const phoneMedia = window.matchMedia(PHONE_QUERY);

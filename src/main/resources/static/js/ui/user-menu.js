@@ -21,6 +21,12 @@ const UserMenu = (function() {
         $(document).on('click', '.user-profile', function(e) {
             if ($(e.target).closest('.user-dropdown').length) return;
             e.stopPropagation();
+            // U16-T01: on a phone the avatar opens My account directly.
+            if (window.matchMedia && window.matchMedia('(max-width: 768px)').matches && typeof MyAccount !== 'undefined') {
+                closeDropdown();
+                MyAccount.open();
+                return;
+            }
             toggleDropdown();
         });
 
@@ -121,6 +127,10 @@ const UserMenu = (function() {
         `;
 
         $userProfile.html(html);
+        // The phone menu sheet's header (U16-T01).
+        $('#phone-menu-avatar').text(initials);
+        $('#phone-menu-name').text(user.displayName || '');
+        $('#phone-menu-role').text(roleDisplay);
     }
 
     /**

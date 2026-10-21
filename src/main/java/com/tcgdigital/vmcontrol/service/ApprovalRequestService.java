@@ -543,6 +543,16 @@ public class ApprovalRequestService {
                 || requestRepository.existsForApprover(userId);
     }
 
+    /** Pending requests this user may still decide (U16-T01, the menu's Approvals badge). */
+    @Transactional(readOnly = true)
+    public long waitingFor(String userId) {
+        return requestRepository.findForApprover(userId).stream()
+                .filter(r -> r.getStatus() == ApprovalRequest.Status.PENDING && !userId.equals(r.getRequesterUserId()))
+                .filter(r -> decisionRepository.findByRequestId(r.getRequestId()).stream()
+                        .noneMatch(d -> userId.equals(d.getApproverUserId())))
+                .count();
+    }
+
     @Transactional(readOnly = true)
     public List<ApprovalRequestDTO> list(String userId, String view) {
         List<ApprovalRequest> requests = "to-review".equalsIgnoreCase(view) ? requestRepository.findForApprover(userId)

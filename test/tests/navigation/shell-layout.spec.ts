@@ -35,7 +35,8 @@ test.describe('App shell', () => {
       await expect(page.locator(title)).toBeVisible();
     }
     await expect(page.locator('#sidebar [aria-expanded]')).toHaveCount(0);
-    await expect(page.locator('#sidebar button')).toHaveCount(0);
+    // Sections never collapse; the menu's only buttons are the phone sheet's Close and Sign out (U16-T01).
+    await expect(page.locator('#sidebar button:visible')).toHaveCount(0);
 
     const labels = await page.locator('#sidebar .sidebar-menu-link:visible > span:not(.badge)').allTextContents();
     expect(labels).toEqual(expect.arrayContaining(['Home', 'Environments', 'Request access', 'My activity',

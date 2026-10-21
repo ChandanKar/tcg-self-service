@@ -73,9 +73,11 @@ test.describe('Phone layout (user)', () => {
     await expectInViewport(page, '#content-area [data-action="view"]');
   });
 
-  test('the user menu fits the screen', async ({ page }) => {
+  test('the avatar opens My account, and it fits the screen (U16-T01)', async ({ page }) => {
     await page.locator('.user-profile-trigger').click();
-    const box = await page.locator('#user-dropdown').boundingBox();
+    const panel = page.locator('.my-account').first();
+    await expect(panel).toBeVisible({ timeout: 10_000 });
+    const box = await panel.boundingBox();
     expect(box).not.toBeNull();
     expect(box!.x).toBeGreaterThanOrEqual(0);
     expect(box!.x + box!.width).toBeLessThanOrEqual(WIDTH);

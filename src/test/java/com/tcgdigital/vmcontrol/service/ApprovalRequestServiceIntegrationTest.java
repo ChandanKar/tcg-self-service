@@ -114,6 +114,20 @@ class ApprovalRequestServiceIntegrationTest extends SecuredWebTestBase {
     }
 
     @Test
+    void theStatusCountsTheRequestsWaitingForYourDecision() throws Exception {
+        policy("ALL");
+        String id = startAsRequester();
+        // U16-T01: each approver has one waiting; the requester has none.
+        mockMvc.perform(get("/api/v1/approval-requests/status").with(as(approverA)))
+                .andExpect(jsonPath("$.visible").value(true)).andExpect(jsonPath("$.waiting").value(1));
+        mockMvc.perform(get("/api/v1/approval-requests/status").with(asUser())).andExpect(jsonPath("$.waiting").value(0));
+
+        mockMvc.perform(post("/api/v1/approval-requests/" + id + "/approve").with(as(approverA))).andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/approval-requests/status").with(as(approverA))).andExpect(jsonPath("$.waiting").value(0));
+        mockMvc.perform(get("/api/v1/approval-requests/status").with(as(approverB))).andExpect(jsonPath("$.waiting").value(1));
+    }
+
+    @Test
     void anyOneApprovalStartsItOnceAsTheRequester() throws Exception {
         policy("ANY");
         String id = startAsRequester();

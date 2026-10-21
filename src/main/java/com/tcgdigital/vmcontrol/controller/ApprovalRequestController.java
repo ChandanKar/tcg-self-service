@@ -37,11 +37,14 @@ public class ApprovalRequestController {
 
     /**
      * Whether Approvals concerns the signed-in user: policies or quotas are on, or they have
-     * requests of their own or to review. The sidebar hides the page otherwise.
+     * requests of their own or to review. The sidebar hides the page otherwise. "waiting" counts
+     * the requests still waiting for their decision.
      */
     @GetMapping("/status")
-    public Map<String, Boolean> status() {
-        return Map.of("visible", requestService.isRelevantTo(userService.getCurrentUserId()));
+    public Map<String, Object> status() {
+        // U16-T01: "waiting" is how many requests wait for this user's decision (the menu badge).
+        String userId = userService.getCurrentUserId();
+        return Map.of("visible", requestService.isRelevantTo(userId), "waiting", requestService.waitingFor(userId));
     }
 
     @GetMapping("/{requestId}")

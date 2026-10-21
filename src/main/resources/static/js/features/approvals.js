@@ -124,7 +124,12 @@ const Approvals = (function() {
     /** Shows the sidebar item only while Approvals concerns the user (on, or requests to see). */
     function probeNav() {
         call('GET', Config.API.approvals.status)
-            .then(r => $('#approvals-link').toggle(!!(r && r.visible)))
+            .then(r => {
+                $('#approvals-link').toggle(!!(r && r.visible));
+                // U16-T01: the requests waiting for this user's decision, as the menu's badge.
+                const waiting = Number((r && r.waiting) || 0);
+                $('.approvals-count').text(waiting).toggle(waiting > 0);
+            })
             .catch(() => $('#approvals-link').hide());
     }
 
