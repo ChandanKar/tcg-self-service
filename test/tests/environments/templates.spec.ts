@@ -60,7 +60,7 @@ test.describe('New environment from a template', () => {
   test('the catalogue and a request built from the parameter schema', async ({ page }) => {
     const posts = await open(page);
     await expect(page.locator('#templates-link')).toBeVisible({ timeout: 15_000 });
-    await page.evaluate(() => { location.hash = '#/templates'; });
+    await page.evaluate(() => { location.hash = '#/templates?tab=catalogue'; });
 
     const card = page.locator('.template-card[data-template="t-1"]');
     await expect(card).toContainText('Needs approval', { timeout: 15_000 });
@@ -90,7 +90,7 @@ test.describe('New environment from a template', () => {
     await page.route(/\/api\/v1\/templates(\?.*)?$/, route => route.fulfill({ status: 200, contentType: 'application/json',
       body: JSON.stringify([{ ...TEMPLATE, vmLayout: '1|2|1', estimatedMonthlyCost: 294, maxTtlHours: 720 },
         { ...TEMPLATE, templateId: 't-2', name: 'Bare', vmLayout: null, estimatedMonthlyCost: null, maxTtlHours: 36, requiresApproval: false }]) }));
-    await page.evaluate(() => { location.hash = '#/templates'; });
+    await page.evaluate(() => { location.hash = '#/templates?tab=catalogue'; });
 
     const card = page.locator('.template-card[data-template="t-1"]');
     await expect(card.getByRole('heading', { level: 2 })).toHaveText('Dev stack', { timeout: 15_000 });
@@ -112,7 +112,7 @@ test.describe('New environment from a template', () => {
 
   test('a ready environment is destroyed only after its name is typed exactly', async ({ page }) => {
     const posts = await open(page);
-    await page.evaluate(() => { location.hash = '#/templates'; });
+    await page.evaluate(() => { location.hash = '#/templates?tab=catalogue'; });
     await page.locator('[data-action="templates-tab"][data-tab="mine"]').click();
 
     const row = page.locator('tr[data-request="r-9"]');

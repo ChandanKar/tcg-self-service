@@ -77,3 +77,302 @@
         grid-template-columns: minmax(0, 1fr);
     }
 }
+
+/* ================================================
+   Template administration (U14-T08, TemplatesAdmin.dc.html): the templates (260 px), the chosen
+   one's editor, and the requests waiting (320 px); one column on narrow screens.
+   ================================================ */
+.ta-layout {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr) 320px;
+    gap: 16px;
+    align-items: start;
+}
+
+.ta-card {
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    min-width: 0;
+}
+
+.ta-card-head {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.ta-card-head h2,
+.ta-editor-head h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.ta-note {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.ta-pad {
+    padding: 12px 18px;
+}
+
+.ta-sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.ta-mono {
+    font-family: var(--font-mono);
+}
+
+/* The list */
+.ta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 12px 16px;
+    border: 0;
+    border-top: 1px solid var(--line-soft);
+    background: #fff;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.ta-item:first-child {
+    border-top: 0;
+}
+
+.ta-item:hover {
+    background: var(--surface-subtle);
+}
+
+.ta-item b {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ink);
+}
+
+.ta-item-on,
+.ta-item-on:hover {
+    background: var(--brand-navy-tint);
+    box-shadow: inset 3px 0 0 var(--brand-gold);
+}
+
+.ta-item-sub {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+}
+
+.ta-state-on {
+    color: var(--brand-green-text);
+}
+
+.ta-list-foot {
+    padding: 10px 16px;
+    border-top: 1px solid var(--line-soft);
+}
+
+.ta-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 14px;
+    color: var(--brand-navy);
+    cursor: pointer;
+}
+
+.ta-link:hover {
+    text-decoration: underline;
+}
+
+/* The editor */
+.ta-editor-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.ta-offer {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.ta-offer .form-switch {
+    display: flex;
+    min-height: 0;
+    padding-left: 0;
+}
+
+.ta-offer .form-switch .form-check-input {
+    width: 2.4em;
+    height: 1.3em;
+    margin: 0;
+}
+
+.ta-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 16px;
+    padding: 16px 20px;
+}
+
+.ta-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--slate);
+}
+
+.ta-wide,
+.ta-ref {
+    grid-column: 1 / -1;
+}
+
+.ta-ref {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 16px;
+}
+
+.ta-unit {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 400;
+    color: var(--text-secondary);
+}
+
+.ta-unit input {
+    width: 6rem;
+}
+
+fieldset.ta-field {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px 18px;
+    padding: 0;
+    border: 0;
+}
+
+fieldset.ta-field legend {
+    width: 100%;
+    margin: 0 0 2px;
+    font-size: 12.5px;
+    font-weight: 500;
+}
+
+.ta-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--ink);
+}
+
+.ta-check .form-check-input {
+    margin: 0;
+}
+
+.ta-approval {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.ta-approval select {
+    width: auto;
+}
+
+.ta-params summary {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--brand-navy);
+    cursor: pointer;
+}
+
+.ta-error {
+    padding: 0 20px;
+    font-size: 13px;
+    color: var(--brand-red-text);
+}
+
+.ta-error:empty {
+    display: none;
+}
+
+.ta-editor-foot {
+    display: flex;
+    justify-content: flex-end;
+    padding: 12px 20px;
+    border-top: 1px solid var(--line-soft);
+}
+
+/* Requests */
+.ta-request {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 12px 18px;
+    border-top: 1px solid var(--line-soft);
+    font-size: 14px;
+}
+
+.ta-card-head + .ta-request {
+    border-top: 0;
+}
+
+.ta-why {
+    font-size: 13px;
+    color: var(--slate);
+}
+
+.ta-request-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.ta-aside > .ta-note:last-child,
+.ta-queue > .ta-note:last-child {
+    border-top: 1px solid var(--line-soft);
+}
+
+@media (max-width: 1399.98px) {
+    .ta-layout {
+        grid-template-columns: 240px minmax(0, 1fr);
+    }
+
+    .ta-aside {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .ta-layout,
+    .ta-fields,
+    .ta-ref {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

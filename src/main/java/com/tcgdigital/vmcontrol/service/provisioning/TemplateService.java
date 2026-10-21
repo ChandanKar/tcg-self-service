@@ -113,6 +113,9 @@ public class TemplateService {
         }
         EnvironmentTemplate t = new EnvironmentTemplate();
         apply(t, dto);
+        if (Boolean.FALSE.equals(dto.active())) {
+            t.setActive(false); // added, not offered yet
+        }
         t.setCreatedBy(userId);
         t = repository.save(t);
         auditService.logAction(userId, AuditAction.TEMPLATE_CREATED, "template", t.getTemplateId(), t.getName(),
@@ -128,8 +131,15 @@ public class TemplateService {
                 .filter(other -> !other.getTemplateId().equals(templateId))
                 .ifPresent(other -> { throw new ValidationException("A template named '" + dto.name().trim() + "' already exists"); });
         apply(t, dto);
+        // Offered to people (U14-T08): switching it off retires it; switching it on offers it again.
+        boolean offerAgain = Boolean.TRUE.equals(dto.active()) && !t.isActive();
+        boolean withdraw = Boolean.FALSE.equals(dto.active()) && t.isActive();
+        if (offerAgain || withdraw) {
+            t.setActive(offerAgain);
+        }
         t = repository.save(t);
-        auditService.logAction(userId, AuditAction.TEMPLATE_UPDATED, "template", t.getTemplateId(), t.getName(), "Template changed");
+        auditService.logAction(userId, withdraw ? AuditAction.TEMPLATE_RETIRED : AuditAction.TEMPLATE_UPDATED, "template",
+                t.getTemplateId(), t.getName(), offerAgain ? "Template changed and offered again" : withdraw ? "Template retired" : "Template changed");
         return toDto(t, true);
     }
 

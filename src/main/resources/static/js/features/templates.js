@@ -6,6 +6,9 @@
  * U09-T09 (NewEnvironment.dc.html): each template is a card with its name and description, a
  * power strip of the VMs it creates, VMs / Per day / Lifetime and "Request this"; the second
  * tab says how many requests there are ("My requests · 1").
+ * U14-T08 (TemplatesAdmin.dc.html): administrators land on "New environments" with Templates (the
+ * list and its editor, with the requests waiting alongside) and "Requests · 2 waiting" first, then
+ * Ask for one and My requests; environment admins get Requests after their own two tabs. ?tab= opens one.
  */
 const Templates = (function() {
     'use strict';
@@ -80,18 +83,23 @@ const Templates = (function() {
 
     function load(params) {
         pageToken = ContentRouter.token();
-        if (params && params.tab) tab = params.tab;
+        const q = ContentRouter.query ? ContentRouter.query() : {};
+        const wanted = (params && params.tab) || q.tab;
+        tab = tabs().some(([id]) => id === wanted) ? wanted : tabs()[0][0];
+        const admin = typeof Auth !== 'undefined' && Auth.isAdmin();
         $('#content-area').html(`
             <div class="content-view templates-page" id="templates-view">
                 <div class="content-header">
-                    <h1>New environment</h1>
-                    <p class="text-muted mb-0">Request an environment built from an approved template. It is removed when its lifetime ends unless you extend it.</p>
+                    <h1>${admin ? 'New environments' : 'New environment'}</h1>
+                    <p class="text-muted mb-0">${admin ? 'Templates people can create an environment from, and the requests waiting on you.'
+                        : 'Request an environment built from an approved template. It is removed when its lifetime ends unless you extend it.'}</p>
                 </div>
                 <ul class="nav nav-tabs mb-3" role="tablist" id="templates-tabs"></ul>
                 <div id="templates-body"><div class="text-muted small"><i class="fas fa-spinner fa-spin"></i> Loading…</div></div>
             </div>`);
         refresh();
         countRequests();
+        if (typeof TemplatesAdmin !== 'undefined') TemplatesAdmin.countPending(pageToken, drawTabs);
     }
 
     /** The second tab says how many requests there are; loaded once when the page opens. */
@@ -104,10 +112,10 @@ const Templates = (function() {
         }).catch(() => {});
     }
 
+    /** Administrators: Templates, Requests, Ask for one, My requests; others: Templates, My requests (+ Requests). */
     function tabs() {
-        const list = [['catalogue', 'Templates'], ['mine', 'My requests']];
-        if (typeof TemplatesAdmin !== 'undefined') list.push(...TemplatesAdmin.tabs());
-        return list;
+        const mine = [['catalogue', 'Templates'], ['mine', 'My requests']];
+        return typeof TemplatesAdmin !== 'undefined' ? TemplatesAdmin.tabs(mine) : mine;
     }
 
     function drawTabs() {
@@ -148,6 +156,9 @@ const Templates = (function() {
 
     function setTab(id) {
         tab = id;
+        try {
+            history.replaceState(null, '', `#/templates?tab=${id}`);
+        } catch (e) { /* the address keeps the old tab */ }
         refresh();
     }
 

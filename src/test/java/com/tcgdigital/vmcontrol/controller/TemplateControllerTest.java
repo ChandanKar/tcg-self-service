@@ -121,6 +121,27 @@ class TemplateControllerTest extends SecuredWebTestBase {
     }
 
     @Test
+    void offeredToPeopleSwitchesATemplateOffAndOnAgain() throws Exception {
+        String json = mockMvc.perform(post(URL).with(asAdmin()).contentType(MediaType.APPLICATION_JSON)
+                        .content(template("Offer stack", "[\"USER\"]", "[]")))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String id = JsonPath.read(json, "$.templateId");
+        String body = template("Offer stack", "[\"USER\"]", "[]");
+        String off = body.substring(0, body.length() - 1) + ",\"active\":false}";
+        String on = body.substring(0, body.length() - 1) + ",\"active\":true}";
+
+        // U14-T08: off retires it (nobody can request it); on offers it again; without the field it stays as it is.
+        mockMvc.perform(put(URL + "/" + id).with(asAdmin()).contentType(MediaType.APPLICATION_JSON).content(off))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.active").value(false));
+        mockMvc.perform(get(URL).with(asUser())).andExpect(jsonPath("$[?(@.templateId == '" + id + "')]").isEmpty());
+        mockMvc.perform(put(URL + "/" + id).with(asAdmin()).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.active").value(false));
+        mockMvc.perform(put(URL + "/" + id).with(asAdmin()).contentType(MediaType.APPLICATION_JSON).content(on))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.active").value(true));
+        mockMvc.perform(get(URL).with(asUser())).andExpect(jsonPath("$[?(@.templateId == '" + id + "')]").isNotEmpty());
+    }
+
+    @Test
     void invalidTemplatesAreRefused() throws Exception {
         expectError(mockMvc.perform(post(URL).with(asAdmin()).contentType(MediaType.APPLICATION_JSON)
                 .content(template("Bad enum", "[\"USER\"]", "[{\"key\":\"size\",\"type\":\"enum\",\"options\":[]}]"))), 400);
