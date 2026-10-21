@@ -32,7 +32,7 @@ test('memory columns, the agent-missing dash and the reason chips', async ({ pag
     ]) }));
   await signIn(page, 'admin');
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
-  await page.evaluate(() => { location.hash = '#/cost-management'; });
+  await page.evaluate(() => { location.hash = '#/cost-management?tab=rightsizing'; });
 
   const table = page.locator('#cost-rightsizing-table');
   await expect(table.locator('thead')).toContainText('Mem avg', { timeout: 15_000 });

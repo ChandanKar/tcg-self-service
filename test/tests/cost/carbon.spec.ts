@@ -95,7 +95,7 @@ test.describe('Carbon footprint panel', () => {
     // Let the first page open before moving on: a hash change during the router's first route could
     // load Cost Management twice (and ask for carbon twice).
     await expect(page.locator('#content-area h1').first()).toBeVisible({ timeout: 15_000 });
-    await page.evaluate(() => { location.hash = '#/cost-management'; });
+    await page.evaluate(() => { location.hash = '#/cost-management?tab=carbon'; });
     await expect(page.locator('#cost-report')).toBeVisible({ timeout: 15_000 });
     return asked;
   }
@@ -125,6 +125,8 @@ test.describe('Carbon footprint panel', () => {
   test('is hidden without an error while carbon is off', async ({ page }) => {
     await openCostPage(page, false);
 
+    // The capability says on but the server answers 404: the Carbon tab's panel stays empty, without an error.
+    await expect(page.getByRole('tab', { name: 'Carbon' })).toHaveAttribute('aria-selected', 'true', { timeout: 15_000 });
     await expect(page.locator('[data-cost-panel="carbon"]')).toBeAttached();
     await expect(page.locator('.carbon-panel')).toHaveCount(0);
     await expect(page.locator('[data-cost-panel="carbon"]')).not.toContainText("Couldn't load");

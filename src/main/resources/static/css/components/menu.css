@@ -1,0 +1,65 @@
+/*
+ * Menu button (U15-T01, js/ui/menu.js): a button with a chevron and a short list of actions under it.
+ */
+
+.menu-wrap {
+    position: relative;
+    display: inline-block;
+}
+
+.menu-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.menu-button[aria-expanded="true"] svg {
+    transform: rotate(180deg);
+}
+
+.menu-list {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 1050;
+    display: flex;
+    flex-direction: column;
+    min-width: 230px;
+    padding: 4px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: var(--shadow-md);
+}
+
+.menu-list[hidden] {
+    display: none;
+}
+
+.menu-item {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    font: inherit;
+    font-size: 14px;
+    color: var(--ink);
+    text-align: left;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.menu-item:hover,
+.menu-item:focus {
+    background: var(--brand-navy-tint);
+    color: var(--brand-navy);
+    outline: none;
+}
+
+.menu-item:disabled {
+    color: var(--text-secondary);
+    cursor: default;
+}

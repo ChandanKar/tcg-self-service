@@ -82,7 +82,7 @@ const CostAnomalies = (function() {
         const expected = newest.totalExpected === null || newest.totalExpected === undefined ? null : Number(newest.totalExpected);
         const impact = Number(newest.totalImpact || 0);
         const cause = newest.topCause ? ` Top cause: ${newest.topCause}.` : '';
-        const action = Auth.isAdmin && Auth.isAdmin() ? { label: 'Review', href: '#/cost-management' } : null;
+        const action = Auth.isAdmin && Auth.isAdmin() ? { label: 'Review', href: '#/cost-management?tab=anomalies' } : null;
         if (expected && expected > 0) {
             const actual = expected + impact;
             const ratio = Math.round(actual / expected * 10) / 10;

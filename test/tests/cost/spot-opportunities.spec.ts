@@ -22,7 +22,7 @@ async function openCost(page: any, rows: any[]) {
     route.fulfill({ status: 200, contentType: 'application/json', body: page1(rows) }));
   await signIn(page, 'admin');
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
-  await page.evaluate(() => { location.hash = '#/cost-management'; });
+  await page.evaluate(() => { location.hash = '#/cost-management?tab=rightsizing'; });
 }
 
 test('Spot opportunities show savings, placement and who can convert', async ({ page }) => {

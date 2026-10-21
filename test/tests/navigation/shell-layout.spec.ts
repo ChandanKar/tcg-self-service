@@ -122,6 +122,6 @@ test.describe('App shell', () => {
   test('Cost management links to Cost setup, which left the menu', async ({ page }) => {
     test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
     await open(page, 'admin', '#/cost-management');
-    await expect(page.locator('.cost-toolbar a[href="#/cost-setup"]')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('.cost-tabs-row a[href="#/cost-setup"]')).toBeVisible({ timeout: 15_000 }); // U15-T01: after the tabs
   });
 });

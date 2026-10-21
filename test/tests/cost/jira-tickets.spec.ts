@@ -51,20 +51,22 @@ test.describe('Jira ticket buttons', () => {
     });
     await openCostPage(page, true);
 
-    const existing = page.locator('#cost-rightsizing-table-body .jira-link');
-    await expect(existing).toHaveText('OPS-3');
-    await expect(existing).toHaveAttribute('href', 'https://acme.atlassian.net/browse/OPS-3');
-    await expect(existing).toHaveAttribute('rel', 'noopener noreferrer');
-
     const button = page.locator('#cost-idle-table-body [data-action="jira-create"]');
     await expect(button).toHaveText('Create Jira ticket');
     await button.click();
     await expect(page.locator('#cost-idle-table-body .jira-link')).toHaveText('OPS-12');
     expect(sent).toEqual({ sourceType: 'IDLE', sourceId: 'vm-idle-1' });
+
+    await page.getByRole('tab', { name: 'Rightsizing' }).click(); // U15-T01: its own tab
+    const existing = page.locator('#cost-rightsizing-table-body .jira-link');
+    await expect(existing).toHaveText('OPS-3');
+    await expect(existing).toHaveAttribute('href', 'https://acme.atlassian.net/browse/OPS-3');
+    await expect(existing).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
   test('with Jira off no ticket buttons or links render', async ({ page }) => {
     await openCostPage(page, false);
+    await page.getByRole('tab', { name: 'Rightsizing' }).click();
     await expect(page.locator('#cost-rightsizing-table-body')).toContainText('api-1');
     await expect(page.locator('[data-action="jira-create"]')).toHaveCount(0);
     await expect(page.locator('.jira-link')).toHaveCount(0);

@@ -136,7 +136,7 @@ test.describe('Instance ID in VM details', () => {
 
     await page.locator('#dynamicSlideoutPanel .close-btn').click();
     await openDetails(page, 'admin', envId, vmId);
-    await expect(panel.locator('.vm-advice').getByRole('link', { name: 'Resize safely…' })).toHaveAttribute('href', '#/cost-management');
+    await expect(panel.locator('.vm-advice').getByRole('link', { name: 'Resize safely…' })).toHaveAttribute('href', '#/cost-management?tab=rightsizing');
   });
 
   test('U08-T07: Idle shows 7 days of idle hours; History reads the changes, including one outside the platform', async ({ page, playwright }) => {

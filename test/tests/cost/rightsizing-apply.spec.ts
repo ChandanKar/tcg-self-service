@@ -43,7 +43,7 @@ async function openApply(page: Page, checks: any[], statuses: any[]) {
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(statuses[Math.min(i++, statuses.length - 1)]) }));
   await signIn(page, 'admin');
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
-  await page.evaluate(() => { location.hash = '#/cost-management'; });
+  await page.evaluate(() => { location.hash = '#/cost-management?tab=rightsizing'; });
   await page.locator('#cost-rightsizing-table-body .rightsizing-apply-btn').click({ timeout: 15_000 });
   await expect(page.locator('#rightsizingApplyModal')).toBeVisible();
   return posts;

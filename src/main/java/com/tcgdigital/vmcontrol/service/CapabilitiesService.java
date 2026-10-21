@@ -37,7 +37,10 @@ public class CapabilitiesService {
             new Switch("quotas", "quotas.enabled", false),
             new Switch("awsOrganizations", "aws.organizations.enabled", false),
             // U13-T05: Add people searches the Microsoft directory only when lookup is on.
-            new Switch("directory", "graph.directory.enabled", false)
+            new Switch("directory", "graph.directory.enabled", false),
+            // U15-T01: Cost management's Data actions hide what is switched off.
+            new Switch("costTagging", "cost.tagging.enabled", false),
+            new Switch("costActuals", "cost.actuals.enabled", true)
     };
 
     private final UserService userService;

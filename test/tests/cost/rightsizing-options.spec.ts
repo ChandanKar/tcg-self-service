@@ -48,7 +48,7 @@ test('direction filter, agreement badge and alternatives with a Graviton option'
   });
   await signIn(page, 'admin');
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
-  await page.evaluate(() => { location.hash = '#/cost-management'; });
+  await page.evaluate(() => { location.hash = '#/cost-management?tab=rightsizing'; });
 
   const body = page.locator('#cost-rightsizing-table-body');
   await expect(body.locator('[data-agreement="DISAGREE"]')).toHaveText('AWS disagrees', { timeout: 15_000 });

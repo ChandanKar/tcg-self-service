@@ -11,6 +11,67 @@
     flex-wrap: wrap;
 }
 
+/* Tabs with Setup at the end (U15-T01) */
+.cost-tabs-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+}
+
+.cost-tabs-row .tabs {
+    min-width: 0;
+    border-bottom: 0;
+}
+
+.cost-setup-link {
+    margin-bottom: -1px;
+    padding: 8px 14px;
+    border-bottom: 2px solid transparent;
+    font-size: var(--fs-body);
+    color: var(--text-secondary);
+    text-decoration: none;
+}
+
+.cost-setup-link:hover {
+    color: var(--brand-navy);
+}
+
+.cost-note {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+/* Month for finance: the figures to export */
+.cost-radio {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 6px 0;
+    cursor: pointer;
+}
+
+.cost-radio .form-check-input {
+    margin-top: 3px;
+}
+
+.cost-radio > span {
+    display: flex;
+    flex-direction: column;
+    font-size: 14px;
+}
+
+.cost-radio b {
+    font-weight: 500;
+}
+
+.cost-radio > span > span {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
 /*
  * .dashboard-kpi-grid is hardcoded to 6 fixed columns (tuned for the Dashboard's 6 tiles) —
  * this page only has 4, which left two empty column tracks. auto-fit sizes the grid to however

@@ -44,7 +44,7 @@ test.describe('Cost anomalies', () => {
     const alert = page.locator('#env-alerts [data-kind="cost"]');
     await expect(alert).toContainText('Spend was 8× usual: $160.00 against about $20.00.', { timeout: 15_000 });
     await expect(alert).toContainText('Top cause: Amazon Elastic Compute Cloud - Compute / BoxUsage:m5.large.');
-    await expect(alert.getByRole('link', { name: 'Review' })).toHaveAttribute('href', '#/cost-management');
+    await expect(alert.getByRole('link', { name: 'Review' })).toHaveAttribute('href', '#/cost-management?tab=anomalies');
     expect(asked.every(u => u.includes('days=2'))).toBeTruthy();
     await expect(page.locator('.anomaly-env-card')).toHaveCount(0);
   });
@@ -71,7 +71,7 @@ test.describe('Cost anomalies', () => {
         { monitorArn: 'arn:2', monitorName: 'services', environmentId: null },
       ]),
     }));
-    await open(page, '#/cost-management');
+    await open(page, '#/cost-management?tab=anomalies');
 
     const panel = page.locator('[data-cost-panel="anomalies"]');
     await expect(panel).toContainText('1 monitor linked to environments', { timeout: 15_000 });
@@ -85,11 +85,11 @@ test.describe('Cost anomalies', () => {
   test('a failing anomalies request shows Retry on that panel only', async ({ page }) => {
     await page.route(/\/api\/v1\/cost-anomalies\?days=30/, route =>
       route.fulfill({ status: 500, contentType: 'application/json', body: '{"message":"boom"}' }));
-    await open(page, '#/cost-management');
+    await open(page, '#/cost-management?tab=anomalies');
 
     await expect(page.locator('[data-cost-panel="anomalies"] .cost-panel-error')).toContainText("Couldn't load cost anomalies.",
       { timeout: 15_000 });
-    await expect(page.locator('[data-cost-panel="kpi"] .dashboard-kpi')).toHaveCount(4);
+    await expect(page.getByRole('tab', { name: 'Unusual spend' })).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('.cost-panel-error')).toHaveCount(1);
   });
 });

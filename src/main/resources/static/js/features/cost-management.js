@@ -1,7 +1,12 @@
 /**
  * Cost Management Feature Module (Admin only)
  * Estimated fleet spend: KPI summary, spend breakdowns, idle waste, rightsizing
- * candidates, per-VM cost detail, and a spend trend — backed by /api/v1/cost-management/**.
+ * candidates and a spend trend — backed by /api/v1/cost-management/**.
+ * U15-T01 (CostOverview.dc.html): tabs Overview / Rightsizing / Commitments / Carbon / Unusual spend
+ * (?tab=, Carbon only while it is on) with Setup at the end; only the open tab's data is asked for.
+ * The toolbar is two menus: Data actions (fill in the last 30 days, write cost tags, fetch AWS
+ * billing; each confirms first, switched-off ones hidden) and Export (this page as PDF or PNG, VM
+ * cost detail as Excel, the month for finance as a FOCUS CSV).
  */
 const CostManagement = (function() {
     'use strict';
@@ -18,7 +23,33 @@ const CostManagement = (function() {
     let chartRegistry = new Map();
     let exporting = false;
 
+    /** The tabs, their panels in page order, and the feature a tab needs (U15-T01). */
+    const TABS = [
+        { key: 'overview', label: 'Overview', panels: ['kpi', 'env', 'type', 'team', 'account', 'trend', 'workloads', 'idle', 'reconciliation'] },
+        { key: 'rightsizing', label: 'Rightsizing', panels: ['rightsizing', 'spot'] },
+        { key: 'commitments', label: 'Commitments', panels: ['reservations', 'commitments'] },
+        { key: 'carbon', label: 'Carbon', panels: ['carbon'], feature: 'carbon' },
+        { key: 'anomalies', label: 'Unusual spend', panels: ['anomalies'] }
+    ];
+    const BREAKDOWN = ['env', 'type', 'team', 'account'];
+
+    function tabsShown() {
+        return TABS.filter(t => !t.feature || (typeof Capabilities !== 'undefined' && Capabilities.has(t.feature)));
+    }
+
+    function tabOf(key) {
+        return tabsShown().find(t => t.key === key) || tabsShown()[0];
+    }
+
+    /** The data keys behind a tab's panels. */
+    function tabKeys(tab) {
+        return [...new Set(tab.panels.flatMap(name => PANELS[name].keys))];
+    }
+
     let state = {
+        /** The open tab and the tabs whose data has been asked for (U15-T01). */
+        tab: 'overview',
+        loadedTabs: {},
         summary: null,
         spendByEnvironment: [],
         spendByAccount: [],
@@ -41,7 +72,6 @@ const CostManagement = (function() {
         rightsizing: emptyPageState(),
         /** '' (all), SCALE_DOWN, SCALE_UP or MODERNIZE (E30-T05). */
         rightsizingDirection: '',
-        detail: emptyPageState(),
         anomalies: [],
         spotOpportunities: [],
         anomalyMonitors: [],
@@ -68,6 +98,7 @@ const CostManagement = (function() {
             $('#content-area').html('<div class="alert alert-danger m-3">Access denied. Admin only.</div>');
             return;
         }
+        state.loadedTabs = {};
         restorePageStateFromHash();
         showLoading();
         fetchAll();
@@ -84,9 +115,9 @@ const CostManagement = (function() {
 
     function restorePageStateFromHash() {
         const params = ContentRouter.query();
+        state.tab = tabOf(params.tab).key;
         state.idle.page = parsePageParam(params.idle);
         state.rightsizing.page = parsePageParam(params.rightsizing);
-        state.detail.page = parsePageParam(params.detail);
         state.reconciliation.page = parsePageParam(params.reconciliation);
     }
 
@@ -97,9 +128,9 @@ const CostManagement = (function() {
 
     function syncHash() {
         const params = new URLSearchParams();
+        if (state.tab !== 'overview') params.set('tab', state.tab);
         if (state.idle.page) params.set('idle', state.idle.page);
         if (state.rightsizing.page) params.set('rightsizing', state.rightsizing.page);
-        if (state.detail.page) params.set('detail', state.detail.page);
         if (state.reconciliation.page) params.set('reconciliation', state.reconciliation.page);
         const query = params.toString();
         const hash = '#/cost-management' + (query ? `?${query}` : '');
@@ -174,7 +205,6 @@ const CostManagement = (function() {
         forecast: { url: () => Config.API.costManagement.forecast(30, 14), apply: d => { state.forecast = d || null; } },
         idle: { url: () => Config.API.costManagement.idleWaste(state.idle.page, PAGE_SIZE), apply: d => { state.idle = mapPage(d); } },
         rightsizing: { url: () => Config.API.costManagement.rightsizing(state.rightsizing.page, PAGE_SIZE, state.rightsizingDirection), apply: d => { state.rightsizing = mapPage(d); } },
-        detail: { url: () => Config.API.costManagement.vmDetail(state.detail.page, PAGE_SIZE), apply: d => { state.detail = mapPage(d); } },
         anomalies: { url: () => Config.API.costAnomalies.list(ANOMALY_DAYS), apply: d => { state.anomalies = (d && d.content) || []; } },
         spotOpportunities: { url: () => Config.API.costManagement.spotOpportunities(0, 100), apply: d => { state.spotOpportunities = (d && d.content) || []; } },
         anomalyMonitors: { url: () => Config.API.costAnomalies.monitors, apply: d => { state.anomalyMonitors = d || []; } },
@@ -222,24 +252,67 @@ const CostManagement = (function() {
         });
     }
 
+    /** Loads the open tab's data, then draws the page (U15-T01: the other tabs wait until opened). */
     function fetchAll() {
         const token = ContentRouter.token();
-        const keys = Object.keys(REQUESTS);
+        const tab = tabOf(state.tab);
         state.errors = {};
-        fetchKeys(keys).then(results => {
+        fetchKeys(tabKeys(tab)).then(results => {
             if (!ContentRouter.isCurrent(token) || !isActive()) return;
-            if (results.every(r => r.status === 'rejected')) {
+            if (results.length && results.every(r => r.status === 'rejected')) {
                 showError('Failed to load cost data. Please try again.');
                 return;
             }
+            state.loadedTabs[tab.key] = true;
             render();
+        });
+    }
+
+    /** Opens a tab: its data the first time, then its panels and charts. */
+    function openTab(key) {
+        const tab = tabOf(key);
+        state.tab = tab.key;
+        syncHash();
+        if (state.loadedTabs[tab.key]) {
+            drawTab(tab);
+            return;
+        }
+        $(`#cost-tabs-panel-${tab.key}`).html('<p class="cost-note">Loading&hellip;</p>');
+        const token = pageToken;
+        fetchKeys(tabKeys(tab)).then(() => {
+            if (!ContentRouter.isCurrent(token) || !isActive()) return;
+            state.loadedTabs[tab.key] = true;
+            if (state.tab === tab.key) drawTab(tab);
+        });
+    }
+
+    function tabHtml(tab) {
+        const panels = tab.panels;
+        const breakdown = panels.filter(name => BREAKDOWN.includes(name));
+        let html = '';
+        panels.forEach(name => {
+            if (BREAKDOWN.includes(name)) {
+                if (name === breakdown[0]) html += `<div class="cost-breakdown-layout">${breakdown.map(panelSlot).join('')}</div>`;
+                return;
+            }
+            html += panelSlot(name);
+        });
+        return html;
+    }
+
+    /** Draws one tab's panels and charts (the tab is visible, so its charts get their size). */
+    function drawTab(tab) {
+        tab.panels.forEach(name => (PANELS[name].charts ? PANELS[name].charts() : []).forEach(([id]) => disposeChart(id)));
+        $(`#cost-tabs-panel-${tab.key}`).html(tabHtml(tab));
+        initCharts(tab);
+        tab.panels.forEach(name => {
+            if (!panelFailed(name) && PANELS[name].after) PANELS[name].after();
         });
     }
 
     const TABLE_CONFIG = {
         idle: { url: (p) => Config.API.costManagement.idleWaste(p, PAGE_SIZE), render: () => renderIdleTable() },
         rightsizing: { url: (p) => Config.API.costManagement.rightsizing(p, PAGE_SIZE, state.rightsizingDirection), render: () => renderRightsizingTable() },
-        detail: { url: (p) => Config.API.costManagement.vmDetail(p, PAGE_SIZE), render: () => renderDetailTable() },
         reconciliation: { clientPaged: true, render: () => renderReconciliationTable() }
     };
 
@@ -271,7 +344,7 @@ const CostManagement = (function() {
         $('#content-area').html(`
             <div class="content-view" id="cost-management-view">
                 <div class="content-header">
-                    <h1>Cost Management</h1>
+                    <h1>Cost management</h1>
                     <p>Loading estimated spend&hellip;</p>
                 </div>
                 <div class="loading-state">
@@ -289,7 +362,7 @@ const CostManagement = (function() {
         $('#content-area').html(`
             <div class="content-view" id="cost-management-view">
                 <div class="content-header">
-                    <h1>Cost Management</h1>
+                    <h1>Cost management</h1>
                     <p>Estimated spend across the fleet</p>
                 </div>
                 <div class="error-state">
@@ -308,68 +381,42 @@ const CostManagement = (function() {
         disposeCharts();
         $('#content-area').html(buildPageHtml());
         bindEvents();
-        initCharts();
-        Object.keys(PANELS).forEach(name => {
+        const tab = tabOf(state.tab);
+        initCharts(tab);
+        tab.panels.forEach(name => {
             if (!panelFailed(name) && PANELS[name].after) PANELS[name].after();
         });
+        if (typeof Tabs !== 'undefined') Tabs.bind(document.getElementById('cost-tabs'), key => openTab(key));
+    }
+
+    function capable(feature) {
+        return typeof Capabilities !== 'undefined' && Capabilities.has(feature);
     }
 
     function buildPageHtml() {
+        const tabs = tabsShown();
+        const active = tabOf(state.tab).key;
+        const dataMenu = Menu.markup({ id: 'cost-data-menu', label: 'Data actions', items: [
+            { id: 'cost-backfill-btn', text: 'Fill in the last 30 days' },
+            { id: 'cost-reconcile-tags-btn', text: 'Write cost tags now', hidden: !capable('costTagging') },
+            { id: 'cost-ingest-actuals-btn', text: 'Fetch AWS billing now', hidden: !capable('costActuals') }] });
+        const exportMenu = Menu.markup({ id: 'cost-export-menu', label: 'Export', items: [
+            { id: 'cost-export-pdf-btn', text: 'This page as PDF' },
+            { id: 'cost-export-png-btn', text: 'This page as PNG' },
+            { id: 'cost-export-detail', text: 'VM cost detail, Excel', href: Config.API.costManagement.vmDetailExport(), download: `vm-cost-detail-${todayStamp()}.xlsx` },
+            { text: 'Month for finance, FOCUS CSV…', action: 'cost-focus-export' }] });
         return `
             <div class="content-view cost-management-view" id="cost-management-view">
-                <div class="content-header d-flex justify-content-between align-items-start flex-wrap gap-2">
-                    <div>
-                        <h1>Cost Management ${typeof HelpLink !== 'undefined' ? HelpLink.button('cost-management', 'Cost management') : ''}</h1>
-                        <p>Estimated spend across the fleet, from VM runtime and a static pricing reference &mdash; not live billing data.</p>
-                    </div>
-                    <div class="cost-toolbar no-print">
-                        <button class="btn btn-ghost btn-sm" id="cost-backfill-btn"
-                                title="Populate cost history for the trend chart">
-                            <i class="fas fa-history"></i> Backfill 30 Days
-                        </button>
-                        <button class="btn btn-ghost btn-sm" id="cost-reconcile-tags-btn"
-                                title="Apply cost-allocation tags (tcg:managed-by/environment/team) to AWS resources now">
-                            <i class="fas fa-tags"></i> Reconcile Tags Now
-                        </button>
-                        <button class="btn btn-ghost btn-sm" id="cost-ingest-actuals-btn"
-                                title="Ingest real AWS billing data for the last 30 days now — calls Cost Explorer's billed API, use sparingly">
-                            <i class="fas fa-cloud-download-alt"></i> Ingest Actual Costs
-                        </button>
-                        <button class="btn btn-ghost btn-sm" data-action="cost-focus-export"
-                                title="Download cost data as a FOCUS 1.2 CSV for finance tools">
-                            <i class="fas fa-file-csv" aria-hidden="true"></i> Export FOCUS CSV
-                        </button>
-                        <button class="btn btn-ghost btn-sm" id="cost-export-png-btn">
-                            <i class="fas fa-image"></i> Export PNG
-                        </button>
-                        <button class="btn btn-ghost btn-sm" id="cost-export-pdf-btn">
-                            <i class="fas fa-file-pdf"></i> Export PDF
-                        </button>
-                        <a class="btn btn-ghost btn-sm" href="#/cost-setup" title="Which cost features are on, and their AWS permissions">
-                            <i class="fas fa-stethoscope"></i> Setup
-                        </a>
-                    </div>
+                ${PageHeader.markup({ title: 'Cost management',
+                    summaryHtml: 'Estimated from run time and AWS list prices; replaced by AWS billing figures where they exist.',
+                    actionsHtml: `<div class="cost-toolbar no-print">${dataMenu}${exportMenu}</div>`,
+                    helpPage: typeof HelpLink !== 'undefined' ? 'cost-management' : null, helpLabel: 'Cost management' })}
+                <div class="cost-tabs-row no-print">
+                    ${Tabs.markup({ id: 'cost-tabs', label: 'Cost', active, tabs: tabs.map(t => ({ key: t.key, label: t.label })) })}
+                    <a class="cost-setup-link" href="#/cost-setup">Setup</a>
                 </div>
-
                 <div class="cost-report" id="cost-report">
-                    ${panelSlot('kpi')}
-                    <div class="cost-breakdown-layout">
-                        ${panelSlot('env')}
-                        ${panelSlot('type')}
-                        ${panelSlot('team')}
-                        ${panelSlot('account')}
-                    </div>
-                    ${panelSlot('trend')}
-                    ${panelSlot('reservations')}
-                    ${panelSlot('commitments')}
-                    ${panelSlot('anomalies')}
-                    ${panelSlot('workloads')}
-                    ${panelSlot('reconciliation')}
-                    ${panelSlot('idle')}
-                    ${panelSlot('rightsizing')}
-                    ${panelSlot('spot')}
-                    ${panelSlot('carbon')}
-                    ${panelSlot('detail')}
+                    ${tabs.map(t => Tabs.panel({ id: 'cost-tabs', key: t.key, active }, t.key === active ? tabHtml(t) : '')).join('')}
                 </div>
             </div>
         `;
@@ -419,7 +466,6 @@ const CostManagement = (function() {
         reconciliation: { keys: ['reconciliation'], label: 'estimated vs. actual cost', build: () => buildReconciliationTable() },
         idle: { keys: ['idle'], label: 'idle VMs', build: () => buildIdleWasteTable() },
         rightsizing: { keys: ['rightsizing'], label: 'rightsizing recommendations', build: () => buildRightsizingTable() },
-        detail: { keys: ['detail'], label: 'VM cost detail', build: () => buildVmDetailTable() },
         spot: { keys: ['spotOpportunities'], label: 'Spot opportunities', build: () => buildSpotPanel() },
         carbon: {
             keys: ['carbon'], label: 'carbon footprint', build: () => buildCarbonPanel(),
@@ -762,35 +808,35 @@ const CostManagement = (function() {
     }
 
     /** The FOCUS export dialog (E35-T03): one of the last 13 months and the basis, then a download. */
+    /** Month for finance (U15-T01, CostDialogs.dc.html): a FOCUS 1.2 CSV of one month, AWS billing or estimated. */
     function openFocusExport() {
         const now = new Date();
         const months = [];
         for (let i = 0; i < 13; i++) {
             const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
-            months.push(d.toISOString().slice(0, 7));
+            months.push([d.toISOString().slice(0, 7), d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' })]);
         }
+        const radio = (value, title, text, checked) => `<label class="cost-radio"><input class="form-check-input" type="radio" name="focus-basis"
+                id="focus-basis-${value}" value="${value}"${checked ? ' checked' : ''}><span><b>${title}</b><span>${text}</span></span></label>`;
         Modals.show({
             id: 'focusExportModal',
-            title: 'Export FOCUS CSV',
-            body: `<p class="small text-muted">A FOCUS 1.2 cost file for finance tools. Estimates come from the platform's static
-                    pricing reference (one row per resource per day); actuals are Cost Explorer's cost per environment per day.</p>
-                <div class="mb-2"><label class="form-label small mb-1" for="focus-month">Month</label>
-                    <select class="form-select form-select-sm" id="focus-month">${months.map((m, i) =>
-                        `<option value="${m}" ${i === 1 ? 'selected' : ''}>${m}${i === 0 ? ' (so far)' : ''}</option>`).join('')}</select></div>
-                <fieldset><legend class="form-label small mb-1">Basis</legend>
-                    <div class="form-check"><input class="form-check-input" type="radio" name="focus-basis" id="focus-basis-estimated" value="estimated" checked>
-                        <label class="form-check-label small" for="focus-basis-estimated">Estimated, per resource</label></div>
-                    <div class="form-check"><input class="form-check-input" type="radio" name="focus-basis" id="focus-basis-actual" value="actual">
-                        <label class="form-check-label small" for="focus-basis-actual">Actual (Cost Explorer), per environment</label></div>
+            title: 'Month for finance',
+            body: `<p class="small text-muted">A FOCUS 1.2 CSV, the open billing format finance tools read.</p>
+                <div class="mb-3"><label class="form-label small mb-1" for="focus-month">Month</label>
+                    <select class="form-select form-select-sm" id="focus-month">${months.map(([m, name], i) =>
+                        `<option value="${m}" ${i === 1 ? 'selected' : ''}>${name}${i === 0 ? ' (so far)' : ''}</option>`).join('')}</select></div>
+                <fieldset><legend class="form-label small mb-1">Figures</legend>
+                    ${radio('actual', 'AWS billing', 'What AWS charged, per environment; complete a few days after month end', true)}
+                    ${radio('estimated', 'Estimated', 'From run time and list prices, per resource; available straight away', false)}
                 </fieldset>`,
             buttons: [
                 { text: 'Cancel', class: 'btn-secondary', dismiss: true },
-                { text: 'Download', class: 'btn-primary', id: 'focus-download' }
+                { text: 'Download CSV', class: 'btn-primary', id: 'focus-download' }
             ]
         });
         $('#focus-download').on('click', () => {
             const month = $('#focus-month').val();
-            const basis = $('input[name="focus-basis"]:checked').val() || 'estimated';
+            const basis = $('input[name="focus-basis"]:checked').val() || 'actual';
             const link = document.createElement('a');
             link.href = Config.API.costManagement.focusExport(month, basis);
             link.download = `focus-${basis}-${month}.csv`;
@@ -986,9 +1032,9 @@ const CostManagement = (function() {
         };
     }
 
-    function initCharts() {
+    function initCharts(tab) {
         if (!window.echarts) return;
-        Object.keys(PANELS).forEach(name => {
+        (tab ? tab.panels : Object.keys(PANELS)).forEach(name => {
             const panel = PANELS[name];
             if (panel.charts && !panelFailed(name)) {
                 panel.charts().forEach(([id, option]) => chart(id, option));
@@ -1098,7 +1144,7 @@ const CostManagement = (function() {
      * an unbounded number of stacked lines.
      */
     function buildTeamStackedLineOption(rows) {
-        if (!rows.length) return emptyChartOption('No cost history yet — use "Backfill 30 Days" to populate it.');
+        if (!rows.length) return emptyChartOption('No cost history yet — use Data actions › Fill in the last 30 days.');
 
         const dates = [...new Set(rows.map(r => r.date))].sort();
 
@@ -1160,7 +1206,7 @@ const CostManagement = (function() {
     }
 
     function buildTrendOption(rows) {
-        if (!rows.length) return emptyChartOption('No cost history yet — use "Backfill 30 Days" to populate it.');
+        if (!rows.length) return emptyChartOption('No cost history yet — use Data actions › Fill in the last 30 days.');
 
         // Forecast points come from a separate endpoint/state slice (state.forecast) — only the
         // future-dated subset is used here, since the history it also returns duplicates rows
@@ -1724,54 +1770,20 @@ const CostManagement = (function() {
 
     // VM Cost Detail
 
-    function buildVmDetailTable() {
-        return buildTableCard({
-            title: 'VM Cost Detail',
-            subtitle: `${state.detail.totalElements} VM(s)`,
-            tableId: 'cost-detail-table',
-            bodyId: 'cost-detail-table-body',
-            paginationId: 'cost-detail-pagination',
-            columns: ['VM', 'Group', 'Status', 'Instance Type', 'Region', { label: 'Runtime', numeric: true }, { label: 'Storage', numeric: true }, { label: 'Monthly Cost', numeric: true }],
-            rowsHtml: buildDetailRows(state.detail.content),
-            pageState: state.detail,
-            tableKey: 'detail',
-            exportUrl: Config.API.costManagement.vmDetailExport()
-        });
-    }
-
-    function buildDetailRows(rows) {
-        if (!rows.length) {
-            return `<tr><td colspan="8" class="text-center text-muted py-4">No VMs found.</td></tr>`;
-        }
-        return rows.map(row => `
-            <tr>
-                <td class="cost-vm-cell" title="${Utils.escapeHtml(row.environmentName || 'Unknown environment')}">${Utils.escapeHtml(row.vmName || row.vmId)}</td>
-                <td>${Utils.escapeHtml(row.groupName || '-')}</td>
-                <td>${Config.renderStatusBadge(row.status)}</td>
-                <td>${Utils.escapeHtml(row.instanceType || '-')}</td>
-                <td>${Utils.escapeHtml(row.region || '-')}</td>
-                <td class="cost-num">${row.runtimeHours != null ? Number(row.runtimeHours).toFixed(1) + 'h' : '-'}</td>
-                <td class="cost-num">${row.storageGib != null ? row.storageGib + ' GiB' : '-'}</td>
-                <td class="cost-num">${costCell(row.monthlyCost, row.costKnown, row.priceApproximate)}</td>
-            </tr>
-        `).join('');
-    }
-
-    function renderDetailTable() {
-        $('#cost-detail-table-body').html(buildDetailRows(state.detail.content));
-        $('#cost-detail-pagination').html(buildPagination('detail', state.detail));
-    }
-
-    // ---- events ----
-
     function bindEvents() {
         $(document).off('change.costAnomalies').on('change.costAnomalies', '#cost-anomaly-env', function() {
             state.anomalyFilter = $(this).val();
             renderPanel('anomalies');
         });
-        $('#cost-backfill-btn').off('click').on('click', triggerBackfill);
-        $('#cost-reconcile-tags-btn').off('click').on('click', triggerTagReconciliation);
-        $('#cost-ingest-actuals-btn').off('click').on('click', triggerActualsIngestion);
+        $('#cost-backfill-btn').off('click').on('click', () => confirmAction('Fill in the last 30 days',
+            "Estimates each of the last 30 days' cost from the VMs' run time, for the trend chart. Days that already have figures are kept.",
+            'Fill in', triggerBackfill));
+        $('#cost-reconcile-tags-btn').off('click').on('click', () => confirmAction('Write cost tags now',
+            'Adds the tcg:managed-by, tcg:environment and tcg:team tags to your AWS resources, so AWS billing can split costs by them.',
+            'Write tags', triggerTagReconciliation));
+        $('#cost-ingest-actuals-btn').off('click').on('click', () => confirmAction('Fetch AWS billing now',
+            'Reads the last 30 days of actual costs from AWS Cost Explorer. AWS charges a small fee for each request.',
+            'Fetch billing', triggerActualsIngestion));
         $('#cost-export-png-btn').off('click').on('click', exportPng);
         $('#cost-export-pdf-btn').off('click').on('click', exportPdf);
         $(window).off('resize.costManagementCharts').on('resize.costManagementCharts', resizeCharts);
@@ -1914,9 +1926,14 @@ const CostManagement = (function() {
         }, RESIZE_POLL_MS, { pageScoped: true });
     }
 
+    /** Each data action says what it does and runs only after a yes (U15-T01). */
+    function confirmAction(title, text, confirmText, run) {
+        Modals.confirm(title, text, run, { confirmText, confirmClass: 'btn-primary' });
+    }
+
     function triggerBackfill() {
         const $btn = $('#cost-backfill-btn');
-        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Backfilling&hellip;');
+        $btn.prop('disabled', true).text('Filling in…');
         ApiClient.post(Config.API.costManagement.backfill(30), null)
             .done(() => {
                 Notifications.success('Cost history backfilled for the last 30 days.');
@@ -1934,13 +1951,13 @@ const CostManagement = (function() {
                 Notifications.error('Failed to backfill cost history.');
             })
             .always(() => {
-                $btn.prop('disabled', false).html('<i class="fas fa-history"></i> Backfill 30 Days');
+                $btn.prop('disabled', false).text('Fill in the last 30 days');
             });
     }
 
     function triggerTagReconciliation() {
         const $btn = $('#cost-reconcile-tags-btn');
-        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Reconciling&hellip;');
+        $btn.prop('disabled', true).text('Writing tags…');
         ApiClient.post(Config.API.costManagement.tagsReconcile, null)
             .done(result => {
                 if (result.total === 0) {
@@ -1953,18 +1970,18 @@ const CostManagement = (function() {
                 Notifications.error('Failed to reconcile cost-allocation tags.');
             })
             .always(() => {
-                $btn.prop('disabled', false).html('<i class="fas fa-tags"></i> Reconcile Tags Now');
+                $btn.prop('disabled', false).text('Write cost tags now');
             });
     }
 
     function triggerActualsIngestion() {
         const $btn = $('#cost-ingest-actuals-btn');
-        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Ingesting&hellip;');
+        $btn.prop('disabled', true).text('Fetching billing…');
         ApiClient.post(Config.API.costManagement.actualsBackfill(30), null)
             .done(result => {
                 if (result.updated === 0 && result.skippedNoEnvironment === 0 && result.skippedNoSnapshotRow === 0) {
                     Notifications.info('No actual costs ingested — cost.actuals.enabled is likely false, or AWS is not configured.');
-                    $btn.prop('disabled', false).html('<i class="fas fa-cloud-download-alt"></i> Ingest Actual Costs');
+                    $btn.prop('disabled', false).text('Fetch AWS billing now');
                     return;
                 }
                 Notifications.success(`Actual cost ingestion complete — ${result.updated} day/environment row(s) updated.`);
@@ -1972,7 +1989,7 @@ const CostManagement = (function() {
             })
             .fail(() => {
                 Notifications.error('Failed to ingest actual costs.');
-                $btn.prop('disabled', false).html('<i class="fas fa-cloud-download-alt"></i> Ingest Actual Costs');
+                $btn.prop('disabled', false).text('Fetch AWS billing now');
             });
     }
 
@@ -1982,11 +1999,13 @@ const CostManagement = (function() {
         return new Date().toISOString().split('T')[0];
     }
 
+    /** Every row of the open tab's tables, for an export of this page. */
     function fetchFullTableData() {
+        const panels = tabOf(state.tab).panels;
+        const all = (name, url) => panels.includes(name) ? fetchJson(url) : Promise.resolve(null);
         return Promise.all([
-            fetchJson(Config.API.costManagement.idleWaste(0, EXPORT_SIZE)),
-            fetchJson(Config.API.costManagement.rightsizing(0, EXPORT_SIZE)),
-            fetchJson(Config.API.costManagement.vmDetail(0, EXPORT_SIZE))
+            all('idle', Config.API.costManagement.idleWaste(0, EXPORT_SIZE)),
+            all('rightsizing', Config.API.costManagement.rightsizing(0, EXPORT_SIZE))
         ]);
     }
 
@@ -1994,24 +2013,24 @@ const CostManagement = (function() {
         if (exporting) return;
         exporting = true;
 
-        fetchFullTableData().then(([idleAll, rightsizingAll, detailAll]) => {
+        fetchFullTableData().then(([idleAll, rightsizingAll]) => {
             const idleRows = (idleAll && idleAll.content) || [];
             const rightsizingRows = (rightsizingAll && rightsizingAll.content) || [];
-            const detailRows = (detailAll && detailAll.content) || [];
 
-            $('#cost-idle-table-body').html(buildIdleRows(idleRows));
-            $('#cost-idle-pagination').html(`<span class="text-muted small">All ${idleRows.length} row(s) shown for export</span>`);
-            $('#cost-rightsizing-table-body').html(buildRightsizingRows(rightsizingRows));
-            $('#cost-rightsizing-pagination').html(`<span class="text-muted small">All ${rightsizingRows.length} row(s) shown for export</span>`);
-            $('#cost-detail-table-body').html(buildDetailRows(detailRows));
-            $('#cost-detail-pagination').html(`<span class="text-muted small">All ${detailRows.length} row(s) shown for export</span>`);
+            if (idleAll) {
+                $('#cost-idle-table-body').html(buildIdleRows(idleRows));
+                $('#cost-idle-pagination').html(`<span class="text-muted small">All ${idleRows.length} row(s) shown for export</span>`);
+            }
+            if (rightsizingAll) {
+                $('#cost-rightsizing-table-body').html(buildRightsizingRows(rightsizingRows));
+                $('#cost-rightsizing-pagination').html(`<span class="text-muted small">All ${rightsizingRows.length} row(s) shown for export</span>`);
+            }
             $('#cost-reconciliation-table-body').html(buildReconciliationRows(state.reconciliationAll));
             $('#cost-reconciliation-pagination').html(`<span class="text-muted small">All ${state.reconciliationAll.length} row(s) shown for export</span>`);
 
             const restore = () => {
-                renderIdleTable();
-                renderRightsizingTable();
-                renderDetailTable();
+                if (idleAll) renderIdleTable();
+                if (rightsizingAll) renderRightsizingTable();
                 renderReconciliationTable();
                 exporting = false;
                 window.removeEventListener('afterprint', restore);
@@ -2034,8 +2053,8 @@ const CostManagement = (function() {
         exporting = true;
         Notifications.info('Preparing PNG export…');
 
-        fetchFullTableData().then(([idleAll, rightsizingAll, detailAll]) => {
-            const source = document.getElementById('cost-report');
+        fetchFullTableData().then(([idleAll, rightsizingAll]) => {
+            const source = document.getElementById(`cost-tabs-panel-${tabOf(state.tab).key}`) || document.getElementById('cost-report');
             const clone = source.cloneNode(true);
             clone.id = 'cost-report-export-clone';
             clone.style.position = 'fixed';
@@ -2046,15 +2065,12 @@ const CostManagement = (function() {
 
             const idleRows = (idleAll && idleAll.content) || [];
             const rightsizingRows = (rightsizingAll && rightsizingAll.content) || [];
-            const detailRows = (detailAll && detailAll.content) || [];
 
             const idleBody = clone.querySelector('#cost-idle-table-body');
             const rightsizingBody = clone.querySelector('#cost-rightsizing-table-body');
-            const detailBody = clone.querySelector('#cost-detail-table-body');
             const reconciliationBody = clone.querySelector('#cost-reconciliation-table-body');
-            if (idleBody) idleBody.innerHTML = buildIdleRows(idleRows);
-            if (rightsizingBody) rightsizingBody.innerHTML = buildRightsizingRows(rightsizingRows);
-            if (detailBody) detailBody.innerHTML = buildDetailRows(detailRows);
+            if (idleBody && idleAll) idleBody.innerHTML = buildIdleRows(idleRows);
+            if (rightsizingBody && rightsizingAll) rightsizingBody.innerHTML = buildRightsizingRows(rightsizingRows);
             if (reconciliationBody) reconciliationBody.innerHTML = buildReconciliationRows(state.reconciliationAll);
             clone.querySelectorAll('.pagination-bar-wrap').forEach(el => {
                 el.innerHTML = '<span class="text-muted small">All rows shown for export</span>';

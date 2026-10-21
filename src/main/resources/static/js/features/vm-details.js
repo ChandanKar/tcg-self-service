@@ -357,7 +357,7 @@ const VmDetails = (function() {
         if (!note) return '';
         const admin = typeof Auth !== 'undefined' && Auth.isAdmin && Auth.isAdmin();
         const action = admin
-            ? '<a class="vm-advice-action" href="#/cost-management">Resize safely…</a>'
+            ? '<a class="vm-advice-action" href="#/cost-management?tab=rightsizing">Resize safely…</a>'
             : '<span class="vm-advice-hint">Ask an administrator to resize</span>';
         return Utils.html`<div class="vm-advice" data-kind="${note.kind}"><b>${note.title}</b>
             <span>${note.text}</span><span>${Utils.raw(action)}</span></div>`;

@@ -49,8 +49,7 @@ test.describe('Cost Management resilience', () => {
     // Every other panel rendered.
     await expect(page.locator('[data-cost-panel="kpi"] .dashboard-kpi')).toHaveCount(4);
     await expect(page.locator('#cost-chart-env')).toBeVisible();
-    await expect(page.locator('#cost-chart-reservations')).toBeVisible();
-    await expect(page.locator('#cost-detail-table')).toBeVisible();
+    await expect(page.locator('#cost-idle-table')).toBeVisible();
     await expect(page.locator('.cost-panel-error')).toHaveCount(1);
     // The panel explains the failure; no global "unexpected error" toast on top.
     expect(await page.evaluate(() => (window as any).__errorToasts)).toEqual([]);
@@ -73,7 +72,10 @@ test.describe('Cost Management resilience', () => {
 
     for (let i = 0; i < 2; i++) {
       const done = page.waitForResponse(r => r.url().includes('/cost-management/forecast'));
+      // U15-T01: Data actions › Fill in the last 30 days, then confirm.
+      await page.getByRole('button', { name: 'Data actions' }).click();
       await page.locator('#cost-backfill-btn').click();
+      await page.locator('#confirmBtn').click();
       await done;
       await expect(page.locator('#cost-backfill-btn')).toBeEnabled();
     }
@@ -99,3 +101,59 @@ test.describe('Cost Management resilience', () => {
     expect(await page.evaluate(el => (window as any).echarts.getInstanceByDom(el as HTMLElement) == null, envChart)).toBe(true);
   });
 });
+
+/** U15-T01 (CostOverview.dc.html): tabs that load their own data, ?tab= in the address, two menus. */
+test.describe('Cost management tabs and menus', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+  });
+
+  test('Overview asks only for its own data; another tab loads when opened and stays in the address', async ({ page }) => {
+    const asked: string[] = [];
+    page.on('request', r => { if (/\/api\/v1\/(cost-management|cost-anomalies)\//.test(r.url())) asked.push(new URL(r.url()).pathname); });
+    await openCostPage(page);
+    await page.waitForLoadState('networkidle');
+    // Acceptance: only Overview's keys are asked for, and the toolbar is two menu buttons.
+    expect(asked.some(u => u.endsWith('/rightsizing'))).toBe(false);
+    expect(asked.some(u => u.includes('/commitment') || u.includes('/reservations'))).toBe(false);
+    expect(asked.some(u => u.startsWith('/api/v1/cost-anomalies'))).toBe(false);
+    expect(asked.some(u => u.endsWith('/vm-detail'))).toBe(false);
+    await expect(page.locator('.cost-toolbar .menu-button')).toHaveText(['Data actions', 'Export']);
+    await expect(page.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
+
+    await page.getByRole('tab', { name: 'Rightsizing' }).click();
+    await expect(page).toHaveURL(/#\/cost-management\?tab=rightsizing$/);
+    await expect(page.locator('#cost-rightsizing-table')).toBeVisible({ timeout: 10_000 });
+    expect(asked.some(u => u.endsWith('/rightsizing'))).toBe(true);
+
+    // Acceptance: a tab opened directly is selected and loads.
+    await page.evaluate(() => { location.hash = '#/cost-management?tab=commitments'; });
+    await expect(page.getByRole('tab', { name: 'Commitments' })).toHaveAttribute('aria-selected', 'true', { timeout: 15_000 });
+    await expect(page.locator('[data-cost-panel="reservations"]')).toBeVisible();
+  });
+
+  test('the menus open with the keyboard and close with Escape; data actions confirm first', async ({ page }) => {
+    let backfills = 0;
+    await page.route(/\/api\/v1\/cost-management\/snapshots\/backfill/, route => { backfills++; return route.fulfill({ status: 200, json: {} }); });
+    await openCostPage(page);
+    const exportBtn = page.getByRole('button', { name: 'Export' });
+    await exportBtn.focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(exportBtn).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByRole('menuitem', { name: 'This page as PDF' })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.getByRole('menuitem', { name: 'This page as PNG' })).toBeFocused();
+    await expect(page.getByRole('menuitem', { name: 'VM cost detail, Excel' })).toHaveAttribute('href', /\/cost-management\/vm-detail\/export$/);
+    await page.keyboard.press('Escape');
+    await expect(exportBtn).toHaveAttribute('aria-expanded', 'false');
+    await expect(exportBtn).toBeFocused();
+
+    await page.getByRole('button', { name: 'Data actions' }).click();
+    await page.getByRole('menuitem', { name: 'Fill in the last 30 days' }).click();
+    await expect(page.locator('.modal.show')).toContainText("Estimates each of the last 30 days' cost");
+    await page.locator('.modal.show .btn-secondary, .modal.show [data-bs-dismiss="modal"]').first().click();
+    await expect(page.locator('.modal.show')).toHaveCount(0);
+    expect(backfills).toBe(0);
+  });
+});
+

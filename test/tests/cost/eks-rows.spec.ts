@@ -25,6 +25,7 @@ test('EKS rows show their node count and no Apply button', async ({ page }) => {
   await page.evaluate(() => { location.hash = '#/cost-management'; });
 
   await expect(page.locator('#cost-idle-table-body .eks-nodes')).toHaveText('EKS · 3 nodes', { timeout: 15_000 });
+  await page.getByRole('tab', { name: 'Rightsizing' }).click(); // U15-T01: its own tab
   const rightsizing = page.locator('#cost-rightsizing-table-body');
   await expect(rightsizing.locator('.eks-nodes')).toHaveText('EKS · 3 nodes');
   await expect(rightsizing).toContainText('Change the node group in EKS');

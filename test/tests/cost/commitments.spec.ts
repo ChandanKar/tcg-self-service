@@ -28,7 +28,7 @@ const INSIGHTS = {
 async function open(page: Page) {
   await signIn(page, 'admin');
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
-  await page.evaluate(() => { location.hash = '#/cost-management'; });
+  await page.evaluate(() => { location.hash = '#/cost-management?tab=commitments'; });
 }
 
 test.describe('Commitments panel', () => {
@@ -79,7 +79,7 @@ test.describe('Commitments panel', () => {
 
     const slot = page.locator('[data-cost-panel="commitments"]');
     await expect(slot).toContainText("Couldn't load commitment insights", { timeout: 15_000 });
-    await expect(page.locator('.cost-kpi-grid').first()).toBeVisible();
+    await expect(page.locator('[data-cost-panel="reservations"]')).toBeVisible(); // the rest of the tab rendered
     await slot.locator('.cost-retry').click();
     await expect(slot.locator('.commitments-panel')).toBeVisible();
   });

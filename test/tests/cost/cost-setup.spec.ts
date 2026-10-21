@@ -66,12 +66,12 @@ test.describe('Cost Setup', () => {
     await expect(page.locator('.cost-setup-principal')).toContainText('self-service-user');
   });
 
-  test('the Cost Management toolbar links to it; the side menu no longer does (U04-T01)', async ({ page }) => {
+  test('the Cost Management tabs link to it; the side menu no longer does (U04-T01, U15-T01)', async ({ page }) => {
     await signIn(page, 'admin');
     await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
     await expect(page.locator('#sidebar a[href="#/cost-setup"]')).toHaveCount(0);
     await page.waitForLoadState('networkidle');
     await page.evaluate(() => { location.hash = '#/cost-management'; });
-    await expect(page.locator('.cost-toolbar a[href="#/cost-setup"]')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('.cost-tabs-row a[href="#/cost-setup"]')).toHaveText('Setup', { timeout: 15_000 });
   });
 });
