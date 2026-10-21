@@ -71,8 +71,13 @@ class ApprovalPolicyControllerIntegrationTest extends SecuredWebTestBase {
                 .andExpect(jsonPath("$.approvers[0].label").value("Environment admins"));
 
         // The environment's admin manages its own policies, not global ones.
-        create(body(env.getEnvironmentId(), null, "Long runs", "\"maxRuntimeHours\":12,\"approvers\":[{\"type\":\"USER\",\"approverId\":\""
+        String own = create(body(env.getEnvironmentId(), null, "Long runs", "\"maxRuntimeHours\":12,\"approvers\":[{\"type\":\"USER\",\"approverId\":\""
                 + admin.getUserId() + "\"}]"), asUser());
+        // U12-T06: approvers come with their names, so the cards need no user list (ADMIN only).
+        mockMvc.perform(get(URL).param("environmentId", env.getEnvironmentId()).with(asUser()))
+                .andExpect(jsonPath("$[?(@.policyId == '" + own + "')].approvers[0].type").value("USER"))
+                .andExpect(jsonPath("$[?(@.policyId == '" + own + "')].approvers[0].label").value(
+                        admin.getDisplayName() != null ? admin.getDisplayName() : admin.getEmail()));
         mockMvc.perform(post(URL).with(asUser()).contentType(MediaType.APPLICATION_JSON)
                 .content(body(null, null, "Nope", "\"maxRuntimeHours\":1"))).andExpect(status().isForbidden());
         mockMvc.perform(put(URL + "/" + global).with(asUser()).contentType(MediaType.APPLICATION_JSON)

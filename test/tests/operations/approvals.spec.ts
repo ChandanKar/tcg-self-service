@@ -127,7 +127,7 @@ test.describe('Approvals', () => {
       body: JSON.stringify({ requiresApproval: true, outcome: 'REQUIRE_APPROVAL', reasons: ['24 h is longer than 12 h'],
         matches: [{ policyId: 'p', name, approverMode: 'ANY', reasons: ['24 h is longer than 12 h'] }] }) }));
     await go(page, '#/approval-policies');
-    await expect(page.locator('#policy-table')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('#policy-list')).not.toContainText('Loading', { timeout: 15_000 });
 
     await page.locator('[data-action="policy-new"]').click();
     await page.locator('#pol-name').fill(name);
@@ -137,15 +137,65 @@ test.describe('Approvals', () => {
     await page.locator('#pol-mode').selectOption('ALL');
     await page.locator('#pol-save').click();
 
-    await page.locator('#policy-env-filter').selectOption(envId);
-    const row = page.locator('#policy-table tbody tr', { hasText: name });
-    await expect(row).toContainText('types *.8xlarge, p* · over 12 h', { timeout: 10_000 });
-    await expect(row).toContainText('Environment admins (all)');
+    // U12-T06: a card in words.
+    const card = page.locator('#policy-list .ap-card', { hasText: name });
+    await expect(card.locator('.ap-when')).toHaveText('Needs approval when a run or extension is longer than 12 hours or any VM matches *.8xlarge or p*',
+      { timeout: 10_000 });
+    await expect(card.locator('.ap-who')).toHaveText('Decided by Environment admins');
+    await expect(card.locator('.ap-scope')).toContainText('Policy env');
 
     await page.locator('#dry-env').selectOption(envId);
     await page.locator('#dry-hours').fill('24');
     await page.locator('[data-action="policy-dry-run"]').click();
-    await expect(page.locator('#dry-outcome')).toContainText('Needs approval');
-    await expect(page.locator('#dry-outcome')).toContainText('24 h is longer than 12 h');
+    await expect(page.locator('#dry-outcome')).toHaveText(`Needs approval: ${name} · 24 h is longer than 12 h.`);
+  });
+
+  test('an environment admin picks approvers by name and checks a request (U12-T06)', async ({ page, playwright }) => {
+    const envId = await seedEnvironment(playwright, 'Policy env admin');
+    const envAdminId = process.env.TEST_DEV_ENV_ADMIN_ID || 'dev-user-001';
+    const admin = await playwright.request.newContext({ baseURL: process.env.BASE_URL || 'http://localhost:8080',
+      extraHTTPHeaders: { 'X-User-Id': devIds.admin, 'Content-Type': 'application/json' } });
+    await admin.patch(`/api/v1/users/${envAdminId}/roles`, { data: { admin: false, envAdmin: true } });
+    await admin.dispose();
+    await page.context().setExtraHTTPHeaders({ 'X-User-Id': envAdminId });
+    await page.goto('/home');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate(() => { location.hash = '#/approval-policies'; });
+    await expect(page.locator('#policy-list')).not.toContainText('Loading', { timeout: 15_000 });
+
+    const name = `Long runs ${Date.now()}`;
+    await page.locator('#ap-new').click();
+    await page.locator('#pol-name').fill(name);
+    await page.locator('#pol-scope').selectOption(`ENV:${envId}`);
+    await page.locator('#pol-hours').fill('8');
+    await page.getByRole('button', { name: 'Remove Environment admins' }).click();
+    const searched = page.waitForResponse(r => r.url().includes('/api/v1/users/search'));
+    await page.locator('#pol-approver-search').fill('Test Ad');
+    expect((await searched).status()).toBe(200); // open to environment admins, no 403
+    await page.getByRole('option', { name: /Test Admin/ }).click();
+    await page.locator('#pol-approver-group').selectOption({ label: 'Environment admins' });
+    await expect(page.locator('#pol-approvers .pol-chip')).toHaveCount(2);
+    const saved = page.waitForResponse(r => r.url().endsWith('/api/v1/approval-policies') && r.request().method() === 'POST');
+    await page.locator('#pol-save').click();
+    const body = (await saved).request().postDataJSON();
+    expect(body.approvers).toEqual([{ type: 'USER', approverId: devIds.admin }, { type: 'ENV_ADMINS', approverId: null }]);
+    expect(body.approverMode).toBe('ANY');
+
+    const card = page.locator('#policy-list .ap-card', { hasText: name });
+    await expect(card.locator('.ap-when')).toHaveText('Needs approval when a run or extension is longer than 8 hours', { timeout: 10_000 });
+    await expect(card.locator('.ap-who')).toHaveText('Decided by any one of Test Admin or Environment admins');
+
+    // The answer is faked: whether policies apply depends on the platform's approvals switch.
+    let asked: any = null;
+    await page.route(/\/api\/v1\/approval-policies\/evaluate$/, route => {
+      asked = route.request().postDataJSON();
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ requiresApproval: true,
+        matches: [{ policyId: 'p', name, approverMode: 'ANY', reasons: ['24 h is longer than 8 h'], approverNames: ['Test Admin', 'Dev User'] }] }) });
+    });
+    await page.locator('#dry-env').selectOption(envId);
+    await page.locator('#dry-hours').fill('24');
+    await page.locator('[data-action="policy-dry-run"]').click();
+    await expect(page.locator('#dry-outcome')).toHaveText(`Needs approval: ${name} · 24 h is longer than 8 h. Any one of Test Admin or Dev User.`);
+    expect(asked).toEqual({ environmentId: envId, hours: 24 });
   });
 });

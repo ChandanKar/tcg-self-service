@@ -1,0 +1,302 @@
+/**
+ * Approval policies (U12-T06, ApprovalPolicies.dc.html): policy cards in words, "Check a request"
+ * beside them, and the policy form's approver chips and person search.
+ */
+
+.ap-page {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.ap-page .content-header {
+    margin-bottom: 0;
+}
+
+.ap-off {
+    margin: 0;
+    padding: 10px 14px;
+    border-radius: 9px;
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
+    font-size: var(--fs-body);
+}
+
+.ap-layout {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 20px;
+}
+
+.ap-list {
+    display: flex;
+    flex: 999 1 520px;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+}
+
+.ap-card,
+.ap-check {
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 18px 20px;
+}
+
+.ap-card {
+    gap: 10px;
+}
+
+.ap-card-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.ap-card-head h2,
+.ap-check h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.ap-scope {
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.ap-line {
+    font-size: var(--fs-body);
+    color: var(--text-primary);
+}
+
+.ap-card-off .ap-line,
+.ap-card-off h2 {
+    color: var(--text-secondary);
+}
+
+.ap-chip-off {
+    margin-left: 6px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--surface-muted);
+    font-size: var(--fs-caption);
+    font-weight: 500;
+    color: var(--text-secondary);
+    vertical-align: middle;
+}
+
+.ap-actions {
+    display: flex;
+    gap: 14px;
+}
+
+.ap-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--fs-small);
+    color: var(--brand-navy);
+    cursor: pointer;
+}
+
+.ap-link:hover {
+    text-decoration: underline;
+}
+
+.ap-link.ap-danger {
+    color: var(--brand-red-text);
+}
+
+.ap-check {
+    flex: 1 1 300px;
+    max-width: 380px;
+    gap: 14px;
+}
+
+.ap-check p {
+    margin: 4px 0 0;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.ap-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    min-width: 0;
+    font-size: var(--fs-body);
+    font-weight: 500;
+    color: var(--ink);
+}
+
+.ap-field .form-control,
+.ap-field .form-select {
+    font-weight: 400;
+}
+
+.ap-mono {
+    font-family: var(--font-mono);
+}
+
+.ap-outcome {
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: var(--brand-green-tint);
+    color: var(--brand-green-text);
+    font-size: var(--fs-body);
+}
+
+.ap-outcome-needs {
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
+}
+
+.ap-outcome p {
+    margin: 0;
+    color: inherit;
+    font-size: inherit;
+}
+
+.ap-outcome p + p {
+    margin-top: 6px;
+}
+
+/* The policy form */
+.pol-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.pol-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 16px;
+}
+
+.pol-fieldset {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.pol-fieldset legend {
+    float: none;
+    width: auto;
+    margin: 0 0 4px;
+    padding: 0;
+    font-size: var(--fs-body);
+    font-weight: 600;
+}
+
+.pol-hint {
+    margin: 0;
+    font-size: var(--fs-small);
+    font-weight: 400;
+    color: var(--text-secondary);
+}
+
+.pol-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.pol-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 4px 3px 10px;
+    border-radius: 999px;
+    background: var(--brand-navy-tint);
+    font-size: var(--fs-small);
+    color: var(--brand-navy);
+}
+
+.pol-chip-x {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    line-height: 1;
+    color: inherit;
+    cursor: pointer;
+}
+
+.pol-chip-x:hover,
+.pol-chip-x:focus-visible {
+    background: var(--surface-muted);
+}
+
+.pol-search {
+    position: relative;
+}
+
+.pol-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 5;
+    margin: 4px 0 0;
+    padding: 4px 0;
+    list-style: none;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: 0 8px 20px rgba(20, 36, 92, 0.12);
+}
+
+.pol-option,
+.pol-option-none {
+    padding: 7px 12px;
+    font-size: var(--fs-body);
+    font-weight: 400;
+}
+
+.pol-option {
+    cursor: pointer;
+}
+
+.pol-option span {
+    margin-left: 6px;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.pol-option:hover,
+.pol-option:focus {
+    background: var(--brand-navy-tint);
+    outline: none;
+}
+
+.pol-option-none {
+    color: var(--text-secondary);
+}
+
+.pol-mode {
+    max-width: 320px;
+}
+
+@media (max-width: 575.98px) {
+    .pol-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ap-check {
+        max-width: none;
+    }
+}
