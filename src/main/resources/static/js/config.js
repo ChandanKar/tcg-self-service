@@ -42,10 +42,9 @@ const Config = (function() {
             listAll: `${API_BASE_URL}/users?includeInactive=true`,
             create: `${API_BASE_URL}/users`,
             get: (id) => `${API_BASE_URL}/users/${id}`,
-            updateRole: (id) => `${API_BASE_URL}/users/${id}/role`,
+            roles: (id) => `${API_BASE_URL}/users/${encodeURIComponent(id)}/roles`, // U13-T03: PATCH {admin, envAdmin}
             setAdmin: (id) => `${API_BASE_URL}/users/${id}/admin`,
             setEnvAdmin: (id) => `${API_BASE_URL}/users/${id}/env-admin`,
-            deactivate: (id) => `${API_BASE_URL}/users/${id}/deactivate`,
             reactivate: (id) => `${API_BASE_URL}/users/${id}/reactivate`,
             setPassword: (id) => `${API_BASE_URL}/users/${id}/password`,
             search: (query) => `${API_BASE_URL}/users/search?q=${encodeURIComponent(query)}`,

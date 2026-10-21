@@ -1,12 +1,17 @@
 /**
- * User Management Feature Module
- * Handles admin user management with pagination, search, and filters
+ * Users (U13-T03, Users.dc.html): everyone who can sign in and their role across the platform.
+ * Counts (active, administrators, environment admins, haven't signed in yet), a search and Role /
+ * Status filters kept in the address (?q=&role=&status=&page=), and 10 people a page with Person,
+ * Role ("Administrator" / "Environment admin" / "User"), Signs in with, Last sign-in and direct
+ * actions: Change role, Access (Grant access for that person) or Set password for people who
+ * sign in with a password, and Deactivate / Reactivate.
  */
 const UserManagement = (function() {
     'use strict';
 
-    // Constants
     const PAGE_SIZE = 10;
+    const ROLE_FILTERS = [['', 'All roles'], ['ADMIN', 'Administrator'], ['ENV_ADMIN', 'Environment admin'], ['USER', 'User']];
+    const STATUS_FILTERS = [['active', 'Active'], ['inactive', 'Deactivated']];
 
     // State
     let allUsers = [];
@@ -23,9 +28,6 @@ const UserManagement = (function() {
     let onboardEnvs = [];         // environments for the optional grant picker
     let onboardResults = [];      // last directory-search results, indexed by data-idx
 
-    /**
-     * Initialize and load User Management view
-     */
     // Navigation token of the current visit (see the page contract in core/router.js).
     let pageToken = null;
 
@@ -33,471 +35,300 @@ const UserManagement = (function() {
         return pageToken !== null && ContentRouter.isCurrent(pageToken);
     }
 
+    // ---- pure model (node tests: src/test/js/users-list.test.mjs) ----
+
+    function roleLabel(user) {
+        if (user.serviceAccount) return 'Service account';
+        if (user.admin) return 'Administrator';
+        if (user.envAdmin) return 'Environment admin';
+        return 'User';
+    }
+
+    function signInLabel(user) {
+        return { MICROSOFT: 'Microsoft', PASSWORD: 'Password', MICROSOFT_AND_PASSWORD: 'Microsoft and password', NONE: 'API tokens' }[user.signInMethod]
+            || (user.signsInWithMicrosoft === false ? 'Password' : 'Microsoft');
+    }
+
+    /** Password-only people get "Set password" where others get "Access". */
+    function signsInWithPasswordOnly(user) {
+        return user.signInMethod === 'PASSWORD';
+    }
+
+    function counts(users) {
+        const active = users.filter(u => u.active);
+        return {
+            active: active.length,
+            admins: active.filter(u => u.admin).length,
+            envAdmins: active.filter(u => u.envAdmin && !u.admin).length,
+            notSignedIn: active.filter(u => u.pendingFirstLogin && !u.serviceAccount).length
+        };
+    }
+
+    function sameDay(a, b) {
+        return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    }
+
+    /** "Today 09:02", "Yesterday 19:00", "Fri 19:00" this week, else "12 Oct" (and the year when not this one). */
+    function lastSignIn(at, now) {
+        if (!at) return null;
+        const d = new Date(at);
+        const n = now || new Date();
+        const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        if (sameDay(d, n)) return `Today ${time}`;
+        if (sameDay(d, new Date(n.getFullYear(), n.getMonth(), n.getDate() - 1))) return `Yesterday ${time}`;
+        if (new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime() - d.getTime() < 6 * 86400000) {
+            return `${d.toLocaleDateString('en-GB', { weekday: 'short' })} ${time}`;
+        }
+        const opts = { day: 'numeric', month: 'short' };
+        if (d.getFullYear() !== n.getFullYear()) opts.year = 'numeric';
+        return d.toLocaleDateString('en-GB', opts);
+    }
+
+    /** The people matching a search (name or email), role and status. */
+    function filterList(users, search, role, status) {
+        const q = String(search || '').toLowerCase().trim();
+        return users.filter(user => {
+            if (q && !(user.displayName || '').toLowerCase().includes(q) && !(user.email || '').toLowerCase().includes(q)) return false;
+            if (role === 'ADMIN' && !user.admin) return false;
+            if (role === 'ENV_ADMIN' && (!user.envAdmin || user.admin)) return false;
+            if (role === 'USER' && (user.admin || user.envAdmin)) return false;
+            if (status === 'active' && !user.active) return false;
+            if (status === 'inactive' && user.active) return false;
+            return true;
+        });
+    }
+
+    // ---- page ----
+
     /** Router loader. */
     function load() {
         pageToken = ContentRouter.token();
         ContentRouter.onLeave(() => $('#content-area').off('.userMgmt'));
         // Who may open this page is decided by the router's access table (U02-T01).
+        const q = ContentRouter.query ? ContentRouter.query() : {};
+        currentSearch = q.q || '';
+        currentRoleFilter = ROLE_FILTERS.some(r => r[0] === q.role) ? q.role : '';
+        currentStatusFilter = q.status === 'inactive' ? 'inactive' : 'active';
+        currentPage = Math.max(1, Number(q.page) || 1);
         showLoading();
-        fetchUsers();
+        fetchUsers(true);
     }
 
-    /**
-     * Show loading state
-     */
     function showLoading() {
-        $('#content-area').html(`
-            <div class="d-flex justify-content-center align-items-center" style="height: 200px;">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-            </div>
-        `);
+        $('#content-area').html('<div class="content-view"><div class="ar-empty" role="status">Loading people…</div></div>');
     }
 
-    /**
-     * Fetch users from API
-     */
-    function fetchUsers() {
+    /** keepPage: the page from the address on first load; a reload after a change keeps the current one. */
+    function fetchUsers(keepPage) {
         ApiClient.get(Config.API.users.listAll)
             .done(function(users) {
                 if (!isActive()) return;
                 allUsers = users || [];
                 // Keep the search and filters the admin has set (e.g. after Reactivate).
                 filteredUsers = filterUsers();
-                currentPage = 1;
+                const pages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
+                currentPage = keepPage === false ? 1 : Math.min(currentPage, pages);
                 render();
             })
             .fail(function(xhr) {
                 if (!isActive()) return;
-                $('#content-area').html(`
-                    <div class="content-view">
-                        <div class="content-header">
-                            <h1>User Management</h1>
-                        </div>
-                        <div class="alert alert-danger">
-                            <i class="fas fa-exclamation-circle me-2"></i>
-                            Failed to load users: ${Utils.escapeHtml(xhr.responseJSON?.message || 'Unknown error')}
-                        </div>
-                    </div>
-                `);
+                $('#content-area').html(Utils.html`<div class="content-view"><div class="alert alert-danger" role="alert">
+                    Couldn't load the people: ${xhr.responseJSON?.message || 'the server did not answer.'}</div></div>`);
             });
     }
 
-    /**
-     * Render the complete view
-     */
     function render() {
-        const html = buildViewHtml();
-        $('#content-area').html(html);
+        $('#content-area').html(buildViewHtml());
+        renderCounts();
         renderTable();
-        renderPagination();
         bindEvents();
     }
 
-    /**
-     * Build main view HTML structure
-     */
     function buildViewHtml() {
-        const stats = calculateStats();
-
+        const add = `<button type="button" class="btn btn-primary" id="btn-onboard-user">
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"></path></svg>
+                Add people</button>`;
         return `
-            <div class="content-view" id="user-management-view">
-                <!-- Header -->
-                <div class="content-header">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <h1>User Management</h1>
-                            <p>Manage platform users and their roles</p>
-                        </div>
-                        <div class="header-actions">
-                            <button class="btn btn-primary btn-sm" id="btn-onboard-user">
-                                <i class="fas fa-user-plus me-1"></i> Onboard User
-                            </button>
-                            <button type="button" class="btn btn-ghost btn-sm" id="btn-refresh-users" title="Refresh" aria-label="Refresh">
-                                <i class="fas fa-sync-alt" aria-hidden="true"></i>
-                            </button>
-                        </div>
-                    </div>
+            <div class="content-view um-page" id="user-management-view">
+                ${PageHeader.markup({ title: 'Users', summaryHtml: 'Everyone who can sign in, and their role across the platform.',
+                    actionsHtml: add, helpPage: typeof HelpLink !== 'undefined' ? 'user-management' : null, helpLabel: 'Users' })}
+                <div class="um-counts" id="um-counts" aria-live="polite"></div>
+                <div class="um-filters">
+                    <label class="um-search">
+                        <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="5.5"></circle><path d="m13.5 13.5 3.5 3.5"></path></svg>
+                        <span class="visually-hidden">Search users</span>
+                        <input type="search" class="form-control" id="user-search" placeholder="Name or email" value="${Utils.escapeHtml(currentSearch)}">
+                    </label>
+                    <select class="form-select" id="filter-role" aria-label="Role">${ROLE_FILTERS.map(([v, l]) =>
+                        `<option value="${v}"${currentRoleFilter === v ? ' selected' : ''}>${l}</option>`).join('')}</select>
+                    <select class="form-select" id="filter-status" aria-label="Status">${STATUS_FILTERS.map(([v, l]) =>
+                        `<option value="${v}"${currentStatusFilter === v ? ' selected' : ''}>${l}</option>`).join('')}</select>
                 </div>
-
-                <!-- Filters Bar -->
-                <div class="user-filters-bar">
-                    <div class="search-input-wrapper">
-                        <div class="input-group input-group-sm">
-                            <span class="input-group-text"><i class="fas fa-search"></i></span>
-                            <input type="text" class="form-control" id="user-search"
-                                   placeholder="Search by name or email..." value="${Utils.escapeHtml(currentSearch)}">
-                            <button class="btn btn-primary" type="button" id="btn-search-users" title="Search" aria-label="Search">
-                                <i class="fas fa-arrow-right" aria-hidden="true"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <select class="form-select form-select-sm" id="filter-role">
-                        <option value="">All Roles</option>
-                        <option value="ADMIN" ${currentRoleFilter === 'ADMIN' ? 'selected' : ''}>Admin</option>
-                        <option value="ENV_ADMIN" ${currentRoleFilter === 'ENV_ADMIN' ? 'selected' : ''}>Env Admin</option>
-                        <option value="USER" ${currentRoleFilter === 'USER' ? 'selected' : ''}>User</option>
-                    </select>
-                    <select class="form-select form-select-sm" id="filter-status">
-                        <option value="">All Status</option>
-                        <option value="active" ${currentStatusFilter === 'active' ? 'selected' : ''}>Active</option>
-                        <option value="inactive" ${currentStatusFilter === 'inactive' ? 'selected' : ''}>Inactive</option>
-                    </select>
-                </div>
-
-                <!-- Stats Row -->
-                <div class="user-stats-row">
-                    <div class="user-stat-item">
-                        <span class="stat-label">Total:</span>
-                        <span class="stat-value">${stats.total}</span>
-                    </div>
-                    <div class="user-stat-item">
-                        <span class="stat-label">Active:</span>
-                        <span class="stat-value text-success">${stats.active}</span>
-                    </div>
-                    <div class="user-stat-item">
-                        <span class="stat-label">Admins:</span>
-                        <span class="stat-value text-primary">${stats.admins}</span>
-                    </div>
-                    <div class="user-stat-item">
-                        <span class="stat-label">Env Admins:</span>
-                        <span class="stat-value text-warning">${stats.envAdmins}</span>
-                    </div>
-                </div>
-
-                <!-- Table Container -->
-                <div class="user-table-card">
-                    <div class="user-table-wrapper">
-                        <table class="table table-hover user-table mb-0 table-cards">
-                            <thead>
-                                <tr>
-                                    <th>User</th>
-                                    <th>Role</th>
-                                    <th>Status</th>
-                                    <th>Last Login</th>
-                                    <th class="text-end">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="users-table-body">
-                                <!-- Populated by renderTable() -->
-                            </tbody>
+                <div class="um-card">
+                    <div class="um-table-wrap">
+                        <table class="um-table" id="users-table">
+                            <thead><tr>
+                                <th scope="col">Person</th><th scope="col">Role</th><th scope="col">Signs in with</th>
+                                <th scope="col">Last sign-in</th><th scope="col"><span class="visually-hidden">Actions</span></th>
+                            </tr></thead>
+                            <tbody id="users-table-body"></tbody>
                         </table>
                     </div>
-                    <div id="user-pagination" class="pagination-bar-wrap"></div>
+                    <div id="user-pagination"></div>
                 </div>
-            </div>
-        `;
+            </div>`;
     }
 
-    /**
-     * Calculate user statistics
-     */
-    function calculateStats() {
-        return {
-            total: allUsers.length,
-            active: allUsers.filter(u => u.active).length,
-            admins: allUsers.filter(u => u.admin).length,
-            envAdmins: allUsers.filter(u => u.envAdmin && !u.admin).length
-        };
+    function renderCounts() {
+        const c = counts(allUsers);
+        $('#um-counts').html(`<span><b>${c.active}</b> active</span>
+            <span><b>${c.admins}</b> administrator${c.admins === 1 ? '' : 's'}</span>
+            <span><b>${c.envAdmins}</b> environment admin${c.envAdmins === 1 ? '' : 's'}</span>
+            <span${c.notSignedIn ? ' class="um-count-warn"' : ''}><b>${c.notSignedIn}</b> haven't signed in yet</span>`);
     }
 
-    /**
-     * Render table rows for current page
-     */
     function renderTable() {
-        const startIndex = (currentPage - 1) * PAGE_SIZE;
-        const endIndex = startIndex + PAGE_SIZE;
-        const pageUsers = filteredUsers.slice(startIndex, endIndex);
-
-        if (pageUsers.length === 0) {
-            $('#users-table-body').html(`
-                <tr>
-                    <td colspan="5" class="text-center text-muted py-4">
-                        <i class="fas fa-users fa-2x mb-2 d-block"></i>
-                        No users found matching your criteria
-                    </td>
-                </tr>
-            `);
-            return;
-        }
-
-        const rows = pageUsers.map(user => buildUserRow(user)).join('');
-        $('#users-table-body').html(rows);
-
-        // Initialize tooltips
-        initTooltips();
+        const pageUsers = Pagination.slice(filteredUsers, currentPage, PAGE_SIZE);
+        $('#users-table-body').html(pageUsers.length ? pageUsers.map(buildUserRow).join('')
+            : `<tr><td colspan="5" class="um-empty">${allUsers.length ? 'Nobody matches these filters.' : 'No people yet. Add people to get started.'}</td></tr>`);
+        $('#user-pagination').html(filteredUsers.length > PAGE_SIZE ? Pagination.buildPager({ page: currentPage, pageSize: PAGE_SIZE,
+            totalItems: filteredUsers.length, action: 'um-page', key: 'users' }) : '');
+        syncAddress();
     }
 
-    /**
-     * Build a single user row
-     */
+    /** The filters and page in the address, so Back returns to them. */
+    function syncAddress() {
+        const params = new URLSearchParams();
+        if (currentSearch) params.set('q', currentSearch);
+        if (currentRoleFilter) params.set('role', currentRoleFilter);
+        if (currentStatusFilter === 'inactive') params.set('status', 'inactive');
+        if (currentPage > 1) params.set('page', String(currentPage));
+        const hash = `#/user-management${params.toString() ? '?' + params.toString() : ''}`;
+        if (window.location.hash !== hash && window.history && window.history.replaceState) window.history.replaceState(null, '', hash);
+    }
+
     function buildUserRow(user) {
-        const roleClass = user.admin ? 'role-badge-admin' : user.envAdmin ? 'role-badge-env-admin' : 'role-badge-user';
-        const roleLabel = user.admin ? 'Admin' : user.envAdmin ? 'Env Admin' : 'User';
-        const statusClass = user.active ? 'bg-success' : 'bg-secondary';
-        const statusLabel = user.active ? 'Active' : 'Inactive';
-        const initials = getInitials(user.displayName || user.email);
-        const lastLogin = user.lastLoginAt ? Utils.formatRelativeTime(user.lastLoginAt) : 'Never';
-
-        const onboardBadges = [
-            user.serviceAccount
-                ? '<span class="onboard-badge onboard-badge-service" title="Service account: never signs in, acts only through API tokens">Service account</span>'
-                : '',
-            user.pendingFirstLogin && !user.serviceAccount
-                ? '<span class="onboard-badge onboard-badge-pending" title="Onboarded from the panel — has not signed in yet">Not signed in</span>'
-                : '',
-            user.unverified
-                ? '<span class="onboard-badge onboard-badge-unverified" title="Added by manual entry — not checked against the Entra directory">Unverified</span>'
-                : ''
-        ].join('');
-
-        return `
-            <tr data-user-id="${user.userId}">
-                <td>
-                    <div class="user-cell">
-                        <div class="user-avatar-sm">${initials}</div>
-                        <div class="user-info">
-                            <div class="user-name">${Utils.escapeHtml(user.displayName || 'Unknown')}</div>
-                            <div class="user-email">${Utils.escapeHtml(user.email)}</div>
-                            ${onboardBadges ? `<div class="user-onboard-badges">${onboardBadges}</div>` : ''}
-                        </div>
-                    </div>
-                </td>
-                <td><span class="role-badge ${roleClass}">${roleLabel}</span></td>
-                <td><span class="badge ${statusClass}">${statusLabel}</span></td>
-                <td class="text-muted">${lastLogin}</td>
-                <td class="text-end td-actions">
-                    <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"
-                                aria-expanded="false">
-                            Actions
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li>
-                                <a class="dropdown-item" href="#" data-action="toggle-admin" data-user-id="${user.userId}">
-                                    <i class="fas fa-user-shield me-2"></i>
-                                    ${user.admin ? 'Remove Admin' : 'Make Admin'}
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item" href="#" data-action="toggle-env-admin" data-user-id="${user.userId}">
-                                    <i class="fas fa-user-cog me-2"></i>
-                                    ${user.envAdmin ? 'Remove Env Admin' : 'Make Env Admin'}
-                                </a>
-                            </li>
-                            ${user.username ? `
-                            <li>
-                                <a class="dropdown-item" href="#" data-action="set-password" data-user-id="${user.userId}">
-                                    <i class="fas fa-key me-2"></i>
-                                    ${user.hasPassword ? 'Reset Password' : 'Set Password'}
-                                </a>
-                            </li>` : ''}
-                            <li><hr class="dropdown-divider"></li>
-                            <li>
-                                <a class="dropdown-item ${user.active ? 'text-danger' : 'text-success'}" href="#"
-                                   data-action="${user.active ? 'deactivate' : 'reactivate'}" data-user-id="${user.userId}">
-                                    <i class="fas ${user.active ? 'fa-user-slash' : 'fa-user-check'} me-2"></i>
-                                    ${user.active ? 'Deactivate' : 'Reactivate'}
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
-                </td>
-            </tr>
-        `;
+        const name = user.displayName || user.email;
+        const last = lastSignIn(user.lastLoginAt);
+        const notYet = !last && !user.serviceAccount;
+        let middle = '';
+        if (user.active && !user.serviceAccount) {
+            middle = signsInWithPasswordOnly(user)
+                ? Utils.html`<button type="button" class="um-act" data-action="set-password" data-user-id="${user.userId}" aria-label="Set password for ${name}">Set password</button>`
+                : Utils.html`<a class="um-act" href="#/access-management/grant?email=${encodeURIComponent(user.email)}&name=${encodeURIComponent(name)}"
+                    data-user-id="${user.userId}" aria-label="Access for ${name}">Access</a>`;
+        }
+        const status = user.active
+            ? Utils.html`<button type="button" class="um-act um-danger" data-action="deactivate" data-user-id="${user.userId}" aria-label="Deactivate ${name}">Deactivate</button>`
+            : Utils.html`<button type="button" class="um-act" data-action="reactivate" data-user-id="${user.userId}" aria-label="Reactivate ${name}">Reactivate</button>`;
+        const role = user.active && !user.serviceAccount
+            ? Utils.html`<button type="button" class="um-act" data-action="change-role" data-user-id="${user.userId}" aria-label="Change role of ${name}">Change role</button>`
+            : '';
+        return Utils.html`
+            <tr data-user-id="${user.userId}"${Utils.raw(user.active ? '' : ' class="um-row-off"')}>
+                <td class="um-person-cell"><div class="um-person"><span class="um-avatar" aria-hidden="true">${getInitials(name)}</span>
+                    <span class="um-who"><span class="um-name">${name}</span><span class="um-email">${user.email}</span></span></div></td>
+                <td data-label="Role">${roleLabel(user)}${Utils.raw(user.active ? '' : ' <span class="um-chip">Deactivated</span>')}</td>
+                <td data-label="Signs in with">${signInLabel(user)}</td>
+                <td data-label="Last sign-in" class="${notYet ? 'um-last um-not-yet' : 'um-last'}">${last || (user.serviceAccount ? '—' : 'Not signed in yet')}</td>
+                <td class="um-actions">${Utils.raw(role)}${Utils.raw(middle)}${Utils.raw(status)}</td>
+            </tr>`;
     }
 
-    /**
-     * Render pagination controls
-     */
-    function renderPagination() {
-        Pagination.renderNumbered('#user-pagination', {
-            page: currentPage,
-            totalItems: filteredUsers.length,
-            pageSize: PAGE_SIZE,
-            itemLabel: 'users',
-            onPageChange: (target) => {
-                currentPage = target;
-                renderTable();
-                renderPagination();
-                $('.user-table-wrapper').scrollTop(0);
-            }
-        });
-    }
-
-    /**
-     * Apply filters and search
-     */
     function applyFilters() {
         filteredUsers = filterUsers();
-
-        // Reset to page 1 when filters change
         currentPage = 1;
         renderTable();
-        renderPagination();
     }
 
     /** allUsers narrowed by the current search, role and status filters. */
     function filterUsers() {
-        const search = currentSearch.toLowerCase().trim();
-
-        return allUsers.filter(user => {
-            // Search filter
-            if (search) {
-                const name = (user.displayName || '').toLowerCase();
-                const email = (user.email || '').toLowerCase();
-                if (!name.includes(search) && !email.includes(search)) {
-                    return false;
-                }
-            }
-
-            // Role filter
-            if (currentRoleFilter) {
-                if (currentRoleFilter === 'ADMIN' && !user.admin) return false;
-                if (currentRoleFilter === 'ENV_ADMIN' && (!user.envAdmin || user.admin)) return false;
-                if (currentRoleFilter === 'USER' && (user.admin || user.envAdmin)) return false;
-            }
-
-            // Status filter
-            if (currentStatusFilter) {
-                if (currentStatusFilter === 'active' && !user.active) return false;
-                if (currentStatusFilter === 'inactive' && user.active) return false;
-            }
-
-            return true;
-        });
+        return filterList(allUsers, currentSearch, currentRoleFilter, currentStatusFilter);
     }
 
-    /**
-     * Bind event handlers
-     */
     function bindEvents() {
-        // Refresh button
-        $('#btn-refresh-users').off('click').on('click', function() {
-            const $btn = $(this);
-            $btn.find('i').addClass('fa-spin');
-            fetchUsers();
-            setTimeout(() => $btn.find('i').removeClass('fa-spin'), 500);
-        });
-
-        // Onboard User button
         $('#btn-onboard-user').off('click').on('click', showOnboardModal);
-
-        // Search input - auto search on typing (3+ chars with debounce)
         $('#user-search').off('input').on('input', Utils.debounce(function() {
-            const val = $(this).val();
-            if (val.length >= 3 || val.length === 0) {
-                currentSearch = val;
-                applyFilters();
-            }
-        }, 300));
-
-        // Search input - Enter key for immediate search
-        $('#user-search').off('keypress').on('keypress', function(e) {
-            if (e.which === 13) {
-                e.preventDefault();
-                currentSearch = $(this).val();
-                applyFilters();
-            }
-        });
-
-        // Search button click
-        $('#btn-search-users').off('click').on('click', function() {
-            currentSearch = $('#user-search').val();
+            currentSearch = $(this).val();
             applyFilters();
-        });
-
-        // Role filter
+        }, 250));
         $('#filter-role').off('change').on('change', function() {
             currentRoleFilter = $(this).val();
             applyFilters();
         });
-
-        // Status filter
         $('#filter-status').off('change').on('change', function() {
             currentStatusFilter = $(this).val();
             applyFilters();
         });
-
-        // Action buttons
         bindActionEvents();
     }
 
-    /**
-     * Bind action button events
-     */
     function bindActionEvents() {
-        // Toggle Admin
-        $('#content-area').off('click.userMgmt', '[data-action="toggle-admin"]').on('click.userMgmt', '[data-action="toggle-admin"]', function(e) {
-            e.preventDefault();
-            const userId = $(this).data('user-id');
-            toggleAdmin(userId);
-        });
-
-        // Toggle Env Admin
-        $('#content-area').off('click.userMgmt', '[data-action="toggle-env-admin"]').on('click.userMgmt', '[data-action="toggle-env-admin"]', function(e) {
-            e.preventDefault();
-            const userId = $(this).data('user-id');
-            toggleEnvAdmin(userId);
-        });
-
-        // Deactivate
-        $('#content-area').off('click.userMgmt', '[data-action="deactivate"]').on('click.userMgmt', '[data-action="deactivate"]', function(e) {
-            e.preventDefault();
-            const userId = $(this).data('user-id');
-            const user = allUsers.find(u => u.userId === userId);
-            Modals.confirm('Deactivate User', `Deactivate user "${user?.displayName || user?.email}"?`, function() {
-                deactivateUser(userId);
-            }, { confirmText: 'Deactivate', confirmClass: 'btn-danger' });
-        });
-
-        // Reactivate
-        $('#content-area').off('click.userMgmt', '[data-action="reactivate"]').on('click.userMgmt', '[data-action="reactivate"]', function(e) {
-            e.preventDefault();
-            const userId = $(this).data('user-id');
-            reactivateUser(userId);
-        });
-
-        // Set / reset password (password sign-in)
-        $('#content-area').off('click.userMgmt', '[data-action="set-password"]').on('click.userMgmt', '[data-action="set-password"]', function(e) {
-            e.preventDefault();
-            const userId = $(this).data('user-id');
-            showSetPasswordModal(allUsers.find(u => u.userId === userId));
-        });
-    }
-
-    /**
-     * Toggle admin status
-     */
-    function toggleAdmin(userId) {
-        ApiClient.patch(Config.API.users.setAdmin(userId))
-            .done(function() {
-                Notifications.success('Admin status updated');
-                fetchUsers();
+        const $area = $('#content-area');
+        $area.off('click.userMgmt')
+            .on('click.userMgmt', '#user-management-view [data-action="um-page"]', function() {
+                currentPage = Number(this.dataset.page) || 1;
+                renderTable();
             })
-            .fail(function(xhr) {
-                Notifications.error(xhr.responseJSON?.message || 'Failed to update admin status');
+            .on('click.userMgmt', '#user-management-view [data-action="change-role"]', function(e) {
+                e.preventDefault();
+                showChangeRoleModal(allUsers.find(u => u.userId === $(this).data('user-id')));
+            })
+            .on('click.userMgmt', '#user-management-view [data-action="deactivate"]', function(e) {
+                e.preventDefault();
+                const userId = $(this).data('user-id');
+                const user = allUsers.find(u => u.userId === userId);
+                Modals.confirm('Deactivate user', `Deactivate "${user?.displayName || user?.email}"? They can no longer sign in.`, function() {
+                    deactivateUser(userId);
+                }, { confirmText: 'Deactivate', confirmClass: 'btn-danger' });
+            })
+            .on('click.userMgmt', '#user-management-view [data-action="reactivate"]', function(e) {
+                e.preventDefault();
+                reactivateUser($(this).data('user-id'));
+            })
+            .on('click.userMgmt', '#user-management-view [data-action="set-password"]', function(e) {
+                e.preventDefault();
+                showSetPasswordModal(allUsers.find(u => u.userId === $(this).data('user-id')));
             });
     }
 
-    /**
-     * Toggle env admin status
-     */
-    function toggleEnvAdmin(userId) {
-        ApiClient.patch(Config.API.users.setEnvAdmin(userId))
-            .done(function() {
-                Notifications.success('Environment admin status updated');
-                fetchUsers();
-            })
-            .fail(function(xhr) {
-                Notifications.error(xhr.responseJSON?.message || 'Failed to update env admin status');
-            });
+    /** Change role: one of Administrator, Environment admin or User (U13-T04 brings the full dialog). */
+    function showChangeRoleModal(user) {
+        if (!user) return;
+        const current = user.admin ? 'ADMIN' : user.envAdmin ? 'ENV_ADMIN' : 'USER';
+        const option = (value, title, text) => `<label class="um-role-choice"><input type="radio" name="um-role" value="${value}"${current === value ? ' checked' : ''}>
+            <span><b>${title}</b><span>${text}</span></span></label>`;
+        Modals.show({
+            id: 'changeRoleModal',
+            title: Utils.escapeHtml(`Change role of ${user.displayName || user.email}`),
+            html: true,
+            body: `<fieldset class="um-roles"><legend class="visually-hidden">Role</legend>
+                ${option('ADMIN', 'Administrator', 'Everything, on every environment.')}
+                ${option('ENV_ADMIN', 'Environment admin', 'Looks after environments: access, settings, schedules.')}
+                ${option('USER', 'User', 'Uses the environments they are given access to.')}</fieldset>
+                <div class="re-error" id="um-role-error" role="alert" hidden></div>`,
+            buttons: [{ text: 'Cancel', class: 'btn-secondary', dismiss: true },
+                { text: 'Change role', class: 'btn-primary', id: 'um-role-save' }],
+            onShow: () => {
+                $('input[name="um-role"]:checked').trigger('focus');
+                $('#um-role-save').off('click').on('click', function() {
+                    const role = $('input[name="um-role"]:checked').val();
+                    const $btn = $(this).prop('disabled', true);
+                    ApiClient.patch(Config.API.users.roles(user.userId), { admin: role === 'ADMIN', envAdmin: role === 'ENV_ADMIN' }, { suppressGlobalError: true })
+                        .done(() => {
+                            Modals.hide('changeRoleModal');
+                            Notifications.success('Role changed');
+                            fetchUsers();
+                        })
+                        .fail(xhr => {
+                            $('#um-role-error').text(xhr.responseJSON?.message || 'The role was not changed.').prop('hidden', false);
+                            $btn.prop('disabled', false);
+                        });
+                });
+            }
+        });
     }
 
-    /**
-     * Deactivate user
-     */
     function deactivateUser(userId) {
         ApiClient.delete(Config.API.users.get(userId))
             .done(function() {
@@ -509,9 +340,6 @@ const UserManagement = (function() {
             });
     }
 
-    /**
-     * Reactivate user
-     */
     function reactivateUser(userId) {
         ApiClient.post(Config.API.users.reactivate(userId))
             .done(function() {
@@ -943,20 +771,10 @@ const UserManagement = (function() {
         return name.substring(0, 2).toUpperCase();
     }
 
-    /**
-     * Initialize Bootstrap tooltips
-     */
-    function initTooltips() {
-        if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
-            document.querySelectorAll('#users-table-body [data-bs-toggle="tooltip"]').forEach(el => {
-                new bootstrap.Tooltip(el, { trigger: 'hover', delay: { show: 300, hide: 100 } });
-            });
-        }
-    }
-
     // Public API
     return {
-        load: load
+        load: load,
+        model: { roleLabel, signInLabel, signsInWithPasswordOnly, counts, lastSignIn, filterList }
     };
 })();
 

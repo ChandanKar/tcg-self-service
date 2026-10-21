@@ -106,8 +106,11 @@ const GrantAccessPage = (function() {
         state.teams = (Array.isArray(teams) ? teams : []).filter(t => t.active !== false);
         const pre = params && params.environmentId;
         if (pre && state.environments.some(e => e.environmentId === pre)) state.targets.set(pre, { whole: true, groupIds: new Set() });
+        // U13-T03: Users › Access opens this with the person already chosen.
+        if (params && params.email) state.people.push({ email: params.email, name: params.name || params.email });
         render();
         bind();
+        drawChips();
         drawEnvironments();
         schedulePreview();
     }

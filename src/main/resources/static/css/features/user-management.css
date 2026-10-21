@@ -1,242 +1,305 @@
 /*
- * User Management Feature Styles
- * Aligned with dashboard/environment styling
+ * Users (U13-T03, Users.dc.html): counts, filters and the people table with direct actions.
+ * The onboarding dialog's styles follow (they stay until Add people, U13-T05).
  */
 
-/* ============================================
-   View Container
-   ============================================ */
-#user-management-view {
+.um-page {
     display: flex;
     flex-direction: column;
-    height: 100%;
-    overflow: hidden;
+    gap: 14px;
 }
 
-/* ============================================
-   Header - Compact like dashboard
-   ============================================ */
-#user-management-view .content-header {
-    margin-bottom: 0.5rem;
+.um-page .content-header {
+    margin-bottom: 0;
 }
 
-
-
-#user-management-view .header-actions {
+.um-counts {
     display: flex;
-    gap: 0.5rem;
-}
-
-/* ============================================
-   Filters Bar
-   ============================================ */
-#user-management-view .user-filters-bar {
-    display: flex;
-    gap: 0.75rem;
-    padding: 0.75rem;
-    background: var(--sidebar-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    margin-bottom: 0.5rem;
-    align-items: center;
-    box-sizing: border-box;
-}
-
-/* Search Input Wrapper - 40% */
-#user-management-view .user-filters-bar .search-input-wrapper {
-    flex: 0 0 calc(40% - 0.5rem);
-    min-width: 0;
-}
-
-#user-management-view .user-filters-bar .input-group {
-    display: flex;
-    flex-wrap: nowrap;
-    width: 100%;
-}
-
-#user-management-view .user-filters-bar .input-group-text {
-    padding: 0.4rem 0.6rem;
-    font-size: 0.8rem;
-    background: var(--background-light);
-    border-color: var(--border-color);
-    display: flex;
-    align-items: center;
-}
-
-#user-management-view .user-filters-bar .input-group .form-control {
-    font-size: 0.81rem;
-    padding: 0.4rem 0.6rem;
-    border-color: var(--border-color);
-}
-
-#user-management-view .user-filters-bar .input-group .btn {
-    padding: 0.4rem 0.75rem;
-    font-size: 0.8rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* Role & Status Filters - 30% each */
-#user-management-view .user-filters-bar > select.form-select {
-    flex: 0 0 calc(30% - 0.5rem);
-    min-width: 0;
-    font-size: 0.81rem;
-    padding: 0.4rem 2rem 0.4rem 0.6rem;
-    border-color: var(--border-color);
-    box-sizing: border-box;
-}
-
-/* ============================================
-   Stats Row - Inline like dashboard metrics
-   ============================================ */
-.user-stats-row {
-    display: flex;
-    gap: 1.5rem;
-    padding: 0.5rem 0.75rem;
-    margin-bottom: 0.5rem;
-}
-
-.user-stat-item {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.81rem;
-}
-
-.user-stat-item .stat-label {
+    flex-wrap: wrap;
+    gap: 6px 22px;
+    font-size: var(--fs-body);
     color: var(--text-secondary);
 }
 
-.user-stat-item .stat-value {
+.um-counts b {
+    color: var(--ink);
     font-weight: 600;
-    color: var(--text-primary);
 }
 
-/* ============================================
-   Table Card - Like dashboard env-table-card
-   ============================================ */
-.user-table-card {
-    flex: 1;
+.um-count-warn b {
+    color: var(--brand-gold-text);
+}
+
+.um-filters {
     display: flex;
-    flex-direction: column;
-    min-height: 0;
-    overflow: hidden;
-    padding: 0;
-    background: var(--sidebar-bg);
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
 }
 
-.user-table-wrapper {
-    flex: 1;
-    overflow-y: auto;
-    min-height: 0;
-}
-
-.user-table-wrapper::-webkit-scrollbar {
-    width: 4px;
-}
-
-/* ============================================
-   Table Styles - Dashboard Baseline (uses CSS variables)
-   ============================================ */
-.user-table {
-    width: 100%;
+.um-search {
+    position: relative;
+    flex: 1 1 260px;
+    max-width: 360px;
     margin: 0;
 }
 
-.user-table thead {
-    position: sticky;
-    top: 0;
-    z-index: 10;
+.um-search svg {
+    position: absolute;
+    top: 50%;
+    left: 11px;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+    pointer-events: none;
 }
 
-.user-table th {
-    background: var(--table-header-bg);
-    font-size: var(--table-header-font, 0.7rem);
-    font-weight: 600;
-    letter-spacing: 0.03em;
+.um-search .form-control {
+    padding-left: 34px;
+}
+
+.um-filters .form-select {
+    width: auto;
+    min-width: 11rem;
+}
+
+.um-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.um-table-wrap {
+    overflow-x: auto;
+}
+
+.um-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--fs-body);
+}
+
+.um-table th {
+    padding: 10px 16px;
+    font-size: var(--fs-small);
+    font-weight: 500;
     color: var(--text-secondary);
-    padding: var(--table-cell-padding, 0.28rem 0.55rem);
-    border-bottom: 1px solid var(--border-color);
+    text-align: left;
     white-space: nowrap;
 }
 
-.user-table td {
-    padding: var(--table-cell-padding, 0.28rem 0.55rem);
-    border-bottom: 1px solid var(--border-color);
+.um-table td {
+    padding: 6px 16px;
+    border-top: 1px solid var(--line-soft);
     vertical-align: middle;
-    font-size: var(--table-body-font, 0.81rem);
 }
 
-.user-table tbody tr:hover {
-    background: var(--sidebar-hover);
-}
-
-.user-table tbody tr:last-child td {
-    border-bottom: none;
-}
-
-/* ============================================
-   User Cell with Avatar
-   ============================================ */
-.user-cell {
+.um-person {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
-}
-
-.user-avatar-sm {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: var(--primary-color);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.7rem;
-    font-weight: 600;
-    flex-shrink: 0;
-}
-
-.user-cell .user-info {
+    gap: 10px;
     min-width: 0;
 }
 
-.user-cell .user-name {
+.um-avatar {
+    display: inline-flex;
+    flex: 0 0 30px;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--brand-navy-tint);
+    font-size: var(--fs-caption);
     font-weight: 600;
-    color: var(--text-primary);
-    font-size: 0.81rem;
-    line-height: 1.3;
+    color: var(--brand-navy);
 }
 
-.user-cell .user-email {
-    font-size: 0.70rem;
+.um-who {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.um-name {
+    font-weight: 500;
+}
+
+.um-email {
+    font-size: var(--fs-small);
     color: var(--text-secondary);
-    line-height: 1.3;
+    overflow-wrap: anywhere;
 }
 
-/* Role Badges — see components/badges.css for .role-badge / .role-badge-* */
-
-/* Pagination — see components/pagination.css for .pagination-bar-wrap / .pg-btn */
-
-/* ============================================
-   Action Dropdown
-   ============================================ */
-.user-table .dropdown-menu {
-    font-size: 0.81rem;
+.um-last {
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: var(--fs-small);
 }
 
-.user-table .dropdown-item {
-    padding: 0.4rem 0.75rem;
+.um-not-yet {
+    font-family: inherit;
+    color: var(--brand-gold-text);
 }
 
-.user-table .dropdown-item i {
-    width: 16px;
+.um-row-off td {
+    color: var(--text-secondary);
+}
+
+.um-chip {
+    margin-left: 6px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--surface-muted);
+    font-size: var(--fs-caption);
+    color: var(--text-secondary);
+}
+
+.um-actions {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.um-act {
+    margin-left: 14px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--fs-small);
+    color: var(--brand-navy);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.um-act:first-child {
+    margin-left: 0;
+}
+
+.um-act:hover {
+    text-decoration: underline;
+}
+
+.um-act.um-danger {
+    color: var(--brand-red-text);
+}
+
+.um-empty {
+    padding: 24px 16px;
+    color: var(--text-secondary);
     text-align: center;
 }
+
+#user-pagination:not(:empty) {
+    padding: 10px 16px;
+    border-top: 1px solid var(--line-soft);
+}
+
+.um-roles {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.um-role-choice {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    cursor: pointer;
+}
+
+.um-role-choice:has(input:checked) {
+    border: 1.5px solid var(--brand-navy);
+    background: var(--brand-navy-tint);
+}
+
+.um-role-choice input {
+    margin-top: 4px;
+    accent-color: var(--brand-navy);
+}
+
+.um-role-choice b {
+    display: block;
+    font-weight: 500;
+}
+
+.um-role-choice span span {
+    display: block;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+/* On a phone each person is a card: the header row goes, each cell says what it is. */
+@media (max-width: 767.98px) {
+    .um-table,
+    .um-table tbody,
+    .um-table tr,
+    .um-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .um-table thead {
+        display: none;
+    }
+
+    .um-table tr {
+        padding: 10px 14px;
+        border-top: 1px solid var(--line-soft);
+    }
+
+    .um-table tr:first-child {
+        border-top: 0;
+    }
+
+    .um-table td {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 4px 0;
+        border: 0;
+    }
+
+    .um-table td[data-label]::before {
+        content: attr(data-label);
+        font-family: var(--font-sans);
+        color: var(--text-secondary);
+        font-size: var(--fs-small);
+    }
+
+    .um-table td.um-person-cell,
+    .um-table td.um-empty {
+        display: block;
+    }
+
+    .um-actions {
+        justify-content: flex-start !important;
+        flex-wrap: wrap;
+        gap: 0 18px;
+        white-space: normal;
+        text-align: left;
+    }
+
+    .um-act {
+        margin-left: 0;
+        padding: 6px 0;
+    }
+
+    .um-filters .form-select,
+    .um-search {
+        flex: 1 1 100%;
+        max-width: none;
+    }
+}
+
+/* ===== Onboarding dialog ===== */
 
 /* ============================================
    Legacy styles kept for compatibility
@@ -284,70 +347,6 @@
     color: var(--text-secondary);
 }
 
-/* User Stats */
-.user-stats {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 0.75rem;
-    margin-bottom: 1rem;
-}
-
-.user-stat-card {
-    text-align: center;
-    padding: 0.75rem;
-    background: var(--background-light);
-    border-radius: 8px;
-}
-
-.user-stat-card .stat-value {
-    font-size: var(--font-size-2xl, 1.5rem);
-    font-weight: 700;
-    color: var(--text-primary);
-}
-
-.user-stat-card .stat-label {
-    font-size: 0.63rem;
-    color: var(--text-secondary);
-}
-
-
-/* ===================== Onboard User ===================== */
-
-.user-onboard-badges {
-    margin-top: 2px;
-    display: flex;
-    gap: 4px;
-    flex-wrap: wrap;
-}
-
-.onboard-badge {
-    display: inline-block;
-    font-size: 0.62rem;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-    padding: 1px 6px;
-    border-radius: 999px;
-    line-height: 1.5;
-}
-
-.onboard-badge-pending {
-    background: var(--brand-gold-tint);
-    color: var(--brand-gold-text);
-}
-
-.onboard-badge-unverified {
-    background: var(--background-light);
-    color: var(--text-secondary);
-    border: 1px solid var(--border-color);
-}
-
-/* A service account (E34-T03) */
-.onboard-badge-service {
-    background: color-mix(in srgb, var(--brand-navy) 14%, transparent);
-    color: var(--brand-navy);
-}
-
 /* Directory typeahead */
 .onboard-autocomplete {
     position: relative;
@@ -379,11 +378,15 @@
 }
 
 .onboard-result:last-child { border-bottom: 0; }
+
 .onboard-result:hover:not(:disabled) { background: var(--background-light); }
+
 .onboard-result:disabled { cursor: not-allowed; opacity: 0.6; }
 
 .onboard-result-name { display: block; font-weight: 600; font-size: 0.85rem; color: var(--text-primary); }
+
 .onboard-result-email { display: block; font-size: 0.75rem; color: var(--text-secondary); }
+
 .onboard-result-tag {
     float: right;
     font-size: 0.62rem;
@@ -407,6 +410,7 @@
 }
 
 .onboard-selected-name { font-weight: 600; font-size: 0.85rem; color: var(--text-primary); }
+
 .onboard-selected-email { font-size: 0.75rem; color: var(--text-secondary); }
 
 .onboard-group-checklist {
