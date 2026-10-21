@@ -153,10 +153,16 @@ const ActivityLogs = (function() {
                 actionsHtml: exportBtn, helpPage: 'activity-logs', helpLabel: 'Activity logs' })}
             <div class="activity-filters">
                 <div class="activity-periods" role="group" aria-label="Period">${periods}</div>
-                <label class="activity-select">Environment
-                    <select class="form-select form-select-sm" id="al-environment-filter">${envOptions}</select></label>
-                <label class="activity-select">Action
-                    <select class="form-select form-select-sm" id="al-action-filter">${catOptions}</select></label>
+                <button type="button" class="btn btn-outline-secondary activity-filters-btn" id="al-filters-btn"
+                    aria-expanded="false" aria-controls="al-filter-sheet">${filtersLabel()}</button>
+                <div class="activity-filter-sheet" id="al-filter-sheet" role="group" aria-labelledby="al-filter-sheet-title">
+                    <div class="activity-sheet-head"><h2 id="al-filter-sheet-title">Filters</h2>
+                        <button type="button" class="btn btn-primary btn-sm" id="al-filters-done">Done</button></div>
+                    <label class="activity-select">Environment
+                        <select class="form-select form-select-sm" id="al-environment-filter">${envOptions}</select></label>
+                    <label class="activity-select">Action
+                        <select class="form-select form-select-sm" id="al-action-filter">${catOptions}</select></label>
+                </div>
                 <div class="activity-dates" id="al-custom-date-range" ${state.period === 'dates' ? '' : 'hidden'}>
                     <label>From <input type="date" class="form-control form-control-sm" id="al-start-date-input" value="${Utils.escapeHtml(state.customStart)}"></label>
                     <label>To <input type="date" class="form-control form-control-sm" id="al-end-date-input" value="${Utils.escapeHtml(state.customEnd)}"></label>
@@ -165,6 +171,20 @@ const ActivityLogs = (function() {
             </div>
             <div class="activity-card" id="al-results" aria-live="polite"></div>
         </div>`;
+    }
+
+    /** The phone's Filters button names how many filters are on (U16-T04). */
+    function filtersLabel() {
+        const n = (state.environmentId ? 1 : 0) + (state.category ? 1 : 0);
+        return n ? `Filters · ${n}` : 'Filters';
+    }
+
+    /** Phone: the Environment and Action filters open as a sheet from the Filters button. */
+    function openFilterSheet(open) {
+        $('#al-filter-sheet').toggleClass('is-open', open);
+        $('#al-filters-btn').attr('aria-expanded', String(open)).text(filtersLabel());
+        if (open) $('#al-environment-filter').trigger('focus');
+        else $('#al-filters-btn').trigger('focus');
     }
 
     function rowMarkup(log) {
@@ -264,12 +284,16 @@ const ActivityLogs = (function() {
                 setCustomRange(start, end);
                 reload();
             })
-            .on('change' + NS, '#al-environment-filter', function() { state.environmentId = $(this).val(); reload(); })
-            .on('change' + NS, '#al-action-filter', function() { state.category = $(this).val(); reload(); })
+            .on('change' + NS, '#al-environment-filter', function() { state.environmentId = $(this).val(); $('#al-filters-btn').text(filtersLabel()); reload(); })
+            .on('change' + NS, '#al-action-filter', function() { state.category = $(this).val(); $('#al-filters-btn').text(filtersLabel()); reload(); })
+            .on('click' + NS, '#al-filters-btn', () => openFilterSheet(true))
+            .on('click' + NS, '#al-filters-done', () => openFilterSheet(false))
+            .on('keydown' + NS, '#al-filter-sheet.is-open', e => { if (e.key === 'Escape') openFilterSheet(false); })
             .on('click' + NS, '#al-clear-filters-btn', function() {
                 state.environmentId = '';
                 state.category = '';
                 $('#al-environment-filter, #al-action-filter').val('');
+                $('#al-filters-btn').text(filtersLabel());
                 reload();
             })
             .on('click' + NS, '#al-export-logs-btn', () => exportLogs());

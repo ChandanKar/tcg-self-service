@@ -261,3 +261,77 @@ td.activity-time {
         width: 140px;
     }
 }
+
+/* U16-T04: wider screens show the filters in the row; a phone folds them into a Filters sheet. */
+.activity-filter-sheet {
+    display: contents;
+}
+
+.activity-filters-btn,
+.activity-sheet-head {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .activity-periods {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow-x: auto;
+    }
+
+    .activity-period {
+        flex: 0 0 auto;
+        min-height: 38px;
+    }
+
+    .activity-filters-btn {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
+    }
+
+    .activity-filter-sheet {
+        display: none;
+    }
+
+    .activity-filter-sheet.is-open {
+        position: fixed;
+        inset: auto 0 0 0;
+        z-index: 1060;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0px));
+        background: #fff;
+        border-top: 1px solid var(--line);
+        border-radius: 16px 16px 0 0;
+        box-shadow: 0 -8px 32px rgba(15, 23, 42, 0.18);
+    }
+
+    .activity-filter-sheet.is-open .activity-sheet-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .activity-sheet-head h2 {
+        margin: 0;
+        font-size: var(--fs-card-title);
+        font-weight: 600;
+    }
+
+    .activity-sheet-head .btn {
+        min-height: 44px;
+        padding-inline: 18px;
+    }
+
+    .activity-filter-sheet .activity-select {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+    }
+
+    .activity-filter-sheet .activity-select .form-select {
+        height: 44px;
+    }
+}

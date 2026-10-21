@@ -7,6 +7,8 @@
  * Cancel request, Open <environment> or Request again. Other pages open it with
  * #/request-access?env=<id>&group=<id>&level=USER|VIEWER (and tab=mine). The words are pure
  * (RequestAccess.model), tested in src/test/js/request-access.test.mjs.
+ * On a phone (U16-T04) the list and the form are two views: picking an environment shows the form on
+ * its own with "Back to environments".
  */
 const RequestAccess = (function() {
     'use strict';
@@ -121,7 +123,9 @@ const RequestAccess = (function() {
             envs: [], requests: [], viewEnvIds: new Set(), waitingEnvIds: new Set(),
             selected: q.env || q.environmentId || null,
             preset: { group: q.group || null, groupName: q.groupName || null, level: q.level || null, name: q.name || null },
-            query: '', page: 0, minePage: 0, maxDays: 90, groups: {}, sending: false, errors: {}
+            query: '', page: 0, minePage: 0, maxDays: 90, groups: {}, sending: false, errors: {},
+            // On a phone: whether the form shows instead of the list (an environment in the address opens it).
+            showForm: !!(q.env || q.environmentId)
         };
         $('#content-area').html('<div class="loading-state"><div class="spinner-border text-primary" role="status"></div><p>Loading…</p></div>');
         try {
@@ -196,7 +200,7 @@ const RequestAccess = (function() {
     }
 
     function newHtml() {
-        return `<div class="ra-split">
+        return `<div class="ra-split${s.showForm ? ' ra-show-form' : ''}" id="ra-split">
                 <section class="ra-card ra-list-card" aria-labelledby="ra-avail-title">
                     <div class="ra-card-head">
                         <h2 id="ra-avail-title">Environments</h2>
@@ -228,9 +232,18 @@ const RequestAccess = (function() {
         }).join('');
     }
 
+    /** Shown only on a phone, where the form is a view of its own. */
+    const BACK = `<button type="button" class="btn btn-link ra-back" data-ra-back>
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round" aria-hidden="true"><path d="m12 4-6 6 6 6"/></svg>Back to environments</button>`;
+
     function formHtml() {
         const env = s.envs.find(e => e.environmentId === s.selected);
         if (!env) return '<h2 id="ra-form-title">Request access</h2><p class="ra-empty">Pick an environment on the left.</p>';
+        return BACK + formBodyHtml(env);
+    }
+
+    function formBodyHtml(env) {
         const name = envName(env);
         const waiting = s.requests.find(r => r.status === 'PENDING' && r.environmentId === env.environmentId);
         if (waiting) {
@@ -375,6 +388,7 @@ const RequestAccess = (function() {
                 s.preset = {};
                 s.tab = 'mine';
                 s.minePage = 0;
+                s.showForm = false;
                 render();
             })
             .fail(xhr => {
@@ -422,6 +436,11 @@ const RequestAccess = (function() {
                 $('#ra-env-list [data-ra-env]').attr('aria-pressed', 'false');
                 this.setAttribute('aria-pressed', 'true');
                 rerenderForm();
+                showForm(true);
+            })
+            .on('click.reqAccess', '[data-ra-back]', () => {
+                showForm(false);
+                $(`#ra-env-list [data-ra-env="${CSS.escape(s.selected || '')}"]`).trigger('focus');
             })
             .on('submit.reqAccess', '#ra-form', e => { e.preventDefault(); send(); })
             .on('input.reqAccess', '#ra-reason', function() {
@@ -435,8 +454,19 @@ const RequestAccess = (function() {
                     level: this.getAttribute('data-ra-level') || null, name: this.getAttribute('data-ra-name') || null };
                 if (!s.envs.some(e => e.environmentId === s.selected)) s.envs.unshift({ environmentId: s.selected, displayName: s.preset.name || 'This environment' });
                 s.tab = 'new';
+                s.showForm = true;
                 render();
             });
+    }
+
+    /** Phone: the form on its own, or back to the list. Wider screens show both, so nothing changes there. */
+    function showForm(on) {
+        s.showForm = on;
+        $('#ra-split').toggleClass('ra-show-form', on);
+        if (on && window.matchMedia && window.matchMedia('(max-width: 768px)').matches) {
+            window.scrollTo(0, 0);
+            $('#ra-form-title').attr('tabindex', '-1').trigger('focus');
+        }
     }
 
     return { load, model: { requestLine, envTag, envDescription, durations, reasonProblem, joinNames } };

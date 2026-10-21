@@ -95,17 +95,6 @@ button.mobile-nav-item.active {
         font-size: 13px;
     }
 
-    /* The bell's list fills the width under the top bar. */
-    .notification-dropdown {
-        position: fixed;
-        top: 56px;
-        left: 8px;
-        right: 8px;
-        width: auto;
-        max-height: calc(100vh - 56px - 72px);
-        overflow-y: auto;
-    }
-
     /* More: the side menu as a full-screen sheet. */
     .sidebar {
         top: 0;
@@ -447,3 +436,82 @@ button.mobile-nav-item.active {
     }
 }
 
+
+/*
+ * U16-T04: on a phone the side panels (My account, Ask, VM details, history…) and the notifications
+ * are full-screen sheets with their close button in the header. dvh keeps Ask's input above the keyboard.
+ */
+@media (max-width: 768px) {
+    .slideout-panel,
+    .slideout-panel.dynamic-slideout-panel {
+        --slideout-width: 100vw !important;
+        top: 0;
+        width: 100vw;
+        height: 100vh;
+        height: 100dvh;
+        border-left: 0;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    .slideout-panel .slideout-panel-header .close-btn {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    .notification-dropdown {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        max-height: none;
+        height: 100dvh;
+        border-radius: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .notification-dropdown[hidden] {
+        display: none;
+    }
+
+    .notification-dropdown .notification-list {
+        flex: 1;
+        max-height: none;
+        overflow-y: auto;
+    }
+
+    .notification-dropdown-footer {
+        padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    }
+}
+
+/* The notifications' Close shows only where the list is a full-screen sheet. */
+.notification-close {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .notification-close {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 44px;
+        min-height: 44px;
+        margin-right: -12px;
+        border: 0;
+        background: transparent;
+        color: var(--slate);
+    }
+
+    .notification-dropdown-header .notification-mark-all-btn {
+        margin-left: auto;
+    }
+}
+
+@media (max-width: 768px) {
+    /* Ask: 16px text so phones don't zoom into the field; 44px targets. */
+    .assistant-form .form-control,
+    .assistant-form .btn {
+        height: 44px;
+        font-size: 16px;
+    }
+}

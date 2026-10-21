@@ -611,3 +611,37 @@
         grid-column: 1 / -1;
     }
 }
+
+/* U16-T04: on a phone the list and the form are two views; the form has Back to the list. */
+.ra-back {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .ra-split .ra-form-card,
+    .ra-split.ra-show-form .ra-list-card {
+        display: none;
+    }
+
+    .ra-split.ra-show-form .ra-form-card {
+        display: block;
+        flex: 1 1 100%;
+    }
+
+    .ra-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 44px;
+        padding: 0;
+        margin-bottom: 4px;
+        font-weight: 500;
+        text-decoration: none;
+    }
+
+    .ra-request .ra-row-action {
+        flex: 1 1 100%;
+        text-align: left;
+        min-height: 44px;
+    }
+}

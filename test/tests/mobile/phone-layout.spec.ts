@@ -8,6 +8,7 @@ import { seedEnvironment } from '../../fixtures/seed';
  */
 
 declare const ContentRouter: any;
+declare const AssistantPanel: any;
 
 const WIDTH = 390;
 test.use({ viewport: { width: WIDTH, height: 844 } });
@@ -81,6 +82,86 @@ test.describe('Phone layout (user)', () => {
     expect(box).not.toBeNull();
     expect(box!.x).toBeGreaterThanOrEqual(0);
     expect(box!.x + box!.width).toBeLessThanOrEqual(WIDTH);
+    await expectNoSideScroll(page);
+  });
+
+  // U16-T04: the everyday screens on a phone.
+  for (const [hash, ready] of [
+    ['#/request-access', '#ra-env-list'],
+    ['#/approvals', '#content-area h1'],
+    ['#/activity-logs', '#al-results'],
+    ['#/help', '#content-area h1'],
+    ['#/templates', '#content-area h1'],
+    ['#/chat-action/not-a-real-token', '.chat-action-page'],
+  ]) {
+    test(`${hash} fits the screen (U16-T04)`, async ({ page }) => {
+      await go(page, hash, ready);
+      await expectNoSideScroll(page);
+    });
+  }
+
+  test('My account covers the screen and Close returns focus to the avatar (U16-T04)', async ({ page }) => {
+    const avatar = page.locator('.user-profile-trigger');
+    await avatar.click();
+    const panel = page.locator('#dynamicSlideoutPanel');
+    await expect(page.locator('.my-account').first()).toBeVisible({ timeout: 10_000 });
+    const box = await panel.boundingBox();
+    expect(box).toEqual({ x: 0, y: 0, width: WIDTH, height: 844 });
+    await panel.locator('.slideout-panel-header .close-btn').click();
+    await expect(avatar).toBeFocused();
+  });
+
+  test('Request access: tapping an environment shows the form on its own, Back returns to the list (U16-T04)', async ({ page }) => {
+    await go(page, '#/request-access', '#ra-env-list');
+    const list = page.locator('.ra-list-card');
+    const form = page.locator('#ra-form-card');
+    await expect(list).toBeVisible();
+    await expect(form).toBeHidden();
+    const env = page.locator('#ra-env-list [data-ra-env]').first();
+    test.skip(await env.count() === 0, 'No environment to ask for');
+    await env.click();
+    await expect(form).toBeVisible();
+    await expect(list).toBeHidden();
+    await expect(page.locator('#ra-form-title')).toBeFocused();
+    await page.getByRole('button', { name: 'Back to environments' }).click();
+    await expect(list).toBeVisible();
+    await expect(form).toBeHidden();
+    await expect(env).toBeFocused();
+    await expectNoSideScroll(page);
+  });
+
+  test('My activity: the filters open as a sheet from one Filters button (U16-T04)', async ({ page }) => {
+    await go(page, '#/activity-logs', '#al-results');
+    const sheet = page.locator('#al-filter-sheet');
+    await expect(page.locator('#al-environment-filter')).toBeHidden();
+    const button = page.locator('#al-filters-btn');
+    await expect(button).toHaveText('Filters');
+    await button.click();
+    await expect(button).toHaveAttribute('aria-expanded', 'true');
+    await expect(sheet).toBeVisible();
+    await page.locator('#al-action-filter').selectOption({ index: 1 });
+    await page.locator('#al-filters-done').click();
+    await expect(sheet).toBeHidden();
+    await expect(button).toHaveText('Filters · 1');
+    await expect(button).toBeFocused();
+  });
+
+  test('the notifications and Ask are full-screen sheets with a Close in the header (U16-T04)', async ({ page }) => {
+    await page.locator('#notification-bell-btn').click();
+    const list = page.locator('#notification-dropdown');
+    await expect(list).toBeVisible();
+    expect(await list.boundingBox()).toEqual({ x: 0, y: 0, width: WIDTH, height: 844 });
+    await page.getByRole('button', { name: 'Close notifications' }).click();
+    await expect(list).toBeHidden();
+    await expect(page.locator('#notification-bell-btn')).toBeFocused();
+
+    await page.evaluate(() => AssistantPanel.open());
+    const ask = page.locator('#assistant-question');
+    await expect(ask).toBeVisible();
+    expect(await page.locator('#dynamicSlideoutPanel').boundingBox()).toEqual({ x: 0, y: 0, width: WIDTH, height: 844 });
+    const input = await ask.boundingBox();
+    expect(input!.height).toBeGreaterThanOrEqual(44);
+    expect(input!.y + input!.height).toBeLessThanOrEqual(844);
     await expectNoSideScroll(page);
   });
 });
@@ -186,7 +267,7 @@ test.describe('Phone layout (admin tables)', () => {
     ['#/request-access', '#ra-env-list'],
     ['#/pending-requests', '#content-area h1'],
     ['#/user-management', '#content-area table'],
-    ['#/activity-logs', '#al-action-filter'],
+    ['#/activity-logs', '#al-results'],
     ['#/audit-logs-all', '#content-area table'],
     ['#/vm-registry', '#content-area table'],
   ] as const) {

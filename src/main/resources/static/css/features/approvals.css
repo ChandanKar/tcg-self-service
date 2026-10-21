@@ -182,5 +182,11 @@
 
     .approval-actions .btn {
         flex: 1;
+        min-height: 44px;
+    }
+
+    /* U16-T04: Approve takes most of the row, Deny… sits beside it. */
+    .approval-actions .btn-primary {
+        flex: 2;
     }
 }

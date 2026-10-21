@@ -131,6 +131,11 @@ const NotificationBell = (function () {
         if (typeof MyAccount !== 'undefined') MyAccount.open('notifications');
     });
 
+    /** On a phone the list is a full-screen sheet with its own Close (U16-T04). */
+    $(document).off('click.notifClose').on('click.notifClose', '#notification-close', function() {
+        closeDropdown(true);
+    });
+
     function closeDropdown(returnFocus) {
         if (!isOpen) return;
         isOpen = false;
