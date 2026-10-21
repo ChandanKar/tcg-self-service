@@ -5,7 +5,8 @@ import { withFeatures } from '../../fixtures/capabilities';
 /**
  * E28-T09: the AWS Accounts admin page. The account API is faked in the browser: the list with
  * verification states, add with client-side checks, verify, the Organizations import, escaping,
- * and the page refused to non-admins.
+ * and the page refused to non-admins. U14-T03 (AwsAccounts.dc.html): account IDs in groups of four,
+ * access in words, the last check as a dot and a sentence, Check access in place, Deactivate in Edit.
  */
 
 declare const ContentRouter: any;
@@ -16,7 +17,8 @@ const DEFAULT = { awsAccountRef: '00000000-0000-0000-0000-000000000001', account
 const MEMBER = { awsAccountRef: 'm-1', accountNumber: '210987654321', displayName: '<script>x</script>',
   roleArn: 'arn:aws:iam::210987654321:role/VmControlAccess', externalIdMasked: '****9876', regions: ['eu-west-1'],
   isDefault: false, isBillingAccount: false, isActive: true, source: 'MANUAL', environmentCount: 0,
-  lastVerifiedAt: new Date().toISOString(), lastError: 'AccessDenied: not authorized to perform sts:AssumeRole' };
+  lastVerifiedAt: new Date().toISOString(), lastError: 'AccessDenied: not authorized to perform sts:AssumeRole',
+  lastErrorSummary: "Role can't be assumed" };
 
 async function open(page: Page) {
   await signIn(page, 'admin');
@@ -29,7 +31,7 @@ test.describe('AWS accounts page', () => {
     test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
   });
 
-  test('lists accounts with their verification and escapes names', async ({ page }) => {
+  test('lists accounts: grouped IDs, access in words, the last check; escapes names', async ({ page }) => {
     await page.route(/\/api\/v1\/aws-accounts$/, r => r.fulfill({ json: [DEFAULT, MEMBER] }));
     await page.route(/\/aws-accounts\/organization-candidates$/, r => r.fulfill({ status: 400, json: { message: 'disabled' } }));
     await open(page);
@@ -37,11 +39,30 @@ test.describe('AWS accounts page', () => {
     const rows = page.locator('#aws-account-table tbody tr');
     await expect(rows).toHaveCount(2, { timeout: 15_000 });
     await expect(rows.first()).toContainText('Default');
-    await expect(rows.first()).toContainText('Verified');
+    await expect(rows.first()).toContainText('1234 5678 9012');
+    await expect(rows.first()).toContainText('Platform credentials');
+    await expect(rows.first().locator('.aa-check')).toContainText(/^OK · today \d\d:\d\d$/);
+    await expect(rows.first().locator('.aa-dot-ok')).toHaveCount(1);
     await expect(rows.nth(1)).toContainText('<script>x</script>');
-    await expect(rows.nth(1).locator('.badge.text-bg-danger')).toHaveAttribute('title', /AssumeRole/);
-    await expect(rows.first().locator('[data-action="aws-account-deactivate"]')).toHaveCount(0);
-    await expect(page.locator('#aws-import-btn')).toBeHidden();
+    await expect(rows.nth(1)).toContainText('Assumes VmControlAccess role');
+    // Acceptance: a role that can't be assumed: a red dot, the sentence, AWS's message in the tooltip.
+    const check = rows.nth(1).locator('.aa-check');
+    await expect(check).toHaveText("Role can't be assumed");
+    await expect(check).toHaveAttribute('title', /AssumeRole/);
+    await expect(check.locator('.aa-dot-bad')).toHaveCount(1);
+    await expect(rows.first().getByRole('button', { name: /^Check access/ })).toBeVisible();
+    await expect(page.locator('[data-action="aws-account-deactivate"]')).toHaveCount(0); // Deactivate lives in Edit
+    await expect(page.locator('#aws-import-btn')).toHaveCount(0);
+    await expect(page.locator('#aws-orgs-off')).toContainText('Finding accounts automatically from AWS Organizations is off.');
+
+    // Acceptance: the default account's Edit has no Deactivate; a member account's has it.
+    await rows.first().getByRole('button', { name: /^Edit/ }).click();
+    await expect(page.locator('#awsAccountModal')).toBeVisible();
+    await expect(page.locator('#acct-deactivate')).toHaveCount(0);
+    await page.locator('#awsAccountModal .btn-secondary', { hasText: 'Cancel' }).click();
+    await expect(page.locator('#awsAccountModal')).toBeHidden();
+    await rows.nth(1).getByRole('button', { name: /^Edit/ }).click();
+    await expect(page.locator('#acct-deactivate')).toHaveText('Deactivate account');
   });
 
   test('adding checks the ARN and regions before sending, then verify reports the result', async ({ page }) => {
@@ -53,7 +74,8 @@ test.describe('AWS accounts page', () => {
       }
       return r.fulfill({ json: created ? [DEFAULT, { ...MEMBER, displayName: 'Payments', awsAccountRef: 'm-2', lastError: null, lastVerifiedAt: null }] : [DEFAULT] });
     });
-    await page.route(/\/aws-accounts\/m-2\/verify$/, r => r.fulfill({ json: { ...MEMBER, displayName: 'Payments', lastError: null } }));
+    await page.route(/\/aws-accounts\/m-2\/verify$/, r => r.fulfill({ json: { ...MEMBER, awsAccountRef: 'm-2', displayName: 'Payments',
+      lastError: null, lastErrorSummary: null, lastVerifiedAt: new Date().toISOString() } }));
     await page.route(/\/aws-accounts\/organization-candidates$/, r => r.fulfill({ status: 400, json: { message: 'disabled' } }));
     await open(page);
 
@@ -73,8 +95,16 @@ test.describe('AWS accounts page', () => {
     await expect(page.locator('#awsAccountModal')).toBeHidden();
     expect(created).toMatchObject({ displayName: 'Payments', regions: ['eu-west-1'], externalId: 'ext-secret-9876', isBillingAccount: false });
 
-    await page.locator('#aws-account-table tbody tr[data-ref="m-2"] [data-action="aws-account-verify"]').click();
-    await expect(page.locator('#notification-container').filter({ hasText: 'Payments verified' })).toBeVisible();
+    // Acceptance: Check access succeeds: a green dot and 'OK · today hh:mm', without reloading the list.
+    let lists = 0;
+    page.on('request', r => { if (/\/api\/v1\/aws-accounts$/.test(r.url()) && r.method() === 'GET') lists++; });
+    const row = page.locator('#aws-account-table tbody tr[data-ref="m-2"]');
+    await expect(row.locator('.aa-check')).toHaveText('Not checked yet');
+    await row.locator('[data-action="aws-account-verify"]').click();
+    await expect(page.locator('#notification-container').filter({ hasText: 'Payments: access OK' })).toBeVisible();
+    await expect(row.locator('.aa-check')).toHaveText(/^OK · today \d\d:\d\d$/);
+    await expect(row.locator('.aa-dot-ok')).toHaveCount(1);
+    expect(lists).toBe(0);
   });
 
   test('imports chosen organization accounts and reports the skipped ones', async ({ page }) => {

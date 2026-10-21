@@ -1,0 +1,230 @@
+/*
+ * AWS accounts (U14-T03, AwsAccounts.dc.html): one table, account IDs in mono groups of four,
+ * the last check as a dot and a sentence, text actions.
+ */
+
+.aws-accounts-page {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.aws-accounts-page .content-header {
+    margin-bottom: 0;
+}
+
+.aa-note {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.aa-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.aa-scroll {
+    overflow-x: auto;
+}
+
+.aa-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.aa-table thead th {
+    padding: 12px;
+    background: var(--surface-subtle);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-align: left;
+}
+
+.aa-table thead th:first-child,
+.aa-table td:first-child {
+    padding-left: 20px;
+}
+
+.aa-table thead th:last-child,
+.aa-table td:last-child {
+    padding-right: 20px;
+}
+
+.aa-table td {
+    padding: 12px;
+    border-top: 1px solid var(--line-soft);
+    color: var(--slate);
+    vertical-align: middle;
+}
+
+.aa-table td.aa-name {
+    font-weight: 500;
+    color: var(--ink);
+}
+
+.aa-mono {
+    font-family: var(--font-mono);
+    font-size: 13px;
+}
+
+.aa-table td.aa-name,
+.aa-table td.aa-id,
+.aa-nowrap,
+.aa-check {
+    white-space: nowrap;
+}
+
+.aa-tag {
+    margin-left: 8px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--brand-navy-tint);
+    color: var(--brand-navy);
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.aa-tag-off {
+    background: var(--surface-muted);
+    color: var(--slate);
+}
+
+.aa-inactive td {
+    opacity: 0.7;
+}
+
+.aa-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+}
+
+.aa-dot {
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--line-strong);
+}
+
+.aa-dot-ok {
+    background: var(--brand-green);
+}
+
+.aa-dot-bad {
+    background: var(--brand-red);
+}
+
+.aa-actions {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.aa-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 13px;
+    color: var(--brand-navy);
+    cursor: pointer;
+}
+
+.aa-link + .aa-link {
+    margin-left: 14px;
+}
+
+.aa-link:hover {
+    text-decoration: underline;
+}
+
+.aa-link:disabled {
+    color: var(--text-secondary);
+    cursor: default;
+    text-decoration: none;
+}
+
+.aa-danger {
+    color: var(--brand-red-text);
+}
+
+.aa-danger-zone {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line-soft);
+}
+
+/* Phones: one card per account, each cell with its column name */
+@media (max-width: 767.98px) {
+    .aa-card {
+        background: none;
+        border: 0;
+    }
+
+    .aa-table,
+    .aa-table tbody,
+    .aa-table tr,
+    .aa-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .aa-table thead {
+        display: none;
+    }
+
+    .aa-table tr {
+        margin-bottom: 12px;
+        padding: 8px 14px;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+    }
+
+    .aa-table td,
+    .aa-table td:first-child,
+    .aa-table td:last-child {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 6px 0;
+        border: 0;
+        text-align: right;
+        overflow-wrap: anywhere;
+    }
+
+    .aa-table td::before {
+        content: attr(data-label);
+        flex-shrink: 0;
+        font-family: var(--font-sans);
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--text-secondary);
+        text-align: left;
+    }
+
+    .aa-table td.aa-name {
+        display: block;
+        text-align: left;
+    }
+
+    .aa-table td.aa-name::before,
+    .aa-table td.aa-actions::before {
+        content: none;
+    }
+
+    .aa-table td.aa-actions {
+        justify-content: flex-start;
+        padding-top: 10px;
+    }
+}
