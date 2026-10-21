@@ -30,8 +30,6 @@ const Features = (function() {
     function loadVmRegistry() { return window.VmRegistry ? VmRegistry.load() : undefined; }
 
     // Shims for VmRegistry methods called inline from index.html
-    function fetchEc2Instances() { return window.VmRegistry ? VmRegistry.fetchEc2Instances() : undefined; }
-    function filterEc2Instances(val) { return window.VmRegistry ? VmRegistry.filterEc2Instances(val) : undefined; }
     function submitGroup() { return window.VmRegistry ? VmRegistry.submitGroup() : undefined; }
     function submitVm() { return window.VmRegistry ? VmRegistry.submitVm() : undefined; }
 
@@ -82,8 +80,6 @@ const Features = (function() {
         loadAutomationRules,
         loadSystemHealth,
         loadUserManagement,
-        fetchEc2Instances,
-        filterEc2Instances,
         submitGroup,
         submitVm
     };

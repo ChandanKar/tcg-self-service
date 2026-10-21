@@ -158,9 +158,11 @@ const Sidebar = (function() {
      * Set active menu item programmatically
      */
     function setActiveItem(contentType) {
-        // Environment Detail lives under My Environments in the menu, Grant access under Access management.
+        // Environment Detail lives under My Environments in the menu, Grant access under Access management,
+        // Add VMs under VM registry.
         const key = contentType === 'environment-detail' ? 'my-environments'
-            : contentType === 'access-grant' ? 'access-management' : contentType;
+            : contentType === 'access-grant' ? 'access-management'
+            : contentType === 'register-vms' ? 'vm-registry' : contentType;
         $('.sidebar-menu-link').removeClass('active').removeAttr('aria-current');
         $(`.sidebar-menu-link[data-content="${key}"]`).addClass('active').attr('aria-current', 'page');
 

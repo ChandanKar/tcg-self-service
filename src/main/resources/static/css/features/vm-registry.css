@@ -432,3 +432,218 @@
         min-width: 640px;
     }
 }
+
+/* ===== Add VMs to <environment> (U11-T04, RegisterVms.dc.html) ===== */
+
+.rv-page {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.rv-page .content-header {
+    margin-bottom: 0;
+}
+
+.rv-card {
+    max-width: 960px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.rv-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px;
+    padding: 14px 24px 10px;
+}
+
+.rv-kind {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+}
+
+.rv-kind[hidden] {
+    display: none;
+}
+
+.rv-kind button {
+    padding: 6px 12px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    font: inherit;
+    font-size: var(--fs-small);
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.rv-kind button[aria-pressed="true"] {
+    background: var(--brand-navy);
+    color: #fff;
+    font-weight: 500;
+}
+
+.rv-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    font-size: var(--fs-small);
+    color: var(--text-primary);
+}
+
+.rv-field[hidden] {
+    display: none;
+}
+
+.rv-field .form-select,
+.rv-field .form-control {
+    height: 34px;
+    padding-top: 0;
+    padding-bottom: 0;
+    font-size: var(--fs-body);
+}
+
+.rv-search {
+    flex: 1 1 200px;
+}
+
+.rv-table-wrap {
+    overflow: auto;
+    max-height: calc(100vh - var(--topnav-height, 56px) - 360px);
+    min-height: 160px;
+}
+
+.rv-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--fs-body);
+}
+
+.rv-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 8px;
+    background: var(--surface-subtle);
+    font-size: var(--fs-small);
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.rv-table td {
+    padding: 8px;
+    border-top: 1px solid var(--line-soft);
+    vertical-align: middle;
+}
+
+.rv-table .rv-check {
+    width: 30px;
+    padding-left: 24px;
+}
+
+.rv-pick {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--brand-navy);
+}
+
+.rv-name {
+    font-weight: 500;
+}
+
+.rv-mono {
+    font-family: var(--font-mono);
+    font-size: var(--fs-small);
+    white-space: nowrap;
+}
+
+.rv-note {
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.rv-taken td {
+    color: var(--text-secondary);
+}
+
+.rv-below:empty {
+    display: none;
+}
+
+.rv-below {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 24px;
+    border-top: 1px solid var(--line-soft);
+}
+
+.rv-ended {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.rv-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    padding: 14px 24px;
+    border-top: 1px solid var(--line);
+    background: var(--surface-subtle);
+}
+
+.rv-hint {
+    flex: 1;
+    min-width: 160px;
+    padding-bottom: 8px;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.rv-error {
+    padding: 0 24px;
+    font-size: var(--fs-small);
+    color: var(--brand-red-text);
+}
+
+.rv-error:empty {
+    display: none;
+}
+
+.rv-error:not(:empty) {
+    padding-bottom: 12px;
+    background: var(--surface-subtle);
+}
+
+@media (max-width: 767.98px) {
+    .rv-tools,
+    .rv-foot {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .rv-table {
+        min-width: 640px;
+    }
+
+    .rv-table-wrap {
+        max-height: none;
+    }
+}

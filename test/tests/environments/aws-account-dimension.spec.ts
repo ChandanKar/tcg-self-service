@@ -9,7 +9,6 @@ import { signIn, canSignIn, devIds } from '../../fixtures/auth';
 
 declare const Modals: any;
 declare const AwsAccountOptions: any;
-declare const VmRegistry: any;
 declare const ContentRouter: any;
 
 const TWO = [
@@ -73,16 +72,25 @@ test.describe('AWS account in forms', () => {
     await expect(page.locator('#editEnvAccount')).toHaveValue('acct-b');
   });
 
-  test('an account with its own regions narrows the EC2 region list', async ({ page }) => {
-    await ready(page, TWO);
-    const regions = await page.evaluate(async () => {
-      await AwsAccountOptions.load();
-      VmRegistry.fillEc2Regions('acct-b');
-      const narrowed = [...document.querySelectorAll('#ec2Region option')].map(o => (o as HTMLOptionElement).value);
-      VmRegistry.fillEc2Regions(null);
-      return { narrowed, all: document.querySelectorAll('#ec2Region option').length };
+  test('an account with its own regions narrows the region list on Add VMs (U11-T04)', async ({ page }) => {
+    const envId = 'env-acct-e2e';
+    const queries: string[] = [];
+    await page.route(new RegExp(`/api/v1/environments/${envId}$`), r => r.fulfill({ json: { environmentId: envId,
+      name: 'acct-e2e', displayName: 'Account E2E', isActive: true, serviceType: 'EC2', regions: [] } }));
+    await page.route(new RegExp(`/api/v1/environments/${envId}/groups$`), r => r.fulfill({ json: [] }));
+    await page.route(/\/api\/v1\/rds$/, r => r.fulfill({ json: { enabled: false } }));
+    await page.route(new RegExp(`/api/v1/environments/${envId}/vms/candidates\\?`), r => {
+      queries.push(new URL(r.request().url()).search);
+      return r.fulfill({ json: [] });
     });
-    expect(regions.narrowed).toEqual(['eu-west-1', 'us-east-1']);
-    expect(regions.all).toBeGreaterThan(2);
+    await ready(page, TWO);
+    await page.evaluate(id => { location.hash = `#/vm-registry/${id}/add`; }, envId);
+
+    await expect(page.locator('#rv-account option')).toHaveText(['Default account', 'Payments'], { timeout: 15_000 });
+    expect(await page.locator('#rv-region option').count()).toBeGreaterThan(2);
+    await page.locator('#rv-account').selectOption('acct-b');
+    await expect(page.locator('#rv-region option')).toHaveText(['eu-west-1', 'us-east-1']);
+    await expect.poll(() => queries.at(-1)).toContain('accountRef=acct-b');
+    expect(queries.at(-1)).toContain('region=eu-west-1');
   });
 });

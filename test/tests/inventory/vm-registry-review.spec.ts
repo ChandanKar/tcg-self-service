@@ -303,6 +303,13 @@ test.describe('VM registry layout', () => {
     await expect(page.locator('#vr-sel-title')).toHaveText('Layout 12', { timeout: 15_000 });
     await expect(page.locator('#vm-registry-pagination .pager-range')).toHaveText('9–16 of 21');
 
+    // Add VMs from AWS opens the Add VMs page for the selected environment (U11-T04).
+    await page.locator('#vr-detail-head [data-action="vr-add-vms"]').click();
+    await expect(page).toHaveURL(/#\/vm-registry\/env-l12\/add$/);
+    await expect(page.locator('.sidebar-menu-link[data-content="vm-registry"]')).toHaveClass(/active/);
+    await page.goBack();
+    await expect(page.locator('#vr-sel-title')).toHaveText('Layout 12', { timeout: 15_000 });
+
     await page.locator('#searchEnvironments').fill('layout 2');
     await expect(page.locator('#vr-env-list .vr-env')).toHaveCount(2); // Layout 20 and 21
     await expect(page.locator('#vr-sel-title')).toHaveText('Layout 20');

@@ -7,14 +7,6 @@
 const VmRegistry = (function() {
     'use strict';
 
-    // Cache for fetched EC2 instances (used for client-side filtering)
-    let _ec2FetchedInstances = [];
-    // What the import panel browses (E33-T02): 'EC2' instances or 'RDS' databases, and the databases fetched
-    let _importSource = 'EC2';
-    /** The reference of the EC2 instance picked from the list (U01-T02); registering sends it instead of the id. */
-    let _selectedInstanceRef = null;
-    let _rdsFetched = [];
-
     /**
      * Spring Data serializes Page<T> as { content: [...], page: { totalElements, totalPages,
      * number, size } } — flatten that back onto the response so the rest of this module's
@@ -445,15 +437,9 @@ const VmRegistry = (function() {
         }
     }
 
-    /** "Add VMs from AWS": the register dialog for the first group until U11-T04 brings its own page. */
+    /** "Add VMs from AWS": the Add VMs page (U11-T04). */
     function addVmsFromAws() {
-        const groups = (window.VmRegistryState.currentGroups || []).slice()
-            .sort((a, b) => (a.sequencePosition ?? 0) - (b.sequencePosition ?? 0));
-        if (!groups.length) {
-            Notifications.error('Add a group first, then add VMs to it.');
-            return;
-        }
-        openVmForm(groups[0].groupId);
+        openVmForm(null);
     }
 
     // =========================================================================
@@ -889,53 +875,15 @@ const VmRegistry = (function() {
     }
 
     // =========================================================================
-    // VM Registration
+    // VMs: adding (the Add VMs page, U11-T04) and editing (the Edit VM dialog)
     // =========================================================================
 
+    /** "Add VM" on a group: the Add VMs page with that group chosen. */
     function openVmForm(groupId) {
-        const group = window.VmRegistryState.currentGroups.find(g => g.groupId === groupId);
-        if (!group) {
-            Notifications.error('Group not found');
-            return;
-        }
-        $('#registerVmForm')[0].reset();
-        $('#registerVmForm').removeClass('was-validated');
-        $('#vmId').val('');
-        $('#vmGroupId').val(groupId);
-        $('#vmGroupLabel').text(group.displayName);
-        // Next free position among the loaded VMs of the group (was always 1, which collided).
-        const loaded = (window.VmRegistryState.currentGroupsWithVms || [])
-            .filter(gv => gv.group.groupId === groupId).flatMap(gv => gv.vms || []);
-        const maxSeq = loaded.reduce((max, v) => Math.max(max, v.sequencePosition || 0), 0);
-        $('#vmSequencePosition').val(Math.max(maxSeq, group.vmCount || 0) + 1);
-        $('#registerVmModalLabel').text(`Register VM in "${group.displayName}"`);
-        $('#btnSubmitVm').html('<i class="fas fa-save"></i> Register VM');
-        $('#ec2ImportCard').show();
-
-        _ec2FetchedInstances = [];
-        _rdsFetched = [];
-        _selectedInstanceRef = null;
-        $('#importSourceEc2').prop('checked', true);
-        setImportSource('EC2');
-        probeRds();
-
-        fillEc2Regions(null);
-        // Another account to browse and register into, when there is more than one (E28-T10).
-        if (typeof AwsAccountOptions !== 'undefined') {
-            const env = window.VmRegistryState.currentEnvironment || {};
-            AwsAccountOptions.fill($('#ec2AccountCol'), $('#ec2Account'), env.awsAccountRef).then(shown => {
-                if (shown) fillEc2Regions($('#ec2Account').val());
-            });
-        }
-
-        $('#vmName').prop('readonly', false);
-        $('#vmProvider').prop('disabled', false);
-        $('#vmRegion').prop('readonly', false);
-        $('#vmProviderVmId').prop('readonly', false);
-        // Only administrators may type an instance ID; everyone else picks from the AWS list (U01-T02).
-        showProviderVmIdField(showInstanceIds());
-
-        bootstrap.Modal.getOrCreateInstance(document.getElementById('registerVmModal')).show();
+        const env = window.VmRegistryState?.currentEnvironment;
+        if (!env) return;
+        window.location.hash = `#/vm-registry/${encodeURIComponent(env.environmentId)}/add`
+            + (groupId ? `?group=${encodeURIComponent(groupId)}` : '');
     }
 
     /**
@@ -994,10 +942,6 @@ const VmRegistry = (function() {
         showProviderVmIdField(!!vm.providerVmId);
         $('#vmSequencePosition').val(vm.sequencePosition);
         $('#registerVmModalLabel').text(`Edit VM "${vm.displayName}"`);
-        $('#btnSubmitVm').html('<i class="fas fa-save"></i> Save Changes');
-
-        // Importing from AWS only makes sense when registering a brand-new VM
-        $('#ec2ImportCard').hide();
 
         $('#vmName').prop('readonly', isEks);
         $('#vmProvider').prop('disabled', isEks);
@@ -1005,307 +949,6 @@ const VmRegistry = (function() {
         $('#vmProviderVmId').prop('readonly', isEks);
 
         bootstrap.Modal.getOrCreateInstance(document.getElementById('registerVmModal')).show();
-    }
-
-    /** The region list: the account's own regions when it has some, else every known region. */
-    function fillEc2Regions(accountRef) {
-        const account = accountRef && typeof AwsAccountOptions !== 'undefined'
-            ? AwsAccountOptions.cached().find(a => a.ref === accountRef) : null;
-        const regions = account && account.regions && account.regions.length
-            ? account.regions.map(value => ({ value, label: value }))
-            : Config.AWS_REGIONS;
-        const regionSelect = $('#ec2Region');
-        regionSelect.empty();
-        regions.forEach(r => {
-            regionSelect.append(Utils.html`<option value="${r.value}">${r.label} (${r.value})</option>`);
-        });
-    }
-
-    function selectedAccountRef() {
-        return $('#ec2AccountCol').prop('hidden') ? null : ($('#ec2Account').val() || null);
-    }
-
-    /** The EC2 / RDS toggle is shown only while RDS browsing is on (GET /rds answers enabled). */
-    function probeRds() {
-        $('#importSourceToggle').prop('hidden', true);
-        ApiClient.request('GET', Config.API.rds.status, null, { suppressGlobalError: true })
-            .done(r => $('#importSourceToggle').prop('hidden', !(r && r.enabled)))
-            .fail(() => $('#importSourceToggle').prop('hidden', true));
-    }
-
-    function setImportSource(source) {
-        _importSource = source === 'RDS' ? 'RDS' : 'EC2';
-        const rds = _importSource === 'RDS';
-        $('#btnFetchEc2').html(rds ? '<i class="fas fa-database me-1"></i> Fetch Databases' : '<i class="fab fa-aws me-1"></i> Fetch Instances');
-        $('#ec2SearchFilter').val('').hide();
-        $('#ec2InstancesList').html(rds ? `
-            <div class="text-center text-muted py-3">
-                <i class="fas fa-database fa-2x mb-2 d-block opacity-50"></i>
-                Select a region and click "Fetch Databases" to browse RDS DB instances and Aurora clusters.
-            </div>` : `
-            <div class="text-center text-muted py-3">
-                <i class="fab fa-aws fa-2x mb-2 d-block text-warning opacity-50"></i>
-                Select a region and click "Fetch Instances" to browse available EC2 instances.
-            </div>`);
-    }
-
-    async function fetchRdsDatabases(region) {
-        const button = $('#btnFetchEc2');
-        try {
-            button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Fetching...');
-            $('#ec2InstancesList').html(Utils.html`
-                <div class="text-center py-3">
-                    <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
-                    Fetching RDS databases from <strong>${region}</strong>...
-                </div>`);
-            _rdsFetched = await ApiClient.get(Config.API.rds.databases(region, selectedAccountRef())) || [];
-            renderRdsDatabases(_rdsFetched);
-            $('#ec2SearchFilter').show();
-        } catch (error) {
-            console.error('Failed to fetch RDS databases:', error);
-            $('#ec2InstancesList').html(`
-                <div class="text-center text-danger py-3">
-                    <i class="fas fa-exclamation-triangle me-1"></i> Failed to fetch databases. Check AWS credentials and region.
-                </div>`);
-        } finally {
-            button.prop('disabled', false).html('<i class="fas fa-database me-1"></i> Fetch Databases');
-        }
-    }
-
-    /** Databases with Select for unregistered ones; those RDS cannot stop say why. */
-    function renderRdsDatabases(list) {
-        const container = $('#ec2InstancesList');
-        if (!list || list.length === 0) {
-            container.html(`
-                <div class="text-center text-muted py-3">
-                    <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
-                    No RDS databases found in this region.
-                </div>`);
-            return;
-        }
-        const rows = list.map(db => Utils.html`
-            <tr class="${db.registered ? '' : 'rds-selectable-row'}" data-provider-vm-id="${db.providerVmId}"
-                ${Utils.raw(db.registered ? '' : Utils.html`data-action="vr-select-rds" data-id="${db.providerVmId}" style="cursor:pointer;"`)}>
-                <td><strong>${db.identifier}</strong>
-                    <div class="small text-muted">${db.kind === 'CLUSTER' ? 'Aurora cluster' : 'DB instance'}${db.multiAz ? ' · Multi-AZ' : ''}</div></td>
-                <td>${db.engine || '-'} ${db.engineVersion || ''}</td>
-                <td>${db.instanceClass || '-'}</td>
-                <td>${db.status || '-'}</td>
-                <td class="td-actions">${Utils.raw(db.registered
-                    ? '<span class="badge bg-warning text-dark"><i class="fas fa-check me-1"></i>In Use</span>'
-                    : '<button type="button" class="btn btn-sm btn-outline-success">Select</button>')}
-                    ${Utils.raw(db.stoppable ? '' : Utils.html`<div class="small text-danger mt-1 rds-not-stoppable">Can't be stopped: ${db.notStoppableReason || ''}</div>`)}</td>
-            </tr>`).join('');
-        container.html(`
-            <div class="small text-muted mb-2"><strong>${list.length}</strong> databases found</div>
-            <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
-                <table class="table table-sm mb-0 table-cards" id="rdsDatabaseTable">
-                    <thead class="table-light sticky-top">
-                        <tr><th>Identifier</th><th>Engine</th><th>Class</th><th>Status</th><th style="width:140px;"></th></tr>
-                    </thead>
-                    <tbody>${rows}</tbody>
-                </table>
-            </div>`);
-    }
-
-    function selectRdsDatabase(providerVmId) {
-        const db = _rdsFetched.find(d => d.providerVmId === providerVmId);
-        if (!db || db.registered) return;
-        _selectedInstanceRef = null;
-        showProviderVmIdField(true);
-        $('#vmProvider').val('AWS_RDS').prop('disabled', true);
-        $('#vmRegion').val($('#ec2Region').val()).prop('readonly', true);
-        $('#vmProviderVmId').val(db.providerVmId).prop('readonly', true);
-        $('#vmName').val(db.identifier.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-'));
-        $('#vmDisplayName').val(db.identifier);
-        $('#vmDescription').val([db.engine && (db.engine + ' ' + (db.engineVersion || '')).trim(), db.instanceClass, db.status]
-            .filter(Boolean).join(' | '));
-        $('#ec2InstancesList .rds-selectable-row').removeClass('table-success');
-        $('#ec2InstancesList tr').filter(function() { return this.dataset.providerVmId === providerVmId; }).addClass('table-success');
-        document.getElementById('registerVmForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
-        Notifications.success(`Selected: ${db.identifier}`);
-    }
-
-    async function fetchEc2Instances() {
-        const region = $('#ec2Region').val();
-        if (!region) {
-            Notifications.error('Please select a region');
-            return;
-        }
-        if (_importSource === 'RDS') {
-            return fetchRdsDatabases(region);
-        }
-        try {
-            $('#btnFetchEc2').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Fetching...');
-            $('#ec2InstancesList').html(`
-                <div class="text-center py-3">
-                    <div class="spinner-border spinner-border-sm text-warning me-2" role="status"></div>
-                    Fetching EC2 instances from <strong>${region}</strong>...
-                </div>
-            `);
-
-            // Each instance comes with its registration and a reference to register it by; the instance id
-            // is only in the list for administrators (U01-T02).
-            const instances = await ApiClient.get(Config.API.ec2.listInstances(region, selectedAccountRef()));
-
-            _ec2FetchedInstances = instances.map(inst => ({
-                ...inst,
-                _registered: !!inst.registered,
-                _stale: !!inst.stale,
-                _status: inst.stale ? 'stale' : inst.registered ? 'registered' : 'available',
-                _name: inst.name || ''
-            }));
-
-            renderEc2Instances(_ec2FetchedInstances);
-            $('#ec2SearchFilter').show();
-            $('#btnFetchEc2').prop('disabled', false).html('<i class="fab fa-aws me-1"></i> Fetch Instances');
-        } catch (error) {
-            console.error('Failed to fetch EC2 instances:', error);
-            $('#ec2InstancesList').html(`
-                <div class="text-center text-danger py-3">
-                    <i class="fas fa-exclamation-triangle me-1"></i> Failed to fetch instances. Check AWS credentials and region.
-                </div>
-            `);
-            $('#btnFetchEc2').prop('disabled', false).html('<i class="fab fa-aws me-1"></i> Fetch Instances');
-        }
-    }
-
-    /**
-     * Render EC2 instances with 3-state colour coding:
-     *   Available (green)  — not registered anywhere
-     *   In Use   (yellow)  — registered and active
-     *   Stale    (red)     — registered but instance is terminated/shutting-down
-     */
-    function renderEc2Instances(instances) {
-        const container = $('#ec2InstancesList');
-
-        if (!instances || instances.length === 0) {
-            container.html(`
-                <div class="text-center text-muted py-3">
-                    <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
-                    No EC2 instances found in this region.
-                </div>
-            `);
-            return;
-        }
-
-        const available = instances.filter(i => i._status === 'available');
-        const registered = instances.filter(i => i._status === 'registered');
-        const stale = instances.filter(i => i._status === 'stale');
-
-        const rows = instances.map(inst => {
-            const name = Utils.escapeHtml(inst._name || '-');
-            const stateClass = inst.state === 'running' ? 'text-success' :
-                              inst.state === 'stopped' ? 'text-danger' :
-                              inst.state === 'terminated' ? 'text-decoration-line-through text-muted' : 'text-muted';
-
-            let rowBg, rowClass, badge, clickable;
-            if (inst._status === 'stale') {
-                rowBg = 'background-color: #fde8e8;';
-                rowClass = '';
-                badge = '<span class="badge bg-danger"><i class="fas fa-exclamation-triangle me-1"></i>Stale</span>';
-                clickable = false;
-            } else if (inst._status === 'registered') {
-                rowBg = 'background-color: #fef9e7;';
-                rowClass = '';
-                badge = '<span class="badge bg-warning text-dark"><i class="fas fa-check me-1"></i>In Use</span>';
-                clickable = false;
-            } else {
-                rowBg = 'background-color: #eafaf1;';
-                rowClass = 'ec2-selectable-row';
-                badge = '<button class="btn btn-sm btn-outline-success">Select</button>';
-                clickable = true;
-            }
-
-            return `
-                <tr class="${rowClass}"
-                    style="${rowBg} ${clickable ? 'cursor:pointer;' : ''}"
-                    ${clickable ? 'data-action="vr-select-ec2"' : ''}
-                    data-ref="${Utils.escapeHtml(inst.ref)}"
-                    data-instance-name="${Utils.escapeHtml(inst._name || '')}">
-                    <td>
-                        <strong>${name}</strong>
-                        ${inst.instanceId ? `<div class="small text-muted">${Utils.escapeHtml(inst.instanceId)}</div>` : ''}
-                        ${inst.registered && inst.registeredEnvironmentName ? `<div class="small text-muted">In ${Utils.escapeHtml(inst.registeredEnvironmentName)}</div>` : ''}
-                    </td>
-                    <td>${Utils.escapeHtml(inst.instanceType || '-')}</td>
-                    <td><span class="${stateClass}"><i class="fas fa-circle fa-xs me-1"></i>${inst.state}</span></td>
-                    <td>${Utils.escapeHtml(inst.privateIpAddress || '-')}</td>
-                    <td class="td-actions">${badge}</td>
-                </tr>
-            `;
-        }).join('');
-
-        container.html(`
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <div class="small text-muted">
-                    <strong>${instances.length}</strong> instances found
-                </div>
-                <div class="d-flex gap-3 small">
-                    <span><i class="fas fa-square" style="color: #b7f0cd;"></i> Available (${available.length})</span>
-                    <span><i class="fas fa-square" style="color: #f9e79f;"></i> In Use (${registered.length})</span>
-                    <span><i class="fas fa-square" style="color: #f5b7b1;"></i> Stale (${stale.length})</span>
-                </div>
-            </div>
-            <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
-                <table class="table table-sm mb-0 table-cards">
-                    <thead class="table-light sticky-top">
-                        <tr>
-                            <th>Name</th>
-                            <th>Type</th>
-                            <th>State</th>
-                            <th>Private IP</th>
-                            <th style="width:100px;"></th>
-                        </tr>
-                    </thead>
-                    <tbody>${rows}</tbody>
-                </table>
-            </div>
-        `);
-    }
-
-    function filterEc2Instances(searchText) {
-        if (_importSource === 'RDS') {
-            const term = (searchText || '').toLowerCase();
-            renderRdsDatabases(term ? _rdsFetched.filter(db => db.identifier.toLowerCase().includes(term)
-                || (db.engine || '').toLowerCase().includes(term)) : _rdsFetched);
-            return;
-        }
-        if (!_ec2FetchedInstances || _ec2FetchedInstances.length === 0) return;
-        if (!searchText) {
-            renderEc2Instances(_ec2FetchedInstances);
-            return;
-        }
-        const term = searchText.toLowerCase();
-        const filtered = _ec2FetchedInstances.filter(inst =>
-            (inst._name && inst._name.toLowerCase().includes(term)) ||
-            (inst.instanceId && inst.instanceId.toLowerCase().includes(term)) ||
-            (inst.privateIpAddress && inst.privateIpAddress.includes(term))
-        );
-        renderEc2Instances(filtered);
-    }
-
-    function selectEc2Instance(ref) {
-        const inst = _ec2FetchedInstances.find(i => i.ref === ref);
-        if (!inst || inst._registered) return;
-
-        const region = $('#ec2Region').val();
-        const name = inst._name || inst.instanceId || inst.privateIpAddress || 'ec2-instance';
-        _selectedInstanceRef = inst.ref;
-
-        $('#vmProvider').val('AWS').prop('disabled', true);
-        $('#vmRegion').val(region).prop('readonly', true);
-        // Administrators see the id; everyone else registers by the reference alone.
-        $('#vmProviderVmId').val(inst.instanceId || '').prop('readonly', true);
-        showProviderVmIdField(!!inst.instanceId);
-        $('#vmName').val(name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-'));
-        $('#vmDisplayName').val(name);
-        $('#vmDescription').val(`${inst.instanceType || ''} | ${inst.privateIpAddress || ''} | ${inst.state || ''}`.trim());
-
-        $('#ec2InstancesList .ec2-selectable-row').removeClass('table-success');
-        $('#ec2InstancesList tr').filter(function () { return this.dataset.ref === ref; }).addClass('table-success');
-        document.getElementById('registerVmForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
-        Notifications.success(`Selected: ${name}`);
     }
 
     async function submitVm() {
@@ -1325,7 +968,7 @@ const VmRegistry = (function() {
             return;
         }
         const vmId = $('#vmId').val();
-        const isEdit = !!vmId;
+        if (!vmId) return;
         const groupId = $('#vmGroupId').val();
         const vmName = $('#vmName').val().trim();
         const vmDisplayName = $('#vmDisplayName').val().trim();
@@ -1339,26 +982,19 @@ const VmRegistry = (function() {
             provider: $('#vmProvider').val(),
             region: $('#vmRegion').val().trim(),
             providerVmId: $('#vmProviderVmId').val().trim(),
-            instanceRef: isEdit ? null : _selectedInstanceRef,
-            awsAccountRef: isEdit ? null : selectedAccountRef(),
             sequencePosition: parseInt($('#vmSequencePosition').val()) || 1
         };
         try {
-            Loading.show(isEdit ? 'Saving VM...' : 'Registering VM...');
+            Loading.show('Saving VM...');
             const envId = window.VmRegistryState.currentEnvironment.environmentId;
-            if (isEdit) {
-                await ApiClient.put(`/api/v1/environments/${envId}/vms/${vmId}`, data);
-                Notifications.success(`VM "${vmName}" updated successfully`);
-            } else {
-                await ApiClient.post(`/api/v1/environments/${envId}/vms`, data);
-                Notifications.success(`VM "${vmName}" registered successfully`);
-            }
+            await ApiClient.put(`/api/v1/environments/${envId}/vms/${vmId}`, data);
+            Notifications.success(`VM "${vmName}" saved`);
             bootstrap.Modal.getInstance(document.getElementById('registerVmModal')).hide();
             await refreshGroupsModal();
             await loadEnvironmentsData();
             Loading.hide();
         } catch (error) {
-            console.error(isEdit ? 'Failed to update VM:' : 'Failed to register VM:', error);
+            console.error('Failed to update VM:', error);
             $('#vmProvider').prop('disabled', providerDisabled);
             $('#vmRegion').prop('readonly', regionReadonly);
             $('#vmProviderVmId').prop('readonly', providerVmIdReadonly);
@@ -1411,7 +1047,6 @@ const VmRegistry = (function() {
 
     return {
         load,
-        fillEc2Regions,
         loadEnvironmentsData,
         renderEnvironmentsList,
         buildEnvironmentRow,
@@ -1435,11 +1070,6 @@ const VmRegistry = (function() {
         deleteGroup,
         openVmForm,
         editVm,
-        fetchEc2Instances,
-        filterEc2Instances,
-        selectEc2Instance,
-        setImportSource,
-        selectRdsDatabase,
         submitVm,
         deleteVm,
         refreshGroupsModal,
@@ -1483,19 +1113,13 @@ if (typeof Actions !== 'undefined') {
         'vr-edit-group': el => VmRegistry.editGroup(el.dataset.groupId),
         'vr-open-vm-form': el => VmRegistry.openVmForm(el.dataset.groupId),
         'vr-delete-group': el => VmRegistry.deleteGroup(el.dataset.groupId),
-        'vr-select-ec2': el => VmRegistry.selectEc2Instance(el.dataset.ref),
-        'vr-select-rds': el => VmRegistry.selectRdsDatabase(el.dataset.id),
         'vr-open-group-form': () => VmRegistry.openGroupForm(),
         'vr-submit-group': () => Features.submitGroup(),
-        'vr-fetch-ec2': () => Features.fetchEc2Instances(),
         'vr-submit-vm': () => Features.submitVm()
     });
     Actions.registerAll({
-        'vr-search': el => VmRegistry._searchRegistry(el.value),
-        'vr-filter-ec2': el => Features.filterEc2Instances(el.value)
+        'vr-search': el => VmRegistry._searchRegistry(el.value)
     }, 'input');
     Actions.register('vr-reload', () => VmRegistry.loadEnvironmentsData(), 'change');
 
-    Actions.register('vr-ec2-account', el => VmRegistry.fillEc2Regions(el.value), 'change');
-    Actions.register('vr-import-source', el => VmRegistry.setImportSource(el.value), 'change');
 }

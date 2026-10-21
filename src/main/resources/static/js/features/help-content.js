@@ -504,6 +504,7 @@ const HelpContent = (function() {
         'access-management': 'access',
         'access-grant': 'access',
         'vm-registry': 'vm-registry',
+        'register-vms': 'vm-registry',
         'automation-rules': 'automation-rules',
         'approval-policies': 'approvals',
         'budgets': 'budgets',
