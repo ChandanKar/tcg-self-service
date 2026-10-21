@@ -125,10 +125,11 @@ test.describe('Carbon footprint panel', () => {
   test('is hidden without an error while carbon is off', async ({ page }) => {
     await openCostPage(page, false);
 
-    // The capability says on but the server answers 404: the Carbon tab's panel stays empty, without an error.
+    // The capability says on but the server answers 404: the Carbon tab says there are no figures yet, without an error.
     await expect(page.getByRole('tab', { name: 'Carbon' })).toHaveAttribute('aria-selected', 'true', { timeout: 15_000 });
     await expect(page.locator('[data-cost-panel="carbon"]')).toBeAttached();
     await expect(page.locator('.carbon-panel')).toHaveCount(0);
+    await expect(page.locator('[data-cost-panel="carbon"]')).toHaveText('No carbon figures yet. AWS publishes them once a month, a few months behind.');
     await expect(page.locator('[data-cost-panel="carbon"]')).not.toContainText("Couldn't load");
   });
 });

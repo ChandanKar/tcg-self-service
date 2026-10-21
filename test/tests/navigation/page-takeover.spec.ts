@@ -341,7 +341,7 @@ test.describe('Cost Management lifecycle', () => {
     await signIn(page, 'admin');
     await ready(page);
     await goTo(page, 'cost-management');
-    await expect(header(page)).toHaveText('Cost Management', { timeout: 15_000 });
+    await expect(header(page)).toHaveText('Cost management', { timeout: 15_000 });
     await page.waitForTimeout(1_500);
 
     await goTo(page, 'dashboard');

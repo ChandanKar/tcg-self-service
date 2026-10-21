@@ -257,9 +257,11 @@ const CostManagement = (function() {
         const token = ContentRouter.token();
         const tab = tabOf(state.tab);
         state.errors = {};
-        fetchKeys(tabKeys(tab)).then(results => {
+        const keys = tabKeys(tab);
+        fetchKeys(keys).then(() => {
             if (!ContentRouter.isCurrent(token) || !isActive()) return;
-            if (results.length && results.every(r => r.status === 'rejected')) {
+            // A feature that answers 404 is off, not failed (the Carbon tab's only key, U15-T01).
+            if (keys.length && keys.every(key => state.errors[key])) {
                 showError('Failed to load cost data. Please try again.');
                 return;
             }
@@ -491,7 +493,8 @@ const CostManagement = (function() {
 
     function buildCarbonPanel() {
         const c = state.carbon;
-        if (!c) return '';
+        // On its own tab (U15-T01) an empty panel says why instead of leaving the tab blank.
+        if (!c) return '<p class="cost-note" id="cost-carbon-empty">No carbon figures yet. AWS publishes them once a month, a few months behind.</p>';
         const options = (c.availableMonths || []).map(m =>
             `<option value="${Utils.escapeHtml(m)}"${m === c.month ? ' selected' : ''}>${Utils.escapeHtml(monthLabel(m))}</option>`).join('');
         const money = v => v == null ? '<span class="text-muted">-</span>' : Utils.escapeHtml(Utils.formatCurrency(Number(v)));
