@@ -757,6 +757,7 @@ a.rs-name:hover {
 
 .carbon-controls {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
 }
@@ -896,4 +897,111 @@ a.rs-name:hover {
     .carbon-strip-label {
         font-size: 10px;
     }
+}
+
+/* ---- Unusual spend tab (U15-T05, Anomalies.dc.html) ---- */
+.anomalies-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+
+.anomaly-fleet-table {
+    width: 100%;
+    min-width: 760px;
+    border-collapse: collapse;
+    font-size: 13.5px;
+}
+
+.anomaly-fleet-table th {
+    padding: 9px 8px;
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
+    font-size: 12.5px;
+    font-weight: 500;
+    text-align: left;
+}
+
+.anomaly-fleet-table td {
+    padding: 10px 8px;
+    border-top: 1px solid var(--line-soft);
+    vertical-align: top;
+}
+
+.anomaly-fleet-table th:first-child,
+.anomaly-fleet-table td:first-child {
+    padding-left: 16px;
+}
+
+.anomaly-fleet-table th:last-child,
+.anomaly-fleet-table td:last-child {
+    padding-right: 16px;
+}
+
+.anomaly-fleet-table .cost-num {
+    text-align: right;
+}
+
+.anomaly-extra {
+    display: block;
+    font-size: 12px;
+    color: var(--brand-red-text);
+}
+
+.anomaly-usual,
+.anomaly-cause {
+    color: var(--text-secondary);
+}
+
+.anomaly-verdicts {
+    display: inline-flex;
+    white-space: nowrap;
+}
+
+.anomaly-seg {
+    padding: 4px 10px;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--ink);
+    font: inherit;
+    font-size: 12.5px;
+}
+
+.anomaly-seg + .anomaly-seg {
+    border-left: 0;
+}
+
+.anomaly-seg:first-child {
+    border-radius: 7px 0 0 7px;
+}
+
+.anomaly-seg:last-child {
+    border-radius: 0 7px 7px 0;
+}
+
+.anomaly-seg[aria-checked="true"] {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: #fff;
+}
+
+.anomaly-ticket {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.anomaly-foot {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--line-soft);
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.anomalies-panel .rs-table-card .cost-scroll {
+    position: relative;
 }

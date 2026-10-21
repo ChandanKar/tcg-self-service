@@ -274,7 +274,8 @@ const Config = (function() {
             list: (days) => `${API_BASE_URL}/cost-anomalies?days=${days}&size=100`,
             forEnvironment: (envId, days) => `${API_BASE_URL}/environments/${encodeURIComponent(envId)}/cost-anomalies?days=${days}`,
             feedback: (id) => `${API_BASE_URL}/cost-anomalies/${encodeURIComponent(id)}/feedback`,
-            monitors: `${API_BASE_URL}/cost-anomalies/monitors`
+            monitors: `${API_BASE_URL}/cost-anomalies/monitors`,
+            settings: `${API_BASE_URL}/cost-anomalies/settings`
         },
 
         // Budgets (E20)

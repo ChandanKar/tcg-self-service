@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
 
 /**
- * E24-T07: "Create Jira ticket" on the Cost Management idle and rightsizing rows. Jira and the
+ * E24-T07, U15-T05: "Create Jira ticket" on the Cost Management idle, rightsizing and unusual spend rows. Jira and the
  * two tables are faked in the browser (no real Jira); the rest of the page hits the smoke app.
  * With Jira off no ticket buttons render; with it on a click turns the button into the issue link.
  */
@@ -71,4 +71,25 @@ test.describe('Jira ticket buttons', () => {
     await expect(page.locator('[data-action="jira-create"]')).toHaveCount(0);
     await expect(page.locator('.jira-link')).toHaveCount(0);
   });
+
+  test('Unusual spend rows have a ticket column (U15-T05)', async ({ page }) => {
+    let sent: any = null;
+    await page.route(/\/api\/v1\/cost-anomalies\?days=30/, route => route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ content: [{ anomalyId: 'an-9', environmentId: 'env-1', environmentName: 'Dev', anomalyStart: '2026-10-18',
+        anomalyEnd: '2026-10-18', totalImpact: 65, totalExpected: 31, maxScore: 50, topCause: 'EC2 data transfer out', feedback: null,
+        canGiveFeedback: true }], page: { size: 100, number: 0, totalElements: 1, totalPages: 1 } }) }));
+    await page.route(/\/api\/v1\/integrations\/jira\/tickets$/, route => {
+      sent = route.request().postDataJSON();
+      return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({
+        sourceType: 'ANOMALY', sourceId: 'an-9', issueKey: 'OPS-2214', url: 'https://acme.atlassian.net/browse/OPS-2214', created: true }) });
+    });
+    await openCostPage(page, true);
+    await page.getByRole('tab', { name: 'Unusual spend' }).click();
+
+    const ticket = page.locator('#cost-anomalies-table tr[data-anomaly="an-9"] .anomaly-ticket');
+    await ticket.locator('[data-action="jira-create"]').click({ timeout: 15_000 });
+    await expect(ticket.locator('.jira-link')).toHaveText('OPS-2214');
+    expect(sent).toEqual({ sourceType: 'ANOMALY', sourceId: 'an-9' });
+  });
 });
+

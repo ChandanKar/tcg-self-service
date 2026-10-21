@@ -30,7 +30,7 @@ const CostManagement = (function() {
 
     /** The tabs, their panels in page order, and the feature a tab needs (U15-T01). */
     const TABS = [
-        { key: 'overview', label: 'Overview', panels: ['kpi', 'trend', 'breakdown', 'savings', 'workloads', 'idle', 'reconciliation'] },
+        { key: 'overview', label: 'Overview', panels: ['kpi', 'trend', 'breakdown', 'savings', 'workloads', 'idle'] },
         { key: 'rightsizing', label: 'Rightsizing', panels: ['rightsizing', 'spot'] },
         { key: 'commitments', label: 'Commitments', panels: ['commitments'], feature: 'costReservations' },
         { key: 'carbon', label: 'Carbon', panels: ['carbon'], feature: 'carbon' },
@@ -75,8 +75,6 @@ const CostManagement = (function() {
         /** Spend broken down by environment, team, account or type (U15-T02). */
         breakdownBy: 'environment',
         longRange: null,
-        reconciliation: emptyPageState(),
-        reconciliationAll: [],
         idle: emptyPageState(),
         rightsizing: emptyPageState(),
         /** Kind of change ('' all, SMALLER, NEWER, GRAVITON, LARGER) and agreement ('' or AWS), U15-T03. */
@@ -85,6 +83,9 @@ const CostManagement = (function() {
         /** The first page of every suggestion, for Overview's biggest savings (U15-T02). */
         rightsizingTop: emptyPageState(),
         anomalies: [],
+        /** Unusual spend over the last 30 or 90 days (U15-T05). */
+        anomalyDays: 30,
+        anomalySettings: null,
         spotOpportunities: [],
         anomalyMonitors: [],
         // Requests that failed, by key: their panels show an error with Retry (E08-T09).
@@ -133,7 +134,7 @@ const CostManagement = (function() {
         state.rightsizing.page = parsePageParam(params.rightsizing);
         state.rightsizingKind = RightsizingKind.FILTERS.some(([k]) => k && k === params.kind) ? params.kind : '';
         state.rightsizingAgreement = params.agreement === 'AWS' ? 'AWS' : '';
-        state.reconciliation.page = parsePageParam(params.reconciliation);
+        state.anomalyDays = params.period === '90' ? 90 : 30;
     }
 
     function parsePageParam(value) {
@@ -149,7 +150,7 @@ const CostManagement = (function() {
         if (state.rightsizing.page) params.set('rightsizing', state.rightsizing.page);
         if (state.rightsizingKind) params.set('kind', state.rightsizingKind);
         if (state.rightsizingAgreement) params.set('agreement', state.rightsizingAgreement);
-        if (state.reconciliation.page) params.set('reconciliation', state.reconciliation.page);
+        if (state.anomalyDays === 90) params.set('period', '90');
         const query = params.toString();
         const hash = '#/cost-management' + (query ? `?${query}` : '');
         if (window.location.hash !== hash) {
@@ -181,22 +182,6 @@ const CostManagement = (function() {
         };
     }
 
-    // Client-side paging for endpoints that return the full list already (reconciliation is one
-    // row per environment — small and bounded, unlike the per-VM tables — so it's cheaper to slice
-    // in the browser than to add server-side Pageable support for what's already an in-memory
-    // aggregation on the backend).
-    function paginateArray(items, page, size) {
-        const totalElements = items.length;
-        const totalPages = size > 0 ? Math.ceil(totalElements / size) : 0;
-        const safePage = Math.min(Math.max(page, 0), Math.max(totalPages - 1, 0));
-        return {
-            content: items.slice(safePage * size, safePage * size + size),
-            totalPages,
-            totalElements,
-            page: safePage
-        };
-    }
-
     /**
      * Every request behind the page, by key (E08-T09). apply() stores a successful response;
      * a failed one only marks state.errors[key], so one bad endpoint never blanks the page.
@@ -208,13 +193,6 @@ const CostManagement = (function() {
         spendByAccount: { url: () => Config.API.costManagement.spendByAccount, apply: d => { state.spendByAccount = d || []; } },
         teamTrend: { url: () => Config.API.costManagement.spendTrendByTeam(TREND_DAYS), apply: d => { state.teamTrend = d || []; } },
         trend: { url: () => Config.API.costManagement.spendTrend(TREND_DAYS), apply: d => { state.trend = d || []; } },
-        reconciliation: {
-            url: () => Config.API.costManagement.reconciliation(TREND_DAYS),
-            apply: d => {
-                state.reconciliationAll = d || [];
-                state.reconciliation = paginateArray(state.reconciliationAll, state.reconciliation.page || 0, PAGE_SIZE);
-            }
-        },
         commitments: { url: () => Config.API.costManagement.commitmentInsights, feature: 'costReservations',
             apply: d => { state.commitments = d || null; } },
         // 404 while carbon is off: the panel stays hidden instead of showing an error
@@ -224,7 +202,8 @@ const CostManagement = (function() {
         idle: { url: () => Config.API.costManagement.idleWaste(state.idle.page, PAGE_SIZE), apply: d => { state.idle = mapPage(d); } },
         rightsizing: { url: () => rightsizingUrl(state.rightsizing.page), apply: d => { state.rightsizing = mapPage(d); } },
         rightsizingTop: { url: () => Config.API.costManagement.rightsizing(0, PAGE_SIZE), apply: d => { state.rightsizingTop = mapPage(d); } },
-        anomalies: { url: () => Config.API.costAnomalies.list(ANOMALY_DAYS), apply: d => { state.anomalies = (d && d.content) || []; } },
+        anomalies: { url: () => Config.API.costAnomalies.list(state.anomalyDays), apply: d => { state.anomalies = (d && d.content) || []; } },
+        anomalySettings: { url: () => Config.API.costAnomalies.settings, optional: true, apply: d => { state.anomalySettings = d || null; } },
         // Spot savings need captured Spot prices: not asked for while spot.pricing.enabled is off (U15-T03).
         spotOpportunities: { url: () => Config.API.costManagement.spotOpportunities(0, 100), feature: 'spotPricing',
             apply: d => { state.spotOpportunities = (d && d.content) || []; } },
@@ -238,8 +217,6 @@ const CostManagement = (function() {
         }
     };
 
-    /** Days of anomalies the Anomalies panel lists (E21-T04). */
-    const ANOMALY_DAYS = 30;
 
     /** Fetch the given keys; resolves once all settled, recording failures in state.errors. */
     function fetchKeys(requested) {
@@ -336,19 +313,12 @@ const CostManagement = (function() {
     const TABLE_CONFIG = {
         idle: { url: (p) => Config.API.costManagement.idleWaste(p, PAGE_SIZE), render: () => renderIdleTable() },
         rightsizing: { url: (p) => rightsizingUrl(p), render: () => renderRightsizingTable() },
-        reconciliation: { clientPaged: true, render: () => renderReconciliationTable() }
     };
 
     function changePage(tableKey, page) {
         if (page < 0) return;
         const cfg = TABLE_CONFIG[tableKey];
         if (!cfg) return;
-        if (cfg.clientPaged) {
-            state[tableKey] = paginateArray(state[tableKey + 'All'], page, PAGE_SIZE);
-            syncHash();
-            cfg.render();
-            return;
-        }
         fetchJson(cfg.url(page)).then(pageData => {
             if (!isActive()) return; // syncHash would otherwise rewrite the URL of the page the user moved to
             state[tableKey] = mapPage(pageData);
@@ -416,6 +386,20 @@ const CostManagement = (function() {
         return typeof Capabilities !== 'undefined' && Capabilities.has(feature);
     }
 
+    /**
+     * The cost page's header and tab bar around another body, for the Setup tab (U15-T05): Setup is a
+     * selected tab there; the other tabs open Cost management on their tab.
+     */
+    function navHtml(active, bodyHtml) {
+        const tabs = tabsShown().map(t => ({ key: t.key, label: t.label })).concat([{ key: 'setup', label: 'Setup' }]);
+        return `
+            ${PageHeader.markup({ title: 'Cost management',
+                summaryHtml: 'Estimated from run time and AWS list prices; replaced by AWS billing figures where they exist.',
+                helpPage: typeof HelpLink !== 'undefined' ? 'cost-management' : null, helpLabel: 'Cost management' })}
+            <div class="cost-tabs-row no-print">${Tabs.markup({ id: 'cost-tabs', label: 'Cost', active, tabs })}</div>
+            ${Tabs.panel({ id: 'cost-tabs', key: active, active }, bodyHtml)}`;
+    }
+
     function buildPageHtml() {
         const tabs = tabsShown();
         const active = tabOf(state.tab).key;
@@ -461,12 +445,11 @@ const CostManagement = (function() {
                 ? buildLongRangeOption(state.longRange) : buildTrendOption(state.trend)]]
         },
         commitments: { keys: ['commitments'], label: 'commitment insights', build: () => buildCommitmentsPanel() },
-        reconciliation: { keys: ['reconciliation'], label: 'estimated vs. actual cost', build: () => buildReconciliationTable() },
         idle: { keys: ['idle'], label: 'idle VMs', build: () => buildIdleWasteTable() },
         rightsizing: { keys: ['rightsizing', 'summary'], label: 'rightsizing suggestions', build: () => buildRightsizingTable() },
         spot: { keys: ['spotOpportunities'], label: 'Spot opportunities', build: () => buildSpotPanel() },
         carbon: { keys: ['carbon'], label: 'carbon footprint', build: () => buildCarbonPanel() },
-        anomalies: { keys: ['anomalies', 'anomalyMonitors'], label: 'cost anomalies', build: () => buildAnomaliesPanel() },
+        anomalies: { keys: ['anomalies', 'anomalyMonitors', 'anomalySettings'], label: 'cost anomalies', build: () => buildAnomaliesPanel() },
         workloads: {
             keys: ['eksEnvironments'], label: 'EKS workload cost', build: () => buildWorkloadsPanel(),
             after: () => mountWorkloads()
@@ -617,30 +600,51 @@ const CostManagement = (function() {
     }
 
     /** AWS cost anomalies across environments, with owners' verdicts and monitor coverage (E21-T04). */
+    /** The intro under the tabs: how often AWS is checked and from which extra spend owners are told. */
+    function anomalyIntro(settings) {
+        const s = settings || {};
+        const checked = s.checked ? `, checked ${String(s.checked).charAt(0).toLowerCase()}${String(s.checked).slice(1)}` : '';
+        const from = s.minImpact != null ? ` Environment owners are told when the extra spend is ${money0(s.minImpact)} or more.` : '';
+        const back = s.feedbackToAws ? ' Answers are kept with each alert and sent back to AWS.' : ' Answers are kept with each alert.';
+        return `AWS Cost Anomaly Detection${checked}.${from}${back}`;
+    }
+
     function buildAnomaliesPanel() {
         const linked = state.anomalyMonitors.filter(m => m.environmentId).length;
         const filter = state.anomalyFilter || '';
         const envs = [...new Map(state.anomalies.filter(a => a.environmentId)
             .map(a => [a.environmentId, a.environmentName || a.environmentId])).entries()];
         const list = filter ? state.anomalies.filter(a => a.environmentId === filter) : state.anomalies;
+        const periods = [[30, 'Last 30 days'], [90, 'Last 90 days']].map(([d, label]) =>
+            `<option value="${d}"${d === state.anomalyDays ? ' selected' : ''}>${label}</option>`).join('');
         return Utils.html`
-            <section class="cost-table-card" aria-labelledby="cost-anomalies-title">
-                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
-                    <div>
-                        <h2 class="h6 mb-0" id="cost-anomalies-title">Cost anomalies (last ${ANOMALY_DAYS} days)</h2>
-                        <div class="small text-muted">${linked} monitor${linked === 1 ? '' : 's'} linked to environments ·
-                            <a href="#/cost-setup">Cost Setup</a></div>
-                    </div>
-                    <div>
-                        <label class="visually-hidden" for="cost-anomaly-env">Environment</label>
-                        <select class="form-select form-select-sm" id="cost-anomaly-env">
-                            <option value="">All environments</option>
-                            ${Utils.raw(envs.map(([id, name]) => Utils.html`<option value="${id}" ${id === filter ? 'selected' : ''}>${name}</option>`).join(''))}
-                        </select>
+            <section class="anomalies-panel" aria-labelledby="cost-anomalies-title">
+                <h2 class="visually-hidden" id="cost-anomalies-title">Unusual spend, last ${String(state.anomalyDays)} days</h2>
+                <div class="carbon-head">
+                    <p class="cost-intro" id="cost-anomalies-intro">${anomalyIntro(state.anomalySettings)}</p>
+                    <div class="carbon-controls">
+                        <label class="carbon-month" for="cost-anomaly-period">Period
+                            <select class="form-select form-select-sm" id="cost-anomaly-period" data-action-change="cost-anomaly-period">${Utils.raw(periods)}</select></label>
+                        <label class="carbon-month" for="cost-anomaly-env">Environment
+                            <select class="form-select form-select-sm" id="cost-anomaly-env">
+                                <option value="">All</option>
+                                ${Utils.raw(envs.map(([id, name]) => Utils.html`<option value="${id}" ${id === filter ? 'selected' : ''}>${name}</option>`).join(''))}
+                            </select></label>
                     </div>
                 </div>
-                ${Utils.raw(CostAnomalies.tableHtml(list, true, 'No anomalies reported by AWS Cost Anomaly Detection'))}
+                <div class="cost-card rs-table-card">
+                    ${Utils.raw(CostAnomalies.fleetTableHtml(list, 'No unusual spend reported by AWS Cost Anomaly Detection.'))}
+                    <div class="anomaly-foot"><span>${list.length} of ${state.anomalies.length} in the last ${String(state.anomalyDays)} days
+                        · ${linked} monitor${linked === 1 ? '' : 's'} linked to environments</span>
+                        <a href="#/cost-setup">AWS monitors and alert settings</a></div>
+                </div>
             </section>`;
+    }
+
+    function setAnomalyDays(days) {
+        state.anomalyDays = Number(days) === 90 ? 90 : 30;
+        syncHash();
+        fetchKeys(['anomalies']).then(() => { if (isActive()) renderPanel('anomalies'); });
     }
 
     function panelFailed(name) {
@@ -1366,52 +1370,6 @@ const CostManagement = (function() {
         return `$${Math.round(n)}`;
     }
 
-    // ---- reconciliation (estimated vs. actual, Cost Management Phase 2) ----
-
-    function buildReconciliationTable() {
-        if (!state.reconciliation.totalElements) return '';
-        return buildTableCard({
-            title: 'Estimated vs. Actual Cost',
-            subtitle: 'Real AWS billing data, per environment, where ingested. Variance compares only days that have actual billing data.',
-            tableId: 'cost-reconciliation-table',
-            bodyId: 'cost-reconciliation-table-body',
-            paginationId: 'cost-reconciliation-pagination',
-            columns: ['Environment', { label: 'Estimated', numeric: true }, { label: 'Actual', numeric: true }, { label: 'Variance', numeric: true }, { label: 'Coverage', numeric: true }],
-            rowsHtml: buildReconciliationRows(state.reconciliation.content),
-            pageState: state.reconciliation,
-            tableKey: 'reconciliation',
-            exportUrl: Config.API.costManagement.reconciliationExport(TREND_DAYS)
-        });
-    }
-
-    function buildReconciliationRows(rows) {
-        if (!rows.length) {
-            return `<tr><td colspan="5" class="text-center text-muted py-4">No cost reconciliation data found.</td></tr>`;
-        }
-        return rows.map(row => {
-            const hasActual = row.actualCost !== null && row.actualCost !== undefined;
-            const hasVariance = row.variancePercent !== null && row.variancePercent !== undefined;
-            const varianceText = hasVariance
-                ? Utils.escapeHtml(`${row.variancePercent >= 0 ? '+' : ''}${row.variancePercent}%`)
-                : '<span title="No actual billing data yet">&mdash;</span>';
-            const coverage = row.daysInWindow ? `${row.daysWithActuals || 0}/${row.daysInWindow} days` : '-';
-            return `
-                <tr>
-                    <td>${Utils.escapeHtml(row.environmentName || '-')}</td>
-                    <td class="cost-num">${Utils.formatCurrency(Number(row.estimatedCost) || 0)}</td>
-                    <td class="cost-num">${hasActual ? Utils.formatCurrency(Number(row.actualCost)) : '<span class="text-muted">Not yet ingested</span>'}</td>
-                    <td class="cost-num">${varianceText}</td>
-                    <td class="cost-num">${Utils.escapeHtml(coverage)}</td>
-                </tr>
-            `;
-        }).join('');
-    }
-
-    function renderReconciliationTable() {
-        $('#cost-reconciliation-table-body').html(buildReconciliationRows(state.reconciliation.content));
-        $('#cost-reconciliation-pagination').html(buildPagination('reconciliation', state.reconciliation));
-    }
-
     // ---- tables ----
 
     function buildTableCard(opts) {
@@ -2024,8 +1982,6 @@ const CostManagement = (function() {
                 $('#cost-rightsizing-table-body').html(buildRightsizingRows(rightsizingRows));
                 $('#cost-rightsizing-pagination').html(`<span class="text-muted small">All ${rightsizingRows.length} row(s) shown for export</span>`);
             }
-            $('#cost-reconciliation-table-body').html(buildReconciliationRows(state.reconciliationAll));
-            $('#cost-reconciliation-pagination').html(`<span class="text-muted small">All ${state.reconciliationAll.length} row(s) shown for export</span>`);
 
             const restore = () => {
                 if (idleAll) renderIdleTable();
@@ -2067,10 +2023,8 @@ const CostManagement = (function() {
 
             const idleBody = clone.querySelector('#cost-idle-table-body');
             const rightsizingBody = clone.querySelector('#cost-rightsizing-table-body');
-            const reconciliationBody = clone.querySelector('#cost-reconciliation-table-body');
             if (idleBody && idleAll) idleBody.innerHTML = buildIdleRows(idleRows);
             if (rightsizingBody && rightsizingAll) rightsizingBody.innerHTML = buildRightsizingRows(rightsizingRows);
-            if (reconciliationBody) reconciliationBody.innerHTML = buildReconciliationRows(state.reconciliationAll);
             clone.querySelectorAll('.pagination-bar-wrap').forEach(el => {
                 el.innerHTML = '<span class="text-muted small">All rows shown for export</span>';
             });
@@ -2127,6 +2081,8 @@ const CostManagement = (function() {
         openFocusExport,
         setCarbonMonth,
         setBreakdownBy,
+        setAnomalyDays,
+        navHtml,
         model: { monthToDate, monthEnd, topBars, teamsThisMonth, topSavings, commitmentFigures, recommendationDetail, termText, carbonBars }
     };
 })();
@@ -2144,6 +2100,7 @@ if (typeof Actions !== 'undefined') Actions.registerAll({
 });
 if (typeof Actions !== 'undefined') {
     Actions.register('cost-eks-env', el => CostManagement.showWorkloads(el.value), 'change');
+    Actions.register('cost-anomaly-period', el => CostManagement.setAnomalyDays(el.value), 'change');
     Actions.register('cost-rs-kind', el => CostManagement.setRightsizingFilter('kind', el.value), 'change');
     Actions.register('cost-rs-agreement', el => CostManagement.setRightsizingFilter('agreement', el.value), 'change');
     Actions.register('cost-carbon-month', el => CostManagement.setCarbonMonth(el.value), 'change');

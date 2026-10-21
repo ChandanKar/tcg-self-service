@@ -159,8 +159,9 @@ const Sidebar = (function() {
      */
     function setActiveItem(contentType) {
         // Environment Detail lives under My Environments in the menu, Grant access under Access management,
-        // Add VMs under VM registry.
+        // Add VMs under VM registry, Cost setup (a cost tab since U15-T05) under Cost management.
         const key = contentType === 'environment-detail' ? 'my-environments'
+            : contentType === 'cost-setup' ? 'cost-management'
             : contentType === 'access-grant' ? 'access-management'
             : contentType === 'register-vms' || contentType === 'environment-settings' ? 'vm-registry'
             : contentType === 'automation-rule-new' || contentType === 'automation-rule-edit' ? 'automation-rules'

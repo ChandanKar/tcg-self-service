@@ -56,6 +56,19 @@ public class CostAnomalyService {
     @Value("${cost.anomalies.send-feedback-to-aws:false}")
     private boolean sendFeedbackToAws = false;
 
+    @Value("${cost.anomalies.cron:0 0 */12 * * *}")
+    private String cron = "0 0 */12 * * *";
+
+    /**
+     * What the Unusual spend tab says about alerts (U15-T05): how often AWS is checked ("Every 12 hours"),
+     * the extra spend from which owners are told, and whether verdicts also go back to AWS.
+     */
+    public record AlertSettings(String checked, BigDecimal minImpact, boolean feedbackToAws) {}
+
+    public AlertSettings alertSettings() {
+        return new AlertSettings(SchedulerHealthService.cadence(null, cron), minImpact, sendFeedbackToAws);
+    }
+
     static final java.util.Set<String> FEEDBACK = java.util.Set.of("YES", "NO", "PLANNED_ACTIVITY");
 
     /** Replaceable in tests. */

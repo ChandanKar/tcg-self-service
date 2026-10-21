@@ -68,7 +68,7 @@ class CostSetupServiceTest {
         service = new CostSetupService(jobLocks, vmRepository, new CostExplorerClientProvider(org.mockito.Mockito.mock(software.amazon.awssdk.services.costexplorer.CostExplorerClient.class)), computeOptimizer,
                 aws, tagActivation, sts, iam,
                 Map.of("snapshot", true, "actuals", true, "tagging", false, "optimizer", true,
-                        "reservations", true, "weeklyReports", true),
+                        "reservations", true, "weeklyReports", true, "awsForecast", true, "carbon", false),
                 "us-east-1", clock);
         ScheduledJobLock lock = new ScheduledJobLock();
         lock.setAcquiredAt(Timestamp.from(Instant.parse("2026-10-07T05:00:00Z")));
@@ -127,6 +127,33 @@ class CostSetupServiceTest {
         assertThat(actuals.result()).isEqualTo("DENIED");
         assertThat(feature(result, "optimizer").checks()).allMatch(c -> c.result().equals("ALLOWED"));
         assertThat(result.probes()).extracting(CostSetupStatusDTO.Probe::result).contains("ALLOWED", "DENIED");
+    }
+
+    @Test
+    void theStatusAfterACheckCarriesItsResultsAndTimeWithoutCallingAwsAgain() {
+        assertThat(service.getStatus().checkedAt()).isNull();
+        assertThat(feature(service.getStatus(), "awsForecast").enabled()).isTrue();
+        assertThat(feature(service.getStatus(), "carbon").enabled()).isFalse();
+        callerIs("arn:aws:iam::123456789012:user/u");
+        when(iam.simulatePrincipalPolicy(any(SimulatePrincipalPolicyRequest.class))).thenAnswer(inv -> {
+            SimulatePrincipalPolicyRequest req = inv.getArgument(0);
+            return SimulatePrincipalPolicyResponse.builder().isTruncated(false).evaluationResults(req.actionNames().stream()
+                    .map(a -> EvaluationResult.builder().evalActionName(a).evalDecision(a.equals("ce:GetCostAndUsage")
+                            ? PolicyEvaluationDecisionType.IMPLICIT_DENY : PolicyEvaluationDecisionType.ALLOWED).build())
+                    .toList()).build();
+        });
+        probesAnswer();
+        CostSetupStatusDTO checked = service.runChecks();
+
+        // U15-T05: the Setup tab opened later still says what works and when it was checked.
+        now = now.plusSeconds(3600);
+        CostSetupStatusDTO status = service.getStatus();
+        assertThat(status.checkedAt()).isEqualTo(checked.checkedAt());
+        assertThat(status.principalArn()).isEqualTo("arn:aws:iam::123456789012:user/u");
+        assertThat(feature(status, "actuals").checks()).extracting(CostSetupStatusDTO.Check::result).containsExactly("DENIED");
+        assertThat(feature(status, "optimizer").checks()).allMatch(c -> c.result().equals("ALLOWED"));
+        assertThat(status.probes()).hasSize(3);
+        verify(sts, times(1)).getCallerIdentity();
     }
 
     @Test

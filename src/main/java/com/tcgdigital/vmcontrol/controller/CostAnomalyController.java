@@ -59,6 +59,13 @@ public class CostAnomalyController {
     /** Body of a manual link; environmentId null or blank unlinks. ARNs contain '/', so not in the path. */
     public record LinkRequest(@NotBlank(message = "Monitor ARN is required") String monitorArn, String environmentId) {}
 
+    @GetMapping("/settings")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "How often anomalies are checked and from which extra spend owners are told")
+    public com.tcgdigital.vmcontrol.service.CostAnomalyService.AlertSettings settings() {
+        return anomalyService.alertSettings();
+    }
+
     @GetMapping("/monitors")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Anomaly monitors and their environments")

@@ -96,11 +96,14 @@ public class CostSetupService {
                             @Value("${cost.optimizer.enabled:true}") boolean optimizer,
                             @Value("${cost.reservations.enabled:true}") boolean reservations,
                             @Value("${notification.weekly-reports.enabled:true}") boolean weeklyReports,
+                            @Value("${cost.aws-forecast.enabled:true}") boolean awsForecast,
+                            @Value("${carbon.enabled:false}") boolean carbon,
                             @Value("${aws.region:us-east-1}") String defaultRegion) {
         this(jobLockRepository, vmRepository, clientProvider, computeOptimizerService, awsCloudProviderService,
                 tagActivationService, stsClient, iamClient,
                 Map.of("snapshot", snapshot, "actuals", actuals, "tagging", tagging, "optimizer", optimizer,
-                        "reservations", reservations, "weeklyReports", weeklyReports),
+                        "reservations", reservations, "weeklyReports", weeklyReports, "awsForecast", awsForecast,
+                        "carbon", carbon),
                 defaultRegion, Clock.systemUTC());
     }
 
@@ -123,9 +126,28 @@ public class CostSetupService {
         this.clock = clock;
     }
 
-    /** Switches, last runs and tagging counts; never calls AWS. */
+    /** An admin's override from Settings (U14-T06), else the configured switch; absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.service.settings.SettingsService settings;
+
+    /**
+     * Switches, last runs and tagging counts; never calls AWS. After a pre-flight check its results,
+     * time and probes come along (U15-T05), so the Setup tab can say what works and when it was checked.
+     */
     public CostSetupStatusDTO getStatus() {
-        return new CostSetupStatusDTO(clientProvider.isConfigured(), null, null, features(Map.of()), List.of());
+        CostSetupStatusDTO last = lastCheck;
+        if (last == null) {
+            return new CostSetupStatusDTO(clientProvider.isConfigured(), null, null, features(Map.of()), List.of());
+        }
+        Map<String, CostSetupStatusDTO.Check> checks = new LinkedHashMap<>();
+        last.features().forEach(f -> f.checks().forEach(c -> checks.put(c.action(), c)));
+        return new CostSetupStatusDTO(clientProvider.isConfigured(), last.principalArn(), last.checkedAt(), features(checks),
+                last.probes());
+    }
+
+    private boolean enabled(FeatureDef def) {
+        boolean configured = Boolean.TRUE.equals(enabled.get(def.key()));
+        return settings == null ? configured : settings.overrideOr(def.property(), configured);
     }
 
     /** The pre-flight check, reused for 60 s so repeated clicks don't repeat the calls. */
@@ -274,7 +296,7 @@ public class CostSetupService {
             }
             List<CostSetupStatusDTO.Check> featureChecks = checks.isEmpty() ? List.of()
                     : def.actions().stream().map(checks::get).toList();
-            features.add(new CostSetupStatusDTO.Feature(def.key(), def.label(), Boolean.TRUE.equals(enabled.get(def.key())),
+            features.add(new CostSetupStatusDTO.Feature(def.key(), def.label(), enabled(def),
                     def.property(), def.envVar(), lastRun, extra, featureChecks));
         }
         return features;

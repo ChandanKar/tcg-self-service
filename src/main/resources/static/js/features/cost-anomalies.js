@@ -1,16 +1,18 @@
 /**
- * Cost anomalies (E21-T04): the list under the environment's cost card (last 90 days) and the
- * table the Cost Management page uses. Owners say whether an anomaly was real; the verdict is
- * stored and, when enabled on the server, sent to AWS.
+ * Cost anomalies (E21-T04): the list in the environment's insights (last 90 days) and the Unusual
+ * spend tab of Cost management (U15-T05, Anomalies.dc.html). Owners say whether the spend was
+ * expected; the verdict is stored and, when enabled on the server, sent to AWS.
  */
 const CostAnomalies = (function() {
     'use strict';
 
+    /** Shared by both lists (U15-T05): was this spend expected? */
     const VERDICTS = [
-        { value: 'YES', label: 'Real', title: 'An unexpected cost worth looking into' },
-        { value: 'NO', label: 'Not an anomaly', title: 'Normal spend; AWS was wrong' },
-        { value: 'PLANNED_ACTIVITY', label: 'Planned', title: 'Expected: planned work' }
+        { value: 'YES', label: 'Unexpected', title: 'An unexpected cost worth looking into' },
+        { value: 'PLANNED_ACTIVITY', label: 'Planned', title: 'Expected: planned work' },
+        { value: 'NO', label: 'Not unusual', title: 'Normal spend; AWS was wrong' }
     ];
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
     function money(v) {
         return v === null || v === undefined ? '—' : Utils.formatCurrency(Number(v));
@@ -53,6 +55,77 @@ const CostAnomalies = (function() {
         return `<div class="table-responsive"><table class="table table-sm table-cards mb-0 anomaly-table">
             <thead><tr>${showEnvironment ? '<th>Environment</th>' : ''}<th>Impact</th><th>When</th><th>Top cause</th><th>Verdict</th></tr></thead>
             <tbody>${rows}</tbody></table></div>`;
+    }
+
+    // ============= Unusual spend tab (U15-T05) =============
+
+    function money0(v) {
+        return v === null || v === undefined ? '—' : '$' + Math.round(Number(v)).toLocaleString('en-US');
+    }
+
+    /** "18 Oct · 1 day", "15–17 Oct · 3 days", "30 Sep – 2 Oct · 3 days"; "since 18 Oct" while open. */
+    function whenText(a) {
+        if (!a.anomalyStart) return '';
+        const parse = iso => { const [y, m, d] = String(iso).split('-').map(Number); return { y, m, d, t: Date.UTC(y, m - 1, d) }; };
+        const from = parse(a.anomalyStart);
+        const label = p => `${p.d} ${MONTHS[p.m - 1]}`;
+        if (!a.anomalyEnd) return `since ${label(from)}`;
+        const to = parse(a.anomalyEnd);
+        const days = Math.round((to.t - from.t) / 86400000) + 1;
+        const range = days <= 1 ? label(from) : from.m === to.m && from.y === to.y ? `${from.d}–${label(to)}` : `${label(from)} – ${label(to)}`;
+        return `${range} · ${days} day${days === 1 ? '' : 's'}`;
+    }
+
+    /** Unexpected / Planned / Not unusual as one radio group; the chosen one is filled. */
+    function verdictRadios(a, name) {
+        if (!a.canGiveFeedback) return a.feedback ? Utils.html`<span class="anomaly-verdict">${verdictLabel(a.feedback)}</span>` : '<span class="text-muted">—</span>';
+        const chosen = VERDICTS.some(v => v.value === a.feedback) ? a.feedback : null;
+        const radios = VERDICTS.map((v, i) => {
+            const on = v.value === chosen;
+            const focusable = on || (!chosen && i === 0);
+            return Utils.html`<button type="button" role="radio" class="anomaly-seg" aria-checked="${on ? 'true' : 'false'}"
+                tabindex="${focusable ? '0' : '-1'}" title="${v.title}" data-action="anomaly-feedback" data-id="${a.anomalyId}"
+                data-value="${v.value}">${v.label}</button>`;
+        }).join('');
+        return Utils.html`<span class="anomaly-verdicts" role="radiogroup" aria-label="${name}: was this expected?">${Utils.raw(radios)}</span>`;
+    }
+
+    /** The fleet table: environment and when, spent with the extra, usual, top cause, verdict, ticket. */
+    function fleetTableHtml(anomalies, emptyText) {
+        const rows = anomalies.length ? anomalies.map(a => {
+            const name = a.environmentName || a.environmentId || 'Unlinked monitor';
+            const expected = a.totalExpected === null || a.totalExpected === undefined ? null : Number(a.totalExpected);
+            const impact = Number(a.totalImpact || 0);
+            const spent = expected === null ? null : expected + impact;
+            return Utils.html`
+            <tr data-anomaly="${a.anomalyId}">
+                <td>${Utils.raw(a.environmentId
+                    ? Utils.html`<a class="rs-name" href="#/environments/${a.environmentId}">${name}</a>`
+                    : '<span class="text-muted">Unlinked monitor</span>')}<span class="rs-sub">${whenText(a)}</span></td>
+                <td class="cost-num cost-mono">${spent === null ? '—' : money0(spent)}<span class="anomaly-extra">+${money0(impact)}</span></td>
+                <td class="cost-num cost-mono anomaly-usual">${money0(expected)}</td>
+                <td class="anomaly-cause">${a.topCause || '—'}</td>
+                <td>${Utils.raw(verdictRadios(a, name))}</td>
+                <td class="anomaly-ticket">${Utils.raw(typeof JiraTickets !== 'undefined' && a.environmentId ? JiraTickets.cell('ANOMALY', a.anomalyId) : '')}</td>
+            </tr>`;
+        }).join('') : Utils.html`<tr><td colspan="6" class="text-muted text-center py-3">${emptyText}</td></tr>`;
+        return `<div class="cost-scroll"><table class="cost-table anomaly-fleet-table" id="cost-anomalies-table">
+            <thead><tr><th scope="col">Environment · when</th><th scope="col" class="cost-num">Spent</th><th scope="col" class="cost-num">Usual</th>
+                <th scope="col">Top cause</th><th scope="col">Was this expected?</th><th scope="col"><span class="visually-hidden">Ticket</span></th></tr></thead>
+            <tbody>${rows}</tbody></table></div>`;
+    }
+
+    /** Arrow keys move between a verdict group's radios (Space or Enter chooses). */
+    function moveFocus(event) {
+        const keys = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+        if (!(event.key in keys)) return;
+        const group = event.target.closest('.anomaly-verdicts');
+        if (!group) return;
+        const radios = Array.from(group.querySelectorAll('[role="radio"]'));
+        const next = radios[(radios.indexOf(event.target) + keys[event.key] + radios.length) % radios.length];
+        event.preventDefault();
+        radios.forEach(r => { r.tabIndex = r === next ? 0 : -1; });
+        next.focus();
     }
 
     // ============= Environment page =============
@@ -100,15 +173,21 @@ const CostAnomalies = (function() {
                 Notifications.show(`Marked as "${verdictLabel(value)}".`, 'success');
                 $(`[data-action="anomaly-feedback"][data-id="${CSS.escape(id)}"]`).each(function() {
                     const on = this.dataset.value === value;
-                    $(this).toggleClass('btn-primary', on).toggleClass('btn-ghost', !on).attr('aria-pressed', on ? 'true' : 'false');
+                    if (this.getAttribute('role') === 'radio') {
+                        this.setAttribute('aria-checked', on ? 'true' : 'false');
+                        this.tabIndex = on ? 0 : -1;
+                    } else {
+                        $(this).toggleClass('btn-primary', on).toggleClass('btn-ghost', !on).attr('aria-pressed', on ? 'true' : 'false');
+                    }
                 });
             })
             .fail(xhr => Notifications.showError((xhr.responseJSON && xhr.responseJSON.message) || 'Could not save the verdict.'));
     }
 
-    return { tableHtml, renderEnvPanel, giveFeedback };
+    return { tableHtml, fleetTableHtml, renderEnvPanel, giveFeedback, moveFocus, model: { whenText, VERDICTS } };
 })();
 
-window.CostAnomalies = CostAnomalies;
+if (typeof window !== 'undefined') window.CostAnomalies = CostAnomalies;
 
-Actions.register('anomaly-feedback', el => CostAnomalies.giveFeedback(el));
+if (typeof Actions !== 'undefined') Actions.register('anomaly-feedback', el => CostAnomalies.giveFeedback(el));
+if (typeof document !== 'undefined') document.addEventListener('keydown', e => CostAnomalies.moveFocus(e));
