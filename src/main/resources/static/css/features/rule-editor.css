@@ -257,12 +257,6 @@
     gap: 10px;
 }
 
-.ar-list-head {
-    display: flex;
-    justify-content: flex-end;
-    margin-bottom: 10px;
-}
-
 @media (max-width: 575.98px) {
     .re-grid-2,
     .re-grid-3 {

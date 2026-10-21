@@ -11,6 +11,7 @@ import com.tcgdigital.vmcontrol.exception.ValidationException;
 import com.tcgdigital.vmcontrol.model.AuditAction;
 import com.tcgdigital.vmcontrol.model.HolidayCalendar;
 import com.tcgdigital.vmcontrol.model.HolidayDate;
+import com.tcgdigital.vmcontrol.repository.AutomationRuleRepository;
 import com.tcgdigital.vmcontrol.repository.HolidayCalendarRepository;
 import com.tcgdigital.vmcontrol.repository.HolidayDateRepository;
 import org.springframework.data.domain.Page;
@@ -47,15 +48,17 @@ public class HolidayCalendarService {
     private final HolidayCalendarRepository calendars;
     private final HolidayDateRepository dates;
     private final AuditService auditService;
+    private final AutomationRuleRepository rules;
 
     /** Replaceable in tests. */
     private Clock clock = Clock.systemUTC();
 
     public HolidayCalendarService(HolidayCalendarRepository calendars, HolidayDateRepository dates,
-                                  AuditService auditService) {
+                                  AuditService auditService, AutomationRuleRepository rules) {
         this.calendars = calendars;
         this.dates = dates;
         this.auditService = auditService;
+        this.rules = rules;
     }
 
     // ============= Calendars =============
@@ -64,16 +67,20 @@ public class HolidayCalendarService {
     public List<CalendarDTO> list() {
         Map<String, Long> counts = dates.countByCalendar().stream()
                 .collect(Collectors.toMap(r -> (String) r[0], r -> (Long) r[1]));
+        Map<String, Long> used = rules.countEnabledByHolidayCalendar().stream()
+                .collect(Collectors.toMap(r -> (String) r[0], r -> (Long) r[1]));
         LocalDate today = LocalDate.now(clock);
         return calendars.findAllByOrderByNameAsc().stream()
-                .map(c -> toDto(c, counts.getOrDefault(c.getCalendarId(), 0L), today))
+                .map(c -> toDto(c, counts.getOrDefault(c.getCalendarId(), 0L), today,
+                        used.getOrDefault(c.getCalendarId(), 0L)))
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public CalendarDTO get(String calendarId) {
         HolidayCalendar calendar = calendar(calendarId);
-        return toDto(calendar, dates.countByCalendarCalendarId(calendarId), LocalDate.now(clock));
+        return toDto(calendar, dates.countByCalendarCalendarId(calendarId), LocalDate.now(clock),
+                rules.countByHolidayCalendarIdAndEnabledTrue(calendarId));
     }
 
     @Transactional(readOnly = true)
@@ -98,7 +105,7 @@ public class HolidayCalendarService {
         calendar.setCreatedByUserId(userId);
         calendar = calendars.save(calendar);
         audit(userId, calendar, "Created calendar");
-        return toDto(calendar, 0, LocalDate.now(clock));
+        return toDto(calendar, 0, LocalDate.now(clock), 0);
     }
 
     @Transactional
@@ -263,10 +270,11 @@ public class HolidayCalendarService {
         return date;
     }
 
-    private CalendarDTO toDto(HolidayCalendar c, long count, LocalDate today) {
+    private CalendarDTO toDto(HolidayCalendar c, long count, LocalDate today, long usedByRuleCount) {
         Optional<HolidayDate> next = dates.findNext(c.getCalendarId(), today);
         return new CalendarDTO(c.getCalendarId(), c.getName(), c.getDescription(), count,
-                next.map(HolidayDate::getHolidayDate).orElse(null), next.map(HolidayDate::getLabel).orElse(null));
+                next.map(HolidayDate::getHolidayDate).orElse(null), next.map(HolidayDate::getLabel).orElse(null),
+                usedByRuleCount);
     }
 
     private void audit(String userId, HolidayCalendar calendar, String details) {

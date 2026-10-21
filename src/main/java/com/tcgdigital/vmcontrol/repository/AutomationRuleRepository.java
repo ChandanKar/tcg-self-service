@@ -17,6 +17,13 @@ import java.util.Optional;
 @Repository
 public interface AutomationRuleRepository extends JpaRepository<AutomationRule, String> {
 
+    /** [holidayCalendarId, count] of the enabled rules that follow a holiday calendar (U12-T04). */
+    @Query("SELECT r.holidayCalendarId, COUNT(r) FROM AutomationRule r WHERE r.enabled = true "
+            + "AND r.holidayCalendarId IS NOT NULL GROUP BY r.holidayCalendarId")
+    List<Object[]> countEnabledByHolidayCalendar();
+
+    long countByHolidayCalendarIdAndEnabledTrue(String holidayCalendarId);
+
     /** One rule with its environment, for evaluation outside a web request (C6). */
     @Query("SELECT r FROM AutomationRule r JOIN FETCH r.environment WHERE r.ruleId = :id")
     Optional<AutomationRule> findByIdFetchEnvironment(@Param("id") String id);

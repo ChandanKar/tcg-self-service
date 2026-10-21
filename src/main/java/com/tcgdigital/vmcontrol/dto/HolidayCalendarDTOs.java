@@ -13,9 +13,12 @@ public final class HolidayCalendarDTOs {
     private HolidayCalendarDTOs() {
     }
 
-    /** A calendar with its size and next holiday (null when none is ahead). */
+    /**
+     * A calendar with its size, next holiday (null when none is ahead) and how many enabled schedules
+     * follow it (U12-T04: "Used by 9 schedules").
+     */
     public record CalendarDTO(String calendarId, String name, String description, long dateCount,
-                              LocalDate nextHoliday, String nextHolidayLabel) {}
+                              LocalDate nextHoliday, String nextHolidayLabel, long usedByRuleCount) {}
 
     public record CalendarRequest(
             @NotBlank(message = "Name is required") @Size(max = 100, message = "Name must be at most 100 characters") String name,

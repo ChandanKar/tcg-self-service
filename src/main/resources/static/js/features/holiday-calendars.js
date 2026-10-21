@@ -1,7 +1,9 @@
 /**
- * Holiday calendars (E19-T02): the admin-only tab on the Automation page. Lists calendars,
- * creates/renames/deletes them, and for the selected calendar adds and removes dates and imports
- * 'yyyy-MM-dd,label' CSV files. Schedule rules link to a calendar in the rule modal.
+ * Holiday calendars (E19-T02, U12-T04 AutomationTabs.dc.html): the Holiday calendars tab on the
+ * Automation page. A list of calendars ("14 dates · next 20 Oct") beside the chosen one: "Used by
+ * <n> schedules", its dates (past ones muted) and what a holiday does to a schedule. Administrators
+ * create, rename and delete calendars, add and remove dates and import 'yyyy-MM-dd,label' CSV
+ * files; environment admins read them. Schedules pick a calendar in the schedule editor.
  */
 const HolidayCalendars = (function() {
     'use strict';
@@ -13,7 +15,67 @@ const HolidayCalendars = (function() {
     let selectedId = null;
     let dates = [];
     let lastImport = null;
+    let canEdit = false;
+    let adding = false;
     let onChange = () => {};
+
+    // ------------------------------------------------------------------ model
+
+    function parse(isoDate) {
+        return new Date(`${isoDate}T00:00:00Z`);
+    }
+
+    /** "02-10-2026" */
+    function dateText(isoDate) {
+        const [y, m, d] = String(isoDate || '').split('-');
+        return d && m && y ? `${d}-${m}-${y}` : '—';
+    }
+
+    /** "Fri" */
+    function dayText(isoDate) {
+        return parse(isoDate).toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' });
+    }
+
+    /** "14 dates · next 20 Oct", or "· none ahead". */
+    function summary(calendar) {
+        const n = calendar.dateCount || 0;
+        const next = calendar.nextHoliday
+            ? `next ${parse(calendar.nextHoliday).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })}`
+            : 'none ahead';
+        return `${n} date${n === 1 ? '' : 's'} · ${next}`;
+    }
+
+    function usedText(count) {
+        const n = count || 0;
+        return n ? `Used by ${n} schedule${n === 1 ? '' : 's'}` : 'No schedule uses it';
+    }
+
+    /** Before today, in the viewer's calendar. */
+    function isPast(isoDate, today) {
+        const now = today || new Date();
+        const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        return String(isoDate) < todayIso;
+    }
+
+    /** One skipped line: 'row 7: "31-02-2026" is not a date'. */
+    function skippedText(line) {
+        const first = String(line.content || '').split(',')[0].trim();
+        const why = /^not a date/i.test(line.reason || '') ? 'is not a date'
+            : String(line.reason || 'was skipped').replace(/^./, c => c.toLowerCase());
+        return `row ${line.line}: "${first}" ${why}`;
+    }
+
+    /** 'Imported: 4 added, 2 already there, 1 line skipped (row 7: "31-02-2026" is not a date).' */
+    function importText(result) {
+        const invalid = result.invalid || [];
+        let text = `Imported: ${result.added} added, ${result.duplicates || 0} already there`;
+        if (invalid.length) {
+            text += `, ${invalid.length} line${invalid.length === 1 ? '' : 's'} skipped (${invalid.map(skippedText).join('; ')})`;
+        }
+        return `${text}.`;
+    }
+
+    // ------------------------------------------------------------------ page
 
     function serverMessage(error, fallback) {
         return (error && error.responseJSON && error.responseJSON.message) || fallback;
@@ -25,11 +87,16 @@ const HolidayCalendars = (function() {
         });
     }
 
-    /** Renders into $container; changed() is told when calendars change (the rule modal's list). */
-    function render($container, changed) {
+    /**
+     * Renders into $container; changed() is told when calendars change. opts.canEdit: administrators
+     * (the server allows writes to them only).
+     */
+    function render($container, changed, opts) {
         $root = $container;
         onChange = changed || (() => {});
-        $root.html('<div class="text-muted small p-3"><i class="fas fa-spinner fa-spin me-1" aria-hidden="true"></i>Loading calendars…</div>');
+        canEdit = !!(opts && opts.canEdit);
+        adding = false;
+        $root.html('<div class="ar-empty" role="status">Loading calendars…</div>');
         refresh();
     }
 
@@ -55,108 +122,88 @@ const HolidayCalendars = (function() {
         }
     }
 
-    function formatDay(isoDate) {
-        if (!isoDate) return '—';
-        const d = new Date(`${isoDate}T00:00:00Z`);
-        return d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
-    }
-
     function draw() {
         const selected = calendars.find(c => c.calendarId === selectedId);
-        const rows = calendars.length ? calendars.map(c => Utils.html`
-            <tr class="${c.calendarId === selectedId ? 'table-active' : ''}">
-                <td data-label="Calendar"><button type="button" class="btn btn-link p-0 hc-select" data-id="${c.calendarId}"
-                        aria-current="${c.calendarId === selectedId ? 'true' : 'false'}">${c.name}</button>
-                    ${Utils.raw(c.description ? Utils.html`<div class="small text-muted">${c.description}</div>` : '')}</td>
-                <td data-label="Dates">${c.dateCount}</td>
-                <td data-label="Next holiday">${c.nextHoliday ? `${formatDay(c.nextHoliday)}${c.nextHolidayLabel ? ' · ' + c.nextHolidayLabel : ''}` : '—'}</td>
-                <td data-label="Actions" class="text-nowrap">
-                    <button type="button" class="btn btn-sm btn-ghost hc-rename" data-id="${c.calendarId}" aria-label="Rename ${c.name}">
-                        <i class="fas fa-pen" aria-hidden="true"></i></button>
-                    <button type="button" class="btn btn-sm btn-ghost text-danger hc-delete" data-id="${c.calendarId}" aria-label="Delete ${c.name}">
-                        <i class="fas fa-trash" aria-hidden="true"></i></button>
-                </td>
-            </tr>`).join('')
-            : '<tr><td colspan="4" class="text-muted text-center py-3">No holiday calendars yet</td></tr>';
-
+        const items = calendars.map(c => Utils.html`
+            <button type="button" class="hc-item hc-select" data-id="${c.calendarId}"${Utils.raw(c.calendarId === selectedId ? ' aria-current="true"' : '')}>
+                <b>${c.name}</b><span>${summary(c)}</span></button>`).join('');
         $root.html(Utils.html`
             <div class="hc-layout">
-                <section class="card">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h2 class="h6 mb-0">Calendars</h2>
-                            <button type="button" class="btn btn-sm btn-primary" id="hc-new-btn">
-                                <i class="fas fa-plus" aria-hidden="true"></i> New calendar</button>
-                        </div>
-                        <div class="table-responsive"><table class="table table-sm table-cards mb-0" id="hc-calendars-table">
-                            <thead><tr><th>Calendar</th><th>Dates</th><th>Next holiday</th><th><span class="visually-hidden">Actions</span></th></tr></thead>
-                            <tbody>${Utils.raw(rows)}</tbody>
-                        </table></div>
-                    </div>
-                </section>
-                ${Utils.raw(selected ? detailHtml(selected) : '')}
+                <nav class="hc-nav" aria-label="Calendars" id="hc-calendars">
+                    ${Utils.raw(items || '<p class="hc-none">No holiday calendars yet.</p>')}
+                    ${Utils.raw(canEdit ? '<div class="hc-nav-foot"><button type="button" class="hc-link" id="hc-new-btn">+ New calendar</button></div>' : '')}
+                </nav>
+                ${Utils.raw(selected ? detailHtml(selected) : (canEdit ? '' : '<p class="ar-empty">No holiday calendars yet. Administrators keep them.</p>'))}
             </div>`);
         bind();
     }
 
     function detailHtml(calendar) {
-        const dateRows = dates.length ? dates.map(d => Utils.html`
-            <tr>
-                <td data-label="Date">${formatDay(d.date)}</td>
-                <td data-label="Label">${d.label || '—'}</td>
-                <td data-label="Remove"><button type="button" class="btn btn-sm btn-ghost hc-remove-date" data-id="${d.holidayId}"
-                        aria-label="Remove ${d.date}"><i class="fas fa-times" aria-hidden="true"></i></button></td>
+        const today = new Date();
+        const rows = dates.length ? dates.map(d => Utils.html`
+            <tr${Utils.raw(isPast(d.date, today) ? ' class="hc-past"' : '')}>
+                <td class="hc-date">${dateText(d.date)}</td>
+                <td class="hc-day">${dayText(d.date)}</td>
+                <td>${d.label || ''}</td>
+                ${Utils.raw(canEdit ? Utils.html`<td class="hc-remove"><button type="button" class="hc-link hc-danger hc-remove-date" data-id="${d.holidayId}"
+                    aria-label="Remove ${dateText(d.date)}">Remove</button></td>` : '')}
             </tr>`).join('')
-            : '<tr><td colspan="3" class="text-muted text-center py-3">No dates in this calendar</td></tr>';
-        const result = lastImport && lastImport.calendarId === calendar.calendarId ? importResultHtml(lastImport.result) : '';
+            : `<tr><td colspan="${canEdit ? 4 : 3}" class="hc-none">No dates in this calendar yet.</td></tr>`;
+        const result = lastImport && lastImport.calendarId === calendar.calendarId
+            ? Utils.html`<div class="hc-result${Utils.raw(lastImport.result.invalid && lastImport.result.invalid.length ? ' hc-result-warn' : '')}" role="status">${importText(lastImport.result)}</div>` : '';
+        const actions = canEdit ? `<div class="hc-actions">
+                <button type="button" class="btn btn-secondary btn-sm" id="hc-import-btn">Import CSV</button>
+                <input type="file" class="visually-hidden" id="hc-file" accept=".csv,text/csv" tabindex="-1" aria-hidden="true">
+                <button type="button" class="btn btn-secondary btn-sm" id="hc-add-btn" aria-expanded="${adding}" aria-controls="hc-add-form">Add date</button>
+            </div>` : '';
+        const addForm = canEdit ? `<form class="hc-add-form" id="hc-add-form" novalidate${adding ? '' : ' hidden'}>
+                <label>Date<input type="date" class="form-control form-control-sm" id="hc-date" required></label>
+                <label>Label<input type="text" class="form-control form-control-sm" id="hc-label" maxlength="100" placeholder="Optional"></label>
+                <button type="submit" class="btn btn-primary btn-sm">Add</button>
+            </form>` : '';
         return Utils.html`
-            <section class="card" id="hc-detail" aria-labelledby="hc-detail-title">
-                <div class="card-body">
-                    <h2 class="h6" id="hc-detail-title">${calendar.name}</h2>
-                    <form class="hc-add-form" id="hc-add-form" novalidate>
-                        <label class="visually-hidden" for="hc-date">Date</label>
-                        <input type="date" class="form-control form-control-sm" id="hc-date" required>
-                        <label class="visually-hidden" for="hc-label">Label</label>
-                        <input type="text" class="form-control form-control-sm" id="hc-label" maxlength="100" placeholder="Label (optional)">
-                        <button type="submit" class="btn btn-sm btn-tonal btn-primary">Add date</button>
-                    </form>
-                    <div class="hc-import">
-                        <label class="form-label small mb-1" for="hc-file">Import CSV (one <code>yyyy-MM-dd,label</code> per line, up to 500)</label>
-                        <div class="d-flex gap-2 flex-wrap">
-                            <input type="file" class="form-control form-control-sm hc-file" id="hc-file" accept=".csv,text/csv">
-                            <button type="button" class="btn btn-sm btn-ghost" id="hc-import-btn"><i class="fas fa-file-import" aria-hidden="true"></i> Import</button>
-                        </div>
-                        <div id="hc-import-result" aria-live="polite">${Utils.raw(result)}</div>
+            <section class="hc-detail" id="hc-detail" aria-labelledby="hc-detail-title">
+                <div class="hc-head">
+                    <div>
+                        <h2 id="hc-detail-title">${calendar.name}</h2>
+                        <div class="hc-used" id="hc-used">${usedText(calendar.usedByRuleCount)}${Utils.raw(calendar.description
+                            ? Utils.html` · ${calendar.description}` : '')}</div>
+                        ${Utils.raw(canEdit ? Utils.html`<div class="hc-manage">
+                            <button type="button" class="hc-link hc-rename" data-id="${calendar.calendarId}" aria-label="Rename ${calendar.name}">Rename</button>
+                            <button type="button" class="hc-link hc-danger hc-delete" data-id="${calendar.calendarId}" aria-label="Delete ${calendar.name}">Delete calendar</button>
+                        </div>` : '')}
                     </div>
-                    <div class="table-responsive"><table class="table table-sm table-cards mb-0" id="hc-dates-table">
-                        <thead><tr><th>Date</th><th>Label</th><th><span class="visually-hidden">Remove</span></th></tr></thead>
-                        <tbody>${Utils.raw(dateRows)}</tbody>
-                    </table></div>
+                    ${Utils.raw(actions)}
                 </div>
+                ${Utils.raw(addForm)}
+                <div id="hc-import-result" aria-live="polite">${Utils.raw(result)}</div>
+                <div class="hc-table-wrap"><table class="hc-dates" id="hc-dates-table">
+                    <caption class="visually-hidden">Dates in ${calendar.name}</caption>
+                    <thead class="visually-hidden"><tr><th>Date</th><th>Day</th><th>Label</th>${Utils.raw(canEdit ? '<th>Remove</th>' : '')}</tr></thead>
+                    <tbody>${Utils.raw(rows)}</tbody>
+                </table></div>
+                <p class="hc-note">On these dates a schedule either skips its start only (stops still run, the usual choice) or skips everything.
+                    Each schedule chooses; skipped runs show "holiday" in Recent runs.</p>
             </section>`;
     }
 
-    function importResultHtml(result) {
-        const invalid = (result.invalid || []).map(l => Utils.html`<li>Line ${l.line}: ${l.reason} — <code>${l.content}</code></li>`).join('');
-        return Utils.html`<div class="alert ${result.invalid && result.invalid.length ? 'alert-warning' : 'alert-success'} small mt-2 mb-0" role="status">
-            Added ${result.added} date(s)${result.duplicates ? `, skipped ${result.duplicates} already in the calendar` : ''}.
-            ${Utils.raw(invalid ? `<ul class="mb-0 mt-1">${invalid}</ul>` : '')}</div>`;
-    }
-
     function bind() {
-        $root.find('#hc-new-btn').on('click', () => openCalendarModal(null));
         $root.find('.hc-select').on('click', function() {
             selectedId = $(this).data('id');
+            adding = false;
             refresh();
         });
+        if (!canEdit) return;
+        $root.find('#hc-new-btn').on('click', () => openCalendarModal(null));
         $root.find('.hc-rename').on('click', function() {
             openCalendarModal(calendars.find(c => c.calendarId === $(this).data('id')));
         });
         $root.find('.hc-delete').on('click', function() {
             const calendar = calendars.find(c => c.calendarId === $(this).data('id'));
             if (!calendar) return;
+            const used = calendar.usedByRuleCount ? ` ${usedText(calendar.usedByRuleCount)}; they will run on every day again.` : '';
             Modals.confirm('Delete holiday calendar',
-                `Delete "${calendar.name}" and its ${calendar.dateCount} date(s)? Rules using it will run on every day again.`,
+                `Delete "${calendar.name}" and its ${calendar.dateCount} date(s)?${used}`,
                 async () => {
                     try {
                         await call('DELETE', Config.API.holidayCalendars.delete(calendar.calendarId));
@@ -167,6 +214,12 @@ const HolidayCalendars = (function() {
                     }
                 }, { confirmText: 'Delete', confirmClass: 'btn-danger' });
         });
+        $root.find('#hc-add-btn').on('click', function() {
+            adding = !adding;
+            $(this).attr('aria-expanded', String(adding));
+            $root.find('#hc-add-form').prop('hidden', !adding);
+            if (adding) $root.find('#hc-date').trigger('focus');
+        });
         $root.find('#hc-add-form').on('submit', async function(e) {
             e.preventDefault();
             const date = $('#hc-date').val();
@@ -176,7 +229,9 @@ const HolidayCalendars = (function() {
             }
             try {
                 await call('POST', Config.API.holidayCalendars.addDate(selectedId), { date, label: $('#hc-label').val().trim() || null });
-                refresh();
+                adding = true; // keep the form open for the next date
+                await refresh();
+                $root.find('#hc-date').trigger('focus');
             } catch (error) {
                 Notifications.showError(serverMessage(error, 'Failed to add the date.'));
             }
@@ -189,15 +244,13 @@ const HolidayCalendars = (function() {
                 Notifications.showError(serverMessage(error, 'Failed to remove the date.'));
             }
         });
-        $root.find('#hc-import-btn').on('click', importFile);
+        $root.find('#hc-import-btn').on('click', () => $root.find('#hc-file').trigger('click'));
+        $root.find('#hc-file').on('change', importFile);
     }
 
     async function importFile() {
         const file = $('#hc-file')[0] && $('#hc-file')[0].files[0];
-        if (!file) {
-            Notifications.showError('Choose a CSV file to import.');
-            return;
-        }
+        if (!file) return;
         const form = new FormData();
         form.append('file', file);
         const headers = {};
@@ -261,7 +314,10 @@ const HolidayCalendars = (function() {
         });
     }
 
-    return { render };
+    return {
+        render,
+        model: { dateText, dayText, summary, usedText, isPast, importText, skippedText }
+    };
 })();
 
 window.HolidayCalendars = HolidayCalendars;

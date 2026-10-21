@@ -12,8 +12,7 @@ const AutomationRules = (function() {
     let environments = [];
     let holidayCalendars = []; // named on the Holiday calendars tab for environment admins (E19-T02)
     let scopeOptionsCache = {}; // environmentId -> { groups: [...], vms: [...] }
-    let modalInstance = null;
-    let editingRuleId = null;
+    let accessForm = null; // { rule } while the access-rule panel is open (U12-T04)
     let saving = false; // one Save in flight at a time (a double click created two rules)
 
     /** Labels for lastRunReason (V31). */
@@ -62,6 +61,7 @@ const AutomationRules = (function() {
         const q = ContentRouter.query ? ContentRouter.query() : {};
         tab = TABS.some(t => t.key === q.tab) ? q.tab : 'schedules';
         currentPage = 1;
+        accessForm = null;
         showLoading();
         fetchInitialData();
     }
@@ -220,11 +220,17 @@ const AutomationRules = (function() {
         return `${rule.environmentName || ''} · ${rule.scopeName || ''} (${String(rule.scopeType || '').toLowerCase()})`;
     }
 
+    /**
+     * An access rule in a sentence (U12-T04): "Starts CRM UAT when someone takes the lock, in their
+     * name" / "Starts Web in CRM UAT when an access request is approved, in Asha's name". Access rules
+     * only start: the lease or a schedule stops it.
+     */
     function accessLine(rule) {
-        const what = rule.action === 'STOP' ? 'stop' : 'start';
+        const env = rule.environmentName || 'the environment';
+        const target = rule.scopeType === 'ENVIRONMENT' ? env : `${rule.scopeName || 'a group'} in ${env}`;
         return rule.accessGrantMode === 'LOCK_ACQUIRE'
-            ? `When someone takes the lock: ${what} ${rule.scopeType === 'ENVIRONMENT' ? 'the environment' : rule.scopeName || 'it'}`
-            : `When access is approved: ${what} ${rule.scopeType === 'ENVIRONMENT' ? 'the environment' : rule.scopeName || 'it'}`;
+            ? `Starts ${target} when someone takes the lock, in their name`
+            : `Starts ${target} when an access request is approved, in ${rule.createdByDisplayName ? `${rule.createdByDisplayName}'s` : "the rule owner's"} name`;
     }
 
     // ============= Render =============
@@ -247,7 +253,6 @@ const AutomationRules = (function() {
                     <div id="ar-content"></div>
                 </section>
             </div>
-            <div id="ar-modal-container"></div>
         `);
         bind();
         renderCounts();
@@ -265,6 +270,7 @@ const AutomationRules = (function() {
         if (!TABS.some(t => t.key === key) || key === tab) return;
         tab = key;
         currentPage = 1;
+        accessForm = null;
         $('#automation-rules-view .ar-tab').each(function() { this.setAttribute('aria-selected', String(this.dataset.arTab === key)); });
         $('#ar-panel').attr('aria-labelledby', `ar-tab-${key}`);
         if (window.history && window.history.replaceState) {
@@ -314,11 +320,11 @@ const AutomationRules = (function() {
             </div>`;
     }
 
-    function headHtml(rule) {
+    function headHtml(rule, withEnv = true) {
         return Utils.html`<div class="ar-rule-head">${Utils.raw(switchHtml(rule))}<h2 class="ar-rule-name">${rule.name}</h2>
                 ${Utils.raw(rule.enabled ? '' : '<span class="ar-chip-off">Off</span>')}
                 ${Utils.raw(rule.overrideCount ? Utils.html`<span class="ar-override-badge" title="Active or upcoming overrides">${rule.overrideCount} override${rule.overrideCount === 1 ? '' : 's'}</span>` : '')}</div>
-            <div class="ar-rule-env">${scopeLabel(rule)}</div>`;
+            ${Utils.raw(withEnv ? Utils.html`<div class="ar-rule-env">${scopeLabel(rule)}</div>` : '')}`;
     }
 
     function disabledHtml(rule) {
@@ -345,30 +351,38 @@ const AutomationRules = (function() {
             </article>`;
     }
 
-    /** "When access is granted": the access-grant and lock rules (U12-T04 brings their editor). */
+    /** "When access is granted": the access-grant and lock rules, and their form beside them (U12-T04). */
     function renderAccessRules() {
         const list = rules.filter(r => r.triggerType !== 'SCHEDULE');
-        $('#ar-content').html(`<div class="ar-list-head"><button type="button" class="btn btn-secondary btn-sm" id="ar-new-access-btn">New access rule</button></div>
-            <div class="ar-list" id="ar-table-wrapper">${list.length ? list.map(rule => Utils.html`
-            <article class="ar-rule ar-rule-plain${Utils.raw(rule.enabled ? '' : ' ar-rule-off')}" data-rule-id="${rule.ruleId}">
+        const editing = accessForm && accessForm.rule ? accessForm.rule.ruleId : null;
+        const cards = list.length ? list.map(rule => Utils.html`
+            <article class="ar-rule ar-rule-plain${Utils.raw(rule.enabled ? '' : ' ar-rule-off')}${Utils.raw(rule.ruleId === editing ? ' ar-rule-editing' : '')}" data-rule-id="${rule.ruleId}">
                 <div class="ar-rule-main">
-                    ${Utils.raw(headHtml(rule))}
+                    ${Utils.raw(headHtml(rule, false))}
                     <div class="ar-rule-summary">${accessLine(rule)}</div>
                     ${Utils.raw(disabledHtml(rule))}
                     ${Utils.raw(rowActions(rule, false))}
                 </div>
             </article>`).join('')
-            : '<div class="ar-empty">No rules start or stop an environment when access is granted. Add one with New access rule.</div>'}</div>`);
+            : '<div class="ar-empty">No rule starts an environment when someone begins work. Add one with New rule.</div>';
+        $('#ar-content').html(`<div class="ar-access${accessForm ? ' ar-access-open' : ''}">
+                <div class="ar-access-main">
+                    <div class="ar-list-head">
+                        <p class="ar-access-intro">Start an environment the moment someone takes its lock or is given access.</p>
+                        <button type="button" class="btn btn-secondary btn-sm" id="ar-new-access-btn">New rule</button>
+                    </div>
+                    <div class="ar-list" id="ar-table-wrapper">${cards}</div>
+                </div>
+                ${accessForm ? accessFormHtml(accessForm.rule) : ''}
+            </div>`);
+        if (accessForm) startAccessForm(accessForm.rule);
     }
 
     function renderHolidays() {
-        if (Auth.isAdmin() && typeof HolidayCalendars !== 'undefined') {
-            $('#ar-content').html('<div id="ar-holidays-pane"></div>');
-            HolidayCalendars.render($('#ar-holidays-pane'), list => { holidayCalendars = list; });
-            return;
-        }
-        $('#ar-content').html(`<div class="ar-empty">Holiday calendars are kept by administrators. A schedule can stay off on
-            ${holidayCalendars.length ? Utils.escapeHtml(holidayCalendars.map(c => c.name).join(', ')) : 'their'} holidays.</div>`);
+        if (typeof HolidayCalendars === 'undefined') return;
+        // Environment admins read the calendars; only administrators change them (U12-T04).
+        $('#ar-content').html('<div id="ar-holidays-pane"></div>');
+        HolidayCalendars.render($('#ar-holidays-pane'), list => { holidayCalendars = list; }, { canEdit: Auth.isAdmin() });
     }
 
     /** "Recent runs": the last run of each rule (U12-T05 brings the full history). */
@@ -391,7 +405,7 @@ const AutomationRules = (function() {
         const NS = '.automationRules';
         const $view = $('#automation-rules-view');
         $view.off(NS)
-            .on('click' + NS, '#ar-new-access-btn', () => openRuleModal(null))
+            .on('click' + NS, '#ar-new-access-btn', () => { accessForm = { rule: null }; renderAccessRules(); })
             .on('click' + NS, '[data-ar-tab]', function() { selectTab(this.dataset.arTab); })
             .on('keydown' + NS, '[data-ar-tab]', function(e) {
                 const i = TABS.findIndex(t => t.key === this.dataset.arTab);
@@ -409,8 +423,12 @@ const AutomationRules = (function() {
             .on('click' + NS, '.ar-edit-btn', function() {
                 const rule = rules.find(r => r.ruleId === $(this).data('rule-id'));
                 if (!rule) return;
-                if (rule.triggerType === 'SCHEDULE') window.location.hash = `#/automation-rules/${encodeURIComponent(rule.ruleId)}`;
-                else openRuleModal(rule);
+                if (rule.triggerType === 'SCHEDULE') {
+                    window.location.hash = `#/automation-rules/${encodeURIComponent(rule.ruleId)}`;
+                } else {
+                    accessForm = { rule };
+                    renderAccessRules();
+                }
             })
             // 'Skip next stop' (E19-T03): a STOP override around the next stop time, with a reason.
             .on('click' + NS, '.ar-skip-stop-btn', function() {
@@ -491,181 +509,147 @@ const AutomationRules = (function() {
         });
     }
 
-    // ============= Access-grant rule dialog (U12-T04 brings its page) =============
+    // ============= Access rule form (U12-T04, AutomationTabs.dc.html) =============
     // Schedules are edited on their own page (rule-editor.js, U12-T03).
 
-    function openRuleModal(rule) {
-        editingRuleId = rule ? rule.ruleId : null;
-        $('#ar-modal-container').html(buildModalHtml(rule));
-        modalInstance = bootstrap.Modal.getOrCreateInstance(document.getElementById('automationRuleModal'));
-        bindModalEvents(rule);
-        modalInstance.show();
-
-        // Load scope options for the initially-selected environment
-        const envId = rule ? rule.environmentId : (environments[0] && environments[0].environmentId);
-        if (envId) {
-            loadScopeOptions(envId).then(() => populateScopeSelect(rule));
-        }
+    /** The environments the person administers (the server checks each write). */
+    function administered() {
+        return environments.filter(e => e.viewerCanAdminister !== false && e.isActive !== false);
     }
 
-    function buildModalHtml(rule) {
-        const scopeType = rule ? rule.scopeType : 'ENVIRONMENT';
-        const accessGrantMode = rule ? rule.accessGrantMode : 'LOCK_ACQUIRE';
-        const envOptions = environments.map(e =>
-            `<option value="${e.environmentId}" ${rule && rule.environmentId === e.environmentId ? 'selected' : ''}>${Utils.escapeHtml(e.name)}</option>`
-        ).join('');
-
-        return `
-            <div class="modal fade" id="automationRuleModal" tabindex="-1" aria-labelledby="automationRuleModalLabel">
-                <div class="modal-dialog modal-lg modal-dialog-scrollable">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="automationRuleModalLabel">${rule ? 'Edit access rule' : 'New access rule'}</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body">
-                            <form id="ar-form" novalidate>
-                                <div class="mb-3">
-                                    <label class="form-label" for="ar-name">Name <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" id="ar-name" required maxlength="255" value="${rule ? Utils.escapeHtml(rule.name) : ''}">
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label" for="ar-description">Description</label>
-                                    <input type="text" class="form-control" id="ar-description" maxlength="1000" value="${rule ? Utils.escapeHtml(rule.description || '') : ''}">
-                                </div>
-                                <div class="row mb-3">
-                                    <div class="col-md-6">
-                                        <label class="form-label" for="ar-environment">Environment <span class="text-danger">*</span></label>
-                                        <select class="form-select" id="ar-environment" ${rule ? 'disabled' : ''} required>
-                                            ${envOptions}
-                                        </select>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label" for="ar-scope-type">Scope</label>
-                                        <select class="form-select" id="ar-scope-type">
-                                            <option value="ENVIRONMENT" ${scopeType === 'ENVIRONMENT' ? 'selected' : ''}>Entire environment</option>
-                                            <option value="GROUP" ${scopeType === 'GROUP' ? 'selected' : ''}>Specific group</option>
-                                            <option value="VM" ${scopeType === 'VM' ? 'selected' : ''}>Specific VM</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="mb-3" id="ar-scope-id-wrap" style="display:none">
-                                    <label class="form-label" for="ar-scope-id">Select target</label>
-                                    <select class="form-select" id="ar-scope-id"></select>
-                                </div>
-                                <fieldset class="mb-3" id="ar-access-grant-fields">
-                                    <legend class="form-label fs-6">Fire when</legend>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="radio" name="ar-access-grant-mode" id="ar-mode-lock" value="LOCK_ACQUIRE" ${accessGrantMode === 'LOCK_ACQUIRE' ? 'checked' : ''}>
-                                        <label class="form-check-label" for="ar-mode-lock">Someone takes the environment lock (starts the VMs as they begin work)</label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="radio" name="ar-access-grant-mode" id="ar-mode-approved" value="ACCESS_APPROVED" ${accessGrantMode === 'ACCESS_APPROVED' ? 'checked' : ''}>
-                                        <label class="form-check-label" for="ar-mode-approved">An access request is approved or access is granted</label>
-                                    </div>
-                                </fieldset>
-                                <div class="form-check mb-3">
-                                    <input class="form-check-input" type="checkbox" id="ar-skip-already" ${!rule || rule.skipIfAlreadyInTargetState ? 'checked' : ''}>
-                                    <label class="form-check-label" for="ar-skip-already">Skip VMs already in the target state</label>
-                                </div>
-                                <div class="form-check mb-0">
-                                    <input class="form-check-input" type="checkbox" id="ar-enabled" ${!rule || rule.enabled ? 'checked' : ''}>
-                                    <label class="form-check-label" for="ar-enabled">On</label>
-                                </div>
-                            </form>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                            <button type="button" class="btn btn-primary" id="ar-save-btn">${rule ? 'Save rule' : 'Add rule'}</button>
-                        </div>
-                    </div>
+    function accessFormHtml(rule) {
+        const mode = rule ? rule.accessGrantMode : 'LOCK_ACQUIRE';
+        const applies = rule ? rule.scopeType : 'ENVIRONMENT';
+        const choice = (value, title, sub) => Utils.html`<label class="ag-choice">
+                <input type="radio" name="ag-mode" value="${value}"${Utils.raw(mode === value ? ' checked' : '')}>
+                <span><b>${title}</b><span>${sub}</span></span></label>`;
+        return Utils.html`<aside class="ar-side" id="ag-panel" aria-labelledby="ag-title">
+                <div class="ar-side-head">
+                    <div class="ar-side-eyebrow">When access is granted</div>
+                    <h2 id="ag-title">${rule ? `Edit ${rule.name}` : 'New rule'}</h2>
                 </div>
-            </div>
-        `;
-    }
-
-    function bindModalEvents(rule) {
-        $('#ar-scope-type').on('change', function() {
-            $('#ar-scope-id-wrap').toggle($(this).val() !== 'ENVIRONMENT');
-            populateScopeSelect(rule);
-        });
-        $('#ar-environment').on('change', function() {
-            loadScopeOptions($(this).val()).then(() => populateScopeSelect(null));
-        });
-        $('#ar-save-btn').on('click', () => submitForm(rule));
+                <form id="ag-form" novalidate>
+                    <div class="ar-side-body">
+                        <label class="re-field">Name
+                            <input type="text" class="form-control" id="ag-name" maxlength="255" autocomplete="off" value="${rule ? rule.name : ''}"></label>
+                        <div class="ag-grid">
+                            <label class="re-field">Applies to
+                                <select class="form-select" id="ag-applies">
+                                    <option value="ENVIRONMENT"${Utils.raw(applies === 'ENVIRONMENT' ? ' selected' : '')}>Environment</option>
+                                    <option value="GROUP"${Utils.raw(applies === 'GROUP' ? ' selected' : '')}>Group</option>
+                                    ${Utils.raw(applies === 'VM' ? '<option value="VM" selected>VM</option>' : '')}
+                                </select></label>
+                            <label class="re-field">Which
+                                <select class="form-select" id="ag-which"></select></label>
+                        </div>
+                        <fieldset class="ag-modes">
+                            <legend class="re-legend">Start it when</legend>
+                            ${Utils.raw(choice('LOCK_ACQUIRE', 'Someone takes the lock', 'Started in their name'))}
+                            ${Utils.raw(choice('ACCESS_APPROVED', 'An access request is approved', "Started in your name, as the rule's owner"))}
+                        </fieldset>
+                        <label class="re-check ag-skip"><input type="checkbox" id="ag-skip"${Utils.raw(!rule || rule.skipIfAlreadyInTargetState ? ' checked' : '')}> Do nothing if it's already running</label>
+                        <p class="re-note">These rules only start. The lease or a schedule stops it.</p>
+                        <div class="re-error" id="ag-error" role="alert" hidden></div>
+                    </div>
+                    <div class="ar-side-foot">
+                        <button type="button" class="btn btn-secondary" id="ag-cancel">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="ag-save">${rule ? 'Save rule' : 'Create rule'}</button>
+                    </div>
+                </form>
+            </aside>`;
     }
 
     async function loadScopeOptions(environmentId) {
         if (!environmentId || scopeOptionsCache[environmentId]) return;
         try {
-            const [groups, vms] = await Promise.all([
-                apiGet(Config.API.groups.list(environmentId)),
-                apiGet(Config.API.vms.list(environmentId))
-            ]);
-            scopeOptionsCache[environmentId] = { groups: groups || [], vms: vms || [] };
+            const groups = await apiGetQuiet(Config.API.groups.list(environmentId));
+            scopeOptionsCache[environmentId] = { groups: (groups || []).filter(g => g.name !== 'discovered') };
         } catch (error) {
-            scopeOptionsCache[environmentId] = { groups: [], vms: [] };
+            scopeOptionsCache[environmentId] = { groups: [] };
         }
     }
 
-    function populateScopeSelect(rule) {
-        const environmentId = $('#ar-environment').val();
-        const scopeType = $('#ar-scope-type').val();
-        const options = scopeOptionsCache[environmentId] || { groups: [], vms: [] };
-        const $select = $('#ar-scope-id');
-
-        $('#ar-scope-id-wrap').toggle(scopeType !== 'ENVIRONMENT');
-
-        if (scopeType === 'GROUP') {
-            $select.html(options.groups.map(g =>
-                `<option value="${g.groupId}" ${rule && rule.scopeId === g.groupId ? 'selected' : ''}>${Utils.escapeHtml(g.displayName || g.name)}</option>`
-            ).join(''));
-        } else if (scopeType === 'VM') {
-            $select.html(options.vms.map(v =>
-                `<option value="${v.vmId}" ${rule && rule.scopeId === v.vmId ? 'selected' : ''}>${Utils.escapeHtml(v.displayName || v.name)}</option>`
-            ).join(''));
+    /** Which: the environments, or each environment's groups under its name; a rule's environment stays fixed. */
+    async function fillWhich(rule) {
+        const applies = $('#ag-applies').val();
+        const envs = rule ? [{ environmentId: rule.environmentId, name: rule.environmentName }] : administered();
+        const $which = $('#ag-which');
+        if (applies === 'VM') {
+            $which.html(Utils.html`<option value="${rule.environmentId}|${rule.scopeId}">${rule.scopeName || rule.scopeId}</option>`);
+            return;
         }
+        if (applies === 'ENVIRONMENT') {
+            $which.html(envs.map(e => Utils.html`<option value="${e.environmentId}"${Utils.raw(rule && rule.environmentId === e.environmentId ? ' selected' : '')}>${e.displayName || e.name}</option>`).join(''));
+            return;
+        }
+        $which.html('<option value="">Loading groups…</option>');
+        await Promise.all(envs.map(e => loadScopeOptions(e.environmentId)));
+        if ($('#ag-applies').val() !== 'GROUP') return;
+        const html = envs.map(e => {
+            const groups = (scopeOptionsCache[e.environmentId] || { groups: [] }).groups;
+            return groups.length ? Utils.html`<optgroup label="${e.displayName || e.name}">${Utils.raw(groups.map(g => Utils.html`<option value="${e.environmentId}|${g.groupId}"${Utils.raw(rule && rule.scopeId === g.groupId ? ' selected' : '')}>${g.displayName || g.name}</option>`).join(''))}</optgroup>` : '';
+        }).join('');
+        $which.html(html || '<option value="">No groups</option>');
     }
 
-    function buildDto() {
-        const scopeType = $('#ar-scope-type').val();
+    function startAccessForm(rule) {
+        fillWhich(rule);
+        const $panel = $('#ag-panel');
+        $panel.on('change', '#ag-applies', () => fillWhich(rule))
+            .on('click', '#ag-cancel', closeAccessForm)
+            .on('keydown', e => { if (e.key === 'Escape') closeAccessForm(); })
+            .on('submit', '#ag-form', e => { e.preventDefault(); saveAccessRule(rule); });
+        $('#ag-name').trigger('focus');
+    }
+
+    function closeAccessForm() {
+        accessForm = null;
+        renderAccessRules();
+        $('#ar-new-access-btn').trigger('focus');
+    }
+
+    /** The request body (AutomationRuleRequestDTO) of the access rule form. */
+    function accessDto(rule) {
+        const applies = $('#ag-applies').val();
+        const which = String($('#ag-which').val() || '');
+        const [environmentId, scopeId] = which.split('|');
         return {
-            environmentId: $('#ar-environment').val(),
-            name: $('#ar-name').val().trim(),
-            description: $('#ar-description').val().trim(),
-            scopeType: scopeType,
-            scopeId: scopeType === 'ENVIRONMENT' ? null : $('#ar-scope-id').val(),
+            environmentId: environmentId || null,
+            name: $('#ag-name').val().trim(),
+            description: rule ? rule.description : null,
+            scopeType: applies,
+            scopeId: applies === 'ENVIRONMENT' ? null : (scopeId || null),
             triggerType: 'ACCESS_GRANT',
-            accessGrantMode: $('input[name="ar-access-grant-mode"]:checked').val(),
-            skipIfAlreadyInTargetState: $('#ar-skip-already').is(':checked'),
-            enabled: $('#ar-enabled').is(':checked')
+            accessGrantMode: $('input[name="ag-mode"]:checked').val(),
+            skipIfAlreadyInTargetState: $('#ag-skip').is(':checked'),
+            enabled: rule ? rule.enabled : true
         };
     }
 
-    async function submitForm(rule) {
+    async function saveAccessRule(rule) {
         if (saving) return;
-        const dto = buildDto();
-        if (!dto.name) {
-            Notifications.showError('Name is required.');
+        const dto = accessDto(rule);
+        const $error = $('#ag-error');
+        const problem = !dto.name ? 'Give the rule a name.' : !dto.environmentId ? 'Choose which environment or group it starts.' : '';
+        if (problem) {
+            $error.text(problem).prop('hidden', false);
+            $(!dto.name ? '#ag-name' : '#ag-which').trigger('focus');
             return;
         }
-
         saving = true;
-        const $save = $('#ar-save-btn').prop('disabled', true);
+        const $save = $('#ag-save').prop('disabled', true);
         try {
-            if (rule) {
-                await apiPut(Config.API.automationRules.update(rule.ruleId), dto);
-            } else {
-                await apiPost(Config.API.automationRules.create, dto);
-            }
+            if (rule) await apiPut(Config.API.automationRules.update(rule.ruleId), dto);
+            else await apiPost(Config.API.automationRules.create, dto);
+            if (!isActive()) return;
             Notifications.show('Rule saved', 'success');
-            modalInstance.hide();
+            accessForm = null;
             await refreshRules();
         } catch (error) {
-            Notifications.showError(serverMessage(error, 'Failed to save the rule.'));
+            $error.text(serverMessage(error, 'The rule was not saved. Try again.')).prop('hidden', false);
+            $save.prop('disabled', false);
         } finally {
             saving = false;
-            $save.prop('disabled', false);
         }
     }
 

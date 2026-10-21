@@ -41,5 +41,9 @@ test('the schedule line: summary, zone, holidays, local time and a recent skip',
         lastRunStatus: 'SKIPPED', lastRunReason: 'LOCKED', lastRunAt: new Date(Date.UTC(2026, 9, 21, 1, 0)).toISOString() };
     assert.equal(M.scheduleLine(utc, now, 'Asia/Kolkata'), 'Every day 01:00–05:00 · UTC (06:30–10:30 here) · skipped Wed: environment locked');
     assert.equal(M.hhmm(25.5), '01:30');
-    assert.match(M.accessLine({ accessGrantMode: 'LOCK_ACQUIRE', action: 'START', scopeType: 'ENVIRONMENT' }), /^When someone takes the lock: start the environment$/);
+    // U12-T04: an access rule in a sentence.
+    assert.equal(M.accessLine({ accessGrantMode: 'LOCK_ACQUIRE', scopeType: 'ENVIRONMENT', environmentName: 'CRM UAT' }),
+        'Starts CRM UAT when someone takes the lock, in their name');
+    assert.equal(M.accessLine({ accessGrantMode: 'ACCESS_APPROVED', scopeType: 'GROUP', scopeName: 'Web', environmentName: 'CRM UAT',
+        createdByDisplayName: 'Asha' }), "Starts Web in CRM UAT when an access request is approved, in Asha's name");
 });

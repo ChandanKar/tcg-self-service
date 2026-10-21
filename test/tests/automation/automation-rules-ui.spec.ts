@@ -35,8 +35,15 @@ class FakeRules {
     await page.route(/\/api\/v1\/automation-rules(\/.*)?(\?.*)?$/, (route) => this.handle(route));
     await page.route(/\/api\/v1\/environments(\?.*)?$/, (route) =>
       route.request().method() === 'GET' ? this.json(route, [ENV]) : route.continue());
-    await page.route(/\/api\/v1\/environments\/env-auto-e2e\/(groups|vms)(\?.*)?$/, (route) => this.json(route, []));
-    await page.route(/\/api\/v1\/holiday-calendars(\?.*)?$/, (route) => this.json(route, [{ calendarId: 'cal-in', name: 'India public' }]));
+    await page.route(/\/api\/v1\/environments\/env-auto-e2e\/groups(\?.*)?$/, (route) =>
+      this.json(route, [{ groupId: 'g-web', name: 'web', displayName: 'Web' }]));
+    await page.route(/\/api\/v1\/environments\/env-auto-e2e\/vms(\?.*)?$/, (route) => this.json(route, []));
+    await page.route(/\/api\/v1\/holiday-calendars(\?.*)?$/, (route) => this.json(route, [{ calendarId: 'cal-in', name: 'India public',
+      description: null, dateCount: 3, nextHoliday: '2099-10-20', nextHolidayLabel: 'Office holiday', usedByRuleCount: 9 }]));
+    await page.route(/\/api\/v1\/holiday-calendars\/cal-in\/dates(\?.*)?$/, (route) => this.json(route, { content: [
+      { holidayId: 'h1', date: '2020-10-02', label: 'Gandhi Jayanti' },
+      { holidayId: 'h2', date: '2099-10-20', label: 'Office holiday' },
+      { holidayId: 'h3', date: '2099-12-25', label: 'Christmas' }] }));
   }
 
   private json(route: Route, body: unknown, status = 200) {
@@ -204,8 +211,17 @@ test.describe('Automation rules page', () => {
     await page.getByRole('tab', { name: 'Recent runs' }).click();
     await expect(page.getByRole('tab', { name: 'Recent runs' })).toHaveAttribute('aria-selected', 'true');
     await expect(page).toHaveURL(/#\/automation-rules\?tab=runs$/);
+    // U12-T04: environment admins read the calendars; nothing in them can be changed.
     await page.getByRole('tab', { name: 'Holiday calendars' }).click();
-    await expect(page.locator('#ar-content')).toContainText('Holiday calendars are kept by administrators');
+    await expect(page.locator('#hc-calendars .hc-item')).toHaveText([/India public\s*3 dates · next 20 Oct/]);
+    await expect(page.locator('#hc-used')).toHaveText('Used by 9 schedules');
+    await expect(page.locator('#hc-dates-table tbody tr')).toHaveCount(3);
+    await expect(page.locator('#hc-dates-table tbody tr').first()).toHaveClass(/hc-past/);
+    await expect(page.locator('#hc-dates-table tbody tr').nth(1)).toContainText('20-10-2099');
+    await expect(page.locator('#hc-detail')).toContainText('skipped runs show "holiday" in Recent runs');
+    for (const name of ['Import CSV', 'Add date', 'Remove', '+ New calendar', 'Rename', 'Delete calendar']) {
+      await expect(page.locator('#ar-content').getByRole('button', { name, exact: true })).toHaveCount(0);
+    }
   });
 
   test('12 schedules: 10 on the page with a pager, no page scrollbar at 1440x900', async ({ page }) => {
@@ -301,24 +317,61 @@ test.describe('Schedule editor', () => {
     await expect(page.getByRole('tab', { name: 'Schedules' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  test('access rules keep their dialog, and are added from their tab', async ({ page }) => {
+  test('access rules: a sentence each, and the form beside them', async ({ page }) => {
     const fake = new FakeRules();
-    fake.rules = [rule({ name: 'On lock', triggerType: 'ACCESS_GRANT', accessGrantMode: 'LOCK_ACQUIRE', action: 'START' })];
+    fake.rules = [rule({ name: 'On lock', triggerType: 'ACCESS_GRANT', accessGrantMode: 'LOCK_ACQUIRE' })];
     await open(page, fake);
     await page.getByRole('tab', { name: 'When access is granted' }).click();
-    await page.locator('.ar-rule', { hasText: 'On lock' }).locator('.ar-edit-btn').click();
-    await expect(page.locator('#automationRuleModal')).toBeVisible();
-    await expect(page.locator('#automationRuleModalLabel')).toHaveText('Edit access rule');
-    await expect(page.locator('#ar-mode-lock')).toBeChecked();
-    await page.locator('#automationRuleModal .btn-close').click();
-    await expect(page.locator('#automationRuleModal')).toBeHidden();
+    const card = page.locator('.ar-rule', { hasText: 'On lock' });
+    await expect(card.locator('.ar-rule-summary')).toHaveText('Starts auto-e2e when someone takes the lock, in their name');
 
+    await card.locator('.ar-edit-btn').click();
+    const panel = page.locator('#ag-panel');
+    await expect(panel.getByRole('heading', { name: 'Edit On lock' })).toBeVisible();
+    await expect(panel.getByLabel('Someone takes the lock')).toBeChecked();
+    await expect(card).toHaveClass(/ar-rule-editing/);
+    await panel.getByRole('button', { name: 'Cancel' }).click();
+    await expect(panel).toHaveCount(0);
+
+    // U12-T04 acceptance: 'Someone takes the lock' sends LOCK_ACQUIRE.
     await page.locator('#ar-new-access-btn').click();
-    await expect(page.locator('#automationRuleModalLabel')).toHaveText('New access rule');
-    await page.locator('#ar-name').fill('On approval');
-    await page.locator('#ar-mode-approved').check();
-    await page.locator('#ar-save-btn').click();
-    await expect(page.locator('#automationRuleModal')).toBeHidden({ timeout: 10_000 });
-    expect(fake.bodies[0]).toMatchObject({ name: 'On approval', triggerType: 'ACCESS_GRANT', accessGrantMode: 'ACCESS_APPROVED' });
+    await expect(panel.getByRole('heading', { name: 'New rule' })).toBeVisible();
+    await expect(page.locator('#ag-name')).toBeFocused();
+    await page.locator('#ag-name').fill('Start for whoever locks it');
+    await expect(page.locator('#ag-which')).toHaveValue('env-auto-e2e');
+    await expect(panel).toContainText('These rules only start. The lease or a schedule stops it.');
+    await panel.getByRole('button', { name: 'Create rule' }).click();
+    await expect(panel).toHaveCount(0, { timeout: 10_000 });
+    expect(fake.bodies[0]).toMatchObject({ name: 'Start for whoever locks it', triggerType: 'ACCESS_GRANT', accessGrantMode: 'LOCK_ACQUIRE',
+      environmentId: 'env-auto-e2e', scopeType: 'ENVIRONMENT', scopeId: null, skipIfAlreadyInTargetState: true, enabled: true });
+    await expect(page.locator('.ar-rule', { hasText: 'Start for whoever locks it' })).toHaveCount(1);
+
+    // A group, started on approval in the owner's name.
+    await page.locator('#ar-new-access-btn').click();
+    await page.locator('#ag-name').fill('Web on approval');
+    await page.locator('#ag-applies').selectOption('GROUP');
+    await expect(page.locator('#ag-which optgroup')).toHaveAttribute('label', 'Auto E2E');
+    await page.locator('#ag-which').selectOption({ label: 'Web' });
+    await panel.getByLabel('An access request is approved').check();
+    await panel.getByLabel("Do nothing if it's already running").uncheck();
+    await panel.getByRole('button', { name: 'Create rule' }).click();
+    await expect(panel).toHaveCount(0, { timeout: 10_000 });
+    expect(fake.bodies[1]).toMatchObject({ accessGrantMode: 'ACCESS_APPROVED', scopeType: 'GROUP', scopeId: 'g-web',
+      environmentId: 'env-auto-e2e', skipIfAlreadyInTargetState: false });
+  });
+
+  test('an access rule without a name is not sent; the server reason shows in the form', async ({ page }) => {
+    const fake = new FakeRules();
+    await open(page, fake);
+    await page.getByRole('tab', { name: 'When access is granted' }).click();
+    await page.locator('#ar-new-access-btn').click();
+    await page.locator('#ag-panel').getByRole('button', { name: 'Create rule' }).click();
+    await expect(page.locator('#ag-error')).toHaveText('Give the rule a name.');
+    expect(fake.posts).toBe(0);
+    fake.saveError = 'Selected group does not belong to environment auto-e2e';
+    await page.locator('#ag-name').fill('Bad');
+    await page.locator('#ag-panel').getByRole('button', { name: 'Create rule' }).click();
+    await expect(page.locator('#ag-error')).toHaveText('Selected group does not belong to environment auto-e2e');
+    await expect(page.locator('#ag-panel')).toBeVisible();
   });
 });

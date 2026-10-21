@@ -36,6 +36,9 @@ test.describe('Holiday calendars', () => {
     await openAutomation(page);
     await createCalendar(page, name);
 
+    // U12-T04: Add date opens the form; the CSV imports as soon as it is chosen.
+    await expect(page.locator('#hc-used')).toHaveText('No schedule uses it');
+    await page.getByRole('button', { name: 'Add date' }).click();
     await page.locator('#hc-date').fill('2026-10-02');
     await page.locator('#hc-label').fill('Gandhi Jayanti');
     await page.locator('#hc-add-form button[type="submit"]').click();
@@ -46,12 +49,11 @@ test.describe('Holiday calendars', () => {
       name: 'holidays.csv', mimeType: 'text/csv',
       buffer: Buffer.from('2026-10-20,Dussehra\n2026-10-02,Gandhi Jayanti\n2026-13-40,Not a day\n2026-11-08,Diwali\n'),
     });
-    await page.locator('#hc-import-btn').click();
 
-    await expect(page.locator('#hc-import-result')).toContainText('Added 2 date(s), skipped 1 already in the calendar');
-    await expect(page.locator('#hc-import-result')).toContainText('Line 3');
+    await expect(page.locator('#hc-import-result')).toHaveText(
+      'Imported: 2 added, 1 already there, 1 line skipped (row 3: "2026-13-40" is not a date).');
     await expect(page.locator('#hc-dates-table tbody tr')).toHaveCount(3);
-    await expect(page.locator('#hc-calendars-table tr', { hasText: name })).toContainText('3');
+    await expect(page.locator('#hc-calendars .hc-item', { hasText: name })).toContainText('3 dates');
   });
 
   test('a schedule rule links to a calendar and the table says so', async ({ page, playwright }) => {
@@ -83,5 +85,10 @@ test.describe('Holiday calendars', () => {
     expect((await response.json()).holidayCalendarName).toBe(calendar);
 
     await expect(page.locator('#ar-table-wrapper .ar-rule', { hasText: ruleName })).toContainText(`off on ${calendar} holidays`);
+
+    // The calendar now says a schedule follows it.
+    await page.getByRole('tab', { name: 'Holiday calendars' }).click();
+    await page.locator('#hc-calendars .hc-item', { hasText: calendar }).click();
+    await expect(page.locator('#hc-used')).toHaveText('Used by 1 schedule');
   });
 });

@@ -5,7 +5,12 @@ import com.tcgdigital.vmcontrol.dto.HolidayCalendarDTOs.CalendarRequest;
 import com.tcgdigital.vmcontrol.dto.HolidayCalendarDTOs.DateRequest;
 import com.tcgdigital.vmcontrol.dto.HolidayCalendarDTOs.ImportResult;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
+import com.tcgdigital.vmcontrol.model.AutomationRule;
+import com.tcgdigital.vmcontrol.model.AutomationScopeType;
+import com.tcgdigital.vmcontrol.model.AutomationTriggerType;
+import com.tcgdigital.vmcontrol.model.Environment;
 import com.tcgdigital.vmcontrol.model.User;
+import com.tcgdigital.vmcontrol.repository.AutomationRuleRepository;
 import com.tcgdigital.vmcontrol.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,6 +21,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -27,6 +33,7 @@ class HolidayCalendarServiceTest extends AbstractIntegrationTest {
 
     @Autowired private HolidayCalendarService service;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private AutomationRuleRepository rules;
 
     private User admin;
 
@@ -121,5 +128,41 @@ class HolidayCalendarServiceTest extends AbstractIntegrationTest {
         assertThatThrownBy(() -> service.importCsv(id, admin.getUserId(), csv(text.toString())))
                 .isInstanceOf(ValidationException.class)
                 .hasMessage("A CSV import is limited to 500 lines");
+    }
+
+    private void scheduleFollowing(Environment env, String calendarId, boolean enabled) {
+        AutomationRule r = new AutomationRule();
+        r.setRuleId(UUID.randomUUID().toString());
+        r.setName("Office hours " + UUID.randomUUID());
+        r.setEnvironment(env);
+        r.setScopeType(AutomationScopeType.ENVIRONMENT);
+        r.setTriggerType(AutomationTriggerType.SCHEDULE);
+        r.addWindow("MON,TUE,WED,THU,FRI", "08:00", "20:00");
+        r.setTimezone("Asia/Kolkata");
+        r.setHolidayCalendarId(calendarId);
+        r.setEnabled(enabled);
+        r.setCreatedByUserId(admin.getUserId());
+        rules.saveAndFlush(r);
+    }
+
+    /** U12-T04: "Used by <n> schedules" counts the enabled rules that follow each calendar. */
+    @Test
+    void eachCalendarSaysHowManyEnabledSchedulesFollowIt() {
+        String india = service.create(admin.getUserId(), new CalendarRequest("India 2026", null)).calendarId();
+        String uk = service.create(admin.getUserId(), new CalendarRequest("UK 2026", null)).calendarId();
+        String unused = service.create(admin.getUserId(), new CalendarRequest("Unused", null)).calendarId();
+        Environment env = newEnvironment("holiday-used");
+        scheduleFollowing(env, india, true);
+        scheduleFollowing(env, india, true);
+        scheduleFollowing(env, india, false); // off: not counted
+        scheduleFollowing(env, uk, true);
+        scheduleFollowing(env, null, true);
+
+        assertThat(service.list()).extracting(CalendarDTO::name, CalendarDTO::usedByRuleCount)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("India 2026", 2L),
+                        org.assertj.core.groups.Tuple.tuple("UK 2026", 1L),
+                        org.assertj.core.groups.Tuple.tuple("Unused", 0L));
+        assertThat(service.get(india).usedByRuleCount()).isEqualTo(2);
+        assertThat(service.get(unused).usedByRuleCount()).isZero();
     }
 }
