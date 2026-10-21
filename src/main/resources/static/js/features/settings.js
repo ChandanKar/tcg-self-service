@@ -136,7 +136,7 @@ const Settings = (function() {
             draw();
         }).catch(e => {
             if (!ContentRouter.isCurrent(token)) return;
-            $('#st-panel').html(Utils.html`<p class="st-note" role="alert">${serverMessage(e, "Couldn't load the settings.")}</p>`);
+            $('#st-panel').html(UiStates.failed({ what: 'The settings', xhr: e, onRetry: () => ContentRouter.reload() }));
         });
     }
 

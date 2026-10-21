@@ -113,8 +113,8 @@ const Waste = (function() {
             state.errors = {};
             state.actionsEnabled = config.status === 'fulfilled' && config.value && config.value.enabled;
             state.actions = actions.status === 'fulfilled' ? (actions.value || []) : [];
-            if (summary.status === 'fulfilled') state.summary = summary.value; else state.errors.summary = true;
-            if (findings.status === 'fulfilled') state.findings = findings.value; else state.errors.findings = true;
+            if (summary.status === 'fulfilled') state.summary = summary.value; else state.errors.summary = summary.reason || true;
+            if (findings.status === 'fulfilled') state.findings = findings.value; else state.errors.findings = findings.reason || true;
             draw();
         });
     }
@@ -127,9 +127,8 @@ const Waste = (function() {
         return `${Config.API.waste.findings}?${q.toString()}`;
     }
 
-    function error(label) {
-        return Utils.html`<div class="cost-panel-error" role="alert"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
-            <span>Couldn't load ${label}.</span><button type="button" class="btn btn-sm btn-ghost" data-action="waste-refresh">Retry</button></div>`;
+    function error(label, xhr) {
+        return UiStates.failed({ what: label, xhr, retryAction: 'waste-refresh', className: 'cost-panel-error' });
     }
 
     function money2(v) {
@@ -143,7 +142,7 @@ const Waste = (function() {
     function draw() {
         const s = state.summary;
         if (state.errors.summary) {
-            $('#waste-summary').html(error('the waste totals'));
+            $('#waste-summary').html(error('the waste totals', state.errors.summary));
         } else if (s) {
             $('#waste-intro').text(`Things in AWS that cost money and do nothing. ${scheduleText(s)}`);
             const off = s.sweepEnabled ? '' : `<p class="cost-note waste-off" role="status">Waste sweeps are turned off: set
@@ -183,7 +182,7 @@ const Waste = (function() {
 
     function drawTable() {
         if (state.errors.findings) {
-            $('#waste-table').html(error('the findings'));
+            $('#waste-table').html(error('the findings', state.errors.findings));
             return;
         }
         const page = state.findings;

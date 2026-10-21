@@ -65,8 +65,7 @@ const AccessManagement = (function() {
             await refreshList();
         } catch (error) {
             if (!isActive()) return;
-            showError(error && error.status === 403
-                ? 'You do not have permission to manage access.' : "Access didn't load. Try again in a moment.");
+            showError(error);
         }
     }
 
@@ -75,9 +74,8 @@ const AccessManagement = (function() {
         $(document).off(NS);
     }
 
-    function showError(message) {
-        $('#content-area').html(Utils.html`<div class="content-view"><div class="content-header"><h1>Access management</h1></div>
-            <div class="alert alert-danger" role="alert">${message}</div></div>`);
+    function showError(xhr) {
+        $('#content-area').html(UiStates.failedPage({ title: 'Access management', what: 'Access', xhr }));
     }
 
     /** Grant, change and revoke follow the server's flag for each environment (U02-T02). */

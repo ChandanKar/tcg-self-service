@@ -211,9 +211,9 @@ const Chargeback = (function() {
             drawToolbar();
             updateTagTabLabel();
             drawTab();
-        }).catch(() => {
+        }).catch(xhr => {
             if (!ContentRouter.isCurrent(token) || state.month !== month) return;
-            state.statementError = true;
+            state.statementError = xhr || true;
             drawTab();
         });
     }
@@ -241,8 +241,7 @@ const Chargeback = (function() {
         if (state.tab !== 'statement') return;
         const s = state.statement;
         if (state.statementError) {
-            panel('statement').html(`<div class="cost-panel-error" role="alert"><span>Couldn't load the statement.</span>
-                <button type="button" class="btn btn-sm btn-ghost" data-action="chargeback-reload">Retry</button></div>`);
+            panel('statement').html(UiStates.failed({ what: 'the statement', xhr: state.statementError, retryAction: 'chargeback-reload', className: 'cost-panel-error' }));
             return;
         }
         if (!s) {
@@ -405,9 +404,9 @@ const Chargeback = (function() {
             state.rulesError = false;
             if (!state.selected && state.rules.length) pick(state.rules[0].ruleId, true);
             else drawRules();
-        }).catch(() => {
+        }).catch(xhr => {
             if (!ContentRouter.isCurrent(token)) return;
-            state.rulesError = true;
+            state.rulesError = xhr || true;
             drawRules();
         });
     }
@@ -438,8 +437,7 @@ const Chargeback = (function() {
     function drawRules() {
         if (state.tab !== 'rules') return;
         if (state.rulesError) {
-            panel('rules').html(`<div class="cost-panel-error" role="alert"><span>Couldn't load the shared cost rules.</span>
-                <button type="button" class="btn btn-sm btn-ghost" data-action="chargeback-rules-reload">Retry</button></div>`);
+            panel('rules').html(UiStates.failed({ what: 'the shared cost rules', xhr: state.rulesError, retryAction: 'chargeback-rules-reload', className: 'cost-panel-error' }));
             return;
         }
         if (!state.rules) {

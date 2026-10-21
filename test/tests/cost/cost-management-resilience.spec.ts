@@ -47,7 +47,7 @@ test.describe('Cost Management resilience', () => {
     await openCostPage(page);
 
     const trend = page.locator('[data-cost-panel="trend"]');
-    await expect(trend.locator('.cost-panel-error')).toContainText("Couldn't load the spend trend.");
+    await expect(trend.locator('.cost-panel-error')).toContainText("The spend trend didn't load");
     // Every other panel rendered.
     await expect(page.locator('[data-cost-panel="kpi"] .cost-kpi')).toHaveCount(5);
     await expect(page.locator('[data-cost-panel="breakdown"] #cost-by')).toBeVisible();
@@ -60,7 +60,7 @@ test.describe('Cost Management resilience', () => {
     page.on('request', req => {
       if (req.url().includes('/cost-management/') && !req.url().includes('/forecast')) otherCalls.push(req.url());
     });
-    await trend.locator('.cost-retry').click();
+    await trend.getByRole('button', { name: 'Try again' }).click();
 
     await expect(page.locator('#cost-chart-trend svg')).toHaveCount(1);
     await expect(page.locator('.cost-panel-error')).toHaveCount(0);

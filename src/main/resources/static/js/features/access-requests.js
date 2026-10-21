@@ -126,7 +126,7 @@ const AccessRequests = (function() {
         } catch (error) {
             if (!ContentRouter.isCurrent(t)) return;
             console.error('Failed to load pending requests:', error);
-            showError('Failed to load pending requests.');
+            showError(error);
         }
     }
 
@@ -153,18 +153,9 @@ const AccessRequests = (function() {
         `);
     }
 
-    /**
-     * Show error state
-     */
-    function showError(message) {
-        $('#content-area').html(`
-            <div class="error-state">
-                <i class="fas fa-exclamation-triangle fa-3x text-warning"></i>
-                <h4 class="mt-3">Error</h4>
-                <p>${message}</p>
-                <button class="btn btn-primary" data-action="go-dashboard">Back to Dashboard</button>
-            </div>
-        `);
+    /** The page couldn't load (U17-T02). */
+    function showError(xhr) {
+        $('#content-area').html(UiStates.failedPage({ title: 'Access requests', what: 'The access requests', xhr }));
     }
 
     function pageHtml() {
@@ -393,9 +384,7 @@ const AccessRequests = (function() {
             size: 'lg',
             body: `
                 <div class="manage-access-content">
-                    <div class="text-center py-4">
-                        <i class="fas fa-spinner fa-spin"></i> Loading access list...
-                    </div>
+                    ${UiStates.loading('rows', { count: 3 })}
                 </div>
             `,
             buttons: [

@@ -126,8 +126,7 @@ const UserManagement = (function() {
             })
             .fail(function(xhr) {
                 if (!isActive()) return;
-                $('#content-area').html(Utils.html`<div class="content-view"><div class="alert alert-danger" role="alert">
-                    Couldn't load the people: ${xhr.responseJSON?.message || 'the server did not answer.'}</div></div>`);
+                $('#content-area').html(UiStates.failedPage({ title: 'Users', what: 'The people', xhr }));
             });
     }
 

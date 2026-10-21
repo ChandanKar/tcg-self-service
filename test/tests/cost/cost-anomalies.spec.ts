@@ -145,7 +145,7 @@ test.describe('Cost anomalies', () => {
       route.fulfill({ status: 500, contentType: 'application/json', body: '{"message":"boom"}' }));
     await open(page, '#/cost-management?tab=anomalies');
 
-    await expect(page.locator('[data-cost-panel="anomalies"] .cost-panel-error')).toContainText("Couldn't load cost anomalies.",
+    await expect(page.locator('[data-cost-panel="anomalies"] .cost-panel-error')).toContainText("Cost anomalies didn't load",
       { timeout: 15_000 });
     await expect(page.getByRole('tab', { name: 'Unusual spend' })).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('.cost-panel-error')).toHaveCount(1);

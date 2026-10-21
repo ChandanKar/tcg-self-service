@@ -31,9 +31,7 @@ const Dashboard = (function() {
         } catch (error) {
             if (!ContentRouter.isCurrent(t)) return;
             console.error('Failed to load dashboard:', error);
-            showError(error.status === 403
-                ? 'You do not have access to dashboard data.'
-                : 'Failed to load dashboard data. Please try again.');
+            showError(error);
         }
     }
 
@@ -113,23 +111,10 @@ const Dashboard = (function() {
         `);
     }
 
-    function showError(message) {
+    /** Home couldn't load (U17-T02): its heading and the shared panel; Try again refreshes. */
+    function showError(xhr) {
         isLoading = false;
-        $('#content-area').html(`
-            <div class="content-view" id="dashboard-view">
-                <div class="content-header">
-                    <h1>${pageTitle()}</h1>
-                </div>
-                <div class="error-state">
-                    <i class="fas fa-exclamation-triangle fa-3x text-warning"></i>
-                    <h4 class="mt-3">Unable to Load Dashboard</h4>
-                    <p>${Utils.escapeHtml(message)}</p>
-                    <button class="btn btn-primary" data-action="dashboard-refresh">
-                        <i class="fas fa-sync"></i> Try Again
-                    </button>
-                </div>
-            </div>
-        `);
+        $('#content-area').html(`<div id="dashboard-view">${UiStates.failedPage({ title: pageTitle(), what: 'Home', xhr })}</div>`);
     }
 
     /** Everyone lands on Home (U06-T02, U14-T01). */

@@ -36,7 +36,7 @@ const EnvCost = (function() {
         const $card = $('#env-cost-card');
         if (!$card.length || !env) return;
         const token = ContentRouter.token();
-        $card.html('<div class="env-cost-loading env-fact-note"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Loading cost…</div>');
+        $card.html(UiStates.loading('lines', { count: 2 }));
         ApiClient.get(Config.API.environments.cost(env.environmentId), { suppressGlobalError: true })
             .done(function(cost) {
                 if (!ContentRouter.isCurrent(token)) return; // navigated away meanwhile
@@ -46,10 +46,9 @@ const EnvCost = (function() {
                 mountNamespaces(env, cost);
                 if (cost.scope !== 'GROUPS') addCarbon($card, env, token);
             })
-            .fail(function() {
+            .fail(function(xhr) {
                 if (!ContentRouter.isCurrent(token)) return;
-                $card.html(`<div class="env-cost-error env-fact-note" role="alert">Couldn't load the cost.
-                    <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-action="env-cost-retry">Retry</button></div>`);
+                $card.html(UiStates.failed({ what: 'the cost', xhr, retryAction: 'env-cost-retry', className: 'env-cost-error' }));
                 $card.data('env', env);
             });
         $card.data('env', env);

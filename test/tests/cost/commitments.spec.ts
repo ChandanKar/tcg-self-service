@@ -114,9 +114,9 @@ test.describe('Commitments panel', () => {
     await open(page);
 
     const slot = page.locator('[data-cost-panel="commitments"]');
-    await expect(slot).toContainText("Couldn't load commitment insights", { timeout: 15_000 });
+    await expect(slot).toContainText("Commitment insights didn't load", { timeout: 15_000 });
     await expect(page.getByRole('tab', { name: 'Commitments' })).toHaveAttribute('aria-selected', 'true'); // the page rendered
-    await slot.locator('.cost-retry').click();
+    await slot.getByRole('button', { name: 'Try again' }).click();
     await expect(slot.locator('.commitments-panel')).toBeVisible();
   });
 });

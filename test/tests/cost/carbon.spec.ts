@@ -134,6 +134,6 @@ test.describe('Carbon footprint panel', () => {
     await expect(page.locator('[data-cost-panel="carbon"]')).toBeAttached();
     await expect(page.locator('.carbon-panel')).toHaveCount(0);
     await expect(page.locator('[data-cost-panel="carbon"]')).toHaveText('No carbon figures yet. AWS publishes them once a month, a few months behind.');
-    await expect(page.locator('[data-cost-panel="carbon"]')).not.toContainText("Couldn't load");
+    await expect(page.locator('[data-cost-panel="carbon"]')).not.toContainText("didn't load");
   });
 });

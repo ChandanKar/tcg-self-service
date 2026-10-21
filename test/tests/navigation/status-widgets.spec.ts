@@ -91,3 +91,51 @@ test.describe('Status widgets', () => {
     await expect(banner).toBeHidden({ timeout: 20_000 });
   });
 });
+
+/**
+ * U17-T02: when a page's requests fail (500 with a ref), the content area shows the shared
+ * "didn't load" panel with Try again, never a blank area. The shell's own calls still answer.
+ * Left out: the two forms (Add people, Grant access), and Templates and API access (switched off here).
+ */
+test.describe('Load failures', () => {
+  test.describe.configure({ timeout: 240_000 });
+
+  test('every page whose requests fail shows the couldn’t-load panel', async ({ page }) => {
+    test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+    await signIn(page, 'admin');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await expect(page.locator('#content-area h1').first()).toBeVisible({ timeout: 15_000 });
+    const envId = await page.evaluate(async () => {
+      const r = await fetch('/api/v1/environments');
+      const j = await r.json();
+      return ((Array.isArray(j) ? j : j.content) || [])[0]?.environmentId || '';
+    });
+    const shell = /\/api\/v1\/(users\/me(\/capabilities)?|assistant\/status|access-requests\/pending|notifications\/count|monitoring\/sync-status|approval-requests\/status)$/;
+    await page.route(/\/api\/v1\//, route => {
+      const path = new URL(route.request().url()).pathname;
+      if (route.request().method() !== 'GET' || shell.test(path)) return route.continue();
+      return route.fulfill({ status: 500, json: { error: 'Internal Server Error', message: 'An unexpected error occurred.', ref: '0badc0de' } });
+    });
+    const pages = ['#/dashboard', '#/my-environments', '#/request-access', '#/activity-logs', '#/user-management', '#/access-management',
+      '#/vm-registry', '#/audit-logs-all', '#/automation-rules', '#/automation-rules/new', '#/cost-management', '#/savings', '#/budgets',
+      '#/waste', '#/waste/fixes', '#/teams', '#/aws-accounts', '#/chargeback', '#/approvals', '#/approval-policies',
+      '#/cost-setup', '#/system-health', '#/settings'];
+    if (envId) pages.push('#/environments/' + envId);
+    const blank: string[] = [];
+    for (const hash of pages) {
+      // Through Help (which makes no request), so the same page as before still reloads.
+      await page.evaluate(() => { location.hash = '#/help'; });
+      await expect(page.locator('#help-search')).toBeVisible();
+      await page.evaluate(h => { location.hash = h; }, hash);
+      const panel = page.locator('#content-area .ui-state-failed').first();
+      try {
+        await expect(panel).toBeVisible({ timeout: 8_000 });
+        await expect(panel.getByRole('button', { name: 'Try again' })).toBeVisible();
+        await expect(panel).toContainText("didn't load");
+      } catch (e) {
+        blank.push(`${hash}: ${(await page.locator('#content-area').innerText()).replace(/\s+/g, ' ').slice(0, 100)}`);
+      }
+    }
+    expect(blank, blank.join('\n')).toEqual([]);
+  });
+});

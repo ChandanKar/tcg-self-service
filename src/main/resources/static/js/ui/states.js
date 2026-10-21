@@ -7,10 +7,10 @@
  *                                                     filters hide everything: names the filter, offers to show all
  *   UiStates.loading(shape, {count})                 outlines shaped like the content ('rows', 'cards', 'lines');
  *                                                     they appear only after 300 ms (CSS), so a quick answer never flashes
- *   UiStates.failed({what, xhr, onRetry | retryAction})
+ *   UiStates.failed({what, xhr, onRetry | retryAction}) / UiStates.failedPage({title, what, xhr}) for a whole page
  *                                                     "VMs didn't load. The server didn't answer. The rest of the page
  *                                                     still works." + Try again + "ref 7f3a92c1" from a 500's body
- * Each returns HTML (all text escaped); `titleId` puts an id on the title. An action is {label, href} or {label, action, data}; onClear / onRetry
+ * Each returns HTML (all text escaped); `titleId` puts an id on the title, `className` adds classes (a panel's own hook). An action is {label, href} or {label, action, data}; onClear / onRetry
  * callbacks are wired through Actions (no inline handlers). UiStates.mountLoading / mount set aria-busy.
  */
 const UiStates = (function() {
@@ -49,15 +49,17 @@ const UiStates = (function() {
         if (!a || !a.label) return '';
         const cls = primary ? 'btn btn-primary btn-sm' : 'btn btn-outline-secondary btn-sm';
         if (a.href) return html`<a class="${cls}" href="${a.href}">${a.label}</a>`;
+        const id = a.id ? html` id="${a.id}"` : '';
         if (typeof a.onClick === 'function') {
-            return html`<button type="button" class="${cls}" data-action="ui-state-callback" data-ui-cb="${remember(a.onClick)}">${a.label}</button>`;
+            return html`<button type="button" class="${cls}"${raw(id)} data-action="ui-state-callback" data-ui-cb="${remember(a.onClick)}">${a.label}</button>`;
         }
-        return html`<button type="button" class="${cls}" data-action="${a.action || ''}"${raw(dataAttrs(a.data))}>${a.label}</button>`;
+        return html`<button type="button" class="${cls}"${raw(id)} data-action="${a.action || ''}"${raw(dataAttrs(a.data))}>${a.label}</button>`;
     }
 
-    function block(kind, role, title, text, actions, titleId) {
+    function block(kind, role, title, text, actions, titleId, className) {
         const id = titleId ? html` id="${titleId}"` : '';
-        return html`<div class="ui-state ui-state-${kind}" role="${role}">${raw(kind === 'failed' ? '' : GLYPH)}
+        const extra = className ? ' ' + String(className).replace(/[^\w -]/g, '') : '';
+        return html`<div class="ui-state ui-state-${kind}${raw(extra)}" role="${role}">${raw(kind === 'failed' ? '' : GLYPH)}
                 <p class="ui-state-title"${raw(id)}>${title}</p>${raw(text ? html`<p class="ui-state-text">${text}</p>` : '')}${raw(actions ? `<div class="ui-state-actions">${actions}</div>` : '')}
             </div>`;
     }
@@ -65,19 +67,20 @@ const UiStates = (function() {
     /** Nothing yet: "No environments yet" · "Ask for access to one and it appears here once approved." · Request access. */
     function empty(opts) {
         const o = opts || {};
-        return block('empty', 'status', o.title || 'Nothing here yet', o.text, actionHtml(o.action, true), o.titleId);
+        return block('empty', 'status', o.title || 'Nothing here yet', o.text, actionHtml(o.action, true), o.titleId, o.className);
     }
 
     /** Filters hide everything: 'No VMs match "Running" in Web' · why · Show all VMs. */
     function filtered(opts) {
         const o = opts || {};
-        const clear = o.onClear ? { label: o.clearLabel || 'Show all', onClick: o.onClear }
-            : { label: o.clearLabel || 'Show all', action: o.clearAction, data: o.clearData };
-        return block('filtered', 'status', o.title || 'Nothing matches these filters', o.text, actionHtml(clear, false), o.titleId);
+        const clear = o.onClear ? { label: o.clearLabel || 'Show all', onClick: o.onClear, id: o.clearId }
+            : { label: o.clearLabel || 'Show all', action: o.clearAction, data: o.clearData, id: o.clearId };
+        return block('filtered', 'status', o.title || 'Nothing matches these filters', o.text, actionHtml(clear, false), o.titleId, o.className);
     }
 
     /** Why it failed, from the response status. */
     function reason(status) {
+        if (status === undefined || status === null) return 'The request failed.';
         const s = Number(status) || 0;
         if (s === 0) return 'The server didn\'t answer.';
         if (s === 401) return 'Your session ended. Sign in again.';
@@ -98,13 +101,22 @@ const UiStates = (function() {
     function failed(opts) {
         const o = opts || {};
         const xhr = o.xhr || null;
-        const status = o.status !== undefined ? o.status : (xhr ? xhr.status : 0);
+        const status = o.status !== undefined ? o.status : (xhr && typeof xhr === 'object' && 'status' in xhr ? xhr.status : undefined);
         const ref = o.ref || refOf(xhr);
         const retry = o.onRetry ? actionHtml({ label: 'Try again', onClick: o.onRetry }, false)
             : o.retryAction ? actionHtml({ label: 'Try again', action: o.retryAction, data: o.retryData }, false) : '';
         const refHtml = ref ? html`<span class="ui-state-ref">ref ${ref}</span>` : '';
-        return block('failed', 'alert', `${o.what || 'This'} didn't load`,
-            `${reason(status)} The rest of the page still works.`, retry + refHtml);
+        const what = String(o.what || 'This');
+        return block('failed', 'alert', `${what.charAt(0).toUpperCase()}${what.slice(1)} didn't load`,
+            `${reason(status)} The rest of the page still works.`, retry + refHtml, o.titleId, o.className);
+    }
+
+    /** A whole page that couldn't load: its heading, then the panel; Try again reloads the route. */
+    function failedPage(opts) {
+        const o = opts || {};
+        const retry = o.onRetry || (() => { if (typeof ContentRouter !== 'undefined') ContentRouter.reload(); });
+        return html`<div class="content-view ui-state-page">${raw(o.title ? html`<div class="content-header"><h1>${o.title}</h1></div>` : '')}${
+            raw(failed(Object.assign({}, o, { onRetry: retry })))}</div>`;
     }
 
     /** Outlines shaped like the content. Shown after 300 ms by CSS (.ui-loading), so fast answers never flash. */
@@ -133,7 +145,7 @@ const UiStates = (function() {
         $(container).attr('aria-busy', 'false').html(markup);
     }
 
-    return { empty, filtered, failed, loading, mountLoading, mount, model: { reason, refOf } };
+    return { empty, filtered, failed, failedPage, loading, mountLoading, mount, model: { reason, refOf } };
 })();
 
 window.UiStates = UiStates;

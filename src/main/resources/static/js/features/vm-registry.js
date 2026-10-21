@@ -183,8 +183,7 @@ const VmRegistry = (function() {
         } catch (error) {
             if (!isActive()) return;
             console.error('Failed to load environments:', error);
-            $('#vr-env-list').html(`<div class="vr-empty">Could not load the environments.
-                <button type="button" class="vr-link" data-action="vr-reload">Try again</button></div>`);
+            $('#vr-env-list').html(UiStates.failed({ what: 'The environments', xhr: error, retryAction: 'vr-reload' }));
         }
     }
 

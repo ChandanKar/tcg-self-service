@@ -128,11 +128,7 @@ const Environments = (function() {
         } catch (error) {
             if (!ContentRouter.isCurrent(t)) return;
             console.error('Failed to load environments:', error);
-            if (error.status === 403) {
-                showError('You do not have access to any environments. Please request access from an administrator.');
-            } else {
-                showError('Failed to load environments. Please try again.');
-            }
+            showError(error, 'Environments', 'Your environments');
         }
     }
 
@@ -164,13 +160,13 @@ const Environments = (function() {
                 if (match) {
                     envId = match.environmentId;
                 } else {
-                    showError(`Environment "${envName}" not found or you do not have access.`);
+                    ContentRouter.showNoAccess('environment');
                     return;
                 }
             }
 
             if (!envId) {
-                showError('No environment specified.');
+                ContentRouter.showNoAccess('environment');
                 return;
             }
 
@@ -190,7 +186,7 @@ const Environments = (function() {
                 // Same page for both, so it does not reveal whether the environment exists (U02-T01).
                 ContentRouter.showNoAccess('environment');
             } else {
-                showError('Failed to load environment details.');
+                showError(error, 'Environment', 'This environment');
             }
         }
     }
@@ -372,19 +368,9 @@ const Environments = (function() {
     /**
      * Show error state
      */
-    function showError(message) {
-        $('#content-area').html(`
-            <div class="content-view">
-                <div class="error-state">
-                    <i class="fas fa-exclamation-triangle fa-3x text-warning"></i>
-                    <h4 class="mt-3">Error</h4>
-                    <p>${Utils.escapeHtml(message)}</p>
-                    <button class="btn btn-primary" data-action="go-dashboard">
-                        <i class="fas fa-arrow-left"></i> Back to Dashboard
-                    </button>
-                </div>
-            </div>
-        `);
+    /** The page couldn't load (U17-T02): its heading and the shared panel with Try again. */
+    function showError(xhr, title, what) {
+        $('#content-area').html(UiStates.failedPage({ title, what, xhr }));
     }
 
     const STATE_FILTERS = [
@@ -583,6 +569,8 @@ const Environments = (function() {
             renderEnvPagination(envTotalElements, envCurrentPage);
         } catch (error) {
             console.error('Failed to load environments page:', error);
+            $('#env-list-body').html(`<tr><td colspan="9">${UiStates.failed({ what: 'This page of environments', xhr: error,
+                onRetry: () => refreshEnvList(envCurrentPage) })}</td></tr>`);
         }
     }
 

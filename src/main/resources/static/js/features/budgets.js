@@ -150,9 +150,7 @@ const Budgets = (function() {
     }
 
     function panelError(label, key) {
-        return Utils.html`<div class="cost-panel-error" role="alert"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
-            <span>Couldn't load ${label}.</span>
-            <button type="button" class="btn btn-sm btn-ghost" data-action="budget-retry" data-key="${key}">Retry</button></div>`;
+        return UiStates.failed({ what: label, retryAction: 'budget-retry', retryData: { key }, className: 'cost-panel-error' });
     }
 
     function drawPage() {

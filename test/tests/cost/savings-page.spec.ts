@@ -71,7 +71,7 @@ test.describe('Savings page', () => {
     await openSavings(page);
 
     await expect(page.locator('.cost-panel-error')).toHaveCount(1, { timeout: 15_000 });
-    await expect(page.locator('.cost-panel-error')).toContainText("Couldn't load the efficiency trend.");
+    await expect(page.locator('.cost-panel-error')).toContainText("The efficiency trend didn't load");
     await expect(page.locator('.savings-causes')).toBeVisible();
 
     fail = false;

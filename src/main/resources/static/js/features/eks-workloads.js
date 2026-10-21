@@ -27,7 +27,7 @@ const EksWorkloads = (function() {
                     </select>
                 </label>
             </div>
-            <div class="eks-workloads-body"><div class="text-muted small"><i class="fas fa-spinner fa-spin"></i> Loading workload cost…</div></div>`);
+            <div class="eks-workloads-body">${Utils.raw(UiStates.loading('rows', { count: 3 }))}</div>`);
         load($container, selected);
     }
 

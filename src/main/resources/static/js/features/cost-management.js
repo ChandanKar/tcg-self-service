@@ -242,7 +242,7 @@ const CostManagement = (function() {
                     delete state.errors[key];
                     REQUESTS[key].apply(result.value);
                 } else {
-                    state.errors[key] = true;
+                    state.errors[key] = result.reason || true;
                     console.error(`Failed to load cost data (${key}):`, result.reason);
                 }
             });
@@ -261,7 +261,7 @@ const CostManagement = (function() {
             // A feature that answers 404 is off, not failed (the Carbon tab's only key, U15-T01). The whole
             // page fails only when several requests all did; one failed request is its panel's, with Retry (U15-T04).
             if (keys.length > 1 && keys.every(key => state.errors[key])) {
-                showError('Failed to load cost data. Please try again.');
+                showError(state.errors[keys[0]]);
                 return;
             }
             state.loadedTabs[tab.key] = true;
@@ -358,14 +358,7 @@ const CostManagement = (function() {
                     <h1>Cost management</h1>
                     <p>Estimated spend across the fleet</p>
                 </div>
-                <div class="error-state">
-                    <i class="fas fa-exclamation-triangle fa-3x text-warning"></i>
-                    <h4 class="mt-3">Unable to Load Cost Data</h4>
-                    <p>${Utils.escapeHtml(message)}</p>
-                    <button class="btn btn-primary" data-action="cost-reload">
-                        <i class="fas fa-sync"></i> Try Again
-                    </button>
-                </div>
+                ${UiStates.failed({ what: 'Cost data', xhr: message && typeof message === 'object' ? message : undefined, retryAction: 'cost-reload' })}
             </div>
         `);
     }
@@ -664,13 +657,8 @@ const CostManagement = (function() {
         const cls = panel.chartPanel ? `dashboard-chart-panel${panel.wide ? ' dashboard-wide' : ''}` : 'cost-table-card';
         return Utils.html`
             <section class="${cls}">
-                <div class="cost-panel-error" role="alert">
-                    <i class="fas fa-triangle-exclamation"></i>
-                    <span>Couldn't load ${panel.label}.</span>
-                    <button type="button" class="btn btn-sm btn-ghost cost-retry" data-key="${name}">
-                        <i class="fas fa-sync"></i> Retry
-                    </button>
-                </div>
+                ${Utils.raw(UiStates.failed({ what: panel.label, xhr: firstError(name), className: 'cost-panel-error',
+                    onRetry: el => retryPanel(name, $(el)) }))}
             </section>`;
     }
 
@@ -686,6 +674,12 @@ const CostManagement = (function() {
     }
 
     /** Retry only the failed requests behind one panel. */
+    /** The failed request of a panel (its jqXHR), for the couldn't-load message. */
+    function firstError(name) {
+        const key = PANELS[name].keys.find(k => state.errors[k]);
+        return key && typeof state.errors[key] === 'object' ? state.errors[key] : undefined;
+    }
+
     function retryPanel(name, $btn) {
         const keys = PANELS[name].keys.filter(key => state.errors[key]);
         $btn.prop('disabled', true);
@@ -1751,10 +1745,6 @@ const CostManagement = (function() {
             .on('click.rightsizingApply', '.rightsizing-apply-btn', function() {
                 if ($(this).prop('disabled')) return;
                 applyRightsizing($(this).data());
-            });
-        $('#content-area').off('click.costRetry')
-            .on('click.costRetry', '.cost-retry', function() {
-                retryPanel(String($(this).data('key')), $(this));
             });
     }
 

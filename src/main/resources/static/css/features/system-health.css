@@ -507,20 +507,6 @@
     z-index: 1;
 }
 
-/* Empty state inside tables */
-#system-health-view .sh-empty {
-    padding: 1.5rem;
-    text-align: center;
-    color: var(--text-caption);
-    font-size: 0.8rem;
-}
-#system-health-view .sh-empty i {
-    display: block;
-    font-size: 1.5rem;
-    margin-bottom: 0.4rem;
-    opacity: 0.5;
-}
-
 /* Compliance card headers */
 #system-health-view .sh-compliance-card .card-header {
     padding: 0.4rem 0.75rem;

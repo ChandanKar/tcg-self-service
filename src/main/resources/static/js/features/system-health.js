@@ -288,7 +288,7 @@ const SystemHealth = (function () {
     function drawJobs() {
         if (!s.jobs) {
             $('#sh-jobs-view').html('');
-            $('#sh-jobs-body').html('<p class="sh-note sh-pad">The scheduled jobs are not available right now.</p>');
+            $('#sh-jobs-body').html(UiStates.failed({ what: 'The scheduled jobs', onRetry: () => loadNow() }));
             return;
         }
         $('#sh-jobs-view').html(`<button type="button" class="sh-toggle-btn" data-sh-view="problems" aria-pressed="${s.view === 'problems'}">Problems first</button>`
@@ -505,7 +505,7 @@ const SystemHealth = (function () {
 
     function buildStateChangesTable(changes) {
         if (!changes || changes.length === 0) {
-            return emptyState('No recent state changes');
+            return UiStates.empty({ title: 'No recent state changes' });
         }
         const rows = changes.slice(0, 20).map(c => `
             <tr>
@@ -527,7 +527,7 @@ const SystemHealth = (function () {
 
     function buildDriftTable(events) {
         if (!events || events.length === 0) {
-            return emptyState('No drift events in last 24 hours', true);
+            return UiStates.empty({ title: 'No drift events in last 24 hours' });
         }
         const rows = events.slice(0, 20).map(e => `
             <tr>
@@ -548,7 +548,7 @@ const SystemHealth = (function () {
 
     function buildComplianceTable(logs, columns) {
         if (!logs || logs.length === 0) {
-            return emptyState('No events in the last 24 hours');
+            return UiStates.empty({ title: 'No events in the last 24 hours' });
         }
         const hasResult = columns.includes('Result');
         const rows = logs.map(log => {
@@ -580,7 +580,7 @@ const SystemHealth = (function () {
     /** "Who have we emailed" — every real send attempt (suppressed sends aren't logged at all). */
     function buildEmailLogTable(logs) {
         if (!logs || logs.length === 0) {
-            return emptyState('No emails sent yet (or notification.email.enabled is off)');
+            return UiStates.empty({ title: 'No emails sent yet (or notification.email.enabled is off)' });
         }
         const rows = logs.map(log => {
             const resultIcon = log.success
@@ -608,14 +608,6 @@ const SystemHealth = (function () {
     }
 
     // ─── shared ──────────────────────────────────────────────────────────────
-
-    function emptyState(msg, success = false) {
-        const cls = success ? 'text-success' : 'text-muted';
-        return `<div class="sh-empty ${cls}">
-                    <i class="fas fa-inbox"></i>
-                    ${Utils.escapeHtml(msg)}
-                </div>`;
-    }
 
     return { load, triggerSync, triggerEksSync, model: { span, lastRun, status, ordered, tiles } };
 })();

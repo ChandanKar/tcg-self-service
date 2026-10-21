@@ -241,10 +241,9 @@ const AllLogs = (function() {
         const now = new Date();
         const filtered = filters.userId || filters.environmentId || filters.category || filters.resultStatus;
         const body = logs.length ? logs.map(log => rowMarkup(log, now)).join('')
-            : `<tr class="audit-empty-row"><td colspan="5"><div class="activity-empty">
-                <p class="activity-empty-title">${filtered ? 'Nothing matches these filters' : 'Nothing in this period'}</p>
-                ${filtered ? '<button type="button" class="btn btn-outline-secondary btn-sm" id="clear-filters-btn">Show everything</button>' : ''}
-            </div></td></tr>`;
+            : `<tr class="audit-empty-row"><td colspan="5">${filtered
+                ? UiStates.filtered({ title: 'Nothing matches these filters', text: 'Nothing of this kind in this period.', clearLabel: 'Show everything', clearId: 'clear-filters-btn' })
+                : UiStates.empty({ title: 'Nothing in this period', text: 'What people do in the environments you look after shows up here.' })}</td></tr>`;
         return `<div class="activity-table-wrap"><table class="activity-table audit-table" id="audit-table">
                 <thead><tr><th scope="col" class="audit-when">When</th><th scope="col">Who</th><th scope="col">What</th>
                     <th scope="col">Environment</th><th scope="col" class="activity-result">Result</th></tr></thead>
@@ -265,8 +264,7 @@ const AllLogs = (function() {
             $('#audit-results').html(resultsMarkup(data)).attr('aria-busy', 'false');
         } catch (error) {
             if (!ContentRouter.isCurrent(t)) return;
-            $('#audit-results').html(`<div class="activity-empty" role="alert"><p class="activity-empty-title">The audit log didn't load</p>
-                <button type="button" class="btn btn-outline-secondary btn-sm" data-action="all-logs-retry">Try again</button></div>`)
+            $('#audit-results').html(UiStates.failed({ what: 'The audit log', xhr: error, retryAction: 'all-logs-retry' }))
                 .attr('aria-busy', 'false');
         }
     }

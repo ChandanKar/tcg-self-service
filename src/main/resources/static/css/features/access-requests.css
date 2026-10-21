@@ -239,12 +239,6 @@
     font-weight: 500;
 }
 
-.ra-empty {
-    margin: 0;
-    padding: 20px;
-    color: var(--slate);
-}
-
 .ra-form-card {
     flex: 1 1 380px;
     max-width: 460px;
@@ -254,8 +248,9 @@
     padding: 20px;
 }
 
-.ra-form-card .ra-empty {
-    padding: 0;
+.ra-pick {
+    margin: 0;
+    color: var(--slate);
 }
 
 .ra-form {

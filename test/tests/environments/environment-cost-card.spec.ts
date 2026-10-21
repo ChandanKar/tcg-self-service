@@ -84,7 +84,7 @@ test.describe('Environment cost card', () => {
     });
     await mount(page);
 
-    await expect(page.locator('#env-cost-card')).toContainText("Couldn't load the cost");
+    await expect(page.locator('#env-cost-card')).toContainText("The cost didn't load");
     await page.locator('[data-action="env-cost-retry"]').click();
     await expect(page.locator('#env-cost-mtd')).toContainText('$63.00');
   });

@@ -121,7 +121,7 @@ const Savings = (function() {
                     state.data[k] = r.value;
                     delete state.errors[k];
                 } else {
-                    state.errors[k] = true;
+                    state.errors[k] = r.reason || true;
                 }
             });
             render();
@@ -157,9 +157,7 @@ const Savings = (function() {
 
     function panel(key, build, label) {
         if (state.errors[key]) {
-            return Utils.html`<section class="cost-card"><div class="cost-panel-error" role="alert">
-                <span>Couldn't load ${label}.</span>
-                <button type="button" class="btn btn-sm btn-ghost cost-retry" data-action="savings-retry" data-key="${key}">Retry</button></div></section>`;
+            return `<section class="cost-card">${UiStates.failed({ what: label, xhr: state.errors[key], retryAction: 'savings-retry', retryData: { key }, className: 'cost-panel-error' })}</section>`;
         }
         if (state.data[key] === undefined) {
             return '<p class="cost-note savings-loading">Loading…</p>';

@@ -130,7 +130,7 @@ const RequestAccess = (function() {
         $('#content-area').html('<div class="loading-state"><div class="spinner-border text-primary" role="status"></div><p>Loading…</p></div>');
         try {
             const [available, mine, grants, profile] = await Promise.all([
-                get(Config.API.environments.available, []),
+                get(Config.API.environments.available, [], true),
                 get(Config.API.access.myRequests, []),
                 get(Config.API.access.myEnvironments, []),
                 get(Config.API.users.myProfile, null)
@@ -142,13 +142,14 @@ const RequestAccess = (function() {
             bind();
         } catch (e) {
             if (!ContentRouter.isCurrent(token)) return;
-            $('#content-area').html(UiStates.failed({ what: 'Request access', xhr: e, onRetry: () => ContentRouter.reload() }));
+            $('#content-area').html(UiStates.failedPage({ title: 'Request access', what: 'The environments you can ask for', xhr: e }));
         }
     }
 
-    function get(url, fallback) {
-        return new Promise(resolve => {
-            ApiClient.get(url, { suppressGlobalError: true }).done(d => resolve(d || fallback)).fail(() => resolve(fallback));
+    /** A read that falls back quietly, or (strict) fails the page: the list of environments must load. */
+    function get(url, fallback, strict) {
+        return new Promise((resolve, reject) => {
+            ApiClient.get(url, { suppressGlobalError: true }).done(d => resolve(d || fallback)).fail(xhr => strict ? reject(xhr) : resolve(fallback));
         });
     }
 
@@ -240,7 +241,7 @@ const RequestAccess = (function() {
 
     function formHtml() {
         const env = s.envs.find(e => e.environmentId === s.selected);
-        if (!env) return '<h2 id="ra-form-title">Request access</h2><p class="ra-empty">Pick an environment on the left.</p>';
+        if (!env) return '<h2 id="ra-form-title">Request access</h2><p class="ra-pick">Pick an environment on the left.</p>';
         return BACK + formBodyHtml(env);
     }
 

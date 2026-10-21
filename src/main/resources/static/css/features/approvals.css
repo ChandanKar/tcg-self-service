@@ -158,11 +158,6 @@
     font-weight: 600;
 }
 
-.approvals-empty {
-    margin: 0;
-    color: var(--slate);
-}
-
 .approvals-page .pagination-bar-wrap:empty {
     display: none;
 }

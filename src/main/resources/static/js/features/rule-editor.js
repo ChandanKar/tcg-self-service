@@ -211,9 +211,8 @@ const RuleEditor = (function() {
             ]);
         } catch (error) {
             if (!current()) return;
-            $('#content-area .re-page').html(Utils.html`<div class="alert alert-danger" role="alert">${
-                serverMessage(error, ruleId ? 'This schedule could not be loaded.' : 'Could not load your environments.')}</div>
-                <a href="${LIST_HASH}">Back to automation rules</a>`);
+            $('#content-area .re-page').html(UiStates.failed({ what: ruleId ? 'This schedule' : 'Your environments', xhr: error,
+                onRetry: () => ContentRouter.reload() }) + Utils.html`<p><a href="${LIST_HASH}">Back to automation rules</a></p>`);
             return;
         }
         const calendars = await call('GET', Config.API.holidayCalendars.list).catch(() => []);

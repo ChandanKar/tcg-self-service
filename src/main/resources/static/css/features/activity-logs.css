@@ -205,22 +205,6 @@ td.activity-time {
     display: none;
 }
 
-.activity-empty {
-    padding: 32px 20px;
-    text-align: center;
-    color: var(--slate);
-}
-
-.activity-empty p {
-    margin: 0 0 8px;
-}
-
-.activity-empty-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--ink);
-}
-
 @media (max-width: 767.98px) {
     .activity-table thead {
         display: none;

@@ -185,22 +185,6 @@
     display: contents;
 }
 
-.cost-panel-error {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-    padding: 1rem;
-    color: var(--brand-gold-text);
-    background: var(--brand-gold-tint);
-    border: 1px solid var(--brand-gold-line);
-    border-radius: 6px;
-}
-
-.cost-panel-error .cost-retry {
-    margin-left: auto;
-}
-
 .badge-approx {
     background: var(--brand-navy-tint);
     color: var(--brand-navy);

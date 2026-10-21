@@ -212,9 +212,7 @@ const Locks = (function() {
             size: 'lg',
             body: `
                 <div class="lock-history">
-                    <div class="text-center py-4">
-                        <i class="fas fa-spinner fa-spin"></i> Loading history...
-                    </div>
+                    ${UiStates.loading('rows', { count: 3 })}
                 </div>
             `,
             buttons: [

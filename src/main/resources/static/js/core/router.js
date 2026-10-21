@@ -366,11 +366,17 @@ const ContentRouter = (function() {
         const loader = getLoader(contentType);
         if (loader) {
             showLoading();
+            const navToken = _navToken;
             try {
-                loader(params);
+                // A loader whose promise rejects unhandled still ends on the couldn't-load panel, never a blank page.
+                const done = loader(params);
+                if (done && typeof done.catch === 'function') {
+                    done.catch(error => {
+                        if (navToken === _navToken) showError(`Error loading ${contentType}: ${error && error.message || error}`, error);
+                    });
+                }
             } catch (error) {
-                console.error('Error loading content:', error);
-                showError('Failed to load content. Please try again.');
+                showError(`Error loading ${contentType}: ${error && error.message || error}`, error);
             }
         } else {
             showPlaceholder(contentType);
@@ -458,17 +464,12 @@ const ContentRouter = (function() {
         `);
     }
 
-    function showError(message) {
-        $('#content-area').html(`
-            <div class="d-flex justify-content-center align-items-center" style="min-height: 400px;">
-                <div class="text-center">
-                    <i class="fas fa-exclamation-triangle text-danger fa-3x mb-3"></i>
-                    <h5>Error</h5>
-                    <p class="text-muted">${Utils.escapeHtml(message)}</p>
-                    <button class="btn btn-primary" data-action="router-reload">Try Again</button>
-                </div>
-            </div>
-        `);
+    /** A page whose loader failed (U17-T02): the shared couldn't-load panel; `message` goes to the console. */
+    function showError(message, xhr) {
+        if (message) console.error(message);
+        $('#content-area').html(typeof UiStates !== 'undefined'
+            ? UiStates.failed({ what: 'This page', xhr, retryAction: 'router-reload' })
+            : '<p role="alert">This page didn\'t load. <button type="button" class="btn btn-link" data-action="router-reload">Try again</button></p>');
     }
 
     /** Run and clear the current page's teardown callbacks; a failing one never blocks navigation. */

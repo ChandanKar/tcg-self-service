@@ -101,8 +101,7 @@ const WasteFixes = (function() {
             if (!ContentRouter.isCurrent(token)) return;
             state.enabled = config.status === 'fulfilled' && config.value && config.value.enabled;
             if (actions.status !== 'fulfilled') {
-                $('#waste-actions').html(`<div class="cost-panel-error" role="alert"><span>Couldn't load the fixes.</span>
-                    <button type="button" class="btn btn-sm btn-ghost" data-action="waste-fixes-refresh">Retry</button></div>`);
+                $('#waste-actions').html(UiStates.failed({ what: 'the fixes', xhr: actions.reason, retryAction: 'waste-fixes-refresh', className: 'cost-panel-error' }));
                 return;
             }
             state.actions = actions.value || [];

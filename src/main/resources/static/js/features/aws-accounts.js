@@ -57,7 +57,7 @@ const AwsAccounts = (function() {
             draw();
         }).catch(e => {
             if (!ContentRouter.isCurrent(token)) return;
-            $('#aws-account-list').html(Utils.html`<div class="cost-panel-error" role="alert"><span>${serverMessage(e, "Couldn't load the accounts.")}</span></div>`);
+            $('#aws-account-list').html(UiStates.failed({ what: 'The accounts', xhr: e, onRetry: refresh, className: 'cost-panel-error' }));
         });
     }
 

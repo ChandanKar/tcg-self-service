@@ -88,10 +88,9 @@ const CostSetup = (function() {
             utilization = u;
             reconciliation = r;
             render();
-        }).catch(() => {
+        }).catch(xhr => {
             if (!ContentRouter.isCurrent(token)) return;
-            $('#cost-setup-body').html(`<div class="cost-panel-error" role="alert">Couldn't load the cost setup.
-                <button type="button" class="btn btn-sm btn-ghost" data-action="cost-setup-reload">Retry</button></div>`);
+            $('#cost-setup-body').html(UiStates.failed({ what: 'the cost setup', xhr, retryAction: 'cost-setup-reload', className: 'cost-panel-error' }));
         });
     }
 

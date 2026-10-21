@@ -95,7 +95,7 @@ const Templates = (function() {
                         : 'Request an environment built from an approved template. It is removed when its lifetime ends unless you extend it.'}</p>
                 </div>
                 <ul class="nav nav-tabs mb-3" role="tablist" id="templates-tabs"></ul>
-                <div id="templates-body"><div class="text-muted small"><i class="fas fa-spinner fa-spin"></i> Loading…</div></div>
+                <div id="templates-body">${UiStates.loading('cards')}</div>
             </div>`);
         refresh();
         countRequests();
@@ -149,8 +149,9 @@ const Templates = (function() {
         }).catch(e => {
             if (!ContentRouter.isCurrent(token)) return;
             const off = e && e.status === 404;
-            $('#templates-body').html(`<div class="alert ${off ? 'alert-secondary' : 'alert-danger'}" role="alert">${Utils.escapeHtml(off
-                ? 'New environments from templates are not available here.' : serverMessage(e, "Couldn't load this page."))}</div>`);
+            $('#templates-body').html(off
+                ? UiStates.empty({ title: 'New environments from templates are not available here.', text: 'An administrator can switch templates on.' })
+                : UiStates.failed({ what: 'The templates', xhr: e, onRetry: refresh }));
         });
     }
 

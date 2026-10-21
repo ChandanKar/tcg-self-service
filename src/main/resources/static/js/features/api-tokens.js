@@ -51,7 +51,7 @@ const ApiTokensUi = (function() {
     function mount(el) {
         mountEl = el;
         if (tokens === null) {
-            el.innerHTML = '<div class="text-muted small"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Loading…</div>';
+            el.innerHTML = UiStates.loading('rows', { count: 2 });
             reload();
             return;
         }
@@ -60,7 +60,7 @@ const ApiTokensUi = (function() {
 
     function reload() {
         return call('GET', Config.API.apiTokens.mine).then(list => { tokens = list || []; draw(); })
-            .catch(e => { if (mountEl) mountEl.innerHTML = Utils.html`<div class="text-danger small" role="alert">${message(e, "Couldn't load your tokens.")}</div>`; });
+            .catch(e => { if (mountEl) mountEl.innerHTML = UiStates.failed({ what: 'Your tokens', xhr: e, onRetry: reload }); });
     }
 
     function status(t) {
@@ -322,7 +322,7 @@ const ApiAccess = (function() {
             drawTokens();
         }).catch(e => {
             if (ContentRouter.isCurrent(token)) {
-                $('#api-panel-tokens').html(Utils.html`<p class="api-note api-pad" role="alert">${message(e, "Couldn't load the tokens.")}</p>`);
+                $('#api-panel-tokens').html(UiStates.failed({ what: 'The tokens', xhr: e, onRetry: loadTokens }));
             }
         });
     }
@@ -408,7 +408,7 @@ const ApiAccess = (function() {
             drawAccounts();
         }).catch(e => {
             if (ContentRouter.isCurrent(token)) {
-                $('#api-panel-accounts').html(Utils.html`<p class="api-note api-pad" role="alert">${message(e, "Couldn't load the service accounts.")}</p>`);
+                $('#api-panel-accounts').html(UiStates.failed({ what: 'The service accounts', xhr: e, onRetry: loadAccounts }));
             }
         });
     }

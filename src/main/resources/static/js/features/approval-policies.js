@@ -142,7 +142,7 @@ const ApprovalPolicies = (function() {
             draw();
         }).catch(e => {
             if (!ContentRouter.isCurrent(token)) return;
-            $('#policy-list').html(Utils.html`<div class="alert alert-danger" role="alert">${serverMessage(e, "Couldn't load policies.")}</div>`);
+            $('#policy-list').html(UiStates.failed({ what: 'The policies', xhr: e, onRetry: refresh }));
         });
     }
 

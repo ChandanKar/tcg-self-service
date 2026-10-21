@@ -75,8 +75,8 @@ const AutomationRules = (function() {
         $('#content-area').html('<div class="vr-empty" role="status">Loading…</div>');
     }
 
-    function showError(message) {
-        $('#content-area').html(`<div class="alert alert-danger m-3">${Utils.escapeHtml(message)}</div>`);
+    function showError(xhr) {
+        $('#content-area').html(UiStates.failedPage({ title: 'Automation rules', what: 'The automation rules', xhr }));
     }
 
     async function fetchInitialData() {
@@ -95,11 +95,7 @@ const AutomationRules = (function() {
         } catch (error) {
             if (!isActive()) return;
             console.error('Failed to load automation rules:', error);
-            if (error.status === 403) {
-                showError('Access denied. You do not have permission to manage automation rules.');
-            } else {
-                showError('Failed to load automation rules. Please try again.');
-            }
+            showError(error);
         }
     }
 

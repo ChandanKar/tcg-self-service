@@ -97,10 +97,9 @@ const Teams = (function() {
             state.environments = {};
             (Array.isArray(envs) ? envs : []).forEach(e => { state.environments[e.environmentId] = e; });
             drawList();
-        }).catch(() => {
+        }).catch(xhr => {
             if (!ContentRouter.isCurrent(token)) return;
-            $('#teams-list').html(`<div class="cost-panel-error" role="alert"><span>Couldn't load teams.</span>
-                <button type="button" class="btn btn-sm btn-ghost" data-action="team-refresh">Retry</button></div>`);
+            $('#teams-list').html(UiStates.failed({ what: 'Teams', xhr, retryAction: 'team-refresh', className: 'cost-panel-error' }));
         });
     }
 
