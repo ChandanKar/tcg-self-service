@@ -65,6 +65,8 @@ public class AuditController {
             @Parameter(description = "Filter by environment ID") @RequestParam(required = false) String environmentId,
             @Parameter(description = "Filter by user ID") @RequestParam(required = false) String userId,
             @Parameter(description = "Filter by action type") @RequestParam(required = false) AuditAction action,
+            @Parameter(description = "Filter by action category (U12-T01): OPERATIONS, LOCKS, ACCESS, SETTINGS, AUTOMATION, COST; "
+                    + "with action, both must match") @RequestParam(required = false) com.tcgdigital.vmcontrol.model.AuditActionCategory category,
             @Parameter(description = "true = succeeded only, false = failed only") @RequestParam(required = false) Boolean success,
             @Parameter(description = "From (ISO instant, inclusive)") @RequestParam(required = false)
                 @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) java.time.Instant from,
@@ -76,7 +78,7 @@ public class AuditController {
                 @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @Parameter(description = "Search text") @RequestParam(required = false) String search) {
 
-        AuditFilter filter = filter(environmentId, userId, action, success, from, to, startDate, endDate, search);
+        AuditFilter filter = filter(environmentId, userId, action, category, success, from, to, startDate, endDate, search);
         Page<AuditLog> logs = auditService.search(filter, com.tcgdigital.vmcontrol.controller.support.Paging.of(page, size, 500));
         return ResponseEntity.ok(logs.map(AuditLogDTO::fromEntity));
     }
@@ -88,6 +90,7 @@ public class AuditController {
             @RequestParam(required = false) String environmentId,
             @RequestParam(required = false) String userId,
             @RequestParam(required = false) AuditAction action,
+            @RequestParam(required = false) com.tcgdigital.vmcontrol.model.AuditActionCategory category,
             @RequestParam(required = false) Boolean success,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) java.time.Instant from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) java.time.Instant to,
@@ -95,11 +98,21 @@ public class AuditController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) String search) {
         return ResponseEntity.ok(auditService.stats(
-                filter(environmentId, userId, action, success, from, to, startDate, endDate, search)));
+                filter(environmentId, userId, action, category, success, from, to, startDate, endDate, search)));
+    }
+
+    @GetMapping("/categories")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(summary = "The action categories the audit log filters by (U12-T01), with their labels and actions")
+    public ResponseEntity<java.util.List<java.util.Map<String, Object>>> getCategories() {
+        return ResponseEntity.ok(java.util.Arrays.stream(com.tcgdigital.vmcontrol.model.AuditActionCategory.values())
+                .map(c -> java.util.Map.<String, Object>of("category", c.name(), "label", c.label(), "actions", c.actionNames()))
+                .toList());
     }
 
     /** Build the combined filter, scoped to what the caller may see; an environment outside it is a 404. */
-    private AuditFilter filter(String environmentId, String userId, AuditAction action, Boolean success,
+    private AuditFilter filter(String environmentId, String userId, AuditAction action,
+                               com.tcgdigital.vmcontrol.model.AuditActionCategory category, Boolean success,
                                java.time.Instant from, java.time.Instant to, LocalDate startDate, LocalDate endDate,
                                String search) {
         java.util.List<String> allowed = securityService.administeredEnvironmentIdsOrAll();
@@ -113,8 +126,13 @@ public class AuditController {
         if (fromTs == null && toTs == null) {
             fromTs = java.sql.Timestamp.from(java.time.Instant.now().minus(java.time.Duration.ofDays(7)));
         }
+        // An action and a category combine: the action, if it is in the category (else nothing).
+        java.util.Collection<String> actions = category == null
+                ? (action == null ? null : java.util.List.of(action.name()))
+                : (action == null ? category.actionNames()
+                        : category.actions().contains(action) ? java.util.List.of(action.name()) : java.util.List.of());
         return new AuditFilter(allowed, blankToNull(environmentId), blankToNull(userId),
-                action != null ? action.name() : null, success, fromTs, toTs, blankToNull(search));
+                actions, success, fromTs, toTs, blankToNull(search));
     }
 
     private static String blankToNull(String value) {

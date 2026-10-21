@@ -120,6 +120,7 @@ const AllLogs = (function() {
         if (filters.userId) params.append('userId', filters.userId);
         if (filters.environmentId) params.append('environmentId', filters.environmentId);
         if (filters.actionType) params.append('action', filters.actionType);
+        if (filters.category) params.append('category', filters.category); // U12-T01: list, stats and the CSV export
         if (filters.resultStatus === 'true' || filters.resultStatus === 'false') {
             params.append('success', filters.resultStatus);
         }

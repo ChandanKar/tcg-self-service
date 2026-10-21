@@ -272,4 +272,81 @@ class AuditFilterIntegrationTest extends SecuredWebTestBase {
         org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject("SELECT user_id FROM audit_log WHERE audit_id = ?",
                 String.class, bySubject)).isNull();
     }
+
+    // ---- U12-T01: action categories
+
+    private void rowOf(String action, Environment env, String status) {
+        jdbcTemplate.update("INSERT INTO audit_log (audit_id, user_id, environment_id, action_type, target_type, target_id, "
+                        + "target_name, action_status, created_at) VALUES (?, ?, ?, ?, 'test', ?, ?, ?, ?)",
+                UUID.randomUUID().toString(), operator.getUserId(), env.getEnvironmentId(), action, UUID.randomUUID().toString(),
+                marker, status, Timestamp.from(Instant.now().minus(Duration.ofHours(1))));
+    }
+
+    private void seedCategories() {
+        rowOf("AUTOMATION_RULE_TRIGGERED", env1, "succeeded");
+        rowOf("AUTOMATION_RULE_SKIPPED", env1, "succeeded");
+        rowOf("AUTOMATION_RULE_FAILED", env2, "failed");
+        rowOf("HOLIDAY_CALENDAR_CHANGED", env1, "succeeded");
+        rowOf("ACCESS_GRANTED", env1, "succeeded");
+        rowOf("ACCESS_DENIED", env1, "failed");
+        rowOf("ACCESS_REVOKED", env2, "failed");
+        rowOf("LOCK_ACQUIRED", env1, "succeeded");
+    }
+
+    @Test
+    void aCategoryReturnsOnlyItsActions() throws Exception {
+        seedCategories();
+        mockMvc.perform(get(url("logs", "category=AUTOMATION")).with(asAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(4))
+                .andExpect(jsonPath("$.content[*].action", everyItem(org.hamcrest.Matchers.anyOf(
+                        org.hamcrest.Matchers.startsWith("AUTOMATION_RULE_"), is("HOLIDAY_CALENDAR_CHANGED")))));
+    }
+
+    @Test
+    void anActionAndACategoryCombine() throws Exception {
+        seedCategories();
+        mockMvc.perform(get(url("logs", "category=AUTOMATION&action=AUTOMATION_RULE_SKIPPED")).with(asAdmin()))
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].action").value("AUTOMATION_RULE_SKIPPED"));
+        // An action outside the category matches nothing.
+        mockMvc.perform(get(url("logs", "category=AUTOMATION&action=LOCK_ACQUIRED")).with(asAdmin()))
+                .andExpect(jsonPath("$.content.length()").value(0));
+        mockMvc.perform(get(url("logs/stats", "category=AUTOMATION&action=LOCK_ACQUIRED")).with(asAdmin()))
+                .andExpect(jsonPath("$.total").value(0));
+    }
+
+    @Test
+    void theStatsUseTheCategoryToo() throws Exception {
+        seedCategories();
+        mockMvc.perform(get(url("logs/stats", "category=ACCESS&success=false")).with(asAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(2));
+        mockMvc.perform(get(url("logs", "category=ACCESS&success=false")).with(asAdmin()))
+                .andExpect(jsonPath("$.content.length()").value(2));
+        mockMvc.perform(get(url("logs/stats", "category=ACCESS")).with(asAdmin()))
+                .andExpect(jsonPath("$.total").value(3))
+                .andExpect(jsonPath("$.failures").value(2));
+    }
+
+    @Test
+    void aCategoryNeverWidensAnAssignedScope() throws Exception {
+        seedCategories();
+        ReflectionTestUtils.setField(securityService, "envAdminScope", "assigned");
+        grantEnv(envAdmin, env1.getEnvironmentId(), AccessLevel.ADMIN);
+
+        mockMvc.perform(get(url("logs", "category=AUTOMATION")).with(asEnvAdmin()))
+                .andExpect(jsonPath("$.content.length()").value(3))
+                .andExpect(jsonPath("$.content[*].environmentId", everyItem(is(env1.getEnvironmentId()))));
+    }
+
+    @Test
+    void anUnknownCategoryIs400AndTheCategoriesAreListed() throws Exception {
+        expectError(mockMvc.perform(get(url("logs", "category=NOPE")).with(asAdmin())), 400);
+        mockMvc.perform(get("/api/v1/audit/categories").with(asAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.category == 'OPERATIONS')].label").value("Start and stop"))
+                .andExpect(jsonPath("$[?(@.category == 'AUTOMATION')].actions[*]", org.hamcrest.Matchers.hasItem("HOLIDAY_CALENDAR_CHANGED")));
+        mockMvc.perform(get("/api/v1/audit/categories").with(asUser())).andExpect(status().isForbidden());
+    }
 }
