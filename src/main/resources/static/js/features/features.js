@@ -30,7 +30,6 @@ const Features = (function() {
     function loadVmRegistry() { return window.VmRegistry ? VmRegistry.load() : undefined; }
 
     // Shims for VmRegistry methods called inline from index.html
-    function submitGroup() { return window.VmRegistry ? VmRegistry.submitGroup() : undefined; }
     function submitVm() { return window.VmRegistry ? VmRegistry.submitVm() : undefined; }
 
 
@@ -80,7 +79,6 @@ const Features = (function() {
         loadAutomationRules,
         loadSystemHealth,
         loadUserManagement,
-        submitGroup,
         submitVm
     };
 })();

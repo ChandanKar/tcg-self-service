@@ -159,11 +159,15 @@ test.describe('VM registry review UI', () => {
     await page.evaluate(() => { (window as any).__noReload = true; });
 
     await row(page, 'found-2').locator('[data-action="vr-move-vm"]').click();
-    await expect(page.locator('#moveVmModal')).toBeVisible();
-    await expect(page.locator('#moveVmTargetGroup option')).toHaveText(['Web']); // not its own group
-    await page.locator('#btnSubmitMoveVm').click();
+    const dialog = page.locator('#registryMoveModal'); // U11-T05
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator('.modal-title')).toHaveText('Move FOUND-2');
+    await expect(dialog.locator('.acd-sub')).toHaveText('Now in Auto-Discovered, start order 2');
+    await expect(dialog.locator('#rd-move-target option')).toHaveText(['Web · starts 1st']); // not its own group
+    await dialog.locator('#rd-move-save').click();
 
-    await expect(page.locator('#moveVmModal')).toBeHidden();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByText('Moved FOUND-2 to Web.')).toBeVisible();
     expect(fake.moves).toEqual([{ targetGroupId: 'g-web' }]);
     await expect(page.locator('tbody[data-group-id="g-disc"] tr', { hasText: 'found-2' })).toHaveCount(0);
     await expect(page.locator('tbody[data-group-id="g-web"] .vr-count')).toHaveText('27 VMs');
@@ -443,5 +447,112 @@ test.describe('Every registry action', () => {
     await expect(page.getByText(/^Node groups synced at \d{1,2}:\d{2}.*: 3 node groups checked\.$/)).toBeVisible();
     expect(syncs).toEqual(['POST']);
     await expect(page.locator('#eks-sync-now-btn')).toBeEnabled();
+  });
+});
+
+/**
+ * U11-T05 (RegistryDialogs.dc.html): Edit group offers only the groups that make no loop and checks
+ * the start order before saving; Add group; Tell everyone it's being stopped with the audience
+ * count and a reason. The API is faked in the browser.
+ */
+test.describe('Registry dialogs', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+  });
+
+  async function withGroups(page: Page) {
+    const fake = new FakeRegistry();
+    fake.groups = [
+      { groupId: 'g-disc', name: 'discovered', displayName: 'Auto-Discovered', sequencePosition: 999, dependsOnGroupIds: [] },
+      { groupId: 'g-db', name: 'db', displayName: 'Database', sequencePosition: 1, dependsOnGroupIds: [] },
+      { groupId: 'g-app', name: 'app', displayName: 'Application', sequencePosition: 2, dependsOnGroupIds: ['g-db'] },
+      { groupId: 'g-web', name: 'web', displayName: 'Web', sequencePosition: 3, dependsOnGroupIds: ['g-app'] },
+    ];
+    const writes: { method: string, path: string, body: any }[] = [];
+    await page.route(new RegExp(`/api/v1/environments/${ENV_ID}/groups(/.*)?$`), route => {
+      const req = route.request();
+      if (req.method() === 'GET') return route.continue();
+      writes.push({ method: req.method(), path: new URL(req.url()).pathname.split('/groups')[1], body: req.postDataJSON() });
+      return route.fulfill({ status: req.method() === 'POST' ? 201 : 200, contentType: 'application/json',
+        body: JSON.stringify(req.method() === 'POST' ? { groupId: 'g-new' } : []) });
+    });
+    await openRegistry(page, fake);
+    return writes;
+  }
+
+  test('Edit group: a group that waits for this one would make a loop; the start order is checked before saving', async ({ page }) => {
+    const writes = await withGroups(page);
+    await page.locator('tbody[data-group-id="g-app"] [data-action="vr-edit-group"]').click();
+
+    const dialog = page.locator('#registryGroupModal');
+    await expect(dialog.locator('.modal-title')).toHaveText('Edit group: Application');
+    await expect(dialog.locator('#rd-group-place')).toHaveValue('2');
+    await expect(dialog.locator('#rd-group-place option')).toHaveText(['1st', '2nd', '3rd']);
+    const web = dialog.locator('.rd-check', { hasText: 'Web' });
+    await expect(web.locator('input')).toBeDisabled();
+    await expect(web.locator('.rd-loop')).toHaveText('· would make a loop');
+    await expect(dialog.locator('.rd-check', { hasText: 'Database' }).locator('input')).toBeChecked();
+    await expect(dialog.locator('.rd-check', { hasText: 'Auto-Discovered' })).toHaveCount(0);
+
+    await dialog.locator('#rd-group-place').selectOption('1');
+    await dialog.locator('#rd-group-save').click();
+    await expect(dialog.locator('#rd-group-error')).toHaveText('Application waits for Database, so it cannot start first');
+    expect(writes).toEqual([]);
+
+    await dialog.locator('.rd-check', { hasText: 'Database' }).locator('input').uncheck();
+    await dialog.locator('#rd-group-description').fill('Payments API servers');
+    await dialog.locator('#rd-group-save').click();
+    await expect(dialog).toBeHidden();
+    expect(writes.map(w => `${w.method} ${w.path}`)).toEqual(['PUT /g-app', 'PUT /order']);
+    expect(writes[0].body).toMatchObject({ name: 'app', displayName: 'Application', description: 'Payments API servers',
+      dependsOnGroupIds: [], sequencePosition: 2 });
+    expect(writes[1].body).toEqual({ groupIds: ['g-app', 'g-db', 'g-web'] });
+  });
+
+  test('Add group: at the end of the start order unless placed earlier', async ({ page }) => {
+    const writes = await withGroups(page);
+    await page.locator('#vr-detail-head [data-action="vr-open-group-form"]').click();
+
+    const dialog = page.locator('#registryGroupModal');
+    await expect(dialog.locator('.modal-title')).toHaveText('Add a group to Registry E2E');
+    await expect(dialog.locator('#rd-group-place')).toHaveValue('4');
+    await expect(dialog.locator('input[name="rd-waits"]:disabled')).toHaveCount(0);
+    await dialog.locator('#rd-group-name').fill('Reports');
+    await dialog.locator('.rd-check', { hasText: 'Web' }).locator('input').check();
+    await dialog.locator('#rd-group-save').click();
+
+    await expect(page.getByText('Group Reports added.')).toBeVisible();
+    expect(writes.map(w => `${w.method} ${w.path}`)).toEqual(['POST ']);
+    expect(writes[0].body).toMatchObject({ name: 'Reports', displayName: 'Reports', sequencePosition: 4, dependsOnGroupIds: ['g-web'] });
+  });
+
+  test('Tell everyone it\'s being stopped: the audience, a reason, and who it reached', async ({ page }) => {
+    const sent: any[] = [];
+    let audience = 9;
+    await page.route(/\/api\/v1\/environments\/env-notify\/notify-stop\/audience$/, route =>
+      route.fulfill({ contentType: 'application/json', body: JSON.stringify({ count: audience }) }));
+    await page.route(/\/api\/v1\/environments\/env-notify\/notify-stop$/, route => {
+      sent.push(route.request().postDataJSON());
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ emailedCount: 9 }) });
+    });
+    await signIn(page, 'admin');
+    await page.waitForFunction(() => typeof (window as any).RegistryDialogs !== 'undefined');
+    const open = () => page.evaluate(() => (window as any).RegistryDialogs.notifyStop({ environmentId: 'env-notify', displayName: 'Payments Dev' }));
+
+    await open();
+    const dialog = page.locator('#registryNotifyModal');
+    await expect(dialog.locator('.modal-title')).toHaveText("Tell everyone it's being stopped");
+    await expect(dialog.locator('#rd-notify-audience')).toHaveText('9 people can use Payments Dev');
+    await expect(dialog.locator('#rd-notify-send')).toHaveText('Send to 9 people');
+    await dialog.locator('#rd-notify-reason').fill('Stopping at 16:00 on Friday for the database upgrade.');
+    await dialog.locator('#rd-notify-send').click();
+    await expect(page.getByText('Sent to 9 people.')).toBeVisible();
+    expect(sent).toEqual([{ reason: 'Stopping at 16:00 on Friday for the database upgrade.' }]);
+
+    audience = 0;
+    await expect(dialog).toBeHidden();
+    await open();
+    await expect(dialog.locator('#rd-notify-audience')).toHaveText('No one with access has an email address.');
+    await expect(dialog.locator('#rd-notify-send')).toBeDisabled();
   });
 });

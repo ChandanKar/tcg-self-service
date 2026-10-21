@@ -647,3 +647,50 @@
         max-height: none;
     }
 }
+
+/* ===== Edit group, Move VM, Tell everyone it's being stopped (U11-T05, RegistryDialogs.dc.html) ===== */
+
+.rd-waits {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 8px 0 4px;
+    padding: 0;
+    border: 0;
+}
+
+.rd-waits legend {
+    margin-bottom: 4px;
+    font-size: var(--fs-small);
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.rd-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: var(--fs-body);
+}
+
+.rd-check input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--brand-navy);
+}
+
+.rd-disabled {
+    color: var(--text-secondary);
+}
+
+.rd-loop {
+    font-size: var(--fs-small);
+}
+
+.rd-note,
+.rd-none {
+    margin: 6px 0 0;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}

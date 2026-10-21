@@ -35,7 +35,7 @@ test.describe('Toasts and modals', () => {
     expect(await page.evaluate(() => Utils.escapeHtml(0))).toBe('0');
   });
 
-  test('opening and closing the Create Group modal five times leaves no stray backdrop', async ({ page }) => {
+  test('opening and closing the group dialog five times leaves no stray backdrop', async ({ page }) => {
     test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
     await signIn(page, 'admin');
     await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
@@ -47,7 +47,7 @@ test.describe('Toasts and modals', () => {
     });
 
     // U11-T04: VMs are added on their own page; the group dialog is the registry's Bootstrap modal now.
-    const modal = page.locator('#createGroupModal');
+    const modal = page.locator('#registryGroupModal'); // U11-T05
     for (let i = 0; i < 5; i++) {
       await page.evaluate(() => VmRegistry.openGroupForm());
       await expect(modal).toBeVisible();

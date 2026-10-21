@@ -46,30 +46,12 @@ const EnvSettingsPanel = (function() {
     }
 
     /**
-     * Emails (and bell-notifies) everyone with active access to the environment. Not gated behind a
-     * notification.email.* flag: the administrator's click is the opt-in.
+     * "Tell everyone it's being stopped" (U11-T05): emails and bell-notifies everyone with access,
+     * with an optional reason. Not gated behind a notification.email.* flag: the click is the opt-in.
      */
     function notifyMembers() {
         if (!current) return;
-        const envId = current.environmentId;
-        const envName = current.displayName || current.name;
-        Modals.confirm(
-            'Notify environment members',
-            `Email everyone with access to <strong>${Utils.escapeHtml(envName)}</strong> that it's being stopped? This also adds an in-app notification for each of them.`,
-            function() {
-                ApiClient.post(Config.API.environments.notifyStop(envId), {})
-                    .done(function(result) {
-                        const n = result && result.emailedCount;
-                        Notifications.success(n
-                            ? `Emailed ${n} member${n === 1 ? '' : 's'}`
-                            : 'No active members with an email address to notify');
-                    })
-                    .fail(function(xhr) {
-                        Notifications.error(xhr.responseJSON?.message || 'Failed to send notification');
-                    });
-            },
-            { confirmText: 'Notify', confirmClass: 'btn-primary', html: true }
-        );
+        RegistryDialogs.notifyStop(current);
     }
 
     return { open, isAvailable, notifyMembers };

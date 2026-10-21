@@ -701,6 +701,7 @@ const VmRegistry = (function() {
         }
     }
 
+    /** Move a VM to another group (U11-T05's dialog). */
     async function openMoveVm(vmId) {
         let vm;
         try {
@@ -709,37 +710,14 @@ const VmRegistry = (function() {
             console.error('Failed to load VM:', error);
             return;
         }
-        const targets = (window.VmRegistryState.currentGroups || []).filter(g => g.groupId !== vm.groupId);
-        if (targets.length === 0) {
-            Notifications.error('There is no other group to move this VM to. Add a group first.');
-            return;
-        }
-        $('#moveVmId').val(vm.vmId);
-        $('#moveVmModalLabel').text(`Move VM "${vm.displayName || vm.name}"`);
-        const $select = $('#moveVmTargetGroup').empty();
-        targets.forEach(g => $select.append(new Option(g.displayName || g.name, g.groupId)));
-        $('#btnSubmitMoveVm').prop('disabled', false);
-        bootstrap.Modal.getOrCreateInstance(document.getElementById('moveVmModal')).show();
+        const state = window.VmRegistryState;
+        RegistryDialogs.moveVm(state.currentEnvironment, vm, state.currentGroups, afterChange);
     }
 
-    async function submitMoveVm() {
-        const vmId = $('#moveVmId').val();
-        const targetGroupId = $('#moveVmTargetGroup').val();
-        if (!vmId || !targetGroupId) return;
-        const $btn = $('#btnSubmitMoveVm').prop('disabled', true);
-        try {
-            await ApiClient.put(Config.API.vms.move(window.VmRegistryState.currentEnvironment.environmentId, vmId),
-                { targetGroupId });
-            bootstrap.Modal.getInstance(document.getElementById('moveVmModal'))?.hide();
-            Notifications.success('VM moved');
-            await refreshGroupsModal();
-            await loadEnvironmentsData();
-        } catch (error) {
-            console.error('Failed to move VM:', error);
-            if (!error?.responseJSON?.message) Notifications.error('Failed to move VM');
-        } finally {
-            $btn.prop('disabled', false);
-        }
+    /** After a group or VM change: the tree, the list's counts and the banner. */
+    async function afterChange() {
+        await refreshDetail();
+        await loadEnvironmentsData();
     }
 
     async function reactivateVm(vmId) {
@@ -764,87 +742,13 @@ const VmRegistry = (function() {
         return Utils.html`<div class="small text-muted vm-account">${AwsAccountOptions.nameOf(vm.awsAccountRef) || vm.awsAccountRef}</div>`;
     }
 
+    /** Edit a group, or add one without an id (U11-T05's dialog). */
     function openGroupForm(groupId = null) {
-        $('#createGroupForm')[0].reset();
-        $('#createGroupForm').removeClass('was-validated');
-        $('#groupId').val('');
-        if (groupId) {
-            const group = window.VmRegistryState.currentGroups.find(g => g.groupId === groupId);
-            if (!group) return;
-            $('#groupId').val(group.groupId);
-            $('#groupName').val(group.name);
-            $('#groupDisplayName').val(group.displayName);
-            $('#groupDescription').val(group.description || '');
-            $('#groupSequencePosition').val(group.sequencePosition);
-            $('#groupMetadata').val(group.metadata || '');
-            $('#groupName').prop('readonly', true); // the name is the group's identity
-            $('#createGroupModalLabel').text('Edit Group');
-            $('#btnSubmitGroup').html('<i class="fas fa-save"></i> Update');
-        } else {
-            $('#groupName').prop('readonly', false);
-            const maxSeq = window.VmRegistryState.currentGroups.length > 0
-                ? Math.max(...window.VmRegistryState.currentGroups.map(g => g.sequencePosition)) : 0;
-            $('#groupSequencePosition').val(maxSeq + 1);
-            $('#createGroupModalLabel').text('Create Group');
-            $('#btnSubmitGroup').html('<i class="fas fa-save"></i> Create');
-        }
-        populateDependencyDropdown(groupId);
-        bootstrap.Modal.getOrCreateInstance(document.getElementById('createGroupModal')).show();
-    }
-
-    function populateDependencyDropdown(excludeGroupId) {
-        const select = $('#groupDependsOn');
-        select.empty();
-        window.VmRegistryState.currentGroups.forEach(group => {
-            if (group.groupId !== excludeGroupId) {
-                select.append(new Option(group.displayName, group.groupId));
-            }
-        });
-        if (excludeGroupId) {
-            const group = window.VmRegistryState.currentGroups.find(g => g.groupId === excludeGroupId);
-            if (group && group.dependsOnGroupIds) select.val(group.dependsOnGroupIds);
-        }
-    }
-
-    async function submitGroup() {
-        const form = $('#createGroupForm')[0];
-        if (!form.checkValidity()) {
-            form.classList.add('was-validated');
-            return;
-        }
-        const groupId = $('#groupId').val();
-        const isEdit = !!groupId;
-        const loaded = isEdit ? window.VmRegistryState.currentGroups.find(g => g.groupId === groupId) : null;
-        const metadata = $('#groupMetadata').val().trim();
-        const data = {
-            name: $('#groupName').val().trim(),
-            displayName: $('#groupDisplayName').val().trim(),
-            // On edit '' clears the description; metadata is sent only when it was changed (it is merged)
-            description: isEdit ? $('#groupDescription').val().trim() : ($('#groupDescription').val().trim() || null),
-            sequencePosition: parseInt($('#groupSequencePosition').val()),
-            dependsOnGroupIds: $('#groupDependsOn').val() || [],
-            metadata: isEdit
-                ? (metadata !== (loaded?.metadata || '').trim() ? (metadata || '{}') : null)
-                : (metadata || null)
-        };
-        try {
-            Loading.show(isEdit ? 'Updating...' : 'Creating...');
-            const envId = window.VmRegistryState.currentEnvironment.environmentId;
-            if (isEdit) {
-                await ApiClient.put(`/api/v1/environments/${envId}/groups/${groupId}`, data);
-            } else {
-                await ApiClient.post(`/api/v1/environments/${envId}/groups`, data);
-            }
-            Notifications.success(isEdit ? 'Group updated' : 'Group created');
-            bootstrap.Modal.getInstance(document.getElementById('createGroupModal')).hide();
-            await refreshGroupsModal();
-            await loadEnvironmentsData();
-            Loading.hide();
-        } catch (error) {
-            console.error('Failed to submit group:', error);
-            Notifications.error(error.responseJSON?.message || 'Failed to save group');
-            Loading.hide();
-        }
+        const state = window.VmRegistryState;
+        if (!state || !state.currentEnvironment) return;
+        const group = groupId ? (state.currentGroups || []).find(g => g.groupId === groupId) : null;
+        if (groupId && !group) return;
+        RegistryDialogs.editGroup(state.currentEnvironment, group, state.currentGroups || [], afterChange);
     }
 
     function editGroup(groupId) {
@@ -1064,8 +968,6 @@ const VmRegistry = (function() {
         changeGroupVmPage,
         refreshDetail,
         openGroupForm,
-        populateDependencyDropdown,
-        submitGroup,
         editGroup,
         deleteGroup,
         openVmForm,
@@ -1077,7 +979,6 @@ const VmRegistry = (function() {
         changeReviewPage,
         acknowledgeVm,
         openMoveVm,
-        submitMoveVm,
         reactivateVm,
         _searchRegistry: function(val) {
             filterEnvironments((val || '').trim());
@@ -1105,7 +1006,6 @@ if (typeof Actions !== 'undefined') {
         'vr-delete-vm': el => VmRegistry.deleteVm(el.dataset.vmId),
         'vr-ack-vm': el => VmRegistry.acknowledgeVm(el.dataset.vmId),
         'vr-move-vm': el => VmRegistry.openMoveVm(el.dataset.vmId),
-        'vr-submit-move-vm': () => VmRegistry.submitMoveVm(),
         'vr-reactivate-vm': el => VmRegistry.reactivateVm(el.dataset.vmId),
         'vr-review-state': el => VmRegistry.selectReviewState(el.dataset.state),
         'vr-review-page': el => VmRegistry.changeReviewPage(Number(el.dataset.page) - 1),
@@ -1114,7 +1014,6 @@ if (typeof Actions !== 'undefined') {
         'vr-open-vm-form': el => VmRegistry.openVmForm(el.dataset.groupId),
         'vr-delete-group': el => VmRegistry.deleteGroup(el.dataset.groupId),
         'vr-open-group-form': () => VmRegistry.openGroupForm(),
-        'vr-submit-group': () => Features.submitGroup(),
         'vr-submit-vm': () => Features.submitVm()
     });
     Actions.registerAll({
