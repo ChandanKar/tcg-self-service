@@ -84,7 +84,7 @@ test.describe('Automation rules UI', () => {
     await page.locator('#ar-save-btn').dblclick();
 
     await expect(page.locator('#automationRuleModal')).toBeHidden({ timeout: 10_000 });
-    await expect(page.locator('#ar-table-wrapper tr', { hasText: 'Nightly stop' })).toHaveCount(1);
+    await expect(page.locator('#ar-table-wrapper .ar-rule', { hasText: 'Nightly stop' })).toHaveCount(1);
     expect(fake.posts).toBe(1);
   });
 
@@ -109,14 +109,17 @@ test.describe('Automation rules UI', () => {
     ];
     await open(page, fake);
 
-    const off = page.locator('#ar-table-wrapper tr', { hasText: 'Off by system' });
-    await expect(off.locator('.ar-disabled-reason')).toHaveText(/Disabled: Environment <b>deactivated<\/b>/); // escaped
-    await expect(off.locator('.ar-run-reason')).toHaveText('Environment deactivated');
-    await expect(page.locator('#ar-table-wrapper tr', { hasText: 'Off by hand' }).locator('.ar-disabled-reason')).toHaveCount(0);
-    // Only the LOCKED skip counts as locked (a "nothing to do" skip did too before).
-    await expect(page.locator('.metric-card', { hasText: 'LAST RUN SKIPPED (LOCKED)' }).locator('.metric-value')).toHaveText('1');
-    await expect(page.locator('#ar-stat-auto-disabled .metric-value')).toHaveText('1');
-    await expect(page.locator('#automation-rules-view')).toContainText('the rule retries until its catch-up window ends');
+    const off = page.locator('#ar-table-wrapper .ar-rule', { hasText: 'Off by system' });
+    await expect(off.locator('.ar-disabled-reason')).toHaveText('Turned off: Environment <b>deactivated</b>'); // escaped
+    await expect(off.locator('.ar-chip-off')).toHaveText('Off');
+    await expect(off.locator('.ar-rule-summary')).toContainText(/skipped \w{3}: environment deactivated/);
+    await expect(off.locator('.week-strip.week-off')).toHaveCount(1);
+    await expect(page.locator('#ar-table-wrapper .ar-rule', { hasText: 'Off by hand' }).locator('.ar-disabled-reason')).toHaveCount(0);
+    // U12-T02 counts: rules on, environments, and only the LOCKED skip as a lock (not "nothing to do").
+    await expect(page.locator('#ar-counts')).toContainText('2 rules on');
+    await expect(page.locator('#ar-counts')).toContainText('cover 1 environment');
+    await expect(page.locator('#ar-counts')).toContainText('1 run skipped last week: environment was locked');
+    await expect(page.locator('#automation-rules-view')).toContainText('A rule never breaks a lock: it retries, then skips and tells you.'); // U12-T02
   });
 
   test('a refused re-enable shows the server reason and stays off', async ({ page }) => {
@@ -125,10 +128,81 @@ test.describe('Automation rules UI', () => {
     fake.patchError = 'This rule cannot be enabled: Environment deactivated';
     await open(page, fake);
 
-    const toggle = page.locator('#ar-table-wrapper tr', { hasText: 'Blocked' }).locator('.ar-toggle-enabled');
+    const toggle = page.locator('#ar-table-wrapper .ar-rule', { hasText: 'Blocked' }).locator('.ar-toggle-enabled');
     await toggle.click(); // not check(): the page is expected to turn it back off
 
     await expect(page.getByText('This rule cannot be enabled: Environment deactivated')).toBeVisible();
     await expect(toggle).not.toBeChecked();
+  });
+});
+
+/**
+ * U12-T02 (AutomationRules.dc.html): tabs, counts, and each schedule on a Mon–Sun week strip; 10
+ * schedules a page without a page scrollbar at 1440x900.
+ */
+test.describe('Automation rules page', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+  });
+
+  test('Office hours draws five bars from 08:00 to 20:00 and none at the weekend', async ({ browser }) => {
+    const context = await browser.newContext({ timezoneId: 'Asia/Kolkata' });
+    const page = await context.newPage();
+    const fake = new FakeRules();
+    fake.rules = [rule({ name: 'Office hours', scheduleSummary: 'Mon–Fri 08:00–20:00', timezone: 'Asia/Kolkata',
+      windows: [{ daysOfWeek: ['MON', 'TUE', 'WED', 'THU', 'FRI'], startTime: '08:00', stopTime: '20:00' }],
+      nextRunAt: new Date(Date.now() + 3600_000).toISOString(), nextRunAction: 'STOP' })];
+    await open(page, fake);
+
+    const card = page.locator('.ar-rule', { hasText: 'Office hours' });
+    const rows = card.locator('.week-row');
+    await expect(rows).toHaveCount(7);
+    for (let i = 0; i < 5; i++) {
+      const bar = rows.nth(i).locator('.week-bar');
+      await expect(bar).toHaveCount(1);
+      await expect(bar).toHaveAttribute('style', /left:33.33%;width:50%/);
+    }
+    await expect(rows.nth(5).locator('.week-bar')).toHaveCount(0);
+    await expect(rows.nth(6).locator('.week-bar')).toHaveCount(0);
+    await expect(card.locator('.week-strip')).toHaveAttribute('aria-label', /^Mon–Fri 08:00–20:00 · Asia\/Kolkata/);
+    await expect(card.locator('.ar-next-run')).toHaveText(/^Stop (today|tomorrow) \d\d:\d\d$/);
+    await expect(card.getByRole('switch', { name: 'Turn Office hours on' })).toBeChecked();
+    await context.close();
+  });
+
+  test('environment admins see all four tabs; the tab is kept in the address', async ({ page, playwright }) => {
+    const envAdminId = process.env.TEST_DEV_ENV_ADMIN_ID || 'dev-user-001';
+    const admin = await playwright.request.newContext({ baseURL: process.env.BASE_URL || 'http://localhost:8080',
+      extraHTTPHeaders: { 'X-User-Id': devIds.admin, 'Content-Type': 'application/json' } });
+    await admin.patch(`/api/v1/users/${envAdminId}/roles`, { data: { admin: false, envAdmin: true } });
+    await admin.dispose();
+    await new FakeRules().install(page);
+    await page.context().setExtraHTTPHeaders({ 'X-User-Id': envAdminId });
+    await page.goto('/home');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate(() => { location.hash = '#/automation-rules'; });
+    const tabs = page.getByRole('tab');
+    await expect(tabs).toHaveText(['Schedules', 'When access is granted', 'Holiday calendars', 'Recent runs'], { timeout: 10_000 });
+    await page.getByRole('tab', { name: 'Recent runs' }).click();
+    await expect(page.getByRole('tab', { name: 'Recent runs' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page).toHaveURL(/#\/automation-rules\?tab=runs$/);
+    await page.getByRole('tab', { name: 'Holiday calendars' }).click();
+    await expect(page.locator('#ar-content')).toContainText('Holiday calendars are kept by administrators');
+  });
+
+  test('12 schedules: 10 on the page with a pager, no page scrollbar at 1440x900', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const fake = new FakeRules();
+    fake.rules = Array.from({ length: 12 }, (_, i) => rule({ name: `Schedule ${i + 1}`, scheduleSummary: 'Mon–Fri 08:00–20:00',
+      windows: [{ daysOfWeek: ['MON', 'TUE', 'WED', 'THU', 'FRI'], startTime: '08:00', stopTime: '20:00' }],
+      createdAt: new Date(Date.now() - i * 60_000).toISOString() }));
+    await open(page, fake);
+
+    await expect(page.locator('#ar-table-wrapper .ar-rule')).toHaveCount(10);
+    await expect(page.locator('#ar-pagination .pager-range')).toHaveText('1–10 of 12');
+    const overflow = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
+    expect(overflow).toBeLessThanOrEqual(0);
+    await page.locator('#ar-pagination [data-action="ar-page"]', { hasText: 'Next' }).click();
+    await expect(page.locator('#ar-table-wrapper .ar-rule')).toHaveCount(2);
   });
 });

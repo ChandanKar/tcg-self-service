@@ -67,9 +67,8 @@ test.describe('Next runs', () => {
     await page.locator('#ar-save-btn').click();
     await expect(page.locator('#automationRuleModal')).toBeHidden({ timeout: 10_000 });
 
-    await page.locator('#ar-filter-search').fill(name);
-    const cell = page.locator('#ar-table-wrapper tr', { hasText: name }).locator('.ar-next-run');
-    await expect(cell).toContainText(/Stop|Start/);
-    await expect(page.locator('#ar-table-wrapper th', { hasText: 'Next run' })).toHaveCount(1);
+    // U12-T02: each schedule's line ends with "· next Stop today 20:00"; a new rule is listed first.
+    const cell = page.locator('#ar-table-wrapper .ar-rule', { hasText: name }).locator('.ar-next-run');
+    await expect(cell).toHaveText(/^(Stop|Start) (today|tomorrow|\w{3}|\d{1,2} \w{3}) \d\d:\d\d$/);
   });
 });

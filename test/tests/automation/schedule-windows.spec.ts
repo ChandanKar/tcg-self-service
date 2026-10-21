@@ -60,11 +60,11 @@ test.describe('Schedule windows', () => {
     ]);
 
     await expect(page.locator('#automationRuleModal')).toBeHidden({ timeout: 10_000 });
-    await expect(page.locator('#ar-table-wrapper tr', { hasText: name }))
+    await expect(page.locator('#ar-table-wrapper .ar-rule', { hasText: name }))
       .toContainText('Mon-Fri 08:00-20:00; Sat 10:00-14:00');
 
     // Editing shows both windows again.
-    await page.locator('#ar-table-wrapper tr', { hasText: name }).locator('.ar-edit-btn').click();
+    await page.locator('#ar-table-wrapper .ar-rule', { hasText: name }).locator('.ar-edit-btn').click();
     await expect(page.locator('#ar-windows .ar-window')).toHaveCount(2);
     await expect(page.locator('#ar-windows .ar-window').nth(1).locator('.ar-start-time')).toHaveValue('10:00');
   });

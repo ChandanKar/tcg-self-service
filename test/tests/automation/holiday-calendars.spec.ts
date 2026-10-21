@@ -60,7 +60,7 @@ test.describe('Holiday calendars', () => {
     const calendar = `Rule cal ${Date.now()}`;
     await openAutomation(page);
     await createCalendar(page, calendar);
-    await page.getByRole('tab', { name: 'Rules' }).click();
+    await page.getByRole('tab', { name: 'Schedules' }).click();
 
     const shown = page.evaluate(() => new Promise(resolve =>
       document.addEventListener('shown.bs.modal', () => resolve(true), { once: true })));
@@ -83,6 +83,6 @@ test.describe('Holiday calendars', () => {
     expect(response.request().postDataJSON()).toMatchObject({ holidayBehavior: 'SKIP_ALL' });
     expect((await response.json()).holidayCalendarName).toBe(calendar);
 
-    await expect(page.locator('#ar-table-wrapper tr', { hasText: ruleName })).toContainText(`off on ${calendar} holidays`);
+    await expect(page.locator('#ar-table-wrapper .ar-rule', { hasText: ruleName })).toContainText(`off on ${calendar} holidays`);
   });
 });

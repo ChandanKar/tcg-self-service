@@ -1,7 +1,8 @@
 /**
  * Automation Rules Feature Module
- * Admin / Env Admin view for managing calendar-schedule and access-grant/lock-acquire
- * automation rules that start or stop an environment.
+ * Admin / Env Admin view for calendar-schedule and access-grant/lock-acquire rules that start or
+ * stop an environment. U12-T02 (AutomationRules.dc.html): tabs Schedules / When access is granted /
+ * Holiday calendars / Recent runs, counts, and each schedule with its week strip.
  */
 const AutomationRules = (function() {
     'use strict';
@@ -31,9 +32,18 @@ const AutomationRules = (function() {
         HOLIDAY: 'Holiday',
         OVERRIDE: 'Overridden'
     };
-    const filters = { search: '', environmentId: '', triggerType: '', status: '' };
-    let currentPage = 1;
     const PAGE_SIZE = 10;
+    const DAY_MS = 24 * 60 * 60 * 1000;
+
+    /** The page's tabs (U12-T02, AutomationRules.dc.html), the selected one in ?tab=. */
+    const TABS = [
+        { key: 'schedules', label: 'Schedules' },
+        { key: 'access', label: 'When access is granted' },
+        { key: 'holidays', label: 'Holiday calendars' },
+        { key: 'runs', label: 'Recent runs' }
+    ];
+    let tab = 'schedules';
+    let currentPage = 1;
 
     // ============= Load =============
 
@@ -51,19 +61,15 @@ const AutomationRules = (function() {
             $('#content-area').html('<div class="alert alert-danger m-3">Access denied. Admin or Env Admin only.</div>');
             return;
         }
-
+        const q = ContentRouter.query ? ContentRouter.query() : {};
+        tab = TABS.some(t => t.key === q.tab) ? q.tab : 'schedules';
+        currentPage = 1;
         showLoading();
         fetchInitialData();
     }
 
     function showLoading() {
-        $('#content-area').html(`
-            <div class="d-flex justify-content-center align-items-center" style="height: 200px;">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-            </div>
-        `);
+        $('#content-area').html('<div class="vr-empty" role="status">Loading…</div>');
     }
 
     function showError(message) {
@@ -98,6 +104,7 @@ const AutomationRules = (function() {
         const fresh = await apiGet(Config.API.automationRules.list()) || [];
         if (!isActive()) return;
         rules = fresh;
+        renderCounts();
         renderContent();
     }
 
@@ -113,402 +120,343 @@ const AutomationRules = (function() {
         });
     }
 
+    // ============= Model (pure; node tests use AutomationRules.model) =============
+
+    function viewerTimezone() {
+        try {
+            return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function hhmm(h) {
+        const total = Math.round((((h % 24) + 24) % 24) * 60);
+        return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+    }
+
+    /** "today 20:00", "tomorrow 06:30", "Mon 09:00" within a week, else "3 Nov 09:00" (viewer time). */
+    function clockText(at, now) {
+        const d = new Date(at);
+        const n = now || new Date();
+        const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        const startOf = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+        const days = Math.round((startOf(d) - startOf(n)) / DAY_MS);
+        if (days === 0) return `today ${time}`;
+        if (days === 1) return `tomorrow ${time}`;
+        if (days > 1 && days < 7) return `${d.toLocaleDateString('en-GB', { weekday: 'short' })} ${time}`;
+        return `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} ${time}`;
+    }
+
+    /** "Stop today 20:00" / "Start Mon 09:00", or '' when nothing is coming. */
+    function nextText(rule, now) {
+        if (!rule.nextRunAt) return '';
+        return `${rule.nextRunAction === 'STOP' ? 'Stop' : 'Start'} ${clockText(rule.nextRunAt, now)}`;
+    }
+
+    /** The counts above the tabs: rules on, environments covered, runs skipped last week because of a lock. */
+    function countsOf(list, now) {
+        const n = (now || new Date()).getTime();
+        const on = (list || []).filter(r => r.enabled);
+        return {
+            on: on.length,
+            environments: new Set(on.map(r => r.environmentId)).size,
+            skippedLocked: (list || []).filter(r => r.lastRunReason === 'LOCKED' && r.lastRunAt
+                && n - new Date(r.lastRunAt).getTime() <= 7 * DAY_MS).length
+        };
+    }
+
+    /** The weekday (Mon = 0) of the last run when it was skipped in the last 7 days, else null. */
+    function skippedDay(rule, now, viewerTz) {
+        if (rule.lastRunStatus !== 'SKIPPED' || !rule.lastRunAt) return null;
+        const at = new Date(rule.lastRunAt);
+        if ((now || new Date()).getTime() - at.getTime() > 7 * DAY_MS) return null;
+        return typeof WeekStrip !== 'undefined' ? WeekStrip.weekdayIndex(at, viewerTz) : null;
+    }
+
+    function windowsOf(rule) {
+        if (rule.windows && rule.windows.length) return rule.windows;
+        return [{ daysOfWeek: rule.daysOfWeek || [], startTime: rule.startTime, stopTime: rule.stopTime }];
+    }
+
+    /**
+     * The schedule's line: "Mon–Fri 08:00–20:00 · Asia/Kolkata · off on India public holidays", with
+     * "(06:30–10:30 here)" when the rule's time zone is not the viewer's and "skipped Wed: environment
+     * locked" after a recent skip.
+     */
+    function scheduleLine(rule, now, viewerTz) {
+        const parts = [];
+        if (rule.scheduleSummary) {
+            parts.push(rule.scheduleSummary);
+        } else {
+            const days = (rule.daysOfWeek || []).join(', ');
+            const times = [rule.startTime ? `Start ${rule.startTime}` : null, rule.stopTime ? `Stop ${rule.stopTime}` : null]
+                .filter(Boolean).join(', ');
+            parts.push([days, times].filter(Boolean).join(' '));
+        }
+        let tzText = rule.timezone || '';
+        if (rule.timezone && viewerTz && rule.timezone !== viewerTz && typeof WeekStrip !== 'undefined') {
+            const w = windowsOf(rule)[0] || {};
+            const shift = WeekStrip.shiftHours(rule.timezone, viewerTz, now || new Date());
+            const h = t => { const [a, b] = String(t).split(':').map(Number); return a + (b || 0) / 60; };
+            if (shift && w.startTime && w.stopTime) {
+                tzText += ` (${hhmm(h(w.startTime) + shift)}–${hhmm(h(w.stopTime) + shift)} here)`;
+            } else if (shift && (w.startTime || w.stopTime)) {
+                tzText += ` (${hhmm(h(w.startTime || w.stopTime) + shift)} here)`;
+            }
+        }
+        if (tzText) parts.push(tzText);
+        if (rule.holidayCalendarName) {
+            parts.push(`${rule.holidayBehavior === 'SKIP_ALL' ? 'off' : 'no starts'} on ${rule.holidayCalendarName} holidays`);
+        }
+        const day = skippedDay(rule, now, viewerTz);
+        if (day !== null && day >= 0) {
+            const why = (RUN_REASON_LABELS[rule.lastRunReason] || 'skipped').toLowerCase();
+            parts.push(`skipped ${WeekStrip.LABELS[day]}: ${why}`);
+        }
+        return parts.join(' · ');
+    }
+
+    function scopeLabel(rule) {
+        if (rule.scopeType === 'ENVIRONMENT') return rule.environmentName || '';
+        return `${rule.environmentName || ''} · ${rule.scopeName || ''} (${String(rule.scopeType || '').toLowerCase()})`;
+    }
+
+    function accessLine(rule) {
+        const what = rule.action === 'STOP' ? 'stop' : 'start';
+        return rule.accessGrantMode === 'LOCK_ACQUIRE'
+            ? `When someone takes the lock: ${what} ${rule.scopeType === 'ENVIRONMENT' ? 'the environment' : rule.scopeName || 'it'}`
+            : `When access is approved: ${what} ${rule.scopeType === 'ENVIRONMENT' ? 'the environment' : rule.scopeName || 'it'}`;
+    }
+
     // ============= Render =============
 
     function render() {
+        const help = typeof HelpLink !== 'undefined';
         $('#content-area').html(`
-            <div class="ar-container" id="automation-rules-view">
-                <div class="content-header d-flex justify-content-between align-items-end flex-wrap gap-2">
-                    <div>
-                        <h1>Automation Rules ${typeof HelpLink !== 'undefined' ? HelpLink.button('automation-rules', 'Automation rules') : ''}</h1>
-                        <p>Recurring schedules and access-triggered actions that start or stop environments automatically. If the environment is locked by another user or an operation is running, the rule retries until its catch-up window ends, then is skipped. The rule's creator is notified. Rules never break an active lock.</p>
-                    </div>
-                    <button class="btn btn-primary" id="ar-new-rule-btn">
-                        <i class="fas fa-plus"></i> New Rule
-                    </button>
-                </div>
-                ${Auth.isAdmin() ? `
-                <ul class="nav nav-tabs ar-tabs mb-3" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="ar-rules-tab" data-bs-toggle="tab" data-bs-target="#ar-rules-pane"
-                                type="button" role="tab" aria-controls="ar-rules-pane" aria-selected="true">Rules</button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="ar-holidays-tab" data-bs-toggle="tab" data-bs-target="#ar-holidays-pane"
-                                type="button" role="tab" aria-controls="ar-holidays-pane" aria-selected="false">Holiday calendars</button>
-                    </li>
-                </ul>` : ''}
-                <div class="tab-content">
-                    <div class="tab-pane fade show active" id="ar-rules-pane" role="tabpanel" aria-labelledby="ar-rules-tab">
-                        <div id="ar-content"></div>
-                    </div>
-                    <div class="tab-pane fade" id="ar-holidays-pane" role="tabpanel" aria-labelledby="ar-holidays-tab"></div>
-                </div>
+            <div class="content-view ar-page" id="automation-rules-view">
+                ${PageHeader.markup({ title: 'Automation rules',
+                    summaryHtml: 'Schedules that start and stop environments. A rule never breaks a lock: it retries, then skips and tells you.',
+                    actionsHtml: `<button type="button" class="btn btn-primary" id="ar-new-rule-btn">
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"></path></svg>
+                        New schedule</button>`,
+                    helpPage: help ? 'automation-rules' : null, helpLabel: 'Automation rules' })}
+                <div class="ar-counts" id="ar-counts"></div>
+                <div class="ar-tabs" role="tablist" aria-label="Automation">${TABS.map(t => `<button type="button" role="tab"
+                    class="ar-tab" id="ar-tab-${t.key}" data-ar-tab="${t.key}" aria-controls="ar-panel"
+                    aria-selected="${t.key === tab}">${t.label}</button>`).join('')}</div>
+                <section class="ar-panel" id="ar-panel" role="tabpanel" aria-labelledby="ar-tab-${tab}">
+                    <div id="ar-content"></div>
+                </section>
             </div>
             <div id="ar-modal-container"></div>
         `);
+        bind();
+        renderCounts();
+        renderContent();
+    }
 
-        $('#ar-new-rule-btn').on('click', () => openRuleModal(null));
-        // Holiday calendars load when their tab is first opened (admins only, E19-T02).
-        $('#ar-holidays-tab').one('shown.bs.tab', () => {
-            HolidayCalendars.render($('#ar-holidays-pane'), list => { holidayCalendars = list; });
-        });
+    function renderCounts() {
+        const c = countsOf(rules);
+        $('#ar-counts').html(`<span><b>${c.on}</b> rule${c.on === 1 ? '' : 's'} on</span>
+            <span>cover <b>${c.environments}</b> environment${c.environments === 1 ? '' : 's'}</span>
+            ${c.skippedLocked ? `<span class="ar-count-warn"><b>${c.skippedLocked}</b> run${c.skippedLocked === 1 ? '' : 's'} skipped last week: environment was locked</span>` : ''}`);
+    }
+
+    function selectTab(key) {
+        if (!TABS.some(t => t.key === key) || key === tab) return;
+        tab = key;
+        currentPage = 1;
+        $('#automation-rules-view .ar-tab').each(function() { this.setAttribute('aria-selected', String(this.dataset.arTab === key)); });
+        $('#ar-panel').attr('aria-labelledby', `ar-tab-${key}`);
+        if (window.history && window.history.replaceState) {
+            window.history.replaceState(null, '', `#/automation-rules${key === 'schedules' ? '' : `?tab=${key}`}`);
+        }
         renderContent();
     }
 
     function renderContent() {
-        $('#ar-content').html(`
-            ${renderStatCards()}
-            ${renderFiltersBar()}
-            <div class="card ar-table-card mb-3">
-                <div class="card-body ar-table-card-body">
-                    <div class="ar-table-wrapper" id="ar-table-wrapper"></div>
-                    <div id="ar-pagination" class="pagination-bar-wrap"></div>
-                </div>
-            </div>
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="mb-3">Recent Rule Activity</h5>
-                    ${renderActivityFeed()}
-                </div>
-            </div>
-        `);
-        bindFilterEvents();
-        renderTableAndPagination();
-    }
-
-    /**
-     * Re-renders only the table body + pagination bar (not the filters bar above it),
-     * so the search input never loses focus mid-keystroke.
-     */
-    function renderTableAndPagination() {
-        const filtered = getFilteredRules();
-        const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-        currentPage = Math.min(Math.max(currentPage, 1), totalPages);
-        const pageRows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-
-        $('#ar-table-wrapper').html(renderRulesTable(pageRows, filtered.length));
-        bindTableEvents();
-
-        Pagination.renderNumbered('#ar-pagination', {
-            page: currentPage,
-            totalItems: filtered.length,
-            pageSize: PAGE_SIZE,
-            itemLabel: 'rules',
-            bindAncestor: '#ar-content',
-            onPageChange: function(page) {
-                currentPage = page;
-                renderTableAndPagination();
-            }
-        });
-    }
-
-    function getFilteredRules() {
-        const term = filters.search.trim().toLowerCase();
-        return rules.filter(function(r) {
-            if (term && !r.name.toLowerCase().includes(term)) return false;
-            if (filters.environmentId && r.environmentId !== filters.environmentId) return false;
-            if (filters.triggerType && r.triggerType !== filters.triggerType) return false;
-            if (filters.status === 'enabled' && !r.enabled) return false;
-            if (filters.status === 'disabled' && r.enabled) return false;
-            return true;
-        });
-    }
-
-    function renderFiltersBar() {
-        const envOptions = environments.map(function(e) {
-            return `<option value="${e.environmentId}" ${filters.environmentId === e.environmentId ? 'selected' : ''}>${Utils.escapeHtml(e.name)}</option>`;
-        }).join('');
-
-        return `
-            <div class="ar-filters-bar">
-                <div class="input-group">
-                    <span class="input-group-text"><i class="fas fa-search"></i></span>
-                    <input type="text" class="form-control" id="ar-filter-search"
-                           placeholder="Search rules..." value="${Utils.escapeHtml(filters.search)}">
-                </div>
-                <select class="form-select" id="ar-filter-environment">
-                    <option value="">All Environments</option>
-                    ${envOptions}
-                </select>
-                <select class="form-select" id="ar-filter-type">
-                    <option value="">All Types</option>
-                    <option value="SCHEDULE" ${filters.triggerType === 'SCHEDULE' ? 'selected' : ''}>Schedule</option>
-                    <option value="ACCESS_GRANT" ${filters.triggerType === 'ACCESS_GRANT' ? 'selected' : ''}>Access Grant</option>
-                </select>
-                <select class="form-select" id="ar-filter-status">
-                    <option value="">All Status</option>
-                    <option value="enabled" ${filters.status === 'enabled' ? 'selected' : ''}>Enabled</option>
-                    <option value="disabled" ${filters.status === 'disabled' ? 'selected' : ''}>Disabled</option>
-                </select>
-            </div>
-        `;
-    }
-
-    function bindFilterEvents() {
-        $('#ar-filter-search').off('input').on('input', function() {
-            filters.search = $(this).val();
-            currentPage = 1;
-            renderTableAndPagination();
-        });
-        $('#ar-filter-environment').off('change').on('change', function() {
-            filters.environmentId = $(this).val();
-            currentPage = 1;
-            renderTableAndPagination();
-        });
-        $('#ar-filter-type').off('change').on('change', function() {
-            filters.triggerType = $(this).val();
-            currentPage = 1;
-            renderTableAndPagination();
-        });
-        $('#ar-filter-status').off('change').on('change', function() {
-            filters.status = $(this).val();
-            currentPage = 1;
-            renderTableAndPagination();
-        });
-    }
-
-    function renderStatCards() {
-        const active = rules.filter(r => r.enabled).length;
-        const skippedLocked = rules.filter(r => r.lastRunReason === 'LOCKED').length;
-        const autoDisabled = rules.filter(r => !r.enabled && r.disabledReason).length;
-        const environmentsCovered = new Set(rules.map(r => r.environmentId)).size;
-
-        return `
-            <div class="ar-stat-grid">
-                <div class="metric-card">
-                    <div class="metric-value">${active}</div>
-                    <div class="metric-label-hint">ACTIVE RULES (of ${rules.length})</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-value">${skippedLocked}</div>
-                    <div class="metric-label-hint">LAST RUN SKIPPED (LOCKED)</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-value">${environmentsCovered}</div>
-                    <div class="metric-label-hint">ENVIRONMENTS COVERED</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-value">${rules.length - active}</div>
-                    <div class="metric-label-hint">DISABLED RULES</div>
-                </div>
-                <div class="metric-card" id="ar-stat-auto-disabled">
-                    <div class="metric-value">${autoDisabled}</div>
-                    <div class="metric-label-hint">DISABLED AUTOMATICALLY</div>
-                </div>
-            </div>
-        `;
-    }
-
-    function renderRulesTable(pageRows, totalCount) {
-        let rows;
-        if (totalCount === 0) {
-            rows = `
-                <tr class="ar-empty-row">
-                    <td colspan="8">
-                        <div class="empty-state">
-                            <i class="fas fa-bolt fa-2x mb-2 d-block text-muted opacity-50"></i>
-                            No automation rules yet. Click "New Rule" to create a calendar schedule or an access-grant trigger.
-                        </div>
-                    </td>
-                </tr>
-            `;
-        } else if (pageRows.length === 0) {
-            rows = `
-                <tr class="ar-empty-row">
-                    <td colspan="8">
-                        <div class="empty-state">
-                            <i class="fas fa-filter fa-2x mb-2 d-block text-muted opacity-50"></i>
-                            No rules match the current filters.
-                        </div>
-                    </td>
-                </tr>
-            `;
+        if (tab === 'schedules') {
+            $('#ar-content').html('<div class="ar-list" id="ar-table-wrapper"></div><div id="ar-pagination"></div>');
+            renderSchedules();
+        } else if (tab === 'access') {
+            renderAccessRules();
+        } else if (tab === 'holidays') {
+            renderHolidays();
         } else {
-            rows = pageRows.map(rule => `
-            <tr data-rule-id="${rule.ruleId}" class="${rule.enabled ? '' : 'text-muted'}">
-                <td>
-                    <div class="fw-semibold">${Utils.escapeHtml(rule.name)}
-                        ${rule.overrideCount ? `<span class="badge text-bg-light border ms-1 ar-override-badge"
-                            title="Active or upcoming overrides">${rule.overrideCount} override${rule.overrideCount === 1 ? '' : 's'}</span>` : ''}</div>
-                    ${rule.description ? `<div class="ar-row-desc">${Utils.escapeHtml(rule.description)}</div>` : ''}
-                </td>
-                <td>${typeBadge(rule)}</td>
-                <td>${Utils.escapeHtml(scopeLabel(rule))}</td>
-                <td>${Utils.escapeHtml(triggerSummary(rule))}</td>
-                <td class="ar-next-run">${rule.nextRunAt
-                    ? `${Utils.escapeHtml(Utils.formatDate(rule.nextRunAt))}<div class="small text-muted">${rule.nextRunAction === 'STOP' ? 'Stop' : 'Start'}</div>`
-                    : '<span class="text-muted">—</span>'}</td>
-                <td class="text-center">
-                    <div class="form-check form-switch mb-0 d-inline-block">
-                        <input class="form-check-input ar-toggle-enabled" type="checkbox" role="switch"
-                               aria-label="Rule ${Utils.escapeHtml(rule.name || '')} on"
-                               data-rule-id="${rule.ruleId}" ${rule.enabled ? 'checked' : ''}>
-                    </div>
-                </td>
-                <td>
-                    ${rule.lastRunAt ? Utils.formatDate(rule.lastRunAt) : '<span class="text-muted">Never run</span>'}
-                    ${rule.lastRunStatus ? `<div class="mt-1">${runStatusBadge(rule.lastRunStatus)} ${runReasonText(rule)}</div>` : ''}
-                    ${!rule.enabled && rule.disabledReason
-                        ? `<div class="mt-1 text-danger ar-disabled-reason" style="font-size:.75rem"><i class="fas fa-ban"></i> Disabled: ${Utils.escapeHtml(rule.disabledReason)}</div>`
-                        : ''}
-                </td>
-                <td class="text-end text-nowrap">
-                    ${rule.triggerType === 'SCHEDULE' && rule.nextStopAt ? `<button class="btn btn-action ar-skip-stop-btn" data-rule-id="${rule.ruleId}"
-                        title="Skip next stop (${Utils.escapeHtml(Utils.formatDate(rule.nextStopAt))})"
-                        aria-label="Skip next stop of ${Utils.escapeHtml(rule.name)}"><i class="fas fa-forward" aria-hidden="true"></i></button>` : ''}
-                    <button type="button" class="btn btn-action ar-edit-btn" data-rule-id="${rule.ruleId}" title="Edit" aria-label="Edit ${Utils.escapeHtml(rule.name || 'rule')}"><i class="fas fa-pencil-alt" aria-hidden="true"></i></button>
-                    <button type="button" class="btn btn-action btn-danger ar-delete-btn" data-rule-id="${rule.ruleId}" title="Delete" aria-label="Delete ${Utils.escapeHtml(rule.name || 'rule')}"><i class="fas fa-trash" aria-hidden="true"></i></button>
-                </td>
-            </tr>
-        `).join('');
+            renderRecentRuns();
         }
-
-        return `
-            <table class="table mb-0">
-                <thead>
-                    <tr>
-                        <th>Rule</th><th>Type</th><th>Scope</th><th>Trigger</th><th>Next run</th><th class="text-center">Status</th><th>Last Run</th><th></th>
-                    </tr>
-                </thead>
-                <tbody>${rows}</tbody>
-            </table>
-        `;
     }
 
-    function renderActivityFeed() {
-        const recent = rules
-            .filter(r => r.lastRunAt)
-            .slice()
-            .sort((a, b) => new Date(b.lastRunAt) - new Date(a.lastRunAt))
-            .slice(0, 8);
+    function renderSchedules() {
+        const list = rules.filter(r => r.triggerType === 'SCHEDULE')
+            // Rules that are on first, then the newest: a schedule just added is at the top.
+            .slice().sort((a, b) => Number(b.enabled) - Number(a.enabled)
+                || new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+        currentPage = Math.min(Math.max(currentPage, 1), pages);
+        const items = Pagination.slice(list, currentPage, PAGE_SIZE);
+        $('#ar-table-wrapper').html(items.length ? items.map(scheduleRowHtml).join('')
+            : '<div class="ar-empty">No schedules yet. Add one with New schedule to start and stop an environment at set times.</div>');
+        $('#ar-pagination').html(list.length > PAGE_SIZE ? Pagination.buildPager({ page: currentPage, pageSize: PAGE_SIZE,
+            totalItems: list.length, action: 'ar-page', key: 'schedules' }) : '');
+    }
 
-        if (recent.length === 0) {
-            return '<div class="text-muted">No automation activity yet.</div>';
+    function switchHtml(rule) {
+        return Utils.html`<label class="ar-switch"><input type="checkbox" role="switch" class="ar-toggle-enabled" data-rule-id="${rule.ruleId}"
+            aria-label="Turn ${rule.name} on"${Utils.raw(rule.enabled ? ' checked' : '')}><span aria-hidden="true"></span></label>`;
+    }
+
+    function rowActions(rule, withSkip) {
+        return Utils.html`<div class="ar-rule-actions">
+                <button type="button" class="ar-act ar-edit-btn" data-rule-id="${rule.ruleId}" aria-label="Edit ${rule.name}">Edit</button>
+                ${Utils.raw(withSkip && rule.enabled && rule.nextStopAt ? Utils.html`<button type="button" class="ar-act ar-skip-stop-btn" data-rule-id="${rule.ruleId}"
+                    aria-label="Skip next stop of ${rule.name}" title="Skip the stop at ${clockText(rule.nextStopAt)}">Skip next stop</button>` : '')}
+                <button type="button" class="ar-act ar-danger ar-delete-btn" data-rule-id="${rule.ruleId}" aria-label="Delete ${rule.name}">Delete</button>
+            </div>`;
+    }
+
+    function headHtml(rule) {
+        return Utils.html`<div class="ar-rule-head">${Utils.raw(switchHtml(rule))}<h2 class="ar-rule-name">${rule.name}</h2>
+                ${Utils.raw(rule.enabled ? '' : '<span class="ar-chip-off">Off</span>')}
+                ${Utils.raw(rule.overrideCount ? Utils.html`<span class="ar-override-badge" title="Active or upcoming overrides">${rule.overrideCount} override${rule.overrideCount === 1 ? '' : 's'}</span>` : '')}</div>
+            <div class="ar-rule-env">${scopeLabel(rule)}</div>`;
+    }
+
+    function disabledHtml(rule) {
+        return !rule.enabled && rule.disabledReason
+            ? Utils.html`<div class="ar-disabled-reason">Turned off: ${rule.disabledReason}</div>` : '';
+    }
+
+    function scheduleRowHtml(rule) {
+        const now = new Date();
+        const tz = viewerTimezone();
+        const line = scheduleLine(rule, now, tz);
+        const next = rule.enabled ? nextText(rule, now) : '';
+        const strip = typeof WeekStrip !== 'undefined'
+            ? WeekStrip.html(WeekStrip.bars(windowsOf(rule), rule.timezone, tz, now),
+                { label: line, skippedDay: skippedDay(rule, now, tz), off: !rule.enabled }) : '';
+        return Utils.html`<article class="ar-rule${Utils.raw(rule.enabled ? '' : ' ar-rule-off')}" data-rule-id="${rule.ruleId}">
+                <div class="ar-rule-main">
+                    ${Utils.raw(headHtml(rule))}
+                    <div class="ar-rule-summary">${line}${Utils.raw(next ? Utils.html` · next <span class="ar-next-run">${next}</span>` : '')}</div>
+                    ${Utils.raw(disabledHtml(rule))}
+                    ${Utils.raw(rowActions(rule, true))}
+                </div>
+                ${Utils.raw(strip)}
+            </article>`;
+    }
+
+    /** "When access is granted": the access-grant and lock rules (U12-T04 brings their editor). */
+    function renderAccessRules() {
+        const list = rules.filter(r => r.triggerType !== 'SCHEDULE');
+        $('#ar-content').html(`<div class="ar-list" id="ar-table-wrapper">${list.length ? list.map(rule => Utils.html`
+            <article class="ar-rule ar-rule-plain${Utils.raw(rule.enabled ? '' : ' ar-rule-off')}" data-rule-id="${rule.ruleId}">
+                <div class="ar-rule-main">
+                    ${Utils.raw(headHtml(rule))}
+                    <div class="ar-rule-summary">${accessLine(rule)}</div>
+                    ${Utils.raw(disabledHtml(rule))}
+                    ${Utils.raw(rowActions(rule, false))}
+                </div>
+            </article>`).join('')
+            : '<div class="ar-empty">No rules start or stop an environment when access is granted.</div>'}</div>`);
+    }
+
+    function renderHolidays() {
+        if (Auth.isAdmin() && typeof HolidayCalendars !== 'undefined') {
+            $('#ar-content').html('<div id="ar-holidays-pane"></div>');
+            HolidayCalendars.render($('#ar-holidays-pane'), list => { holidayCalendars = list; });
+            return;
         }
-
-        return `
-            <ul class="list-unstyled mb-0">
-                ${recent.map(r => `
-                    <li class="d-flex justify-content-between align-items-start py-2 border-bottom">
-                        <div>
-                            <strong>${Utils.escapeHtml(r.name)}</strong>
-                            — ${Utils.escapeHtml(r.lastRunDetail || '')}
-                            <div class="text-muted" style="font-size:.75rem">${Utils.escapeHtml(r.environmentName)}</div>
-                        </div>
-                        <div class="text-end" style="min-width: 140px">
-                            ${runStatusBadge(r.lastRunStatus)}
-                            <div class="text-muted" style="font-size:.72rem">${Utils.formatDate(r.lastRunAt)}</div>
-                        </div>
-                    </li>
-                `).join('')}
-            </ul>
-        `;
+        $('#ar-content').html(`<div class="ar-empty">Holiday calendars are kept by administrators. A schedule can stay off on
+            ${holidayCalendars.length ? Utils.escapeHtml(holidayCalendars.map(c => c.name).join(', ')) : 'their'} holidays.</div>`);
     }
 
-    function typeBadge(rule) {
-        return rule.triggerType === 'SCHEDULE'
-            ? '<span class="ar-type-badge ar-type-schedule"><i class="fas fa-clock"></i> Schedule</span>'
-            : '<span class="ar-type-badge ar-type-access"><i class="fas fa-key"></i> Access Grant</span>';
+    /** "Recent runs": the last run of each rule (U12-T05 brings the full history). */
+    function renderRecentRuns() {
+        const recent = rules.filter(r => r.lastRunAt).slice()
+            .sort((a, b) => new Date(b.lastRunAt) - new Date(a.lastRunAt)).slice(0, 20);
+        $('#ar-content').html(recent.length ? `<div class="ar-runs">${recent.map(r => Utils.html`
+            <div class="ar-run" data-rule-id="${r.ruleId}">
+                <span class="ar-run-when">${clockText(r.lastRunAt)}</span>
+                <span class="ar-run-what"><b>${r.name}</b> · ${r.environmentName || ''}${Utils.raw(r.lastRunDetail ? Utils.html`<span>${r.lastRunDetail}</span>` : '')}</span>
+                <span class="ar-run-status ar-run-${String(r.lastRunStatus || '').toLowerCase()}">${
+                    r.lastRunStatus === 'SUCCESS' ? 'Done' : r.lastRunStatus === 'SKIPPED' ? 'Skipped' : r.lastRunStatus === 'FAILED' ? 'Failed' : ''}</span>
+            </div>`).join('')}</div>`
+            : '<div class="ar-empty">No rule has run yet.</div>');
     }
 
-    function runStatusBadge(status) {
-        if (status === 'SUCCESS') return '<span class="status-badge running">Success</span>';
-        if (status === 'SKIPPED') return '<span class="status-badge stopping">Skipped</span>';
-        if (status === 'FAILED') return '<span class="status-badge error">Failed</span>';
-        return '';
-    }
+    // ============= Events =============
 
-    function runReasonText(rule) {
-        const label = RUN_REASON_LABELS[rule.lastRunReason];
-        return label ? `<span class="text-muted ar-run-reason" style="font-size:.75rem">${Utils.escapeHtml(label)}</span>` : '';
-    }
-
-    function scopeLabel(rule) {
-        if (rule.scopeType === 'ENVIRONMENT') {
-            return `${rule.environmentName} (environment)`;
-        }
-        return `${rule.scopeName} (${rule.scopeType.toLowerCase()})`;
-    }
-
-    function triggerSummary(rule) {
-        if (rule.triggerType === 'SCHEDULE') {
-            if (rule.scheduleSummary) {
-                const holidays = rule.holidayCalendarName
-                    ? ` · ${rule.holidayBehavior === 'SKIP_ALL' ? 'off' : 'no starts'} on ${rule.holidayCalendarName} holidays` : '';
-                return `${rule.scheduleSummary} · ${rule.timezone}${holidays}`;
-            }
-            const days = (rule.daysOfWeek || []).join(', ');
-            const times = [
-                rule.stopTime ? `Stop ${rule.stopTime}` : null,
-                rule.startTime ? `Start ${rule.startTime}` : null
-            ].filter(Boolean).join(' → ');
-            return `${days} · ${times} · ${rule.timezone}`;
-        }
-        return rule.accessGrantMode === 'LOCK_ACQUIRE' ? 'On lock acquire' : 'On access approved';
-    }
-
-    // ============= Table events =============
-
-    function bindTableEvents() {
-        // Delegated from the stable #ar-table-wrapper (not recreated on filter/page
-        // changes) and re-bound with .off() first, since renderTableAndPagination()
-        // calls this on every filter/page change — without .off(), handlers would stack.
-        const $wrapper = $('#ar-table-wrapper');
-
-        $wrapper.off('click.arEdit', '.ar-edit-btn').on('click.arEdit', '.ar-edit-btn', function() {
-            const rule = rules.find(r => r.ruleId === $(this).data('rule-id'));
-            if (rule) openRuleModal(rule);
-        });
-
-        // 'Skip next stop' (E19-T03): a STOP override around the next stop time, with a reason.
-        $wrapper.off('click.arSkip', '.ar-skip-stop-btn').on('click.arSkip', '.ar-skip-stop-btn', function() {
-            const rule = rules.find(r => r.ruleId === $(this).data('rule-id'));
-            if (!rule || !rule.nextStopAt) return;
-            const at = new Date(rule.nextStopAt).getTime();
-            Modals.prompt('Skip next stop', `Why skip the stop at ${Utils.formatDate(rule.nextStopAt)}?`, async (reason) => {
+    function bind() {
+        const NS = '.automationRules';
+        const $view = $('#automation-rules-view');
+        $view.off(NS)
+            .on('click' + NS, '#ar-new-rule-btn', () => openRuleModal(null))
+            .on('click' + NS, '[data-ar-tab]', function() { selectTab(this.dataset.arTab); })
+            .on('keydown' + NS, '[data-ar-tab]', function(e) {
+                const i = TABS.findIndex(t => t.key === this.dataset.arTab);
+                const next = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : null;
+                if (next === null) return;
+                e.preventDefault();
+                const key = TABS[(next + TABS.length) % TABS.length].key;
+                selectTab(key);
+                document.getElementById(`ar-tab-${key}`).focus();
+            })
+            .on('click' + NS, '[data-action="ar-page"]', function() {
+                currentPage = Number(this.dataset.page) || 1;
+                renderSchedules();
+            })
+            .on('click' + NS, '.ar-edit-btn', function() {
+                const rule = rules.find(r => r.ruleId === $(this).data('rule-id'));
+                if (rule) openRuleModal(rule);
+            })
+            // 'Skip next stop' (E19-T03): a STOP override around the next stop time, with a reason.
+            .on('click' + NS, '.ar-skip-stop-btn', function() {
+                const rule = rules.find(r => r.ruleId === $(this).data('rule-id'));
+                if (!rule || !rule.nextStopAt) return;
+                const at = new Date(rule.nextStopAt).getTime();
+                Modals.prompt('Skip next stop', `Why skip the stop at ${clockText(rule.nextStopAt)}?`, async (reason) => {
+                    try {
+                        await apiPost(Config.API.automationRules.overrides(rule.ruleId), {
+                            startsAt: new Date(at - 60000).toISOString(),
+                            endsAt: new Date(at + 60000).toISOString(),
+                            skipAction: 'STOP',
+                            reason: reason.trim()
+                        });
+                        Notifications.show('The next stop will be skipped.', 'success');
+                        await refreshRules();
+                    } catch (error) {
+                        Notifications.showError(serverMessage(error, 'Failed to skip the next stop.'));
+                    }
+                }, { required: true, placeholder: 'e.g. release tonight', submitText: 'Skip stop' });
+            })
+            .on('click' + NS, '.ar-delete-btn', function() {
+                const ruleId = $(this).data('rule-id');
+                const rule = rules.find(r => r.ruleId === ruleId);
+                if (!rule) return;
+                DestructiveConfirm.confirmDeleteAutomationRule(rule.name, async function() {
+                    try {
+                        await apiDelete(Config.API.automationRules.delete(ruleId));
+                        Notifications.show('Automation rule deleted.', 'success');
+                        await refreshRules();
+                    } catch (error) {
+                        Notifications.showError('Failed to delete automation rule.');
+                    }
+                });
+            })
+            .on('change' + NS, '.ar-toggle-enabled', async function() {
+                const ruleId = $(this).data('rule-id');
+                const enabled = $(this).is(':checked');
                 try {
-                    await apiPost(Config.API.automationRules.overrides(rule.ruleId), {
-                        startsAt: new Date(at - 60000).toISOString(),
-                        endsAt: new Date(at + 60000).toISOString(),
-                        skipAction: 'STOP',
-                        reason: reason.trim()
-                    });
-                    Notifications.show('The next stop will be skipped.', 'success');
+                    await apiPatch(Config.API.automationRules.setEnabled(ruleId), { enabled });
                     await refreshRules();
                 } catch (error) {
-                    Notifications.showError(serverMessage(error, 'Failed to skip the next stop.'));
-                }
-            }, { required: true, placeholder: 'e.g. release tonight', submitText: 'Skip stop' });
-        });
-
-        $wrapper.off('click.arDelete', '.ar-delete-btn').on('click.arDelete', '.ar-delete-btn', function() {
-            const ruleId = $(this).data('rule-id');
-            const rule = rules.find(r => r.ruleId === ruleId);
-            if (!rule) return;
-            DestructiveConfirm.confirmDeleteAutomationRule(rule.name, async function() {
-                try {
-                    await apiDelete(Config.API.automationRules.delete(ruleId));
-                    Notifications.show('Automation rule deleted.', 'success');
-                    await refreshRules();
-                } catch (error) {
-                    Notifications.showError('Failed to delete automation rule.');
+                    // e.g. "This rule cannot be enabled: Environment deactivated"
+                    Notifications.showError(serverMessage(error, 'Failed to update rule status.'));
+                    $(this).prop('checked', !enabled);
                 }
             });
-        });
-
-        $wrapper.off('change.arToggle', '.ar-toggle-enabled').on('change.arToggle', '.ar-toggle-enabled', async function() {
-            const ruleId = $(this).data('rule-id');
-            const enabled = $(this).is(':checked');
-            try {
-                await apiPatch(Config.API.automationRules.setEnabled(ruleId), { enabled });
-                await refreshRules();
-            } catch (error) {
-                // e.g. "This rule cannot be enabled: Environment deactivated"
-                Notifications.showError(serverMessage(error, 'Failed to update rule status.'));
-                $(this).prop('checked', !enabled);
-            }
-        });
     }
 
     // Writes show their own message (the server's reason), so no second, global toast.
@@ -1096,7 +1044,8 @@ const AutomationRules = (function() {
     }
 
     return {
-        load
+        load,
+        model: { clockText, nextText, countsOf, skippedDay, scheduleLine, accessLine, hhmm, windowsOf }
     };
 })();
 

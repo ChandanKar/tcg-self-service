@@ -1,0 +1,58 @@
+/**
+ * Week strip (U12-T02): a schedule as Mon–Sun rows on a 0–24 h scale (js/ui/week-strip.js).
+ */
+
+.week-strip {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.week-row {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    align-items: center;
+    gap: 6px;
+}
+
+.week-day {
+    font-size: var(--fs-caption);
+    color: var(--text-secondary);
+}
+
+.week-track {
+    position: relative;
+    height: 8px;
+    border-radius: 2px;
+    background: var(--surface-muted);
+}
+
+.week-bar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    border-radius: 2px;
+    background: var(--brand-navy);
+}
+
+.week-bar.week-mark {
+    min-width: 3px;
+}
+
+.week-bar.week-skipped {
+    background: var(--brand-gold);
+}
+
+.week-off .week-bar {
+    background: var(--line-strong);
+}
+
+.week-ticks {
+    display: flex;
+    justify-content: space-between;
+    margin-left: 34px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-secondary);
+}

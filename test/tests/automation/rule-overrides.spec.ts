@@ -47,8 +47,8 @@ test.describe('Rule overrides', () => {
     expect(rule.nextStopAt).toBeTruthy();
 
     await openAutomation(page);
-    await page.locator('#ar-filter-search').fill(name);
-    const row = page.locator('#ar-table-wrapper tr', { hasText: name });
+    // U12-T02: no search box; a new schedule is listed first.
+    const row = page.locator('#ar-table-wrapper .ar-rule', { hasText: name });
     await expect(row).toHaveCount(1);
 
     await row.getByRole('button', { name: `Skip next stop of ${name}` }).click();

@@ -65,7 +65,7 @@ test.describe('Page header', () => {
 
   test('a page not migrated yet shows its title in the new type, without an icon; the tab says Self-Service', async ({ page }) => {
     test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
-    await go(page, 'admin', '#/automation-rules');
+    await go(page, 'admin', '#/chargeback'); // Automation rules moved to the new header in U12-T02
     const h1 = page.locator('#content-area .content-header h1').first();
     await expect(h1).toBeVisible({ timeout: 15_000 });
     await expect(h1).toHaveCSS('font-size', '28px');
