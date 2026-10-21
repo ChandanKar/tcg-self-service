@@ -1,13 +1,155 @@
 /*
- * Teams page (E23-T03): the list beside the selected team's details.
+ * Teams (E23-T03, U13-T07 Teams.dc.html): a card per team, two to a row at 1440, with its
+ * environments' power strips and this month's VM hours; the opened team's details below.
  */
-.teams-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-    gap: 0.75rem;
-    align-items: start;
+
+.teams-page {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
 }
 
+.teams-page .content-header {
+    margin-bottom: 0;
+}
+
+.tm-gaps {
+    margin: 0;
+    padding: 8px 12px;
+    border-radius: 9px;
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
+    font-size: var(--fs-small);
+}
+
+.tm-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.tm-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px 18px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+}
+
+.tm-card-open {
+    border-color: var(--brand-navy);
+    box-shadow: inset 3px 0 0 var(--brand-gold);
+}
+
+.tm-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.tm-head h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.tm-mono {
+    font-family: var(--font-mono);
+}
+
+.tm-cc,
+.tm-members {
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.tm-envs {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.tm-env {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    font-size: var(--fs-body);
+}
+
+.tm-env a {
+    color: var(--ink);
+    text-decoration: none;
+}
+
+.tm-env a:hover {
+    text-decoration: underline;
+}
+
+.tm-env-none,
+.tm-quota-none {
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.tm-quota {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.tm-quota-line {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.tm-quota-line .tm-mono {
+    color: var(--ink);
+}
+
+.tm-bar {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--surface-muted);
+    overflow: hidden;
+}
+
+.tm-bar span {
+    display: block;
+    height: 100%;
+    border-radius: 4px;
+    background: var(--brand-navy);
+}
+
+.tm-bar-over span {
+    background: var(--brand-red);
+}
+
+.tm-links {
+    display: flex;
+    gap: 14px;
+}
+
+.tm-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--fs-small);
+    color: var(--brand-navy);
+    cursor: pointer;
+}
+
+.tm-link:hover {
+    text-decoration: underline;
+}
+
+/* The opened team's details (members, Entra group, quotas) until U13-T08's team page */
 .team-members li {
     padding: 0.25rem 0;
     border-bottom: 1px solid var(--border-color);
@@ -17,13 +159,8 @@
     color: var(--brand-navy-hover);
 }
 
-#teams-table .btn-link {
-    color: var(--brand-navy-hover);
-    text-align: left;
-}
-
 @media (max-width: 991.98px) {
-    .teams-layout {
+    .tm-grid {
         grid-template-columns: minmax(0, 1fr);
     }
 }

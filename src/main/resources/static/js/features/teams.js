@@ -1,12 +1,15 @@
 /**
- * Teams page (E23-T03): teams that own environments and are charged for them. Admins create,
- * rename and deactivate teams, link an Entra group (members sync from it when directory lookup
- * and the team sync are on), and add or remove members by hand.
+ * Teams page (E23-T03, U13-T07 Teams.dc.html): one card per team with its cost centre, members
+ * ("6 people · synced from Entra group "Payments Engineering""), each environment with its power
+ * strip, and this month's VM hours against the team's limit (red over 90%; no bar while quotas are
+ * off), 6 cards a page. Admins create and edit teams; Members and Environments open the team's
+ * detail below the cards (members by hand, the Entra group, quotas) until U13-T08's page.
  */
 const Teams = (function() {
     'use strict';
 
     const QUIET = { suppressGlobalError: true };
+    const PAGE_SIZE = 6;
     let pageToken = null;
     let state = null;
 
@@ -20,48 +23,72 @@ const Teams = (function() {
         return (error && error.responseJSON && error.responseJSON.message) || fallback;
     }
 
+    // ---- pure model (node tests: src/test/js/teams-cards.test.mjs) ----
+
+    /** "6 people · synced from Entra group "Payments Engineering"" */
+    function membersText(team) {
+        const n = team.memberCount || 0;
+        const people = `${n} ${n === 1 ? 'person' : 'people'}`;
+        if (!team.entraGroupId) return people;
+        return `${people} · synced from Entra group "${team.entraGroupName || 'linked group'}"`;
+    }
+
+    /** The VM-hours quota as {used, limit, percent, text, label, over}, or null without one. */
+    function vmHours(team) {
+        const q = (team.quotas || []).find(x => x.metric === 'VM_HOURS' && x.active !== false);
+        if (!q) return null;
+        const used = Math.round(Number(q.used || 0));
+        const limit = Math.round(Number(q.limit || 0));
+        const percent = limit > 0 ? Math.round((used / limit) * 100) : 0;
+        return { used, limit, percent, over: percent > 90,
+            text: `${used.toLocaleString('en-US')} / ${limit.toLocaleString('en-US')}`,
+            label: `${percent}% of the monthly VM hours used` };
+    }
+
+    // ---- page ----
+
     function load() {
         pageToken = ContentRouter.token();
         if (!Auth.isAdmin()) {
             $('#content-area').html('<div class="alert alert-danger m-3">Access denied. Admin only.</div>');
             return;
         }
-        state = { teams: null, selectedId: null, members: [], users: null, error: false };
+        // ?team=<id> opens that team's details (and the page with its card).
+        const q = ContentRouter.query ? ContentRouter.query() : {};
+        state = { teams: null, environments: {}, selectedId: q.team || null, members: [], users: null, error: false, page: 1 };
         $('#content-area').html(`
             <div class="content-view teams-page" id="teams-view">
-                <div class="content-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <div>
-                        <h1><i class="fas fa-users me-2" aria-hidden="true"></i>Teams ${typeof HelpLink !== 'undefined' ? HelpLink.button('teams', 'Teams') : ''}</h1>
-                        <p class="text-muted mb-0">Teams own environments; costs and budgets are reported per team</p>
-                    </div>
-                    <button type="button" class="btn btn-primary" data-action="team-new"><i class="fas fa-plus" aria-hidden="true"></i> New team</button>
-                </div>
+                ${PageHeader.markup({ title: 'Teams',
+                    summaryHtml: "Who owns which environments, which cost centre pays, and each team's monthly limit.",
+                    actionsHtml: `<button type="button" class="btn btn-primary" data-action="team-new">
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"></path></svg>
+                        New team</button>`,
+                    helpPage: typeof HelpLink !== 'undefined' ? 'teams' : null, helpLabel: 'Teams' })}
                 <div id="teams-gaps"></div>
-                <div class="teams-layout">
-                    <div id="teams-list"><div class="text-muted small p-2"><i class="fas fa-spinner fa-spin me-1" aria-hidden="true"></i>Loading teams…</div></div>
-                    <div id="team-detail"></div>
-                </div>
+                <div id="teams-list"><div class="ar-empty" role="status">Loading teams…</div></div>
+                <div id="team-detail"></div>
             </div>`);
         refresh();
         drawGaps();
     }
 
-    /** Environments missing required allocation fields, with an Edit link (E23-T04). */
+    /** Environments missing required allocation fields, as one line with links (E23-T04). */
     function drawGaps() {
         call('GET', Config.API.teams.allocationGaps).then(gaps => {
             if (!gaps || !gaps.length) { $('#teams-gaps').html(''); return; }
-            $('#teams-gaps').html(Utils.html`<div class="alert alert-warning" role="status">
-                <strong>${gaps.length} environment${gaps.length === 1 ? '' : 's'} missing allocation fields:</strong>
-                <ul class="mb-0">${Utils.raw(gaps.slice(0, 10).map(g => Utils.html`<li><a href="#/environments/${g.environmentId}">${g.name}</a>
-                    — ${g.missing.join(', ')}</li>`).join(''))}</ul></div>`);
+            const shown = gaps.slice(0, 5).map(g => Utils.html`<a href="#/environments/${g.environmentId}">${g.name}</a> (${g.missing.join(', ')})`).join(', ');
+            $('#teams-gaps').html(Utils.html`<p class="tm-gaps" role="status"><strong>${gaps.length} environment${gaps.length === 1 ? '' : 's'} missing allocation fields:</strong>
+                ${Utils.raw(shown)}${gaps.length > 5 ? ` and ${gaps.length - 5} more` : ''}</p>`);
         }).catch(() => {});
     }
 
     function refresh() {
         const token = pageToken;
-        call('GET', Config.API.teams.list(true)).then(teams => {
+        Promise.all([call('GET', Config.API.teams.overview), call('GET', Config.API.environments.list).catch(() => [])]).then(([teams, envs]) => {
             if (!ContentRouter.isCurrent(token)) return;
             state.teams = teams || [];
+            state.environments = {};
+            (Array.isArray(envs) ? envs : []).forEach(e => { state.environments[e.environmentId] = e; });
             state.error = false;
             drawList();
             if (state.selectedId) select(state.selectedId);
@@ -72,21 +99,50 @@ const Teams = (function() {
         });
     }
 
+    function stripHtml(environmentId) {
+        const env = state.environments[environmentId];
+        if (!env || typeof PowerStrip === 'undefined') return '';
+        return PowerStrip.render(PowerStrip.fromGroupStates(env.groupStates || []), {});
+    }
+
+    function cardHtml(t) {
+        const quotasOn = typeof Capabilities !== 'undefined' && Capabilities.has('quotas');
+        const hours = vmHours(t);
+        const envs = (t.environments || []).length ? t.environments.map(e => Utils.html`<div class="tm-env">
+                <a href="#/environments/${e.environmentId}">${e.displayName || e.name}</a>${Utils.raw(stripHtml(e.environmentId))}</div>`).join('')
+            : Utils.html`<div class="tm-env-none">No environments yet. <button type="button" class="tm-link" data-action="team-envs" data-id="${t.teamId}">Add environments</button></div>`;
+        let quota = '';
+        if (quotasOn) {
+            quota = hours ? Utils.html`<div class="tm-quota">
+                    <div class="tm-quota-line"><span>VM hours this month</span><span class="tm-mono">${hours.text}</span></div>
+                    <div class="tm-bar${Utils.raw(hours.over ? ' tm-bar-over' : '')}" role="img" aria-label="${hours.label}"><span style="width:${Math.min(100, hours.percent)}%"></span></div>
+                </div>` : '<div class="tm-quota tm-quota-none">No monthly limit</div>';
+        }
+        return Utils.html`<article class="tm-card${Utils.raw(t.teamId === state.selectedId ? ' tm-card-open' : '')}" data-team-id="${t.teamId}">
+                <div class="tm-head"><h2>${t.displayName}</h2>${Utils.raw(t.costCenter ? Utils.html`<span class="tm-mono tm-cc">${t.costCenter}</span>` : '')}</div>
+                <div class="tm-members">${membersText(t)}</div>
+                <div class="tm-envs">${Utils.raw(envs)}</div>
+                ${Utils.raw(quota)}
+                <div class="tm-links">
+                    <button type="button" class="tm-link" data-action="team-edit-card" data-id="${t.teamId}" aria-label="Edit ${t.displayName}">Edit</button>
+                    <button type="button" class="tm-link" data-action="team-select" data-id="${t.teamId}" aria-label="Members of ${t.displayName}">Members</button>
+                    <button type="button" class="tm-link" data-action="team-envs" data-id="${t.teamId}" aria-label="Environments of ${t.displayName}">Environments</button>
+                </div>
+            </article>`;
+    }
+
     function drawList() {
-        const rows = state.teams.length ? state.teams.map(t => Utils.html`
-            <tr class="${t.teamId === state.selectedId ? 'table-active' : ''} ${t.active ? '' : 'text-muted'}">
-                <td data-label="Team"><button type="button" class="btn btn-link p-0 fw-semibold" data-action="team-select" data-id="${t.teamId}">${t.displayName}</button>
-                    <div class="small text-muted">${t.name}${t.active ? '' : ' · inactive'}</div></td>
-                <td data-label="Cost center">${t.costCenter || '—'}</td>
-                <td data-label="Environments">${t.environmentCount}</td>
-                <td data-label="Members">${t.memberCount}</td>
-                <td data-label="Entra group">${t.entraGroupId ? Utils.raw('<i class="fas fa-link" aria-hidden="true"></i> linked') : '—'}</td>
-            </tr>`).join('')
-            : '<tr><td colspan="5" class="text-muted text-center py-3">No teams yet</td></tr>';
-        $('#teams-list').html(`<section class="card"><div class="card-body">
-            <div class="table-responsive"><table class="table table-sm table-cards mb-0" id="teams-table">
-                <thead><tr><th>Team</th><th>Cost center</th><th>Environments</th><th>Members</th><th>Entra group</th></tr></thead>
-                <tbody>${rows}</tbody></table></div></div></section>`);
+        const teams = state.teams;
+        if (!teams.length) {
+            $('#teams-list').html('<div class="ar-empty">No teams yet. Add one with New team, then give it environments and people.</div>');
+            return;
+        }
+        const pages = Math.max(1, Math.ceil(teams.length / PAGE_SIZE));
+        state.page = Math.min(Math.max(1, state.page), pages);
+        const items = Pagination.slice(teams, state.page, PAGE_SIZE);
+        $('#teams-list').html(`<div class="tm-grid" id="teams-cards">${items.map(cardHtml).join('')}</div>
+            ${teams.length > PAGE_SIZE ? Pagination.buildPager({ page: state.page, pageSize: PAGE_SIZE, totalItems: teams.length,
+                action: 'team-page', key: 'teams' }) : ''}`);
     }
 
     function select(teamId) {
@@ -96,6 +152,7 @@ const Teams = (function() {
             $('#team-detail').html('');
             return;
         }
+        state.page = Math.floor(state.teams.indexOf(team) / PAGE_SIZE) + 1; // the opened team's card is on the page shown
         drawList();
         const token = pageToken;
         Promise.allSettled([call('GET', Config.API.teams.members(teamId)),
@@ -105,6 +162,8 @@ const Teams = (function() {
             if (users.status === 'fulfilled') state.users = users.value || [];
             drawDetail(team, members.status === 'rejected');
             drawQuotas(teamId);
+            const el = document.getElementById('team-detail');
+            if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
         });
     }
 
@@ -129,7 +188,7 @@ const Teams = (function() {
                 </div>
                 <h3 class="h6 mt-3">Entra group</h3>
                 <div class="small mb-2">${team.entraGroupId
-                    ? Utils.raw(Utils.html`Linked to <code>${team.entraGroupId}</code>
+                    ? Utils.raw(Utils.html`Linked to ${team.entraGroupName || team.entraGroupId}
                         <button type="button" class="btn btn-sm btn-ghost" data-action="team-sync">Sync now</button>
                         <button type="button" class="btn btn-sm btn-ghost" data-action="team-unlink">Unlink</button>`)
                     : 'Not linked: members are managed here by hand.'}</div>
@@ -315,14 +374,21 @@ const Teams = (function() {
 
     return {
         load, refresh, select, openForm, deactivate, searchGroups, link, sync, addMember, removeMember, options, markRequired, saveQuotas,
-        edit: () => openForm(selectedTeam())
+        edit: () => openForm(selectedTeam()),
+        editTeam: id => openForm((state.teams || []).find(t => t.teamId === id)),
+        page: n => { state.page = n; drawList(); },
+        model: { membersText, vmHours }
     };
 })();
 
-window.Teams = Teams;
+if (typeof window !== 'undefined') window.Teams = Teams;
 
-Actions.registerAll({
+if (typeof Actions !== 'undefined') Actions.registerAll({
     'team-new': () => Teams.openForm(null),
+    'team-edit-card': el => Teams.editTeam(el.dataset.id),
+    // Environments open the team below the cards until U13-T08's team page.
+    'team-envs': el => Teams.select(el.dataset.id),
+    'team-page': el => Teams.page(Number(el.dataset.page) || 1),
     'team-refresh': () => Teams.refresh(),
     'team-select': el => Teams.select(el.dataset.id),
     'team-edit': () => Teams.edit(),

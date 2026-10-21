@@ -75,11 +75,12 @@ test.describe('Team quotas', () => {
   });
 
   test('an admin sets a cost quota on the Teams page and sees the usage bar in dollars', async ({ page, playwright }) => {
-    const { teamName } = await teamWithEnv(playwright, 'Quota edit');
+    const { teamId, teamName } = await teamWithEnv(playwright, 'Quota edit');
     await signIn(page, 'admin');
     await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
-    await page.evaluate(() => { location.hash = '#/teams'; });
-    await page.locator('[data-action="team-select"]', { hasText: teamName }).click();
+    // U13-T07: #/teams?team=<id> opens the team (its card's page and its quotas below the cards).
+    await page.evaluate(id => { location.hash = '#/teams?team=' + id; }, teamId);
+    await expect(page.locator('.tm-card-open')).toContainText(teamName, { timeout: 15_000 });
     await expect(page.locator('#team-quotas')).toContainText('No quotas', { timeout: 10_000 });
 
     await page.locator('#quota-on-COST').check();
