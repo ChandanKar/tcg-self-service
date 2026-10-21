@@ -140,3 +140,102 @@ test.describe('Route params and deep links', () => {
     await expect(page).toHaveURL(/#\/cost-management\?idle=1$/);
   });
 });
+
+/**
+ * U11-T06 (EnvSettings.dc.html): #/environments/<id>/settings[/<section>]. Details saved in one PUT,
+ * sections in the address, Discard changes? before leaving unsaved edits, Deactivate after typing the
+ * short name, and the role guard. Each test seeds its own environment.
+ */
+test.describe('Environment settings', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.admin || !devIds.user || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID and TEST_DEV_USER_ID (dev mode)');
+  });
+
+  async function seedEnv(playwright: any) {
+    const admin = await api(playwright, devIds.admin);
+    const stamp = Date.now();
+    const env = await (await admin.post('/api/v1/environments', {
+      data: { name: `settings-e2e-${stamp}`, displayName: `Settings E2E ${stamp}`, description: 'Before', cloudProvider: 'AWS' },
+    })).json();
+    await admin.dispose();
+    return env;
+  }
+
+  async function open(page: Page, hash: string) {
+    await signIn(page, 'admin');
+    await waitForRouter(page);
+    await page.evaluate(h => { location.hash = h; }, hash);
+  }
+
+  test('Details: one PUT with what changed, Settings saved, the section in the address', async ({ page, playwright }) => {
+    const env = await seedEnv(playwright);
+    const puts: any[] = [];
+    page.on('request', r => { if (r.method() === 'PUT' && r.url().endsWith(`/environments/${env.environmentId}`)) puts.push(r.postDataJSON()); });
+    await open(page, `#/environments/${env.environmentId}/settings`);
+
+    await expect(page.locator('#content-area h1')).toHaveText(`${env.displayName} settings`, { timeout: 15_000 });
+    await expect(page.locator('.page-breadcrumb')).toHaveText(new RegExp(`VM registry\\s*/\\s*${env.displayName}\\s*/\\s*Settings`));
+    await expect(page.locator('.es-nav-item[aria-current="page"]')).toHaveText('Details');
+    await expect(page.locator('#es-short')).toHaveValue(env.name);
+    await expect(page.locator('#es-short')).toBeDisabled();
+    await expect(page.locator('#es-save-btn')).toBeDisabled();
+    await expect(page.locator('.es-tag code').first()).toHaveText(/managed-by$/);
+
+    await page.locator('#es-description').fill('Development stack for the payments service');
+    await expect(page.locator('#es-save-note')).toHaveText('You have unsaved changes.');
+    await page.locator('#es-save-btn').click();
+    await expect(page.getByText('Settings saved')).toBeVisible();
+    expect(puts).toEqual([{ description: 'Development stack for the payments service' }]);
+    await expect(page.locator('#es-save-btn')).toBeDisabled();
+
+    const admin = await api(playwright, devIds.admin);
+    expect((await (await admin.get(`/api/v1/environments/${env.environmentId}`)).json()).description)
+      .toBe('Development stack for the payments service');
+    await admin.dispose();
+
+    // An unsaved edit asks before another section opens; the section is in the address.
+    await page.locator('#es-display').fill('Renamed');
+    await page.locator('[data-es-section="deactivate"]').click();
+    await expect(page.locator('.modal.show .modal-title')).toHaveText('Discard changes?');
+    await page.locator('.modal.show .btn-danger').click();
+    await expect(page.locator('#es-panel h2')).toHaveText('Deactivate');
+    await expect(page).toHaveURL(new RegExp(`#/environments/${env.environmentId}/settings/deactivate$`));
+  });
+
+  test('Deactivate only after the short name is typed, then back to the registry', async ({ page, playwright }) => {
+    const env = await seedEnv(playwright);
+    await open(page, `#/environments/${env.environmentId}/settings/deactivate`);
+
+    await expect(page.locator('#es-panel h2')).toHaveText('Deactivate', { timeout: 15_000 });
+    await expect(page.locator('#es-panel')).toContainText('VMs keep running in AWS; stop them first if you want them off.');
+    const button = page.locator('#es-deactivate');
+    await expect(button).toHaveText(`Deactivate ${env.displayName}`);
+    await expect(button).toBeDisabled();
+    await page.locator('#es-confirm').fill('not-the-name');
+    await expect(button).toBeDisabled();
+    await page.locator('#es-confirm').fill(env.name);
+    await expect(button).toBeEnabled();
+    await button.click();
+
+    await expect(page).toHaveURL(/#\/vm-registry$/, { timeout: 10_000 });
+    const admin = await api(playwright, devIds.admin);
+    expect((await (await admin.get(`/api/v1/environments/${env.environmentId}`)).json()).isActive).toBe(false);
+    await admin.dispose();
+  });
+
+  test('the registry opens it; users get the no-access page', async ({ page, playwright }) => {
+    const env = await seedEnv(playwright);
+    await open(page, `#/vm-registry?env=${env.environmentId}`);
+    await expect(page.locator('#vr-sel-title')).toHaveText(env.displayName, { timeout: 15_000 });
+    await page.locator('#vr-detail-head [data-action="vr-edit-environment"]').click();
+    await expect(page).toHaveURL(new RegExp(`#/environments/${env.environmentId}/settings$`));
+    await expect(page.locator('.sidebar-menu-link[data-content="vm-registry"]')).toHaveClass(/active/);
+
+    await page.context().clearCookies();
+    await signIn(page, 'user');
+    await waitForRouter(page);
+    await page.evaluate(h => { location.hash = h; }, `#/environments/${env.environmentId}/settings`);
+    await expect(page.locator('[data-no-access] h1').first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('#es-panel')).toHaveCount(0);
+  });
+});

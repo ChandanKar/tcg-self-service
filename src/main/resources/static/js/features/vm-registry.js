@@ -450,42 +450,6 @@ const VmRegistry = (function() {
         Modals.showCreateEnvironment(function() { loadEnvironmentsData(); });
     }
 
-    async function editEnvironment(environmentId) {
-        const cached = window.VmRegistryState.environments.find(e => e.environmentId === environmentId);
-        if (cached) {
-            Modals.showEditEnvironment(cached, function() { loadEnvironmentsData(); });
-            return;
-        }
-        try {
-            Loading.show('Loading environment...');
-            const env = await ApiClient.get(`/api/v1/environments/${environmentId}`);
-            Loading.hide();
-            Modals.showEditEnvironment(env, function() { loadEnvironmentsData(); });
-        } catch (error) {
-            console.error('Failed to load environment:', error);
-            Notifications.error('Failed to load environment');
-            Loading.hide();
-        }
-    }
-
-    async function deleteEnvironment(environmentId) {
-        const env = window.VmRegistryState.environments.find(e => e.environmentId === environmentId);
-        if (!env) return;
-        DestructiveConfirm.confirmDeleteEnvironment(env.displayName, env.vmCount || 0, async function() {
-            try {
-                Loading.show('Deactivating...');
-                await ApiClient.delete(`/api/v1/environments/${environmentId}`);
-                Notifications.success('Environment deactivated');
-                await loadEnvironmentsData();
-                Loading.hide();
-            } catch (error) {
-                console.error('Failed to deactivate environment:', error);
-                Notifications.error(error.responseJSON?.message || 'Failed to deactivate');
-                Loading.hide();
-            }
-        });
-    }
-
     async function reactivateEnvironment(environmentId) {
         const env = window.VmRegistryState.environments.find(e => e.environmentId === environmentId);
         if (!env) return;
@@ -960,8 +924,6 @@ const VmRegistry = (function() {
         reviewThem,
         addVmsFromAws,
         openCreateEnvironmentModal,
-        editEnvironment,
-        deleteEnvironment,
         reactivateEnvironment,
         manageGroups,
         syncEksNow,
@@ -998,8 +960,8 @@ if (typeof Actions !== 'undefined') {
         'vr-env-page': el => VmRegistry.changeEnvironmentPage(Number(el.dataset.page)),
         'vr-review-them': () => VmRegistry.reviewThem(),
         'vr-add-vms': () => VmRegistry.addVmsFromAws(),
-        'vr-edit-environment': el => VmRegistry.editEnvironment(el.dataset.envId),
-        'vr-delete-environment': el => VmRegistry.deleteEnvironment(el.dataset.envId),
+        'vr-edit-environment': el => { window.location.hash = `#/environments/${encodeURIComponent(el.dataset.envId)}/settings`; },
+        'vr-delete-environment': el => { window.location.hash = `#/environments/${encodeURIComponent(el.dataset.envId)}/settings/deactivate`; },
         'vr-reactivate-environment': el => VmRegistry.reactivateEnvironment(el.dataset.envId),
         'vr-sync-eks': () => VmRegistry.syncEksNow(),
         'vr-edit-vm': el => VmRegistry.editVm(el.dataset.vmId),

@@ -65,6 +65,14 @@ const ContentRouter = (function() {
             params: m => ({ environmentId: decodeURIComponent(m[1]) })
         },
         {
+            // An environment's settings, optionally at one section (U11-T06).
+            contentType: 'environment-settings',
+            pattern: /^#\/environments\/([^/?]+)\/settings(?:\/([a-z-]+))?$/,
+            build: p => (p && p.environmentId) ? '#/environments/' + encodeURIComponent(p.environmentId) + '/settings'
+                + (p.section ? '/' + p.section : '') : null,
+            params: m => ({ environmentId: decodeURIComponent(m[1]), section: m[2] || null })
+        },
+        {
             // Add VMs to an environment (U11-T04).
             contentType: 'register-vms',
             pattern: /^#\/vm-registry\/([^/?]+)\/add$/,
@@ -109,6 +117,7 @@ const ContentRouter = (function() {
         'access-management':  { role: 'ENV_ADMIN', label: 'Access management' },
         'access-grant':       { role: 'ENV_ADMIN', label: 'Grant access' },
         'register-vms':       { role: 'ENV_ADMIN', label: 'Add VMs' },
+        'environment-settings': { role: 'ENV_ADMIN', label: 'Environment settings' },
         'vm-registry':        { role: 'ENV_ADMIN', label: 'VM registry' },
         'automation-rules':   { role: 'ENV_ADMIN', label: 'Automation rules' },
         'approval-policies':  { role: 'ENV_ADMIN', label: 'Approval policies' },
@@ -191,6 +200,7 @@ const ContentRouter = (function() {
             'access-grant':       () => window.GrantAccessPage?.load?.(query()),
             'vm-registry':        () => window.VmRegistry?.load?.(),
             'register-vms':       (params) => window.RegisterVmsPage?.load?.(params, query()),
+            'environment-settings': (params) => window.EnvSettings?.load?.(params),
             'automation-rules':   () => window.Features?.loadAutomationRules?.(),
             'audit-logs-all':     () => AllLogs.loadAllAuditLogs(),
             'cost-management':    () => window.CostManagement?.load?.(),

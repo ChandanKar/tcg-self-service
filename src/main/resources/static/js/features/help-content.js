@@ -505,6 +505,7 @@ const HelpContent = (function() {
         'access-grant': 'access',
         'vm-registry': 'vm-registry',
         'register-vms': 'vm-registry',
+        'environment-settings': 'vm-registry',
         'automation-rules': 'automation-rules',
         'approval-policies': 'approvals',
         'budgets': 'budgets',

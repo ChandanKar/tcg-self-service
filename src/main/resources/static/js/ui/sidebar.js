@@ -162,7 +162,7 @@ const Sidebar = (function() {
         // Add VMs under VM registry.
         const key = contentType === 'environment-detail' ? 'my-environments'
             : contentType === 'access-grant' ? 'access-management'
-            : contentType === 'register-vms' ? 'vm-registry' : contentType;
+            : contentType === 'register-vms' || contentType === 'environment-settings' ? 'vm-registry' : contentType;
         $('.sidebar-menu-link').removeClass('active').removeAttr('aria-current');
         $(`.sidebar-menu-link[data-content="${key}"]`).addClass('active').attr('aria-current', 'page');
 

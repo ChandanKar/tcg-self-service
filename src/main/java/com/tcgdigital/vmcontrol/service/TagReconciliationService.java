@@ -197,6 +197,16 @@ public class TagReconciliationService {
         return new Result(tagged, failed, vms.size());
     }
 
+    /** Whether cost-allocation tags are being applied (cost.tagging.enabled, live). */
+    public boolean isTaggingEnabled() {
+        return live("cost.tagging.enabled", taggingEnabled);
+    }
+
+    /** The cost-allocation tags put on every VM of the environment (U11-T06's Details shows them). */
+    public Map<String, String> tagsFor(Environment environment) {
+        return buildTags(environment);
+    }
+
     private Map<String, String> buildTags(Environment environment) {
         Map<String, String> tags = new LinkedHashMap<>();
         tags.put(tagKeyPrefix + "managed-by", MANAGED_BY_VALUE);

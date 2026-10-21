@@ -107,6 +107,9 @@ const Config = (function() {
             update: (id) => `${API_BASE_URL}/environments/${id}`,
             delete: (id) => `${API_BASE_URL}/environments/${id}`,
             reactivate: (id) => `${API_BASE_URL}/environments/${id}/reactivate`,
+            // U11-T06: the production mark (administrators) and the cost tags on every VM
+            production: (id) => `${API_BASE_URL}/environments/${encodeURIComponent(id)}/production`,
+            costTags: (id) => `${API_BASE_URL}/environments/${encodeURIComponent(id)}/cost-tags`,
             notifyStop: (id) => `${API_BASE_URL}/environments/${id}/notify-stop`,
             // U11-T02: how many people the stop notice reaches; VMs needing a look per environment
             notifyStopAudience: (id) => `${API_BASE_URL}/environments/${id}/notify-stop/audience`,

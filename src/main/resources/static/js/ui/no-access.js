@@ -34,6 +34,13 @@ const NoAccessPage = (function() {
                     hint: 'An administrator can turn it on in Settings.',
                     actions: [HOME, ENVIRONMENTS]
                 };
+            case 'environment-admin':
+                return {
+                    title: `${page} are for the environment's admins`,
+                    body: 'You can see this environment, but only the people who look after it can change its settings. Nothing was changed.',
+                    hint: 'If you need to change it, ask one of its admins or your platform administrator.',
+                    actions: [HOME, ENVIRONMENTS]
+                };
             case 'environment':
                 return {
                     title: "You can't open this environment",

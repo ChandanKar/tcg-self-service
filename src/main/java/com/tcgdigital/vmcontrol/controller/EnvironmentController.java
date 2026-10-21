@@ -51,6 +51,7 @@ public class EnvironmentController {
 
     private final com.tcgdigital.vmcontrol.service.LeaseService leaseService;
     private final com.tcgdigital.vmcontrol.service.VmService vmService;
+    private final com.tcgdigital.vmcontrol.service.TagReconciliationService tagReconciliationService;
 
     public EnvironmentController(EnvironmentService environmentService,
                                  SecurityService securityService,
@@ -61,9 +62,11 @@ public class EnvironmentController {
                                  EnvironmentAccessService environmentAccessService,
                                  com.tcgdigital.vmcontrol.service.EnvironmentCostService environmentCostService,
                                  com.tcgdigital.vmcontrol.service.LeaseService leaseService,
-                                 com.tcgdigital.vmcontrol.service.VmService vmService) {
+                                 com.tcgdigital.vmcontrol.service.VmService vmService,
+                                 com.tcgdigital.vmcontrol.service.TagReconciliationService tagReconciliationService) {
         this.leaseService = leaseService;
         this.vmService = vmService;
+        this.tagReconciliationService = tagReconciliationService;
         this.environmentAccessService = environmentAccessService;
         this.environmentCostService = environmentCostService;
         this.environmentService = environmentService;
@@ -619,6 +622,21 @@ public class EnvironmentController {
         securityService.assertCanAdminister(environmentId);
         environmentService.getEnvironmentById(environmentId);
         return ResponseEntity.ok(Map.of("count", notificationService.countStopNoticeAudience(environmentId)));
+    }
+
+    @GetMapping("/{environmentId}/cost-tags")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(summary = "The cost-allocation tags on every VM of the environment (U11-T06)",
+            description = "The tags the platform puts on the environment's VMs for cost allocation (managed-by, "
+                    + "environment, team and the team's cost center), and whether tagging is switched on.")
+    public ResponseEntity<Map<String, Object>> costTags(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId) {
+        securityService.assertCanAdminister(environmentId);
+        Environment environment = environmentService.getEnvironmentById(environmentId);
+        List<Map<String, String>> tags = tagReconciliationService.tagsFor(environment).entrySet().stream()
+                .map(e -> Map.of("key", e.getKey(), "value", e.getValue() == null ? "" : e.getValue()))
+                .toList();
+        return ResponseEntity.ok(Map.of("enabled", tagReconciliationService.isTaggingEnabled(), "tags", tags));
     }
 
     @GetMapping("/review-summary")
