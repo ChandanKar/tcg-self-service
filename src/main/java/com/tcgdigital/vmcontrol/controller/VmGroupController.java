@@ -180,6 +180,27 @@ public class VmGroupController {
                 .body(VmGroupDTO.fromEntity(created));
     }
 
+    @PutMapping("/order")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(summary = "Set the start order (U11-T02)",
+            description = "groupIds lists each group of the environment once, first to start first (the Auto-Discovered "
+                    + "group may be left out). Positions become 1..n in one transaction. A group cannot come before a "
+                    + "group it waits for (400 names the pair).")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "The groups in their new order",
+                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = VmGroupDTO.class)))),
+            @ApiResponse(responseCode = "400", description = "Not every group listed once, or a group before one it waits for")
+    })
+    public ResponseEntity<List<VmGroupDTO>> reorder(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId,
+            @RequestBody java.util.Map<String, List<String>> body) {
+        securityService.assertCanAdminister(environmentId);
+        List<VmGroup> groups = groupService.reorder(environmentId, body == null ? null : body.get("groupIds"),
+                userService.getCurrentUserId());
+        var counts = vmService.getVmCountsByGroupForEnvironment(environmentId);
+        return ResponseEntity.ok(groups.stream().map(group -> withCounts(group, counts)).toList());
+    }
+
     @PutMapping("/{groupId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
     @Operation(

@@ -1064,6 +1064,19 @@ public class NotificationService {
      *
      * @return how many people were emailed
      */
+    /** How many people the stop notice would email (U11-T02): the same recipients notifyStopEnvironment uses. */
+    public int countStopNoticeAudience(String environmentId) {
+        return stopNoticeAddresses(resolveEnvironmentRecipients(environmentId)).size();
+    }
+
+    private List<String> stopNoticeAddresses(List<User> recipients) {
+        return recipients.stream()
+                .filter(user -> user != null && Boolean.TRUE.equals(user.getIsActive()) && !isBlank(user.getEmail()))
+                .map(User::getEmail)
+                .distinct()
+                .toList();
+    }
+
     public int notifyStopEnvironment(String environmentId, String environmentName, String actorUserId, String reason) {
         List<User> recipients = resolveEnvironmentRecipients(environmentId);
         String actorName = resolveUserDisplayName(actorUserId);
@@ -1094,11 +1107,7 @@ public class NotificationService {
             }
         }
 
-        List<String> addresses = recipients.stream()
-                .filter(user -> user != null && Boolean.TRUE.equals(user.getIsActive()) && !isBlank(user.getEmail()))
-                .map(User::getEmail)
-                .distinct()
-                .toList();
+        List<String> addresses = stopNoticeAddresses(recipients);
         if (!addresses.isEmpty()) {
             String subject = "Environment stop notice: " + environmentName;
             emailService.sendHtml(addresses, subject, EmailTemplates.eventEmail(subject,

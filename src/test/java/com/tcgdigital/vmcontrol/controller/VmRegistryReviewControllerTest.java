@@ -10,6 +10,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.util.ReflectionTestUtils;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tcgdigital.vmcontrol.model.AccessLevel;
+import com.tcgdigital.vmcontrol.service.SecurityService;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
@@ -138,5 +144,56 @@ class VmRegistryReviewControllerTest extends SecuredWebTestBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.page.size").value(100));
         expectError(mockMvc.perform(get(base() + "/" + web.getGroupId() + "/page").param("page", "-1").with(asAdmin())), 400);
+    }
+
+    // ---- U11-T02: VMs that need a look, across environments
+
+    @Autowired private SecurityService securityService;
+
+    private JsonNode summary(RequestPostProcessor who) throws Exception {
+        return new ObjectMapper().readTree(mockMvc.perform(get("/api/v1/environments/review-summary").with(who))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+    }
+
+    private static JsonNode row(JsonNode summary, String environmentId) {
+        for (JsonNode r : summary) {
+            if (environmentId.equals(r.get("environmentId").asText())) {
+                return r;
+            }
+        }
+        return null;
+    }
+
+    @Test
+    void theReviewSummaryCountsEachEnvironment() throws Exception {
+        Environment second = newEnvironment("Second");
+        Vm drifted = newVm(newGroup(second, "app"), "drift", VmStatus.RUNNING);
+        jdbcTemplate.update("UPDATE vm SET state_drift_detected = TRUE WHERE vm_id = ?", drifted.getVmId());
+        Environment clean = newEnvironment("Clean");
+        newVm(newGroup(clean, "app"), "fine", VmStatus.RUNNING);
+
+        JsonNode summary = summary(asEnvAdmin());
+
+        assertThat(row(summary, env.getEnvironmentId()).get("name").asText()).isEqualTo("Registry");
+        assertThat(row(summary, env.getEnvironmentId()).get("drift").asLong()).isEqualTo(3);
+        assertThat(row(summary, env.getEnvironmentId()).get("pending").asLong()).isEqualTo(2);
+        assertThat(row(summary, second.getEnvironmentId()).get("drift").asLong()).isEqualTo(1);
+        assertThat(row(summary, second.getEnvironmentId()).get("pending").asLong()).isZero();
+        assertThat(row(summary, clean.getEnvironmentId())).isNull();
+    }
+
+    @Test
+    void theReviewSummaryKeepsToTheEnvironmentsOneAdministers() throws Exception {
+        Object original = ReflectionTestUtils.getField(securityService, "envAdminScope");
+        try {
+            ReflectionTestUtils.setField(securityService, "envAdminScope", "assigned");
+            assertThat(row(summary(asEnvAdmin()), env.getEnvironmentId())).isNull();
+
+            grantEnv(envAdmin, env.getEnvironmentId(), AccessLevel.ADMIN);
+            assertThat(row(summary(asEnvAdmin()), env.getEnvironmentId()).get("drift").asLong()).isEqualTo(3);
+        } finally {
+            ReflectionTestUtils.setField(securityService, "envAdminScope", original);
+        }
+        mockMvc.perform(get("/api/v1/environments/review-summary").with(asUser())).andExpect(status().isForbidden());
     }
 }

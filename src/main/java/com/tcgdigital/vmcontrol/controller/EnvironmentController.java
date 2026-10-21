@@ -50,6 +50,7 @@ public class EnvironmentController {
     private final EnvironmentAccessService environmentAccessService;
 
     private final com.tcgdigital.vmcontrol.service.LeaseService leaseService;
+    private final com.tcgdigital.vmcontrol.service.VmService vmService;
 
     public EnvironmentController(EnvironmentService environmentService,
                                  SecurityService securityService,
@@ -59,8 +60,10 @@ public class EnvironmentController {
                                  UserService userService,
                                  EnvironmentAccessService environmentAccessService,
                                  com.tcgdigital.vmcontrol.service.EnvironmentCostService environmentCostService,
-                                 com.tcgdigital.vmcontrol.service.LeaseService leaseService) {
+                                 com.tcgdigital.vmcontrol.service.LeaseService leaseService,
+                                 com.tcgdigital.vmcontrol.service.VmService vmService) {
         this.leaseService = leaseService;
+        this.vmService = vmService;
         this.environmentAccessService = environmentAccessService;
         this.environmentCostService = environmentCostService;
         this.environmentService = environmentService;
@@ -604,6 +607,27 @@ public class EnvironmentController {
 
         Environment reactivated = environmentService.reactivateEnvironment(environmentId, userService.getCurrentUserId());
         return ResponseEntity.ok(EnvironmentDTO.fromEntity(reactivated));
+    }
+
+    @GetMapping("/{environmentId}/notify-stop/audience")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(summary = "How many people the stop notice reaches (U11-T02)",
+            description = "The number of people notify-stop would email: everyone with active access to the whole "
+                    + "environment, administrators and the environment admins who look after it, with an email address.")
+    public ResponseEntity<Map<String, Integer>> notifyStopAudience(
+            @Parameter(description = "Environment ID") @PathVariable String environmentId) {
+        securityService.assertCanAdminister(environmentId);
+        environmentService.getEnvironmentById(environmentId);
+        return ResponseEntity.ok(Map.of("count", notificationService.countStopNoticeAudience(environmentId)));
+    }
+
+    @GetMapping("/review-summary")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ENV_ADMIN')")
+    @Operation(summary = "VMs that need a look, per environment (U11-T02)",
+            description = "For each environment the caller administers that has any: drifted VMs (cloud state differs) "
+                    + "and VMs found by discovery that wait for a group.")
+    public ResponseEntity<List<com.tcgdigital.vmcontrol.dto.RegistryReviewSummaryDTO>> reviewSummary() {
+        return ResponseEntity.ok(vmService.getReviewSummary(securityService.administeredEnvironmentIdsOrAll()));
     }
 
     @PostMapping("/{environmentId}/notify-stop")

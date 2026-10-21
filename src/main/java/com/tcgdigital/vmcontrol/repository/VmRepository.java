@@ -461,6 +461,19 @@ public interface VmRepository extends JpaRepository<Vm, String> {
            "AND v.isActive = true AND v.discoveryPending = true")
     long countPendingInEnvironment(@Param("envId") String envId);
 
+    /**
+     * Drifted and pending-review VMs per active environment, only where there are any (U11-T02):
+     * rows of [environmentId, displayName, name, drift, pending].
+     */
+    @Query("SELECT e.environmentId, e.displayName, e.name, " +
+           "SUM(CASE WHEN v.stateDriftDetected = true THEN 1 ELSE 0 END), " +
+           "SUM(CASE WHEN v.discoveryPending = true THEN 1 ELSE 0 END) " +
+           "FROM Vm v JOIN v.group g JOIN g.environment e " +
+           "WHERE v.isActive = true AND e.isActive = true " +
+           "AND (v.stateDriftDetected = true OR v.discoveryPending = true) " +
+           "GROUP BY e.environmentId, e.displayName, e.name ORDER BY e.name")
+    List<Object[]> countReviewByEnvironment();
+
     @Query("SELECT COUNT(v) FROM Vm v WHERE v.group.environment.environmentId = :envId AND v.isActive = false")
     long countInactiveInEnvironment(@Param("envId") String envId);
 

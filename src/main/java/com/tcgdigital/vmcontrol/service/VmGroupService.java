@@ -265,6 +265,63 @@ public class VmGroupService {
                 group.getName(), groupId, grants.size(), cancelled, rules);
     }
 
+    /** The Auto-Discovered group (VmDiscoveryService) keeps its place at the end of the start order. */
+    private static final String DISCOVERY_GROUP_NAME = "discovered";
+
+    /**
+     * Sets the environment's start order (U11-T02): {@code groupIds} lists each group once, first to
+     * start first (the Auto-Discovered group may be left out; it stays last). A group cannot come
+     * before a group it waits for. One transaction, one audit row.
+     */
+    @Transactional
+    public List<VmGroup> reorder(String environmentId, List<String> groupIds, String actorUserId) {
+        Environment environment = environmentRepository.findById(environmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Environment", environmentId));
+        List<VmGroup> groups = groupRepository.findByEnvironmentEnvironmentIdOrderBySequencePositionAsc(environmentId);
+        java.util.Map<String, VmGroup> byId = new java.util.HashMap<>();
+        groups.forEach(g -> byId.put(g.getGroupId(), g));
+        List<String> ordered = (groupIds == null ? List.<String>of() : groupIds).stream()
+                .filter(id -> !(byId.containsKey(id) && DISCOVERY_GROUP_NAME.equals(byId.get(id).getName())))
+                .toList();
+        java.util.Set<String> expected = groups.stream()
+                .filter(g -> !DISCOVERY_GROUP_NAME.equals(g.getName()))
+                .map(VmGroup::getGroupId)
+                .collect(java.util.stream.Collectors.toSet());
+        if (new java.util.HashSet<>(ordered).size() != ordered.size() || !new java.util.HashSet<>(ordered).equals(expected)) {
+            throw new ValidationException("The order must list each group of the environment once");
+        }
+
+        java.util.Map<String, Integer> place = new java.util.HashMap<>();
+        for (int i = 0; i < ordered.size(); i++) {
+            place.put(ordered.get(i), i);
+        }
+        for (String id : ordered) {
+            VmGroup group = byId.get(id);
+            for (String dependency : group.getDependencies()) {
+                Integer at = place.get(dependency);
+                if (at != null && at > place.get(id)) {
+                    throw new ValidationException(groupLabel(group) + " waits for " + groupLabel(byId.get(dependency))
+                            + ", so it cannot start first");
+                }
+            }
+        }
+
+        // Positions are unique per environment: park the groups out of the way, then number them 1..n.
+        for (int i = 0; i < ordered.size(); i++) {
+            byId.get(ordered.get(i)).setSequencePosition(10_000 + i);
+        }
+        groupRepository.saveAllAndFlush(ordered.stream().map(byId::get).toList());
+        for (int i = 0; i < ordered.size(); i++) {
+            byId.get(ordered.get(i)).setSequencePosition(i + 1);
+        }
+        List<VmGroup> saved = groupRepository.saveAllAndFlush(ordered.stream().map(byId::get).toList());
+        auditService.logEnvironmentAction(actorUserId, AuditAction.GROUP_UPDATED, environmentId, environment.getName(),
+                "environment", environmentId, environment.getName(), "Start order set: "
+                        + saved.stream().map(VmGroupService::groupLabel).collect(java.util.stream.Collectors.joining(", ")));
+        log.info("Start order of environment {} set by {}", environment.getName(), actorUserId);
+        return saved;
+    }
+
     /**
      * Get groups in start order (topologically sorted by dependencies).
      */

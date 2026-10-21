@@ -108,6 +108,9 @@ const Config = (function() {
             delete: (id) => `${API_BASE_URL}/environments/${id}`,
             reactivate: (id) => `${API_BASE_URL}/environments/${id}/reactivate`,
             notifyStop: (id) => `${API_BASE_URL}/environments/${id}/notify-stop`,
+            // U11-T02: how many people the stop notice reaches; VMs needing a look per environment
+            notifyStopAudience: (id) => `${API_BASE_URL}/environments/${id}/notify-stop/audience`,
+            reviewSummary: `${API_BASE_URL}/environments/review-summary`,
             discoverEks: `${API_BASE_URL}/environments/discover/eks`
         },
 
@@ -118,7 +121,8 @@ const Config = (function() {
             create: (envId) => `${API_BASE_URL}/environments/${envId}/groups`,
             update: (envId, groupId) => `${API_BASE_URL}/environments/${envId}/groups/${groupId}`,
             delete: (envId, groupId) => `${API_BASE_URL}/environments/${envId}/groups/${groupId}`,
-            startOrder: (envId) => `${API_BASE_URL}/environments/${envId}/groups/start-order`
+            startOrder: (envId) => `${API_BASE_URL}/environments/${envId}/groups/start-order`,
+            reorder: (envId) => `${API_BASE_URL}/environments/${envId}/groups/order` // U11-T02
         },
 
         // VMs

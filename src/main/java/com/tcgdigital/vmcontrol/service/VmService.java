@@ -454,6 +454,20 @@ public class VmService {
         return vmRepository.findReviewPage(environmentId, state, pageable);
     }
 
+    /**
+     * Review counts for every environment in {@code environmentIds} (null = all) that has a drifted
+     * or pending VM (U11-T02).
+     */
+    public List<com.tcgdigital.vmcontrol.dto.RegistryReviewSummaryDTO> getReviewSummary(java.util.Collection<String> environmentIds) {
+        java.util.Set<String> scope = environmentIds == null ? null : new java.util.HashSet<>(environmentIds);
+        return vmRepository.countReviewByEnvironment().stream()
+                .filter(row -> scope == null || scope.contains((String) row[0]))
+                .map(row -> new com.tcgdigital.vmcontrol.dto.RegistryReviewSummaryDTO((String) row[0],
+                        row[1] == null || ((String) row[1]).isBlank() ? (String) row[2] : (String) row[1],
+                        ((Number) row[3]).longValue(), ((Number) row[4]).longValue()))
+                .toList();
+    }
+
     public Map<String, Long> getReviewCounts(String environmentId) {
         Map<String, Long> counts = new java.util.LinkedHashMap<>();
         counts.put("drift", vmRepository.countDriftInEnvironment(environmentId));
