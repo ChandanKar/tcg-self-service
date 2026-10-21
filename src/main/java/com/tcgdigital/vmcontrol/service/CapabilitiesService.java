@@ -43,7 +43,9 @@ public class CapabilitiesService {
             new Switch("costActuals", "cost.actuals.enabled", true),
             // U15-T03: the Rightsizing tab's Resize safely… and its Spot section.
             new Switch("safeResize", "rightsizing.safe-resize.enabled", false),
-            new Switch("spotPricing", "spot.pricing.enabled", false)
+            new Switch("spotPricing", "spot.pricing.enabled", false),
+            // U15-T04: the Commitments tab shows only while RI / Savings Plan coverage is on.
+            new Switch("costReservations", "cost.reservations.enabled", true)
     };
 
     private final UserService userService;

@@ -11,7 +11,6 @@ import { withFeatures } from '../../fixtures/capabilities';
 
 declare const EnvCost: any;
 declare const ContentRouter: any;
-declare const echarts: any;
 
 const ENV_ID = 'env-carbon-e2e';
 const json = (route: Route, body: unknown, status = 200) =>
@@ -100,24 +99,29 @@ test.describe('Carbon footprint panel', () => {
     return asked;
   }
 
-  test('lists environments with the unallocated row, coverage, trend and export, and changes month', async ({ page }) => {
+  test('market- and location-based totals, the matched share, six months, environments and Excel; changes month (U15-T04)', async ({ page }) => {
     const asked = await openCostPage(page, true);
 
     const panel = page.locator('.carbon-panel');
-    await expect(panel.locator('#cost-carbon-summary')).toContainText('Total 200 kg CO₂e');
-    await expect(panel.locator('#cost-carbon-summary')).toContainText('75.0% attributed to environments');
+    const figures = panel.locator('#cost-carbon-summary');
+    await expect(figures.locator('[data-kpi="mbm"]')).toContainText('200 kg CO₂e');
+    await expect(figures.locator('[data-kpi="lbm"]')).toContainText('330 kg CO₂e');
+    await expect(figures.locator('[data-kpi="matched"] .cost-kpi-value')).toHaveText('75%');
+    await expect(figures.locator('.carbon-strip-label')).toHaveText(['Aug', 'Sep']);
+    await expect(figures.locator('.carbon-strip')).toHaveAttribute('aria-label', 'Emissions over the last 2 months, from 125 to 200 kg');
     const rows = panel.locator('#cost-carbon-table tbody tr');
     await expect(rows).toHaveCount(3);
     await expect(rows.first().locator('td').first()).toHaveText('Payments <b>prod</b>');
+    await expect(rows.first().locator('td').last()).toHaveText('10.0'); // kg per $100
     await expect(rows.last()).toHaveClass(/carbon-unallocated/);
+    await expect(rows.last().locator('td').first()).toHaveText('Not matched to an environment');
+    await expect(panel.locator('#cost-carbon-export')).toHaveText('Excel');
     await expect(panel.locator('#cost-carbon-export')).toHaveAttribute('href', /\/cost-management\/carbon\/export\?month=2026-09$/);
-    await expect(panel.locator('#cost-chart-carbon svg')).toHaveCount(1);
-    const series = await page.evaluate(() =>
-      echarts.getInstanceByDom(document.getElementById('cost-chart-carbon')).getOption().series.map((s: any) => s.name));
-    expect(series).toEqual(['Environments', 'Unallocated']);
 
+    // Acceptance: choosing another month reloads the table and totals for it.
     await panel.locator('#cost-carbon-month').selectOption('2026-08');
-    await expect(page.locator('#cost-carbon-summary')).toContainText('Total 125 kg CO₂e');
+    await expect(page.locator('#cost-carbon-summary [data-kpi="mbm"]')).toContainText('125 kg CO₂e');
+    await expect(page.locator('#cost-carbon-table tbody tr').first()).toContainText('60');
     await expect(page.locator('#cost-carbon-export')).toHaveAttribute('href', /month=2026-08$/);
     expect(asked).toEqual(['', '2026-08']);
   });

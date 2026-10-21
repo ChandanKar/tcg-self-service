@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
+import { withFeatures } from '../../fixtures/capabilities';
 
 /**
  * E08-T09: the Cost Management page survives a failing endpoint. One failed request shows an
@@ -12,6 +13,7 @@ import { signIn, canSignIn, devIds } from '../../fixtures/auth';
 declare const ContentRouter: any;
 
 async function openCostPage(page: Page) {
+  await withFeatures(page, { costReservations: true }); // U15-T04: the Commitments tab needs reservations on
   await signIn(page, 'admin');
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
   await page.waitForLoadState('networkidle');
@@ -128,7 +130,7 @@ test.describe('Cost management tabs and menus', () => {
     // Acceptance: a tab opened directly is selected and loads.
     await page.evaluate(() => { location.hash = '#/cost-management?tab=commitments'; });
     await expect(page.getByRole('tab', { name: 'Commitments' })).toHaveAttribute('aria-selected', 'true', { timeout: 15_000 });
-    await expect(page.locator('[data-cost-panel="reservations"]')).toBeVisible();
+    await expect(page.locator('[data-cost-panel="commitments"]')).toBeAttached();
   });
 
   test('the menus open with the keyboard and close with Escape; data actions confirm first', async ({ page }) => {

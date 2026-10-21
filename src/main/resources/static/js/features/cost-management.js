@@ -32,7 +32,7 @@ const CostManagement = (function() {
     const TABS = [
         { key: 'overview', label: 'Overview', panels: ['kpi', 'trend', 'breakdown', 'savings', 'workloads', 'idle', 'reconciliation'] },
         { key: 'rightsizing', label: 'Rightsizing', panels: ['rightsizing', 'spot'] },
-        { key: 'commitments', label: 'Commitments', panels: ['reservations', 'commitments'] },
+        { key: 'commitments', label: 'Commitments', panels: ['commitments'], feature: 'costReservations' },
         { key: 'carbon', label: 'Carbon', panels: ['carbon'], feature: 'carbon' },
         { key: 'anomalies', label: 'Unusual spend', panels: ['anomalies'] }
     ];
@@ -77,7 +77,6 @@ const CostManagement = (function() {
         longRange: null,
         reconciliation: emptyPageState(),
         reconciliationAll: [],
-        reservationCoverage: [],
         idle: emptyPageState(),
         rightsizing: emptyPageState(),
         /** Kind of change ('' all, SMALLER, NEWER, GRAVITON, LARGER) and agreement ('' or AWS), U15-T03. */
@@ -216,8 +215,8 @@ const CostManagement = (function() {
                 state.reconciliation = paginateArray(state.reconciliationAll, state.reconciliation.page || 0, PAGE_SIZE);
             }
         },
-        reservationCoverage: { url: () => Config.API.costManagement.reservationsCoverage(TREND_DAYS), apply: d => { state.reservationCoverage = d || []; } },
-        commitments: { url: () => Config.API.costManagement.commitmentInsights, apply: d => { state.commitments = d || null; } },
+        commitments: { url: () => Config.API.costManagement.commitmentInsights, feature: 'costReservations',
+            apply: d => { state.commitments = d || null; } },
         // 404 while carbon is off: the panel stays hidden instead of showing an error
         carbon: { url: () => Config.API.costManagement.carbon(state.carbonMonth), optional: true, feature: 'carbon',
             apply: d => { state.carbon = d && d.month ? d : null; } },
@@ -282,8 +281,9 @@ const CostManagement = (function() {
         const keys = tabKeys(tab);
         fetchKeys(keys).then(() => {
             if (!ContentRouter.isCurrent(token) || !isActive()) return;
-            // A feature that answers 404 is off, not failed (the Carbon tab's only key, U15-T01).
-            if (keys.length && keys.every(key => state.errors[key])) {
+            // A feature that answers 404 is off, not failed (the Carbon tab's only key, U15-T01). The whole
+            // page fails only when several requests all did; one failed request is its panel's, with Retry (U15-T04).
+            if (keys.length > 1 && keys.every(key => state.errors[key])) {
                 showError('Failed to load cost data. Please try again.');
                 return;
             }
@@ -460,23 +460,12 @@ const CostManagement = (function() {
             charts: () => [['cost-chart-trend', state.forecastRange === 'long' && state.longRange
                 ? buildLongRangeOption(state.longRange) : buildTrendOption(state.trend)]]
         },
-        reservations: {
-            keys: ['reservationCoverage'], label: 'reservation coverage', chartPanel: true, wide: true,
-            build: () => buildReservationsChart(),
-            charts: () => [['cost-chart-reservations', buildReservationsOption(state.reservationCoverage)]]
-        },
-        commitments: {
-            keys: ['commitments'], label: 'commitment insights', build: () => buildCommitmentsPanel(),
-            charts: () => state.commitments ? [['cost-chart-commitments', buildCommitmentsOption(state.commitments)]] : []
-        },
+        commitments: { keys: ['commitments'], label: 'commitment insights', build: () => buildCommitmentsPanel() },
         reconciliation: { keys: ['reconciliation'], label: 'estimated vs. actual cost', build: () => buildReconciliationTable() },
         idle: { keys: ['idle'], label: 'idle VMs', build: () => buildIdleWasteTable() },
         rightsizing: { keys: ['rightsizing', 'summary'], label: 'rightsizing suggestions', build: () => buildRightsizingTable() },
         spot: { keys: ['spotOpportunities'], label: 'Spot opportunities', build: () => buildSpotPanel() },
-        carbon: {
-            keys: ['carbon'], label: 'carbon footprint', build: () => buildCarbonPanel(),
-            charts: () => state.carbon && (state.carbon.trend || []).length ? [['cost-chart-carbon', buildCarbonOption(state.carbon)]] : []
-        },
+        carbon: { keys: ['carbon'], label: 'carbon footprint', build: () => buildCarbonPanel() },
         anomalies: { keys: ['anomalies', 'anomalyMonitors'], label: 'cost anomalies', build: () => buildAnomaliesPanel() },
         workloads: {
             keys: ['eksEnvironments'], label: 'EKS workload cost', build: () => buildWorkloadsPanel(),
@@ -495,62 +484,70 @@ const CostManagement = (function() {
         return new Date(m + '-01T00:00:00Z').toLocaleDateString([], { month: 'long', year: 'numeric', timeZone: 'UTC' });
     }
 
+    const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    /** The last six months of the trend as stacked bars: matched and not matched, heights in px of `height`. */
+    function carbonBars(trend, height = 54) {
+        const last = (trend || []).slice(-6).map(p => ({ month: p.month, at: Number(p.attributedKg) || 0, un: Number(p.unallocatedKg) || 0 }));
+        const most = Math.max(1, ...last.map(p => p.at + p.un));
+        return last.map(p => ({ label: MONTHS_SHORT[Number(p.month.slice(5, 7)) - 1] || p.month, total: p.at + p.un,
+            at: Math.round(p.at / most * height), un: Math.round(p.un / most * height) }));
+    }
+
     function buildCarbonPanel() {
         const c = state.carbon;
         // On its own tab (U15-T01) an empty panel says why instead of leaving the tab blank.
         if (!c) return '<p class="cost-note" id="cost-carbon-empty">No carbon figures yet. AWS publishes them once a month, a few months behind.</p>';
         const options = (c.availableMonths || []).map(m =>
             `<option value="${Utils.escapeHtml(m)}"${m === c.month ? ' selected' : ''}>${Utils.escapeHtml(monthLabel(m))}</option>`).join('');
-        const money = v => v == null ? '<span class="text-muted">-</span>' : Utils.escapeHtml(Utils.formatCurrency(Number(v)));
-        const body = (c.rows || []).map(r => `
+        const rows = (c.rows || []).slice().sort((a, b) => Number(a.unallocated) - Number(b.unallocated));
+        const most = Math.max(1, ...rows.map(r => Number(r.mbmKg) || 0));
+        const body = rows.map(r => `
             <tr class="${r.unallocated ? 'carbon-unallocated' : ''}" data-carbon-env="${Utils.escapeHtml(r.environmentId || 'unallocated')}">
-                <td>${r.unallocated ? '<em>Unallocated</em>' : Utils.escapeHtml(r.environmentName)}</td>
-                <td class="cost-num">${kg(r.mbmKg)}</td>
-                <td class="cost-num">${kg(r.lbmKg)}</td>
-                <td class="cost-num">${r.unallocated ? '' : money(r.cost)}</td>
-                <td class="cost-num">${r.kgPerDollar == null ? '' : Utils.escapeHtml(Number(r.kgPerDollar).toFixed(3))}</td>
+                <td class="carbon-env">${r.unallocated ? 'Not matched to an environment' : Utils.escapeHtml(r.environmentName)}</td>
+                <td><span class="carbon-bar-cell"><span class="carbon-bar"><span style="width:${((Number(r.mbmKg) || 0) / most * 100).toFixed(1)}%"></span></span>
+                    <span class="cost-mono">${kg(r.mbmKg)}</span></span></td>
+                <td class="cost-num cost-mono">${kg(r.lbmKg)}</td>
+                <td class="cost-num cost-mono">${r.cost == null ? '<span class="text-muted">—</span>' : money0(r.cost)}</td>
+                <td class="cost-num cost-mono">${r.kgPerDollar == null ? '<span class="text-muted">—</span>' : (Number(r.kgPerDollar) * 100).toFixed(1)}</td>
             </tr>`).join('');
-        const total = c.totalMbmKg != null ? c.totalMbmKg : c.totalLbmKg;
-        const coverage = c.coveragePct == null ? ''
-            : `; <strong>${Utils.escapeHtml(Number(c.coveragePct).toFixed(1))}%</strong> attributed to environments`;
+        const bars = carbonBars(c.trend);
+        const strip = bars.length ? `<div class="cost-kpi carbon-strip" role="img"
+                aria-label="Emissions over the last ${bars.length} months, from ${Math.round(bars[0].total).toLocaleString()} to ${Math.round(bars[bars.length - 1].total).toLocaleString()} kg">
+                <span class="cost-kpi-label">Last ${bars.length} months</span>
+                <span class="carbon-strip-bars">${bars.map(b => `<span class="carbon-strip-col"><span class="carbon-strip-un" style="height:${b.un}px"></span>
+                    <span class="carbon-strip-at" style="height:${b.at}px"></span><span class="carbon-strip-label">${b.label}</span></span>`).join('')}</span>
+            </div>` : '';
+        const figure = (key, label, value, unit, note) => `<div class="cost-kpi" data-kpi="${key}"><span class="cost-kpi-label">${label}</span>
+                <span><span class="cost-kpi-value">${value}</span>${unit ? ` <span class="cost-kpi-unit">${unit}</span>` : ''}</span>
+                <span class="cost-kpi-note">${note}</span></div>`;
         return `
-            <section class="cost-table-card carbon-panel" aria-labelledby="cost-carbon-title">
-                <div class="cost-table-header d-flex flex-wrap align-items-center gap-2">
-                    <h2 id="cost-carbon-title" class="me-auto">Carbon footprint</h2>
-                    <label class="visually-hidden" for="cost-carbon-month">Month</label>
-                    <select id="cost-carbon-month" class="form-select form-select-sm w-auto" data-action-change="cost-carbon-month">${options}</select>
-                    <a class="btn btn-ghost btn-sm" id="cost-carbon-export" href="${Utils.escapeHtml(Config.API.costManagement.carbonExport(c.month))}"
-                       download><i class="fas fa-file-excel"></i> Export</a>
+            <section class="carbon-panel" aria-labelledby="cost-carbon-title">
+                <h2 class="visually-hidden" id="cost-carbon-title">Carbon footprint, ${Utils.escapeHtml(monthLabel(c.month))}</h2>
+                <div class="carbon-head">
+                    <p class="cost-intro">From AWS's monthly carbon footprint export, not an estimate of ours. Each environment gets a share of
+                        its region and service's emissions in line with its cost.</p>
+                    <div class="carbon-controls">
+                        <label class="carbon-month" for="cost-carbon-month">Month
+                            <select id="cost-carbon-month" class="form-select form-select-sm" data-action-change="cost-carbon-month">${options}</select></label>
+                        <a class="btn btn-ghost btn-sm" id="cost-carbon-export" href="${Utils.escapeHtml(Config.API.costManagement.carbonExport(c.month))}" download>Excel</a>
+                    </div>
                 </div>
-                <div class="small mb-2" id="cost-carbon-summary">Total <strong>${kg(total)} kg CO\u2082e</strong>
-                    (${c.totalMbmKg != null ? 'market-based' : 'location-based'}) in ${Utils.escapeHtml(monthLabel(c.month))}${coverage}</div>
-                <div class="table-responsive">
-                    <table class="table table-baseline table-sm cost-table" id="cost-carbon-table">
-                        <thead><tr><th scope="col">Environment</th><th scope="col" class="cost-num">kg CO\u2082e (market)</th>
-                            <th scope="col" class="cost-num">kg CO\u2082e (location)</th><th scope="col" class="cost-num">Cost</th>
-                            <th scope="col" class="cost-num">kg per $</th></tr></thead>
+                <div class="carbon-figures" id="cost-carbon-summary">
+                    ${figure('mbm', 'Market-based', c.totalMbmKg == null ? '—' : kg(c.totalMbmKg), c.totalMbmKg == null ? '' : 'kg CO\u2082e', 'Counts the renewable energy AWS buys')}
+                    ${figure('lbm', 'Location-based', c.totalLbmKg == null ? '—' : kg(c.totalLbmKg), c.totalLbmKg == null ? '' : 'kg CO\u2082e', "The local grid's average")}
+                    ${figure('matched', 'Matched to environments', c.coveragePct == null ? '—' : `${Math.round(Number(c.coveragePct))}%`, '', 'The rest is shared accounts and services')}
+                    ${strip}
+                </div>
+                <div class="cost-card carbon-table-card"><div class="cost-scroll">
+                    <table class="cost-table carbon-table" id="cost-carbon-table">
+                        <thead><tr><th scope="col">Environment</th><th scope="col" class="carbon-mbm-col">Market-based, kg</th>
+                            <th scope="col" class="cost-num">Location-based, kg</th><th scope="col" class="cost-num">Cost</th>
+                            <th scope="col" class="cost-num">kg per $100</th></tr></thead>
                         <tbody>${body}</tbody>
                     </table>
-                </div>
-                <div id="cost-chart-carbon" class="dashboard-chart carbon-chart" role="img" aria-label="Carbon by month, attributed and unallocated"></div>
-                <p class="small text-muted mb-0">Estimated by cost share from AWS Customer Carbon Footprint data, per account, region
-                    and service. AWS publishes it monthly with a delay of several weeks. Unallocated is what no environment's cost covers.</p>
+                </div></div>
             </section>`;
-    }
-
-    function buildCarbonOption(c) {
-        const months = (c.trend || []).map(p => p.month);
-        return {
-            grid: { left: 48, right: 16, top: 28, bottom: 28 },
-            legend: { top: 0 },
-            tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 })} kg` },
-            xAxis: { type: 'category', data: months },
-            yAxis: { type: 'value', name: 'kg CO\u2082e' },
-            series: [
-                { name: 'Environments', type: 'bar', stack: 'carbon', data: c.trend.map(p => Number(p.attributedKg)) },
-                { name: 'Unallocated', type: 'bar', stack: 'carbon', data: c.trend.map(p => Number(p.unallocatedKg)) }
-            ]
-        };
     }
 
     function setCarbonMonth(month) {
@@ -829,20 +826,6 @@ const CostManagement = (function() {
                 <span class="cost-kpi-value">${value}</span><span class="cost-kpi-note">${note}</span></div>`).join('')}</section>`;
     }
 
-    /** An icon tile, still used by the Commitments tab until U15 restyles it. */
-    function buildKpi(label, value, icon, subtitle) {
-        return `
-            <div class="dashboard-kpi">
-                <i class="fas ${icon}"></i>
-                <div>
-                    <strong>${Utils.escapeHtml(String(value))}</strong>
-                    <span>${Utils.escapeHtml(label)}</span>
-                    <small class="cost-kpi-subtitle">${Utils.escapeHtml(subtitle)}</small>
-                </div>
-            </div>
-        `;
-    }
-
     // ---- spend by environment, team, account or type (U15-T02) ----
 
     function breakdownRows(by) {
@@ -1057,110 +1040,118 @@ const CostManagement = (function() {
         };
     }
 
-    function buildReservationsChart() {
-        return `
-            <section class="dashboard-chart-panel dashboard-wide">
-                <div class="dashboard-panel-head">
-                    <h2>Reserved Instance &amp; Savings Plan Coverage</h2>
-                    <small>Account-wide, last ${TREND_DAYS} days</small>
-                </div>
-                <div id="cost-chart-reservations" class="dashboard-chart"></div>
-            </section>
-        `;
-    }
-
     // ---- commitments (E27-T03): display only, purchases stay in AWS ----
-
-    const REC_LABELS = { COMPUTE_SP: 'Compute Savings Plan', EC2_INSTANCE_SP: 'EC2 Instance Savings Plan', EC2_RI: 'EC2 Reserved Instances' };
-
-    function pct(v) {
-        return v === null || v === undefined ? '—' : `${Number(v).toFixed(1)}%`;
-    }
-
-    function moneyOrDash(v) {
-        return v === null || v === undefined ? '—' : Utils.formatCurrency(Number(v));
-    }
-
-    function hourly(v) {
-        return v === null || v === undefined ? '—' : `${Utils.formatCurrency(Number(v))}/h`;
-    }
 
     function titleCase(v) {
         return String(v || '').toLowerCase().split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
     }
 
+    const TERMS = { ONE_YEAR: '1 year', THREE_YEARS: '3 years' };
+    const PAYMENTS = { NO_UPFRONT: 'no upfront', PARTIAL_UPFRONT: 'partial', ALL_UPFRONT: 'all upfront' };
+    const REC_NAMES = { COMPUTE_SP: 'Compute Savings Plan', EC2_INSTANCE_SP: 'EC2 Instance Savings Plan', EC2_RI: 'Reserved Instance' };
+    const OVER_COMMIT = 'More than the always-running floor: schedules would waste part of it';
+    const FLAG_TEXT = {
+        UNDER_UTILISED: "Some of what you've already committed to goes unused. Use it before buying more.",
+        SCHEDULES_ALREADY_COVERED: 'Most scheduled hours are already paid for by commitments, so more schedules save little.'
+    };
+
+    /** The four coverage and use figures, each with its bar: navy for coverage, green for use from 90%, gold below. */
+    function commitmentFigures(coverage) {
+        const c = coverage || {};
+        const num = v => v === null || v === undefined ? null : Math.round(Number(v));
+        const used = (v, good, unused) => v == null ? 'No coverage snapshot yet' : v >= 90 ? good : `${100 - v}% ${unused}`;
+        return [
+            ['sp-coverage', 'Savings Plans coverage', num(c.spCoveragePercent), 'cover', 'of eligible compute spend'],
+            ['sp-used', 'Savings Plans used', num(c.spUtilizationPercent), 'use', ['of what you committed to', 'of the commitment unused']],
+            ['ri-coverage', 'Reserved Instance coverage', num(c.riCoveragePercent), 'cover', 'of eligible instance hours'],
+            ['ri-used', 'Reserved Instances used', num(c.riUtilizationPercent), 'use', ['of reserved hours', 'of reserved hours unused']]
+        ].map(([key, label, value, kind, note]) => ({
+            key, label, value, text: value == null ? '—' : `${value}%`, bar: value == null ? 0 : Math.max(0, Math.min(100, value)),
+            tone: kind === 'cover' ? 'cover' : value != null && value >= 90 ? 'good' : 'low',
+            note: kind === 'cover' ? (value == null ? 'No coverage snapshot yet' : note) : used(value, note[0], note[1])
+        }));
+    }
+
+    /** "Covers EC2 in any region, family or size", "m6i family in ap-south-1", "4 × c6i.xlarge, ap-south-1". */
+    function recommendationDetail(r) {
+        if (r.type === 'COMPUTE_SP') return 'Covers EC2 in any region, family or size';
+        const lines = Array.isArray(r.details) ? r.details : [];
+        const d = lines[0];
+        if (!d) return '';
+        const more = lines.length > 1 ? ` and ${lines.length - 1} more` : '';
+        if (r.type === 'EC2_RI' && d.instanceType) {
+            return `${d.count != null ? `${Number(d.count)} × ` : ''}${d.instanceType}${d.region ? `, ${d.region}` : ''}${more}`;
+        }
+        return d.instanceFamily ? `${d.instanceFamily} family${d.region ? ` in ${d.region}` : ''}${more}` : '';
+    }
+
+    function termText(r) {
+        return [TERMS[r.term] || titleCase(r.term), PAYMENTS[r.paymentOption] || titleCase(r.paymentOption).toLowerCase()].filter(Boolean).join(' · ');
+    }
+
+    function shortDate(iso) {
+        if (!iso) return '';
+        const d = new Date(iso + 'T00:00:00Z');
+        return Number.isNaN(d.getTime()) ? iso : `${d.getUTCDate()} ${MONTHS_SHORT[d.getUTCMonth()]}`;
+    }
+
     function buildCommitmentsPanel() {
         const c = state.commitments;
         if (!c) return '';
-        const cov = c.coverage || {};
         const recs = c.recommendations || [];
         const flags = c.riskFlags || [];
-        const kpis = `
-            <div class="dashboard-kpi-grid commitments-kpis">
-                ${buildKpi('Savings Plan coverage', pct(cov.spCoveragePercent), 'fa-shield-alt', cov.snapshotDate ? `As of ${cov.snapshotDate}` : 'No coverage snapshot yet')}
-                ${buildKpi('RI coverage', pct(cov.riCoveragePercent), 'fa-shield-alt', 'Reserved Instances, account-wide')}
-                ${buildKpi('Savings Plan utilisation', pct(cov.spUtilizationPercent), 'fa-tachometer-alt', `RI utilisation ${pct(cov.riUtilizationPercent)}`)}
-                ${buildKpi('Stopped hours already paid for', moneyOrDash(c.scheduledHoursCoveredValue), 'fa-coins',
-                    c.grossScheduledSaving === null || c.grossScheduledSaving === undefined ? 'No savings ledger yet'
-                        : `of ${Utils.formatCurrency(Number(c.grossScheduledSaving))} gross, last ${c.windowDays} days`)}
-            </div>`;
-        const flagList = flags.length === 0 ? '' : Utils.html`
-            <div class="alert alert-warning commitments-flags" role="alert">
-                <strong><i class="fas fa-triangle-exclamation"></i> Risks</strong>
-                <ul class="mb-0">${Utils.raw(flags.map(f => Utils.html`<li data-flag="${f.code}">${f.message}${f.recommendationType ? ' (' + (REC_LABELS[f.recommendationType] || f.recommendationType) + ')' : ''}</li>`).join(''))}</ul>
-            </div>`;
+        const overCommit = new Set(flags.filter(f => f.code === 'OVER_COMMIT' && f.recommendationType).map(f => f.recommendationType));
+        const figures = commitmentFigures(c.coverage).map(f => Utils.html`<div class="cost-kpi" data-kpi="${f.key}">
+                <span class="cost-kpi-label">${f.label}</span><span class="cost-kpi-value">${f.text}</span>
+                <span class="commit-bar"><span class="commit-bar-${f.tone}" style="width:${String(f.bar)}%"></span></span>
+                <span class="cost-kpi-note">${f.note}</span></div>`).join('');
+        const first = recs[0];
+        const basis = first ? `Based on ${first.lookbackDays || c.windowDays} days of use · generated ${shortDate(first.generatedOn)}` : '';
         const table = recs.length === 0
-            ? `<div class="commitments-empty text-muted small">No recommendations yet; they are captured every Monday.
-                   <a href="#/cost-setup">Check Cost Setup</a></div>`
-            : Utils.html`
-            <div class="table-responsive">
-                <table class="table table-baseline table-sm cost-table" id="cost-commitments-table">
-                    <thead><tr><th>Type</th><th>Term</th><th>Payment</th><th class="cost-num">Hourly commitment</th>
-                        <th class="cost-num">Est. monthly savings</th><th class="cost-num">Savings</th><th>Generated</th></tr></thead>
-                    <tbody>${Utils.raw(recs.map(r => Utils.html`<tr>
-                        <td>${REC_LABELS[r.type] || r.type}</td><td>${titleCase(r.term)}</td><td>${titleCase(r.paymentOption)}</td>
-                        <td class="cost-num">${hourly(r.hourlyCommitment)}</td><td class="cost-num">${moneyOrDash(r.estimatedMonthlySavings)}</td>
-                        <td class="cost-num">${pct(r.estimatedSavingsPercent)}</td><td>${r.generatedOn}</td></tr>`).join(''))}</tbody>
-                </table>
-            </div>`;
+            ? `<p class="commitments-empty cost-note">AWS hasn't suggested anything yet; suggestions are captured every Monday.
+                   <a href="#/cost-setup">Check Cost setup</a></p>`
+            : Utils.html`<div class="cost-scroll"><table class="cost-table commit-table" id="cost-commitments-table">
+                <thead><tr><th scope="col">Type</th><th scope="col">Term · payment</th><th scope="col" class="cost-num">Commit / hour</th>
+                    <th scope="col" class="cost-num">Upfront</th><th scope="col" class="cost-num">Saves a month</th></tr></thead>
+                <tbody>${Utils.raw(recs.map(r => Utils.html`<tr data-rec="${r.type}">
+                    <td><b class="commit-type">${REC_NAMES[r.type] || r.type}</b><span class="rs-sub">${recommendationDetail(r)}</span>
+                        ${Utils.raw(overCommit.has(r.type) ? Utils.html`<span class="commit-risk" data-flag="OVER_COMMIT">${OVER_COMMIT}</span>` : '')}</td>
+                    <td class="commit-term">${termText(r)}</td>
+                    <td class="cost-num cost-mono">${r.hourlyCommitment == null ? '—' : Utils.formatCurrency(Number(r.hourlyCommitment))}</td>
+                    <td class="cost-num cost-mono">${r.upfrontCost == null ? '—' : money0(r.upfrontCost)}</td>
+                    <td class="cost-num cost-mono rs-saves">${r.estimatedMonthlySavings == null ? '—' : money0(r.estimatedMonthlySavings)}<span class="rs-sub">${r.estimatedSavingsPercent == null ? '' : `${Math.round(Number(r.estimatedSavingsPercent))}%`}</span></td>
+                </tr>`).join(''))}</tbody></table></div>`;
+        const hours = c.scheduledAvoidedHours == null ? null : Math.round(Number(c.scheduledAvoidedHours));
+        const schedules = hours == null || c.grossScheduledSaving == null
+            ? `<p class="commit-aside-text">No schedule savings recorded in the last ${c.windowDays} days yet. Hours you've committed to are paid whether VMs run or not.</p>`
+            : `<p class="commit-aside-text">Schedules here stopped VMs for <b class="cost-mono">${hours.toLocaleString()} h</b> in the last ${c.windowDays} days, saving
+                <b class="cost-mono rs-save">${money0(c.grossScheduledSaving)}</b>, but hours you've committed to are paid whether VMs run or not.</p>`;
+        const otherFlags = flags.filter(f => FLAG_TEXT[f.code]);
         return Utils.html`
-            <section class="cost-table-card commitments-panel" aria-labelledby="cost-commitments-title">
-                <div class="dashboard-panel-head">
-                    <h2 id="cost-commitments-title">Commitments</h2>
-                    <small>Estimates from the static pricing reference</small>
+            <section class="commitments-panel" aria-labelledby="cost-commitments-title">
+                <h2 class="visually-hidden" id="cost-commitments-title">Commitments</h2>
+                <p class="cost-intro commitments-note">Savings Plans and Reserved Instances bought in AWS. Read-only here: buy or change them in the AWS console. Last ${String(c.windowDays)} days.</p>
+                <div class="commitments-kpis">${Utils.raw(figures)}</div>
+                <div class="rs-layout commit-layout">
+                    <section class="cost-card rs-table-card" aria-labelledby="cost-commit-recs-title">
+                        <div class="commit-card-head"><h2 id="cost-commit-recs-title">What AWS suggests buying</h2><small>${basis}</small></div>
+                        ${Utils.raw(table)}
+                    </section>
+                    <aside class="cost-card commit-aside" aria-labelledby="cost-commit-aside-title">
+                        <h2 id="cost-commit-aside-title">Schedules and commitments</h2>
+                        ${Utils.raw(schedules)}
+                        <div class="commit-floor" id="cost-commitments-floor">
+                            <span class="cost-kpi-label">Safe to commit, always running</span>
+                            <span class="cost-mono commit-floor-value">${c.alwaysOnHourlyFloor == null ? '—' : `${Utils.formatCurrency(Number(c.alwaysOnHourlyFloor))} / hour`}</span>
+                            <span class="cost-kpi-note" title="${c.floorNote || ''}">${c.floorVmCount
+                                ? `${c.floorVmCount} VM${c.floorVmCount === 1 ? ' runs' : 's run'} even in the quietest hours. Commit up to this and schedules keep their full saving.`
+                                : 'No VM runs in every hour yet.'}</span>
+                        </div>
+                        ${Utils.raw(c.scheduledHoursCoveredValue == null ? '' : Utils.html`<p class="cost-note" id="cost-commit-covered">${money0(c.scheduledHoursCoveredValue)} of stopped hours were already paid for by commitments.</p>`)}
+                        ${Utils.raw(otherFlags.length ? Utils.html`<ul class="commitments-flags">${Utils.raw(otherFlags.map(f => Utils.html`<li data-flag="${f.code}">${FLAG_TEXT[f.code]}</li>`).join(''))}</ul>` : '')}
+                    </aside>
                 </div>
-                ${Utils.raw(kpis)}
-                <div class="commitments-floor small" id="cost-commitments-floor">
-                    Always-on floor: <strong>${hourly(c.alwaysOnHourlyFloor)}</strong>
-                    <span class="text-muted">(${c.floorVmCount} VM${c.floorVmCount === 1 ? '' : 's'}; ${c.floorNote})</span>
-                </div>
-                <div id="cost-chart-commitments" class="dashboard-chart commitments-chart" role="img" aria-label="Always-on floor against recommended commitments"></div>
-                ${Utils.raw(flagList)}
-                ${Utils.raw(table)}
-                <p class="commitments-note small text-muted mb-0">Recommendations come from AWS Cost Explorer. Purchases are made by
-                    FinOps in the AWS console; this page never buys anything.</p>
             </section>`;
-    }
-
-    /** Bars: the always-on floor next to each Savings Plan's recommended $/h. */
-    function buildCommitmentsOption(c) {
-        const bars = [];
-        if (c.alwaysOnHourlyFloor !== null && c.alwaysOnHourlyFloor !== undefined) {
-            bars.push({ name: 'Always-on floor', value: Number(c.alwaysOnHourlyFloor), itemStyle: { color: '#16a34a' } });
-        }
-        (c.recommendations || []).filter(r => r.hourlyCommitment !== null && r.hourlyCommitment !== undefined).forEach(r => {
-            bars.push({ name: REC_LABELS[r.type] || r.type, value: Number(r.hourlyCommitment), itemStyle: { color: '#2563eb' } });
-        });
-        if (bars.length === 0) {
-            return emptyChartOption('No floor or recommendation to compare yet.');
-        }
-        return {
-            tooltip: { trigger: 'axis', valueFormatter: v => `${Utils.formatCurrency(v)}/h` },
-            grid: { left: 52, right: 24, top: 18, bottom: 32 },
-            xAxis: { type: 'category', data: bars.map(b => b.name), axisLabel: chartTextStyle() },
-            yAxis: { type: 'value', axisLabel: { ...chartTextStyle(), formatter: v => `$${v}` } },
-            series: [{ type: 'bar', data: bars, barMaxWidth: 48 }]
-        };
     }
 
     function initCharts(tab) {
@@ -1351,43 +1342,6 @@ const CostManagement = (function() {
                 splitLine: { lineStyle: { color: '#eef2f7' } }
             },
             series
-        };
-    }
-
-    /**
-     * Account-wide RI/Savings Plan coverage % over time (Cost Management Phase 3) — a fixed
-     * two-line chart (RI coverage, SP coverage), not top-N/pivoted like the breakdown charts,
-     * since there's only ever these two fixed series. Either line simply stays absent from the
-     * legend/empty if that program (RIs or Savings Plans) was never purchased for this account.
-     */
-    function buildReservationsOption(rows) {
-        if (!rows.length) {
-            return emptyChartOption('No reservation/savings-plan data yet — enable Cost Management Phase 3 to populate it.');
-        }
-        const labels = rows.map(r => (r.snapshotDate || '').slice(5));
-        const riCoverage = rows.map(r => (r.coveragePercent !== null && r.coveragePercent !== undefined) ? Number(r.coveragePercent) : null);
-        const spCoverage = rows.map(r => (r.spCoveragePercent !== null && r.spCoveragePercent !== undefined) ? Number(r.spCoveragePercent) : null);
-
-        return {
-            color: ['#2563eb', '#7c3aed'],
-            tooltip: {
-                trigger: 'axis',
-                confine: true,
-                valueFormatter: value => value == null ? 'n/a' : `${value}%`
-            },
-            legend: { bottom: 0, textStyle: chartTextStyle() },
-            grid: { left: 52, right: 24, top: 18, bottom: 48 },
-            xAxis: { type: 'category', boundaryGap: false, data: labels, axisLabel: chartTextStyle() },
-            yAxis: {
-                type: 'value',
-                max: 100,
-                axisLabel: { ...chartTextStyle(), formatter: v => `${v}%` },
-                splitLine: { lineStyle: { color: '#eef2f7' } }
-            },
-            series: [
-                { name: 'RI Coverage %', type: 'line', smooth: true, connectNulls: true, showSymbol: false, data: riCoverage },
-                { name: 'Savings Plan Coverage %', type: 'line', smooth: true, connectNulls: true, showSymbol: false, data: spCoverage }
-            ]
         };
     }
 
@@ -2123,7 +2077,7 @@ const CostManagement = (function() {
 
             // html2canvas cannot reliably snapshot live SVG-rendered ECharts, so swap each
             // chart <div> for a static <img> taken from the chart's own dataURL first.
-            ['cost-chart-trend', 'cost-chart-reservations', 'cost-chart-commitments', 'cost-chart-carbon'].forEach(id => {
+            ['cost-chart-trend'].forEach(id => {
                 const liveEl = document.getElementById(id);
                 const cloneEl = clone.querySelector('#' + id);
                 const instance = chartRegistry.get(id);
@@ -2173,7 +2127,7 @@ const CostManagement = (function() {
         openFocusExport,
         setCarbonMonth,
         setBreakdownBy,
-        model: { monthToDate, monthEnd, topBars, teamsThisMonth, topSavings }
+        model: { monthToDate, monthEnd, topBars, teamsThisMonth, topSavings, commitmentFigures, recommendationDetail, termText, carbonBars }
     };
 })();
 

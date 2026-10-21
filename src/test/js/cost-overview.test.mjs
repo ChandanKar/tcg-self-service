@@ -55,3 +55,32 @@ test('the biggest savings across rightsizing and idle VMs', () => {
         ['batch', 'Stop it when idle, or add a schedule', 210],
         ['api-2', 'm5.xlarge → m5.large', 60]]);
 });
+
+// U15-T04: the Commitments and Carbon tabs.
+test('commitment figures: coverage in navy, use green from 90% and gold below, with what is unused', () => {
+    const f = plain(M.commitmentFigures({ spCoveragePercent: 38, spUtilizationPercent: 97, riCoveragePercent: 12.4, riUtilizationPercent: 81 }));
+    assert.deepEqual(f.map(x => [x.text, x.bar, x.tone]), [['38%', 38, 'cover'], ['97%', 97, 'good'], ['12%', 12, 'cover'], ['81%', 81, 'low']]);
+    assert.equal(f[0].note, 'of eligible compute spend');
+    assert.equal(f[3].note, '19% of reserved hours unused');
+    const none = plain(M.commitmentFigures(null));
+    assert.deepEqual(none.map(x => [x.text, x.bar]), [['—', 0], ['—', 0], ['—', 0], ['—', 0]]);
+});
+
+test('what AWS suggests buying, in plain words', () => {
+    assert.equal(M.recommendationDetail({ type: 'COMPUTE_SP' }), 'Covers EC2 in any region, family or size');
+    assert.equal(M.recommendationDetail({ type: 'EC2_INSTANCE_SP', details: [{ instanceFamily: 'm6i', region: 'ap-south-1' }] }), 'm6i family in ap-south-1');
+    assert.equal(M.recommendationDetail({ type: 'EC2_RI', details: [{ instanceType: 'c6i.xlarge', region: 'ap-south-1', count: 4 }, {}] }),
+        '4 × c6i.xlarge, ap-south-1 and 1 more');
+    assert.equal(M.recommendationDetail({ type: 'EC2_RI', details: [] }), '');
+    assert.equal(M.termText({ term: 'THREE_YEARS', paymentOption: 'ALL_UPFRONT' }), '3 years · all upfront');
+    assert.equal(M.termText({ term: 'ONE_YEAR', paymentOption: 'PARTIAL_UPFRONT' }), '1 year · partial');
+});
+
+test('carbon: the last six months as stacked bars', () => {
+    const trend = Array.from({ length: 8 }, (_, i) => ({ month: `2026-0${i + 1}`, attributedKg: 100 * (i + 1), unallocatedKg: 0 }));
+    const bars = plain(M.carbonBars(trend, 50));
+    assert.deepEqual(bars.map(b => b.label), ['Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug']);
+    assert.equal(bars[5].at, 50);
+    assert.equal(bars[0].at, 19);
+    assert.deepEqual(plain(M.carbonBars([])), []);
+});

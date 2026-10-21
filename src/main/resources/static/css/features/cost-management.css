@@ -208,27 +208,7 @@
     cursor: help;
 }
 
-/* Commitments panel (E27-T03) */
-.commitments-panel .commitments-kpis {
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    margin-bottom: 0.75rem;
-}
-
-.commitments-panel .commitments-chart {
-    height: 220px;
-}
-
-.commitments-panel .commitments-flags ul {
-    padding-left: 1.25rem;
-}
-
-.commitments-panel .commitments-note {
-    margin-top: 0.5rem;
-}
-
-
-/* Rightsizing direction filter and alternatives (E30-T05) */
-.rightsizing-filter { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 10px; }
+/* Rightsizing alternatives (E30-T05) */
 .rightsizing-alternatives > td { background: var(--bs-tertiary-bg); padding: 8px 12px; }
 .rightsizing-options-table { font-size: 0.85rem; }
 .rightsizing-options-table th { font-weight: 600; white-space: nowrap; }
@@ -592,5 +572,328 @@ a.rs-name:hover {
 @media (max-width: 1199.98px) {
     .rs-layout {
         grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* ---- Commitments and Carbon tabs (U15-T04, Commitments.dc.html, Carbon.dc.html) ---- */
+.cost-intro {
+    margin: 0;
+    max-width: 75ch;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.commitments-panel,
+.carbon-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+
+.commitments-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.commit-bar {
+    display: block;
+    height: 6px;
+    margin-top: 4px;
+    border-radius: 3px;
+    background: var(--surface-muted);
+    overflow: hidden;
+}
+
+.commit-bar > span {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+}
+
+.commit-bar-cover {
+    background: var(--ink);
+}
+
+.commit-bar-good {
+    background: var(--success-color);
+}
+
+.commit-bar-low {
+    background: var(--warning-color);
+}
+
+.commit-layout {
+    grid-template-columns: minmax(0, 1fr) 360px;
+}
+
+.commit-card-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.commit-card-head h2,
+.commit-aside h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.commit-card-head small {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+}
+
+.commit-table,
+.carbon-table {
+    width: 100%;
+    min-width: 560px;
+    border-collapse: collapse;
+    font-size: 13.5px;
+}
+
+.commit-table th,
+.carbon-table th {
+    padding: 8px;
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
+    font-size: 12.5px;
+    font-weight: 500;
+    text-align: left;
+}
+
+.commit-table td,
+.carbon-table td {
+    padding: 10px 8px;
+    border-top: 1px solid var(--line-soft);
+    vertical-align: top;
+}
+
+.commit-table th:first-child,
+.commit-table td:first-child,
+.carbon-table th:first-child,
+.carbon-table td:first-child {
+    padding-left: 16px;
+}
+
+.commit-table th:last-child,
+.commit-table td:last-child,
+.carbon-table th:last-child,
+.carbon-table td:last-child {
+    padding-right: 16px;
+}
+
+.commit-table .cost-num,
+.carbon-table .cost-num {
+    text-align: right;
+}
+
+.commit-type {
+    font-weight: 500;
+}
+
+.commit-term {
+    white-space: nowrap;
+}
+
+.commit-risk {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--brand-gold-tint);
+    color: var(--brand-gold-text);
+    font-size: 12px;
+}
+
+.commit-aside {
+    gap: 12px;
+}
+
+.commit-aside-text {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.5;
+}
+
+.commit-aside-text b {
+    font-weight: 500;
+}
+
+.commit-floor {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface-subtle);
+}
+
+.commit-floor-value {
+    font-size: 20px;
+}
+
+.commitments-flags {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+}
+
+.carbon-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 12px;
+}
+
+.carbon-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.carbon-month {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 13.5px;
+    color: var(--text-secondary);
+}
+
+.carbon-month .form-select {
+    width: auto;
+}
+
+.carbon-figures {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr minmax(0, 1.6fr);
+    gap: 12px;
+}
+
+.cost-kpi-unit {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.carbon-strip-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    height: 74px;
+    margin-top: 4px;
+}
+
+.carbon-strip-col {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1px;
+}
+
+.carbon-strip-un {
+    display: block;
+    border-radius: 3px 3px 0 0;
+    background: var(--surface-muted);
+}
+
+.carbon-strip-at {
+    display: block;
+    border-radius: 0 0 3px 3px;
+    background: var(--ink);
+}
+
+.carbon-strip-label {
+    margin-top: 3px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.carbon-table-card {
+    padding: 0;
+    overflow: hidden;
+}
+
+.carbon-table-card .cost-scroll {
+    position: relative;
+}
+
+.carbon-mbm-col {
+    width: 34%;
+}
+
+.carbon-bar-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.carbon-bar {
+    flex: 1;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--surface-subtle);
+    overflow: hidden;
+}
+
+.carbon-bar > span {
+    display: block;
+    height: 100%;
+    border-radius: 4px;
+    background: var(--ink);
+}
+
+.carbon-bar-cell .cost-mono {
+    width: 56px;
+    text-align: right;
+}
+
+.carbon-env {
+    font-weight: 500;
+}
+
+.carbon-unallocated .carbon-env {
+    font-weight: 400;
+    font-style: italic;
+    color: var(--text-secondary);
+}
+
+.carbon-unallocated .carbon-bar > span {
+    background: var(--surface-muted);
+}
+
+@media (max-width: 1199.98px) {
+    .commit-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .commitments-kpis,
+    .carbon-figures {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.carbon-strip-col {
+    min-width: 0;
+}
+
+@media (max-width: 575.98px) {
+    .carbon-strip-bars {
+        gap: 4px;
+    }
+
+    .carbon-strip-label {
+        font-size: 10px;
     }
 }
