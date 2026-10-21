@@ -177,7 +177,7 @@ test.describe('VM registry review UI', () => {
 
     await chip(page, 'Removed or inactive (1)').click();
     const inactive = page.locator('#vrReviewList tr', { hasText: 'gone-1' });
-    await expect(inactive.locator('.status-badge', { hasText: 'Inactive' })).toBeVisible();
+    await expect(inactive.locator('.vr-note')).toHaveText('Not found in AWS; inactive');
     await expect(inactive.locator('[data-action="vr-edit-vm"]')).toHaveCount(0);
     await inactive.locator('[data-action="vr-reactivate-vm"]').click();
     await expect(page.getByText('Instance not found in ap-south-1 - fix the region first').first()).toBeVisible();
@@ -335,5 +335,106 @@ test.describe('VM registry layout', () => {
     await expect(page.locator('[data-no-access] h1').first()).toBeVisible({ timeout: 15_000 });
     await expect(page.locator('[data-action="vr-create-environment"], [data-action="vr-edit-environment"], [data-action="vr-delete-environment"]'))
       .toHaveCount(0);
+  });
+});
+
+/**
+ * U11-T09: every registry action is still there in the new layout: Reactivate an environment, Delete
+ * an empty group, Mark as reviewed from the Needs-review list, Reactivate a removed VM (above) and
+ * Sync node groups now for EKS. The API is faked in the browser.
+ */
+test.describe('Every registry action', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+  });
+
+  const json = (route: Route, body: unknown, status = 200) =>
+    route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+
+  test('a deactivated environment shows Reactivate, which brings it back', async ({ page }) => {
+    let active = false;
+    const reactivations: string[] = [];
+    const env = () => ({ environmentId: 'env-off', name: 'old-env', displayName: 'Old Env', isActive: active, serviceType: 'EC2',
+      groupCount: 0, vmCount: 0, viewerCanAdminister: true });
+    await page.route(/\/api\/v1\/environments(\?.*)?$/, route => {
+      const inactive = route.request().url().includes('includeInactive=true');
+      return json(route, inactive || active ? [env()] : []);
+    });
+    await page.route(/\/api\/v1\/environments\/env-off\/reactivate$/, route => {
+      reactivations.push(route.request().method());
+      active = true;
+      return json(route, env());
+    });
+    await page.route(/\/api\/v1\/environments\/env-off\/vms(\/review\/counts)?$/, route =>
+      json(route, route.request().url().endsWith('counts') ? { drift: 0, pending: 0, inactive: 0 } : []));
+    await signIn(page, 'admin');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate(() => { location.hash = '#/vm-registry'; });
+    await expect(page.locator('#vr-env-list')).toContainText('No environments yet', { timeout: 15_000 });
+
+    await page.locator('#filterStatus').selectOption('inactive');
+    await expect(page.locator('#vr-sel-title')).toHaveText('Old Env');
+    await expect(page.locator('#vr-detail-head [data-action="vr-delete-environment"]')).toHaveCount(0);
+    await page.locator('#vr-detail-head [data-action="vr-reactivate-environment"]').click();
+
+    await expect(page.getByText('Environment reactivated')).toBeVisible();
+    expect(reactivations).toEqual(['POST']);
+  });
+
+  test('an empty group can be deleted; one with VMs cannot', async ({ page }) => {
+    const fake = new FakeRegistry();
+    fake.groups.push({ groupId: 'g-empty', name: 'spare', displayName: 'Spare', sequencePosition: 2, dependsOnGroupIds: [] });
+    const deletes: string[] = [];
+    await page.route(new RegExp(`/api/v1/environments/${ENV_ID}/groups/g-empty$`), route => {
+      deletes.push(route.request().method());
+      fake.groups = fake.groups.filter(g => g.groupId !== 'g-empty');
+      return route.fulfill({ status: 204 });
+    });
+    await openRegistry(page, fake);
+
+    await expect(page.locator('tbody[data-group-id="g-web"] [data-action="vr-delete-group"]')).toBeDisabled();
+    await page.locator('tbody[data-group-id="g-empty"] [data-action="vr-delete-group"]').click();
+    await page.locator('.modal.show .btn-danger', { hasText: 'Delete' }).click();
+
+    await expect(page.locator('tbody[data-group-id="g-empty"]')).toHaveCount(0);
+    expect(deletes).toEqual(['DELETE']);
+  });
+
+  test('the Needs-review list offers Mark as reviewed for each VM found by discovery', async ({ page }) => {
+    const fake = new FakeRegistry();
+    await openRegistry(page, fake);
+
+    await chip(page, 'Pending review (2)').click();
+    await expect(page.locator('#vrReviewArea [data-action="vr-review-state"][aria-pressed="true"]')).toHaveText('Pending review (2)');
+    const listed = page.locator('#vrReviewList tr', { hasText: 'found-1' });
+    await expect(listed.locator('.vr-count')).toHaveText('in discovered');
+    await listed.locator('[data-action="vr-ack-vm"]').click();
+
+    await expect(chip(page, 'Pending review (1)')).toBeVisible();
+    await expect(page.locator('#vrReviewList tr', { hasText: 'found-1' })).toHaveCount(0);
+  });
+
+  test('an EKS environment offers Sync node groups now and says when it finished', async ({ page }) => {
+    const syncs: string[] = [];
+    await page.route(/\/api\/v1\/environments(\?.*)?$/, route => json(route, [{ environmentId: 'env-eks', name: 'hr-eks',
+      displayName: 'HR Portal', isActive: true, serviceType: 'EKS', groupCount: 1, vmCount: 2, viewerCanAdminister: true }]));
+    await page.route(/\/api\/v1\/environments\/env-eks\/vms(\/review\/counts)?$/, route =>
+      json(route, route.request().url().endsWith('counts') ? { drift: 0, pending: 0, inactive: 0 }
+        : [{ group: { groupId: 'g-ng', name: 'ng-1', displayName: 'ng-1', sequencePosition: 1, dependsOnGroupIds: [], vmCount: 0 }, vms: [] }]));
+    await page.route(/\/api\/v1\/monitoring\/sync\/eks\/env-eks$/, route => {
+      syncs.push(route.request().method());
+      return json(route, { nodeGroupsSynced: 3 });
+    });
+    await signIn(page, 'admin');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate(() => { location.hash = '#/vm-registry'; });
+    await expect(page.locator('#vr-sel-title')).toHaveText('HR Portal', { timeout: 15_000 });
+
+    await expect(page.locator('#vr-detail-head [data-action="vr-add-vms"]')).toHaveCount(0);
+    await page.locator('#eks-sync-now-btn').click();
+
+    await expect(page.getByText(/^Node groups synced at \d{1,2}:\d{2}.*: 3 node groups checked\.$/)).toBeVisible();
+    expect(syncs).toEqual(['POST']);
+    await expect(page.locator('#eks-sync-now-btn')).toBeEnabled();
   });
 });
