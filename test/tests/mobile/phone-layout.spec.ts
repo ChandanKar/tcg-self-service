@@ -319,7 +319,9 @@ test.describe('Phone Home', () => {
     await expect(cards.filter({ hasText: 'Payments Dev' })).toHaveAttribute('href', '#/environments/e1');
     // Acceptance: a lease ending within 4 hours is a gold row with Extend above the cards.
     const alert = page.locator('.phone-home-alert');
-    await expect(alert).toContainText(`Payments Dev stops at ${hhmm}`);
+    // Past midnight the time carries the weekday ("Thu 00:57"), so the run time of day doesn't matter.
+    const day = soon.getDate() === new Date().getDate() ? '' : `${soon.toLocaleDateString('en-GB', { weekday: 'short' })} `;
+    await expect(alert).toContainText(`Payments Dev stops at ${day}${hhmm}`);
     await expect(alert.locator('b')).toHaveText('Extend');
     await expect(alert).toHaveAttribute('href', '#/environments/e1?extendLease=1');
     await expect(page.locator('.home-lower')).toHaveCount(0);
