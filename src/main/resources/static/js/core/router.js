@@ -89,6 +89,13 @@ const ContentRouter = (function() {
             params: m => ({ ruleId: decodeURIComponent(m[1]) })
         },
         {
+            // Waste › Fixes (U15-T07): the fixes waiting for approval and recent ones.
+            contentType: 'waste-fixes',
+            pattern: /^#\/waste\/fixes$/,
+            build: () => '#/waste/fixes',
+            params: () => ({})
+        },
+        {
             // A team's page (U13-T08).
             contentType: 'team-detail',
             pattern: /^#\/teams\/([^/?]+)$/,
@@ -152,6 +159,7 @@ const ContentRouter = (function() {
         'user-management-add': { role: 'ADMIN', label: 'Add people' },
         'teams':              { role: 'ADMIN', label: 'Teams' },
         'team-detail':        { role: 'ADMIN', label: 'Team' },
+        'waste-fixes':        { role: 'ADMIN', label: 'Waste fixes' },
         'aws-accounts':       { role: 'ADMIN', label: 'AWS accounts' },
         'api-access':         { role: 'ADMIN', label: 'API access' },
         'settings':           { role: 'ADMIN', label: 'Settings' },
@@ -232,6 +240,7 @@ const ContentRouter = (function() {
             'waste':              () => window.Waste?.load?.(),
             'teams':              () => window.Teams?.load?.(),
             'team-detail':        (params) => window.TeamDetail?.load?.(params),
+            'waste-fixes':        () => window.WasteFixes?.load?.(),
             'aws-accounts':       () => window.AwsAccounts?.load?.(),
             'api-access':         () => window.ApiAccess?.load?.(),
             'chargeback':         () => window.Chargeback?.load?.(),

@@ -53,6 +53,14 @@ public class WasteSweepService {
     private final com.tcgdigital.vmcontrol.repository.VmStateHistoryRepository historyRepository;
     private final AuditService auditService;
 
+    /** When the sweep runs (UTC), for the page's header (U15-T07). */
+    @Value("${waste.sweep.cron:0 0 4 * * *}")
+    private String cron = "0 0 4 * * *";
+
+    /** The sweep's job lock: when it last ran, scheduled or by hand; absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.repository.ScheduledJobLockRepository jobLockRepository;
+
     @Value("${waste.sweep.enabled:false}")
     private boolean enabled = false;
 
@@ -159,7 +167,10 @@ public class WasteSweepService {
             total = total.add(monthly);
         }
         byType.sort(java.util.Comparator.comparing(t -> t.type().ordinal()));
-        return new com.tcgdigital.vmcontrol.dto.WasteSummaryDTO(enabled, count, total, byType);
+        java.sql.Timestamp lastSweep = jobLockRepository == null ? null : jobLockRepository.findById("waste_sweep")
+                .map(com.tcgdigital.vmcontrol.model.ScheduledJobLock::getAcquiredAt).orElse(null);
+        return new com.tcgdigital.vmcontrol.dto.WasteSummaryDTO(enabled, count, total, byType,
+                SchedulerHealthService.cadence(null, cron), lastSweep);
     }
 
     /** An admin decides a finding is not waste; sweeps leave it alone. */

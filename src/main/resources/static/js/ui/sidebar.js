@@ -162,6 +162,7 @@ const Sidebar = (function() {
         // Add VMs under VM registry, Cost setup (a cost tab since U15-T05) under Cost management.
         const key = contentType === 'environment-detail' ? 'my-environments'
             : contentType === 'cost-setup' ? 'cost-management'
+            : contentType === 'waste-fixes' ? 'waste'
             : contentType === 'access-grant' ? 'access-management'
             : contentType === 'register-vms' || contentType === 'environment-settings' ? 'vm-registry'
             : contentType === 'automation-rule-new' || contentType === 'automation-rule-edit' ? 'automation-rules'

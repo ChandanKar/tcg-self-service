@@ -69,6 +69,19 @@ class WasteSweepServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void theSummarySaysWhenTheSweepRunsAndWhenItLastDid() {
+        // U15-T07: the page header reads "Checked daily at 04:00 UTC; last check …".
+        com.tcgdigital.vmcontrol.dto.WasteSummaryDTO summary = sweep.summary();
+        assertThat(summary.checked()).isEqualTo("Daily 04:00");
+        com.tcgdigital.vmcontrol.repository.ScheduledJobLockRepository locks = mock(com.tcgdigital.vmcontrol.repository.ScheduledJobLockRepository.class);
+        com.tcgdigital.vmcontrol.model.ScheduledJobLock lock = new com.tcgdigital.vmcontrol.model.ScheduledJobLock();
+        lock.setAcquiredAt(java.sql.Timestamp.from(NOW));
+        when(locks.findById("waste_sweep")).thenReturn(java.util.Optional.of(lock));
+        ReflectionTestUtils.setField(sweep, "jobLockRepository", locks);
+        assertThat(sweep.summary().lastSweepAt()).isEqualTo(java.sql.Timestamp.from(NOW));
+    }
+
+    @Test
     void whenOffNothingIsCalled() {
         ReflectionTestUtils.setField(sweep, "enabled", false);
         assertThat(sweep.sweep().ran()).isFalse();

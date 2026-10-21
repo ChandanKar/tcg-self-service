@@ -546,6 +546,7 @@ const HelpContent = (function() {
         'cost-management': 'costs',
         'savings': 'savings',
         'waste': 'costs',
+        'waste-fixes': 'costs',
         'chargeback': 'chargeback',
         'cost-setup': 'costs',
         'user-management': 'getting-started',
