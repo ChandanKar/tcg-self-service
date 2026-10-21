@@ -33,7 +33,11 @@ test.describe('Next runs', () => {
 
   test('the week previews the draft and explains an invalid one', async ({ page }) => {
     await openNewRule(page, environmentId);
+    // Wait for the Kolkata preview itself: under load the earlier UTC preview can still be on screen after 5 s.
+    const kolkata = page.waitForResponse(r => r.url().includes('/automation-rules/preview')
+      && (r.request().postData() || '').includes('Asia/Kolkata'), { timeout: 20_000 });
     await page.locator('#ar-timezone').selectOption('Asia/Kolkata');
+    await kolkata;
 
     // U12-T03 acceptance: Mon–Fri 08:00–20:00 in Asia/Kolkata.
     const hours = page.locator('#re-hours');
