@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +33,9 @@ import java.util.UUID;
 public class LockService {
 
     private static final Logger log = LoggerFactory.getLogger(LockService.class);
+
+    /** Tries of one acquire when MySQL picks it as a deadlock victim (see acquireLock). */
+    private static final int DEADLOCK_ATTEMPTS = 3;
 
     private final EnvironmentLockRepository lockRepository;
     private final LockHistoryRepository historyRepository;
@@ -94,11 +98,22 @@ public class LockService {
      * race between simultaneous acquires (M1): the loser's transaction rolls back and it gets a
      * LockAlreadyHeldException naming the winner (409); the same user's concurrent request gets
      * the lock that won. The insert stays in the caller's transaction, so a rolled-back caller
-     * leaves no lock behind.
+     * leaves no lock behind. MySQL can also settle the race with a deadlock instead of a duplicate
+     * key; that transaction was rolled back, so it is tried again (a few times) and then sees the
+     * winner like any later acquire.
      */
     public EnvironmentLock acquireLock(String environmentId, String userId, String reason, Integer expectedDurationMinutes) {
         try {
-            return acquireTransaction.execute(status -> doAcquire(environmentId, userId, reason, expectedDurationMinutes));
+            for (int attempt = 1; ; attempt++) {
+                try {
+                    return acquireTransaction.execute(status -> doAcquire(environmentId, userId, reason, expectedDurationMinutes));
+                } catch (PessimisticLockingFailureException deadlock) {
+                    if (attempt >= DEADLOCK_ATTEMPTS) {
+                        throw deadlock;
+                    }
+                    log.info("Lock acquire on environment {} lost a deadlock (attempt {}); trying again", environmentId, attempt);
+                }
+            }
         } catch (DataIntegrityViolationException raceLost) {
             EnvironmentLock winner = freshRead.execute(status ->
                     lockRepository.findByEnvironmentIdWithEnvironment(environmentId).orElse(null));
