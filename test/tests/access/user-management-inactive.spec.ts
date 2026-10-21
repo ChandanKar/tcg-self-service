@@ -289,6 +289,7 @@ test.describe('Add people', () => {
     await page.locator('#adp-pick-add').click();
     await expect(page.locator('.adp-access-row')).toHaveCount(1);
     await expect(page.locator('#adp-summary b')).toHaveText('Add 2 new people as Environment admin, 2 access grants', { timeout: 10_000 });
+    await expect(page.locator('#adp-email-note')).toHaveText('Access is ready; no email is sent.'); // U13-T09: email is off here
     await expect(page.locator('#adp-submit')).toHaveText('Add 2 people');
 
     const sent = page.waitForResponse(r => r.url().includes('/users/bulk-onboard?dryRun=false'));
@@ -347,6 +348,19 @@ test.describe('Add people', () => {
     }
     await expect(page.locator('#adp-summary b')).toHaveText('Add 2 new people as Environment admin, 4 access grants', { timeout: 10_000 });
     await expect(page.locator('#adp-submit')).toHaveText('Add 2 people');
+  });
+
+  test('with the onboarding email on, the confirm line says each person gets an email (U13-T09)', async ({ page }) => {
+    await page.route(/\/api\/v1\/users\/me\/capabilities$/, async route => {
+      const response = await route.fetch();
+      const caps = await response.json();
+      return route.fulfill({ response, body: JSON.stringify({ ...caps, features: { ...caps.features, onboardingEmail: true } }) });
+    });
+    await openAdd(page);
+    await page.locator('#adp-email').fill(`cy.${Date.now()}@onboard.test`);
+    await page.getByRole('button', { name: 'Add to list' }).click();
+    await expect(page.locator('#adp-email-note')).toHaveText('Each person gets an email with what they can use and how to sign in.',
+      { timeout: 10_000 });
   });
 
   test('Cancel with people in the list asks before discarding them', async ({ page }) => {

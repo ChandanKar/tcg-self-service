@@ -4,9 +4,14 @@ import com.tcgdigital.vmcontrol.model.Environment;
 import com.tcgdigital.vmcontrol.model.Team;
 import com.tcgdigital.vmcontrol.model.User;
 import com.tcgdigital.vmcontrol.model.VmGroup;
+import com.tcgdigital.vmcontrol.model.EmailLog;
+import com.tcgdigital.vmcontrol.repository.EmailLogRepository;
 import com.tcgdigital.vmcontrol.repository.TeamMemberRepository;
 import com.tcgdigital.vmcontrol.repository.TeamRepository;
+import com.tcgdigital.vmcontrol.service.settings.SettingsService;
 import com.tcgdigital.vmcontrol.support.SecuredWebTestBase;
+import org.awaitility.Awaitility;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +19,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
@@ -35,6 +41,8 @@ class BulkOnboardIntegrationTest extends SecuredWebTestBase {
 
     @Autowired private TeamRepository teams;
     @Autowired private TeamMemberRepository members;
+    @Autowired private EmailLogRepository emailLog;
+    @Autowired private SettingsService settings;
 
     private Environment crm;
     private Environment payments;
@@ -51,6 +59,12 @@ class BulkOnboardIntegrationTest extends SecuredWebTestBase {
         team.setName("data-lake-" + tag);
         team.setDisplayName("Data lake");
         team = teams.saveAndFlush(team);
+    }
+
+    @AfterEach
+    void switchEmailOff() {
+        settings.reset("notification.email.enabled", null);
+        settings.reset("notification.email.onboarded.enabled", null);
     }
 
     private String email(String name) {
@@ -158,5 +172,68 @@ class BulkOnboardIntegrationTest extends SecuredWebTestBase {
         expectError(send(true, asEnvAdmin(), body("USER", "")), 403);
         expectError(send(false, asUser(), body("USER", "")), 403);
         assertThat(userRepository.findByEmail(email("neha"))).isEmpty();
+    }
+
+    // ---- U13-T09: one email per person, after commit, while the switch is on ----
+
+    private void emailSwitches(boolean onboarded) {
+        settings.set("notification.email.enabled", "true", null); // the test SMTP refuses: the send is logged as failed
+        settings.set("notification.email.onboarded.enabled", String.valueOf(onboarded), null);
+    }
+
+    /** This test's email log rows of one type (the recipients carry the test's tag). */
+    private List<EmailLog> logged(String type) {
+        return emailLog.findAll().stream()
+                .filter(e -> type.equals(e.getNotificationType()) && e.getRecipients() != null && e.getRecipients().contains(tag))
+                .toList();
+    }
+
+    /** Three new people, two environments, the granter asking to email people. */
+    private String threePeople() {
+        String person = "{\"email\":\"%s\",\"displayName\":\"%s\"}";
+        return "{\"people\":[" + String.format(person, email("neha"), "Neha Gupta") + ","
+                + String.format(person, email("ravi"), "Ravi Kumar") + "," + String.format(person, email("asha"), "Asha Rao") + "],"
+                + "\"role\":\"USER\",\"emailPeople\":true,"
+                + "\"access\":[{\"environmentId\":\"" + crm.getEnvironmentId() + "\",\"accessLevel\":\"USER\",\"durationDays\":30},"
+                + "{\"environmentId\":\"" + payments.getEnvironmentId() + "\",\"accessLevel\":\"VIEWER\"}]}";
+    }
+
+    @Test
+    void withTheSwitchOnEachPersonGetsOneEmailAndNoGrantEmails() throws Exception {
+        emailSwitches(true);
+        send(false, asAdmin(), threePeople()).andExpect(status().isOk()).andExpect(jsonPath("$.newPeople").value(3));
+
+        awaitAsync(() -> assertThat(logged("ONBOARDED")).hasSize(3));
+        assertThat(logged("ONBOARDED")).allSatisfy(e -> {
+            assertThat(e.getSubject()).isEqualTo("You can now use VM Control");
+            assertThat(e.getRecipientCount()).isEqualTo(1);
+            assertThat(e.getSentByUserId()).isEqualTo(admin.getUserId());
+        });
+        assertThat(logged("ONBOARDED")).extracting(EmailLog::getRecipients)
+                .containsExactlyInAnyOrder(email("neha"), email("ravi"), email("asha"));
+        assertThat(logged("BULK_ACCESS_GRANTED")).isEmpty();
+    }
+
+    @Test
+    void aRolledBackBatchSendsNoEmail() throws Exception {
+        emailSwitches(true);
+        VmGroup elsewhere = newGroup(payments, "web");
+        String bad = ",{\"environmentId\":\"" + crm.getEnvironmentId() + "\",\"scopeType\":\"GROUP\",\"groupIds\":[\""
+                + elsewhere.getGroupId() + "\"],\"accessLevel\":\"VIEWER\"}";
+        expectError(send(false, asAdmin(), body("USER", bad)), 400);
+
+        Awaitility.await().during(Duration.ofMillis(800)).atMost(Duration.ofSeconds(2))
+                .untilAsserted(() -> assertThat(logged("ONBOARDED")).isEmpty());
+        assertThat(logged("BULK_ACCESS_GRANTED")).isEmpty();
+    }
+
+    @Test
+    void withTheSwitchOffTheGrantEmailsGoAsBefore() throws Exception {
+        emailSwitches(false);
+        send(false, asAdmin(), threePeople()).andExpect(status().isOk());
+
+        // As before: one grant email per person per level and length (two each here).
+        awaitAsync(() -> assertThat(logged("BULK_ACCESS_GRANTED")).hasSize(6));
+        assertThat(logged("ONBOARDED")).isEmpty();
     }
 }

@@ -317,7 +317,7 @@ public class BulkAccessGrantService {
         };
     }
 
-    private static String endText(Timestamp end) {
+    static String endText(Timestamp end) {
         return end == null ? ", no end date" : " until " + day(end);
     }
 

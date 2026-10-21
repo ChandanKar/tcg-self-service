@@ -56,6 +56,9 @@ public class CapabilitiesService {
         for (Switch s : SWITCHES) {
             features.put(s.feature(), settings.getBoolean(s.property(), s.defaultValue()));
         }
+        // U13-T09: Add people says whether each person gets an email.
+        features.put("onboardingEmail", settings.getBoolean("notification.email.enabled", false)
+                && settings.getBoolean("notification.email.onboarded.enabled", false));
         return new CapabilitiesDTO(admin, envAdmin, features);
     }
 }

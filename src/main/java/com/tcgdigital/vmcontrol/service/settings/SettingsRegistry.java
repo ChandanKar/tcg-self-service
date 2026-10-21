@@ -27,6 +27,7 @@ public final class SettingsRegistry {
             flag("Notifications", "notification.email.access-expiring.enabled", "Access expiring", "Email users before their access expires.", false),
             flag("Notifications", "notification.email.access-expired.enabled", "Access expired", "Email users when their access has expired.", false),
             flag("Notifications", "notification.email.access-granted.enabled", "Access granted", "Email users when access is granted.", false),
+            flag("Notifications", "notification.email.onboarded.enabled", "People added", "Email each person added with Add people what they can use and how to sign in.", false),
             flag("Notifications", "notification.email.access-request-approved.enabled", "Request approved", "Email requesters when a request is approved.", false),
             flag("Notifications", "notification.email.access-request-denied.enabled", "Request denied", "Email requesters when a request is denied.", false),
             flag("Notifications", "notification.email.access-revoked.enabled", "Access revoked", "Email users when access is revoked.", false),

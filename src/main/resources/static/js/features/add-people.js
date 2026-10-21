@@ -358,6 +358,13 @@ const AddPeople = (function() {
         drawConfirm();
     }
 
+    /** U13-T09: one email per person while the onboarding email is on; otherwise none. */
+    function emailNote() {
+        return typeof Capabilities !== 'undefined' && Capabilities.has('onboardingEmail')
+            ? 'Each person gets an email with what they can use and how to sign in.'
+            : 'Access is ready; no email is sent.';
+    }
+
     function drawConfirm() {
         const r = s.result;
         const count = r ? (r.newPeople || 0) + (r.existingPeople || 0) : 0;
@@ -372,7 +379,7 @@ const AddPeople = (function() {
             const skipped = (r.people || []).filter(p => p.outcome === 'SKIPPED');
             html = Utils.html`<b>${summaryText(r, s.role)}</b>${Utils.raw(skipped.length ? Utils.html`<span class="adp-skips">${skipped.length} skipped: ${
                 skipped.map(p => `${p.email || p.displayName || 'someone'} (${String(p.reason || '').toLowerCase()})`).join(', ')}</span>` : '')}
-                <span class="adp-note">People with access get a message with what they can use.</span>`;
+                <span class="adp-note" id="adp-email-note">${emailNote()}</span>`;
         }
         $('#adp-summary').html(html);
         $('#adp-submit').prop('disabled', !r || !count || !!s.problem || s.sending)

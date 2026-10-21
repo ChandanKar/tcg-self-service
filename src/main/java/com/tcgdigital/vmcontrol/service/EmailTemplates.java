@@ -55,6 +55,32 @@ final class EmailTemplates {
         return sb.toString();
     }
 
+    /**
+     * Add people (U13-T09): "You can now use VM Control", what the person can use (one line per
+     * environment or group, with the level and end date) and how to sign in. Every value is escaped;
+     * the only link is the app's own address from configuration, and only an http(s) one.
+     */
+    static String onboardedEmail(String name, String intro, List<String> access, String signIn, String appUrl) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<html><body style=\"font-family:Arial,sans-serif;font-size:14px;color:#222;\">");
+        sb.append("<h2 style=\"margin:0 0 12px;\">You can now use VM Control</h2>");
+        sb.append("<p>Hello ").append(escape(name)).append(",</p>");
+        sb.append("<p>").append(escape(intro)).append("</p>");
+        if (access.isEmpty()) {
+            sb.append("<p>You have no environments yet: ask for access in the app when you need one.</p>");
+        } else {
+            sb.append("<p>You can use:</p><ul>");
+            access.forEach(line -> sb.append("<li>").append(escape(line)).append("</li>"));
+            sb.append("</ul>");
+        }
+        sb.append("<p><b>How to sign in:</b> ").append(escape(signIn)).append("</p>");
+        if (appUrl != null && (appUrl.startsWith("https://") || appUrl.startsWith("http://"))) {
+            sb.append("<p><a href=\"").append(escape(appUrl)).append("\">Open VM Control</a></p>");
+        }
+        sb.append("</body></html>");
+        return sb.toString();
+    }
+
     private static String formatCell(Object cell) {
         if (cell instanceof BigDecimal bd) {
             return bd.toPlainString();

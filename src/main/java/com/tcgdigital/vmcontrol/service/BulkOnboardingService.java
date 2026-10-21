@@ -7,12 +7,16 @@ import com.tcgdigital.vmcontrol.dto.BulkOnboardResultDTO;
 import com.tcgdigital.vmcontrol.dto.BulkOnboardResultDTO.Outcome;
 import com.tcgdigital.vmcontrol.dto.DirectoryUserDTO;
 import com.tcgdigital.vmcontrol.exception.ValidationException;
+import com.tcgdigital.vmcontrol.model.AccessLevel;
 import com.tcgdigital.vmcontrol.model.AccessScopeType;
 import com.tcgdigital.vmcontrol.model.User;
 import com.tcgdigital.vmcontrol.repository.TeamRepository;
 import com.tcgdigital.vmcontrol.repository.UserRepository;
+import com.tcgdigital.vmcontrol.service.settings.SettingsService;
+import com.tcgdigital.vmcontrol.service.support.AfterCommit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,11 +36,17 @@ import java.util.Set;
  * added) or SKIPPED with the reason. Access goes through the bulk grant (U10-T02), so the same
  * new / extend / upgrade / skip rules apply and nothing is ever lowered. Applying runs in one
  * transaction: a target that cannot be granted rolls back every account it would have made.
+ *
+ * <p>U13-T09: while notification.email.onboarded.enabled is on, each person added gets one email
+ * after commit with what they can use and how to sign in, and the grants of this step send no
+ * access emails of their own (one mail per person; the in-app messages still go).
  */
 @Service
 public class BulkOnboardingService {
 
     private static final Logger log = LoggerFactory.getLogger(BulkOnboardingService.class);
+    static final String ONBOARDED_SETTING = "notification.email.onboarded.enabled";
+    static final String ONBOARDED_TYPE = "ONBOARDED";
 
     private final UserService userService;
     private final UserRepository userRepository;
@@ -44,16 +54,29 @@ public class BulkOnboardingService {
     private final BulkAccessGrantService bulkGrants;
     private final TeamService teamService;
     private final TeamRepository teamRepository;
+    private final EmailService emailService;
+    private final SettingsService settings;
+    private final AfterCommit afterCommit;
+
+    @Value("${entraid.enabled:false}")
+    private boolean entraEnabled;
+
+    @Value("${chat.public-base-url:}")
+    private String appUrl;
 
     public BulkOnboardingService(UserService userService, UserRepository userRepository,
                                  GraphDirectoryService graphDirectoryService, BulkAccessGrantService bulkGrants,
-                                 TeamService teamService, TeamRepository teamRepository) {
+                                 TeamService teamService, TeamRepository teamRepository,
+                                 EmailService emailService, SettingsService settings, AfterCommit afterCommit) {
         this.userService = userService;
         this.userRepository = userRepository;
         this.graphDirectoryService = graphDirectoryService;
         this.bulkGrants = bulkGrants;
         this.teamService = teamService;
         this.teamRepository = teamRepository;
+        this.emailService = emailService;
+        this.settings = settings;
+        this.afterCommit = afterCommit;
     }
 
     /** One person as understood: who they are, what happens to them and why. */
@@ -110,15 +133,76 @@ public class BulkOnboardingService {
                 teamService.addMember(p.teamId, p.user.getUserId(), actorUserId);
             }
         }
+        boolean welcome = settings.getBoolean(ONBOARDED_SETTING, false);
         List<String> emails = receiving.stream().map(p -> p.email).toList();
         if (!emails.isEmpty()) {
             for (BulkGrantRequestDTO grant : grants) {
-                rows.addAll(bulkGrants.apply(actorUserId, withPeople(grant, emails)).rows());
+                BulkGrantRequestDTO forPeople = withPeople(grant, emails);
+                if (welcome) {
+                    forPeople = new BulkGrantRequestDTO(forPeople.userEmails(), forPeople.teamIds(), forPeople.targets(),
+                            forPeople.accessLevel(), forPeople.durationDays(), forPeople.clearExpiry(), forPeople.notes(), false);
+                }
+                rows.addAll(bulkGrants.apply(actorUserId, forPeople).rows());
+            }
+            if (welcome) {
+                receiving.forEach(p -> sendWelcome(p, rows, actorUserId));
             }
         }
         log.info("Add people by {}: {} new, {} existing, {} skipped, {} access rows", actorUserId,
                 count(people, Outcome.NEW), count(people, Outcome.EXISTING), count(people, Outcome.SKIPPED), rows.size());
         return result(true, people, rows);
+    }
+
+    // ---- the email (U13-T09) ----
+
+    /** Builds the person's email now and sends it once the transaction has committed. */
+    private void sendWelcome(Resolved p, List<BulkGrantPlanDTO.Row> rows, String actorUserId) {
+        User user = p.user;
+        if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {
+            return;
+        }
+        String to = user.getEmail();
+        String html = EmailTemplates.onboardedEmail(p.displayName,
+                p.outcome == Outcome.NEW ? "You have been added to VM Control as " + roleText(user) + "."
+                        : "Your access in VM Control has been updated.",
+                accessLines(to, rows), signInText(user), appUrl);
+        afterCommit.run(() -> emailService.sendHtml(List.of(to), "You can now use VM Control", html,
+                null, null, ONBOARDED_TYPE, null, actorUserId));
+    }
+
+    /** "Operator on Payments Dev until 20 Nov 2026", including what the person already had. */
+    static List<String> accessLines(String email, List<BulkGrantPlanDTO.Row> rows) {
+        List<String> lines = new ArrayList<>();
+        for (BulkGrantPlanDTO.Row r : rows) {
+            if (!email.equalsIgnoreCase(r.userEmail())) {
+                continue;
+            }
+            boolean kept = r.outcome() == BulkGrantPlanDTO.Outcome.SKIP;
+            String level = kept ? r.currentLevel() : r.resultLevel();
+            if (level == null) {
+                continue;
+            }
+            String line = BulkAccessGrantService.levelText(AccessLevel.valueOf(level)) + " on " + r.scopeName()
+                    + BulkAccessGrantService.endText(kept ? r.currentExpiresAt() : r.resultExpiresAt());
+            if (!lines.contains(line)) {
+                lines.add(line);
+            }
+        }
+        return lines;
+    }
+
+    private static String roleText(User user) {
+        return user.isAdmin() ? "an administrator" : user.isEnvAdmin() ? "an environment admin" : "a user";
+    }
+
+    private String signInText(User user) {
+        if (entraEnabled) {
+            return "choose Sign in with Microsoft and use your work account, " + user.getEmail() + ".";
+        }
+        if (user.getUsername() != null && user.getPassword() != null) {
+            return "sign in with your username, " + user.getUsername() + ", and your password.";
+        }
+        return "your administrator will tell you how to sign in.";
     }
 
     // ---- people ----

@@ -38,7 +38,8 @@ class CapabilitiesControllerTest extends SecuredWebTestBase {
                 .andExpect(jsonPath("$.features.templates").value(false))
                 .andExpect(jsonPath("$.features.webhooks").value(false))
                 .andExpect(jsonPath("$.features.leases").exists())
-                .andExpect(jsonPath("$.features.directory").value(false)); // U13-T05: off unless graph.directory.enabled
+                .andExpect(jsonPath("$.features.directory").value(false)) // U13-T05: off unless graph.directory.enabled
+                .andExpect(jsonPath("$.features.onboardingEmail").value(false)); // U13-T09: email and its switch both off
 
         settings.set("provisioning.enabled", "true", admin.getUserId());
 
