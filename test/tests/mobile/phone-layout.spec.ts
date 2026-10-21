@@ -93,25 +93,82 @@ test.describe('Phone layout (admin)', () => {
     await page.waitForLoadState('networkidle');
   });
 
-  test('Environment Detail keeps every Start/Stop button on screen', async ({ page }) => {
-    // The test schema has no VMs, so the environment's groups and VMs are faked.
-    const vm = (id: string, status: string) => ({
-      vmId: id, name: `application-server-with-a-long-name-${id}`, provider: 'AWS', region: 'ap-south-1',
-      status, sequencePosition: 1, cloudInstanceId: `i-${id}`,
-    });
+  // The test schema has no VMs, so the environment's groups and VMs are faked.
+  const vm = (id: string, status: string) => ({
+    vmId: id, name: `application-server-with-a-long-name-${id}`, provider: 'AWS', region: 'ap-south-1',
+    status, sequencePosition: 1, cloudInstanceId: `i-${id}`,
+  });
+  async function fakeGroups(page: Page) {
     await page.route(/\/api\/v1\/environments\/[^/]+\/vms(\?.*)?$/, route => route.fulfill({ json: [
       { group: { groupId: 'g1', name: 'web', displayName: 'Web tier', sequencePosition: 1 },
         vms: [vm('a1', 'RUNNING'), vm('a2', 'STOPPED')] },
       { group: { groupId: 'g2', name: 'db', displayName: 'Database tier', sequencePosition: 2 },
         vms: [vm('b1', 'STOPPED')] },
     ] }));
+  }
 
+  test('the environment on a phone: state, the two big actions, details and groups that open (U16-T03)', async ({ page }) => {
+    await fakeGroups(page);
     await page.evaluate(id => { location.hash = '#/environments/' + id; }, seededEnvId);
-    await expect(page.locator('[data-action="start-vm"], [data-action="stop-vm"]').first()).toBeAttached({ timeout: 15_000 });
+    await expect(page.locator('.phone-env-state')).toBeVisible({ timeout: 15_000 });
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(600);
+
+    await expect(page.locator('.phone-page-head .phone-back')).toHaveAttribute('aria-label', 'Back to environments');
+    await expect(page.locator('.phone-page-head #btn-operation-history')).toHaveText('History');
+    await expect(page.locator('.phone-env-count')).toHaveText('1 of 3 VMs running');
+    await expect(page.locator('.phone-stage-name')).toHaveText(['Web tier', 'Database tier']);
+    // Acceptance: an operator with 2 stopped VMs sees both actions without scrolling, and they open the confirm.
+    const start = page.getByRole('button', { name: 'Start the 2 stopped' });
+    const stop = page.getByRole('button', { name: 'Stop all' });
+    for (const b of [start, stop]) {
+      const box = await b.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.y + box!.height).toBeLessThanOrEqual(844 - 64);
+    }
+    await start.click();
+    await expect(page.locator('#operationConfirmModal')).toBeVisible();
+    await page.locator('#operationConfirmModal [data-bs-dismiss="modal"]').first().click();
+    await expect(page.locator('.modal.show')).toHaveCount(0);
+
+    // Acceptance: tapping a group opens it and lists its VMs.
+    const web = page.locator('.phone-group-row', { hasText: 'Web tier' });
+    await expect(web).toHaveAttribute('aria-expanded', 'false');
+    await web.click();
+    await expect(web).toHaveAttribute('aria-expanded', 'true');
+    const rows = page.locator('#phone-group-g1 .phone-vm');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.first()).toContainText('application-server-with-a-long-name-a1');
+    await expect(rows.first().getByRole('button', { name: /^Stop / })).toBeVisible();
+    await expect(page.locator('#phone-group-g2')).toBeHidden();
     await expectNoSideScroll(page);
     expect(await expectInViewport(page, '[data-action="start-vm"], [data-action="stop-vm"]')).toBeGreaterThan(0);
+  });
+
+  test('a viewer on a phone gets no start, stop, lock or extend control (U16-T03)', async ({ page }) => {
+    await fakeGroups(page);
+    await page.route(/\/api\/v1\/environments\/[^/?]+$/, async route => {
+      if (route.request().method() !== 'GET') return route.continue();
+      const response = await route.fetch();
+      const body = await response.json();
+      body.viewerCanOperate = false;
+      body.viewerCanAdminister = false;
+      await route.fulfill({ response, json: body });
+    });
+    // The lock fact follows the per-viewer flags on the lock status (E07-T05).
+    await page.route(/\/api\/v1\/environments\/[^/]+\/lock$/, route => route.fulfill({ json: {
+      isLocked: false, canAcquire: false, canRelease: false, canForceRelease: false } }));
+    await page.evaluate(id => { location.hash = '#/environments/' + id; }, seededEnvId);
+    await expect(page.locator('.phone-env-state')).toBeVisible({ timeout: 15_000 });
+    await page.waitForLoadState('networkidle');
+
+    // Acceptance: a viewer sees no start/stop/lock/extend control.
+    await page.locator('.phone-group-row', { hasText: 'Web tier' }).click();
+    await expect(page.locator('#phone-group-g1 .phone-vm')).toHaveCount(2);
+    await expect(page.locator('#btn-env-action, #btn-env-action-stop')).toHaveCount(0);
+    await expect(page.locator('[data-action="start-vm"], [data-action="stop-vm"]')).toHaveCount(0);
+    await expect(page.locator('[data-lock-action="acquire"]')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Extend/ })).toHaveCount(0);
+    await expect(page.locator('.phone-viewonly')).toContainText('You can see this environment but not start or stop it.');
   });
 });
 

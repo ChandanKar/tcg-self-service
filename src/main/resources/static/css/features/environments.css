@@ -1698,3 +1698,238 @@
         flex-wrap: wrap;
     }
 }
+
+/* ---- The environment on a phone (U16-T03, PhoneEnv.dc.html) ---- */
+.phone-env {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.phone-env .env-alerts:empty {
+    display: none;
+}
+
+.phone-viewonly {
+    margin: 0;
+}
+
+.phone-env-state,
+.phone-env-details,
+.phone-groups {
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #fff;
+}
+
+.phone-env-state {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.phone-env-count {
+    font-size: 15px;
+}
+
+.phone-env-count b {
+    font-weight: 500;
+}
+
+.phone-stages {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+}
+
+.phone-stage {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.phone-stage-name {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.phone-env-actions {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+}
+
+.phone-env-actions .btn {
+    width: 100%;
+    min-height: 48px;
+    font-size: 16px;
+}
+
+.phone-env-details {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+}
+
+.phone-env-details > div:empty {
+    display: none;
+}
+
+.phone-env-details > div + div {
+    border-top: 1px solid var(--line-soft);
+}
+
+/* Each fact as one row, as on the board: the label, its value, then its links. */
+.phone-env-details .env-fact,
+.phone-env-details .env-cost-block {
+    display: grid;
+    grid-template-columns: 84px minmax(0, 1fr) auto;
+    align-items: baseline;
+    column-gap: 10px;
+    row-gap: 2px;
+    padding: 8px 0;
+    border-top: 0;
+}
+
+.phone-env-details .env-fact-head {
+    display: contents;
+}
+
+.phone-env-details .env-fact-head > span:first-child {
+    grid-column: 1;
+    grid-row: 1;
+}
+
+.phone-env-details .env-fact-value,
+.phone-env-details .env-cost-mtd {
+    grid-column: 2;
+    grid-row: 1;
+    font-size: var(--fs-body);
+}
+
+.phone-env-details .env-fact-actions {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+    gap: 14px;
+}
+
+.phone-env-details .env-fact-actions .btn {
+    padding: 0;
+}
+
+.phone-env-details .env-fact-note {
+    grid-column: 2 / -1;
+}
+
+.phone-env-details #env-budget-panel {
+    padding: 0 0 8px 94px;
+}
+
+.phone-groups {
+    padding: 0;
+    overflow: hidden;
+}
+
+.phone-group + .phone-group {
+    border-top: 1px solid var(--line-soft);
+}
+
+.phone-group-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 56px;
+    padding: 0 16px;
+    border: 0;
+    background: #fff;
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+}
+
+.phone-group-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 15px;
+    font-weight: 500;
+}
+
+.phone-group-chevron {
+    flex-shrink: 0;
+    color: var(--text-secondary);
+    transition: transform 0.15s;
+}
+
+.phone-group-row[aria-expanded="true"] .phone-group-chevron {
+    transform: rotate(90deg);
+}
+
+.phone-group-vms ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.phone-vm {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 16px;
+    border-top: 1px solid var(--line-soft);
+    background: var(--surface-subtle);
+}
+
+.phone-vm-main {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.phone-vm-main b {
+    overflow: hidden;
+    font-size: 14px;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.phone-vm-state {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+}
+
+.phone-vm-state.state-running {
+    color: var(--brand-green-text);
+}
+
+.phone-vm-state.state-failed {
+    color: var(--brand-red-text);
+}
+
+.phone-vm-actions {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 4px;
+}
+
+.phone-group-more {
+    width: 100%;
+    text-decoration: none;
+}
+
+.phone-env-more {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+}
+
+.phone-env-more .btn-link {
+    text-decoration: none;
+}

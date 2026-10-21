@@ -690,6 +690,7 @@ const Environments = (function() {
      * others who may see its Spot state get the Spot side panel (EnvSettingsPanel).
      */
     function buildDetailHtml(env) {
+        if (isPhone() && !isEks(env)) return buildPhoneDetailHtml(env);
         const totalVms = env.totalVms || 0;
         const runningVms = env.runningVms || 0;
         // The server sets the viewer flags on every environment it returns (U02-T02): no flag, no controls.
@@ -779,6 +780,170 @@ const Environments = (function() {
                     </aside>
                 </div>
             </div>`;
+    }
+
+    // ---------------------------------------------------------------- the environment on a phone (U16-T03)
+
+    const PHONE_QUERY = '(max-width: 768px)';
+    const PHONE_GROUP_PAGE = 10;
+    /** Per environment: the groups opened, and how many VMs each shows. */
+    const phoneState = {};
+
+    function isPhone() {
+        return typeof window !== 'undefined' && window.matchMedia && window.matchMedia(PHONE_QUERY).matches;
+    }
+
+    function phoneStateFor(envId) {
+        return phoneState[envId] || (phoneState[envId] = { open: new Set(), shown: {} });
+    }
+
+    function groupsInOrder(env) {
+        return (env.groups || []).slice().sort((a, b) =>
+            ((a.group || a).sequencePosition ?? 0) - ((b.group || b).sequencePosition ?? 0));
+    }
+
+    function groupIdOf(g) {
+        return (g.group && g.group.groupId) || g.groupId;
+    }
+
+    function groupNameOf(g, i) {
+        const x = g.group || g;
+        return x.displayName || x.name || 'Group ' + (i + 1);
+    }
+
+    /** One VM in an opened group: name, state, its start or stop, and Details. */
+    function phoneVmRow(vm, canOperate) {
+        const st = EnvVmTable.model.state(vm);
+        const act = EnvVmTable.model.vmAction(vm, canOperate);
+        const name = vm.displayName || vm.name;
+        const button = act === 'stop'
+            ? Utils.html`<button type="button" class="btn btn-outline-secondary btn-sm" data-action="stop-vm" data-vm-id="${vm.vmId}" aria-label="Stop ${name}">Stop</button>`
+            : act === 'start' || act === 'retry'
+            ? Utils.html`<button type="button" class="btn btn-outline-secondary btn-sm" data-action="start-vm" data-vm-id="${vm.vmId}" aria-label="Start ${name}">${act === 'retry' ? 'Retry' : 'Start'}</button>`
+            : '';
+        return Utils.html`<li class="phone-vm">
+                <span class="phone-vm-main"><b>${name}</b><span class="phone-vm-state state-${st.kind}">${st.text}</span></span>
+                <span class="phone-vm-actions">${Utils.raw(button)}<button type="button" class="btn btn-link btn-sm" data-action="vm-details"
+                    data-vm-id="${vm.vmId}" aria-label="Details of ${name}">Details</button></span></li>`;
+    }
+
+    function phoneGroupHtml(env, g, i, canOperate) {
+        const id = groupIdOf(g);
+        const ps = phoneStateFor(env.environmentId);
+        const open = ps.open.has(id);
+        const vms = g.vms || [];
+        const shown = Math.min(vms.length, ps.shown[id] || PHONE_GROUP_PAGE);
+        const strip = PowerStrip.render(PowerStrip.fromVmGroups([g]), { showCount: true });
+        const listId = `phone-group-${String(id).replace(/[^A-Za-z0-9_-]/g, '')}`;
+        const rows = vms.slice(0, shown).map(vm => phoneVmRow(vm, canOperate)).join('');
+        const more = shown < vms.length ? Utils.html`<button type="button" class="btn btn-link phone-group-more" data-action="env-phone-more"
+                data-group-id="${id}">Show ${String(Math.min(PHONE_GROUP_PAGE, vms.length - shown))} more</button>` : '';
+        return Utils.html`<div class="phone-group">
+                <button type="button" class="phone-group-row" data-action="env-phone-group" data-group-id="${id}"
+                    aria-expanded="${open ? 'true' : 'false'}" aria-controls="${listId}">
+                    <span class="phone-group-name">${groupNameOf(g, i)}</span>${Utils.raw(strip)}
+                    <svg class="phone-group-chevron" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg></button>
+                <div class="phone-group-vms" id="${listId}"${Utils.raw(open ? '' : ' hidden')}><ul>${Utils.raw(rows)}</ul>${Utils.raw(more)}</div>
+            </div>`;
+    }
+
+    /**
+     * The environment on a phone (PhoneEnv.dc.html): back, name and History; the state with a large strip
+     * labelled by group and the two big actions; Lease, Lock and this month's cost; then one row per group
+     * that opens to its VMs. The same ids as the desktop page, so leases, locks, cost, alerts and the
+     * operations all work as they do there.
+     */
+    function buildPhoneDetailHtml(env) {
+        const canOperate = env.viewerCanOperate === true;
+        const envName = env.displayName || env.name;
+        const groups = groupsInOrder(env);
+        let lockFact = '';
+        try {
+            lockFact = (typeof Locks !== 'undefined' && Locks.buildLockFact) ? Locks.buildLockFact(env.lockStatus, env.environmentId) : '';
+        } catch (e) { lockFact = ''; }
+        const strips = groups.map((g, i) => Utils.html`<span class="phone-stage">`
+            + PowerStrip.render(PowerStrip.fromVmGroups([g]), { large: true, showCount: false })
+            + Utils.html`<span class="phone-stage-name">${groupNameOf(g, i)}</span></span>`).join('');
+        const isEnvAdmin = typeof Auth !== 'undefined' && Auth.isEnvAdmin && Auth.isEnvAdmin();
+        const settings = typeof EnvSettingsPanel !== 'undefined' && EnvSettingsPanel.isAvailable(env)
+            ? '<button type="button" class="btn btn-link" id="btn-env-settings">Settings</button>' : '';
+        const viewOnly = canOperate ? '' : Utils.html`<p class="env-viewonly-note phone-viewonly" role="note">You can see this environment but not
+            start or stop it. <a class="env-viewonly-ask" href="#/request-access?environmentId=${encodeURIComponent(env.environmentId)}">Ask for operator access</a></p>`;
+        setTitle(envName);
+        return `
+            <div id="env-detail-view" class="page env-detail-page phone-env">
+                <header class="phone-page-head">
+                    <a class="phone-back" href="#/my-environments" id="phone-back" aria-label="Back to environments">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" aria-hidden="true"><path d="m12 4-6 6 6 6"/></svg></a>
+                    <h1 class="phone-page-title">${Utils.escapeHtml(envName)}</h1>
+                    <button type="button" class="btn btn-link phone-head-link" id="btn-operation-history">History</button>
+                </header>
+                <div id="env-alerts" class="env-alerts"></div>
+                ${viewOnly}
+                <section class="phone-env-state" aria-label="State">
+                    <div class="phone-env-count"><b class="mono">${env.runningVms || 0}</b> of <b class="mono">${env.totalVms || 0}</b> VMs running</div>
+                    <div class="phone-stages">${strips}</div>
+                    <div class="phone-env-actions env-detail-actions">${headerOperationButtons(env)}</div>
+                </section>
+                <section class="phone-env-details" aria-label="Details">
+                    <div id="env-fact-lease"></div>
+                    <div id="env-fact-lock">${lockFact}</div>
+                    <div id="env-fact-schedule"></div>
+                    <div id="env-fact-idle"></div>
+                    <div class="env-cost-fact"><section id="env-cost-card" aria-label="Environment cost"></section><div id="env-budget-panel"></div></div>
+                </section>
+                <section id="env-vms" class="phone-groups" aria-label="Groups and VMs">
+                    ${groups.map((g, i) => phoneGroupHtml(env, g, i, canOperate)).join('')}
+                </section>
+                <nav class="phone-env-more" aria-label="More for this environment">
+                    <button type="button" class="btn btn-link" id="btn-env-insights">Insights</button>
+                    ${isEnvAdmin ? '<button type="button" class="btn btn-link" id="btn-env-manage-access">Access</button>' : ''}
+                    ${settings}
+                </nav>
+            </div>`;
+    }
+
+    function setTitle(name) {
+        if (typeof PageHeader !== 'undefined' && PageHeader.setDocumentTitle) PageHeader.setDocumentTitle(name);
+    }
+
+    /** Opens or closes a group's VMs in place (aria-expanded), without redrawing the page. */
+    function togglePhoneGroup(button) {
+        const env = currentEnvironment;
+        if (!env) return;
+        const id = button.getAttribute('data-group-id');
+        const ps = phoneStateFor(env.environmentId);
+        const open = button.getAttribute('aria-expanded') !== 'true';
+        if (open) ps.open.add(id); else ps.open.delete(id);
+        button.setAttribute('aria-expanded', String(open));
+        const list = document.getElementById(button.getAttribute('aria-controls'));
+        if (list) list.hidden = !open;
+    }
+
+    function showMorePhoneVms(button) {
+        const env = currentEnvironment;
+        if (!env) return;
+        const id = button.getAttribute('data-group-id');
+        const ps = phoneStateFor(env.environmentId);
+        ps.shown[id] = (ps.shown[id] || PHONE_GROUP_PAGE) + PHONE_GROUP_PAGE;
+        const groups = groupsInOrder(env);
+        const i = groups.findIndex(g => String(groupIdOf(g)) === id);
+        if (i < 0) return;
+        const holder = button.closest('.phone-group');
+        holder.outerHTML = phoneGroupHtml(env, groups[i], i, env.viewerCanOperate === true);
+    }
+
+    /** Crossing the phone width redraws the page in the other form, from what it already loaded. */
+    if (typeof window !== 'undefined' && window.matchMedia) {
+        const media = window.matchMedia(PHONE_QUERY);
+        const redraw = () => {
+            if (!currentEnvironment || !document.getElementById('env-detail-view') || !isActive()) return;
+            $('#content-area').html(buildDetailHtml(currentEnvironment));
+            bindDetailEvents(currentEnvironment);
+        };
+        if (media.addEventListener) media.addEventListener('change', redraw); else if (media.addListener) media.addListener(redraw);
     }
 
     /**
@@ -899,6 +1064,14 @@ const Environments = (function() {
             else stopEnvironment(envId, envName);
         });
 
+        // Phone back (U16-T03): the previous page when it was in this app, else Environments.
+        $('#phone-back').off('click').on('click', function(e) {
+            if (window.history.length > 1) {
+                e.preventDefault();
+                window.history.back();
+            }
+        });
+
         // Operation history
         $('#btn-operation-history').off('click').on('click', function(e) {
             e.preventDefault();
@@ -946,6 +1119,10 @@ const Environments = (function() {
                     stopVm(id, this.getAttribute('data-vm-id'));
                 } else if (action === 'vm-details') {
                     openVmDetails(id, this.getAttribute('data-vm-id'));
+                } else if (action === 'env-phone-group') {
+                    togglePhoneGroup(this);
+                } else if (action === 'env-phone-more') {
+                    showMorePhoneVms(this);
                 } else if (action === 'env-large-group') {
                     Object.assign(largeStateFor(currentEnvironment),
                         { groupId: this.getAttribute('data-group-id'), filter: 'all', page: 0 });
