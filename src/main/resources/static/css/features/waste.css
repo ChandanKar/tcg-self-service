@@ -146,6 +146,163 @@
     margin-left: 8px;
 }
 
-.waste-actions-card {
+/* ---- Waste › Fixes (U15-T08, WasteFix.dc.html) ---- */
+.fix-steps {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0 0 14px;
+    padding: 0;
+    list-style: none;
+    font-size: 13px;
+}
+
+.fix-steps li {
+    display: flex;
+    align-items: center;
     gap: 8px;
+    margin-left: -1px;
+    padding: 8px 14px;
+    background: #fff;
+    border: 1px solid var(--line);
+}
+
+.fix-steps li:first-child {
+    border-radius: 9px 0 0 9px;
+}
+
+.fix-steps li:last-child {
+    border-radius: 0 9px 9px 0;
+}
+
+.fix-steps b {
+    font-weight: 500;
+}
+
+.fix-steps li > span:last-child {
+    color: var(--text-secondary);
+}
+
+.fix-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.fix-dot.fix-wait { background: var(--warning-color); }
+.fix-dot.fix-busy { background: var(--ink); }
+.fix-dot.fix-done { background: var(--success-color); }
+.fix-dot.fix-plain { background: var(--slate); }
+
+.fix-table {
+    width: 100%;
+    min-width: 720px;
+    border-collapse: collapse;
+    font-size: 13.5px;
+}
+
+.fix-table th {
+    padding: 9px 8px;
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
+    font-size: 12.5px;
+    font-weight: 500;
+    text-align: left;
+}
+
+.fix-table td {
+    padding: 10px 8px;
+    border-top: 1px solid var(--line-soft);
+    vertical-align: top;
+}
+
+.fix-table th:first-child,
+.fix-table td:first-child {
+    padding-left: 16px;
+}
+
+.fix-table th:last-child,
+.fix-table td:last-child {
+    padding-right: 16px;
+}
+
+.fix-table .cost-num {
+    text-align: right;
+}
+
+.fix-name {
+    font-weight: 500;
+}
+
+.fix-tag {
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.fix-tag.fix-wait { background: var(--brand-gold-tint); color: var(--brand-gold-text); }
+.fix-tag.fix-busy { background: var(--brand-navy-tint); color: var(--ink); }
+.fix-tag.fix-done { background: var(--brand-green-tint); color: var(--brand-green-text); }
+.fix-tag.fix-failed { background: var(--brand-red-tint); color: var(--brand-red-text); }
+.fix-tag.fix-plain { background: var(--surface-muted); color: var(--slate); }
+
+.fix-actions {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.fix-actions .btn + .btn {
+    margin-left: 6px;
+}
+
+.fix-actions .btn-link {
+    text-decoration: none;
+}
+
+.fix-quiet {
+    color: var(--text-secondary);
+}
+
+.fix-note {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+}
+
+.waste-actions-card .cost-scroll {
+    position: relative;
+}
+
+.propose-fixes {
+    margin: 0 0 12px;
+    padding: 0;
+    border: 0;
+}
+
+.propose-fix {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 8px 12px;
+    border: 1.5px solid var(--ink);
+    border-radius: 9px;
+    font-size: 14px;
+}
+
+.propose-fix b {
+    font-weight: 500;
+}
+
+.propose-reason {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    width: 100%;
+    font-size: 13.5px;
+    font-weight: 500;
+}
+
+.propose-error {
+    color: var(--brand-red-text);
+    font-size: 13px;
 }

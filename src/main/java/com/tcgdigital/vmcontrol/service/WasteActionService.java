@@ -108,7 +108,17 @@ public class WasteActionService {
 
     @Transactional
     public WasteActionDTO propose(String findingId, WasteAction.Type type, String userId) {
+        return propose(findingId, type, userId, null);
+    }
+
+    /** Propose a fix with an optional reason (U15-T08), kept with the action and in its audit entry. */
+    @Transactional
+    public WasteActionDTO propose(String findingId, WasteAction.Type type, String userId, String reason) {
         requireEnabled();
+        String why = reason == null || reason.isBlank() ? null : reason.trim();
+        if (why != null && why.length() > 500) {
+            throw new ValidationException("Keep the reason under 500 characters.");
+        }
         WasteFinding finding = finding(findingId);
         if (ACTION_FOR.get(finding.getFindingType()) != type) {
             throw new ValidationException(type + " is not available for a " + finding.getFindingType() + " finding");
@@ -122,10 +132,11 @@ public class WasteActionService {
         action.setActionType(type);
         action.setProposedBy(userId);
         action.setProposedAt(now());
+        action.setReason(why);
         actionRepository.save(action);
         finding.setStatus(WasteFindingStatus.ACTION_PENDING);
         findingRepository.save(finding);
-        audit(userId, AuditAction.WASTE_ACTION_PROPOSED, action, finding, "Proposed " + type);
+        audit(userId, AuditAction.WASTE_ACTION_PROPOSED, action, finding, "Proposed " + type + (why == null ? "" : ": " + why));
         return toDto(action);
     }
 
@@ -360,11 +371,19 @@ public class WasteActionService {
         }
     }
 
+    /** Names the proposer on the Fixes page (U15-T08); absent in plain unit tests. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.tcgdigital.vmcontrol.repository.UserRepository userRepository;
+
     WasteActionDTO toDto(WasteAction a) {
         WasteFinding f = findingRepository.findById(a.getFindingId()).orElse(null);
+        String proposer = userRepository == null || a.getProposedBy() == null ? null
+                : userRepository.findById(a.getProposedBy()).map(u -> u.getDisplayName() != null && !u.getDisplayName().isBlank()
+                        ? u.getDisplayName() : u.getUsername()).orElse(null);
         return new WasteActionDTO(a.getActionId(), a.getFindingId(), f == null ? null : f.getFindingType(),
                 f == null ? null : f.getRegion(), f == null ? null : f.getResourceId(), a.getActionType(), a.getStatus(),
                 a.getProposedBy(), a.getProposedAt(), a.getApprovedBy(), a.getApprovedAt(), a.getExecutedAt(), a.getRolledBackAt(),
-                a.getErrorMessage(), a.getActionType() != WasteAction.Type.RELEASE_IP, f == null ? null : f.getDetails());
+                a.getErrorMessage(), a.getActionType() != WasteAction.Type.RELEASE_IP, f == null ? null : f.getDetails(),
+                a.getReason(), proposer, f == null ? null : f.getEstMonthlyCost());
     }
 }

@@ -98,6 +98,14 @@ class WasteControllerTest extends SecuredWebTestBase {
     }
 
     @Test
+    void aReasonOver500CharactersIsRefused() throws Exception {
+        // U15-T08: checked before anything else, so also while fix actions are off.
+        expectError(mockMvc.perform(post("/api/v1/waste/findings/" + volumeId + "/actions").with(asAdmin())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"type\":\"DELETE_VOLUME\",\"reason\":\"" + "x".repeat(600) + "\"}")), 400)
+                .andExpect(jsonPath("$.message").value("Keep the reason under 500 characters."));
+    }
+
+    @Test
     void fixActionsAreRefusedWhileTurnedOffAndAdminOnly() throws Exception {
         expectError(mockMvc.perform(post("/api/v1/waste/findings/" + volumeId + "/actions").with(asAdmin())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"type\":\"DELETE_VOLUME\"}")), 400)

@@ -24,5 +24,9 @@ public record WasteActionDTO(
         /** Whether an EXECUTED action of this type can be rolled back. */
         boolean rollbackSupported,
         /** The finding's details JSON (e.g. the public IP to type before releasing it). */
-        String findingDetails) {
+        String findingDetails,
+        /** Why it was proposed, the proposer's name and what the finding costs a month (U15-T08). */
+        String reason,
+        String proposedByName,
+        java.math.BigDecimal monthlySaving) {
 }

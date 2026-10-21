@@ -100,7 +100,10 @@ public class WasteController {
     // ============= Fix actions (E22-T04) =============
 
     public record ProposeRequest(@jakarta.validation.constraints.NotNull(message = "Choose an action")
-                                 com.tcgdigital.vmcontrol.model.WasteAction.Type type) {}
+                                 com.tcgdigital.vmcontrol.model.WasteAction.Type type,
+                                 /** Why (U15-T08), optional. */
+                                 @jakarta.validation.constraints.Size(max = 500, message = "Keep the reason under 500 characters.")
+                                 String reason) {}
 
     @GetMapping("/actions")
     @Operation(summary = "Fix actions, newest first")
@@ -118,7 +121,7 @@ public class WasteController {
     @PostMapping("/findings/{findingId}/actions")
     @Operation(summary = "Propose a fix (another admin must approve it)")
     public com.tcgdigital.vmcontrol.dto.WasteActionDTO propose(@PathVariable String findingId, @Valid @RequestBody ProposeRequest request) {
-        return actionService.propose(findingId, request.type(), userService.getCurrentUserId());
+        return actionService.propose(findingId, request.type(), userService.getCurrentUserId(), request.reason());
     }
 
     @PostMapping("/actions/{actionId}/approve")

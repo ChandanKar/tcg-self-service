@@ -90,68 +90,114 @@ test.describe('Waste page', () => {
     await expect(page.locator('#waste-findings tr[data-finding="f-1"]')).toHaveCount(0);
   });
 
-  test('fix actions: propose, approve another admin proposal, type the IP, roll back', async ({ page }) => {
+  test('Waste › Fixes: the steps, Approve for another admin, the proposer waits, type the IP, roll back (U15-T08)', async ({ page }) => {
+    const me = devIds.admin;
     const ip = { ...FINDING, findingId: 'f-ip', findingType: 'UNASSOCIATED_IP', resourceId: 'eipalloc-1', resourceName: null,
       details: '{"publicIp":"13.0.0.1"}', estMonthlyCost: 3.65 };
-    const actions = [
+    const today = new Date().toISOString();
+    let rolledBack = false;
+    const actions = () => [
       { actionId: 'a-mine', findingId: 'f-1', findingType: 'UNATTACHED_VOLUME', region: 'ap-south-1', resourceId: 'vol-0abc',
-        actionType: 'DELETE_VOLUME', status: 'PROPOSED', proposedBy: 'admin-001', rollbackSupported: true, findingDetails: '{}' },
+        actionType: 'DELETE_VOLUME', status: 'PROPOSED', proposedBy: me, proposedAt: today, rollbackSupported: true,
+        findingDetails: '{"sizeGib":100}', reason: 'Left over from the 3.9 load test', proposedByName: 'Test Admin', monthlySaving: 10 },
       { actionId: 'a-ip', findingId: 'f-ip', findingType: 'UNASSOCIATED_IP', region: 'ap-south-1', resourceId: 'eipalloc-1',
-        actionType: 'RELEASE_IP', status: 'PROPOSED', proposedBy: 'someone-else', rollbackSupported: false,
-        findingDetails: '{"publicIp":"13.0.0.1"}' },
+        actionType: 'RELEASE_IP', status: 'PROPOSED', proposedBy: 'someone-else', proposedAt: today, rollbackSupported: false,
+        findingDetails: '{"publicIp":"13.0.0.1"}', reason: null, proposedByName: 'Priya Nair', monthlySaving: 3.65 },
       { actionId: 'a-done', findingId: 'f-x', findingType: 'GP2_VOLUME', region: 'ap-south-1', resourceId: 'vol-gp2',
-        actionType: 'MIGRATE_GP3', status: 'EXECUTED', proposedBy: 'someone-else', rollbackSupported: true, findingDetails: null },
+        actionType: 'MIGRATE_GP3', status: rolledBack ? 'ROLLED_BACK' : 'EXECUTED', proposedBy: 'someone-else', proposedAt: today,
+        rollbackSupported: true, findingDetails: null, reason: null, proposedByName: 'Priya Nair', monthlySaving: 5,
+        rolledBackAt: rolledBack ? today : null },
+      { actionId: 'a-bad', findingId: 'f-y', findingType: 'UNATTACHED_VOLUME', region: 'ap-south-1', resourceId: 'vol-bad',
+        actionType: 'DELETE_VOLUME', status: 'FAILED', proposedBy: 'someone-else', proposedAt: today, rollbackSupported: true,
+        findingDetails: null, errorMessage: 'The volume is attached again', reason: null, proposedByName: 'Rahul Verma', monthlySaving: 8 },
     ];
     const posted: string[] = [];
     await page.route(/\/api\/v1\/waste\/summary$/, route => route.fulfill({ status: 200, contentType: 'application/json',
       body: JSON.stringify({ sweepEnabled: true, openCount: 2, monthlyTotal: 13.65, byType: [] }) }));
     await page.route(/\/api\/v1\/waste\/findings\?/, route => route.fulfill({ status: 200, contentType: 'application/json',
-      body: JSON.stringify({ content: [FINDING, ip], page: { size: 25, number: 0, totalElements: 2, totalPages: 1 } }) }));
+      body: JSON.stringify({ content: [FINDING, ip], page: { size: 10, number: 0, totalElements: 2, totalPages: 1 } }) }));
     await page.route(/\/api\/v1\/waste\/actions\/config$/, route => route.fulfill({ status: 200, contentType: 'application/json',
       body: '{"enabled":true}' }));
     await page.route(/\/api\/v1\/waste\/actions$/, route => route.fulfill({ status: 200, contentType: 'application/json',
-      body: JSON.stringify(actions) }));
-    await page.route(/\/api\/v1\/waste\/(actions\/[^/]+\/(approve|rollback)|findings\/[^/]+\/actions)$/, route => {
-      posted.push(new URL(route.request().url()).pathname);
+      body: JSON.stringify(actions()) }));
+    await page.route(/\/api\/v1\/waste\/actions\/[^/]+\/(approve|rollback)$/, route => {
+      const path = new URL(route.request().url()).pathname;
+      posted.push(path);
+      if (path.endsWith('/rollback')) rolledBack = true;
       return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
     });
     await open(page);
 
-    // U15-T07: the list links to Waste › Fixes, where the fixes waiting for approval are.
+    // The list links to Waste › Fixes.
     await expect(page.locator('.waste-foot')).toContainText('Fixes go through an approval and keep a snapshot first', { timeout: 15_000 });
     await page.getByRole('link', { name: 'Fixes · 2 waiting' }).click();
     await expect(page).toHaveURL(/#\/waste\/fixes$/);
     await expect(page.locator('.page-breadcrumb')).toContainText('Waste');
     await expect(page.locator('.sidebar-menu-link[data-content="waste"]')).toHaveClass(/active/);
+    await expect(page.locator('.fix-steps b')).toHaveText(['Proposed', 'Approved', 'Applied', 'Roll back']);
 
-    const panel = page.locator('.waste-actions-card');
-    await expect(panel).toContainText('Release IP', { timeout: 15_000 });
-    // My own proposal: no Approve button.
-    await expect(panel.locator('[data-action-id="a-mine"] [data-action="waste-approve"]')).toHaveCount(0);
-    await expect(panel.locator('[data-action-id="a-mine"]')).toContainText('Waiting for another admin');
+    const table = page.locator('#waste-fixes-table');
+    // Acceptance: the proposer sees 'Another admin approves'; another admin sees Approve.
+    const mine = table.locator('tr[data-action-id="a-mine"]');
+    await expect(mine).toContainText('Delete volume, snapshot first');
+    await expect(mine).toContainText('“Left over from the 3.9 load test”');
+    await expect(mine).toContainText('You');
+    await expect(mine.locator('.fix-tag')).toHaveText('Waiting for approval');
+    await expect(mine.locator('.fix-note')).toHaveText('Another admin approves');
+    await expect(mine.locator('[data-action="waste-approve"]')).toHaveCount(0);
+    const theirs = table.locator('tr[data-action-id="a-ip"]');
+    await expect(theirs).toContainText('Priya Nair');
+    await expect(theirs.locator('.rs-saves')).toHaveText('$4');
 
     // Releasing an IP needs the IP typed.
-    await panel.locator('[data-action-id="a-ip"] [data-action="waste-approve"]').click();
+    await theirs.getByRole('button', { name: 'Approve' }).click();
     await expect(page.locator('#btn-destructive-confirm')).toBeDisabled();
     await page.locator('#confirm-text-input').fill('13.0.0.1');
     await page.locator('#btn-destructive-confirm').click();
     await expect.poll(() => posted).toContain('/api/v1/waste/actions/a-ip/approve');
-    // Under load the dialog can still be fading over the panel: wait until it is gone.
     await expect(page.locator('.modal.show')).toHaveCount(0);
 
-    // History: rollback offered for the executed gp3 migration.
-    await panel.locator('summary').click();
-    await panel.locator('[data-action="waste-rollback"]').click();
+    // A failed fix shows why.
+    await table.locator('tr[data-action-id="a-bad"]').getByRole('button', { name: 'Details' }).click();
+    await expect(page.locator('#wasteFixDetailsModal')).toContainText('The volume is attached again');
+    await page.locator('#wasteFixDetailsModal [data-bs-dismiss="modal"]').first().click();
+    await expect(page.locator('.modal.show')).toHaveCount(0);
+
+    // Acceptance: Roll back on a done gp3 change, confirmed, then it reads Rolled back.
+    const done = table.locator('tr[data-action-id="a-done"]');
+    await expect(done.locator('.fix-tag')).toHaveText('Done');
+    await done.getByRole('button', { name: 'Roll back' }).click();
     await page.locator('#confirmBtn').click();
     await expect.poll(() => posted).toContain('/api/v1/waste/actions/a-done/rollback');
-    await expect(page.locator('.modal.show')).toHaveCount(0);
+    await expect(page.locator('#waste-fixes-table tr[data-action-id="a-done"] .fix-tag')).toHaveText('Rolled back');
+  });
 
-    // Propose from the list.
-    await page.evaluate(() => { location.hash = '#/waste'; });
+  test('Propose a fix from a row: the finding, the fix and a reason (U15-T08)', async ({ page }) => {
+    let sent: any = null;
+    await page.route(/\/api\/v1\/waste\/summary$/, route => route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ sweepEnabled: true, openCount: 1, monthlyTotal: 10, byType: [] }) }));
+    await page.route(/\/api\/v1\/waste\/findings\?/, route => route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ content: [FINDING], page: { size: 10, number: 0, totalElements: 1, totalPages: 1 } }) }));
+    await page.route(/\/api\/v1\/waste\/actions\/config$/, route => route.fulfill({ status: 200, contentType: 'application/json',
+      body: '{"enabled":true}' }));
+    await page.route(/\/api\/v1\/waste\/actions$/, route => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
+    await page.route(/\/api\/v1\/waste\/findings\/f-1\/actions$/, route => {
+      sent = route.request().postDataJSON();
+      return sent.reason && sent.reason.length > 500
+        ? route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ message: 'Keep the reason under 500 characters.' }) })
+        : route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    });
+    await open(page);
+
     await page.getByRole('button', { name: 'Snapshot and delete: vol-0abc' }).click({ timeout: 15_000 });
-    await expect(page.locator('.modal.show')).toContainText('Delete the volume (snapshot first): vol-0abc?');
-    await page.locator('#confirmBtn').click();
-    await expect.poll(() => posted).toContain('/api/v1/waste/findings/f-1/actions');
+    const dialog = page.locator('#wasteProposeModal');
+    await expect(dialog.locator('#propose-summary')).toHaveText('vol-0abc · Unattached volume, 100 GiB · unused 40 days · $10.00 a month');
+    await expect(dialog.getByRole('radio', { name: /Delete the volume/ })).toBeChecked();
+    await expect(dialog).toContainText('A snapshot is taken first, so it can be restored');
+    await dialog.getByLabel('Reason').fill('Left over from the 3.9 load test');
+    await dialog.getByRole('button', { name: 'Propose fix' }).click();
+    await expect.poll(() => sent).toEqual({ type: 'DELETE_VOLUME', reason: 'Left over from the 3.9 load test' });
+    await expect(page.locator('.modal.show')).toHaveCount(0);
   });
 
   test('non-admins are refused', async ({ page }) => {

@@ -99,6 +99,25 @@ class WasteActionServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void theReasonIsKeptWithTheActionAndInItsAuditEntry() {
+        AuditService audit = mock(AuditService.class);
+        AwsWasteScanService aws = new AwsWasteScanService(region -> ec2);
+        WasteActionService withMockAudit = new WasteActionService(actions, findings, aws, audit, afterCommit, objectMapper);
+        ReflectionTestUtils.setField(withMockAudit, "enabled", true);
+
+        // U15-T08: the reason is trimmed, stored and named in the audit; the saving is the finding's monthly cost.
+        com.tcgdigital.vmcontrol.dto.WasteActionDTO dto = withMockAudit.propose(findingId, WasteAction.Type.DELETE_VOLUME, "admin-a", "  Left over from the 3.9 load test ");
+        assertThat(dto.reason()).isEqualTo("Left over from the 3.9 load test");
+        assertThat(dto.monthlySaving()).isEqualByComparingTo("10.00");
+        assertThat(actions.findById(dto.actionId()).orElseThrow().getReason()).isEqualTo("Left over from the 3.9 load test");
+        org.mockito.Mockito.verify(audit).logAction(org.mockito.ArgumentMatchers.eq("admin-a"),
+                org.mockito.ArgumentMatchers.eq(com.tcgdigital.vmcontrol.model.AuditAction.WASTE_ACTION_PROPOSED),
+                org.mockito.ArgumentMatchers.eq("waste_action"), org.mockito.ArgumentMatchers.eq(dto.actionId()),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.eq("Proposed DELETE_VOLUME: Left over from the 3.9 load test"));
+    }
+
+    @Test
     void withActionsOffNothingIsStored() {
         ReflectionTestUtils.setField(service, "enabled", false);
         assertThatThrownBy(() -> service.propose(findingId, WasteAction.Type.DELETE_VOLUME, "admin-a"))

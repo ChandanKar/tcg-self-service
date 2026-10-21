@@ -65,6 +65,10 @@ public class WasteAction {
     @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
 
+    /** Why it was proposed (U15-T08), optional. */
+    @Column(name = "reason", length = 500)
+    private String reason;
+
     @Version
     @Column(name = "version", nullable = false)
     private Long version = 0L;
@@ -80,6 +84,8 @@ public class WasteAction {
     public void setActionType(Type actionType) { this.actionType = actionType; }
     public Status getStatus() { return status; }
     public void setStatus(Status status) { this.status = status; }
+    public String getReason() { return reason; }
+    public void setReason(String reason) { this.reason = reason; }
     public String getProposedBy() { return proposedBy; }
     public void setProposedBy(String proposedBy) { this.proposedBy = proposedBy; }
     public Timestamp getProposedAt() { return proposedAt; }

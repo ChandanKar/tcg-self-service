@@ -25,8 +25,6 @@ const Waste = (function() {
         OLD_SNAPSHOT: { type: 'ARCHIVE_SNAPSHOT', label: 'Archive…' },
         UNASSOCIATED_IP: { type: 'RELEASE_IP', label: 'Release…' }
     };
-    const FIX_LABEL = { DELETE_VOLUME: 'Delete the volume (snapshot first)', MIGRATE_GP3: 'Change it to gp3',
-        ARCHIVE_SNAPSHOT: 'Move the snapshot to the archive tier', RELEASE_IP: 'Release the IP' };
 
     function parseDetails(f) {
         if (!f || !f.details) return {};
@@ -251,14 +249,13 @@ const Waste = (function() {
 
     // ============= Fix actions (E22-T04/T05) =============
 
-    function propose(findingId, fixType) {
+    /** Opens "Propose a fix" (U15-T08) for a row: the finding in one line, the fix and a reason. */
+    function propose(findingId) {
         const f = ((state.findings && state.findings.content) || []).find(x => x.findingId === findingId);
-        if (!f) return;
-        Modals.confirm('Propose a fix', `${FIX_LABEL[fixType]}: ${f.resourceId}? Another admin approves it before anything changes in AWS.`, () => {
-            call('POST', Config.API.waste.propose(findingId), { type: fixType })
-                .then(() => { Notifications.show('Fix proposed; another admin must approve it.', 'success'); refresh(); })
-                .catch(e => Notifications.showError(serverMessage(e, 'Could not propose the fix.')));
-        }, { confirmText: 'Propose' });
+        if (!f || typeof WasteFixes === 'undefined') return;
+        const line = [f.resourceId, kindText(f), f.environmentName, f.eligibleSince || f.firstSeenAt ? `unused ${age(f.eligibleSince || f.firstSeenAt)}` : '',
+            `${money2(f.estMonthlyCost)} a month`].filter(Boolean).join(' · ');
+        WasteFixes.openPropose(f, line, refresh);
     }
 
     function sweep() {
@@ -302,5 +299,5 @@ if (typeof Actions !== 'undefined') Actions.registerAll({
     'waste-export': () => Waste.exportFindings(),
     'waste-type': el => Waste.filterType(el.dataset.type),
     'waste-page': el => Waste.page(Number(el.dataset.page) - 1),
-    'waste-propose': el => Waste.propose(el.dataset.id, el.dataset.fix)
+    'waste-propose': el => Waste.propose(el.dataset.id)
 });
