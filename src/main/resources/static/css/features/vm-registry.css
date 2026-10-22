@@ -428,8 +428,19 @@
         max-height: none;
     }
 
-    .vr-tree {
-        min-width: 640px;
+    /* The table fits the phone (U18-T01): name and actions only, the actions wrap; no sideways scroll. */
+    .vr-tree thead th:nth-child(n+2):nth-child(-n+4),
+    .vr-tree tbody tr > :nth-child(n+2):nth-child(-n+4) {
+        display: none;
+    }
+
+    .vr-tree .vr-actions {
+        white-space: normal;
+    }
+
+    .vr-tree .vr-act {
+        min-height: 44px;
+        margin-left: 8px;
     }
 }
 

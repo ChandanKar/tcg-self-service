@@ -13,7 +13,7 @@ const STATIC = fileURLToPath(new URL('../../main/resources/static/', import.meta
 
 const KEEP = {
     // U04-T02 layout primitives: shared building blocks, exercised by layout-primitives.spec.
-    'page-fill': 'layout primitive', 'master-detail': 'layout primitive', 'md-list': 'layout primitive',
+    'page-fill': 'layout primitive', 'page-frame': 'layout primitive (U18-T01)', 'master-detail': 'layout primitive', 'md-list': 'layout primitive',
     'md-list-title': 'layout primitive', 'with-side-col': 'layout primitive', 'side-col': 'layout primitive',
     // Theme utilities kept for pages to opt into.
     'tabular-nums': 'theme utility', 'custom-table': 'theme utility',

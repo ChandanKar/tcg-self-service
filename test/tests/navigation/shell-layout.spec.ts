@@ -1,5 +1,7 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
+import { ensureVolume } from '../../fixtures/volume';
+import { seriousViolations } from '../../fixtures/axe';
 
 /**
  * U04-T01: the app shell of TopBar.dc.html and SideNav.dc.html. A 56 px top bar and a 240 px side
@@ -128,46 +130,153 @@ test.describe('App shell', () => {
 });
 
 /**
- * U17-T07: the brief's rule at 1440 x 900: no page scrollbar, across or down, on any route for any
- * persona (lists page instead: three access requests, three budgets, six settings to a page). The
- * page itself and the main area (#mainContent) are both checked.
+ * U17-T07 and U18-T01: no page scrollbar, across or down, on any route for any persona, at 1440 x 900
+ * (the mockup) and at two laptop windows: 1536 x 730 and 1366 x 657 (a 1920 x 1080 or 1366 x 768
+ * screen at 125% with the browser's bars). Staging-like volume is seeded first (fixtures/volume.ts)
+ * so lists are checked full. The page itself and the main area (#mainContent) are both checked.
  */
-test.describe('Fits 1440 x 900 without a page scrollbar', () => {
-  test.describe.configure({ timeout: 240_000 });
+const SIZES: [number, number][] = [[1440, 900], [1536, 730], [1366, 657]];
 
-  for (const persona of ['admin-001', 'dev-user-001', 'user-001', 'user-002']) {
-    test(`${persona}: every route`, async ({ page }) => {
-      test.skip(!devIds.admin || !canSignIn('admin'), 'Needs the dev X-User-Id header (TEST_DEV_ADMIN_ID)');
-      await page.setViewportSize({ width: 1440, height: 900 });
-      await page.context().setExtraHTTPHeaders({ 'X-User-Id': persona });
-      await page.goto('/home');
-      await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
-      await expect(page.locator('#content-area h1, #content-area .no-access').first()).toBeVisible({ timeout: 15_000 });
-      const hashes: string[] = await page.evaluate(() => Array.from(new Set(ContentRouter._routeKeys()
-        .map((k: string) => { try { return ContentRouter.hashFor(k); } catch (e) { return null; } })
-        .filter(Boolean))));
-      const scrolls: string[] = [];
-      for (const hash of hashes) {
-        await page.evaluate(() => { location.hash = '#/help'; });
-        await expect(page.locator('#help-search')).toBeVisible();
-        await page.evaluate(h => { location.hash = h; }, hash);
-        await page.waitForLoadState('networkidle');
-        await page.waitForTimeout(500);
-        const over = await page.evaluate(() => {
-          const out: string[] = [];
-          const d = document.scrollingElement!;
-          const main = document.getElementById('mainContent');
-          if (d.scrollHeight > window.innerHeight + 1) out.push(`page is ${d.scrollHeight}px tall`);
-          if (d.scrollWidth > window.innerWidth + 1) out.push(`page is ${d.scrollWidth}px wide`);
-          if (main && main.scrollHeight > main.clientHeight + 1) out.push(`main area is ${main.scrollHeight}px of ${main.clientHeight}px`);
-          return out;
-        });
-        // Known, waiting on a decision: Overview still holds the idle-VM table, which the board does not have
-        // (move it to Waste, or drop it); with it the page runs past 900 px. Remove once decided.
-        if (hash === '#/cost-management') continue;
-        over.forEach(o => scrolls.push(`${hash}: ${o}`));
-      }
-      expect(scrolls, scrolls.join('\n')).toEqual([]);
-    });
+/**
+ * Pages measured to scroll on laptop windows before U18 (2026-10-22 sweep), each with the U18 task
+ * that moves it onto the page frame. Checked strictly at 1440 x 900; at the smaller sizes they are
+ * skipped until their task lands. U18-T06 empties this list.
+ */
+const LAPTOP_KNOWN: Record<string, string> = {
+  '#/dashboard': 'U18-T02', '#/my-environments': 'U18-T02', '#/environment-detail': 'U18-T02',
+  '#/request-access': 'U18-T02', '#/activity-logs': 'U18-T02',
+  '#/pending-requests': 'U18-T03', '#/access-management': 'U18-T03', '#/user-management': 'U18-T03',
+  '#/vm-registry': 'U18-T03', '#/audit-logs-all': 'U18-T03',
+  '#/cost-management': 'U18-T04', '#/cost-setup': 'U18-T04', '#/savings': 'U18-T04', '#/system-health': 'U18-T04',
+  '#/automation-rules/new': 'U18-T05', '#/access-management/grant': 'U18-T05', '#/user-management/add': 'U18-T05',
+  '#/settings': 'U18-T05',
+};
+
+test.describe('Fits the window without a page scrollbar', () => {
+  test.describe.configure({ timeout: 300_000 });
+
+  test.beforeAll(async ({ playwright }) => {
+    test.setTimeout(300_000);
+    if (devIds.admin) await ensureVolume(playwright, devIds.admin);
+  });
+
+  for (const [width, height] of SIZES) {
+    for (const persona of ['admin-001', 'dev-user-001', 'user-001', 'user-002']) {
+      test(`${width} x ${height}, ${persona}: every route`, async ({ page }) => {
+        test.skip(!devIds.admin || !canSignIn('admin'), 'Needs the dev X-User-Id header (TEST_DEV_ADMIN_ID)');
+        const mockup = width === 1440;
+        await page.setViewportSize({ width, height });
+        await page.context().setExtraHTTPHeaders({ 'X-User-Id': persona });
+        await page.goto('/home');
+        await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+        await expect(page.locator('#content-area h1, #content-area .no-access').first()).toBeVisible({ timeout: 15_000 });
+        const hashes: string[] = await page.evaluate(() => Array.from(new Set(ContentRouter._routeKeys()
+          .map((k: string) => { try { return ContentRouter.hashFor(k); } catch (e) { return null; } })
+          .filter(Boolean))));
+        const scrolls: string[] = [];
+        for (const hash of hashes) {
+          if (!mockup && LAPTOP_KNOWN[hash]) continue;
+          // Known, waiting on U18-T04: Overview still holds the idle-VM table, which moves to Waste.
+          if (hash === '#/cost-management') continue;
+          await page.evaluate(() => { location.hash = '#/help'; });
+          await expect(page.locator('#help-search')).toBeVisible();
+          await page.evaluate(h => { location.hash = h; }, hash);
+          await page.waitForLoadState('networkidle');
+          await page.waitForTimeout(500);
+          const over = await page.evaluate(() => {
+            const out: string[] = [];
+            const d = document.scrollingElement!;
+            const main = document.getElementById('mainContent');
+            if (d.scrollHeight > window.innerHeight + 1) out.push(`page is ${d.scrollHeight}px tall`);
+            if (d.scrollWidth > window.innerWidth + 1) out.push(`page is ${d.scrollWidth}px wide`);
+            if (main && main.scrollHeight > main.clientHeight + 1) out.push(`main area is ${main.scrollHeight}px of ${main.clientHeight}px`);
+            return out;
+          });
+          over.forEach(o => scrolls.push(`${hash}: ${o}`));
+        }
+        expect(scrolls, scrolls.join('\n')).toEqual([]);
+      });
+    }
   }
+});
+
+/**
+ * U18-T01: the page frame and the list panel themselves, on a page built from them with 200 rows.
+ * The page never scrolls, the list scrolls inside with its column headings in view and the pager
+ * fixed, edge shadows show hidden rows, the rows that fit really fit, and at 200% zoom (a 720 x 450
+ * window) the frame lets go and the page scrolls instead.
+ */
+declare const ListPanel: any;
+declare const PageHeader: any;
+
+async function demoPage(page: Page, rows: number) {
+  await page.evaluate((n: number) => {
+    const body = '<table class="table"><thead><tr><th scope="col">Name</th><th scope="col">State</th></tr></thead><tbody>'
+      + Array.from({ length: n }, (_, i) => `<tr><td>Row ${i + 1}</td><td><button type="button" class="btn btn-sm btn-outline-secondary">Open ${i + 1}</button></td></tr>`).join('')
+      + '</tbody></table>';
+    document.getElementById('content-area')!.innerHTML = `<div class="page page-frame" id="lp-demo">
+        ${PageHeader.markup({ title: 'Panel demo', summaryHtml: 'A page built on the frame.' })}
+        <div class="page-fill">${ListPanel.markup({ id: 'lp', title: 'Rows', toolbarHtml: '<input type="search" aria-label="Search rows">',
+          bodyHtml: body, footHtml: `<div class="pager"><span class="pager-range">1–${n} of ${n}</span></div>` })}</div></div>`;
+    (window as any).__fits = [];
+    (window as any).__lp = ListPanel.attach(document.getElementById('lp'), { rowSelector: 'tbody tr', onFit: (c: number) => (window as any).__fits.push(c) });
+  }, rows);
+}
+
+const scrollState = (page: Page) => page.evaluate(() => {
+  const main = document.getElementById('mainContent')!;
+  const body = document.getElementById('lp-body')!;
+  return { mainScrolls: main.scrollHeight > main.clientHeight + 1, bodyScrolls: body.scrollHeight > body.clientHeight + 1 };
+});
+
+test.describe('Page frame and list panel', () => {
+  test.beforeEach(async ({ page }) => {
+    test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+    await page.setViewportSize({ width: 1366, height: 657 });
+    await signIn(page, 'admin');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined' && typeof ListPanel !== 'undefined');
+    await page.evaluate(() => { location.hash = '#/help'; });
+    await expect(page.locator('#help-search')).toBeVisible({ timeout: 15_000 });
+  });
+
+  test('1366 x 657: the page stays put, the list scrolls inside with its headings and pager in view', async ({ page }) => {
+    await demoPage(page, 200);
+    expect(await scrollState(page)).toEqual({ mainScrolls: false, bodyScrolls: true });
+    const panel = page.locator('#lp');
+    await expect(panel).toHaveClass(/has-more-below/);
+    await expect(panel).not.toHaveClass(/has-more-above/);
+    await expect(page.locator('#lp-foot')).toBeInViewport();
+
+    await page.locator('#lp-body').evaluate((b: HTMLElement) => { b.scrollTop = 400; });
+    await expect(panel).toHaveClass(/has-more-above/);
+    const [bodyTop, headTop] = await page.evaluate(() => [document.getElementById('lp-body')!.getBoundingClientRect().top,
+      document.querySelector('#lp-body thead th')!.getBoundingClientRect().top]);
+    expect(Math.abs(headTop - bodyTop)).toBeLessThanOrEqual(1); // the column headings stay at the top
+
+    // A named region reachable by keyboard; nothing serious for axe.
+    await expect(page.locator('#lp-body')).toHaveAttribute('tabindex', '0');
+    await expect(page.getByRole('region', { name: 'Rows, scrolls' })).toBeVisible();
+    expect(await seriousViolations(page, '#lp-demo')).toEqual([]);
+  });
+
+  test('the rows that fit really fit, and a resize reports a new count once it settles', async ({ page }) => {
+    await demoPage(page, 200);
+    const fits = await page.evaluate(() => (window as any).__lp.fitCount());
+    expect(fits).toBeGreaterThanOrEqual(5);
+    await demoPage(page, fits);
+    expect(await scrollState(page)).toEqual({ mainScrolls: false, bodyScrolls: false });
+    await expect(page.locator('#lp')).not.toHaveClass(/has-more-below/);
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect.poll(() => page.evaluate(() => (window as any).__fits.length)).toBeGreaterThan(0);
+    const bigger = await page.evaluate(() => (window as any).__fits.at(-1));
+    expect(bigger).toBeGreaterThan(fits);
+  });
+
+  test('200% zoom (720 x 450): the frame lets go and the page scrolls; every row shows', async ({ page }) => {
+    await page.setViewportSize({ width: 720, height: 450 });
+    await demoPage(page, 40);
+    expect(await scrollState(page)).toEqual({ mainScrolls: true, bodyScrolls: false });
+    expect(await page.evaluate(() => (window as any).__lp.fitCount())).toBeNull();
+  });
 });

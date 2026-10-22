@@ -1,0 +1,87 @@
+/*
+ * List panel (U18-T01, js/ui/list-panel.js): head and foot fixed, the body scrolls inside the panel
+ * with sticky column headings; a shadow on the head or foot shows rows hidden above or below.
+ */
+.list-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--card-radius);
+    overflow: hidden;
+}
+
+.page-frame .page-fill > .list-panel,
+.page-frame .list-panel.fill {
+    flex: 1 1 0;
+}
+
+.list-panel-head {
+    position: relative;
+    z-index: 2;
+    flex: none;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line-soft);
+    background: #fff;
+}
+
+.list-panel-head h2 {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.list-panel-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    /* a row reached by keyboard is never hidden under the sticky headings */
+    scroll-padding-top: 40px;
+}
+
+.list-panel-body:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: -2px;
+}
+
+.list-panel-body thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #fff;
+    box-shadow: inset 0 -1px 0 var(--line);
+}
+
+.list-panel-foot {
+    position: relative;
+    z-index: 2;
+    flex: none;
+    border-top: 1px solid var(--line-soft);
+    background: #fff;
+}
+
+/* Rows hidden above or below: the head or foot casts a soft shadow over the body's edge. */
+.list-panel.has-more-above > .list-panel-head {
+    box-shadow: 0 6px 8px -6px rgba(20, 36, 92, 0.22);
+}
+
+.list-panel.has-more-below > .list-panel-foot {
+    box-shadow: 0 -6px 8px -6px rgba(20, 36, 92, 0.22);
+}
+
+/* Printing and page exports show every row. */
+@media print {
+    .list-panel,
+    .list-panel-body {
+        overflow: visible;
+        max-height: none;
+    }
+}

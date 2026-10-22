@@ -293,6 +293,64 @@ body.app-shell {
     flex-direction: column;
 }
 
+/* ================================================
+   Page frame (U18-T01): the page never scrolls. The header and the page's toolbar keep their height,
+   the .page-fill content takes exactly what is left, and lists, cards and forms scroll inside their
+   own region (js/ui/list-panel.js). Below about 1280 x 600 (phones, tablets, 200% zoom) the page
+   scrolls as before, since inner scroll areas would be too cramped there.
+   ================================================ */
+@media (min-width: 1280px) and (min-height: 600px) {
+    #content-area > .page-frame {
+        flex: 1 1 0;
+        min-height: 0;
+    }
+
+    .page.page-frame {
+        height: 100%;
+        min-height: 0;
+    }
+
+    .page-frame > .content-header {
+        margin-bottom: 0;
+    }
+}
+
+/* Short windows (a laptop at 125%): a tighter main area and header, so lists keep more rows. */
+@media (min-width: 1280px) and (min-height: 600px) and (max-height: 780px) {
+    .main-content {
+        padding-top: 16px;
+        padding-bottom: 16px;
+    }
+
+    .page.page-frame {
+        gap: 12px;
+    }
+
+    .page-frame > .content-header h1 {
+        font-size: 24px;
+    }
+
+    .page-frame > .content-header .page-summary {
+        margin-top: 2px;
+        font-size: var(--fs-body);
+    }
+}
+
+/* Small windows: everything shows in full and the page scrolls. */
+@media (max-width: 1279.98px), (max-height: 599.98px) {
+    .page-frame .list-panel,
+    .page-frame .list-panel-body {
+        overflow: visible;
+    }
+
+    .page-frame .page-fill,
+    .page-frame .page-fill > .list-panel,
+    .page-frame .list-panel.fill {
+        flex: none;
+        min-height: auto;
+    }
+}
+
 .panel {
     background: #fff;
     border: 1px solid var(--line);
