@@ -33,6 +33,8 @@ Run this (or the AWS Console's "Policy simulator" under IAM) before flipping any
 | **Every region** (U19-T01) | `ec2:DescribeRegions` | ❓ Unverified | Read-only, once a day per account: the regions the account has enabled, opt-in regions included. Denied: scans keep to `AWS_REGION` and the configured region lists |
 | Every region (U19-T02, optional) | `resource-explorer-2:ListIndexes`, `resource-explorer-2:Search` | ❓ Unverified | Read-only: when the account has a Resource Explorer aggregator index and a default view, discovery only sweeps the regions that hold EC2 instances or EKS clusters. Denied or not set up: every enabled region is swept |
 | **Prices for every region** (U19-T05) | `pricing:GetProducts` | ❓ Unverified | Read-only, free: Linux on-demand rates per instance type and region, kept a day. Denied: the bundled list is used and prices outside its regions are marked approximate |
+| Every region (U19-T07) | `ec2:DescribeAvailabilityZones` | ❓ Unverified | Read-only, once a day per account and region: zone IDs next to zone names in VM details. Denied: the zone name alone is shown |
+| Every region (U19-T10) | `iam:SimulatePrincipalPolicy` | ❓ Unverified | Cost setup › Check AWS permissions simulates the region-scoped calls (EC2 discovery and start/stop, EKS sync and scaling, Compute Optimizer, Spot prices, zone IDs) in each enabled region with `aws:RequestedRegion`, and lists what is not allowed by region. SCPs are not simulated: a region whose calls AWS actually refused in the last day is named too |
 | EKS sync/start/stop | `eks:DescribeNodegroup` | ✅ Granted | Used successfully throughout EKS sync testing and the sequence-collision fix work |
 | EKS sync/start/stop | `eks:ListNodegroups` | ✅ Granted | Used successfully during EKS sync |
 | EKS sync/start/stop | `eks:ListClusters` | ✅ Granted | Used successfully during EKS cluster auto-discovery |
@@ -89,7 +91,7 @@ See [aws-multi-account.md](aws-multi-account.md) for the full setup. The base id
 | `sts:AssumeRole` on `arn:aws:iam::*:role/VmControlAccess` (or your member role name) | `AWS_MULTI_ACCOUNT_ENABLED=true`: reaching member accounts |
 | `organizations:ListAccounts` (on the billing account's identity) | `AWS_ORGANIZATIONS_ENABLED=true`: importing member accounts |
 
-Each member account's role needs the EC2, EKS, CloudWatch, tagging and Compute Optimizer actions of the features you use (the member permission set in aws-multi-account.md). Cost Explorer actions are only needed by the billing account.
+Each member account's role needs the EC2, EKS, CloudWatch, tagging and Compute Optimizer actions of the features you use (the member permission set in aws-multi-account.md). To be scanned in every region it has enabled (U19-T01), a member role also needs `ec2:DescribeRegions`, and `ec2:DescribeAvailabilityZones` for zone IDs; without them it is scanned in its own region list, else `AWS_REGION`. Cost Explorer actions are only needed by the billing account.
 
 ## Practical takeaway
 

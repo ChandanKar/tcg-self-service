@@ -1,6 +1,7 @@
 package com.tcgdigital.vmcontrol.service;
 
 import com.tcgdigital.vmcontrol.dto.CostSetupStatusDTO;
+import com.tcgdigital.vmcontrol.model.AwsAccount;
 import com.tcgdigital.vmcontrol.model.CloudProvider;
 import com.tcgdigital.vmcontrol.model.ScheduledJobLock;
 import com.tcgdigital.vmcontrol.model.Vm;
@@ -186,6 +187,9 @@ public class CostSetupService {
         probes.add(enrollmentProbe());
         probes.addAll(tagDryRunProbes());
         probes.add(tagKeyProbe());
+        if (principalArn != null) {
+            probes.addAll(regionProbes(policySourceArn(principalArn))); // U19-T10: one line per region, after the cost probes
+        }
         return new CostSetupStatusDTO(true, principalArn, Timestamp.from(clock.instant()), features(checks), probes);
     }
 
@@ -213,6 +217,66 @@ public class CostSetupService {
         }
         actions.forEach(a -> checks.putIfAbsent(a, new CostSetupStatusDTO.Check(a, UNKNOWN, "Not evaluated")));
         return checks;
+    }
+
+    /**
+     * The calls the app makes in a region (U19-T10): discovery, start and stop, EKS sync and scaling,
+     * Compute Optimizer, Spot prices and zone IDs.
+     */
+    static final List<String> REGIONAL_ACTIONS = List.of("ec2:DescribeInstances", "ec2:StartInstances", "ec2:StopInstances",
+            "ec2:DescribeAvailabilityZones", "ec2:DescribeSpotPriceHistory", "eks:ListClusters", "eks:ListNodegroups",
+            "eks:DescribeNodegroup", "eks:UpdateNodegroupConfig", "compute-optimizer:GetEC2InstanceRecommendations");
+
+    /** Each account's enabled regions (U19-T01); absent in plain unit tests, then the managed regions are checked. */
+    private com.tcgdigital.vmcontrol.service.aws.AwsRegionService regionService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setRegionService(com.tcgdigital.vmcontrol.service.aws.AwsRegionService regionService) {
+        this.regionService = regionService;
+    }
+
+    /**
+     * One line per region (U19-T10): the region-scoped calls simulated with aws:RequestedRegion set, so a
+     * policy limited to some regions shows which regions and calls it leaves out; a region whose calls AWS
+     * really refused in the last day says so too (an SCP the simulator cannot see).
+     */
+    List<CostSetupStatusDTO.Probe> regionProbes(String policySourceArn) {
+        List<String> regions = regionService == null ? List.of()
+                : regionService.enabledRegions(AwsAccount.DEFAULT_REF).orElse(List.of());
+        if (regions.isEmpty()) {
+            regions = managedRegions().isEmpty() ? List.of(defaultRegion) : managedRegions();
+        }
+        java.util.Set<String> refused = regionService == null ? java.util.Set.of() : regionService.refusedRegions(AwsAccount.DEFAULT_REF);
+        List<CostSetupStatusDTO.Probe> probes = new ArrayList<>();
+        for (String region : regions) {
+            String name = "Calls in " + region;
+            try {
+                List<String> denied = new ArrayList<>();
+                String marker = null;
+                do {
+                    SimulatePrincipalPolicyResponse page = iamClient.simulatePrincipalPolicy(SimulatePrincipalPolicyRequest.builder()
+                            .policySourceArn(policySourceArn).actionNames(REGIONAL_ACTIONS).marker(marker)
+                            .contextEntries(software.amazon.awssdk.services.iam.model.ContextEntry.builder()
+                                    .contextKeyName("aws:RequestedRegion").contextKeyType("string").contextKeyValues(region).build())
+                            .build());
+                    for (EvaluationResult r : page.evaluationResults()) {
+                        if (r.evalDecision() != PolicyEvaluationDecisionType.ALLOWED) denied.add(r.evalActionName());
+                    }
+                    marker = Boolean.TRUE.equals(page.isTruncated()) ? page.marker() : null;
+                } while (marker != null);
+                if (refused.contains(region)) {
+                    probes.add(new CostSetupStatusDTO.Probe(name, DENIED, "AWS refused the app's calls there in the last day "
+                            + "(an SCP or a policy the simulator does not see)" + (denied.isEmpty() ? "" : "; also not allowed: " + String.join(", ", denied))));
+                } else {
+                    probes.add(new CostSetupStatusDTO.Probe(name, denied.isEmpty() ? ALLOWED : DENIED,
+                            denied.isEmpty() ? "All " + REGIONAL_ACTIONS.size() + " calls allowed" : "Not allowed: " + String.join(", ", denied)));
+                }
+            } catch (Exception e) {
+                probes.add(new CostSetupStatusDTO.Probe(name, UNKNOWN, "Grant iam:SimulatePrincipalPolicy or verify manually: " + e.getMessage()));
+                break; // the same refusal for every region
+            }
+        }
+        return probes;
     }
 
     /** An assumed-role session ARN is simulated as its role. */

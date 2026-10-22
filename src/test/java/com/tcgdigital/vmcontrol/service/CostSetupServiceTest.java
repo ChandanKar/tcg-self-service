@@ -152,7 +152,7 @@ class CostSetupServiceTest {
         assertThat(status.principalArn()).isEqualTo("arn:aws:iam::123456789012:user/u");
         assertThat(feature(status, "actuals").checks()).extracting(CostSetupStatusDTO.Check::result).containsExactly("DENIED");
         assertThat(feature(status, "optimizer").checks()).allMatch(c -> c.result().equals("ALLOWED"));
-        assertThat(status.probes()).hasSize(3);
+        assertThat(status.probes()).hasSize(4); // the three cost probes, then 'Calls in ap-south-1' (U19-T10)
         verify(sts, times(1)).getCallerIdentity();
     }
 
@@ -167,7 +167,8 @@ class CostSetupServiceTest {
 
         assertThat(feature(result, "actuals").checks().get(0).result()).isEqualTo("UNKNOWN");
         assertThat(feature(result, "actuals").checks().get(0).hint()).contains("iam:SimulatePrincipalPolicy");
-        assertThat(result.probes()).hasSize(3);
+        assertThat(result.probes()).hasSize(4);
+        assertThat(result.probes().get(3).name()).isEqualTo("Calls in ap-south-1");
         assertThat(result.probes().get(1).name()).contains("ap-south-1");
         assertThat(result.probes().get(1).result()).isEqualTo("ALLOWED");
     }
@@ -195,5 +196,29 @@ class CostSetupServiceTest {
                 .isEqualTo("arn:aws:iam::123456789012:role/CostRole");
         assertThat(CostSetupService.policySourceArn("arn:aws:iam::123456789012:user/u"))
                 .isEqualTo("arn:aws:iam::123456789012:user/u");
+    }
+
+    @Test
+    void eachEnabledRegionSaysWhichCallsItsPolicyLeavesOut() {
+        // U19-T10: simulated with aws:RequestedRegion per region; a region AWS really refused says so.
+        com.tcgdigital.vmcontrol.service.aws.AwsRegionService regions = org.mockito.Mockito.mock(com.tcgdigital.vmcontrol.service.aws.AwsRegionService.class);
+        when(regions.enabledRegions(com.tcgdigital.vmcontrol.model.AwsAccount.DEFAULT_REF)).thenReturn(Optional.of(List.of("eu-west-1", "me-central-1", "us-east-1")));
+        when(regions.refusedRegions(com.tcgdigital.vmcontrol.model.AwsAccount.DEFAULT_REF)).thenReturn(java.util.Set.of("us-east-1"));
+        service.setRegionService(regions);
+        when(iam.simulatePrincipalPolicy(any(SimulatePrincipalPolicyRequest.class))).thenAnswer(inv -> {
+            SimulatePrincipalPolicyRequest r = inv.getArgument(0);
+            String region = r.contextEntries().get(0).contextKeyValues().get(0);
+            return SimulatePrincipalPolicyResponse.builder().evaluationResults(r.actionNames().stream().map(a -> EvaluationResult.builder()
+                    .evalActionName(a).evalDecision(region.equals("me-central-1") && a.startsWith("eks:Update")
+                            ? PolicyEvaluationDecisionType.EXPLICIT_DENY : PolicyEvaluationDecisionType.ALLOWED).build()).toList()).build();
+        });
+
+        List<CostSetupStatusDTO.Probe> probes = service.regionProbes("arn:aws:iam::123456789012:role/App");
+
+        assertThat(probes).extracting(CostSetupStatusDTO.Probe::name).containsExactly("Calls in eu-west-1", "Calls in me-central-1", "Calls in us-east-1");
+        assertThat(probes.get(0).detail()).isEqualTo("All 10 calls allowed");
+        assertThat(probes.get(1).detail()).isEqualTo("Not allowed: eks:UpdateNodegroupConfig");
+        assertThat(probes.get(2).detail()).startsWith("AWS refused the app's calls there in the last day");
+        assertThat(probes).extracting(CostSetupStatusDTO.Probe::result).containsExactly("ALLOWED", "DENIED", "DENIED");
     }
 }
