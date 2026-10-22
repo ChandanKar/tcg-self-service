@@ -30,6 +30,7 @@ Run this (or the AWS Console's "Policy simulator" under IAM) before flipping any
 | EC2 start/stop/discovery | `ec2:StartInstances` | ✅ Granted | Real VM starts succeeded live during regression testing |
 | EC2 start/stop/discovery | `ec2:StopInstances` | ✅ Granted | Real VM stops succeeded live during regression testing |
 | EC2 start/stop/discovery | `ec2:DescribeInstanceStatus` | ✅ Granted | Used successfully as part of the start/stop readiness-polling flow |
+| **Every region** (U19-T01) | `ec2:DescribeRegions` | ❓ Unverified | Read-only, once a day per account: the regions the account has enabled, opt-in regions included. Denied: scans keep to `AWS_REGION` and the configured region lists |
 | EKS sync/start/stop | `eks:DescribeNodegroup` | ✅ Granted | Used successfully throughout EKS sync testing and the sequence-collision fix work |
 | EKS sync/start/stop | `eks:ListNodegroups` | ✅ Granted | Used successfully during EKS sync |
 | EKS sync/start/stop | `eks:ListClusters` | ✅ Granted | Used successfully during EKS cluster auto-discovery |

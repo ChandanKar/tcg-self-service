@@ -100,8 +100,7 @@ const AwsAccounts = (function() {
             <td data-label="Account" class="aa-name">${a.displayName}${Utils.raw(a.isDefault ? ' <span class="aa-tag">Default</span>' : '')}${Utils.raw(a.isActive ? '' : ' <span class="aa-tag aa-tag-off">Deactivated</span>')}</td>
             <td data-label="Account ID" class="aa-mono aa-id">${accountId(a.accountNumber)}</td>
             <td data-label="Access" title="${a.roleArn || ''}">${access(a)}</td>
-            <td data-label="Regions" class="aa-mono">${Utils.raw(a.regions.length
-                ? a.regions.map(r => Utils.html`<span class="aa-nowrap">${r}</span>`).join(', ') : 'Default regions')}</td>
+            <td data-label="Regions">${Utils.raw(regionsCell(a))}</td>
             <td data-label="Environments" class="aa-mono">${a.environmentCount}</td>
             <td data-label="Last check"><span class="aa-check" title="${check.title}"><span class="aa-dot aa-dot-${dot}" aria-hidden="true"></span>${check.text}</span></td>
             <td data-label="" class="aa-actions">
@@ -117,6 +116,25 @@ const AwsAccounts = (function() {
             <th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
             <tbody>${accounts.map(rowHtml).join('')}</tbody></table></div></section>`
             : '<div class="aa-note">No accounts yet. Add one with Add an account.</div>');
+    }
+
+    /**
+     * The regions scanned (U19-T01): the account's own list when set, else every region it has enabled in
+     * AWS (read daily), with any region that refused access in the last day named.
+     */
+    function regionsCell(a) {
+        const enabled = a.enabledRegions || [];
+        const refused = a.refusedRegions || [];
+        const list = items => items.map(r => Utils.html`<span class="aa-nowrap">${r}</span>`).join(', ');
+        let main;
+        if (a.regions.length) {
+            main = `<span class="aa-mono">${list(a.regions)}</span>`;
+        } else if (enabled.length) {
+            main = Utils.html`<span title="${enabled.join(', ')}">Every enabled region · <span class="aa-mono">${enabled.length}</span></span>`;
+        } else {
+            main = '<span class="aa-muted">Not read yet</span>';
+        }
+        return main + (refused.length ? `<span class="aa-sub">Refused access: <span class="aa-mono">${list(refused)}</span></span>` : '');
     }
 
     function regionsOf(text) {
@@ -138,7 +156,7 @@ const AwsAccounts = (function() {
                     <input class="form-control" id="acct-ext" type="password" autocomplete="off" placeholder="${a && a.externalIdMasked ? a.externalIdMasked + ' (blank keeps it)' : 'Optional'}"></div>
                 <div class="mb-2"><label class="form-label" for="acct-regions">Regions</label>
                     <input class="form-control" id="acct-regions" placeholder="eu-west-1, us-east-1" value="${a ? a.regions.join(', ') : ''}">
-                    <div class="form-text">Comma-separated; empty means the platform's default regions.</div></div>
+                    <div class="form-text">Comma-separated, to limit the account to these regions; empty means every region the account has enabled.</div></div>
                 <div class="form-check"><input class="form-check-input" type="checkbox" id="acct-billing" ${a && a.isBillingAccount ? 'checked' : ''}>
                     <label class="form-check-label" for="acct-billing">Billing account (reads Cost Explorer and AWS Organizations)</label></div>
                 ${Utils.raw(a && !a.isDefault && a.isActive ? '<div class="aa-danger-zone"><button type="button" class="aa-link aa-danger" id="acct-deactivate">Deactivate account</button><span class="aa-note">It is no longer scanned and its environments cannot start.</span></div>' : '')}
@@ -220,7 +238,7 @@ const AwsAccounts = (function() {
                     <div class="row g-2"><div class="col-sm-6"><label class="form-label" for="imp-ext">External ID for all</label>
                         <input class="form-control" id="imp-ext" type="password" autocomplete="off" placeholder="Optional"></div>
                     <div class="col-sm-6"><label class="form-label" for="imp-regions">Regions for all</label>
-                        <input class="form-control" id="imp-regions" placeholder="Default regions"></div></div>
+                        <input class="form-control" id="imp-regions" placeholder="Every enabled region"></div></div>
                     <div class="small mt-2" id="imp-result" role="status"></div>`,
                 buttons: [{ text: 'Close', class: 'btn-secondary', dismiss: true }, { text: 'Import selected', class: 'btn-primary', id: 'imp-save' }]
             });

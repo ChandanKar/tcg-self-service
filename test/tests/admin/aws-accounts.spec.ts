@@ -31,6 +31,25 @@ test.describe('AWS accounts page', () => {
     test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
   });
 
+  test('regions: every enabled region with its count, the account list when set, refused regions named (U19-T01)', async ({ page }) => {
+    const read = { ...DEFAULT, enabledRegions: ['ap-south-1', 'eu-west-1', 'us-east-1'], refusedRegions: ['eu-west-1'],
+      regionsReadAt: new Date().toISOString() };
+    const notRead = { ...MEMBER, regions: [], enabledRegions: [], refusedRegions: [] };
+    const limited = { ...MEMBER, awsAccountRef: 'm-2', displayName: 'Limited', enabledRegions: ['eu-west-1', 'us-east-1'], refusedRegions: [] };
+    await page.route(/\/api\/v1\/aws-accounts$/, r => r.fulfill({ json: [read, notRead, limited] }));
+    await page.route(/\/aws-accounts\/organization-candidates$/, r => r.fulfill({ status: 400, json: { message: 'disabled' } }));
+    await open(page);
+
+    const rows = page.locator('#aws-account-table tbody tr');
+    await expect(rows).toHaveCount(3, { timeout: 15_000 });
+    const regions = (i: number) => rows.nth(i).locator('td[data-label="Regions"]');
+    await expect(regions(0)).toContainText('Every enabled region · 3');
+    await expect(regions(0).locator('[title]').first()).toHaveAttribute('title', 'ap-south-1, eu-west-1, us-east-1');
+    await expect(regions(0).locator('.aa-sub')).toHaveText('Refused access: eu-west-1');
+    await expect(regions(1)).toHaveText('Not read yet');
+    await expect(regions(2)).toHaveText('eu-west-1');
+  });
+
   test('lists accounts: grouped IDs, access in words, the last check; escapes names', async ({ page }) => {
     await page.route(/\/api\/v1\/aws-accounts$/, r => r.fulfill({ json: [DEFAULT, MEMBER] }));
     await page.route(/\/aws-accounts\/organization-candidates$/, r => r.fulfill({ status: 400, json: { message: 'disabled' } }));

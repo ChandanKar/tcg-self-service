@@ -85,6 +85,19 @@ class SettingsServiceTest {
     }
 
     @Test
+    void aRegionListIsStoredTidiedAndBadCodesAreRefused() {
+        SettingDefinition exclude = SettingsRegistry.find("aws.regions.exclude").orElseThrow();
+        assertThat(exclude.type()).isEqualTo(SettingDefinition.Type.REGIONS);
+        assertThat(exclude.editable()).isTrue();
+        assertThat(SettingsService.validate(exclude, " ME-South-1 , ap-east-1,,me-south-1 ")).isEqualTo("me-south-1,ap-east-1");
+        assertThat(SettingsService.validate(exclude, "us-gov-west-1,ap-southeast-5")).isEqualTo("us-gov-west-1,ap-southeast-5");
+        assertThatThrownBy(() -> SettingsService.validate(exclude, "eu-west-1, mumbai"))
+                .isInstanceOf(ValidationException.class).hasMessageContaining("'mumbai' is not an AWS region code");
+        assertThatThrownBy(() -> SettingsService.validate(exclude, " , "))
+                .isInstanceOf(ValidationException.class).hasMessageContaining("A value is required");
+    }
+
+    @Test
     void badValuesAndReadOnlyOrUnknownKeysAreRefused() {
         assertThatThrownBy(() -> service.set(FLAG, "yes", "a")).isInstanceOf(ValidationException.class).hasMessageContaining("true or false");
         assertThatThrownBy(() -> service.set(CPU, "150", "a")).isInstanceOf(ValidationException.class).hasMessageContaining("between 0 and 100");

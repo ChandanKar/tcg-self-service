@@ -124,6 +124,9 @@ public class WasteSweepService {
                 } catch (Exception e) {
                     log.warn("Waste scan {} in {} failed; its findings are left as they were: {}", type, region, e.getMessage());
                     failures.add(type + " in " + region + ": " + e.getMessage());
+                    if (awsAccountService != null) {
+                        awsAccountService.reportScanFailure(CloudTarget.of(region), e);
+                    }
                 }
             }
         }
@@ -241,10 +244,27 @@ public class WasteSweepService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
+    /**
+     * The regions swept (U19-T01): every region the default account has enabled, narrowed by
+     * waste.sweep.regions when set, without aws.regions.exclude or a region that refused access in the
+     * last day. Without the account registry (unit tests): waste.sweep.regions, else aws.region.
+     */
     List<String> regions() {
         List<String> list = Arrays.stream(regions == null ? new String[0] : regions.split(","))
                 .map(String::trim).filter(s -> !s.isEmpty()).distinct().toList();
-        return list.isEmpty() ? List.of(defaultRegion) : list;
+        if (awsAccountService == null) {
+            return list.isEmpty() ? List.of(defaultRegion) : list;
+        }
+        // Findings and waste actions are the default account's (they carry no account), so only it is swept.
+        return awsAccountService.scanTargets(list).stream().filter(CloudTarget::isDefaultAccount)
+                .map(CloudTarget::region).distinct().toList();
+    }
+
+    private com.tcgdigital.vmcontrol.service.aws.AwsAccountService awsAccountService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setAwsAccountService(com.tcgdigital.vmcontrol.service.aws.AwsAccountService awsAccountService) {
+        this.awsAccountService = awsAccountService;
     }
 
     /** The scans the sweep runs, in order. */

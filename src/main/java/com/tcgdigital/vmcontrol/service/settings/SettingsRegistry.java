@@ -128,6 +128,8 @@ public final class SettingsRegistry {
             flag("AWS", "vm.discovery.enabled", "VM discovery", "Discover and register EC2 instances." + JOB_SWITCH, false),
             flag("AWS", "eks.sync.auto-register.enabled", "EKS auto-registration", "Register newly found EKS clusters." + JOB_SWITCH, false),
             flag("AWS", "eks.sync.status-refresh.enabled", "EKS status refresh", "Refresh EKS node-group status." + JOB_SWITCH, true),
+            regions("AWS", "aws.regions.exclude", "Regions to leave out",
+                    "Regions the app never calls, comma-separated, for example me-south-1, ap-east-1. Every other region an account has enabled is scanned."),
 
             // Automation and governance
             flag("Automation", "automation.rules.enabled", "Automation rules", "Run calendar and access-grant automation rules." + JOB_SWITCH, true),

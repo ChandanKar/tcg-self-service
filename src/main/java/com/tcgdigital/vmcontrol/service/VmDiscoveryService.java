@@ -109,8 +109,9 @@ public class VmDiscoveryService {
         this.awsAccountService = awsAccountService;
     }
 
-    private List<CloudTarget> scanTargets(List<String> regions) {
-        return awsAccountService == null ? regions.stream().map(CloudTarget::of).toList() : awsAccountService.scanTargets(regions);
+    /** Every account in every enabled region (U19-T01); without the registry only aws.region. */
+    private List<CloudTarget> scanTargets() {
+        return awsAccountService == null ? List.of(CloudTarget.of(defaultRegion)) : awsAccountService.scanTargets(List.of());
     }
 
     private int discoverByNamePattern() {
@@ -119,12 +120,13 @@ public class VmDiscoveryService {
             log.warn("name-pattern discovery requires vm.discovery.name-pattern.prefix; skipping");
             return 0;
         }
-        log.info("VM discovery (name-pattern) starting — prefix='{}', region={}",
-                namePrefix.isBlank() ? "(all)" : namePrefix, defaultRegion);
+        List<CloudTarget> targets = scanTargets();
+        log.info("VM discovery (name-pattern) starting — prefix='{}', {} account/region target(s)",
+                namePrefix.isBlank() ? "(all)" : namePrefix, targets.size());
 
         int total = 0;
         // Every account (E28-T06): a broken account is logged and the others still scanned.
-        for (CloudTarget target : scanTargets(List.of(defaultRegion))) {
+        for (CloudTarget target : targets) {
             total += discoverByNamePattern(target);
         }
         log.info("VM discovery (name-pattern) complete — {} new VM(s) registered", total);
@@ -138,6 +140,9 @@ public class VmDiscoveryService {
         } catch (DiscoveryFailedException e) {
             // Unknown is not "nothing is live": register and flag nothing this run (H24).
             log.warn("VM discovery (name-pattern) skipped for {} — {}", target, e.getMessage());
+            if (awsAccountService != null) {
+                awsAccountService.reportScanFailure(target, e);
+            }
             return 0;
         }
         if (allInstances.isEmpty()) {

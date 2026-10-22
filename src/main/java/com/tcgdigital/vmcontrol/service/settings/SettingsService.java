@@ -285,11 +285,31 @@ public class SettingsService {
                 }
                 return definition.type() == SettingDefinition.Type.INT ? number.toBigInteger().toString() : number.toPlainString();
             }
+            case REGIONS -> {
+                java.util.List<String> codes = new java.util.ArrayList<>();
+                for (String part : v.split(",")) {
+                    String code = part.trim().toLowerCase(java.util.Locale.ROOT);
+                    if (code.isEmpty() || codes.contains(code)) {
+                        continue;
+                    }
+                    if (!REGION_CODE.matcher(code).matches()) {
+                        throw new ValidationException(definition.key() + ": '" + part.trim() + "' is not an AWS region code, such as eu-west-1");
+                    }
+                    codes.add(code);
+                }
+                if (codes.isEmpty()) {
+                    throw new ValidationException("A value is required for " + definition.key());
+                }
+                return String.join(",", codes);
+            }
             default -> {
                 return v;
             }
         }
     }
+
+    /** An AWS region code: eu-west-1, ap-southeast-5, us-gov-west-1, me-central-1. */
+    private static final java.util.regex.Pattern REGION_CODE = java.util.regex.Pattern.compile("^[a-z]{2}(-[a-z]+)+-[0-9]{1,2}$");
 
     private String defaultValue(SettingDefinition d) {
         String fromProperties = environment.getProperty(d.key());

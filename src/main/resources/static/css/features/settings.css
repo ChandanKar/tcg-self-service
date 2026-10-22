@@ -199,6 +199,12 @@
     font-family: var(--font-mono);
 }
 
+.st-text {
+    width: 16rem;
+    max-width: 100%;
+    font-family: var(--font-mono);
+}
+
 .st-value {
     padding: 2px 8px;
     border-radius: 6px;

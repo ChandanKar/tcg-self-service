@@ -18,7 +18,8 @@ public record SettingDefinition(
         BigDecimal min,
         BigDecimal max
 ) {
-    public enum Type { BOOLEAN, INT, DECIMAL, STRING }
+    /** REGIONS: a comma-separated list of AWS region codes (U19-T01). */
+    public enum Type { BOOLEAN, INT, DECIMAL, STRING, REGIONS }
 
     public boolean editable() {
         return tier == 1;
@@ -35,6 +36,10 @@ public record SettingDefinition(
 
     static SettingDefinition decimal(String group, String key, String label, String description, String fallback, String min, String max) {
         return new SettingDefinition(key, Type.DECIMAL, 1, group, label, description, fallback, new BigDecimal(min), new BigDecimal(max));
+    }
+
+    static SettingDefinition regions(String group, String key, String label, String description) {
+        return new SettingDefinition(key, Type.REGIONS, 1, group, label, description, "", null, null);
     }
 
     static SettingDefinition readOnly(String group, String key, String label, String description) {

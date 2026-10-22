@@ -228,3 +228,15 @@
         padding-top: 10px;
     }
 }
+
+/* Regions (U19-T01): every enabled region, or the account's own list; refused regions under it. */
+.aa-muted {
+    color: var(--text-secondary);
+}
+
+.aa-sub {
+    display: block;
+    margin-top: 2px;
+    font-size: var(--fs-small);
+    color: var(--brand-gold-text);
+}

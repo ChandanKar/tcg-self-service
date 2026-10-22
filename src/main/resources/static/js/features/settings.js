@@ -59,6 +59,7 @@ const Settings = (function() {
             return { text: `Set${setting.updatedByName ? ` by ${setting.updatedByName}` : ''}`, kind: 'set' };
         }
         if (setting.type === 'BOOLEAN') return { text: setting.value === 'true' ? 'On by default' : 'Off by default', kind: 'default' };
+        if (setting.type === 'REGIONS' && !setting.value) return { text: 'None by default', kind: 'default' };
         return { text: `Default ${setting.value}`, kind: 'default' };
     }
 
@@ -70,6 +71,14 @@ const Settings = (function() {
             || (setting.min !== null && setting.min !== undefined && n < Number(setting.min))
             || (setting.max !== null && setting.max !== undefined && n > Number(setting.max));
         return bad ? `Enter ${setting.type === 'INT' ? 'a whole number' : 'a number'} from ${setting.min} to ${setting.max}.` : null;
+    }
+
+    /** A region list's problem in words, or null: comma-separated codes such as eu-west-1 (U19-T01). */
+    function regionsProblem(raw) {
+        const parts = String(raw).split(',').map(p => p.trim()).filter(Boolean);
+        if (!parts.length) return 'Enter at least one region, or use Reset to leave none out.';
+        const bad = parts.find(p => !/^[a-z]{2}(-[a-z]+)+-[0-9]{1,2}$/i.test(p));
+        return bad ? `${bad} is not a region code. Use codes such as eu-west-1, separated by commas.` : null;
     }
 
     /** "1 change not saved", "2 changes not saved". */
@@ -134,7 +143,7 @@ const Settings = (function() {
                 draw();
             })
             .on('change.st', '[data-st-key]', function() { changed(this); })
-            .on('input.st', 'input[type=number][data-st-key]', function() { changed(this); })
+            .on('input.st', 'input[type=number][data-st-key], input[type=text][data-st-key]', function() { changed(this); })
             .on('click.st', '#st-discard', discard)
             .on('click.st', '#st-save', saveAll)
             .on('click.st', '[data-st-reset]', function() { reset(this.dataset.stReset); });
@@ -231,6 +240,10 @@ const Settings = (function() {
         } else if (x.type === 'BOOLEAN') {
             control = Utils.html`<span class="form-check m-0"><input class="form-check-input st-check" type="checkbox" id="${id}"
                 data-st-key="${x.key}" aria-describedby="${id}-desc"${Utils.raw(value === 'true' ? ' checked' : '')}></span>`;
+        } else if (x.type === 'REGIONS') {
+            control = Utils.html`<input class="form-control form-control-sm st-text" type="text" id="${id}" data-st-key="${x.key}" value="${value}"
+                placeholder="me-south-1, ap-east-1" spellcheck="false" autocomplete="off"
+                aria-describedby="${id}-desc"${Utils.raw(s.errors[x.key] ? ' aria-invalid="true"' : '')}>`;
         } else {
             control = Utils.html`<input class="form-control form-control-sm st-number" type="number" id="${id}" data-st-key="${x.key}" value="${value}"
                 min="${x.min === null ? '' : x.min}" max="${x.max === null ? '' : x.max}" step="${x.type === 'INT' ? '1' : 'any'}"
@@ -300,7 +313,7 @@ const Settings = (function() {
         keys.forEach(key => {
             const x = find(key);
             if (x && x.type !== 'BOOLEAN') {
-                const problem = numberProblem(x, s.pending[key]);
+                const problem = x.type === 'REGIONS' ? regionsProblem(s.pending[key]) : numberProblem(x, s.pending[key]);
                 if (problem) s.errors[key] = problem;
             }
         });
@@ -360,7 +373,7 @@ const Settings = (function() {
         }).catch(e => Notifications.showError(serverMessage(e, 'Could not reset the setting.')));
     }
 
-    return { load, model: { sectionOf, stateOf, numberProblem, pendingText, errorsByKey } };
+    return { load, model: { sectionOf, stateOf, numberProblem, regionsProblem, pendingText, errorsByKey } };
 })();
 
 if (typeof window !== 'undefined') window.Settings = Settings;

@@ -26,6 +26,7 @@ const LIST = [
   setting({ key: 'vm.metrics.idle.cpu-threshold-percent', label: 'Idle CPU %', group: 'Automation', type: 'DECIMAL',
     value: '5', defaultValue: '5', min: 0, max: 100 }),
   setting({ key: 'cost.tagging.enabled', label: 'Cost-allocation tagging', group: 'Cost' }),
+  setting({ key: 'aws.regions.exclude', label: 'Regions to leave out', group: 'AWS', type: 'REGIONS', value: '', defaultValue: '' }),
 ];
 
 async function open(page: Page, hash = '#/settings', batchFails = false) {
@@ -140,6 +141,28 @@ test.describe('Settings page', () => {
     await row(page, 'notification.email.access-granted.enabled').getByRole('button', { name: 'Reset Access granted to its default' }).click();
     await expect.poll(() => calls.some(c => c.DELETE === 'notification.email.access-granted.enabled')).toBe(true);
     await expect(row(page, 'notification.email.access-granted.enabled').locator('.st-state')).toHaveText('Off by default');
+  });
+});
+
+test.describe('Settings page: a region list (U19-T01)', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+  });
+
+  test('regions to leave out: a text box, a bad code is named before anything is sent, good codes are sent', async ({ page }) => {
+    const calls = await open(page, '#/settings?section=aws');
+    const box = page.getByLabel('Regions to leave out');
+    await expect(box).toHaveAttribute('type', 'text');
+    await expect(row(page, 'aws.regions.exclude').locator('.st-state')).toHaveText('None by default');
+    await box.fill('me-south-1, mumbai');
+    await expect(page.locator('#st-bar-text')).toHaveText('1 change not saved');
+    await page.locator('#st-save').click();
+    await expect(row(page, 'aws.regions.exclude').locator('.st-error')).toHaveText('mumbai is not a region code. Use codes such as eu-west-1, separated by commas.');
+    expect(calls.filter(c => c.batch)).toEqual([]);
+
+    await page.getByLabel('Regions to leave out').fill('me-south-1, ap-east-1');
+    await page.locator('#st-save').click();
+    await expect.poll(() => calls.find(c => c.batch)?.batch).toEqual([{ key: 'aws.regions.exclude', value: 'me-south-1, ap-east-1' }]);
   });
 });
 

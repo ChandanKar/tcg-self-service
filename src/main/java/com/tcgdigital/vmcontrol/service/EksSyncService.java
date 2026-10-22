@@ -87,8 +87,18 @@ public class EksSyncService {
         this.awsAccountService = awsAccountService;
     }
 
-    private List<CloudTarget> scanTargets(List<String> regions) {
-        return awsAccountService == null ? regions.stream().map(CloudTarget::of).toList() : awsAccountService.scanTargets(regions);
+    /** Every account in every enabled region (U19-T01), narrowed by eks.sync.regions when set. */
+    private List<CloudTarget> scanTargets(List<String> limit) {
+        if (awsAccountService == null) {
+            return (limit.isEmpty() ? List.of(defaultRegion) : limit).stream().map(CloudTarget::of).toList();
+        }
+        return awsAccountService.scanTargets(limit);
+    }
+
+    private void reportScanFailure(CloudTarget target, Exception e) {
+        if (awsAccountService != null) {
+            awsAccountService.reportScanFailure(target, e);
+        }
     }
 
     private Map<String, String> accountNames() {
@@ -97,7 +107,7 @@ public class EksSyncService {
 
     /**
      * Returns EKS clusters that exist in AWS but are not yet registered in the DB, scanning
-     * every region in {@code eks.sync.regions} (or the {@code aws.region} default) — the same
+     * every enabled region of every account (narrowed by {@code eks.sync.regions} when set) — the same
      * region set {@link #autoDiscoverClusters()} uses, so what an admin sees in the "create
      * environment from EKS" picker matches what auto-discovery would find.
      */
@@ -113,6 +123,7 @@ public class EksSyncService {
                                 names.getOrDefault(target.accountRef(), target.accountRef()))));
             } catch (Exception e) {
                 log.error("Failed to list EKS clusters in {}: {}", target, e.getMessage());
+                reportScanFailure(target, e);
             }
         }
         return result;
@@ -167,7 +178,7 @@ public class EksSyncService {
 
     /**
      * Discovers EKS clusters in AWS that have no corresponding Environment record in the DB,
-     * across every region configured in eks.sync.regions (falling back to aws.region if unset).
+     * across every enabled region of every account (narrowed by eks.sync.regions when set, U19-T01).
      * Creates an Environment (serviceType=EKS) for each new cluster found.
      * Not {@code @Transactional}: listClusters is an AWS call, and each save commits on its own.
      */
@@ -184,6 +195,7 @@ public class EksSyncService {
             clusterNames = eksService.listClusters(target);
         } catch (Exception e) {
             log.error("Failed to list EKS clusters in region {} during auto-discovery: {}", region, e.getMessage());
+            reportScanFailure(target, e);
             return;
         }
 
@@ -225,18 +237,16 @@ public class EksSyncService {
      * Parses eks.sync.regions (comma-separated) into a distinct region list,
      * falling back to the single aws.region default when unset.
      */
+    /** eks.sync.regions as a limit; empty (the default) means every enabled region (U19-T01). */
     private List<String> resolveSyncRegions() {
-        if (configuredSyncRegions != null && !configuredSyncRegions.isBlank()) {
-            List<String> regions = Arrays.stream(configuredSyncRegions.split(","))
-                    .map(String::trim)
-                    .filter(r -> !r.isEmpty())
-                    .distinct()
-                    .collect(Collectors.toList());
-            if (!regions.isEmpty()) {
-                return regions;
-            }
+        if (configuredSyncRegions == null || configuredSyncRegions.isBlank()) {
+            return List.of();
         }
-        return List.of(defaultRegion);
+        return Arrays.stream(configuredSyncRegions.split(","))
+                .map(String::trim)
+                .filter(r -> !r.isEmpty())
+                .distinct()
+                .collect(Collectors.toList());
     }
 
     /**

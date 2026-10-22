@@ -45,6 +45,14 @@ public class AwsAccountAdminService {
     @Value("${aws.multi-account.enabled:false}")
     private boolean multiAccountEnabled;
 
+    /** Each account's enabled regions (U19-T01); absent in plain unit tests. */
+    private AwsRegionService regionService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setRegionService(AwsRegionService regionService) {
+        this.regionService = regionService;
+    }
+
     @Value("${aws.organizations.enabled:false}")
     private boolean organizationsEnabled;
 
@@ -70,7 +78,7 @@ public class AwsAccountAdminService {
         return repository.findAll().stream()
                 .sorted((a, b) -> a.isDefault() != b.isDefault() ? (a.isDefault() ? -1 : 1)
                         : a.getDisplayName().compareToIgnoreCase(b.getDisplayName()))
-                .map(a -> AwsAccountDTO.from(a, counts.getOrDefault(a.getAwsAccountRef(), 0L)))
+                .map(a -> AwsAccountDTO.from(a, counts.getOrDefault(a.getAwsAccountRef(), 0L), regionsOf(a.getAwsAccountRef())))
                 .toList();
     }
 
@@ -150,6 +158,14 @@ public class AwsAccountAdminService {
                 account.setLastError(null);
             }
             outcome = account.getLastError() == null ? "Verified" : account.getLastError();
+            if (account.getLastError() == null && regionService != null) {
+                // Check access also re-reads the account's enabled regions (U19-T01); a failure there is only noted.
+                try {
+                    outcome += "; " + regionService.refresh(ref).size() + " enabled region(s)";
+                } catch (Exception regions) {
+                    outcome += "; could not read the enabled regions: " + regions.getMessage();
+                }
+            }
         } catch (Exception e) {
             String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
             account.setLastError(message.length() > MAX_ERROR ? message.substring(0, MAX_ERROR) : message);
@@ -259,6 +275,11 @@ public class AwsAccountAdminService {
     }
 
     private AwsAccountDTO toDto(AwsAccount account) {
-        return AwsAccountDTO.from(account, environmentRepository.countByAwsAccountRefAndIsActiveTrue(account.getAwsAccountRef()));
+        return AwsAccountDTO.from(account, environmentRepository.countByAwsAccountRefAndIsActiveTrue(account.getAwsAccountRef()),
+                regionsOf(account.getAwsAccountRef()));
+    }
+
+    private List<AwsRegionService.RegionView> regionsOf(String ref) {
+        return regionService == null || ref == null ? List.of() : regionService.view(ref);
     }
 }
