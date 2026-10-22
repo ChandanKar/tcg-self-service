@@ -364,9 +364,9 @@ const RuleEditor = (function() {
                         <input type="time" class="form-control re-time" id="re-stop" value="${Utils.escapeHtml(x.stop)}" aria-describedby="re-err-times"></label>
                     <div id="re-tz-slot"></div>
                 </div>
-                <p class="re-hint">Leave Start at empty to only stop it; people start it when they need it.</p>
                 ${err}
-                <button type="button" class="re-link" id="re-advanced" aria-expanded="false">Advanced: different times per day</button>`);
+                <div class="re-hint-row"><p class="re-hint">Leave Start at empty to only stop it; people start it when they need it.</p>
+                    <button type="button" class="re-link" id="re-advanced" aria-expanded="false">Advanced: different times per day</button></div>`);
             $('#re-tz-slot').replaceWith($tz);
             return;
         }

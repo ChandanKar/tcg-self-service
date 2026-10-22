@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Waste — fix and approve</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+.card{background:#FFFFFF;border:1px solid #E1E6EF;border-radius:12px}
+.mono{font-family:'IBM Plex Mono',monospace}
+.btn{display:inline-flex;align-items:center;height:30px;padding:0 11px;border-radius:7px;text-decoration:none;font-size:13px;font-weight:500;white-space:nowrap}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="admin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="admin" active="waste" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 20px 32px 24px; display: flex; flex-direction: column; gap: 14px; box-sizing: border-box">
+      <div>
+        <nav aria-label="Breadcrumb" style="font-size: 13px; color: #5B6478; display: flex; gap: 8px; margin-bottom: 6px"><a href="Waste.dc.html" style="color: #5B6478; text-decoration: none">Waste</a><span aria-hidden="true">/</span><span aria-current="page" style="color: #141B2D">Fixes</span></nav>
+        <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Fixes</h1>
+        <p style="margin: 4px 0 0; font-size: 15px; color: #5B6478">One administrator proposes a fix, a different one approves it, then the platform makes the change in AWS.</p>
+      </div>
+
+      <ol aria-label="How a fix moves" style="list-style: none; margin: 0; padding: 0; display: flex; gap: 0; font-size: 13px">
+        <sc-for list="{{steps}}" as="s" hint-placeholder-count="4"><li style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: #FFFFFF; border: 1px solid #E1E6EF; margin-left: -1px; {{s.round}}"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{s.dot}}"></span><b style="font-weight: 500">{{s.name}}</b><span style="color: #5B6478">{{s.desc}}</span></li></sc-for>
+      </ol>
+
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 14px; align-items: start">
+        <section class="card" style="overflow: hidden">
+          <table style="width: 100%; border-collapse: collapse; font-size: 13.5px">
+            <thead><tr style="background: #F7F8FB; color: #5B6478; font-size: 12.5px; text-align: left"><th scope="col" style="padding: 9px 16px; font-weight: 500">Fix</th><th scope="col" style="padding: 9px 8px; font-weight: 500">Proposed by</th><th scope="col" style="padding: 9px 8px; font-weight: 500; text-align: right">Saves a month</th><th scope="col" style="padding: 9px 8px; font-weight: 500">Status</th><th scope="col" style="padding: 9px 16px"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Actions</span></th></tr></thead>
+            <tbody><sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+              <tr style="border-top: 1px solid #EEF1F5; {{r.rowStyle}}"><td style="padding: 10px 16px"><b style="font-weight: 500">{{r.fix}}</b><span style="display: block; font-size: 12.5px; color: #5B6478">{{r.what}}</span></td><td style="padding: 10px 8px">{{r.by}}<span style="display: block; font-size: 12.5px; color: #5B6478">{{r.when}}</span></td><td class="mono" style="padding: 10px 8px; text-align: right; color: #0B6B44">{{r.saves}}</td><td style="padding: 10px 8px"><span style="font-size: 12px; font-weight: 500; padding: 2px 9px; border-radius: 999px; {{r.tag}}">{{r.status}}</span></td>
+                <td style="padding: 10px 16px; text-align: right"><span style="display: inline-flex; gap: 6px"><a sc-if="{{r.a1}}" href="WasteFix.dc.html" class="btn" style="{{r.a1Style}}">{{r.a1}}</a><a sc-if="{{r.a2}}" href="WasteFix.dc.html" class="btn" style="color: #5B6478">{{r.a2}}</a><span sc-if="{{r.note}}" style="font-size: 12.5px; color: #5B6478">{{r.note}}</span></span></td></tr>
+            </sc-for></tbody>
+          </table>
+        </section>
+
+        <aside class="card" role="dialog" aria-labelledby="pf-t" style="overflow: hidden; box-shadow: 0 16px 32px rgba(20,36,92,0.12)">
+          <div style="padding: 14px 16px 4px"><h2 id="pf-t" style="margin: 0; font-size: 16px; font-weight: 600">Propose a fix</h2><p style="margin: 4px 0 0; font-size: 13px; color: #5B6478">Unattached volume · 500 GB gp2 · CRM UAT · unused 41 days · $50 a month</p></div>
+          <fieldset style="border: 0; margin: 0; padding: 10px 16px; display: flex; flex-direction: column; gap: 6px"><legend style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Fix</legend>
+            <label style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 12px; border-radius: 9px; font-size: 14px; border: 1.5px solid #14245C"><input type="radio" name="fx" checked="checked" style="margin-top: 3px"><span><b style="font-weight: 500">Delete the volume</b><span style="display: block; font-size: 12.5px; color: #5B6478">A snapshot is taken first, so it can be restored</span></span></label>
+            <label style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 12px; border-radius: 9px; font-size: 14px; border: 1px solid #E1E6EF"><input type="radio" name="fx" style="margin-top: 3px"><span><b style="font-weight: 500">Change to gp3</b><span style="display: block; font-size: 12.5px; color: #5B6478">Same size, about 20% cheaper</span></span></label>
+          </fieldset>
+          <label style="display: flex; flex-direction: column; gap: 5px; padding: 0 16px 12px; font-size: 13.5px; font-weight: 500">Reason<input type="text" defaultValue="Left over from the 3.9 load test" style="height: 36px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 10px; font: inherit; font-weight: 400"></label>
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 12px 16px; background: #FAFBFD; border-top: 1px solid #E1E6EF"><span style="font-size: 12.5px; color: #5B6478">Another admin approves it</span><a href="WasteFix.dc.html" class="btn" style="height: 36px; padding: 0 14px; background: #14245C; color: #FFFFFF; font-size: 14px">Propose fix</a></div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const tags = { PROPOSED: 'background:#FBF3DC;color:#7A5A06', EXECUTED: 'background:#E3F4EC;color:#0B6B44', FAILED: 'background:#FBEEEB;color:#A8331F', ROLLED_BACK: 'background:#ECEFF5;color:#4A5368', REJECTED: 'background:#ECEFF5;color:#4A5368', EXECUTING: 'background:#ECEFF8;color:#14245C' };
+    const labels = { PROPOSED: 'Waiting for approval', EXECUTED: 'Done', FAILED: 'Failed', ROLLED_BACK: 'Rolled back', REJECTED: 'Rejected', EXECUTING: 'Being applied' };
+    const primary = 'background:#14245C;color:#FFFFFF', danger = 'border:1px solid #E8B8AE;color:#A8331F';
+    const r = (fix, what, by, when, saves, st, a1, a1Style, a2, note) => ({ fix, what, by, when, saves, status: labels[st], tag: tags[st], a1: a1 || '', a1Style: a1Style || '', a2: a2 || '', note: note || '', rowStyle: '' });
+    const rows = [
+      r('Delete volume, snapshot first', 'vol for pay-db-old · 200 GB · Payments Dev', 'Priya Nair', 'today 09:20', '$20', 'PROPOSED', 'Approve', primary, 'Reject'),
+      r('Change to gp3', 'pay-db-primary data · 1 TB gp2', 'You', 'today 08:55', '$20', 'PROPOSED', '', '', '', "Another admin approves"),
+      r('Release IP address', '13.234.x.x · not attached for 52 days', 'Priya Nair', 'Fri', '$4', 'EXECUTED', '', '', '', "Can't be undone"),
+      r('Archive snapshot', 'crm-uat backup · 14 Mar · 300 GB', 'You', 'Thu', '$11', 'EXECUTED', 'Roll back', danger),
+      r('Delete volume, snapshot first', 'vol for hr-batch · 100 GB', 'Rahul Verma', 'Wed', '$8', 'FAILED', 'Details', 'color:#2F4A9E', '', ''),
+      r('Change to gp3', 'analytics-etl scratch · 250 GB', 'Priya Nair', '9 Oct', '$5', 'ROLLED_BACK', '', '', '', 'by you, 10 Oct')
+    ];
+    const steps = [
+      { name: 'Proposed', desc: 'by one admin', dot: '#D9A21B', round: 'border-radius: 9px 0 0 9px' },
+      { name: 'Approved', desc: 'by a different admin', dot: '#14245C', round: '' },
+      { name: 'Applied', desc: 'in AWS', dot: '#12915E', round: '' },
+      { name: 'Roll back', desc: 'if needed; releasing an IP is final', dot: '#9AA4B8', round: 'border-radius: 0 9px 9px 0' }
+    ];
+    return { rows, steps };
+  }
+}
+</script>
+</body>
+</html>

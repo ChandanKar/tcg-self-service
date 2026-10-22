@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>New environment</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="user" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="user" active="none" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+      <div>
+        <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">New environment</h1>
+        <p style="margin: 6px 0 0; font-size: 15px; color: #5B6478">Request an environment built from an approved template. It is removed when its lifetime ends unless you extend it.</p>
+      </div>
+      <div role="tablist" aria-label="New environment" style="display: flex; gap: 4px; border-bottom: 1px solid #E1E6EF">
+        <button type="button" role="tab" aria-selected="true" style="border: 0; background: none; font: inherit; font-size: 14px; padding: 10px 14px; margin-bottom: -1px; color: #14245C; font-weight: 600; border-bottom: 2px solid #14245C">Templates</button>
+        <button type="button" role="tab" aria-selected="false" style="border: 0; background: none; font: inherit; font-size: 14px; padding: 10px 14px; margin-bottom: -1px; color: #5B6478; border-bottom: 2px solid transparent">My requests · 1</button>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px">
+        <sc-for list="{{templates}}" as="t" hint-placeholder-count="3">
+          <article style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 14px">
+            <div>
+              <h2 style="margin: 0; font-size: 17px; font-weight: 600">{{t.name}}</h2>
+              <p style="margin: 4px 0 0; font-size: 14px; color: #5B6478; line-height: 1.5">{{t.desc}}</p>
+            </div>
+            <dc-import name="PowerStrip" states="{{t.states}}" show-count="{{ false }}" hint-size="140px,20px"></dc-import>
+            <dl style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; font-size: 13px">
+              <div><dt style="color: #5B6478">VMs</dt><dd style="margin: 2px 0 0; font-family: 'IBM Plex Mono', monospace">{{t.vms}}</dd></div>
+              <div><dt style="color: #5B6478">Per day</dt><dd style="margin: 2px 0 0; font-family: 'IBM Plex Mono', monospace">{{t.cost}}</dd></div>
+              <div><dt style="color: #5B6478">Lifetime</dt><dd style="margin: 2px 0 0">{{t.life}}</dd></div>
+            </dl>
+            <a href="NewEnvironment.dc.html" style="align-self: flex-start; display: inline-flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid #B9C2DA; color: #14245C; text-decoration: none; font-weight: 500; font-size: 14px">Request this</a>
+          </article>
+        </sc-for>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const templates = [
+      { name: 'Java service, three tiers', desc: 'Database, two application servers and a web server, ready for a Spring Boot service.', states: 'S|SS|S', vms: '4', cost: '$9.80', life: 'Up to 30 days' },
+      { name: 'Data science sandbox', desc: 'One GPU notebook server and a shared storage node.', states: 'S|S', vms: '2', cost: '$21.40', life: 'Up to 14 days' },
+      { name: 'QA regression rig', desc: 'Selenium grid with four browser nodes and a results database.', states: 'S|SSSS', vms: '5', cost: '$6.10', life: 'Up to 7 days' }
+    ];
+    return { templates };
+  }
+}
+</script>
+</body>
+</html>

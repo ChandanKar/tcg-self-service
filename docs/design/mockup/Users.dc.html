@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Users</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="admin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="admin" active="users" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+        <div>
+          <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Users</h1>
+          <p style="margin: 6px 0 0; font-size: 15px; color: #5B6478">Everyone who can sign in, and their role across the platform.</p>
+        </div>
+        <a href="AddUsers.dc.html" style="display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"></path></svg>Add people</a>
+      </div>
+      <div style="display: flex; gap: 28px; flex-wrap: wrap; font-size: 14px; color: #5B6478">
+        <span><b style="font-family: 'IBM Plex Mono', monospace; color: #141B2D; font-weight: 500">42</b> active</span>
+        <span><b style="font-family: 'IBM Plex Mono', monospace; color: #141B2D; font-weight: 500">3</b> administrators</span>
+        <span><b style="font-family: 'IBM Plex Mono', monospace; color: #141B2D; font-weight: 500">5</b> environment admins</span>
+        <span><b style="font-family: 'IBM Plex Mono', monospace; color: #141B2D; font-weight: 500">2</b> haven't signed in yet</span>
+      </div>
+      <div style="display: flex; gap: 10px; flex-wrap: wrap">
+        <label style="flex: 1 1 260px; max-width: 360px; display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; background: #FFFFFF; border: 1px solid #D4DAE5; border-radius: 8px">
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="#5B6478" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="5.5"></circle><path d="m13.5 13.5 3.5 3.5"></path></svg>
+          <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search users</span>
+          <input type="search" placeholder="Name or email" style="border: 0; outline: 0; font: inherit; font-size: 14px; flex: 1">
+        </label>
+        <select aria-label="Role" style="height: 38px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-size: 14px"><option>All roles</option><option>Administrator</option><option>Environment admin</option><option>User</option></select>
+        <select aria-label="Status" style="height: 38px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-size: 14px"><option>Active</option><option>Deactivated</option></select>
+      </div>
+      <div style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden">
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px">
+          <thead><tr style="background: #F7F8FB; color: #5B6478; font-size: 12.5px; text-align: left">
+            <th scope="col" style="padding: 12px 20px; font-weight: 500">Person</th><th scope="col" style="padding: 12px; font-weight: 500">Role</th><th scope="col" style="padding: 12px; font-weight: 500">Signs in with</th><th scope="col" style="padding: 12px; font-weight: 500">Last sign-in</th><th scope="col" style="padding: 12px 20px"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Actions</span></th>
+          </tr></thead>
+          <tbody>
+            <sc-for list="{{users}}" as="u" hint-placeholder-count="6">
+              <tr style="border-top: 1px solid #EEF1F5">
+                <td style="padding: 11px 20px"><div style="display: flex; align-items: center; gap: 12px"><span style="width: 32px; height: 32px; border-radius: 50%; background: #ECEFF8; color: #14245C; font-weight: 600; font-size: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0">{{u.initials}}</span><span><span style="display: block; font-weight: 500">{{u.name}}</span><span style="display: block; font-size: 12.5px; color: #5B6478">{{u.email}}</span></span></div></td>
+                <td style="padding: 11px 12px">{{u.role}}</td>
+                <td style="padding: 11px 12px; color: #3A4256">{{u.method}}</td>
+                <td style="padding: 11px 12px; font-size: 13px; {{u.lastStyle}}">{{u.last}}</td>
+                <td style="padding: 11px 20px; text-align: right; white-space: nowrap; font-size: 13px"><a href="Users.dc.html" style="text-decoration: none; margin-right: 14px">Change role</a><a href="{{u.extraHref}}" style="text-decoration: none; margin-right: 14px">{{u.extra}}</a><a href="Users.dc.html" style="text-decoration: none; color: #A8331F">Deactivate</a></td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const u = (initials, name, email, role, method, last, extra, warn) => ({ initials, name, email, role, method, last, extra, extraHref: extra === 'Access' ? 'GrantAccess.dc.html' : 'Users.dc.html', lastStyle: warn ? 'color:#7A5000' : 'color:#3A4256;font-family:IBM Plex Mono,monospace' });
+    const users = [
+      u('MI', 'Meera Iyer', 'meera.iyer@tcgdigital.com', 'Administrator', 'Microsoft', 'Today 09:02', 'Access'),
+      u('SR', 'Sanjay Rao', 'sanjay.rao@tcgdigital.com', 'Environment admin', 'Microsoft', 'Today 08:40', 'Access'),
+      u('PN', 'Priya Nair', 'priya.nair@tcgdigital.com', 'User', 'Microsoft', 'Today 07:41', 'Access'),
+      u('KS', 'Karthik S', 'karthik.s@tcgdigital.com', 'User', 'Microsoft', 'Fri 19:00', 'Access'),
+      u('OP', 'Ops service', 'ops-bot@tcgdigital.com', 'User', 'Password', 'Thu 02:00', 'Set password'),
+      u('DG', 'Divya Ghosh', 'divya.ghosh@tcgdigital.com', 'User', 'Microsoft', 'Not signed in yet', 'Access', true)
+    ];
+    return { users };
+  }
+}
+</script>
+</body>
+</html>

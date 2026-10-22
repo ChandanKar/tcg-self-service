@@ -19,6 +19,9 @@ const AccessRequests = (function() {
     // The waiting requests on the page (oldest first) and the environment filter ('' = all).
     let pendingList = [];
     let envFilter = '';
+    // Three cards fit 1440 x 900 without a page scrollbar (U17-T07); the rest are a page away.
+    const CARDS_PER_PAGE = 3;
+    let cardPage = 1;
 
     // ------------------------------------------------------------------ model
 
@@ -118,6 +121,7 @@ const AccessRequests = (function() {
             if (!ContentRouter.isCurrent(t)) return;
             pendingList = oldestFirst(requests);
             envFilter = '';
+            cardPage = 1;
             $('#content-area').html(pageHtml());
             render();
             bindPendingRequestsEvents();
@@ -197,9 +201,13 @@ const AccessRequests = (function() {
         ).join('')).prop('disabled', pendingList.length === 0);
 
         const shown = pendingList.filter(r => !envFilter || r.environmentId === envFilter);
+        const pages = Math.max(1, Math.ceil(shown.length / CARDS_PER_PAGE));
+        cardPage = Math.min(Math.max(1, cardPage), pages);
         $('#ar-list').html(shown.length
-            ? shown.map(r => cardHtml(r)).join('')
-            : '<div class="ar-empty">No one is waiting. New requests show here.</div>');
+            ? Pagination.slice(shown, cardPage, CARDS_PER_PAGE).map(r => cardHtml(r)).join('')
+                + (shown.length > CARDS_PER_PAGE ? Pagination.buildPager({ page: cardPage, pageSize: CARDS_PER_PAGE,
+                    totalItems: shown.length, action: 'ar-page', key: 'requests' }) : '')
+            : UiStates.empty({ title: 'No one is waiting.', text: 'New requests to use the environments you look after show here.' }));
     }
 
     function cardHtml(req, now) {
@@ -264,7 +272,14 @@ const AccessRequests = (function() {
         $(document).off(NS)
             .on('change' + NS, '#ar-env-filter', function() {
                 envFilter = $(this).val() || '';
+                cardPage = 1;
                 render();
+            })
+            .on('click' + NS, '#access-requests-view [data-action="ar-page"]', function() {
+                if (this.disabled) return;
+                cardPage = Number(this.dataset.page) || 1;
+                render();
+                $('#ar-list').get(0).scrollIntoView({ block: 'nearest' });
             })
             .on('click' + NS, '#access-requests-view [data-action="approve"]', function() {
                 const requestId = String($(this).data('request-id'));

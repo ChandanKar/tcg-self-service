@@ -9,6 +9,8 @@
 const Settings = (function() {
     'use strict';
 
+    const ROWS_PER_PAGE = 6;
+
     const QUIET = { suppressGlobalError: true };
     /** The sections, their short address names and the sentence under each title. */
     const SECTIONS = [
@@ -109,7 +111,7 @@ const Settings = (function() {
         }
         const q = ContentRouter.query ? ContentRouter.query() : {};
         s = { token: ContentRouter.token(), settings: [], section: SECTIONS.some(([k]) => k === q.section) ? q.section : 'notif',
-            pending: {}, errors: {}, saving: false };
+            pending: {}, errors: {}, saving: false, rowPage: 1 };
         $('#content-area').html(`
             <div class="content-view settings-page" id="settings-view">
                 ${PageHeader.markup({ title: 'Settings',
@@ -124,6 +126,11 @@ const Settings = (function() {
         ContentRouter.onLeave(() => window.removeEventListener('beforeunload', guardUnload));
         $('#settings-view').off('.st')
             .on('click.st', '[data-st-section]', function() { pick(this.dataset.stSection); })
+            .on('click.st', '[data-action="st-page"]', function() {
+                if (this.disabled) return;
+                s.rowPage = Number(this.dataset.page) || 1;
+                draw();
+            })
             .on('change.st', '[data-st-key]', function() { changed(this); })
             .on('input.st', 'input[type=number][data-st-key]', function() { changed(this); })
             .on('click.st', '#st-discard', discard)
@@ -147,6 +154,7 @@ const Settings = (function() {
     function pick(section) {
         if (section === s.section) return;
         s.section = section;
+        s.rowPage = 1;
         try {
             history.replaceState(null, '', `#/settings?section=${section}`);
         } catch (e) { /* the address keeps the old section */ }
@@ -163,8 +171,13 @@ const Settings = (function() {
         }).join(''));
         const [, title, intro] = SECTIONS.find(([key]) => key === s.section);
         const rows = inSection(s.section);
+        // Six rows fit 1440 x 900 without a page scrollbar (U17-T07); changes on other pages are kept.
+        const pages = Math.max(1, Math.ceil(rows.length / ROWS_PER_PAGE));
+        s.rowPage = Math.min(Math.max(1, s.rowPage || 1), pages);
+        const pager = rows.length > ROWS_PER_PAGE ? Pagination.buildPager({ page: s.rowPage, pageSize: ROWS_PER_PAGE,
+            totalItems: rows.length, action: 'st-page', key: s.section }) : '';
         $('#st-panel').html(`<div class="st-head"><h2 id="st-title" tabindex="-1">${Utils.escapeHtml(title)}</h2><p>${Utils.escapeHtml(intro)}</p></div>
-            ${rows.length ? rows.map(rowHtml).join('') : '<p class="st-note st-pad">Nothing to set here.</p>'}
+            ${rows.length ? Pagination.slice(rows, s.rowPage, ROWS_PER_PAGE).map(rowHtml).join('') + pager : '<p class="st-note st-pad">Nothing to set here.</p>'}
             <div class="st-bar" id="st-bar" role="region" aria-label="Changes not saved" hidden>
                 <span class="st-bar-text" id="st-bar-text"></span>
                 <button type="button" class="st-link" id="st-discard">Discard</button>

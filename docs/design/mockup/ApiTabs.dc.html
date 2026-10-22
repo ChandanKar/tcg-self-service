@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>API access — service accounts, webhooks</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+.card{background:#FFFFFF;border:1px solid #E1E6EF;border-radius:12px}
+.mono{font-family:'IBM Plex Mono',monospace}
+.tab{font-size:14px;padding:10px 14px;color:#5B6478;text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab[aria-selected="true"]{color:#14245C;font-weight:600;border-bottom-color:#14245C}
+.pill{font-size:12px;padding:2px 8px;border-radius:999px;background:#ECEFF5;color:#3A4256;font-family:'IBM Plex Mono',monospace}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="admin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="admin" active="api" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 20px 32px 24px; display: flex; flex-direction: column; gap: 14px; box-sizing: border-box">
+      <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">API access</h1>
+      <div role="tablist" aria-label="API access" style="display: flex; gap: 4px; border-bottom: 1px solid #E1E6EF">
+        <a class="tab" role="tab" aria-selected="false" href="ApiAccess.dc.html">Tokens</a><a class="tab" role="tab" aria-selected="true" href="ApiTabs.dc.html">Service accounts</a><a class="tab" role="tab" aria-selected="false" href="ApiTabs.dc.html">Webhooks</a>
+      </div>
+
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start">
+        <section class="card" aria-labelledby="sa-t" style="overflow: hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #EEF1F5"><div><h2 id="sa-t" style="margin: 0; font-size: 15px; font-weight: 600">Service accounts</h2><div style="font-size: 12.5px; color: #5B6478">For pipelines and tools. Each has a person who owns it.</div></div><a href="ApiTabs.dc.html" style="display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-size: 13.5px; font-weight: 500">New service account</a></div>
+          <sc-for list="{{accounts}}" as="a" hint-placeholder-count="3">
+            <div style="padding: 11px 16px; border-top: 1px solid #F1F3F7; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; font-size: 13.5px">
+              <span><b class="mono" style="font-weight: 500">{{a.name}}</b> <span style="color: #5B6478">· {{a.role}}</span></span><span style="text-align: right; {{a.stStyle}}">{{a.st}}</span>
+              <span style="font-size: 12.5px; color: #5B6478">Owner {{a.owner}} · {{a.tokens}}</span><a href="ApiTabs.dc.html" style="font-size: 12.5px; text-align: right; text-decoration: none">{{a.action}}</a>
+            </div>
+          </sc-for>
+          <div style="padding: 14px 16px; border-top: 1px solid #EEF1F5; background: #F5F7FC">
+            <div style="font-size: 13px; font-weight: 600; margin-bottom: 6px">Token created for ci-deploy</div>
+            <div style="display: flex; gap: 8px; align-items: center"><code class="mono" style="flex: 1; font-size: 12.5px; padding: 8px 10px; background: #FFFFFF; border: 1px solid #D4DAE5; border-radius: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">vmc_a8f3k2q1_Zt7v…Rk2m</code><a href="ApiTabs.dc.html" style="display: inline-flex; align-items: center; height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid #D4DAE5; color: #141B2D; text-decoration: none; font-size: 13.5px">Copy</a></div>
+            <div style="font-size: 12.5px; color: #7A5A06; margin-top: 6px">Copy it now; it isn't shown again. Scopes: <span class="pill">environments:read</span> <span class="pill">operations:write</span> · ends in 90 days</div>
+          </div>
+        </section>
+
+        <section class="card" aria-labelledby="wh-t" style="overflow: hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #EEF1F5"><div><h2 id="wh-t" style="margin: 0; font-size: 15px; font-weight: 600">Webhook: Release bot</h2><div style="font-size: 12.5px; color: #5B6478"><span class="mono">https://hooks.example.net</span> · Payments Dev only</div></div><span style="display: flex; gap: 8px"><a href="ApiTabs.dc.html" style="display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid #D4DAE5; color: #141B2D; text-decoration: none; font-size: 13.5px">Send test</a><a href="ApiTabs.dc.html" style="display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid #D4DAE5; color: #141B2D; text-decoration: none; font-size: 13.5px">Edit</a></span></div>
+          <div style="padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid #EEF1F5"><sc-for list="{{events}}" as="e" hint-placeholder-count="5"><span class="pill">{{e}}</span></sc-for></div>
+          <div style="padding: 8px 16px 4px; font-size: 12.5px; color: #5B6478; font-weight: 500">Recent deliveries</div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 13px">
+            <tbody><sc-for list="{{deliveries}}" as="d" hint-placeholder-count="6">
+              <tr style="border-top: 1px solid #F1F3F7"><td style="padding: 7px 16px" class="mono">{{d.type}}</td><td style="padding: 7px 8px; color: #5B6478">{{d.when}}</td><td style="padding: 7px 8px"><span style="font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 999px; {{d.tag}}">{{d.status}}</span></td><td style="padding: 7px 16px; color: #5B6478; font-size: 12.5px">{{d.detail}}</td></tr>
+            </sc-for></tbody>
+          </table>
+          <div style="padding: 10px 16px; border-top: 1px solid #EEF1F5; font-size: 12.5px; color: #5B6478; line-height: 1.45">Each delivery is signed (<span class="mono">X-VmControl-Signature</span>). Failures retry after 1 min, 5 min, 30 min, 2 h and 12 h; after 50 failed deliveries in a row the webhook switches itself off.</div>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const accounts = [
+      { name: 'ci-deploy', role: 'User', owner: 'Priya Nair', tokens: '2 active tokens', st: 'Active', stStyle: 'color:#0B6B44', action: 'New token' },
+      { name: 'finops-export', role: 'User', owner: 'Rahul Verma', tokens: '1 active token, last used today', st: 'Active', stStyle: 'color:#0B6B44', action: 'New token' },
+      { name: 'access-sync', role: 'Environment admin', owner: 'You', tokens: 'no tokens', st: 'Switched off', stStyle: 'color:#5B6478', action: 'Switch on' }
+    ];
+    const events = ['operation.completed', 'operation.failed', 'lease.expiring', 'environment.stopped', 'budget.threshold'];
+    const tags = { DELIVERED: 'background:#E3F4EC;color:#0B6B44', FAILED: 'background:#FBEEEB;color:#A8331F', PENDING: 'background:#FBF3DC;color:#7A5A06', GAVE_UP: 'background:#ECEFF5;color:#4A5368' };
+    const lbl = { DELIVERED: 'Delivered', FAILED: 'Failed, retrying', PENDING: 'Waiting', GAVE_UP: 'Gave up' };
+    const d = (type, when, st, detail) => ({ type, when, status: lbl[st], tag: tags[st], detail });
+    const deliveries = [
+      d('lease.expiring', '17:45', 'DELIVERED', '200 · attempt 1'),
+      d('operation.completed', '09:02', 'DELIVERED', '200 · attempt 1'),
+      d('operation.failed', '08:41', 'FAILED', '503 · attempt 3, next at 09:11'),
+      d('environment.stopped', 'yesterday', 'DELIVERED', '200 · attempt 2'),
+      d('budget.threshold', 'Fri', 'GAVE_UP', 'timed out · 6 attempts'),
+      d('ping', 'Fri', 'DELIVERED', 'test · 200')
+    ];
+    return { accounts, events, deliveries };
+  }
+}
+</script>
+</body>
+</html>

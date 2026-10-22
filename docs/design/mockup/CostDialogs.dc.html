@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>New budget, month for finance</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+.f{display:flex;flex-direction:column;gap:5px;font-size:13.5px;font-weight:500}
+.in{height:36px;border:1px solid #D4DAE5;border-radius:8px;padding:0 10px;font:inherit;font-weight:400;box-sizing:border-box}
+.hint{font-weight:400;color:#5B6478;font-size:12.5px}
+.btn{display:inline-flex;align-items:center;height:36px;padding:0 13px;border-radius:8px;text-decoration:none;font-size:14px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 6px 0 10px;border-radius:999px;background:#ECEFF8;color:#14245C;font-family:'IBM Plex Mono',monospace;font-size:13px}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column; position: relative">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="admin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="admin" active="budgets" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main aria-hidden="true" style="flex: 999 1 560px; min-width: 0; padding: 20px 32px; display: flex; flex-direction: column; gap: 14px; box-sizing: border-box">
+      <div style="font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Budgets</div>
+      <div style="height: 580px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px"></div>
+    </main>
+  </div>
+  <div style="position: absolute; inset: 0; z-index: 30; background: rgba(10,20,48,0.42); display: flex; align-items: flex-start; justify-content: center; gap: 20px; padding: 48px 24px; box-sizing: border-box">
+
+    <div role="dialog" aria-labelledby="bd-t" style="width: 480px; background: #FFFFFF; border-radius: 14px; box-shadow: 0 24px 48px rgba(20,36,92,0.25); overflow: hidden">
+      <div style="padding: 18px 20px 4px"><h2 id="bd-t" style="margin: 0; font-size: 18px; font-weight: 600">New budget</h2><p style="margin: 4px 0 0; font-size: 13.5px; color: #5B6478">A monthly limit. It starts again on the 1st.</p></div>
+      <div style="padding: 12px 20px; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 10px">
+          <label class="f">For<select class="in"><option>An environment</option><option>A team</option></select></label>
+          <label class="f">Environment<select class="in"><option>Analytics QA</option><option>CRM UAT</option></select></label>
+        </div>
+        <span class="hint" style="margin-top: -6px">You can't move a budget to something else later.</span>
+        <label class="f">Monthly amount<span style="position: relative; display: block"><span style="position: absolute; left: 10px; top: 9px; font-weight: 400; color: #5B6478">$</span><input class="in" type="text" defaultValue="150" style="width: 160px; padding-left: 22px; font-family: 'IBM Plex Mono', monospace"></span></label>
+        <div class="f">Alert when spend reaches <span class="hint">Up to 4. Owners of the environment are told each time.</span>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center"><sc-for list="{{th}}" as="t" hint-placeholder-count="4"><span class="chip">{{t}}%<a href="CostDialogs.dc.html" aria-label="Remove {{t}}%" style="display: inline-flex; width: 20px; height: 20px; align-items: center; justify-content: center; border-radius: 50%; color: #5B6478; text-decoration: none; font-family: 'IBM Plex Sans', sans-serif">×</a></span></sc-for><span class="hint">4 of 4</span></div></div>
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 13.5px"><input type="checkbox" checked="checked" style="accent-color: #14245C">Also alert when the forecast says it will go over</label>
+        <fieldset style="border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px"><legend style="font-size: 13.5px; font-weight: 500; padding: 0; margin-bottom: 6px">When the budget is reached</legend>
+          <sc-for list="{{acts}}" as="a" hint-placeholder-count="3">
+            <label style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 12px; border-radius: 9px; font-size: 14px; {{a.box}}"><input type="radio" name="act" checked="{{a.checked}}" style="margin-top: 3px"><span><b style="font-weight: 500">{{a.name}}</b><span style="display: block; font-size: 12.5px; color: #5B6478">{{a.desc}}</span></span></label>
+          </sc-for></fieldset>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; background: #FAFBFD; border-top: 1px solid #E1E6EF"><a href="Budgets.dc.html" class="btn" style="border: 1px solid #D4DAE5; color: #141B2D">Cancel</a><a href="Budgets.dc.html" class="btn" style="background: #14245C; color: #FFFFFF; font-weight: 500">Create budget</a></div>
+    </div>
+
+    <div role="dialog" aria-labelledby="fo-t" style="width: 400px; background: #FFFFFF; border-radius: 14px; box-shadow: 0 24px 48px rgba(20,36,92,0.25); overflow: hidden">
+      <div style="padding: 18px 20px 4px"><h2 id="fo-t" style="margin: 0; font-size: 18px; font-weight: 600">Month for finance</h2><p style="margin: 4px 0 0; font-size: 13.5px; color: #5B6478">A FOCUS 1.2 CSV, the open billing format finance tools read.</p></div>
+      <div style="padding: 12px 20px; display: flex; flex-direction: column; gap: 12px">
+        <label class="f">Month<select class="in"><option>September 2026</option><option>October 2026 (so far)</option><option>August 2026</option></select></label>
+        <fieldset style="border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px"><legend style="font-size: 13.5px; font-weight: 500; padding: 0; margin-bottom: 6px">Figures</legend>
+          <label style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 12px; border-radius: 9px; font-size: 14px; border: 1.5px solid #14245C"><input type="radio" name="basis" checked="checked" style="margin-top: 3px"><span><b style="font-weight: 500">AWS billing</b><span style="display: block; font-size: 12.5px; color: #5B6478">What AWS charged; complete a few days after month end</span></span></label>
+          <label style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 12px; border-radius: 9px; font-size: 14px; border: 1px solid #E1E6EF"><input type="radio" name="basis" style="margin-top: 3px"><span><b style="font-weight: 500">Estimated</b><span style="display: block; font-size: 12.5px; color: #5B6478">From run time and list prices; available straight away</span></span></label>
+        </fieldset>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; background: #FAFBFD; border-top: 1px solid #E1E6EF"><a href="CostOverview.dc.html" class="btn" style="border: 1px solid #D4DAE5; color: #141B2D">Cancel</a><a href="CostOverview.dc.html" class="btn" style="background: #14245C; color: #FFFFFF; font-weight: 500">Download CSV</a></div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const on = 'border:1.5px solid #14245C', off = 'border:1px solid #E1E6EF';
+    const acts = [
+      { name: 'Alert only', desc: 'Nothing changes for the people using it', checked: false, box: off },
+      { name: 'Freeze new starts', desc: 'An owner approves first; running VMs keep running. An owner can lift it.', checked: true, box: on },
+      { name: 'Stop the environment', desc: 'An owner approves first. Not offered for team budgets.', checked: false, box: off }
+    ];
+    return { th: [50, 75, 90, 100], acts };
+  }
+}
+</script>
+</body>
+</html>

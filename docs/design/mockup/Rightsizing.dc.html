@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Rightsizing</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="admin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="admin" active="cost" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box">
+      <div>
+        <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Cost management</h1>
+        <p style="margin: 4px 0 0; font-size: 15px; color: #5B6478">Estimated from run time and AWS list prices; replaced by AWS billing figures where they exist.</p>
+      </div>
+      <div role="tablist" aria-label="Cost" style="display: flex; gap: 4px; border-bottom: 1px solid #E1E6EF">
+        <a href="CostOverview.dc.html" role="tab" aria-selected="false" style="font-size: 14px; padding: 10px 14px; color: #5B6478; text-decoration: none">Overview</a>
+        <span role="tab" aria-selected="true" style="font-size: 14px; padding: 10px 14px; margin-bottom: -1px; color: #14245C; font-weight: 600; border-bottom: 2px solid #14245C">Rightsizing</span>
+        <span role="tab" aria-selected="false" style="font-size: 14px; padding: 10px 14px; color: #5B6478">Commitments</span>
+        <span role="tab" aria-selected="false" style="font-size: 14px; padding: 10px 14px; color: #5B6478">Carbon</span>
+        <a href="CostSetup.dc.html" role="tab" aria-selected="false" style="font-size: 14px; padding: 10px 14px; color: #5B6478; text-decoration: none">Setup</a>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap">
+        <p style="margin: 0; font-size: 15px"><b style="font-family: 'IBM Plex Mono', monospace; font-weight: 500">14</b> VMs are bigger than they need to be · <b style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; color: #0B6B44">$1,180</b> a month to save</p>
+        <div style="display: flex; gap: 10px">
+          <select aria-label="Kind of change" style="height: 36px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-size: 14px"><option>All suggestions</option><option>Smaller size</option><option>Newer generation</option><option>Graviton (ARM)</option></select>
+          <select aria-label="Agreement" style="height: 36px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-size: 14px"><option>Any source</option><option>AWS agrees</option></select>
+          <a href="Rightsizing.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #D4DAE5; background: #FFFFFF; color: #141B2D; text-decoration: none; font-weight: 500; font-size: 14px">Excel</a>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start">
+        <div style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden">
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px">
+            <thead><tr style="background: #F7F8FB; color: #5B6478; font-size: 12.5px; text-align: left">
+              <th scope="col" style="padding: 9px 16px; font-weight: 500">VM</th><th scope="col" style="padding: 9px 8px; font-weight: 500">Change</th><th scope="col" style="padding: 9px 8px; font-weight: 500">Peak CPU / memory</th><th scope="col" style="padding: 9px 8px; font-weight: 500; text-align: right">Saves a month</th><th scope="col" style="padding: 9px 16px"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Action</span></th>
+            </tr></thead>
+            <tbody>
+              <sc-for list="{{rows}}" as="r" hint-placeholder-count="8">
+                <tr style="border-top: 1px solid #EEF1F5">
+                  <td style="padding: 8px 16px"><a href="VmDetails.dc.html" style="color: #141B2D; font-weight: 500; text-decoration: none">{{r.vm}}</a><span style="display: block; font-size: 12.5px; color: #5B6478">{{r.env}}</span></td>
+                  <td style="padding: 8px; font-family: 'IBM Plex Mono', monospace; font-size: 13px">{{r.from}} → {{r.to}}<span style="display: block; font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; color: #5B6478">{{r.kind}}{{r.agree}}</span></td>
+                  <td style="padding: 8px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #3A4256">{{r.peak}}</td>
+                  <td style="padding: 8px; text-align: right; font-family: 'IBM Plex Mono', monospace; color: #0B6B44">{{r.saves}}</td>
+                  <td style="padding: 8px 16px; text-align: right; white-space: nowrap"><a href="Rightsizing.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none">Resize safely…</a></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; border-top: 1px solid #EEF1F5; font-size: 13px; color: #5B6478"><span>1–8 of 14</span><span style="display: flex; gap: 6px"><button type="button" disabled="disabled" style="height: 30px; padding: 0 12px; border: 1px solid #E1E6EF; border-radius: 7px; background: #FFFFFF; color: #9AA4B8; font: inherit; font-size: 13px">Previous</button><button type="button" style="height: 30px; padding: 0 12px; border: 1px solid #D4DAE5; border-radius: 7px; background: #FFFFFF; font: inherit; font-size: 13px">Next</button></span></div>
+        </div>
+        <aside style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+          <h2 style="margin: 0; font-size: 15px; font-weight: 600">How a safe resize works</h2>
+          <ol style="margin: 0; padding-left: 18px; font-size: 13.5px; line-height: 1.6; color: #3A4256">
+            <li>You confirm the new size; the VM must not be locked or mid-operation.</li>
+            <li>Stops the VM, changes its size, starts it again.</li>
+            <li>If it isn't healthy within 10 minutes, it goes back to the old size and starts.</li>
+          </ol>
+          <p style="margin: 0; font-size: 13px; color: #5B6478">Suggestions use 14 days of CPU and memory. Savings count only once a resize has finished.</p>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const r = (vm, env, from, to, kind, agree, peak, saves) => ({ vm, env, from, to, kind, agree: agree ? ' · AWS agrees' : '', peak, saves });
+    const rows = [
+      r('spark-worker-03', 'Data Lake Dev', 'r6i.4xlarge', 'r6i.2xlarge', 'Smaller', true, '22% / 38%', '$412'),
+      r('billing-batch-01', 'Billing Prod Mirror', 'm5.2xlarge', 'm6a.xlarge', 'Smaller, newer', true, '31% / 44%', '$188'),
+      r('search-index-02', 'Search Indexer QA', 'c5.2xlarge', 'c7g.xlarge', 'Graviton', false, '26% / 30%', '$126'),
+      r('pay-api-01', 'Payments Dev', 'm6i.large', 'm6i.medium', 'Smaller', true, '18% / 41%', '$31'),
+      r('pay-api-02', 'Payments Dev', 'm6i.large', 'm6i.medium', 'Smaller', true, '21% / 39%', '$31'),
+      r('crm-api-01', 'CRM UAT', 'm5.large', 'm6a.large', 'Newer generation', false, '48% / 52%', '$9'),
+      r('ml-notebook', 'ML Training', 'g4dn.xlarge', 'g4dn.large', 'Smaller', false, '12% / 35%', '$84'),
+      r('partner-web-01', 'Partner Portal QA', 't3.large', 't3.medium', 'Smaller', true, '9% / 28%', '$30')
+    ];
+    return { rows };
+  }
+}
+</script>
+</body>
+</html>

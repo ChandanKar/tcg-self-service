@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Approvals</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="envadmin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="envadmin" active="approvals" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+      <div>
+        <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Approvals</h1>
+        <p style="margin: 6px 0 0; font-size: 15px; color: #5B6478">Starts and extensions that need a yes because of how long they run or what they cost.</p>
+      </div>
+      <div role="tablist" aria-label="Approvals" style="display: flex; gap: 4px; border-bottom: 1px solid #E1E6EF">
+        <sc-for list="{{tabs}}" as="t" hint-placeholder-count="2">
+          <button type="button" role="tab" aria-selected="{{t.selected}}" onClick="{{t.pick}}" style="{{t.style}}">{{t.label}}</button>
+        </sc-for>
+      </div>
+
+      <sc-if value="{{review}}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; flex-direction: column; gap: 14px">
+          <sc-for list="{{toReview}}" as="r" hint-placeholder-count="2">
+            <article style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 14px">
+              <div style="display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap">
+                <div>
+                  <h2 style="margin: 0; font-size: 17px; font-weight: 600">{{r.title}}</h2>
+                  <p style="margin: 4px 0 0; font-size: 14px; color: #5B6478">{{r.who}}</p>
+                </div>
+                <span style="font-size: 13px; color: #7A5000; background: #FBF3DC; padding: 4px 10px; border-radius: 999px; align-self: flex-start">{{r.expires}}</span>
+              </div>
+              <p style="margin: 0; font-size: 14px; padding: 12px 14px; background: #F7F8FB; border-radius: 8px">"{{r.reason}}"</p>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; font-size: 13px">
+                <div><div style="color: #5B6478">Why it needs approval</div><div style="font-size: 14px; margin-top: 2px">{{r.rule}}</div></div>
+                <div><div style="color: #5B6478">Estimated cost</div><div style="font-size: 14px; margin-top: 2px; font-family: 'IBM Plex Mono', monospace">{{r.cost}}</div></div>
+                <div><div style="color: #5B6478">Decided by</div><div style="font-size: 14px; margin-top: 2px">{{r.approvers}}</div></div>
+              </div>
+              <div style="display: flex; gap: 10px; justify-content: flex-end; padding-top: 12px; border-top: 1px solid #EEF1F5">
+                <a href="Approvals.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 16px; border-radius: 8px; border: 1px solid #E8B8AE; background: #FFFFFF; color: #A8331F; text-decoration: none; font-weight: 500; font-size: 14px">Deny…</a>
+                <a href="Approvals.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 18px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">Approve</a>
+              </div>
+            </article>
+          </sc-for>
+        </div>
+      </sc-if>
+      <sc-if value="{{mine}}" hint-placeholder-val="{{ false }}">
+        <div style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden">
+          <div style="display: flex; align-items: center; gap: 16px; padding: 14px 20px; font-size: 14px; flex-wrap: wrap">
+            <span style="font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 999px; background: #FBF3DC; color: #7A5000">Waiting</span>
+            <span style="flex: 1">Keep <b style="font-weight: 600">Analytics QA</b> running 6 hours longer · waiting for Meera Iyer</span>
+            <a href="Approvals.dc.html" style="text-decoration: none">Cancel request</a>
+          </div>
+          <div style="display: flex; align-items: center; gap: 16px; padding: 14px 20px; font-size: 14px; border-top: 1px solid #EEF1F5; flex-wrap: wrap">
+            <span style="font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 999px; background: #E3F4EC; color: #0B6B44">Started</span>
+            <span style="flex: 1">Start <b style="font-weight: 600">Data Lake Dev</b> for 12 hours · approved by Meera Iyer, started <span style="font-family: 'IBM Plex Mono', monospace">Fri 09:14</span></span>
+          </div>
+        </div>
+      </sc-if>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tab: 'review' }; }
+  renderVals() {
+    const tab = this.state.tab;
+    const tabs = [['review', 'To review · 2'], ['mine', 'My requests']].map(([k, label]) => ({
+      label, selected: String(tab === k), pick: () => this.setState({ tab: k }),
+      style: 'border:0;background:none;font:inherit;font-size:14px;padding:10px 14px;margin-bottom:-1px;cursor:pointer;' +
+        (tab === k ? 'color:#14245C;font-weight:600;border-bottom:2px solid #14245C' : 'color:#5B6478;border-bottom:2px solid transparent')
+    }));
+    const toReview = [
+      { title: 'Start Payments Dev for 24 hours', who: 'Priya Nair · asked 40 min ago', expires: 'Expires in 3 h 20 min',
+        reason: 'Overnight soak test for the refunds release', rule: 'Runs longer than 8 hours', cost: '$7.40', approvers: 'Any one of you or Meera Iyer' },
+      { title: 'Keep CRM UAT running 12 hours longer', who: 'Karthik S · asked 1 h ago', expires: 'Expires in 5 h',
+        reason: 'UAT sign-off with the client runs into the evening', rule: 'Over the team\'s monthly hours', cost: '$4.85', approvers: 'You and Meera Iyer (both)' }
+    ];
+    return { tabs, toReview, review: tab === 'review', mine: tab === 'mine' };
+  }
+}
+</script>
+</body>
+</html>

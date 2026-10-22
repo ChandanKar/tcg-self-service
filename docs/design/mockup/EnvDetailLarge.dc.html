@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Payments Prod Mirror — 54 VMs</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="user" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="user" active="environments" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 20px 32px 22px; display: flex; flex-direction: column; gap: 14px; box-sizing: border-box">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <nav aria-label="Breadcrumb" style="font-size: 13px; color: #5B6478; display: flex; gap: 8px"><a href="Environments15.dc.html" style="color: #5B6478; text-decoration: none">Environments</a><span aria-hidden="true">/</span><span aria-current="page" style="color: #141B2D">Payments Prod Mirror</span></nav>
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+          <div><h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Payments Prod Mirror</h1>
+            <p style="margin: 3px 0 0; font-size: 14px; color: #5B6478"><span style="font-family: 'IBM Plex Mono', monospace">payments-mirror</span> · AWS EC2 · <span style="font-family: 'IBM Plex Mono', monospace">ap-south-1</span> · Lease ends <span style="font-family: 'IBM Plex Mono', monospace">20:00</span> · Not locked</p></div>
+          <div style="display: flex; gap: 8px; align-items: center">
+            <a href="EnvInsights.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 8px; color: #3A4256; text-decoration: none; font-size: 14px">Insights</a>
+            <a href="EnvDetailLarge.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid #E8B8AE; background: #FFFFFF; color: #A8331F; text-decoration: none; font-weight: 500; font-size: 14px">Stop all</a>
+            <a href="StartConfirm.dc.html" style="display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 8px; background: #12915E; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">
+              <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M6 4v12l10-6z"></path></svg>Start the 9 stopped</a>
+          </div>
+        </div>
+      </div>
+
+      <section aria-label="All 54 VMs in start order" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 14px 18px; display: flex; flex-direction: column; gap: 10px">
+        <dc-import name="PowerStrip" states="RRRRRRRR|RRRRRRRRRRRRRRSSSS|RRRRRRRRRRRRSSSS|RRRRRRRRRRES" large="{{ true }}" hint-size="820px,24px"></dc-import>
+        <div style="display: flex; gap: 20px; font-size: 13px; color: #5B6478; flex-wrap: wrap">
+          <span><b style="font-family: 'IBM Plex Mono', monospace; color: #141B2D; font-weight: 500">44</b> running</span>
+          <span><b style="font-family: 'IBM Plex Mono', monospace; color: #141B2D; font-weight: 500">9</b> stopped</span>
+          <span style="color: #A8331F"><b style="font-family: 'IBM Plex Mono', monospace; font-weight: 500">1</b> failed to start</span>
+          <span>Start order: Database → Application → Web → Batch</span>
+        </div>
+      </section>
+
+      <div style="display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 14px; align-items: start">
+        <nav aria-label="Groups" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden">
+          <div style="padding: 10px 14px; font-size: 12.5px; font-weight: 600; color: #5B6478">4 groups</div>
+          <sc-for list="{{groups}}" as="g" hint-placeholder-count="4">
+            <button type="button" aria-current="{{g.current}}" onClick="{{g.pick}}" style="{{g.style}}">
+              <span style="display: flex; justify-content: space-between; width: 100%; font-size: 14px"><b style="font-weight: 600">{{g.order}} · {{g.name}}</b><span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #3A4256">{{g.running}}/{{g.size}}</span></span>
+              <span style="font-size: 12px; color: {{g.noteColor}}">{{g.note}}</span>
+            </button>
+          </sc-for>
+        </nav>
+
+        <section aria-labelledby="grp-title" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden; min-width: 0">
+          <div style="display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid #EEF1F5; flex-wrap: wrap">
+            <h2 id="grp-title" style="margin: 0; font-size: 15px; font-weight: 600; flex: 1">{{sel.name}} · <span style="font-weight: 400; color: #5B6478">{{sel.size}} VMs</span></h2>
+            <div role="group" aria-label="Show" style="display: inline-flex; border: 1px solid #D4DAE5; border-radius: 8px; padding: 2px; gap: 2px">
+              <sc-for list="{{filters}}" as="f" hint-placeholder-count="4"><button type="button" aria-pressed="{{f.pressed}}" onClick="{{f.pick}}" style="{{f.style}}">{{f.label}}</button></sc-for>
+            </div>
+            <a href="{{sel.actionHref}}" style="{{sel.actionStyle}}">{{sel.action}}</a>
+          </div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px">
+            <thead><tr style="background: #F7F8FB; color: #5B6478; font-size: 12.5px; text-align: left">
+              <th scope="col" style="padding: 8px 16px; font-weight: 500">VM</th><th scope="col" style="padding: 8px 10px; font-weight: 500">IP address</th><th scope="col" style="padding: 8px 10px; font-weight: 500">Size</th><th scope="col" style="padding: 8px 10px; font-weight: 500">State</th><th scope="col" style="padding: 8px 16px"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Actions</span></th>
+            </tr></thead>
+            <tbody>
+              <sc-for list="{{vms}}" as="v" hint-placeholder-count="10">
+                <tr style="border-top: 1px solid #EEF1F5; height: 38px">
+                  <td style="padding: 4px 16px; font-weight: 500">{{v.name}}</td>
+                  <td style="padding: 4px 10px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #3A4256">{{v.ip}}</td>
+                  <td style="padding: 4px 10px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #3A4256">{{v.size}}</td>
+                  <td style="padding: 4px 10px"><span style="display: inline-flex; align-items: center; gap: 8px; {{v.stateColor}}"><span style="{{v.dot}}"></span>{{v.state}}</span></td>
+                  <td style="padding: 4px 16px; text-align: right; white-space: nowrap"><a href="VmDetails.dc.html" style="font-size: 13px; text-decoration: none; margin-right: 12px">Details</a><a href="{{v.actionHref}}" style="{{v.actionStyle}}">{{v.action}}</a></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; border-top: 1px solid #EEF1F5; font-size: 13px; color: #5B6478">
+            <span>{{range}}</span>
+            <span style="display: flex; gap: 6px">
+              <button type="button" onClick="{{prev}}" disabled="{{noPrev}}" style="height: 30px; padding: 0 12px; border: 1px solid #D4DAE5; border-radius: 7px; background: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer">Previous</button>
+              <button type="button" onClick="{{next}}" disabled="{{noNext}}" style="height: 30px; padding: 0 12px; border: 1px solid #D4DAE5; border-radius: 7px; background: #FFFFFF; font: inherit; font-size: 13px; cursor: pointer">Next</button>
+            </span>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { group: 1, filter: 'all', page: 0 }; }
+  renderVals() {
+    const defs = [
+      { name: 'Database', prefix: 'pm-db', size: 'r6g.xlarge', states: 'RRRRRRRR' },
+      { name: 'Application', prefix: 'pm-api', size: 'm6i.large', states: 'RRRRRRRRRRRRRRSSSS' },
+      { name: 'Web', prefix: 'pm-web', size: 't3.medium', states: 'RRRRRRRRRRRRSSSS' },
+      { name: 'Batch', prefix: 'pm-batch', size: 'c6i.xlarge', states: 'RRRRRRRRRRES' }
+    ];
+    const ord = ['1st', '2nd', '3rd', '4th'];
+    const groups = defs.map((d, i) => {
+      const running = (d.states.match(/R/g) || []).length, stopped = (d.states.match(/S/g) || []).length, err = (d.states.match(/E/g) || []).length;
+      const note = err ? `${err} failed · ${stopped} stopped` : stopped ? `${stopped} stopped` : 'All running';
+      return {
+        name: d.name, order: ord[i], size: d.states.length, running, note, noteColor: err ? '#A8331F' : '#5B6478', current: String(i === this.state.group),
+        pick: () => this.setState({ group: i, page: 0, filter: 'all' }),
+        style: 'display:flex;flex-direction:column;gap:2px;align-items:flex-start;width:100%;border:0;border-top:1px solid #EEF1F5;padding:10px 14px;font:inherit;color:#141B2D;cursor:pointer;text-align:left;' +
+          (i === this.state.group ? 'background:#ECEFF8;box-shadow:inset 3px 0 0 #D9A21B' : 'background:#FFFFFF')
+      };
+    });
+    const d = defs[this.state.group];
+    const stopBtn = 'display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:7px;border:1px solid #E8B8AE;color:#A8331F;text-decoration:none;font-size:13px;font-weight:500;background:#FFFFFF';
+    const startBtn = 'display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:7px;border:1px solid #A8D8C1;color:#0B6B44;text-decoration:none;font-size:13px;font-weight:500;background:#FFFFFF';
+    let all = d.states.split('').map((s, i) => ({
+      name: `${d.prefix}-${String(i + 1).padStart(2, '0')}`, ip: `10.40.${this.state.group + 1}.${i + 11}`, size: d.size, s,
+      state: s === 'R' ? 'Running' : s === 'E' ? 'Failed to start' : 'Stopped',
+      stateColor: s === 'E' ? 'color:#A8331F' : '',
+      dot: 'display:inline-block;width:8px;height:8px;border-radius:50%;' + (s === 'R' ? 'background:#12915E' : s === 'E' ? 'background:#C2412D' : 'border:1.5px solid #9AA4B8'),
+      action: s === 'R' ? 'Stop' : s === 'E' ? 'Retry' : 'Start', actionStyle: s === 'R' ? stopBtn : startBtn, actionHref: s === 'R' ? 'EnvDetailLarge.dc.html' : 'StartConfirm.dc.html'
+    }));
+    const f = this.state.filter;
+    all = all.filter(v => f === 'all' || (f === 'run' && v.s === 'R') || (f === 'stop' && v.s === 'S') || (f === 'prob' && v.s === 'E'));
+    const per = 10, pages = Math.max(1, Math.ceil(all.length / per)), page = Math.min(this.state.page, pages - 1);
+    const vms = all.slice(page * per, page * per + per);
+    const filters = [['all', 'All'], ['run', 'Running'], ['stop', 'Stopped'], ['prob', 'Problems']].map(([k, label]) => ({
+      label, pressed: String(f === k), pick: () => this.setState({ filter: k, page: 0 }),
+      style: 'border:0;font:inherit;font-size:12.5px;padding:4px 10px;border-radius:6px;cursor:pointer;' + (f === k ? 'background:#14245C;color:#FFFFFF;font-weight:500' : 'background:transparent;color:#3A4256')
+    }));
+    const anyRunning = /R/.test(d.states);
+    return {
+      groups, filters, vms,
+      sel: { name: d.name, size: d.states.length, action: anyRunning ? 'Stop group' : 'Start group', actionStyle: anyRunning ? stopBtn : startBtn, actionHref: anyRunning ? 'EnvDetailLarge.dc.html' : 'StartConfirm.dc.html' },
+      range: all.length ? `${page * per + 1}–${page * per + vms.length} of ${all.length}` : 'Nothing matches this filter',
+      noPrev: page === 0, noNext: page >= pages - 1,
+      prev: () => this.setState({ page: Math.max(0, page - 1) }),
+      next: () => this.setState({ page: Math.min(pages - 1, page + 1) })
+    };
+  }
+}
+</script>
+</body>
+</html>

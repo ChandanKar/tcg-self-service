@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="admin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="admin" active="settings" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+      <div>
+        <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Settings</h1>
+        <p style="margin: 6px 0 0; font-size: 15px; color: #5B6478">Platform switches. Changes apply within 30 seconds; no restart needed.</p>
+      </div>
+      <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start">
+        <nav aria-label="Settings sections" style="flex: 1 1 200px; max-width: 240px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 8px 0">
+          <sc-for list="{{sections}}" as="s" hint-placeholder-count="8">
+            <button type="button" aria-current="{{s.current}}" onClick="{{s.pick}}" style="{{s.style}}"><span style="flex: 1">{{s.label}}</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #5B6478">{{s.count}}</span></button>
+          </sc-for>
+        </nav>
+        <section aria-labelledby="sec-title" style="flex: 999 1 520px; min-width: 0; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden">
+          <div style="padding: 18px 22px; border-bottom: 1px solid #EEF1F5">
+            <h2 id="sec-title" style="margin: 0; font-size: 18px; font-weight: 600">{{title}}</h2>
+            <p style="margin: 4px 0 0; font-size: 14px; color: #5B6478">{{intro}}</p>
+          </div>
+          <sc-for list="{{items}}" as="i" hint-placeholder-count="6">
+            <div style="display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; padding: 16px 22px; border-top: 1px solid #EEF1F5; align-items: center">
+              <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0">
+                <label for="{{i.id}}" style="font-size: 15px; font-weight: 500">{{i.name}}</label>
+                <span style="font-size: 13px; color: #5B6478">{{i.desc}}</span>
+                <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; color: #8A93A8">{{i.key}}</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px">
+                <span style="{{i.stateStyle}}">{{i.state}}</span>
+                <input id="{{i.id}}" type="checkbox" role="switch" checked="{{i.checked}}" style="width: 38px; height: 20px; accent-color: #14245C">
+              </div>
+            </div>
+          </sc-for>
+          <div style="display: flex; justify-content: flex-end; align-items: center; gap: 12px; padding: 14px 22px; background: #FAFBFD; border-top: 1px solid #E1E6EF">
+            <span style="font-size: 13px; color: #5B6478; flex: 1">1 change not saved</span>
+            <a href="Settings.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 14px; border-radius: 8px; border: 1px solid #D4DAE5; color: #141B2D; text-decoration: none; font-weight: 500; font-size: 14px">Discard</a>
+            <a href="Settings.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 16px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">Save changes</a>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { sec: 'notif' }; }
+  renderVals() {
+    const data = {
+      notif: ['Notifications', 'Which emails the platform sends. People choose their own in-app alerts in My account.', [
+        ['Email notifications', 'The master switch for every email. Needs the mail server set up.', 'notification.email.enabled', true, true],
+        ['Access requested', 'Email approvers when someone asks for access.', 'notification.email.access-requested.enabled', true, false],
+        ['Access ending', 'Email people 7 days and 1 day before their access ends.', 'notification.email.access-expiring.enabled', false, false],
+        ['Request decided', 'Email requesters when their request is approved or denied.', 'notification.email.access-request-decided.enabled', true, false],
+        ['Lease ending', 'Email the people using an environment before its lease ends.', 'notification.email.lease.enabled', false, false],
+        ['Weekly reports', 'In-app weekly cost and idle reports for owners.', 'notification.weekly-reports.enabled', true, false]
+      ]],
+      access: ['Access and security', 'Sign-in and who may do what.', [
+        ['Username and password sign-in', 'Keep it next to Microsoft sign-in. Turn off only in an emergency.', 'auth.password-login.enabled', true, false],
+        ['Environment admins only for their environments', 'Otherwise environment admins can manage every environment.', 'security.env-admin.scope', false, false],
+        ['Enforce the content security policy', 'Block, rather than only report, scripts from other sites.', 'security.csp.report-only', false, false]
+      ]],
+      env: ['Environments and leases', 'How environments run and stop.', [
+        ['Leases', 'Environments that opt in stop when their lease ends.', 'lease.enabled', true, false],
+        ['Idle auto-stop', 'Stop environments whose VMs have been idle for the set time.', 'automation.idle-stop.enabled', false, false],
+        ['Expire locks', 'End locks at the time their holder chose.', 'locks.expiry.enabled', false, false]
+      ]]
+    };
+    const order = [['notif', 'Notifications', 14], ['access', 'Access and security', 3], ['env', 'Environments and leases', 6], ['auto', 'Automation', 4], ['cost', 'Cost', 9], ['int', 'Integrations', 5], ['aws', 'AWS', 4], ['ret', 'Data retention', 3]];
+    const cur = data[this.state.sec] || data.notif;
+    const sections = order.map(([k, label, count]) => ({
+      label, count, current: k === this.state.sec ? 'page' : 'false', pick: () => this.setState({ sec: data[k] ? k : this.state.sec }),
+      style: 'display:flex;width:100%;text-align:left;border:0;font:inherit;font-size:14px;padding:9px 16px;cursor:pointer;gap:8px;' +
+        (k === this.state.sec ? 'background:#ECEFF8;color:#14245C;font-weight:600;box-shadow:inset 3px 0 0 #D9A21B' : 'background:#FFFFFF;color:#2A3245')
+    }));
+    const items = cur[2].map(([name, desc, key, on, changed], idx) => ({
+      id: 'set-' + idx, name, desc, key, checked: on,
+      state: changed ? 'Changed' : (on ? 'On by default' : 'Off by default'),
+      stateStyle: 'font-size:12px;white-space:nowrap;' + (changed ? 'color:#7A5000;font-weight:500' : 'color:#5B6478')
+    }));
+    return { sections, title: cur[0], intro: cur[1], items };
+  }
+}
+</script>
+</body>
+</html>

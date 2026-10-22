@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Start VMs — confirm</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column; position: relative">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="user" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="user" active="environments" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main aria-hidden="true" style="flex: 999 1 560px; min-width: 0; padding: 24px 40px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+      <div style="font-size: 13px; color: #5B6478">Environments / Payments Dev</div>
+      <div style="font-size: 30px; font-weight: 600; letter-spacing: -0.02em">Payments Dev</div>
+      <div style="height: 210px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 14px"></div>
+      <div style="height: 180px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px"></div>
+      <div style="height: 140px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px"></div>
+    </main>
+  </div>
+
+  <div style="position: absolute; inset: 0; z-index: 30; background: rgba(10,20,48,0.42); display: flex; align-items: flex-start; justify-content: center; padding: 120px 24px 24px; box-sizing: border-box">
+    <div role="dialog" aria-modal="true" aria-labelledby="start-title" style="width: 100%; max-width: 560px; background: #FFFFFF; border-radius: 14px; box-shadow: 0 24px 48px rgba(20,36,92,0.25); overflow: hidden">
+      <div style="padding: 22px 24px 6px; display: flex; flex-direction: column; gap: 6px">
+        <h2 id="start-title" style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em">Start 2 VMs in Payments Dev?</h2>
+        <p style="margin: 0; font-size: 14px; color: #5B6478">The Web group starts now. Database and Application are already running.</p>
+      </div>
+      <div style="padding: 16px 24px; display: flex; flex-direction: column; gap: 20px">
+        <div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; background: #F7F8FB">
+          <dc-import name="PowerStrip" states="RRR|RR|BB" hint-size="160px,20px"></dc-import>
+          <span style="font-size: 13px; color: #5B6478">web-01, web-02 · <span style="font-family: 'IBM Plex Mono', monospace">t3.medium</span></span>
+        </div>
+        <fieldset style="border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px">
+          <legend style="font-size: 14px; font-weight: 500; margin-bottom: 10px; padding: 0">Keep them running until</legend>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap">
+            <sc-for list="{{options}}" as="o" hint-placeholder-count="4">
+              <button type="button" aria-pressed="{{o.pressed}}" onClick="{{o.pick}}" style="{{o.style}}">{{o.label}}</button>
+            </sc-for>
+          </div>
+          <p style="margin: 0; font-size: 13px; color: #5B6478">{{hint}}</p>
+        </fieldset>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+          <div style="padding: 12px 14px; border: 1px solid #E1E6EF; border-radius: 10px">
+            <div style="font-size: 12px; color: #5B6478">Estimated cost</div>
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 18px; margin-top: 4px">{{cost}}</div>
+            <div style="font-size: 12px; color: #5B6478; margin-top: 2px"><span style="font-family: 'IBM Plex Mono', monospace">$0.09</span> an hour for both</div>
+          </div>
+          <div style="padding: 12px 14px; border: 1px solid #E1E6EF; border-radius: 10px">
+            <div style="font-size: 12px; color: #5B6478">Approval</div>
+            <div style="font-size: 15px; margin-top: 4px">{{approval}}</div>
+            <div style="font-size: 12px; color: #5B6478; margin-top: 2px">Runs over 8 hours need the owner</div>
+          </div>
+        </div>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; background: #FAFBFD; border-top: 1px solid #E1E6EF">
+        <a href="EnvDetail.dc.html" style="display: inline-flex; align-items: center; height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid #D4DAE5; background: #FFFFFF; color: #141B2D; text-decoration: none; font-weight: 500; font-size: 14px">Cancel</a>
+        <a href="OperationProgress.dc.html" style="display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 18px; border-radius: 8px; background: #12915E; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">{{confirm}}</a>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { pick: 'sched' }; }
+  renderVals() {
+    const opts = [
+      ['sched', 'Schedule stop, 20:00', '$0.21', 'No approval needed', 'Stops with the rest of the environment at 20:00 (in 2 h 15 min).'],
+      ['2h', '2 hours', '$0.18', 'No approval needed', 'Stops at 19:45. You get a reminder 15 minutes before.'],
+      ['8h', '8 hours', '$0.72', 'No approval needed', 'Runs past the schedule stop, until 01:45 tomorrow.'],
+      ['24h', '24 hours', '$2.16', 'Needs Sanjay Rao', 'Over 8 hours: the request goes to the environment owner first.']
+    ];
+    const cur = opts.find(o => o[0] === this.state.pick) || opts[0];
+    const options = opts.map(([k, label]) => ({
+      label, pressed: String(k === this.state.pick),
+      pick: () => this.setState({ pick: k }),
+      style: 'font:inherit;font-size:13px;height:36px;padding:0 14px;border-radius:8px;cursor:pointer;' +
+        (k === this.state.pick ? 'background:#14245C;color:#FFFFFF;border:1px solid #14245C;font-weight:500' : 'background:#FFFFFF;color:#141B2D;border:1px solid #D4DAE5')
+    }));
+    return {
+      options, cost: cur[2], approval: cur[3], hint: cur[4],
+      confirm: cur[0] === '24h' ? 'Send for approval' : 'Start 2 VMs'
+    };
+  }
+}
+</script>
+</body>
+</html>

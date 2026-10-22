@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cost setup</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="admin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="admin" active="cost" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box">
+      <div>
+        <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Cost management</h1>
+        <p style="margin: 6px 0 0; font-size: 15px; color: #5B6478">Estimated from run time and AWS list prices; replaced by AWS billing figures where they exist.</p>
+      </div>
+      <div role="tablist" aria-label="Cost" style="display: flex; gap: 4px; border-bottom: 1px solid #E1E6EF">
+        <a href="CostOverview.dc.html" role="tab" aria-selected="false" style="font-size: 14px; padding: 10px 14px; color: #5B6478; text-decoration: none; border-bottom: 2px solid transparent">Overview</a>
+        <button type="button" role="tab" aria-selected="false" style="border: 0; background: none; font: inherit; font-size: 14px; padding: 10px 14px; margin-bottom: -1px; color: #5B6478; border-bottom: 2px solid transparent">Rightsizing</button>
+        <button type="button" role="tab" aria-selected="false" style="border: 0; background: none; font: inherit; font-size: 14px; padding: 10px 14px; margin-bottom: -1px; color: #5B6478; border-bottom: 2px solid transparent">Commitments</button>
+        <button type="button" role="tab" aria-selected="false" style="border: 0; background: none; font: inherit; font-size: 14px; padding: 10px 14px; margin-bottom: -1px; color: #5B6478; border-bottom: 2px solid transparent">Carbon</button>
+        <button type="button" role="tab" aria-selected="true" style="border: 0; background: none; font: inherit; font-size: 14px; padding: 10px 14px; margin-bottom: -1px; color: #14245C; font-weight: 600; border-bottom: 2px solid #14245C">Setup</button>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 20px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; flex-wrap: wrap">
+        <div><div style="font-size: 15px; font-weight: 600">6 of 8 cost features work</div><div style="font-size: 13px; color: #5B6478">Checked AWS permissions <span style="font-family: 'IBM Plex Mono', monospace">2 min</span> ago</div></div>
+        <a href="CostSetup.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 14px; border-radius: 8px; border: 1px solid #B9C2DA; color: #14245C; text-decoration: none; font-weight: 500; font-size: 14px">Check again</a>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+        <sc-for list="{{features}}" as="f" hint-placeholder-count="8">
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 14px 16px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 10px; align-items: start">
+            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0">
+              <div style="font-size: 15px; font-weight: 500">{{f.name}}</div>
+              <div style="font-size: 13px; color: #5B6478">{{f.what}}</div>
+              <sc-if value="{{f.fix}}" hint-placeholder-val="{{ false }}"><div style="font-size: 13px; color: #A8331F">{{f.fix}}</div></sc-if>
+            </div>
+            <span style="{{f.style}}">{{f.status}}</span>
+          </div>
+        </sc-for>
+      </div>
+      <p style="margin: 0; font-size: 13px; color: #5B6478">Switch features on or off in <a href="Settings.dc.html" style="text-decoration: none">Settings › Cost</a>. The IAM permissions each one needs are in the setup guide.</p>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const pill = (k) => 'justify-self:end;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px;white-space:nowrap;' +
+      (k === 'ok' ? 'background:#E3F4EC;color:#0B6B44' : k === 'bad' ? 'background:#FBEEEB;color:#A8331F' : 'background:#ECEFF5;color:#4A5368');
+    const f = (name, what, k, status, fix) => ({ name, what, status, style: pill(k), fix: fix || '' });
+    const features = [
+      f('Daily cost estimate', 'Cost per VM from run time and list prices, every night at 01:00', 'ok', 'Working'),
+      f('AWS billing figures', 'Replaces estimates with what AWS actually billed, daily', 'bad', 'No permission', 'AWS refused ce:GetCostAndUsage. Ask your AWS admin to add it to the platform role.'),
+      f('Rightsizing from Compute Optimizer', 'AWS\'s own size suggestions, daily', 'ok', 'Working'),
+      f('Savings Plans and reservations', 'How much of the fleet commitments cover, weekly', 'ok', 'Working'),
+      f('AWS forecast', 'AWS\'s month and 18-month forecast, weekly', 'bad', 'No permission', 'AWS refused ce:GetCostForecast.'),
+      f('Cost anomalies', 'Unusual spend per environment, routed to its owners', 'ok', 'Working'),
+      f('Carbon', 'Monthly emissions per environment from AWS Data Exports', 'off', 'Off'),
+      f('Tag reconciliation', 'Keeps the environment tag on every VM', 'ok', 'Working')
+    ];
+    return { features };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Change access, revoke, deny</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column; position: relative">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="envadmin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="envadmin" active="access" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main aria-hidden="true" style="flex: 999 1 560px; min-width: 0; padding: 20px 32px; display: flex; flex-direction: column; gap: 14px; box-sizing: border-box">
+      <div style="font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Access management</div>
+      <div style="height: 580px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px"></div>
+    </main>
+  </div>
+  <div style="position: absolute; inset: 0; z-index: 30; background: rgba(10,20,48,0.42); display: flex; align-items: flex-start; justify-content: center; gap: 20px; padding: 64px 24px; box-sizing: border-box">
+
+    <div role="dialog" aria-labelledby="ch-t" style="width: 420px; background: #FFFFFF; border-radius: 14px; box-shadow: 0 24px 48px rgba(20,36,92,0.25); overflow: hidden">
+      <div style="padding: 18px 20px 4px"><h2 id="ch-t" style="margin: 0; font-size: 18px; font-weight: 600">Change access for Ananya Iyer</h2><p style="margin: 4px 0 0; font-size: 13.5px; color: #5B6478">Payments Dev · Operator · ends 31 Oct</p></div>
+      <div style="padding: 12px 20px; display: flex; flex-direction: column; gap: 12px">
+        <fieldset style="border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px"><legend style="font-size: 13.5px; font-weight: 500; padding: 0; margin-bottom: 6px">Access</legend>
+          <sc-for list="{{levels}}" as="l" hint-placeholder-count="3">
+            <label style="display: flex; gap: 10px; align-items: flex-start; padding: 9px 12px; border-radius: 9px; font-size: 14px; {{l.box}}"><input type="radio" name="lvl" checked="{{l.checked}}" style="margin-top: 3px"><span><b style="font-weight: 500">{{l.name}}</b><span style="display: block; font-size: 12.5px; color: #5B6478">{{l.desc}}</span></span></label>
+          </sc-for>
+        </fieldset>
+        <label style="display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; font-weight: 500">Ends<select style="height: 36px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-weight: 400"><option>Keep 31 Oct</option><option>30 days from today</option><option>90 days from today</option><option>No end date</option></select></label>
+        <label style="display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; font-weight: 500">Note <span style="font-weight: 400; color: #5B6478; font-size: 12.5px">optional, kept in the audit log</span><input type="text" defaultValue="Covering release testing" style="height: 36px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 10px; font: inherit; font-weight: 400"></label>
+        <p style="margin: 0; font-size: 12.5px; color: #5B6478">You can't change your own access; another admin has to.</p>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; background: #FAFBFD; border-top: 1px solid #E1E6EF"><a href="AccessManagement.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #D4DAE5; color: #141B2D; text-decoration: none; font-size: 14px">Cancel</a><a href="AccessManagement.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">Save access</a></div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 20px">
+      <div role="alertdialog" aria-labelledby="rv-t" style="width: 380px; background: #FFFFFF; border-radius: 14px; box-shadow: 0 24px 48px rgba(20,36,92,0.25); overflow: hidden">
+        <div style="padding: 18px 20px 4px"><h2 id="rv-t" style="margin: 0; font-size: 18px; font-weight: 600">Remove Vikram's access?</h2></div>
+        <p style="margin: 0; padding: 8px 20px 14px; font-size: 14px; color: #3A4256; line-height: 1.5">Vikram Shah can no longer see or use <b style="font-weight: 500">Payments Dev</b>. The change is recorded in the audit log. To give access back, grant it again.</p>
+        <div style="display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; background: #FAFBFD; border-top: 1px solid #E1E6EF"><a href="AccessManagement.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #D4DAE5; color: #141B2D; text-decoration: none; font-size: 14px">Keep access</a><a href="AccessManagement.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 8px; background: #C2412D; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">Remove access</a></div>
+      </div>
+
+      <div role="dialog" aria-labelledby="dn-t" style="width: 380px; background: #FFFFFF; border-radius: 14px; box-shadow: 0 24px 48px rgba(20,36,92,0.25); overflow: hidden">
+        <div style="padding: 18px 20px 4px"><h2 id="dn-t" style="margin: 0; font-size: 18px; font-weight: 600">Decline Meera's request</h2><p style="margin: 4px 0 0; font-size: 13.5px; color: #5B6478">Use CRM UAT for 14 days · "Regression run for 4.2"</p></div>
+        <div style="padding: 12px 20px">
+          <label style="display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; font-weight: 500">Reason <span style="font-weight: 400; color: #5B6478; font-size: 12.5px">Meera sees this with the decision</span><textarea rows="3" style="border: 1px solid #D4DAE5; border-radius: 8px; padding: 10px; font: inherit; font-weight: 400; resize: none">CRM UAT is frozen until the 4.1 sign-off. Ask again on Monday, or use CRM QA.</textarea></label>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; background: #FAFBFD; border-top: 1px solid #E1E6EF"><a href="AccessRequests.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #D4DAE5; color: #141B2D; text-decoration: none; font-size: 14px">Cancel</a><a href="AccessRequests.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 8px; background: #C2412D; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">Decline request</a></div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const on = 'border:1.5px solid #14245C', off = 'border:1px solid #E1E6EF';
+    const levels = [
+      { name: 'View only', desc: 'Sees the environment, its VMs, IPs and cost', checked: false, box: off },
+      { name: 'Operator', desc: 'Also starts and stops VMs, takes locks', checked: true, box: on },
+      { name: 'Admin', desc: 'Also gives access, edits VMs, schedules and budgets', checked: false, box: off }
+    ];
+    return { levels };
+  }
+}
+</script>
+</body>
+</html>

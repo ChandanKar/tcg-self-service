@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Automation — holidays, access rules</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+.card{background:#FFFFFF;border:1px solid #E1E6EF;border-radius:12px}
+.mono{font-family:'IBM Plex Mono',monospace}
+.in{height:34px;border:1px solid #D4DAE5;border-radius:8px;padding:0 10px;font:inherit;font-size:13.5px;font-weight:400;box-sizing:border-box;width:100%}
+.tab{font-size:14px;padding:10px 14px;color:#5B6478;text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab[aria-selected="true"]{color:#14245C;font-weight:600;border-bottom-color:#14245C}
+.btn{display:inline-flex;align-items:center;height:34px;padding:0 12px;border-radius:8px;text-decoration:none;font-size:13.5px;font-weight:500;white-space:nowrap}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="admin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="admin" active="schedules" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 20px 32px 24px; display: flex; flex-direction: column; gap: 14px; box-sizing: border-box">
+      <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Automation rules</h1>
+      <div role="tablist" aria-label="Automation" style="display: flex; gap: 4px; border-bottom: 1px solid #E1E6EF">
+        <a class="tab" role="tab" aria-selected="false" href="AutomationRules.dc.html">Schedules</a><a class="tab" role="tab" aria-selected="false" href="AutomationTabs.dc.html">When access is granted</a><a class="tab" role="tab" aria-selected="true" href="AutomationTabs.dc.html">Holiday calendars</a><a class="tab" role="tab" aria-selected="false" href="AutomationRules.dc.html">Recent runs</a>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 260px minmax(0, 1fr) 400px; gap: 14px; align-items: start">
+        <nav aria-label="Calendars" class="card" style="overflow: hidden">
+          <sc-for list="{{cals}}" as="c" hint-placeholder-count="3">
+            <a href="AutomationTabs.dc.html" style="display: block; padding: 10px 14px; border-top: 1px solid #F1F3F7; text-decoration: none; color: #141B2D; {{c.sel}}"><b style="font-weight: 500; font-size: 14px">{{c.name}}</b><span style="display: block; font-size: 12.5px; color: #5B6478; margin-top: 2px">{{c.count}} · next {{c.next}}</span></a>
+          </sc-for>
+          <div style="padding: 10px 14px; border-top: 1px solid #EEF1F5"><a href="AutomationTabs.dc.html" style="font-size: 13.5px; font-weight: 500; text-decoration: none">+ New calendar</a></div>
+        </nav>
+
+        <section class="card" aria-labelledby="hc-t" style="overflow: hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #EEF1F5"><div><h2 id="hc-t" style="margin: 0; font-size: 15px; font-weight: 600">India offices 2026</h2><div style="font-size: 12.5px; color: #5B6478">Used by 9 schedules</div></div><span style="display: flex; gap: 8px"><a href="AutomationTabs.dc.html" class="btn" style="border: 1px solid #D4DAE5; color: #141B2D">Import CSV</a><a href="AutomationTabs.dc.html" class="btn" style="border: 1px solid #D4DAE5; color: #141B2D">Add date</a></span></div>
+          <div role="status" style="margin: 10px 16px 0; padding: 8px 12px; border-radius: 9px; background: #E3F4EC; color: #0B6B44; font-size: 13px">Imported: 4 added, 2 already there, 1 line skipped (row 7: "31-02-2026" is not a date).</div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 6px">
+            <tbody><sc-for list="{{dates}}" as="d" hint-placeholder-count="8">
+              <tr style="border-top: 1px solid #F1F3F7; {{d.style}}"><td class="mono" style="padding: 7px 16px; width: 110px">{{d.date}}</td><td style="padding: 7px 8px; color: #5B6478; width: 50px">{{d.day}}</td><td style="padding: 7px 8px">{{d.label}}</td><td style="padding: 7px 16px; text-align: right"><a href="AutomationTabs.dc.html" style="font-size: 13px; color: #A8331F; text-decoration: none">Remove</a></td></tr>
+            </sc-for></tbody>
+          </table>
+          <div style="padding: 10px 16px; border-top: 1px solid #EEF1F5; font-size: 12.5px; color: #5B6478">On these dates a schedule either skips its start only (stops still run, the usual choice) or skips everything. Each schedule chooses; skipped runs show "holiday" in Recent runs.</div>
+        </section>
+
+        <aside class="card" role="dialog" aria-labelledby="ag-t" style="overflow: hidden; box-shadow: 0 16px 32px rgba(20,36,92,0.12)">
+          <div style="padding: 14px 16px 4px"><div style="font-size: 12.5px; color: #5B6478; font-weight: 500">When access is granted</div><h2 id="ag-t" style="margin: 2px 0 0; font-size: 16px; font-weight: 600">New rule</h2></div>
+          <div style="padding: 10px 16px; display: flex; flex-direction: column; gap: 12px">
+            <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 500">Name<input class="in" type="text" defaultValue="Start CRM UAT for whoever locks it"></label>
+            <div style="display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 8px"><label style="display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 500">Applies to<select class="in"><option>Environment</option><option>Group</option></select></label><label style="display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 500">Which<select class="in"><option>CRM UAT</option></select></label></div>
+            <fieldset style="border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px"><legend style="font-size: 12.5px; font-weight: 500; padding: 0; margin-bottom: 6px">Start it when</legend>
+              <label style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 12px; border-radius: 9px; font-size: 14px; border: 1.5px solid #14245C"><input type="radio" name="tr" checked="checked" style="margin-top: 3px"><span><b style="font-weight: 500">Someone takes the lock</b><span style="display: block; font-size: 12.5px; color: #5B6478">Started in their name</span></span></label>
+              <label style="display: flex; gap: 10px; align-items: flex-start; padding: 8px 12px; border-radius: 9px; font-size: 14px; border: 1px solid #E1E6EF"><input type="radio" name="tr" style="margin-top: 3px"><span><b style="font-weight: 500">An access request is approved</b><span style="display: block; font-size: 12.5px; color: #5B6478">Started in your name, as the rule's owner</span></span></label>
+            </fieldset>
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 13.5px"><input type="checkbox" checked="checked" style="accent-color: #14245C">Do nothing if it's already running</label>
+            <p style="margin: 0; font-size: 12.5px; color: #5B6478">These rules only start. The lease or a schedule stops it.</p>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; background: #FAFBFD; border-top: 1px solid #E1E6EF"><a href="AutomationTabs.dc.html" class="btn" style="border: 1px solid #D4DAE5; color: #141B2D">Cancel</a><a href="AutomationTabs.dc.html" class="btn" style="background: #14245C; color: #FFFFFF">Create rule</a></div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const cals = [
+      { name: 'India offices 2026', count: '14 dates', next: '20 Oct', sel: 'background:#ECEFF8;box-shadow:inset 3px 0 0 #D9A21B' },
+      { name: 'UK office 2026', count: '8 dates', next: '25 Dec', sel: '' },
+      { name: 'Year-end freeze', count: '5 dates', next: '28 Dec', sel: '' }
+    ];
+    const d = (date, day, label, past) => ({ date, day, label, style: past ? 'color:#9AA4B8' : '' });
+    const dates = [
+      d('02-10-2026', 'Fri', 'Gandhi Jayanti', true), d('20-10-2026', 'Tue', 'Office holiday'), d('21-10-2026', 'Wed', 'Office holiday'),
+      d('05-11-2026', 'Thu', 'Office holiday'), d('25-12-2026', 'Fri', 'Christmas'), d('28-12-2026', 'Mon', 'Year-end shutdown'),
+      d('29-12-2026', 'Tue', 'Year-end shutdown'), d('31-12-2026', 'Thu', '')
+    ];
+    return { cals, dates };
+  }
+}
+</script>
+</body>
+</html>

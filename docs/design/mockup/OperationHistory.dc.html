@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Operation history — Analytics QA</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column; position: relative">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="user" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="user" active="environments" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main aria-hidden="true" style="flex: 999 1 560px; min-width: 0; padding: 20px 32px; display: flex; flex-direction: column; gap: 14px; box-sizing: border-box">
+      <div style="font-size: 13px; color: #5B6478">Environments / Analytics QA</div>
+      <div style="font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Analytics QA</div>
+      <div style="height: 520px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px"></div>
+    </main>
+  </div>
+
+  <div style="position: absolute; inset: 0; z-index: 30; background: rgba(10,20,48,0.32); display: flex; justify-content: flex-end">
+    <aside role="dialog" aria-modal="true" aria-labelledby="oh-title" style="width: 100%; max-width: 760px; background: #FFFFFF; box-shadow: -12px 0 40px rgba(20,36,92,0.18); display: flex; flex-direction: column">
+      <div style="padding: 18px 22px 12px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #EEF1F5">
+        <div style="flex: 1"><h2 id="oh-title" style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.015em">History · Analytics QA</h2>
+          <div style="font-size: 13.5px; color: #5B6478; margin-top: 2px">Starts and stops in the last 30 days, newest first</div></div>
+        <a href="EnvDetail.dc.html" aria-label="Close" style="width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; color: #5B6478">
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5 5l10 10M15 5 5 15"></path></svg></a>
+      </div>
+      <sc-for list="{{runs}}" as="r" hint-placeholder-count="7">
+        <div style="border-bottom: 1px solid #EEF1F5">
+          <button type="button" aria-expanded="{{r.open}}" onClick="{{r.pick}}" style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 150px 56px 110px; gap: 10px; align-items: center; width: 100%; padding: 10px 22px; border: 0; background: {{r.bg}}; font: inherit; color: #141B2D; text-align: left; cursor: pointer; font-size: 14px">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: #5B6478">{{r.when}}</span>
+            <span style="font-weight: 500">{{r.what}}</span>
+            <span style="font-size: 13px; color: #3A4256">{{r.who}}</span>
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: #5B6478">{{r.took}}</span>
+            <span style="{{r.resultStyle}}">{{r.result}}</span>
+          </button>
+          <sc-if value="{{r.isOpen}}" hint-placeholder-val="{{ false }}">
+            <div style="padding: 4px 22px 14px 128px; display: flex; flex-direction: column; gap: 4px">
+              <sc-for list="{{r.steps}}" as="s" hint-placeholder-count="4">
+                <div style="display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 10px; font-size: 13.5px; padding: 4px 0">
+                  <span style="color: #5B6478">{{s.group}}</span><span>{{s.vm}}<span style="display: block; font-size: 12.5px; color: #A8331F">{{s.note}}</span></span><span style="{{s.style}}">{{s.result}}</span>
+                </div>
+              </sc-for>
+              <sc-if value="{{r.retry}}" hint-placeholder-val="{{ false }}"><div style="display: flex; gap: 14px; font-size: 13.5px; margin-top: 4px"><a href="StartConfirm.dc.html" style="text-decoration: none; font-weight: 500">Retry report-worker</a></div></sc-if>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 22px; font-size: 13px; color: #5B6478">
+        <span>1–7 of 23</span><span style="display: flex; gap: 6px"><button type="button" disabled="disabled" style="height: 30px; padding: 0 12px; border: 1px solid #E1E6EF; border-radius: 7px; background: #FFFFFF; color: #9AA4B8; font: inherit; font-size: 13px">Previous</button><button type="button" style="height: 30px; padding: 0 12px; border: 1px solid #D4DAE5; border-radius: 7px; background: #FFFFFF; font: inherit; font-size: 13px">Next</button></span>
+      </div>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { open: 1 }; }
+  renderVals() {
+    const res = (k) => 'font-size:12px;font-weight:500;padding:2px 9px;border-radius:999px;justify-self:end;white-space:nowrap;' +
+      (k === 'ok' ? 'background:#E3F4EC;color:#0B6B44' : k === 'part' ? 'background:#FBF3DC;color:#7A5000' : k === 'run' ? 'background:#ECEFF8;color:#14245C' : 'background:#ECEFF5;color:#4A5368');
+    const ok = res('ok');
+    const list = [
+      ['Today 06:30', 'Start, whole environment', 'Schedule "Nightly batch"', '3:58', 'Done', 'ok'],
+      ['Fri 14:22', 'Start report-worker', 'Priya Nair', '1:12', '1 failed', 'part'],
+      ['Fri 10:30', 'Stop, whole environment', 'Schedule "Nightly batch"', '2:05', 'Done', 'ok'],
+      ['Thu 06:30', 'Start, whole environment', 'Schedule "Nightly batch"', '—', 'Skipped: locked', 'skip'],
+      ['Wed 17:02', 'Stop Application group', 'Neha Gupta', '0:51', 'Done', 'ok'],
+      ['Wed 09:15', 'Start, whole environment', 'Neha Gupta', '0:20', 'Cancelled', 'skip'],
+      ['Tue 06:30', 'Start, whole environment', 'Schedule "Nightly batch"', '4:06', 'Done', 'ok']
+    ];
+    const runs = list.map(([when, what, who, took, result, k], i) => ({
+      when, what, who, took, result, resultStyle: res(k), open: String(i === this.state.open), isOpen: i === this.state.open,
+      bg: i === this.state.open ? '#F7F8FB' : '#FFFFFF', pick: () => this.setState({ open: this.state.open === i ? -1 : i }),
+      retry: k === 'part',
+      steps: k === 'part' ? [
+        { group: 'Application', vm: 'report-worker', note: 'AWS: no r6i.xlarge capacity in ap-south-1b right now. Retry later or ask for another size.', result: 'Failed', style: res('part') },
+        { group: 'Application', vm: 'etl-runner', note: '', result: 'Already running', style: res('skip') }
+      ] : k === 'ok' ? [
+        { group: 'Database', vm: '2 VMs', note: '', result: 'Done', style: ok },
+        { group: 'Application', vm: '3 VMs', note: '', result: 'Done', style: ok }
+      ] : [
+        { group: 'Whole run', vm: result === 'Cancelled' ? 'Cancelled by Neha Gupta before Application started' : 'Locked by Priya Nair; the schedule retried for 30 min, then skipped', note: '', result, style: res('skip') }
+      ]
+    }));
+    return { runs };
+  }
+}
+</script>
+</body>
+</html>

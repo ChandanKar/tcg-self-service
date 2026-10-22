@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>VM details — pay-api-01</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column; position: relative">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="{{role}}" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="{{role}}" active="environments" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main aria-hidden="true" style="flex: 999 1 560px; min-width: 0; padding: 20px 32px; display: flex; flex-direction: column; gap: 14px; box-sizing: border-box">
+      <div style="font-size: 13px; color: #5B6478">Environments / Payments Dev</div>
+      <div style="font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Payments Dev</div>
+      <div style="height: 64px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px"></div>
+      <div style="height: 460px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px"></div>
+    </main>
+  </div>
+
+  <div style="position: absolute; inset: 0; z-index: 30; background: rgba(10,20,48,0.32); display: flex; justify-content: flex-end">
+    <aside role="dialog" aria-modal="true" aria-labelledby="vm-title" style="width: 100%; max-width: 640px; background: #FFFFFF; box-shadow: -12px 0 40px rgba(20,36,92,0.18); display: flex; flex-direction: column">
+      <div style="padding: 18px 22px 12px; display: flex; flex-direction: column; gap: 12px; border-bottom: 1px solid #EEF1F5">
+        <div style="display: flex; align-items: flex-start; gap: 12px">
+          <div style="flex: 1; min-width: 0">
+            <div style="font-size: 13px; color: #5B6478">Payments Dev · Application group · start order 2</div>
+            <h2 id="vm-title" style="margin: 2px 0 0; font-size: 22px; font-weight: 600; letter-spacing: -0.015em; display: flex; align-items: center; gap: 10px">pay-api-01 <span style="font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 999px; background: #E3F4EC; color: #0B6B44">Running since 08:05</span></h2>
+          </div>
+          <a href="EnvDetail.dc.html" style="display: inline-flex; align-items: center; height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid #E8B8AE; color: #A8331F; text-decoration: none; font-weight: 500; font-size: 13px">Stop</a>
+          <a href="EnvDetail.dc.html" aria-label="Close" style="width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; color: #5B6478">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5 5l10 10M15 5 5 15"></path></svg></a>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px">
+          <sc-for list="{{stats}}" as="s" hint-placeholder-count="4">
+            <div style="padding: 9px 12px; border-radius: 9px; background: #F7F8FB"><div style="font-size: 12px; color: #5B6478">{{s.label}}</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 15px; margin-top: 2px">{{s.value}}</div></div>
+          </sc-for>
+        </div>
+      </div>
+      <div role="tablist" aria-label="VM details" style="display: flex; gap: 2px; padding: 0 14px; border-bottom: 1px solid #E1E6EF">
+        <sc-for list="{{tabs}}" as="t" hint-placeholder-count="5">
+          <button type="button" role="tab" aria-selected="{{t.selected}}" onClick="{{t.pick}}" style="{{t.style}}">{{t.label}}</button>
+        </sc-for>
+      </div>
+      <div style="padding: 16px 22px; display: flex; flex-direction: column; gap: 14px">
+
+        <sc-if value="{{isOverview}}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; flex-direction: column; gap: 14px">
+            <dl style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; margin: 0">
+              <sc-for list="{{fields}}" as="f" hint-placeholder-count="10">
+                <div style="display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #EEF1F5; font-size: 14px"><dt style="color: #5B6478">{{f.label}}</dt><dd style="margin: 0; text-align: right; {{f.style}}">{{f.value}}</dd></div>
+              </sc-for>
+            </dl>
+            <sc-if value="{{admin}}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 9px; border: 1px dashed #B9C2DA; font-size: 14px"><span style="color: #5B6478">Instance ID <span style="font-size: 12px">· Administrators only</span></span><span style="font-family: 'IBM Plex Mono', monospace">i-0f9e2a1b6c48</span></div>
+            </sc-if>
+            <div style="padding: 14px 16px; border-radius: 10px; background: #FBF3DC; color: #5C3D00; display: flex; flex-direction: column; gap: 6px">
+              <b style="font-weight: 600; font-size: 14px">Could be one size smaller: m6i.medium</b>
+              <span style="font-size: 13.5px">CPU peaked at 18% and memory at 41% over 14 days. Saves about <span style="font-family: 'IBM Plex Mono', monospace">$31</span> a month. AWS Compute Optimizer agrees.</span>
+              <span style="font-size: 13.5px"><a href="Rightsizing.dc.html" style="color: #5C3D00; font-weight: 600; text-decoration: none">{{resizeAction}}</a></span>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{isUse}}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 12px">
+            <div role="group" aria-label="Time window" style="display: inline-flex; align-self: flex-start; border: 1px solid #D4DAE5; border-radius: 8px; padding: 2px; gap: 2px">
+              <sc-for list="{{windows}}" as="w" hint-placeholder-count="4"><button type="button" aria-pressed="{{w.pressed}}" onClick="{{w.pick}}" style="{{w.style}}">{{w.label}}</button></sc-for>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+              <sc-for list="{{tiles}}" as="m" hint-placeholder-count="6">
+                <div style="padding: 10px 12px; border: 1px solid #E1E6EF; border-radius: 10px; display: flex; flex-direction: column; gap: 4px">
+                  <div style="display: flex; justify-content: space-between; font-size: 12.5px; color: #5B6478"><span>{{m.label}}</span><span>{{m.caption}}</span></div>
+                  <div style="font-family: 'IBM Plex Mono', monospace; font-size: 18px">{{m.value}}</div>
+                  <svg viewBox="0 0 240 40" role="img" aria-label="{{m.label}} over {{window}}" style="width: 100%; height: 40px"><polyline fill="none" stroke="{{m.color}}" stroke-width="1.8" stroke-linejoin="round" points="{{m.points}}"></polyline></svg>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{isStorage}}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 10px">
+            <sc-for list="{{volumes}}" as="v" hint-placeholder-count="2">
+              <div style="padding: 12px 14px; border: 1px solid #E1E6EF; border-radius: 10px; display: flex; flex-direction: column; gap: 8px">
+                <div style="display: flex; justify-content: space-between; font-size: 14px"><b style="font-weight: 500">{{v.name}}</b><span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #3A4256">{{v.type}} · {{v.size}}</span></div>
+                <div role="img" aria-label="{{v.used}} used" style="height: 8px; border-radius: 4px; background: #ECEFF5; overflow: hidden"><div style="{{v.bar}}"></div></div>
+                <div style="font-size: 12.5px; color: #5B6478">{{v.used}} used · costs <span style="font-family: 'IBM Plex Mono', monospace">{{v.cost}}</span> a month, also while the VM is stopped</div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{isIdle}}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 12px">
+            <div style="display: flex; align-items: center; gap: 10px; font-size: 15px"><span style="width: 9px; height: 9px; border-radius: 50%; background: #12915E"></span><b style="font-weight: 600">In use</b><span style="color: #5B6478; font-size: 14px">· CPU 31% now, idle 0 min</span></div>
+            <div style="font-size: 13px; color: #5B6478">Idle hours per day, last 7 days (idle = under 5% CPU and 5 MB network a day)</div>
+            <svg viewBox="0 0 560 90" role="img" aria-label="Idle hours per day: 12, 11, 12, 11, 12, 24, 24" style="width: 100%; height: 90px">
+              <g fill="#B9C2DA"><rect x="0" y="45" width="64" height="45" rx="3"></rect><rect x="80" y="49" width="64" height="41" rx="3"></rect><rect x="160" y="45" width="64" height="45" rx="3"></rect><rect x="240" y="49" width="64" height="41" rx="3"></rect><rect x="320" y="45" width="64" height="45" rx="3"></rect></g>
+              <g fill="#D9A21B"><rect x="400" y="0" width="64" height="90" rx="3"></rect><rect x="480" y="0" width="64" height="90" rx="3"></rect></g>
+            </svg>
+            <div style="display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; color: #5B6478"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+            <div style="padding: 12px 14px; border-radius: 10px; background: #F7F8FB; font-size: 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px">
+              <span>Idle auto-stop for this environment: <b style="font-weight: 500">dry run</b>, after 60 min idle</span>
+              <a href="IdleStop.dc.html" style="font-weight: 500; text-decoration: none; white-space: nowrap">Idle auto-stop</a>
+            </div>
+            <div style="font-size: 13px; color: #5B6478">Ran idle all weekend: the schedule "Office hours" doesn't cover Saturday and Sunday because this VM was started by hand.</div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{isHistory}}" hint-placeholder-val="{{ false }}">
+          <ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column">
+            <sc-for list="{{history}}" as="h" hint-placeholder-count="6">
+              <li style="display: grid; grid-template-columns: 90px 14px minmax(0, 1fr); gap: 10px; padding: 9px 0; border-bottom: 1px solid #EEF1F5; font-size: 14px">
+                <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: #5B6478">{{h.time}}</span>
+                <span style="{{h.dot}}"></span>
+                <span>{{h.text}}<span style="display: block; font-size: 12.5px; color: #5B6478">{{h.by}}</span></span>
+              </li>
+            </sc-for>
+          </ol>
+        </sc-if>
+      </div>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"admin":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tab: 'overview', win: '24h' }; }
+  renderVals() {
+    const admin = this.props.admin ?? false;
+    const tab = this.state.tab, win = this.state.win;
+    const tabs = [['overview', 'Overview'], ['use', 'Use'], ['storage', 'Storage'], ['idle', 'Idle'], ['history', 'History']].map(([k, label]) => ({
+      label, selected: String(tab === k), pick: () => this.setState({ tab: k }),
+      style: 'border:0;background:none;font:inherit;font-size:14px;padding:10px 12px;margin-bottom:-1px;cursor:pointer;' + (tab === k ? 'color:#14245C;font-weight:600;border-bottom:2px solid #14245C' : 'color:#5B6478;border-bottom:2px solid transparent')
+    }));
+    const stats = [{ label: 'Size', value: 'm6i.large' }, { label: 'CPU now', value: '31%' }, { label: 'IP address', value: '10.20.2.31' }, { label: 'Disk used', value: '62%' }];
+    const f = (label, value, mono) => ({ label, value, style: mono ? "font-family:'IBM Plex Mono',monospace;font-size:13.5px" : '' });
+    const fields = [f('Size', 'm6i.large', true), f('vCPU / memory', '2 / 8 GiB', true), f('Region / zone', 'ap-south-1b', true), f('Private IP', '10.20.2.31', true),
+      f('Public IP', 'None'), f('Purchase', 'On-demand'), f('Purpose', 'Payments API'), f('Launched', '14 Sep 2026', true), f('State read from AWS', '4 min ago'), f('Cost this month', '$38.20', true)];
+    const wave = (seed, base, amp) => Array.from({ length: 48 }, (_, i) => `${(i / 47 * 240).toFixed(1)},${(36 - Math.max(1, Math.min(34, base + amp * Math.sin(i / 3 + seed) + ((i * 7 + seed * 13) % 9) - 4))).toFixed(1)}`).join(' ');
+    const tiles = [
+      { label: 'CPU', caption: 'peak 58%', value: '31%', color: '#14245C', points: wave(1, 12, 8) },
+      { label: 'Memory', caption: 'of 8 GiB', value: '3.3 GiB', color: '#14245C', points: wave(2, 16, 3) },
+      { label: 'Network in', caption: 'per second', value: '1.2 MB', color: '#12915E', points: wave(3, 10, 7) },
+      { label: 'Network out', caption: 'per second', value: '0.8 MB', color: '#12915E', points: wave(4, 8, 6) },
+      { label: 'Disk read', caption: 'per second', value: '0.3 MB', color: '#5B6478', points: wave(5, 5, 4) },
+      { label: 'Disk write', caption: 'per second', value: '1.1 MB', color: '#5B6478', points: wave(6, 9, 5) }
+    ];
+    const windows = ['1 h', '6 h', '24 h', '7 days'].map(label => ({ label, pressed: String(win === label), pick: () => this.setState({ win: label }),
+      style: 'border:0;font:inherit;font-size:12.5px;padding:4px 10px;border-radius:6px;cursor:pointer;' + (win === label ? 'background:#14245C;color:#FFFFFF;font-weight:500' : 'background:transparent;color:#3A4256') }));
+    const volumes = [
+      { name: 'Root disk', type: 'gp3', size: '100 GiB', used: '62%', bar: 'width:62%;height:100%;background:#14245C', cost: '$8.00' },
+      { name: 'Data disk', type: 'gp3', size: '200 GiB', used: '41%', bar: 'width:41%;height:100%;background:#14245C', cost: '$16.00' }
+    ];
+    const dot = (c) => `width:9px;height:9px;border-radius:50%;margin-top:5px;background:${c}`;
+    const history = [
+      { time: 'Today 08:05', text: 'Started', by: 'Priya Nair, as part of "Start 5 VMs"', dot: dot('#12915E') },
+      { time: 'Fri 19:00', text: 'Stopped', by: 'Schedule "Office hours"', dot: dot('#B9C2D2') },
+      { time: 'Fri 08:00', text: 'Started', by: 'Schedule "Office hours"', dot: dot('#12915E') },
+      { time: 'Thu 16:40', text: 'Size changed from m6i.xlarge to m6i.large', by: 'Meera Iyer, safe resize: stopped, resized, started', dot: dot('#14245C') },
+      { time: 'Wed 11:02', text: 'State changed outside the platform (stopped in the AWS console)', by: 'Found by the 11:00 sync', dot: dot('#D9A21B') },
+      { time: '14 Sep', text: 'Added to Payments Dev, Application group', by: 'Sanjay Rao', dot: dot('#B9C2D2') }
+    ];
+    return {
+      admin, role: admin ? 'admin' : 'user', tabs, stats, fields, tiles, windows, window: win, volumes, history,
+      resizeAction: admin ? 'Resize safely…' : 'Ask an administrator to resize',
+      isOverview: tab === 'overview', isUse: tab === 'use', isStorage: tab === 'storage', isIdle: tab === 'idle', isHistory: tab === 'history'
+    };
+  }
+}
+</script>
+</body>
+</html>

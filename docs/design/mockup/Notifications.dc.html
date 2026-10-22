@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Notifications</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column; position: relative">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="user" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="user" active="home" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main aria-hidden="true" style="flex: 999 1 560px; min-width: 0; padding: 32px 40px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+      <div style="font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Home</div>
+      <div style="height: 120px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px"></div>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px"><div style="height: 220px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px"></div><div style="height: 220px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px"></div></div>
+    </main>
+  </div>
+
+  <section role="dialog" aria-labelledby="notif-title" style="position: absolute; top: 60px; right: 150px; z-index: 30; width: 400px; max-width: calc(100% - 32px); background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; box-shadow: 0 16px 40px rgba(20,36,92,0.18); overflow: hidden">
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid #EEF1F5">
+      <h2 id="notif-title" style="margin: 0; font-size: 16px; font-weight: 600">Notifications</h2>
+      <button type="button" style="border: 0; background: none; font: inherit; font-size: 13px; color: #2F4A9E; cursor: pointer; padding: 0">Mark all as read</button>
+    </div>
+    <sc-for list="{{items}}" as="n" hint-placeholder-count="4">
+      <a href="{{n.href}}" style="display: flex; gap: 12px; padding: 14px 18px; border-top: 1px solid #EEF1F5; text-decoration: none; color: #141B2D; {{n.bg}}">
+        <span style="{{n.dot}}"></span>
+        <span style="flex: 1; display: flex; flex-direction: column; gap: 3px">
+          <span style="font-size: 14px; {{n.weight}}">{{n.title}}</span>
+          <span style="font-size: 13px; color: #5B6478">{{n.body}}</span>
+          <span style="font-size: 12px; color: #5B6478; font-family: 'IBM Plex Mono', monospace">{{n.time}}</span>
+        </span>
+      </a>
+    </sc-for>
+    <div style="display: flex; justify-content: space-between; padding: 12px 18px; border-top: 1px solid #EEF1F5; font-size: 13px">
+      <a href="MyAccount.dc.html" style="text-decoration: none">Notification settings</a>
+      <a href="MyActivity.dc.html" style="text-decoration: none">See all activity</a>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dot = (c) => `width:8px;height:8px;border-radius:50%;margin-top:6px;flex-shrink:0;background:${c}`;
+    const items = [
+      { title: 'Payments Dev stops at 20:00', body: 'Its lease ends in 2 h 15 min. Extend it to keep working.', time: '17:45', href: 'EnvDetail.dc.html', dot: dot('#D9A21B'), bg: 'background:#FAFBFF', weight: 'font-weight:600' },
+      { title: 'Report-worker failed to start', body: 'Analytics QA · AWS had no r6i.xlarge capacity in ap-south-1b.', time: 'Fri 14:22', href: 'MyActivity.dc.html', dot: dot('#C2412D'), bg: 'background:#FAFBFF', weight: 'font-weight:600' },
+      { title: 'Access approved: CRM UAT', body: 'Operator for 7 days, approved by Sanjay Rao.', time: 'Wed 11:30', href: 'Environments.dc.html', dot: dot('#B9C2D2'), bg: '', weight: '' },
+      { title: 'Weekly cost report', body: 'Your environments cost $96.20 last week, 12% less than the week before.', time: 'Mon 09:00', href: 'MyAccount.dc.html', dot: dot('#B9C2D2'), bg: '', weight: '' }
+    ];
+    return { items };
+  }
+}
+</script>
+</body>
+</html>

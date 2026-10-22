@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Approval policies</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="envadmin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="envadmin" active="policies" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+        <div>
+          <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Approval policies</h1>
+          <p style="margin: 6px 0 0; font-size: 15px; color: #5B6478">When a start or an extension needs someone's yes before it runs.</p>
+        </div>
+        <a href="ApprovalPolicies.dc.html" style="display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"></path></svg>New policy</a>
+      </div>
+      <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start">
+        <div style="flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+          <sc-for list="{{policies}}" as="p" hint-placeholder-count="3">
+            <article style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px">
+              <div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap">
+                <h2 style="margin: 0; font-size: 16px; font-weight: 600">{{p.name}}</h2>
+                <span style="font-size: 13px; color: #5B6478">{{p.scope}}</span>
+              </div>
+              <div style="font-size: 14px; color: #3A4256">Needs approval when {{p.when}}</div>
+              <div style="font-size: 14px; color: #3A4256">Decided by {{p.who}}</div>
+              <div style="display: flex; gap: 14px; font-size: 13px"><a href="ApprovalPolicies.dc.html" style="text-decoration: none">Edit</a><a href="ApprovalPolicies.dc.html" style="text-decoration: none; color: #A8331F">Delete</a></div>
+            </article>
+          </sc-for>
+        </div>
+        <section aria-labelledby="check-title" style="flex: 1 1 300px; max-width: 380px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px">
+          <div>
+            <h2 id="check-title" style="margin: 0; font-size: 16px; font-weight: 600">Check a request</h2>
+            <p style="margin: 4px 0 0; font-size: 13px; color: #5B6478">See which policy a start would meet, before anyone asks.</p>
+          </div>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 500">Environment
+            <select style="height: 38px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-weight: 400"><option>Payments Dev</option><option>CRM UAT</option></select></label>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 500">Run for (hours)
+            <input type="number" defaultValue="24" style="height: 38px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 10px; font: inherit; font-weight: 400; font-family: 'IBM Plex Mono', monospace"></label>
+          <a href="ApprovalPolicies.dc.html" style="display: flex; align-items: center; justify-content: center; height: 38px; border-radius: 8px; border: 1px solid #B9C2DA; color: #14245C; text-decoration: none; font-weight: 500; font-size: 14px">Check</a>
+          <div style="padding: 12px 14px; border-radius: 8px; background: #FBF3DC; color: #5C3D00; font-size: 14px">Needs approval: <b style="font-weight: 600">Long runs</b> · 24 h is longer than 8 h. Any one of Sanjay Rao or Meera Iyer.</div>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const policies = [
+      { name: 'Long runs', scope: 'All environments you look after', when: 'a run or extension is longer than 8 hours', who: 'any one of Sanjay Rao or Meera Iyer' },
+      { name: 'Big machines', scope: 'Analytics QA', when: 'any VM is larger than 4xlarge', who: 'Sanjay Rao' },
+      { name: 'Over the team budget', scope: 'Payments team', when: 'the team would pass 100% of its monthly hours', who: 'both Sanjay Rao and the Payments team lead' }
+    ];
+    return { policies };
+  }
+}
+</script>
+</body>
+</html>

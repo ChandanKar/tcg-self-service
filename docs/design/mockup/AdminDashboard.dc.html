@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Home — administrator</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="admin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="admin" active="home" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px; display: flex; flex-direction: column; gap: 24px; box-sizing: border-box">
+      <div>
+        <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Home</h1>
+        <p style="margin: 6px 0 0; font-size: 15px; color: #5B6478"><span style="font-family: 'IBM Plex Mono', monospace; color: #141B2D">38</span> of <span style="font-family: 'IBM Plex Mono', monospace; color: #141B2D">112</span> VMs running across 21 environments · <span style="font-family: 'IBM Plex Mono', monospace; color: #141B2D">$6,284</span> this month, heading for <span style="font-family: 'IBM Plex Mono', monospace; color: #141B2D">$9,950</span></p>
+      </div>
+
+      <section aria-labelledby="att-title" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden">
+        <h2 id="att-title" style="margin: 0; padding: 14px 20px; font-size: 16px; font-weight: 600; border-bottom: 1px solid #EEF1F5">Needs attention</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr))">
+          <sc-for list="{{attention}}" as="a" hint-placeholder-count="6">
+            <a href="{{a.href}}" style="display: flex; align-items: center; gap: 14px; padding: 16px 20px; border-bottom: 1px solid #EEF1F5; border-right: 1px solid #EEF1F5; text-decoration: none; color: #141B2D">
+              <span style="{{a.badge}}">{{a.count}}</span>
+              <span style="flex: 1; display: flex; flex-direction: column; gap: 2px">
+                <span style="font-size: 14px; font-weight: 500">{{a.title}}</span>
+                <span style="font-size: 13px; color: #5B6478">{{a.detail}}</span>
+              </span>
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="#9AA4B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 5 5 5-5 5"></path></svg>
+            </a>
+          </sc-for>
+        </div>
+      </section>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px">
+        <section aria-labelledby="fleet-title" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; gap: 4px">
+          <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px">
+            <h2 id="fleet-title" style="margin: 0; font-size: 16px; font-weight: 600">Fleet right now</h2>
+            <a href="Environments.dc.html" style="font-size: 14px; text-decoration: none">All 21 environments</a>
+          </div>
+          <sc-for list="{{fleet}}" as="f" hint-placeholder-count="7">
+            <a href="EnvDetail.dc.html" style="display: flex; align-items: center; gap: 14px; padding: 9px 0; border-top: 1px solid #EEF1F5; text-decoration: none; color: #141B2D">
+              <span style="flex: 1; font-size: 14px; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{f.name}}</span>
+              <dc-import name="PowerStrip" states="{{f.states}}" hint-size="180px,20px"></dc-import>
+            </a>
+          </sc-for>
+        </section>
+        <section aria-labelledby="spend-title" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; justify-content: space-between; align-items: baseline">
+            <h2 id="spend-title" style="margin: 0; font-size: 16px; font-weight: 600">Spend this month</h2>
+            <a href="CostOverview.dc.html" style="font-size: 14px; text-decoration: none">Cost management</a>
+          </div>
+          <svg viewBox="0 0 440 150" role="img" aria-label="Cumulative spend this month reaching 6,284 dollars on day 19, below the 10,000 dollar plan line" style="width: 100%; height: 130px">
+            <line x1="0" y1="140" x2="440" y2="140" stroke="#E1E6EF"></line>
+            <line x1="0" y1="140" x2="440" y2="10" stroke="#B9C2DA" stroke-dasharray="4 4"></line>
+            <polyline fill="none" stroke="#14245C" stroke-width="2.5" stroke-linejoin="round" points="0,140 14,136 28,131 42,126 56,123 70,121 84,116 98,111 112,106 126,101 140,98 154,96 168,91 182,86 196,81 210,76 224,73 238,71 252,66 266,62"></polyline>
+            <polyline fill="none" stroke="#D9A21B" stroke-width="2" stroke-dasharray="3 4" points="266,62 440,22"></polyline>
+            <circle cx="266" cy="62" r="4" fill="#14245C"></circle>
+          </svg>
+          <div style="display: flex; gap: 18px; font-size: 13px; color: #5B6478; flex-wrap: wrap">
+            <span><span style="display: inline-block; width: 14px; height: 3px; background: #14245C; vertical-align: middle"></span> Spent</span>
+            <span><span style="display: inline-block; width: 14px; height: 3px; background: #D9A21B; vertical-align: middle"></span> Forecast</span>
+            <span><span style="display: inline-block; width: 14px; height: 0; border-top: 2px dashed #B9C2DA; vertical-align: middle"></span> Plan, <span style="font-family: 'IBM Plex Mono', monospace">$10,000</span></span>
+          </div>
+          <div style="display: flex; flex-direction: column; font-size: 14px">
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-top: 1px solid #EEF1F5"><span>Data Lake Dev</span><span style="font-family: 'IBM Plex Mono', monospace">$1,402</span></div>
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-top: 1px solid #EEF1F5"><span>Billing Prod Mirror</span><span style="font-family: 'IBM Plex Mono', monospace">$1,118</span></div>
+          </div>
+        </section>
+      </div>
+
+      <a href="SystemHealth.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 14px 20px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; text-decoration: none; color: #141B2D; font-size: 14px; flex-wrap: wrap">
+        <span style="width: 9px; height: 9px; border-radius: 50%; background: #12915E"></span>
+        <span style="flex: 1"><b style="font-weight: 500">Platform healthy.</b> <span style="color: #5B6478">34 of 35 scheduled jobs on time · state synced 4 min ago · 0 drift in 24 h</span></span>
+        <span style="color: #2F4A9E">System health</span>
+      </a>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const badge = (c) => `min-width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-weight:500;font-size:15px;background:${c[0]};color:${c[1]}`;
+    const gold = ['#FBF3DC', '#7A5000'], red = ['#FBEEEB', '#A8331F'], navy = ['#ECEFF8', '#14245C'];
+    const attention = [
+      { count: '3', title: 'Access requests', detail: 'Oldest waiting 2 days', href: 'AccessRequests.dc.html', badge: badge(navy) },
+      { count: '2', title: 'Approvals', detail: 'Starts over 8 hours', href: 'Approvals.dc.html', badge: badge(navy) },
+      { count: '2', title: 'Failed operations, 24 h', detail: 'Analytics QA, CRM UAT', href: 'AuditLog.dc.html', badge: badge(red) },
+      { count: '3', title: 'VMs to review', detail: '1 drift, 2 not in a group', href: 'VmRegistry.dc.html', badge: badge(gold) },
+      { count: '1', title: 'Budget almost used', detail: 'CRM team at 96%', href: 'Budgets.dc.html', badge: badge(red) },
+      { count: '1', title: 'Late scheduled job', detail: 'Cost snapshot, 2 h late', href: 'SystemHealth.dc.html', badge: badge(gold) }
+    ];
+    const fleet = [
+      ['Data Lake Dev', 'RRRRRR'], ['Billing Prod Mirror', 'RRR|RRRR|RR'], ['Payments Dev', 'RRR|RR|SS'], ['Analytics QA', 'RRB|RS'],
+      ['CRM UAT', 'SS|SSS|S'], ['Mobile API Test', 'RR|RR'], ['HR Portal Staging', 'SSSS|SS']
+    ].map(([name, states]) => ({ name, states }));
+    return { attention, fleet };
+  }
+}
+</script>
+</body>
+</html>

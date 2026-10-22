@@ -109,6 +109,12 @@ async function openAccessManagementPending(page: Page) {
 /** The card of one request on Access requests. */
 const cardOf = (page: Page, requestId: string) => page.locator(`.ar-card[data-request-id="${requestId}"]`);
 
+/** Three cards to a page (U17-T07): pick the test's own environment so its cards are on the first. */
+async function showOnly(page: Page, envId: string) {
+  await expect(page.locator(`#ar-env-filter option[value="${envId}"]`)).toHaveCount(1, { timeout: 15_000 });
+  await page.locator('#ar-env-filter').selectOption(envId);
+}
+
 /** "Operator until 26 Oct": the short end date the cards use. */
 const until = (page: Page, ms: number) => page.evaluate((t) =>
   AccessLevels.endsText(new Date(t).toISOString()).text.split(' · ')[0], ms);
@@ -124,6 +130,7 @@ test.describe('Reviewing access requests', () => {
   test('cards come oldest first with the reason, part, length and what they have today', async ({ page, playwright }) => {
     const s = await seed(playwright);
     await goTo(page, '#/pending-requests');
+    await showOnly(page, s.envId);
     await expect(page.locator('#content-area h1')).toHaveText('Access requests', { timeout: 10_000 });
 
     const ext = cardOf(page, s.extensionRequestId);
@@ -161,6 +168,7 @@ test.describe('Reviewing access requests', () => {
   test('Access management links here; "Approve for 7 days" sends durationDays=7 and the card goes', async ({ page, playwright }) => {
     const s = await seed(playwright);
     await openAccessManagementPending(page);
+    await showOnly(page, s.envId);
 
     const card = cardOf(page, s.newRequestId);
     await expect(card).toBeVisible({ timeout: 10_000 });
@@ -181,6 +189,7 @@ test.describe('Reviewing access requests', () => {
   test('"No end" grants without an expiry even though 30 days were requested', async ({ page, playwright }) => {
     const s = await seed(playwright);
     await goTo(page, '#/pending-requests');
+    await showOnly(page, s.envId);
 
     const card = cardOf(page, s.newRequestId);
     await card.locator('[data-ar-for]').selectOption('none');
@@ -196,6 +205,7 @@ test.describe('Reviewing access requests', () => {
   test('the requested length on an extension adds the days to the current expiry', async ({ page, playwright }) => {
     const s = await seed(playwright);
     await goTo(page, '#/pending-requests');
+    await showOnly(page, s.envId);
 
     const card = cardOf(page, s.extensionRequestId);
     await expect(card.locator('[data-ar-for]')).toHaveValue('30');
@@ -214,6 +224,7 @@ test.describe('Reviewing access requests', () => {
   test('a request reviewed meanwhile by someone else shows a warning and drops off the list', async ({ page, playwright }) => {
     const s = await seed(playwright);
     await goTo(page, '#/pending-requests');
+    await showOnly(page, s.envId);
     const card = cardOf(page, s.newRequestId);
     await expect(card).toBeVisible({ timeout: 10_000 });
 
@@ -231,6 +242,7 @@ test.describe('Reviewing access requests', () => {
   test('Deny… opens the decline dialog; the reason is required and the requester gets it (U10-T08)', async ({ page, playwright }) => {
     const s = await seed(playwright);
     await goTo(page, '#/pending-requests');
+    await showOnly(page, s.envId);
     const card = cardOf(page, s.newRequestId);
     await card.locator('[data-action="deny"]').click();
 

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Empty, error, loading states</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+.tile{background:#FFFFFF;border:1px solid #E1E6EF;border-radius:12px;display:flex;flex-direction:column;overflow:hidden}
+.cap{padding:8px 14px;font-size:12px;font-weight:500;color:#5B6478;border-bottom:1px solid #EEF1F5;background:#FAFBFD}
+.btn{display:inline-flex;align-items:center;height:34px;padding:0 13px;border-radius:8px;text-decoration:none;font-size:13.5px;font-weight:500}
+.sk{background:#EEF1F5;border-radius:6px}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; height: 900px; box-sizing: border-box; padding: 28px 36px; display: flex; flex-direction: column; gap: 16px">
+  <div><h1 style="margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -0.02em">When there is nothing, or something goes wrong</h1>
+    <p style="margin: 4px 0 0; font-size: 14px; color: #5B6478">Every list and page uses these. Each message says what happened and what to do next; none of them apologise or stay vague.</p></div>
+  <div style="flex: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 14px; min-height: 0">
+
+    <div class="tile"><div class="cap">Empty · nothing yet</div>
+      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 16px; gap: 8px">
+        <div style="display: flex; gap: 4px"><span style="width: 12px; height: 12px; border-radius: 3px; border: 1.5px dashed #C5CCD9"></span><span style="width: 12px; height: 12px; border-radius: 3px; border: 1.5px dashed #C5CCD9"></span><span style="width: 12px; height: 12px; border-radius: 3px; border: 1.5px dashed #C5CCD9"></span></div>
+        <div style="font-size: 15px; font-weight: 600">No environments yet</div>
+        <div style="font-size: 13px; color: #5B6478; line-height: 1.45">Ask for access to one and it appears here once approved.</div>
+        <a href="RequestAccess.dc.html" class="btn" style="background: #14245C; color: #FFFFFF; margin-top: 4px">Request access</a></div></div>
+
+    <div class="tile"><div class="cap">Empty · filters hide everything</div>
+      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 16px; gap: 8px">
+        <div style="font-size: 15px; font-weight: 600">No VMs match "Running" in Web</div>
+        <div style="font-size: 13px; color: #5B6478; line-height: 1.45">All 6 VMs in Web are stopped.</div>
+        <a href="EnvDetailLarge.dc.html" class="btn" style="border: 1px solid #D4DAE5; color: #141B2D">Show all VMs</a></div></div>
+
+    <div class="tile"><div class="cap">Loading · first 300 ms show nothing, then outlines</div>
+      <div style="flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 12px" aria-busy="true">
+        <span class="sk" style="height: 18px; width: 60%"></span>
+        <div style="display: flex; gap: 4px"><span class="sk" style="width: 12px; height: 12px"></span><span class="sk" style="width: 12px; height: 12px"></span><span class="sk" style="width: 12px; height: 12px"></span><span style="width: 8px"></span><span class="sk" style="width: 12px; height: 12px"></span><span class="sk" style="width: 12px; height: 12px"></span></div>
+        <span class="sk" style="height: 12px; width: 90%"></span><span class="sk" style="height: 12px; width: 75%"></span><span class="sk" style="height: 12px; width: 82%"></span>
+        <span style="font-size: 12px; color: #5B6478; margin-top: auto">Outlines match the real layout so nothing jumps when data arrives.</span></div></div>
+
+    <div class="tile"><div class="cap">Couldn't load</div>
+      <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 16px; gap: 8px">
+        <div style="font-size: 15px; font-weight: 600">VMs didn't load</div>
+        <div style="font-size: 13px; color: #3A4256; line-height: 1.45">The server didn't answer. The rest of the page still works.</div>
+        <div style="display: flex; gap: 8px; align-items: center"><a href="States.dc.html" class="btn" style="border: 1px solid #D4DAE5; color: #141B2D">Try again</a><span style="font-size: 12px; color: #5B6478; font-family: 'IBM Plex Mono', monospace">ref 7f3a-92c1</span></div></div></div>
+
+    <div class="tile"><div class="cap">Messages after an action · bottom right, 6 s, errors stay</div>
+      <div style="flex: 1; padding: 14px; display: flex; flex-direction: column; justify-content: flex-end; gap: 8px">
+        <sc-for list="{{toasts}}" as="t" hint-placeholder-count="3">
+          <div role="{{t.role}}" style="display: grid; grid-template-columns: 4px minmax(0, 1fr) auto; gap: 10px; align-items: start; background: #141B2D; color: #FFFFFF; border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.4"><span style="width: 4px; align-self: stretch; border-radius: 2px; background: {{t.bar}}"></span><span>{{t.text}}</span><a href="States.dc.html" style="color: #B9C6F0; font-weight: 500; text-decoration: none; white-space: nowrap">{{t.action}}</a></div>
+        </sc-for></div></div>
+
+    <div class="tile"><div class="cap">Partly done</div>
+      <div style="flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 8px; justify-content: center">
+        <div role="alert" style="background: #FBF3DC; border: 1px solid #EEDCA6; border-radius: 10px; padding: 11px 13px; font-size: 13.5px; line-height: 1.45"><b style="font-weight: 600">Started 5 of 6 VMs.</b> pay-api-02 didn't start: AWS has no capacity for that size in ap-south-1a right now.</div>
+        <div style="display: flex; gap: 8px"><a href="OperationProgress.dc.html" class="btn" style="background: #14245C; color: #FFFFFF">Retry pay-api-02</a><a href="OperationHistory.dc.html" class="btn" style="color: #2F4A9E">See steps</a></div></div></div>
+
+    <div class="tile"><div class="cap">Live updates paused</div>
+      <div style="flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 10px; justify-content: center">
+        <div role="status" style="display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 9px; background: #ECEFF5; font-size: 13.5px"><span style="width: 8px; height: 8px; border-radius: 50%; background: #9AA4B8"></span>Reconnecting… VM lights may be a minute behind.</div>
+        <div style="font-size: 12.5px; color: #5B6478; line-height: 1.45">Shows under the top bar after 10 s without live updates; goes away by itself. Page refresh still works.</div></div></div>
+
+    <div class="tile" style="background: rgba(10,20,48,0.42); border-color: transparent"><div class="cap" style="background: transparent; color: #FFFFFF; border-color: rgba(255,255,255,0.15)">Session ended</div>
+      <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 14px">
+        <div role="alertdialog" aria-labelledby="se-t" style="background: #FFFFFF; border-radius: 12px; padding: 16px; box-shadow: 0 16px 32px rgba(20,36,92,0.25)">
+          <h2 id="se-t" style="margin: 0; font-size: 16px; font-weight: 600">You've been signed out</h2>
+          <p style="margin: 6px 0 12px; font-size: 13px; color: #3A4256; line-height: 1.45">After 60 minutes without activity. Sign in again to carry on where you were.</p>
+          <a href="Main.dc.html" class="btn" style="background: #14245C; color: #FFFFFF">Sign in again</a></div></div></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const toasts = [
+      { text: 'Payments Dev is starting. Database first, 6 VMs in all.', action: 'Watch', bar: '#12915E', role: 'status' },
+      { text: 'Access given to 4 people on 2 environments.', action: '', bar: '#14245C', role: 'status' },
+      { text: "Couldn't stop CRM UAT: Rahul Verma holds the lock until 14:30.", action: 'Details', bar: '#C2412D', role: 'alert' }
+    ];
+    return { toasts };
+  }
+}
+</script>
+</body>
+</html>

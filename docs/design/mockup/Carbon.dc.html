@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cost — carbon</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+.tab{font-size:14px;padding:10px 14px;color:#5B6478;text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab[aria-selected="true"]{color:#14245C;font-weight:600;border-bottom-color:#14245C}
+.card{background:#FFFFFF;border:1px solid #E1E6EF;border-radius:12px}
+.mono{font-family:'IBM Plex Mono',monospace}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="admin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="admin" active="cost" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 20px 32px 24px; display: flex; flex-direction: column; gap: 14px; box-sizing: border-box">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end"><h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Cost management</h1>
+        <div style="display: flex; gap: 8px"><label style="display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: #5B6478">Month<select style="height: 36px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; color: #141B2D"><option>July 2026</option><option>June 2026</option></select></label><a href="Carbon.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #D4DAE5; color: #141B2D; text-decoration: none; font-size: 14px">Export CSV</a></div></div>
+      <div role="tablist" aria-label="Cost" style="display: flex; gap: 4px; border-bottom: 1px solid #E1E6EF">
+        <a class="tab" role="tab" aria-selected="false" href="CostOverview.dc.html">Overview</a><a class="tab" role="tab" aria-selected="false" href="Rightsizing.dc.html">Rightsizing</a><a class="tab" role="tab" aria-selected="false" href="Commitments.dc.html">Commitments</a><a class="tab" role="tab" aria-selected="true" href="Carbon.dc.html">Carbon</a><a class="tab" role="tab" aria-selected="false" href="Anomalies.dc.html">Unusual spend</a>
+      </div>
+      <p style="margin: 0; font-size: 14px; color: #5B6478">From AWS's monthly carbon footprint export, not an estimate of ours. Each environment gets a share of its region and service's emissions in line with its cost.</p>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr minmax(0, 1.6fr); gap: 12px">
+        <div class="card" style="padding: 14px 16px"><div style="font-size: 12.5px; color: #5B6478; font-weight: 500">Market-based</div><div style="margin-top: 4px"><span class="mono" style="font-size: 24px">1,284</span> <span style="font-size: 13px; color: #5B6478">kg CO₂e</span></div><div style="font-size: 12.5px; color: #5B6478; margin-top: 4px">Counts the renewable energy AWS buys</div></div>
+        <div class="card" style="padding: 14px 16px"><div style="font-size: 12.5px; color: #5B6478; font-weight: 500">Location-based</div><div style="margin-top: 4px"><span class="mono" style="font-size: 24px">2,910</span> <span style="font-size: 13px; color: #5B6478">kg CO₂e</span></div><div style="font-size: 12.5px; color: #5B6478; margin-top: 4px">The local grid's average</div></div>
+        <div class="card" style="padding: 14px 16px"><div style="font-size: 12.5px; color: #5B6478; font-weight: 500">Matched to environments</div><div class="mono" style="font-size: 24px; margin-top: 4px">86%</div><div style="font-size: 12.5px; color: #5B6478; margin-top: 4px">The rest is shared accounts and services</div></div>
+        <div class="card" style="padding: 14px 16px" role="img" aria-label="Market-based emissions over six months, falling from 1,620 to 1,284 kg">
+          <div style="font-size: 12.5px; color: #5B6478; font-weight: 500">Six months</div>
+          <div style="display: flex; align-items: flex-end; gap: 10px; height: 64px; margin-top: 8px">
+            <sc-for list="{{trend}}" as="t" hint-placeholder-count="6"><div style="flex: 1; display: flex; flex-direction: column; gap: 1px; align-items: stretch"><span style="{{t.un}}"></span><span style="{{t.at}}"></span><span style="font-size: 11px; color: #5B6478; text-align: center; margin-top: 3px">{{t.m}}</span></div></sc-for>
+          </div></div>
+      </div>
+
+      <section class="card" style="overflow: hidden">
+        <table style="width: 100%; border-collapse: collapse; font-size: 13.5px">
+          <thead><tr style="background: #F7F8FB; color: #5B6478; font-size: 12.5px; text-align: left"><th scope="col" style="padding: 9px 16px; font-weight: 500">Environment</th><th scope="col" style="padding: 9px 8px; font-weight: 500; width: 34%">Market-based, kg</th><th scope="col" style="padding: 9px 8px; font-weight: 500; text-align: right">Location-based, kg</th><th scope="col" style="padding: 9px 8px; font-weight: 500; text-align: right">Cost</th><th scope="col" style="padding: 9px 16px; font-weight: 500; text-align: right">kg per $100</th></tr></thead>
+          <tbody><sc-for list="{{rows}}" as="r" hint-placeholder-count="7">
+            <tr style="border-top: 1px solid #EEF1F5"><td style="padding: 8px 16px; {{r.nameStyle}}">{{r.name}}</td><td style="padding: 8px"><span style="display: flex; align-items: center; gap: 10px"><span style="flex: 1; height: 8px; border-radius: 4px; background: #F1F3F7; overflow: hidden"><span style="{{r.bar}}"></span></span><span class="mono" style="width: 48px; text-align: right">{{r.mbm}}</span></span></td><td class="mono" style="padding: 8px; text-align: right; color: #3A4256">{{r.lbm}}</td><td class="mono" style="padding: 8px; text-align: right">{{r.cost}}</td><td class="mono" style="padding: 8px 16px; text-align: right">{{r.per}}</td></tr>
+          </sc-for></tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const t = [['Feb', 1620, 260], ['Mar', 1540, 240], ['Apr', 1480, 210], ['May', 1410, 200], ['Jun', 1350, 190], ['Jul', 1284, 180]];
+    const trend = t.map(([m, total, un]) => ({ m, at: `display:block;height:${(total - un) / 1620 * 54}px;background:#14245C;border-radius:0 0 3px 3px`, un: `display:block;height:${un / 1620 * 54}px;background:#C5CCD9;border-radius:3px 3px 0 0` }));
+    const data = [['Payments Dev', 312, 704, 1240], ['Partner Portal QA', 268, 611, 980], ['CRM UAT', 201, 452, 860], ['Data Platform Dev', 174, 398, 720], ['HR Portal Test', 96, 214, 410], ['Billing Sandbox', 52, 118, 230], ['Not matched to an environment', 181, 413, 690, true]];
+    const rows = data.map(([name, mbm, lbm, cost, un]) => ({ name, mbm: mbm.toLocaleString(), lbm: lbm.toLocaleString(), cost: '$' + cost.toLocaleString(), per: (mbm / cost * 100).toFixed(1),
+      bar: `display:block;height:100%;width:${mbm / 312 * 100}%;background:${un ? '#C5CCD9' : '#14245C'};border-radius:4px`, nameStyle: un ? 'color:#5B6478;font-style:italic' : 'font-weight:500' }));
+    return { trend, rows };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Add people</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="admin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="admin" active="users" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 20px 32px 24px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box">
+      <div>
+        <nav aria-label="Breadcrumb" style="font-size: 13px; color: #5B6478; display: flex; gap: 8px; margin-bottom: 6px"><a href="Users.dc.html" style="color: #5B6478; text-decoration: none">Users</a><span aria-hidden="true">/</span><span aria-current="page" style="color: #141B2D">Add people</span></nav>
+        <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Add people</h1>
+        <p style="margin: 4px 0 0; font-size: 15px; color: #5B6478">Add colleagues before their first sign-in, and give them access in the same step.</p>
+      </div>
+
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start">
+        <section aria-labelledby="a-who" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden; min-width: 0">
+          <div style="padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 10px">
+            <h2 id="a-who" style="margin: 0; font-size: 15px; font-weight: 600">1 · Who</h2>
+            <label style="display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border: 1px solid #D4DAE5; border-radius: 8px">
+              <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="#5B6478" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="5.5"></circle><path d="m13.5 13.5 3.5 3.5"></path></svg>
+              <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Find in the Microsoft directory</span>
+              <input type="search" placeholder="Find in the Microsoft directory by name or email" style="border: 0; outline: 0; font: inherit; font-size: 14px; flex: 1; min-width: 0">
+            </label>
+          </div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 13.5px; table-layout: fixed">
+            <thead><tr style="background: #F7F8FB; color: #5B6478; font-size: 12px; text-align: left">
+              <th scope="col" style="padding: 8px 16px; font-weight: 500; width: 30%">Person</th><th scope="col" style="padding: 8px 6px; font-weight: 500; width: 19%">Department</th><th scope="col" style="padding: 8px 6px; font-weight: 500; width: 17%">Team</th><th scope="col" style="padding: 8px 6px; font-weight: 500; width: 15%">Project code</th><th scope="col" style="padding: 8px 16px 8px 6px; font-weight: 500">Source</th>
+            </tr></thead>
+            <tbody>
+              <sc-for list="{{people}}" as="p" hint-placeholder-count="4">
+                <tr style="border-top: 1px solid #EEF1F5">
+                  <td style="padding: 8px 16px; overflow: hidden"><div style="font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{p.name}}</div><div style="font-size: 12px; color: #5B6478; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{p.email}}</div></td>
+                  <td style="padding: 8px 6px"><input type="text" defaultValue="{{p.dept}}" aria-label="Department for {{p.name}}" style="width: 100%; box-sizing: border-box; height: 32px; border: 1px solid #D4DAE5; border-radius: 6px; padding: 0 8px; font: inherit; font-size: 13px"></td>
+                  <td style="padding: 8px 6px"><select aria-label="Team for {{p.name}}" style="width: 100%; height: 32px; border: 1px solid #D4DAE5; border-radius: 6px; padding: 0 4px; font: inherit; font-size: 13px"><option>{{p.team}}</option><option>Payments</option><option>Data</option><option>CRM</option><option>People</option><option>No team</option></select></td>
+                  <td style="padding: 8px 6px"><input type="text" defaultValue="{{p.project}}" aria-label="Project code for {{p.name}}" style="width: 100%; box-sizing: border-box; height: 32px; border: 1px solid #D4DAE5; border-radius: 6px; padding: 0 8px; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px"></td>
+                  <td style="padding: 8px 16px 8px 6px"><div style="display: flex; align-items: center; justify-content: space-between; gap: 6px"><span style="{{p.srcStyle}}">{{p.src}}</span><button type="button" onClick="{{p.remove}}" aria-label="Remove {{p.name}}" style="width: 26px; height: 26px; border: 0; border-radius: 6px; background: transparent; color: #A8331F; cursor: pointer; display: inline-flex; align-items: center; justify-content: center"><svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 5l10 10M15 5 5 15"></path></svg></button></div></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+          <form onSubmit="{{addManual}}" aria-labelledby="a-manual" style="padding: 12px 16px 14px; border-top: 1px solid #E1E6EF; background: #FAFBFD; display: flex; flex-direction: column; gap: 8px">
+            <h3 id="a-manual" style="margin: 0; font-size: 13.5px; font-weight: 600">Not in the directory? Add by hand</h3>
+            <div style="display: grid; grid-template-columns: 1.4fr 1.1fr 1fr 0.9fr 0.8fr auto; gap: 8px; align-items: end">
+              <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #3A4256">Email *<input type="email" required="required" value="{{draft.email}}" onChange="{{setEmail}}" placeholder="name@company.com" style="height: 34px; border: 1px solid #D4DAE5; border-radius: 6px; padding: 0 8px; font: inherit; font-size: 13px; color: #141B2D"></label>
+              <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #3A4256">Name<input type="text" value="{{draft.name}}" onChange="{{setName}}" style="height: 34px; border: 1px solid #D4DAE5; border-radius: 6px; padding: 0 8px; font: inherit; font-size: 13px; color: #141B2D"></label>
+              <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #3A4256">Department<input type="text" value="{{draft.dept}}" onChange="{{setDept}}" style="height: 34px; border: 1px solid #D4DAE5; border-radius: 6px; padding: 0 8px; font: inherit; font-size: 13px; color: #141B2D"></label>
+              <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #3A4256">Team<select onChange="{{setTeam}}" style="height: 34px; border: 1px solid #D4DAE5; border-radius: 6px; padding: 0 4px; font: inherit; font-size: 13px; color: #141B2D"><option>No team</option><option>Payments</option><option>Data</option><option>CRM</option><option>People</option></select></label>
+              <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #3A4256">Project code<input type="text" value="{{draft.project}}" onChange="{{setProject}}" style="height: 34px; border: 1px solid #D4DAE5; border-radius: 6px; padding: 0 8px; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: #141B2D"></label>
+              <button type="submit" style="height: 34px; padding: 0 12px; border-radius: 6px; border: 1px solid #B9C2DA; background: #FFFFFF; color: #14245C; font: inherit; font-weight: 500; font-size: 13px; cursor: pointer">Add to list</button>
+            </div>
+            <p style="margin: 0; font-size: 12px; color: #5B6478">People added by hand are marked unverified until they sign in with Microsoft. You can also paste several addresses at once.</p>
+          </form>
+        </section>
+
+        <div style="display: flex; flex-direction: column; gap: 14px">
+          <section aria-labelledby="a-role" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px">
+            <h2 id="a-role" style="margin: 0 0 4px; font-size: 15px; font-weight: 600">2 · Their role</h2>
+            <sc-for list="{{roles}}" as="r" hint-placeholder-count="3">
+              <button type="button" role="radio" aria-checked="{{r.checked}}" onClick="{{r.pick}}" style="{{r.style}}"><b style="font-weight: 600; font-size: 14px">{{r.label}}</b><span style="font-size: 12.5px; color: #5B6478">{{r.desc}}</span></button>
+            </sc-for>
+          </section>
+          <section aria-labelledby="a-access" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden">
+            <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 14px 16px 8px">
+              <h2 id="a-access" style="margin: 0; font-size: 15px; font-weight: 600">3 · Access <span style="font-weight: 400; color: #5B6478; font-size: 13px">optional</span></h2>
+              <a href="AddUsers.dc.html" style="font-size: 13px; text-decoration: none">Add environment</a>
+            </div>
+            <div style="padding: 9px 16px; border-top: 1px solid #EEF1F5; display: flex; flex-direction: column; gap: 6px">
+              <div style="display: flex; justify-content: space-between; font-size: 14px"><b style="font-weight: 600">Analytics QA</b><button type="button" aria-label="Remove Analytics QA" style="border: 0; background: none; font: inherit; font-size: 12.5px; color: #A8331F; cursor: pointer; padding: 0">Remove</button></div>
+              <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px"><select aria-label="Level on Analytics QA" style="height: 32px; border: 1px solid #D4DAE5; border-radius: 6px; font: inherit; font-size: 13px"><option>Operator</option><option>View only</option><option>Admin</option></select><select aria-label="How long on Analytics QA" style="height: 32px; border: 1px solid #D4DAE5; border-radius: 6px; font: inherit; font-size: 13px"><option>30 days</option><option>7 days</option><option>90 days</option><option>No end</option></select></div>
+            </div>
+            <div style="padding: 9px 16px 12px; border-top: 1px solid #EEF1F5; display: flex; flex-direction: column; gap: 6px">
+              <div style="display: flex; justify-content: space-between; font-size: 14px"><span><b style="font-weight: 600">Data Lake Dev</b> <span style="font-size: 12.5px; color: #5B6478">· Ingestion group</span></span><button type="button" aria-label="Remove Data Lake Dev" style="border: 0; background: none; font: inherit; font-size: 12.5px; color: #A8331F; cursor: pointer; padding: 0">Remove</button></div>
+              <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px"><select aria-label="Level on Data Lake Dev" style="height: 32px; border: 1px solid #D4DAE5; border-radius: 6px; font: inherit; font-size: 13px"><option>View only</option><option>Operator</option><option>Admin</option></select><select aria-label="How long on Data Lake Dev" style="height: 32px; border: 1px solid #D4DAE5; border-radius: 6px; font: inherit; font-size: 13px"><option>90 days</option><option>7 days</option><option>30 days</option><option>No end</option></select></div>
+            </div>
+          </section>
+          <section aria-label="Confirm" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px">
+            <div style="font-size: 14px"><b style="font-weight: 600">{{summary}}</b><span style="display: block; color: #5B6478; font-size: 12.5px; margin-top: 2px">Each person gets an email with what they can use and how to sign in.</span></div>
+            <div style="display: flex; gap: 8px">
+              <a href="Users.dc.html" style="flex: 1; display: flex; align-items: center; justify-content: center; height: 40px; border-radius: 8px; border: 1px solid #D4DAE5; color: #141B2D; text-decoration: none; font-weight: 500; font-size: 14px">Cancel</a>
+              <a href="Users.dc.html" style="flex: 2; display: flex; align-items: center; justify-content: center; height: 40px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">{{cta}}</a>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      role: 'User',
+      draft: { email: '', name: '', dept: '', team: 'No team', project: '' },
+      people: [
+        { id: 'nb', name: 'Nikhil Banerjee', email: 'nikhil.banerjee@tcgdigital.com', dept: 'Engineering', team: 'Data', project: 'DLK-204', src: 'Directory' },
+        { id: 'rk', name: 'Ritu Kapoor', email: 'ritu.kapoor@tcgdigital.com', dept: 'Quality', team: 'Payments', project: 'PAY-118', src: 'Directory' },
+        { id: 'dg', name: 'Divya Ghosh', email: 'divya.ghosh@tcgdigital.com', dept: 'Engineering', team: 'CRM', project: 'CRM-077', src: 'Already a user' },
+        { id: 'js', name: 'John Smith', email: 'j.smith@partner-co.com', dept: 'Partner', team: 'No team', project: 'PAY-118', src: 'By hand' }
+      ]
+    };
+  }
+  renderVals() {
+    const src = (s) => 'font-size:11.5px;font-weight:500;padding:2px 8px;border-radius:999px;white-space:nowrap;' +
+      (s === 'Directory' ? 'background:#E3F4EC;color:#0B6B44' : s === 'By hand' ? 'background:#FBF3DC;color:#7A5000' : 'background:#ECEFF5;color:#4A5368');
+    const people = this.state.people.map(p => ({ ...p, srcStyle: src(p.src), remove: () => this.setState({ people: this.state.people.filter(x => x.id !== p.id) }) }));
+    const role = this.state.role;
+    const roles = [['User', 'Uses the environments they are given'], ['Environment admin', 'Also approves access, runs environments'], ['Administrator', 'Everything, for every environment']].map(([label, desc]) => ({
+      label, desc, checked: String(role === label), pick: () => this.setState({ role: label }),
+      style: 'display:flex;flex-direction:column;gap:1px;text-align:left;font:inherit;color:#141B2D;padding:8px 12px;border-radius:9px;cursor:pointer;background:#FFFFFF;' +
+        (role === label ? 'border:1.5px solid #14245C;box-shadow:0 0 0 3px #ECEFF8' : 'border:1px solid #D4DAE5')
+    }));
+    const set = (k) => (e) => this.setState({ draft: { ...this.state.draft, [k]: e.target.value } });
+    const addManual = (e) => {
+      e.preventDefault();
+      const d = this.state.draft;
+      if (!d.email) return;
+      this.setState({
+        people: this.state.people.concat([{ id: 'm' + Date.now(), name: d.name || d.email, email: d.email, dept: d.dept, team: d.team, project: d.project, src: 'By hand' }]),
+        draft: { email: '', name: '', dept: '', team: 'No team', project: '' }
+      });
+    };
+    const n = people.length;
+    const fresh = people.filter(p => p.src !== 'Already a user').length;
+    return {
+      people, roles, draft: this.state.draft, addManual,
+      setEmail: set('email'), setName: set('name'), setDept: set('dept'), setTeam: set('team'), setProject: set('project'),
+      summary: `Add ${fresh} new ${fresh === 1 ? 'person' : 'people'} as ${role}, ${n * 2} access grants`,
+      cta: `Add ${n} ${n === 1 ? 'person' : 'people'}`
+    };
+  }
+}
+</script>
+</body>
+</html>

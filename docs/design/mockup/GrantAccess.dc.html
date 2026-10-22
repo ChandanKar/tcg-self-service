@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Grant access</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="envadmin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="envadmin" active="access" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 20px 32px 24px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box">
+      <div>
+        <nav aria-label="Breadcrumb" style="font-size: 13px; color: #5B6478; display: flex; gap: 8px; margin-bottom: 6px"><a href="AccessManagement.dc.html" style="color: #5B6478; text-decoration: none">Access management</a><span aria-hidden="true">/</span><span aria-current="page" style="color: #141B2D">Grant access</span></nav>
+        <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Grant access</h1>
+        <p style="margin: 4px 0 0; font-size: 15px; color: #5B6478">Give one or more people access to one or more environments in one go.</p>
+      </div>
+
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 340px; gap: 16px; align-items: start">
+        <div style="display: flex; flex-direction: column; gap: 14px; min-width: 0">
+          <section aria-labelledby="g-people" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px">
+            <h2 id="g-people" style="margin: 0; font-size: 15px; font-weight: 600">1 · People</h2>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border: 1px solid #D4DAE5; border-radius: 8px; align-items: center">
+              <sc-for list="{{chips}}" as="c" hint-placeholder-count="3">
+                <span style="display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 2px 0 10px; border-radius: 999px; background: #ECEFF8; color: #14245C; font-size: 13.5px">{{c.name}}
+                  <button type="button" onClick="{{c.remove}}" aria-label="Remove {{c.name}}" style="width: 24px; height: 24px; border: 0; border-radius: 50%; background: transparent; color: #14245C; cursor: pointer; display: inline-flex; align-items: center; justify-content: center">
+                    <svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M5 5l10 10M15 5 5 15"></path></svg></button></span>
+              </sc-for>
+              <label style="flex: 1 1 120px; display: flex"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Add people by name or email</span>
+                <input type="search" placeholder="Add by name or email" style="border: 0; outline: 0; font: inherit; font-size: 14px; flex: 1; min-width: 0; height: 28px"></label>
+            </div>
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: #3A4256">Or a whole team
+              <select style="flex: 1; height: 34px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-size: 14px; color: #141B2D"><option>Choose a team</option><option>Payments (6 people)</option><option>Data (9 people)</option><option>CRM (4 people)</option></select></label>
+            <p style="margin: 0; font-size: 12.5px; color: #5B6478">A team adds its members as they are today; later joiners don't get this access.</p>
+          </section>
+
+          <section aria-labelledby="g-level" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px">
+            <h2 id="g-level" style="margin: 0 0 2px; font-size: 15px; font-weight: 600">3 · Access</h2>
+            <div role="radiogroup" aria-label="Level" style="display: flex; flex-direction: column; gap: 6px">
+              <sc-for list="{{levels}}" as="l" hint-placeholder-count="3">
+                <button type="button" role="radio" aria-checked="{{l.checked}}" onClick="{{l.pick}}" style="{{l.style}}"><b style="font-weight: 600; font-size: 14px">{{l.label}}</b><span style="font-size: 13px; color: #5B6478">{{l.desc}}</span></button>
+              </sc-for>
+            </div>
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; margin-top: 4px">For
+              <select aria-label="How long" onChange="{{pickDur}}" style="flex: 1; height: 34px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-size: 14px; font-weight: 400"><option>30 days</option><option>7 days</option><option>90 days</option><option>No end</option><option>Until a date…</option></select></label>
+          </section>
+
+          <section aria-labelledby="g-note" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px">
+            <h2 id="g-note" style="margin: 0; font-size: 15px; font-weight: 600">4 · Let them know</h2>
+            <label style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)" for="g-note-text">Note</label>
+            <input id="g-note-text" type="text" defaultValue="Release 4.2 regression testing" style="height: 36px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 10px; font: inherit; font-size: 14px">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 13.5px"><input type="checkbox" checked="checked" style="accent-color: #14245C">Email each person what they can now use</label>
+          </section>
+        </div>
+
+        <section aria-labelledby="g-envs" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden; min-width: 0">
+          <div style="padding: 14px 16px 10px; display: flex; flex-direction: column; gap: 10px">
+            <h2 id="g-envs" style="margin: 0; font-size: 15px; font-weight: 600">2 · Environments</h2>
+            <label style="display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border: 1px solid #D4DAE5; border-radius: 8px">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="#5B6478" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="5.5"></circle><path d="m13.5 13.5 3.5 3.5"></path></svg>
+              <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search environments</span>
+              <input type="search" placeholder="Search the environments you look after" style="border: 0; outline: 0; font: inherit; font-size: 14px; flex: 1; min-width: 0"></label>
+          </div>
+          <label style="display: flex; align-items: center; gap: 12px; padding: 11px 16px; border-top: 1px solid #EEF1F5; cursor: pointer">
+            <input type="checkbox" checked="checked" style="width: 17px; height: 17px; accent-color: #14245C">
+            <span style="flex: 1; min-width: 0"><b style="font-weight: 600; font-size: 14px">Payments Dev</b><span style="display: block; font-size: 12.5px; color: #5B6478">Whole environment</span></span>
+            <dc-import name="PowerStrip" states="RRR|RR|SS" show-count="{{ false }}" hint-size="100px,16px"></dc-import>
+          </label>
+          <div style="padding: 11px 16px; border-top: 1px solid #EEF1F5; display: flex; flex-direction: column; gap: 8px">
+            <label style="display: flex; align-items: center; gap: 12px; cursor: pointer">
+              <input type="checkbox" checked="checked" style="width: 17px; height: 17px; accent-color: #14245C">
+              <span style="flex: 1; min-width: 0"><b style="font-weight: 600; font-size: 14px">CRM UAT</b><span style="display: block; font-size: 12.5px; color: #5B6478">Only some groups</span></span>
+              <dc-import name="PowerStrip" states="SS|SSS|S" show-count="{{ false }}" hint-size="100px,16px"></dc-import>
+            </label>
+            <div role="group" aria-label="CRM UAT groups" style="display: flex; gap: 14px; padding-left: 29px; font-size: 13.5px; flex-wrap: wrap">
+              <label style="display: flex; align-items: center; gap: 6px"><input type="checkbox" style="accent-color: #14245C">Database</label>
+              <label style="display: flex; align-items: center; gap: 6px"><input type="checkbox" checked="checked" style="accent-color: #14245C">Application</label>
+              <label style="display: flex; align-items: center; gap: 6px"><input type="checkbox" style="accent-color: #14245C">Web</label>
+            </div>
+          </div>
+          <sc-for list="{{moreEnvs}}" as="e" hint-placeholder-count="3">
+            <label style="display: flex; align-items: center; gap: 12px; padding: 11px 16px; border-top: 1px solid #EEF1F5; cursor: pointer">
+              <input type="checkbox" style="width: 17px; height: 17px; accent-color: #14245C">
+              <span style="flex: 1; min-width: 0"><b style="font-weight: 600; font-size: 14px">{{e.name}}</b><span style="display: block; font-size: 12.5px; color: #5B6478">Whole environment</span></span>
+              <dc-import name="PowerStrip" states="{{e.states}}" show-count="{{ false }}" hint-size="100px,16px"></dc-import>
+            </label>
+          </sc-for>
+        </section>
+
+        <aside aria-labelledby="g-sum" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden">
+          <div style="padding: 14px 16px 10px">
+            <h2 id="g-sum" style="margin: 0; font-size: 15px; font-weight: 600">What will happen</h2>
+            <p style="margin: 3px 0 0; font-size: 13.5px; color: #5B6478">{{summary}}</p>
+          </div>
+          <sc-for list="{{preview}}" as="p" hint-placeholder-count="6">
+            <div style="padding: 8px 16px; border-top: 1px solid #EEF1F5; display: flex; flex-direction: column; gap: 1px">
+              <div style="display: flex; justify-content: space-between; gap: 8px; font-size: 13.5px"><span><b style="font-weight: 500">{{p.person}}</b> · {{p.env}}</span><span style="{{p.tagStyle}}">{{p.tag}}</span></div>
+              <div style="font-size: 12px; color: #5B6478">{{p.detail}}</div>
+            </div>
+          </sc-for>
+          <div style="padding: 12px 16px; border-top: 1px solid #E1E6EF; background: #FAFBFD; display: flex; gap: 8px">
+            <a href="AccessManagement.dc.html" style="flex: 1; display: flex; align-items: center; justify-content: center; height: 40px; border-radius: 8px; border: 1px solid #D4DAE5; color: #141B2D; text-decoration: none; font-weight: 500; font-size: 14px">Cancel</a>
+            <a href="AccessManagement.dc.html" style="flex: 2; display: flex; align-items: center; justify-content: center; height: 40px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">{{cta}}</a>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { people: ['Priya Nair', 'Karthik S', 'Neha Gupta'], level: 'Operator', dur: '30 days' }; }
+  renderVals() {
+    const { people, level, dur } = this.state;
+    const chips = people.map(name => ({ name, remove: () => this.setState({ people: people.filter(p => p !== name) }) }));
+    const levels = [['View only', 'See state, cost, history'], ['Operator', 'Start, stop and lock'], ['Admin', 'Also grant access and edit']].map(([label, desc]) => ({
+      label, desc, checked: String(level === label), pick: () => this.setState({ level: label }),
+      style: 'display:flex;justify-content:space-between;align-items:center;gap:10px;text-align:left;font:inherit;color:#141B2D;padding:9px 12px;border-radius:9px;cursor:pointer;background:#FFFFFF;' +
+        (level === label ? 'border:1.5px solid #14245C;box-shadow:0 0 0 3px #ECEFF8' : 'border:1px solid #D4DAE5')
+    }));
+    const tag = (k) => 'font-size:11.5px;font-weight:500;padding:1px 8px;border-radius:999px;white-space:nowrap;' +
+      (k === 'new' ? 'background:#E3F4EC;color:#0B6B44' : k === 'ext' ? 'background:#ECEFF8;color:#14245C' : 'background:#ECEFF5;color:#4A5368');
+    const ends = dur === 'No end' ? 'no end date' : dur === 'Until a date…' ? 'until the date you pick' : `for ${dur}`;
+    const envs = [['Payments Dev', 'whole environment'], ['CRM UAT', 'Application group']];
+    const existing = {
+      'Priya Nair|CRM UAT': ['ext', 'Extends', `Has Operator until 22 Oct; becomes ${level} ${ends}`],
+      'Karthik S|Payments Dev': ['ext', 'Upgrades', `Has View only; becomes ${level} ${ends}`],
+      'Neha Gupta|Payments Dev': ['skip', 'No change', 'Already has Admin, which is more']
+    };
+    const preview = [];
+    people.forEach(person => envs.forEach(([env, part]) => {
+      const e = existing[`${person}|${env}`];
+      preview.push(e ? { person, env, tag: e[1], tagStyle: tag(e[0]), detail: e[2] } : { person, env, tag: 'New', tagStyle: tag('new'), detail: `${level} on the ${part}, ${ends}` });
+    }));
+    const acting = preview.filter(p => p.tag !== 'No change').length;
+    return {
+      chips, levels, preview,
+      moreEnvs: [{ name: 'Analytics QA', states: 'RRB|RS' }, { name: 'Data Lake Dev', states: 'RRRRRR' }, { name: 'Mobile API Test', states: 'RR|RR' }],
+      pickDur: (e) => this.setState({ dur: e.target.value }),
+      summary: `${people.length} ${people.length === 1 ? 'person' : 'people'} × ${envs.length} environments: ${acting} changes, ${preview.length - acting} skipped`,
+      cta: acting ? `Grant access (${acting})` : 'Nothing to grant'
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>API access</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="admin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="admin" active="api" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+        <div>
+          <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">API access</h1>
+          <p style="margin: 6px 0 0; font-size: 15px; color: #5B6478">Tokens for scripts and tools, accounts for services, and webhooks that tell other systems what happened.</p>
+        </div>
+        <sc-if value="{{on}}" hint-placeholder-val="{{ true }}">
+          <a href="ApiAccess.dc.html" style="display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">New token</a>
+        </sc-if>
+      </div>
+      <sc-if value="{{off}}" hint-placeholder-val="{{ false }}">
+        <div style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 28px; display: flex; flex-direction: column; gap: 10px; max-width: 640px">
+          <h2 style="margin: 0; font-size: 18px; font-weight: 600">API tokens are switched off</h2>
+          <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3A4256">Nobody can create or use a token until they are on. Switching them on needs the token secret set on the server first; the setup guide explains both steps.</p>
+          <div style="display: flex; gap: 10px; margin-top: 6px"><a href="Settings.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 14px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">Open Settings</a><a href="Help.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 14px; border-radius: 8px; border: 1px solid #D4DAE5; color: #141B2D; text-decoration: none; font-weight: 500; font-size: 14px">Setup guide</a></div>
+        </div>
+      </sc-if>
+      <sc-if value="{{on}}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; flex-direction: column; gap: 20px">
+          <div role="tablist" aria-label="API" style="display: flex; gap: 4px; border-bottom: 1px solid #E1E6EF">
+            <button type="button" role="tab" aria-selected="true" style="border: 0; background: none; font: inherit; font-size: 14px; padding: 10px 14px; margin-bottom: -1px; color: #14245C; font-weight: 600; border-bottom: 2px solid #14245C">Tokens</button>
+            <button type="button" role="tab" aria-selected="false" style="border: 0; background: none; font: inherit; font-size: 14px; padding: 10px 14px; margin-bottom: -1px; color: #5B6478; border-bottom: 2px solid transparent">Service accounts</button>
+            <button type="button" role="tab" aria-selected="false" style="border: 0; background: none; font: inherit; font-size: 14px; padding: 10px 14px; margin-bottom: -1px; color: #5B6478; border-bottom: 2px solid transparent">Webhooks</button>
+            <a href="ApiAccess.dc.html" style="font-size: 14px; padding: 10px 14px; text-decoration: none; margin-left: auto">API reference</a>
+          </div>
+          <div style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden">
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px">
+              <thead><tr style="background: #F7F8FB; color: #5B6478; font-size: 12.5px; text-align: left">
+                <th scope="col" style="padding: 12px 20px; font-weight: 500">Name</th><th scope="col" style="padding: 12px; font-weight: 500">Owner</th><th scope="col" style="padding: 12px; font-weight: 500">Can</th><th scope="col" style="padding: 12px; font-weight: 500">Last used</th><th scope="col" style="padding: 12px; font-weight: 500">Expires</th><th scope="col" style="padding: 12px 20px"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Actions</span></th>
+              </tr></thead>
+              <tbody>
+                <sc-for list="{{tokens}}" as="t" hint-placeholder-count="3">
+                  <tr style="border-top: 1px solid #EEF1F5">
+                    <td style="padding: 12px 20px"><div style="font-weight: 500">{{t.name}}</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #5B6478">{{t.prefix}}</div></td>
+                    <td style="padding: 12px; color: #3A4256">{{t.owner}}</td>
+                    <td style="padding: 12px; color: #3A4256">{{t.scopes}}</td>
+                    <td style="padding: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #3A4256">{{t.used}}</td>
+                    <td style="padding: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #3A4256">{{t.expires}}</td>
+                    <td style="padding: 12px 20px; text-align: right; font-size: 13px"><a href="ApiAccess.dc.html" style="text-decoration: none; color: #A8331F">Revoke</a></td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </sc-if>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"featureOn":{"editor":"boolean","default":true},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const on = this.props.featureOn ?? true;
+    const tokens = [
+      { name: 'Terraform pipeline', prefix: 'vmc_7Kq2…', owner: 'Platform service account', scopes: 'Read environments, start and stop', used: 'Today 06:00', expires: '18 Jan 2027' },
+      { name: 'Cost report script', prefix: 'vmc_p91X…', owner: 'Meera Iyer', scopes: 'Read cost', used: 'Mon 09:00', expires: '30 Nov 2026' },
+      { name: 'Assistant', prefix: 'vmc_Zr4d…', owner: 'Sanjay Rao', scopes: 'Ask the assistant', used: 'Never', expires: '25 Oct 2026' }
+    ];
+    return { on, off: !on, tokens };
+  }
+}
+</script>
+</body>
+</html>

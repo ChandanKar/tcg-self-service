@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Environment templates</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+.card{background:#FFFFFF;border:1px solid #E1E6EF;border-radius:12px}
+.mono{font-family:'IBM Plex Mono',monospace}
+.f{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:500}
+.in{height:34px;border:1px solid #D4DAE5;border-radius:8px;padding:0 10px;font:inherit;font-size:13.5px;font-weight:400;box-sizing:border-box;width:100%}
+.tab{font-size:14px;padding:10px 14px;color:#5B6478;text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab[aria-selected="true"]{color:#14245C;font-weight:600;border-bottom-color:#14245C}
+.btn{display:inline-flex;align-items:center;height:30px;padding:0 11px;border-radius:7px;text-decoration:none;font-size:13px;font-weight:500;white-space:nowrap}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="admin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="admin" active="settings" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 20px 32px 24px; display: flex; flex-direction: column; gap: 14px; box-sizing: border-box">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end"><div><h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">New environments</h1><p style="margin: 4px 0 0; font-size: 15px; color: #5B6478">Templates people can create an environment from, and the requests waiting on you.</p></div></div>
+      <div role="tablist" aria-label="New environments" style="display: flex; gap: 4px; border-bottom: 1px solid #E1E6EF">
+        <a class="tab" role="tab" aria-selected="true" href="TemplatesAdmin.dc.html">Templates</a><a class="tab" role="tab" aria-selected="false" href="TemplatesAdmin.dc.html">Requests · 2 waiting</a>
+      </div>
+      <div style="display: grid; grid-template-columns: 300px minmax(0, 1fr) 340px; gap: 14px; align-items: start">
+        <nav aria-label="Templates" class="card" style="overflow: hidden">
+          <sc-for list="{{templates}}" as="t" hint-placeholder-count="4">
+            <a href="TemplatesAdmin.dc.html" style="display: block; padding: 10px 14px; border-top: 1px solid #F1F3F7; text-decoration: none; color: #141B2D; {{t.sel}}"><b style="font-weight: 500; font-size: 14px">{{t.name}}</b><span style="display: flex; justify-content: space-between; font-size: 12.5px; color: #5B6478; margin-top: 2px"><span>{{t.engine}}</span><span>{{t.state}}</span></span></a>
+          </sc-for>
+          <div style="padding: 10px 14px; border-top: 1px solid #EEF1F5"><a href="TemplatesAdmin.dc.html" style="font-size: 13.5px; font-weight: 500; text-decoration: none">+ New template</a></div>
+        </nav>
+
+        <section class="card" aria-labelledby="te-t" style="overflow: hidden">
+          <div style="padding: 12px 16px; border-bottom: 1px solid #EEF1F5; display: flex; justify-content: space-between; align-items: center"><h2 id="te-t" style="margin: 0; font-size: 15px; font-weight: 600">Java service, 3 tiers</h2><label style="display: flex; align-items: center; gap: 6px; font-size: 13px"><input type="checkbox" checked="checked" style="accent-color: #14245C">Offered to people</label></div>
+          <div style="padding: 14px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+            <label class="f" style="grid-column: 1 / -1">Description<input class="in" type="text" defaultValue="Load balancer, 2 app servers and a MySQL database. Good for a feature team's QA."></label>
+            <label class="f">Built with<select class="in"><option>AWS Service Catalog</option><option>Terraform</option></select></label>
+            <label class="f">Product<input class="in mono" type="text" defaultValue="java-3tier-v4"></label>
+            <label class="f">AWS account<select class="in"><option>tcg-nonprod</option></select></label>
+            <label class="f">Region<select class="in"><option>ap-south-1</option></select></label>
+            <label class="f">Estimated cost a month<input class="in mono" type="text" defaultValue="$240"></label>
+            <span></span>
+            <label class="f">Lasts, unless extended<span style="display: flex; align-items: center; gap: 6px"><input class="in mono" type="text" defaultValue="72" style="width: 80px"><span style="font-weight: 400">hours</span></span></label>
+            <label class="f">Longest allowed<span style="display: flex; align-items: center; gap: 6px"><input class="in mono" type="text" defaultValue="336" style="width: 80px"><span style="font-weight: 400">hours (max 2,160)</span></span></label>
+            <fieldset style="grid-column: 1 / -1; border: 0; padding: 0; margin: 0; display: flex; gap: 16px; align-items: center; font-size: 13.5px"><legend style="font-size: 12.5px; font-weight: 500; padding: 0; margin-bottom: 6px">Who can ask for one</legend>
+              <label style="display: flex; gap: 6px; align-items: center"><input type="checkbox" checked="checked" style="accent-color: #14245C">Users</label><label style="display: flex; gap: 6px; align-items: center"><input type="checkbox" checked="checked" style="accent-color: #14245C">Environment admins</label><label style="display: flex; gap: 6px; align-items: center"><input type="checkbox" style="accent-color: #14245C">Viewers</label></fieldset>
+            <label class="f" style="grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 10px; font-size: 13.5px"><input type="checkbox" checked="checked" style="accent-color: #14245C">Needs approval by<select class="in" style="width: auto"><option>an administrator</option><option>an environment admin</option></select></label>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; background: #FAFBFD; border-top: 1px solid #E1E6EF"><a href="TemplatesAdmin.dc.html" class="btn" style="height: 36px; padding: 0 14px; background: #14245C; color: #FFFFFF; font-size: 14px">Save template</a></div>
+        </section>
+
+        <aside class="card" aria-labelledby="rq-t" style="overflow: hidden">
+          <div style="padding: 12px 16px; border-bottom: 1px solid #EEF1F5"><h2 id="rq-t" style="margin: 0; font-size: 15px; font-weight: 600">Waiting for you</h2></div>
+          <sc-for list="{{requests}}" as="r" hint-placeholder-count="2">
+            <div style="padding: 12px 16px; border-top: 1px solid #F1F3F7; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px">
+              <div><b style="font-weight: 500">{{r.env}}</b> <span style="color: #5B6478">· {{r.tpl}}</span></div>
+              <div style="font-size: 12.5px; color: #5B6478">{{r.who}} · {{r.ttl}} · about {{r.cost}}</div>
+              <div style="font-size: 13px; color: #3A4256">"{{r.why}}"</div>
+              <div style="display: flex; gap: 6px"><a href="TemplatesAdmin.dc.html" class="btn" style="background: #14245C; color: #FFFFFF">Approve</a><a href="AccessChange.dc.html" class="btn" style="border: 1px solid #E8B8AE; color: #A8331F">Decline</a></div>
+            </div>
+          </sc-for>
+          <div style="padding: 10px 16px; border-top: 1px solid #EEF1F5; font-size: 12.5px; color: #5B6478; line-height: 1.5">After approval: Creating → Ready. It's removed when its time runs out, unless someone extends it.</div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const templates = [
+      { name: 'Java service, 3 tiers', engine: 'Service Catalog', state: 'Offered', sel: 'background:#ECEFF8;box-shadow:inset 3px 0 0 #D9A21B' },
+      { name: 'Data pipeline sandbox', engine: 'Terraform', state: 'Offered', sel: '' },
+      { name: 'Single Windows VM', engine: 'Service Catalog', state: 'Offered', sel: '' },
+      { name: 'EKS dev cluster', engine: 'Terraform', state: 'Not offered', sel: '' }
+    ];
+    const requests = [
+      { env: 'payments-feature-x', tpl: 'Java service, 3 tiers', who: 'Ananya Iyer', ttl: 'for 5 days', cost: '$40', why: 'Isolated QA for the refunds rework' },
+      { env: 'etl-spike', tpl: 'Data pipeline sandbox', who: 'Kavya Reddy', ttl: 'for 72 hours', cost: '$18', why: 'Trying the new Spark version' }
+    ];
+    return { templates, requests };
+  }
+}
+</script>
+</body>
+</html>

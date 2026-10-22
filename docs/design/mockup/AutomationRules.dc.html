@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Automation rules</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="envadmin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="envadmin" active="schedules" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+        <div>
+          <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Automation rules</h1>
+          <p style="margin: 6px 0 0; font-size: 15px; color: #5B6478; max-width: 720px">Schedules that start and stop environments. A rule never breaks a lock: it retries, then skips and tells you.</p>
+        </div>
+        <a href="RuleEditor.dc.html" style="display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"></path></svg>New schedule</a>
+      </div>
+      <div style="display: flex; gap: 28px; flex-wrap: wrap; font-size: 14px; color: #5B6478">
+        <span><b style="font-family: 'IBM Plex Mono', monospace; color: #141B2D; font-weight: 500">4</b> rules on</span>
+        <span>cover <b style="font-family: 'IBM Plex Mono', monospace; color: #141B2D; font-weight: 500">3</b> environments</span>
+        <span style="color: #7A5000"><b style="font-family: 'IBM Plex Mono', monospace; font-weight: 500">1</b> run skipped last week: environment was locked</span>
+      </div>
+      <div role="tablist" aria-label="Automation" style="display: flex; gap: 4px; border-bottom: 1px solid #E1E6EF">
+        <button type="button" role="tab" aria-selected="true" style="border: 0; background: none; font: inherit; font-size: 14px; padding: 10px 14px; margin-bottom: -1px; color: #14245C; font-weight: 600; border-bottom: 2px solid #14245C">Schedules</button>
+        <button type="button" role="tab" aria-selected="false" style="border: 0; background: none; font: inherit; font-size: 14px; padding: 10px 14px; margin-bottom: -1px; color: #5B6478; border-bottom: 2px solid transparent">When access is granted</button>
+        <button type="button" role="tab" aria-selected="false" style="border: 0; background: none; font: inherit; font-size: 14px; padding: 10px 14px; margin-bottom: -1px; color: #5B6478; border-bottom: 2px solid transparent">Holiday calendars</button>
+        <button type="button" role="tab" aria-selected="false" style="border: 0; background: none; font: inherit; font-size: 14px; padding: 10px 14px; margin-bottom: -1px; color: #5B6478; border-bottom: 2px solid transparent">Recent runs</button>
+      </div>
+
+      <sc-for list="{{rules}}" as="r" hint-placeholder-count="3">
+        <article style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 14px 18px; display: grid; grid-template-columns: minmax(240px, 1fr) minmax(320px, 2fr); gap: 20px; align-items: center">
+          <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0">
+            <div style="display: flex; align-items: center; gap: 10px">
+              <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer">
+                <input type="checkbox" role="switch" checked="checked" aria-label="{{r.name}} is on" style="width: 34px; height: 18px; accent-color: #14245C">
+              </label>
+              <h2 style="margin: 0; font-size: 16px; font-weight: 600">{{r.name}}</h2>
+            </div>
+            <div style="font-size: 14px; color: #3A4256">{{r.env}}</div>
+            <div style="font-size: 13px; color: #5B6478">{{r.summary}} · next <span style="font-family: 'IBM Plex Mono', monospace; color: #141B2D">{{r.next}}</span></div>
+            <div style="display: flex; gap: 14px; font-size: 13px; margin-top: 4px">
+              <a href="RuleEditor.dc.html" style="text-decoration: none">Edit</a>
+              <a href="AutomationRules.dc.html" style="text-decoration: none">Skip next stop</a>
+              <a href="AutomationRules.dc.html" style="text-decoration: none; color: #A8331F">Delete</a>
+            </div>
+          </div>
+          <div role="img" aria-label="{{r.summary}}" style="display: flex; flex-direction: column; gap: 3px">
+            <sc-for list="{{r.days}}" as="d" hint-placeholder-count="7">
+              <div style="display: flex; align-items: center; gap: 10px">
+                <span style="width: 32px; font-size: 12px; color: #5B6478">{{d.label}}</span>
+                <span style="flex: 1; height: 9px; border-radius: 3px; background: #F1F3F7; position: relative; overflow: hidden">
+                  <sc-for list="{{d.bars}}" as="b" hint-placeholder-count="1"><span style="{{b.style}}"></span></sc-for>
+                </span>
+              </div>
+            </sc-for>
+            <div style="display: flex; justify-content: space-between; padding-left: 42px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #5B6478"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
+          </div>
+        </article>
+      </sc-for>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const bar = (from, to, color) => ({ style: `position:absolute;top:0;bottom:0;left:${(from / 24) * 100}%;width:${((to - from) / 24) * 100}%;background:${color};border-radius:2px` });
+    const week = (fn) => names.map((label, i) => ({ label, bars: fn(i) }));
+    const navy = '#14245C', gold = '#D9A21B';
+    const rules = [
+      { name: 'Office hours', env: 'Payments Dev', summary: 'Mon–Fri 08:00–20:00 · Asia/Kolkata · off on India public holidays', next: 'Stop today 20:00',
+        days: week(i => i < 5 ? [bar(8, 20, navy)] : []) },
+      { name: 'UAT with the client', env: 'CRM UAT', summary: 'Mon–Fri 09:00–19:00 and Sat 10:00–14:00 · Asia/Kolkata', next: 'Start Mon 09:00',
+        days: week(i => i < 5 ? [bar(9, 19, navy)] : i === 5 ? [bar(10, 14, navy)] : []) },
+      { name: 'Nightly batch', env: 'Analytics QA', summary: 'Every day 01:00–05:00 UTC (06:30–10:30 here) · skipped Wed: locked by Priya Nair', next: 'Start tomorrow 06:30',
+        days: week(i => i === 2 ? [bar(6.5, 10.5, gold)] : [bar(6.5, 10.5, navy)]) }
+    ];
+    return { rules };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Budgets</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="envadmin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="envadmin" active="budgets" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+        <div>
+          <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Budgets</h1>
+          <p style="margin: 6px 0 0; font-size: 15px; color: #5B6478">Monthly limits for environments and teams, with alerts at 50, 75, 90 and 100%.</p>
+        </div>
+        <a href="Budgets.dc.html" style="display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"></path></svg>New budget</a>
+      </div>
+      <div style="display: flex; gap: 18px; font-size: 13px; color: #5B6478; flex-wrap: wrap">
+        <span><span style="display: inline-block; width: 18px; height: 8px; border-radius: 2px; background: #14245C; vertical-align: middle"></span> Spent so far</span>
+        <span><span style="display: inline-block; width: 2px; height: 14px; background: #D9A21B; vertical-align: middle"></span> Forecast for the month</span>
+        <span>October · day <span style="font-family: 'IBM Plex Mono', monospace">19</span> of 31</span>
+      </div>
+      <sc-for list="{{budgets}}" as="b" hint-placeholder-count="3">
+        <article style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap">
+            <div><h2 style="margin: 0; font-size: 16px; font-weight: 600; display: inline">{{b.name}}</h2> <span style="font-size: 13px; color: #5B6478">· {{b.kind}}</span></div>
+            <span style="{{b.chipStyle}}">{{b.chip}}</span>
+          </div>
+          <div role="img" aria-label="{{b.label}}" style="position: relative; height: 12px; border-radius: 6px; background: #ECEFF5">
+            <span style="{{b.fill}}"></span><span style="{{b.tick}}"></span>
+          </div>
+          <div style="display: flex; justify-content: space-between; gap: 12px; font-size: 14px; flex-wrap: wrap">
+            <span><span style="font-family: 'IBM Plex Mono', monospace">{{b.spent}}</span> of <span style="font-family: 'IBM Plex Mono', monospace">{{b.limit}}</span> · forecast <span style="font-family: 'IBM Plex Mono', monospace">{{b.forecast}}</span></span>
+            <span style="color: #5B6478">{{b.action}}</span>
+          </div>
+          <div style="display: flex; gap: 14px; font-size: 13px"><a href="Budgets.dc.html" style="text-decoration: none">Edit</a><a href="Budgets.dc.html" style="text-decoration: none; color: #A8331F">Delete</a></div>
+        </article>
+      </sc-for>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const chip = (k) => 'font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px;' +
+      (k === 'ok' ? 'background:#E3F4EC;color:#0B6B44' : k === 'warn' ? 'background:#FBF3DC;color:#7A5000' : 'background:#FBEEEB;color:#A8331F');
+    const b = (name, kind, spent, limit, forecast, chipText, k, action) => {
+      const pct = Math.min(100, (spent / limit) * 100), fpct = Math.min(100, (forecast / limit) * 100);
+      return {
+        name, kind, chip: chipText, chipStyle: chip(k), action,
+        spent: '$' + spent.toFixed(0), limit: '$' + limit.toFixed(0), forecast: '$' + forecast.toFixed(0),
+        label: `${Math.round(pct)}% spent, forecast ${Math.round((forecast / limit) * 100)}%`,
+        fill: `position:absolute;left:0;top:0;bottom:0;width:${pct}%;border-radius:6px;background:${k === 'bad' ? '#C2412D' : '#14245C'}`,
+        tick: `position:absolute;top:-4px;bottom:-4px;left:${fpct}%;width:2px;background:#D9A21B`
+      };
+    };
+    const budgets = [
+      b('Payments Dev', 'environment', 186, 400, 310, 'On track', 'ok', 'Alerts only'),
+      b('Analytics QA', 'environment', 122, 150, 205, 'Forecast over', 'warn', 'When reached, an owner approves freezing starts'),
+      b('CRM team', 'team · 3 environments', 288, 300, 470, '96% reached', 'bad', 'Alerts only (team budgets cannot freeze or stop)')
+    ];
+    return { budgets };
+  }
+}
+</script>
+</body>
+</html>

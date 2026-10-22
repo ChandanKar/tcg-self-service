@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Confirm from Teams</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; height: 900px; box-sizing: border-box; display: flex; flex-direction: column">
+  <header style="height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 24px; background: #14245C; color: #FFFFFF"><span style="width: 22px; height: 22px; border-radius: 6px; background: #D9A21B"></span><span style="font-weight: 600; font-size: 15px">VM Self-Service</span></header>
+  <div style="flex: 1; display: grid; grid-template-columns: 520px 340px; gap: 32px; justify-content: center; align-content: center">
+
+    <section role="main" aria-labelledby="ca-t" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 14px; overflow: hidden; align-self: start">
+      <div style="padding: 22px 24px 6px">
+        <div style="font-size: 12.5px; color: #5B6478; font-weight: 500">From the Payments Dev Teams channel</div>
+        <h1 id="ca-t" style="margin: 6px 0 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em">Extend the lease on Payments Dev?</h1>
+        <p style="margin: 6px 0 0; font-size: 14.5px; color: #3A4256; line-height: 1.5">It stops at 18:00 today; 2 hours more would be 20:00.</p>
+      </div>
+      <fieldset style="border: 0; margin: 0; padding: 12px 24px 4px"><legend style="font-size: 13.5px; font-weight: 500; padding: 0; margin-bottom: 8px">Add</legend>
+        <div style="display: flex; gap: 8px">
+          <sc-for list="{{choices}}" as="c" hint-placeholder-count="3"><label style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; height: 40px; border-radius: 9px; font-size: 14px; {{c.box}}"><input type="radio" name="ext" checked="{{c.checked}}" style="accent-color: #14245C">{{c.label}}</label></sc-for>
+        </div>
+      </fieldset>
+      <div style="padding: 14px 24px 8px; font-size: 13px; color: #5B6478">Signed in as Ananya Iyer. The link works once and ends at 10:12 tomorrow.</div>
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 14px 24px; background: #FAFBFD; border-top: 1px solid #E1E6EF"><a href="EnvDetail.dc.html" style="font-size: 14px; text-decoration: none">Open Payments Dev instead</a><a href="ChatAction.dc.html" style="display: inline-flex; align-items: center; height: 40px; padding: 0 18px; border-radius: 9px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14.5px">Extend</a></div>
+    </section>
+
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <div style="font-size: 12.5px; color: #5B6478; font-weight: 500">The same page in its other states</div>
+      <sc-for list="{{states}}" as="s" hint-placeholder-count="4">
+        <div role="status" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 12px 14px; display: grid; grid-template-columns: 10px minmax(0, 1fr); gap: 10px; align-items: start">
+          <span style="width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; background: {{s.dot}}"></span>
+          <div><div style="font-size: 14.5px; font-weight: 600">{{s.title}}</div><div style="font-size: 13px; color: #3A4256; margin-top: 2px; line-height: 1.45">{{s.body}}</div></div>
+        </div>
+      </sc-for>
+      <div style="font-size: 12.5px; color: #5B6478; line-height: 1.5">Teams links can also snooze idle auto-stop (1, 4 or 8 hours), stop an environment, approve an access request or a held start, and open a Jira issue for unusual spend. Each one opens this page first; nothing happens on the click in Teams.</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const on = 'border:1.5px solid #14245C;background:#F5F7FC;font-weight:500', off = 'border:1px solid #D4DAE5';
+    const choices = [{ label: '1 hour', checked: false, box: off }, { label: '2 hours', checked: true, box: on }, { label: '4 hours', checked: false, box: off }];
+    const states = [
+      { dot: '#12915E', title: 'Done', body: 'Payments Dev now stops at 20:00.' },
+      { dot: '#D9A21B', title: 'This link was already used', body: 'Each link works once. Open Payments Dev to see when it stops now.' },
+      { dot: '#9AA4B8', title: 'This link has expired', body: 'Links work for 24 hours. Open the environment to do it there.' },
+      { dot: '#C2412D', title: "You can't do this", body: 'You can view Payments Dev but not change its lease. Ask its admin, Sanjay Rao.' }
+    ];
+    return { choices, states };
+  }
+}
+</script>
+</body>
+</html>

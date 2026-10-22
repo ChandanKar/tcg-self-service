@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AWS accounts</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="admin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="admin" active="aws" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+        <div>
+          <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">AWS accounts</h1>
+          <p style="margin: 6px 0 0; font-size: 15px; color: #5B6478">The AWS accounts the platform can reach, and the role it uses in each.</p>
+        </div>
+        <a href="AwsAccounts.dc.html" style="display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"></path></svg>Add an account</a>
+      </div>
+      <div style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden">
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px">
+          <thead><tr style="background: #F7F8FB; color: #5B6478; font-size: 12.5px; text-align: left">
+            <th scope="col" style="padding: 12px 20px; font-weight: 500">Account</th><th scope="col" style="padding: 12px; font-weight: 500">Account ID</th><th scope="col" style="padding: 12px; font-weight: 500">Access</th><th scope="col" style="padding: 12px; font-weight: 500">Regions</th><th scope="col" style="padding: 12px; font-weight: 500">Environments</th><th scope="col" style="padding: 12px; font-weight: 500">Last check</th><th scope="col" style="padding: 12px 20px"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Actions</span></th>
+          </tr></thead>
+          <tbody>
+            <sc-for list="{{accounts}}" as="a" hint-placeholder-count="3">
+              <tr style="border-top: 1px solid #EEF1F5">
+                <td style="padding: 12px 20px; font-weight: 500">{{a.name}}<sc-if value="{{a.isDefault}}" hint-placeholder-val="{{ false }}"><span style="margin-left: 8px; font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 999px; background: #ECEFF8; color: #14245C">Default</span></sc-if></td>
+                <td style="padding: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 13px">{{a.id}}</td>
+                <td style="padding: 12px; color: #3A4256">{{a.access}}</td>
+                <td style="padding: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #3A4256">{{a.regions}}</td>
+                <td style="padding: 12px; font-family: 'IBM Plex Mono', monospace">{{a.envs}}</td>
+                <td style="padding: 12px"><span style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px"><span style="{{a.dot}}"></span>{{a.check}}</span></td>
+                <td style="padding: 12px 20px; text-align: right; white-space: nowrap; font-size: 13px"><a href="AwsAccounts.dc.html" style="text-decoration: none; margin-right: 14px">Check access</a><a href="AwsAccounts.dc.html" style="text-decoration: none">Edit</a></td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin: 0; font-size: 13px; color: #5B6478">Finding accounts automatically from AWS Organizations is off. An administrator can switch it on in Settings › AWS.</p>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dot = (ok) => `width:8px;height:8px;border-radius:50%;background:${ok ? '#12915E' : '#C2412D'}`;
+    const accounts = [
+      { name: 'Engineering', id: '4183 2297 0561', access: 'Platform credentials', regions: 'ap-south-1, us-east-1', envs: '16', check: 'OK · today 06:00', dot: dot(true), isDefault: true },
+      { name: 'Data platform', id: '7720 5519 3048', access: 'Assumes PlatformOperator role', regions: 'ap-south-1', envs: '4', check: 'OK · today 06:00', dot: dot(true), isDefault: false },
+      { name: 'Sandbox', id: '2091 6634 8802', access: 'Assumes PlatformOperator role', regions: 'eu-west-1', envs: '1', check: 'Role can\'t be assumed', dot: dot(false), isDefault: false }
+    ];
+    return { accounts };
+  }
+}
+</script>
+</body>
+</html>

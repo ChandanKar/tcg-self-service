@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>New schedule</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column; position: relative">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="envadmin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="envadmin" active="schedules" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main aria-hidden="true" style="flex: 999 1 560px; min-width: 0; padding: 32px 40px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+      <div style="font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Automation rules</div>
+      <div style="height: 160px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px"></div>
+      <div style="height: 160px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px"></div>
+    </main>
+  </div>
+
+  <div style="position: absolute; inset: 0; z-index: 30; background: rgba(10,20,48,0.42); display: flex; align-items: flex-start; justify-content: center; padding: 32px 24px 24px; box-sizing: border-box">
+    <div role="dialog" aria-modal="true" aria-labelledby="rule-title" style="width: 100%; max-width: 760px; background: #FFFFFF; border-radius: 14px; box-shadow: 0 24px 48px rgba(20,36,92,0.25); overflow: hidden">
+      <div style="padding: 22px 24px 4px">
+        <h2 id="rule-title" style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em">New schedule</h2>
+        <p style="margin: 4px 0 0; font-size: 14px; color: #5B6478">Start and stop an environment at the same times each week.</p>
+      </div>
+      <div style="padding: 18px 24px; display: flex; flex-direction: column; gap: 18px">
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px">
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 500">Name
+            <input type="text" defaultValue="Office hours" style="height: 40px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 10px; font: inherit; font-weight: 400"></label>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 500">Environment
+            <select style="height: 40px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-weight: 400"><option>Payments Dev</option><option>CRM UAT</option><option>Analytics QA</option></select></label>
+        </div>
+        <fieldset style="border: 0; padding: 0; margin: 0">
+          <legend style="font-size: 14px; font-weight: 500; padding: 0; margin-bottom: 8px">Days</legend>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap">
+            <sc-for list="{{pills}}" as="p" hint-placeholder-count="7">
+              <button type="button" aria-pressed="{{p.pressed}}" onClick="{{p.toggle}}" style="{{p.style}}">{{p.label}}</button>
+            </sc-for>
+          </div>
+        </fieldset>
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px">
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 500">Start at
+            <input type="time" defaultValue="08:00" style="height: 40px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 10px; font: inherit; font-weight: 400; font-family: 'IBM Plex Mono', monospace"></label>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 500">Stop at
+            <input type="time" defaultValue="20:00" style="height: 40px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 10px; font: inherit; font-weight: 400; font-family: 'IBM Plex Mono', monospace"></label>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 500">Time zone
+            <select style="height: 40px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-weight: 400"><option>Asia/Kolkata</option><option>UTC</option><option>Europe/London</option></select></label>
+        </div>
+        <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 500">On holidays
+          <select style="height: 40px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-weight: 400"><option>Don't start on India public holidays</option><option>Run as usual</option><option>Don't start or stop on India public holidays</option></select></label>
+        <div style="background: #F7F8FB; border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px">
+          <div style="font-size: 13px; font-weight: 500; color: #3A4256; margin-bottom: 4px">This week</div>
+          <sc-for list="{{days}}" as="d" hint-placeholder-count="7">
+            <div style="display: flex; align-items: center; gap: 10px">
+              <span style="width: 32px; font-size: 12px; color: #5B6478">{{d.label}}</span>
+              <span style="flex: 1; height: 12px; border-radius: 3px; background: #E6EAF1; position: relative; overflow: hidden"><span style="{{d.bar}}"></span></span>
+            </div>
+          </sc-for>
+          <div style="font-size: 13px; color: #3A4256; margin-top: 6px">Runs <span style="font-family: 'IBM Plex Mono', monospace">{{hours}}</span> hours a week instead of 168 · first start <span style="font-family: 'IBM Plex Mono', monospace">Mon 20 Oct 08:00</span></div>
+        </div>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 16px 24px; background: #FAFBFD; border-top: 1px solid #E1E6EF; flex-wrap: wrap">
+        <a href="RuleEditor.dc.html" style="font-size: 14px; text-decoration: none">Suggest from last month's usage</a>
+        <div style="display: flex; gap: 10px">
+          <a href="AutomationRules.dc.html" style="display: inline-flex; align-items: center; height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid #D4DAE5; background: #FFFFFF; color: #141B2D; text-decoration: none; font-weight: 500; font-size: 14px">Cancel</a>
+          <a href="AutomationRules.dc.html" style="display: inline-flex; align-items: center; height: 40px; padding: 0 18px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">Save schedule</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { on: [true, true, true, true, true, false, false] }; }
+  renderVals() {
+    const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const on = this.state.on;
+    const pills = labels.map((label, i) => ({
+      label, pressed: String(on[i]),
+      toggle: () => { const next = on.slice(); next[i] = !next[i]; this.setState({ on: next }); },
+      style: 'font:inherit;font-size:13px;width:52px;height:36px;border-radius:8px;cursor:pointer;' +
+        (on[i] ? 'background:#14245C;color:#FFFFFF;border:1px solid #14245C;font-weight:500' : 'background:#FFFFFF;color:#3A4256;border:1px solid #D4DAE5')
+    }));
+    const days = labels.map((label, i) => ({
+      label,
+      bar: on[i] ? `position:absolute;top:0;bottom:0;left:${(8 / 24) * 100}%;width:${(12 / 24) * 100}%;background:#14245C;border-radius:2px` : 'display:none'
+    }));
+    return { pills, days, hours: on.filter(Boolean).length * 12 };
+  }
+}
+</script>
+</body>
+</html>

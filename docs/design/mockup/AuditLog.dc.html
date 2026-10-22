@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Audit log</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="envadmin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="envadmin" active="audit" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+        <div>
+          <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Audit log</h1>
+          <p style="margin: 6px 0 0; font-size: 15px; color: #5B6478">Everything anyone did in the environments you look after.</p>
+        </div>
+        <a href="AuditLog.dc.html" style="display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px; border-radius: 8px; border: 1px solid #D4DAE5; background: #FFFFFF; color: #141B2D; text-decoration: none; font-weight: 500; font-size: 14px">Export CSV</a>
+      </div>
+      <div style="display: flex; gap: 28px; flex-wrap: wrap; font-size: 14px; color: #5B6478">
+        <span><b style="font-family: 'IBM Plex Mono', monospace; color: #141B2D; font-weight: 500">230</b> actions in 7 days</span>
+        <span><b style="font-family: 'IBM Plex Mono', monospace; color: #141B2D; font-weight: 500">99%</b> succeeded</span>
+        <span style="color: #A8331F"><b style="font-family: 'IBM Plex Mono', monospace; font-weight: 500">2</b> failed</span>
+        <span>busiest: <b style="color: #141B2D; font-weight: 500">CRM UAT</b></span>
+      </div>
+      <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center">
+        <select aria-label="Period" style="height: 38px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-size: 14px"><option>Last 7 days</option><option>Last 24 hours</option><option>Last 30 days</option><option>Dates…</option></select>
+        <select aria-label="Person" style="height: 38px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-size: 14px"><option>Anyone</option><option>Priya Nair</option><option>Karthik S</option></select>
+        <select aria-label="Environment" style="height: 38px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-size: 14px"><option>All environments</option><option>CRM UAT</option></select>
+        <select aria-label="Action" style="height: 38px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-size: 14px"><option>All actions</option><option>Start and stop</option><option>Locks</option><option>Access</option><option>Settings</option></select>
+        <select aria-label="Result" style="height: 38px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-size: 14px"><option>Any result</option><option>Failed only</option></select>
+      </div>
+      <div style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden">
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px">
+          <thead>
+            <tr style="background: #F7F8FB; color: #5B6478; font-size: 12.5px; text-align: left">
+              <th scope="col" style="padding: 12px 20px; font-weight: 500">When</th>
+              <th scope="col" style="padding: 12px; font-weight: 500">Who</th>
+              <th scope="col" style="padding: 12px; font-weight: 500">What</th>
+              <th scope="col" style="padding: 12px; font-weight: 500">Environment</th>
+              <th scope="col" style="padding: 12px 20px; font-weight: 500; text-align: right">Result</th>
+            </tr>
+          </thead>
+          <tbody>
+            <sc-for list="{{rows}}" as="r" hint-placeholder-count="9">
+              <tr style="border-top: 1px solid #EEF1F5">
+                <td style="padding: 11px 20px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #5B6478; white-space: nowrap">{{r.when}}</td>
+                <td style="padding: 11px 12px">{{r.who}}</td>
+                <td style="padding: 11px 12px">{{r.what}}<sc-if value="{{r.note}}" hint-placeholder-val="{{ false }}"><div style="font-size: 13px; color: #A8331F; margin-top: 2px">{{r.note}}</div></sc-if></td>
+                <td style="padding: 11px 12px; color: #3A4256">{{r.env}}</td>
+                <td style="padding: 11px 20px; text-align: right"><span style="{{r.resultStyle}}">{{r.result}}</span></td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-top: 1px solid #EEF1F5; font-size: 13px; color: #5B6478">
+          <span>1–9 of 230</span>
+          <span style="display: flex; gap: 6px"><button type="button" disabled="disabled" style="height: 32px; padding: 0 12px; border: 1px solid #E1E6EF; border-radius: 7px; background: #FFFFFF; color: #9AA4B8; font: inherit; font-size: 13px">Previous</button><button type="button" style="height: 32px; padding: 0 12px; border: 1px solid #D4DAE5; border-radius: 7px; background: #FFFFFF; color: #141B2D; font: inherit; font-size: 13px">Next</button></span>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const ok = 'font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px;background:#E3F4EC;color:#0B6B44';
+    const bad = 'font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px;background:#FBEEEB;color:#A8331F';
+    const r = (when, who, what, env, fail, note) => ({ when, who, what, env, result: fail ? 'Failed' : 'Done', resultStyle: fail ? bad : ok, note: note || '' });
+    const rows = [
+      r('Today 08:02', 'Priya Nair', 'Started 5 VMs', 'Payments Dev'),
+      r('Today 07:58', 'Priya Nair', 'Locked until 14:30', 'Analytics QA'),
+      r('Today 07:30', 'Schedule "UAT with the client"', 'Start skipped: environment locked', 'CRM UAT'),
+      r('Today 06:30', 'Schedule "Nightly batch"', 'Started 5 VMs', 'Analytics QA'),
+      r('Fri 19:00', 'Karthik S', 'Stopped 6 VMs', 'CRM UAT'),
+      r('Fri 14:22', 'Priya Nair', 'Started report-worker', 'Analytics QA', true, 'AWS: InsufficientInstanceCapacity'),
+      r('Fri 11:05', 'Sanjay Rao', 'Granted Neha Gupta operator access, 7 days', 'Analytics QA'),
+      r('Thu 16:40', 'Sanjay Rao', 'Changed schedule "Office hours"', 'Payments Dev'),
+      r('Thu 09:12', 'Rahul Verma', 'Broke the lock held by Karthik S', 'CRM UAT')
+    ];
+    return { rows };
+  }
+}
+</script>
+</body>
+</html>

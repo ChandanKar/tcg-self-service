@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Edit group, move VM, email members</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column; position: relative">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="envadmin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="envadmin" active="registry" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main aria-hidden="true" style="flex: 999 1 560px; min-width: 0; padding: 20px 32px; display: flex; flex-direction: column; gap: 14px; box-sizing: border-box">
+      <div style="font-size: 28px; font-weight: 600; letter-spacing: -0.02em">VM registry</div>
+      <div style="height: 580px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px"></div>
+    </main>
+  </div>
+  <div style="position: absolute; inset: 0; z-index: 30; background: rgba(10,20,48,0.42); display: flex; align-items: flex-start; justify-content: center; gap: 20px; padding: 64px 24px; box-sizing: border-box">
+
+    <div role="dialog" aria-labelledby="grp-t" style="width: 400px; background: #FFFFFF; border-radius: 14px; box-shadow: 0 24px 48px rgba(20,36,92,0.25); overflow: hidden">
+      <div style="padding: 18px 20px 4px"><h2 id="grp-t" style="margin: 0; font-size: 18px; font-weight: 600">Edit group: Application</h2></div>
+      <div style="padding: 12px 20px; display: flex; flex-direction: column; gap: 12px">
+        <label style="display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; font-weight: 500">Name<input type="text" defaultValue="Application" style="height: 36px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 10px; font: inherit; font-weight: 400"></label>
+        <label style="display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; font-weight: 500">Start order<select style="height: 36px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-weight: 400"><option>2nd</option><option>1st</option><option>3rd</option></select></label>
+        <fieldset style="border: 0; padding: 0; margin: 0"><legend style="font-size: 13.5px; font-weight: 500; padding: 0; margin-bottom: 6px">Waits for these groups to be running</legend>
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; padding: 4px 0"><input type="checkbox" checked="checked" style="accent-color: #14245C">Database</label>
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; padding: 4px 0; color: #9AA4B8"><input type="checkbox" disabled="disabled">Web <span style="font-size: 12.5px">· would make a loop</span></label></fieldset>
+        <label style="display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; font-weight: 500">Description<input type="text" defaultValue="Payments API servers" style="height: 36px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 10px; font: inherit; font-weight: 400"></label>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; background: #FAFBFD; border-top: 1px solid #E1E6EF"><a href="EnvSettings.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #D4DAE5; color: #141B2D; text-decoration: none; font-size: 14px">Cancel</a><a href="EnvSettings.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">Save group</a></div>
+    </div>
+
+    <div role="dialog" aria-labelledby="mv-t" style="width: 380px; background: #FFFFFF; border-radius: 14px; box-shadow: 0 24px 48px rgba(20,36,92,0.25); overflow: hidden">
+      <div style="padding: 18px 20px 4px"><h2 id="mv-t" style="margin: 0; font-size: 18px; font-weight: 600">Move pay-cache</h2><p style="margin: 4px 0 0; font-size: 13.5px; color: #5B6478">Now in Database, start order 1</p></div>
+      <div style="padding: 12px 20px; display: flex; flex-direction: column; gap: 10px">
+        <label style="display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; font-weight: 500">Move to<select style="height: 36px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-weight: 400"><option>Application · starts 2nd</option><option>Web · starts 3rd</option></select></label>
+        <p style="margin: 0; font-size: 13px; color: #5B6478; line-height: 1.5">It goes to the end of that group's order. Any VM it was set to wait for is cleared.</p>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; background: #FAFBFD; border-top: 1px solid #E1E6EF"><a href="VmRegistry.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #D4DAE5; color: #141B2D; text-decoration: none; font-size: 14px">Cancel</a><a href="VmRegistry.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">Move VM</a></div>
+    </div>
+
+    <div role="dialog" aria-labelledby="nt-t" style="width: 420px; background: #FFFFFF; border-radius: 14px; box-shadow: 0 24px 48px rgba(20,36,92,0.25); overflow: hidden">
+      <div style="padding: 18px 20px 4px"><h2 id="nt-t" style="margin: 0; font-size: 18px; font-weight: 600">Tell everyone it's being stopped</h2><p style="margin: 4px 0 0; font-size: 13.5px; color: #5B6478">9 people can use Payments Dev</p></div>
+      <div style="padding: 12px 20px; display: flex; flex-direction: column; gap: 10px">
+        <label style="display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; font-weight: 500">Reason <span style="font-weight: 400; color: #5B6478; font-size: 12.5px">optional, included in the message</span><textarea rows="4" style="border: 1px solid #D4DAE5; border-radius: 8px; padding: 10px; font: inherit; font-weight: 400; resize: none">Stopping at 16:00 on Friday for the database upgrade. Save your work before then.</textarea></label>
+        <p style="margin: 0; font-size: 12.5px; color: #5B6478">Each of them gets an email and a notification in the app. Sent even when other email notices are switched off.</p>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; background: #FAFBFD; border-top: 1px solid #E1E6EF"><a href="EnvSettings.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #D4DAE5; color: #141B2D; text-decoration: none; font-size: 14px">Cancel</a><a href="EnvSettings.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">Send to 9 people</a></div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

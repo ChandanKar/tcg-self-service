@@ -24,8 +24,9 @@
 .re-body {
     display: flex;
     flex-direction: column;
-    gap: 18px;
-    padding: 20px 24px;
+    /* Tight enough that the editor fits 1440 x 900 without a page scrollbar (U17-T07). */
+    gap: 12px;
+    padding: 16px 24px;
 }
 
 .re-grid {
@@ -174,8 +175,8 @@
 .re-week {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 14px 16px;
+    gap: 6px;
+    padding: 10px 16px;
     background: var(--surface-subtle);
     border-radius: 10px;
 }
@@ -188,7 +189,7 @@
 }
 
 .re-week .week-track {
-    height: 12px;
+    height: 10px;
     border-radius: 3px;
     background: var(--surface-muted);
 }
@@ -268,4 +269,17 @@
         padding-left: 16px;
         padding-right: 16px;
     }
+}
+
+/* The hint and "Advanced: different times per day" share a line, so the editor fits 1440 x 900 (U17-T07). */
+.re-hint-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 4px 16px;
+}
+
+.re-hint-row .re-hint {
+    margin: 0;
 }

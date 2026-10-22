@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CRM UAT — alerts</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="user" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="user" active="environments" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 20px 32px 24px; display: flex; flex-direction: column; gap: 12px; box-sizing: border-box">
+      <nav aria-label="Breadcrumb" style="font-size: 13px; color: #5B6478; display: flex; gap: 8px"><a href="Environments.dc.html" style="color: #5B6478; text-decoration: none">Environments</a><span aria-hidden="true">/</span><span aria-current="page" style="color: #141B2D">CRM UAT</span></nav>
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+        <div><h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">CRM UAT</h1>
+          <p style="margin: 3px 0 0; font-size: 14px; color: #5B6478"><span style="font-family: 'IBM Plex Mono', monospace">crm-uat</span> · AWS EC2 · CRM team</p></div>
+        <div style="display: flex; gap: 8px; align-items: center">
+          <a href="EnvInsights.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 8px; color: #3A4256; text-decoration: none; font-size: 14px">Insights</a>
+          <a href="OperationHistory.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 8px; color: #3A4256; text-decoration: none; font-size: 14px">History</a>
+          <button type="button" disabled="disabled" title="Starts are blocked by the budget" style="display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 8px; border: 0; background: #C9D9D1; color: #FFFFFF; font: inherit; font-weight: 500; font-size: 14px">Start all</button>
+        </div>
+      </div>
+      <p style="margin: 0; font-size: 13px; color: #5B6478">This screen stacks every alert an environment page can show, most urgent first. In real use only the ones that apply appear.</p>
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <sc-for list="{{alerts}}" as="a" hint-placeholder-count="7">
+          <div role="{{a.role}}" style="display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 11px 16px; border-radius: 10px; background: {{a.bg}}; border: 1px solid {{a.border}}">
+            <span style="width: 10px; height: 10px; border-radius: 50%; background: {{a.dot}}"></span>
+            <span style="font-size: 14px; color: #141B2D"><b style="font-weight: 600">{{a.title}}</b> <span style="color: #3A4256">{{a.detail}}</span></span>
+            <span style="display: flex; gap: 14px; font-size: 13.5px; white-space: nowrap"><a href="{{a.href}}" style="font-weight: 500; text-decoration: none">{{a.action}}</a><span style="color: #5B6478">{{a.kind}}</span></span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px">
+        <div style="height: 250px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #9AA4B8; font-size: 14px">Start order and VMs, as on the environment page</div>
+        <div style="height: 250px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #9AA4B8; font-size: 14px">Lock, lease, schedule, cost</div>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const red = { bg: '#FBEEEB', border: '#F0C8BF', dot: '#C2412D', role: 'alert' };
+    const gold = { bg: '#FBF3DC', border: '#EEDCA6', dot: '#D9A21B', role: 'status' };
+    const navy = { bg: '#ECEFF8', border: '#D2D9EC', dot: '#14245C', role: 'status' };
+    const grey = { bg: '#FFFFFF', border: '#E1E6EF', dot: '#9AA4B8', role: 'status' };
+    const a = (tone, title, detail, action, href, kind) => ({ ...tone, title, detail, action, href, kind });
+    const alerts = [
+      a(red, 'Starts are blocked.', 'CRM UAT passed its October budget of $300 and an owner approved freezing new starts. An owner can lift it.', 'Ask to lift', 'Budgets.dc.html', 'Budget'),
+      a(red, 'Locked by Rahul Verma', 'since 09:10, "Load test prep", until 14:30. You can see it but not start or stop VMs.', 'Lock history', 'LockLease.dc.html', 'Lock'),
+      a(navy, 'Your start for 24 hours is waiting', 'for Sanjay Rao. Asked 10 min ago; expires in 3 h 50 min.', 'Cancel request', 'Approvals.dc.html', 'Approval'),
+      a(gold, 'Stops in 12 minutes.', 'The lease ends at 18:00. You were reminded at 17:00 and 17:45.', 'Extend', 'LockLease.dc.html', 'Lease'),
+      a(gold, 'Spend was 3× usual yesterday:', '$96 against about $31. Top cause: EC2 data transfer out.', 'Review', 'Anomalies.dc.html', 'Cost'),
+      a(gold, '1 VM changed outside the platform:', 'crm-web-01 was started in the AWS console at 07:12.', 'Details', 'VmDetails.dc.html', 'Drift'),
+      a(grey, 'VM states may be out of date.', 'They were last read from AWS 2 hours ago; the platform keeps trying.', 'System health', 'SystemHealth.dc.html', 'Sync')
+    ];
+    return { alerts };
+  }
+}
+</script>
+</body>
+</html>

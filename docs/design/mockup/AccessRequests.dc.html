@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Access requests</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="envadmin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="envadmin" active="requests" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+        <div>
+          <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Access requests</h1>
+          <p style="margin: 6px 0 0; font-size: 15px; color: #5B6478">People asking to use environments you look after. Oldest first.</p>
+        </div>
+        <label style="font-size: 13px; color: #5B6478; display: flex; align-items: center; gap: 8px">Environment
+          <select style="height: 36px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-size: 14px; color: #141B2D"><option>All (3 waiting)</option><option>Analytics QA</option><option>CRM UAT</option></select></label>
+      </div>
+      <p style="margin: 0; font-size: 14px; color: #3A4256">Requests to start or extend environments are on <a href="Approvals.dc.html" style="text-decoration: none">Approvals</a> · 2 waiting.</p>
+
+      <sc-for list="{{requests}}" as="r" hint-placeholder-count="3">
+        <article style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 18px 20px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px 24px; align-items: start">
+          <div style="display: flex; flex-direction: column; gap: 12px; min-width: 0">
+            <div style="display: flex; align-items: center; gap: 12px">
+              <span style="width: 36px; height: 36px; border-radius: 50%; background: #ECEFF8; color: #14245C; font-weight: 600; font-size: 13px; display: flex; align-items: center; justify-content: center; flex-shrink: 0">{{r.initials}}</span>
+              <div style="min-width: 0">
+                <div style="font-size: 15px"><b style="font-weight: 600">{{r.name}}</b> wants <b style="font-weight: 600">{{r.level}}</b> on <b style="font-weight: 600">{{r.env}}</b></div>
+                <div style="font-size: 13px; color: #5B6478">{{r.email}} · asked {{r.when}}</div>
+              </div>
+            </div>
+            <p style="margin: 0; font-size: 14px; padding: 10px 12px; background: #F7F8FB; border-radius: 8px">"{{r.reason}}"</p>
+            <dl style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; font-size: 13px">
+              <div><dt style="color: #5B6478">Part of it</dt><dd style="margin: 2px 0 0; font-size: 14px">{{r.scope}}</dd></div>
+              <div><dt style="color: #5B6478">For</dt><dd style="margin: 2px 0 0; font-size: 14px">{{r.duration}}</dd></div>
+              <div><dt style="color: #5B6478">Has today</dt><dd style="margin: 2px 0 0; font-size: 14px">{{r.current}}</dd></div>
+            </dl>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px">
+            <label style="font-size: 12px; color: #5B6478; display: flex; flex-direction: column; gap: 4px">Approve for
+              <select style="height: 36px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-size: 14px; color: #141B2D"><option>{{r.duration}}</option><option>7 days</option><option>90 days</option></select></label>
+            <a href="AccessRequests.dc.html" style="display: flex; align-items: center; justify-content: center; height: 38px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">Approve</a>
+            <a href="AccessRequests.dc.html" style="display: flex; align-items: center; justify-content: center; height: 38px; border-radius: 8px; border: 1px solid #E8B8AE; background: #FFFFFF; color: #A8331F; text-decoration: none; font-weight: 500; font-size: 14px">Deny…</a>
+          </div>
+        </article>
+      </sc-for>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const requests = [
+      { initials: 'PN', name: 'Priya Nair', email: 'priya.nair@tcgdigital.com', when: '2 h ago', level: 'operator access', env: 'Analytics QA',
+        reason: 'Running the data-quality regression for release 4.2', scope: 'Whole environment', duration: '30 days', current: 'Operator on the Application group, no end date' },
+      { initials: 'KS', name: 'Karthik S', email: 'karthik.s@tcgdigital.com', when: 'yesterday', level: 'an extension', env: 'CRM UAT',
+        reason: 'Client UAT moved by a week', scope: 'Whole environment', duration: '7 more days', current: 'Operator until 20 Oct' },
+      { initials: 'AM', name: 'Arjun Mehta', email: 'arjun.mehta@tcgdigital.com', when: 'yesterday', level: 'view access', env: 'Analytics QA',
+        reason: 'Reviewing cost for the quarterly report', scope: 'Whole environment', duration: '30 days', current: 'None' }
+    ];
+    return { requests };
+  }
+}
+</script>
+</body>
+</html>

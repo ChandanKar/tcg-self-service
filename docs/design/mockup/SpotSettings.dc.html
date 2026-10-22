@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Partner Portal QA settings — Spot</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="envadmin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="envadmin" active="registry" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 20px 32px 24px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box">
+      <div>
+        <nav aria-label="Breadcrumb" style="font-size: 13px; color: #5B6478; display: flex; gap: 8px; margin-bottom: 6px"><a href="VmRegistry.dc.html" style="color: #5B6478; text-decoration: none">VM registry</a><span aria-hidden="true">/</span><a href="EnvSettings.dc.html" style="color: #5B6478; text-decoration: none">Partner Portal QA settings</a><span aria-hidden="true">/</span><span aria-current="page" style="color: #141B2D">Spot</span></nav>
+        <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Spot</h1>
+        <p style="margin: 4px 0 0; font-size: 15px; color: #5B6478">Run EKS node groups on spare AWS capacity for up to 70% less. AWS can take the nodes back at short notice. For EKS environments only.</p>
+      </div>
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start">
+        <section style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden">
+          <div style="padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid #EEF1F5">
+            <h2 style="margin: 0; font-size: 16px; font-weight: 600">This environment</h2>
+            <label style="display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid #E1E6EF; border-radius: 9px; font-size: 14px"><input type="radio" name="spot" style="margin-top: 3px"><span><b style="font-weight: 500">Not allowed</b><span style="display: block; font-size: 12.5px; color: #5B6478">Every node group stays on on-demand capacity</span></span></label>
+            <label style="display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1.5px solid #14245C; border-radius: 9px; font-size: 14px"><input type="radio" name="spot" checked="checked" style="margin-top: 3px"><span><b style="font-weight: 500">Allowed for the node groups you choose</b><span style="display: block; font-size: 12.5px; color: #5B6478">Not offered for production environments</span>
+              <span style="display: flex; gap: 8px; align-items: center; margin-top: 8px; font-size: 13px"><input type="checkbox" checked="checked" style="accent-color: #14245C">I understand nodes on Spot can be interrupted</span></span></label>
+          </div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px">
+            <thead><tr style="background: #F7F8FB; color: #5B6478; font-size: 12.5px; text-align: left"><th scope="col" style="padding: 8px 20px; font-weight: 500">Node group</th><th scope="col" style="padding: 8px; font-weight: 500">Runs on</th><th scope="col" style="padding: 8px; font-weight: 500">On-demand standby</th><th scope="col" style="padding: 8px; font-weight: 500; text-align: right">Saves a month</th><th scope="col" style="padding: 8px 20px"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Action</span></th></tr></thead>
+            <tbody>
+              <sc-for list="{{groups}}" as="v" hint-placeholder-count="3">
+                <tr style="border-top: 1px solid #EEF1F5"><td style="padding: 9px 20px; font-weight: 500">{{v.name}}<span style="display: block; font-size: 12.5px; color: #5B6478; font-weight: 400">{{v.size}}</span></td><td style="padding: 9px 8px"><span style="{{v.tagStyle}}">{{v.on}}</span></td><td style="padding: 9px 8px; font-size: 13px; color: #3A4256">{{v.standby}}</td><td style="padding: 9px 8px; text-align: right; font-family: 'IBM Plex Mono', monospace; color: #0B6B44">{{v.saves}}</td><td style="padding: 9px 20px; text-align: right; white-space: nowrap"><span style="display: inline-flex; gap: 12px"><a href="SpotSettings.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none; {{v.actionStyle}}">{{v.action}}</a><a sc-if="{{v.exclude}}" href="SpotSettings.dc.html" style="font-size: 13px; color: #5B6478; text-decoration: none">{{v.exclude}}</a></span></td></tr>
+              </sc-for>
+            </tbody>
+          </table>
+          <p style="margin: 0; padding: 10px 20px 14px; font-size: 12.5px; color: #5B6478; border-top: 1px solid #EEF1F5">Moving to Spot creates a Spot copy of the node group and keeps the original at 0 nodes as a standby. Going back starts the standby and removes the copy.</p>
+        </section>
+        <aside style="display: flex; flex-direction: column; gap: 14px">
+          <div style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px">
+            <h2 style="margin: 0; font-size: 15px; font-weight: 600">If AWS takes nodes back</h2>
+            <p style="margin: 0; font-size: 13.5px; color: #3A4256; line-height: 1.5">When a Spot group stays short of nodes for 10 minutes, its on-demand standby starts and this environment's admins are told. Once Spot is healthy again, the standby goes back to 0.</p>
+            <p style="margin: 0; font-size: 12.5px; color: #5B6478">Switched on for the whole platform by an administrator.</p>
+          </div>
+          <div style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 6px">
+            <h2 style="margin: 0 0 4px; font-size: 15px; font-weight: 600">Interruptions, 30 days</h2>
+            <div style="display: flex; justify-content: space-between; font-size: 13.5px; padding: 6px 0; border-top: 1px solid #EEF1F5"><span>app-nodes · Fri 14:06</span><span style="color: #5B6478">standby ran 22 min</span></div>
+            <div style="font-size: 12.5px; color: #5B6478; margin-top: 4px">Saved <span style="font-family: 'IBM Plex Mono', monospace; color: #0B6B44">$61</span> on Spot this month.</div>
+          </div>
+        </aside>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px"><a href="EnvSettings.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 14px; border-radius: 8px; border: 1px solid #D4DAE5; color: #141B2D; text-decoration: none; font-weight: 500; font-size: 14px">Back to settings</a><a href="SpotSettings.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 16px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">Save</a></div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const tag = (spot) => 'font-size:12px;font-weight:500;padding:2px 9px;border-radius:999px;' + (spot ? 'background:#ECEFF8;color:#14245C' : 'background:#ECEFF5;color:#4A5368');
+    const groups = [
+      { name: 'system-nodes', size: '3 × m6i.large', on: 'On-demand · kept off Spot', tagStyle: tag(false), standby: '—', saves: '—', action: 'Allow Spot', actionStyle: '', exclude: '' },
+      { name: 'app-nodes', size: '2 × c6i.xlarge', on: 'Spot', tagStyle: tag(true), standby: 'Ready at 0 nodes', saves: '$61', action: 'Back to on-demand', actionStyle: 'color:#A8331F', exclude: '' },
+      { name: 'batch-nodes', size: '2 × c6i.2xlarge', on: 'On-demand', tagStyle: tag(false), standby: '—', saves: 'about $96', action: 'Move to Spot', actionStyle: '', exclude: 'Keep off Spot' }
+    ];
+    return { groups };
+  }
+}
+</script>
+</body>
+</html>

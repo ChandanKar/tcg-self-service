@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Partner Portal QA — EKS</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="user" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="user" active="environments" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 20px 32px 24px; display: flex; flex-direction: column; gap: 14px; box-sizing: border-box">
+      <nav aria-label="Breadcrumb" style="font-size: 13px; color: #5B6478; display: flex; gap: 8px"><a href="Environments.dc.html" style="color: #5B6478; text-decoration: none">Environments</a><span aria-hidden="true">/</span><span aria-current="page" style="color: #141B2D">Partner Portal QA</span></nav>
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+        <div><h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Partner Portal QA</h1>
+          <p style="margin: 3px 0 0; font-size: 14px; color: #5B6478">AWS EKS · cluster <span style="font-family: 'IBM Plex Mono', monospace">partner-qa-eks</span> · <span style="font-family: 'IBM Plex Mono', monospace">ap-south-1</span> · Kubernetes 1.30</p></div>
+        <div style="display: flex; gap: 8px; align-items: center">
+          <a href="EnvInsights.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 8px; color: #3A4256; text-decoration: none; font-size: 14px">Insights</a>
+          <a href="OperationHistory.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 8px; color: #3A4256; text-decoration: none; font-size: 14px">History</a>
+          <a href="EksEnv.dc.html" style="display: inline-flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid #E8B8AE; background: #FFFFFF; color: #A8331F; text-decoration: none; font-weight: 500; font-size: 14px">Scale all to 0</a>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; align-items: start">
+        <div style="display: flex; flex-direction: column; gap: 14px; min-width: 0">
+          <section aria-labelledby="ng" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden">
+            <h2 id="ng" style="margin: 0; padding: 12px 16px; font-size: 15px; font-weight: 600; border-bottom: 1px solid #EEF1F5">Node groups <span style="font-weight: 400; color: #5B6478; font-size: 13px">· start top to bottom</span></h2>
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px">
+              <thead><tr style="background: #F7F8FB; color: #5B6478; font-size: 12.5px; text-align: left"><th scope="col" style="padding: 8px 16px; font-weight: 500">Node group</th><th scope="col" style="padding: 8px; font-weight: 500">Nodes</th><th scope="col" style="padding: 8px; font-weight: 500">Size</th><th scope="col" style="padding: 8px; font-weight: 500">Running / when started</th><th scope="col" style="padding: 8px; font-weight: 500">Capacity</th><th scope="col" style="padding: 8px 16px"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Action</span></th></tr></thead>
+              <tbody>
+                <sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+                  <tr style="border-top: 1px solid #EEF1F5"><td style="padding: 9px 16px; font-weight: 500">{{g.name}}</td><td style="padding: 9px 8px"><dc-import name="PowerStrip" states="{{g.states}}" show-count="{{ false }}" hint-size="80px,16px"></dc-import></td><td style="padding: 9px 8px; font-family: 'IBM Plex Mono', monospace; font-size: 13px">{{g.size}}</td><td style="padding: 9px 8px; font-family: 'IBM Plex Mono', monospace; font-size: 13px">{{g.count}}</td><td style="padding: 9px 8px; font-size: 13px; color: #3A4256">{{g.cap}}</td><td style="padding: 9px 16px; text-align: right"><a href="{{g.href}}" style="{{g.btn}}">{{g.action}}</a></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </section>
+          <section aria-labelledby="ns" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden">
+            <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 12px 16px; border-bottom: 1px solid #EEF1F5"><h2 id="ns" style="margin: 0; font-size: 15px; font-weight: 600">Cost by namespace, this month</h2><span style="font-size: 12.5px; color: #5B6478">From the pods' CPU and memory requests (AWS split cost data)</span></div>
+            <sc-for list="{{ns}}" as="n" hint-placeholder-count="6">
+              <div style="display: grid; grid-template-columns: 170px minmax(0, 1fr) 80px 70px; gap: 12px; align-items: center; padding: 7px 16px; border-top: 1px solid #F1F3F7; font-size: 13.5px">
+                <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px">{{n.name}}</span><span style="height: 8px; border-radius: 4px; background: #F1F3F7; overflow: hidden"><span style="{{n.bar}}"></span></span><span style="font-family: 'IBM Plex Mono', monospace; text-align: right">{{n.cost}}</span><span style="font-size: 12.5px; color: #5B6478; text-align: right">{{n.share}}</span>
+              </div>
+            </sc-for>
+          </section>
+        </div>
+        <aside style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; display: flex; flex-direction: column">
+          <div style="padding: 14px 16px; border-bottom: 1px solid #EEF1F5"><div style="font-size: 15px"><b style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 20px">5</b> of <b style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 20px">7</b> nodes running</div></div>
+          <sc-for list="{{facts}}" as="f" hint-placeholder-count="4">
+            <div style="padding: 11px 16px; border-bottom: 1px solid #EEF1F5"><div style="font-size: 12.5px; color: #5B6478; font-weight: 500">{{f.label}}</div><div style="font-size: 14px; margin-top: 2px">{{f.value}}</div><div style="font-size: 12.5px; color: #5B6478">{{f.note}}</div></div>
+          </sc-for>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const stop = 'display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:7px;border:1px solid #E8B8AE;color:#A8331F;text-decoration:none;font-size:13px;font-weight:500';
+    const start = 'display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:7px;border:1px solid #A8D8C1;color:#0B6B44;text-decoration:none;font-size:13px;font-weight:500';
+    const groups = [
+      { name: 'system-nodes', states: 'RRR', size: 'm6i.large', count: '3 / 3', cap: 'On-demand', action: 'Scale to 0', btn: stop, href: 'EksEnv.dc.html' },
+      { name: 'app-nodes', states: 'RR', size: 'c6i.xlarge', count: '2 / 2', cap: 'Spot, falls back to on-demand', action: 'Scale to 0', btn: stop, href: 'EksEnv.dc.html' },
+      { name: 'batch-nodes', states: 'SS', size: 'c6i.2xlarge', count: '0 / 2', cap: 'On-demand', action: 'Start', btn: start, href: 'StartConfirm.dc.html' }
+    ];
+    const list = [['checkout', 96], ['partner-api', 74], ['search', 41], ['monitoring', 28], ['kube-system', 22], ['(idle capacity)', 44]];
+    const total = list.reduce((s, x) => s + x[1], 0);
+    const ns = list.map(([name, c]) => ({ name, cost: '$' + c, share: Math.round(c / total * 100) + '%', bar: `display:block;height:100%;width:${c / 96 * 100}%;background:${name.startsWith('(') ? '#D9A21B' : '#14245C'};border-radius:4px` }));
+    const facts = [
+      { label: 'This month', value: '$305 · $46 of it is the EKS cluster fee', note: 'The fee runs even when nodes are at 0' },
+      { label: 'Lease', value: 'Stops at 20:00', note: 'Node groups scale to 0 in reverse order' },
+      { label: 'Idle capacity', value: '$44 of node time not requested by any pod', note: 'Consider smaller nodes for app-nodes' },
+      { label: 'Spot', value: 'app-nodes on Spot · 1 interruption this month', note: 'Fell back to on-demand for 22 min' }
+    ];
+    return { groups, ns, facts };
+  }
+}
+</script>
+</body>
+</html>

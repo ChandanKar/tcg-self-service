@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Payments Dev — settings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="envadmin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="envadmin" active="registry" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 20px 32px 24px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box">
+      <div>
+        <nav aria-label="Breadcrumb" style="font-size: 13px; color: #5B6478; display: flex; gap: 8px; margin-bottom: 6px"><a href="VmRegistry.dc.html" style="color: #5B6478; text-decoration: none">VM registry</a><span aria-hidden="true">/</span><a href="EnvDetail.dc.html" style="color: #5B6478; text-decoration: none">Payments Dev</a><span aria-hidden="true">/</span><span aria-current="page" style="color: #141B2D">Settings</span></nav>
+        <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Payments Dev settings</h1>
+      </div>
+      <div style="display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 16px; align-items: start">
+        <nav aria-label="Settings sections" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 6px 0">
+          <sc-for list="{{sections}}" as="s" hint-placeholder-count="8">
+            <a href="{{s.href}}" onClick="{{s.pick}}" aria-current="{{s.current}}" style="{{s.style}}">{{s.label}}</a>
+          </sc-for>
+        </nav>
+        <section style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden">
+
+          <sc-if value="{{isGeneral}}" hint-placeholder-val="{{ true }}">
+            <div style="padding: 18px 22px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px">
+              <h2 style="grid-column: span 2; margin: 0; font-size: 17px; font-weight: 600">Details</h2>
+              <label style="display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; font-weight: 500">Display name<input type="text" defaultValue="Payments Dev" style="height: 38px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 10px; font: inherit; font-weight: 400"></label>
+              <label style="display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; font-weight: 500">Short name<input type="text" defaultValue="payments-dev" disabled="disabled" style="height: 38px; border: 1px solid #E1E6EF; border-radius: 8px; padding: 0 10px; font-family: 'IBM Plex Mono', monospace; font-size: 13.5px; background: #F7F8FB; color: #5B6478"></label>
+              <label style="grid-column: span 2; display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; font-weight: 500">Description<input type="text" defaultValue="Development stack for the payments service" style="height: 38px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 10px; font: inherit; font-weight: 400"></label>
+              <label style="display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; font-weight: 500">Team (pays for it)<select style="height: 38px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-weight: 400"><option>Payments · CC-4105</option><option>Data</option><option>CRM</option></select></label>
+              <label style="display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; font-weight: 500">AWS account<input type="text" defaultValue="Engineering" disabled="disabled" style="height: 38px; border: 1px solid #E1E6EF; border-radius: 8px; padding: 0 10px; font: inherit; font-weight: 400; background: #F7F8FB; color: #5B6478"></label>
+              <label style="grid-column: span 2; display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border: 1px solid #E1E6EF; border-radius: 10px; font-size: 14px"><input type="checkbox" style="margin-top: 3px; accent-color: #14245C"><span><b style="font-weight: 500">Production</b><span style="display: block; font-size: 13px; color: #5B6478">Never stopped by idle auto-stop, and marked as production wherever it is listed.</span></span></label>
+              <div style="grid-column: span 2; display: flex; flex-direction: column; gap: 6px">
+                <div style="font-size: 13.5px; font-weight: 500">Tags on every VM <span style="font-weight: 400; color: #5B6478">· used for cost allocation</span></div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: center; font-size: 13.5px"><input type="text" defaultValue="cost-centre" aria-label="Tag name" style="height: 34px; border: 1px solid #D4DAE5; border-radius: 7px; padding: 0 8px; font-family: 'IBM Plex Mono', monospace; font-size: 13px"><input type="text" defaultValue="CC-4105" aria-label="Tag value" style="height: 34px; border: 1px solid #D4DAE5; border-radius: 7px; padding: 0 8px; font-family: 'IBM Plex Mono', monospace; font-size: 13px"><button type="button" style="border: 0; background: none; color: #A8331F; font: inherit; font-size: 13px; cursor: pointer">Remove</button></div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: center; font-size: 13.5px"><input type="text" defaultValue="project" aria-label="Tag name" style="height: 34px; border: 1px solid #D4DAE5; border-radius: 7px; padding: 0 8px; font-family: 'IBM Plex Mono', monospace; font-size: 13px"><input type="text" defaultValue="PAY-118" aria-label="Tag value" style="height: 34px; border: 1px solid #D4DAE5; border-radius: 7px; padding: 0 8px; font-family: 'IBM Plex Mono', monospace; font-size: 13px"><button type="button" style="border: 0; background: none; color: #A8331F; font: inherit; font-size: 13px; cursor: pointer">Remove</button></div>
+                <button type="button" style="align-self: flex-start; border: 0; background: none; color: #2F4A9E; font: inherit; font-size: 13.5px; cursor: pointer; padding: 0">Add a tag</button>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{isGroups}}" hint-placeholder-val="{{ false }}">
+            <div style="padding: 18px 22px; display: flex; flex-direction: column; gap: 12px">
+              <div style="display: flex; justify-content: space-between; align-items: baseline"><h2 style="margin: 0; font-size: 17px; font-weight: 600">Groups and start order</h2><a href="EnvSettings.dc.html" style="font-size: 14px; text-decoration: none">Add a group</a></div>
+              <p style="margin: 0; font-size: 14px; color: #5B6478">Groups start top to bottom and stop bottom to top. A group can also wait for specific groups.</p>
+              <sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+                <div style="display: grid; grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1.3fr) auto; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid #E1E6EF; border-radius: 10px">
+                  <span style="display: flex; flex-direction: column; gap: 2px"><button type="button" aria-label="Move {{g.name}} up" style="height: 20px; border: 1px solid #D4DAE5; border-radius: 5px; background: #FFFFFF; font-size: 11px; cursor: pointer">▲</button><button type="button" aria-label="Move {{g.name}} down" style="height: 20px; border: 1px solid #D4DAE5; border-radius: 5px; background: #FFFFFF; font-size: 11px; cursor: pointer">▼</button></span>
+                  <span><b style="font-weight: 600">{{g.order}} · {{g.name}}</b><span style="display: block; font-size: 12.5px; color: #5B6478">{{g.vms}}</span></span>
+                  <span style="font-size: 13.5px; color: #3A4256">{{g.after}}</span>
+                  <span style="display: flex; gap: 12px; font-size: 13px"><a href="EnvSettings.dc.html" style="text-decoration: none">Edit</a><a href="EnvSettings.dc.html" style="text-decoration: none; color: #A8331F">Delete</a></span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{isLeases}}" hint-placeholder-val="{{ false }}">
+            <div style="padding: 18px 22px; display: flex; flex-direction: column; gap: 14px; max-width: 620px">
+              <h2 style="margin: 0; font-size: 17px; font-weight: 600">Leases</h2>
+              <label style="display: flex; gap: 10px; align-items: flex-start; font-size: 14px"><input type="checkbox" role="switch" checked="checked" style="margin-top: 3px; accent-color: #14245C"><span><b style="font-weight: 500">Stop when the lease ends</b><span style="display: block; font-size: 13px; color: #5B6478">Every start gets an end time. People are reminded 60, 15 and 5 minutes before, and can extend.</span></span></label>
+              <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px">
+                <label style="display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; font-weight: 500">Default length<select style="height: 38px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-weight: 400"><option>8 hours</option><option>4 hours</option><option>12 hours</option></select></label>
+                <label style="display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; font-weight: 500">Longest without approval<select style="height: 38px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-weight: 400"><option>8 more hours</option><option>4 more hours</option><option>24 more hours</option></select></label>
+              </div>
+              <div style="padding: 12px 14px; border-radius: 10px; background: #F7F8FB; font-size: 14px; display: flex; justify-content: space-between; gap: 10px"><span>Idle auto-stop: <b style="font-weight: 500">dry run</b>, after 60 min idle</span><a href="IdleStop.dc.html" style="font-weight: 500; text-decoration: none">Idle auto-stop</a></div>
+              <div style="padding: 12px 14px; border-radius: 10px; background: #F7F8FB; font-size: 14px; display: flex; justify-content: space-between; gap: 10px"><span>Schedule: <b style="font-weight: 500">Office hours</b>, Mon–Fri 08:00–20:00</span><a href="AutomationRules.dc.html" style="font-weight: 500; text-decoration: none">Automation rules</a></div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{isNotify}}" hint-placeholder-val="{{ false }}">
+            <div style="padding: 18px 22px; display: flex; flex-direction: column; gap: 12px">
+              <div style="display: flex; justify-content: space-between; align-items: baseline"><h2 style="margin: 0; font-size: 17px; font-weight: 600">Notifications</h2><a href="EnvSettings.dc.html" style="font-size: 14px; text-decoration: none">Email everyone with access…</a></div>
+              <div style="font-size: 13.5px; font-weight: 600; color: #5B6478">Microsoft Teams channels</div>
+              <div style="display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid #E1E6EF; border-radius: 10px; font-size: 14px">
+                <span><b style="font-weight: 500">Platform team</b><span style="display: block; font-size: 12.5px; color: #5B6478">Failures, idle stops, leases ending, budget alerts · …westeurope.logic.azure.com</span></span>
+                <span style="font-size: 12px; font-weight: 500; padding: 2px 9px; border-radius: 999px; background: #E3F4EC; color: #0B6B44">Delivered 10:02</span>
+                <span style="display: flex; gap: 12px; font-size: 13px"><a href="EnvSettings.dc.html" style="text-decoration: none">Send a test</a><a href="EnvSettings.dc.html" style="text-decoration: none">Edit</a></span>
+              </div>
+              <a href="EnvSettings.dc.html" style="align-self: flex-start; font-size: 14px; text-decoration: none">Add a Teams channel</a>
+              <div style="font-size: 13.5px; font-weight: 600; color: #5B6478; margin-top: 6px">Webhooks</div>
+              <div style="padding: 12px 14px; border-radius: 10px; background: #F7F8FB; font-size: 14px; color: #3A4256">Webhooks are switched off for the platform. An administrator can switch them on in Settings › Integrations.</div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{isDanger}}" hint-placeholder-val="{{ false }}">
+            <div style="padding: 18px 22px; display: flex; flex-direction: column; gap: 12px; max-width: 620px">
+              <h2 style="margin: 0; font-size: 17px; font-weight: 600">Deactivate</h2>
+              <p style="margin: 0; font-size: 14px; color: #3A4256; line-height: 1.6">The environment disappears from lists and schedules and its lock is released. VMs keep running in AWS; stop them first if you want them off. An administrator can bring it back.</p>
+              <label style="display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; font-weight: 500">Type <span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500">payments-dev</span> to confirm<input type="text" style="height: 38px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 10px; font-family: 'IBM Plex Mono', monospace; font-size: 14px"></label>
+              <button type="button" disabled="disabled" style="align-self: flex-start; height: 38px; padding: 0 16px; border-radius: 8px; border: 1px solid #E8B8AE; background: #FFFFFF; color: #C9A39B; font: inherit; font-weight: 500; font-size: 14px">Deactivate Payments Dev</button>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{showSave}}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; justify-content: flex-end; gap: 10px; padding: 14px 22px; border-top: 1px solid #E1E6EF; background: #FAFBFD">
+              <a href="EnvSettings.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 14px; border-radius: 8px; border: 1px solid #D4DAE5; color: #141B2D; text-decoration: none; font-weight: 500; font-size: 14px">Discard</a>
+              <a href="EnvSettings.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 16px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">Save changes</a>
+            </div>
+          </sc-if>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { sec: 'general' }; }
+  renderVals() {
+    const sec = this.state.sec;
+    const items = [['general', 'Details'], ['groups', 'Groups and start order'], ['leases', 'Running and stopping'], ['idle', 'Idle auto-stop', 'IdleStop.dc.html'], ['budget', 'Budget', 'Budgets.dc.html'], ['access', 'Who has access', 'GrantAccess.dc.html'], ['notify', 'Notifications'], ['danger', 'Deactivate']];
+    const sections = items.map(([k, label, href]) => ({
+      label, href: href || 'EnvSettings.dc.html', current: k === sec ? 'page' : 'false',
+      pick: href ? undefined : (e) => { e.preventDefault(); this.setState({ sec: k }); },
+      style: 'display:block;padding:9px 16px;font-size:14px;text-decoration:none;' + (k === sec ? 'background:#ECEFF8;color:#14245C;font-weight:600;box-shadow:inset 3px 0 0 #D9A21B' : (k === 'danger' ? 'color:#A8331F' : 'color:#2A3245'))
+    }));
+    const groups = [
+      { order: '1st', name: 'Database', vms: '3 VMs', after: 'Starts first' },
+      { order: '2nd', name: 'Application', vms: '2 VMs', after: 'Waits for Database' },
+      { order: '3rd', name: 'Web', vms: '2 VMs', after: 'Waits for Application' }
+    ];
+    return { sections, groups, isGeneral: sec === 'general', isGroups: sec === 'groups', isLeases: sec === 'leases', isNotify: sec === 'notify', isDanger: sec === 'danger', showSave: sec !== 'danger' };
+  }
+}
+</script>
+</body>
+</html>

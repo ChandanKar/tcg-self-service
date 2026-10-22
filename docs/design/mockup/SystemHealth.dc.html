@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>System health</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="admin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="admin" active="health" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+        <div>
+          <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">System health</h1>
+          <p style="margin: 6px 0 0; font-size: 15px; color: #5B6478">Whether the platform's background work is running on time.</p>
+        </div>
+        <div style="display: flex; gap: 8px">
+          <a href="SystemHealth.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 14px; border-radius: 8px; border: 1px solid #D4DAE5; background: #FFFFFF; color: #141B2D; text-decoration: none; font-weight: 500; font-size: 14px">Sync EKS now</a>
+          <a href="SystemHealth.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 14px; border-radius: 8px; border: 1px solid #B9C2DA; background: #FFFFFF; color: #14245C; text-decoration: none; font-weight: 500; font-size: 14px">Sync VM state now</a>
+        </div>
+      </div>
+      <div role="tablist" aria-label="System health" style="display: flex; gap: 4px; border-bottom: 1px solid #E1E6EF; margin-top: -6px">
+        <a role="tab" aria-selected="true" href="SystemHealth.dc.html" style="font-size: 14px; padding: 10px 14px; color: #14245C; font-weight: 600; text-decoration: none; border-bottom: 2px solid #14245C; margin-bottom: -1px">Now</a><a role="tab" aria-selected="false" href="SystemHealthFleet.dc.html" style="font-size: 14px; padding: 10px 14px; color: #5B6478; text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px">Fleet use</a><a role="tab" aria-selected="false" href="SystemHealth.dc.html" style="font-size: 14px; padding: 10px 14px; color: #5B6478; text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px">Reports</a>
+      </div>
+      <section aria-label="Now" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr))">
+        <div style="padding: 18px 20px; border-right: 1px solid #EEF1F5"><div style="font-size: 13px; color: #5B6478">VM state sync</div><div style="font-size: 18px; margin-top: 4px; display: flex; align-items: center; gap: 8px"><span style="width: 9px; height: 9px; border-radius: 50%; background: #12915E"></span><span style="font-family: 'IBM Plex Mono', monospace">4 min</span> ago</div><div style="font-size: 13px; color: #5B6478">112 VMs, every 5 min</div></div>
+        <div style="padding: 18px 20px; border-right: 1px solid #EEF1F5"><div style="font-size: 13px; color: #5B6478">Drift, 24 h</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 22px; margin-top: 2px">0</div><div style="font-size: 13px; color: #5B6478">VMs changed outside the platform</div></div>
+        <div style="padding: 18px 20px; border-right: 1px solid #EEF1F5"><div style="font-size: 13px; color: #5B6478">Actions, 24 h</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 22px; margin-top: 2px">230</div><div style="font-size: 13px; color: #5B6478">99% succeeded · <a href="AuditLog.dc.html" style="text-decoration: none">Audit log</a></div></div>
+        <div style="padding: 18px 20px"><div style="font-size: 13px; color: #5B6478">Scheduled jobs</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 22px; margin-top: 2px">34/35</div><div style="font-size: 13px; color: #7A5000">1 late</div></div>
+      </section>
+      <section aria-labelledby="jobs-title" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid #EEF1F5; gap: 12px; flex-wrap: wrap">
+          <h2 id="jobs-title" style="margin: 0; font-size: 16px; font-weight: 600">Scheduled jobs</h2>
+          <div role="group" aria-label="Show" style="display: inline-flex; border: 1px solid #D4DAE5; border-radius: 8px; padding: 2px">
+            <button type="button" aria-pressed="false" style="border: 0; font: inherit; font-size: 12.5px; padding: 4px 10px; border-radius: 6px; background: transparent; color: #3A4256">Problems first</button>
+            <button type="button" aria-pressed="true" style="border: 0; font: inherit; font-size: 12.5px; padding: 4px 10px; border-radius: 6px; background: #14245C; color: #FFFFFF">All 35</button>
+          </div>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px">
+          <thead><tr style="color: #5B6478; font-size: 12.5px; text-align: left"><th scope="col" style="padding: 10px 20px; font-weight: 500">Job</th><th scope="col" style="padding: 10px 12px; font-weight: 500">Runs</th><th scope="col" style="padding: 10px 12px; font-weight: 500">Last run</th><th scope="col" style="padding: 10px 20px; font-weight: 500; text-align: right">Status</th></tr></thead>
+          <tbody>
+            <sc-for list="{{jobs}}" as="j" hint-placeholder-count="9">
+              <tr style="border-top: 1px solid #EEF1F5"><td style="padding: 10px 20px; font-weight: 500">{{j.name}}</td><td style="padding: 10px 12px; color: #3A4256">{{j.every}}</td><td style="padding: 10px 12px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #3A4256">{{j.last}}</td><td style="padding: 10px 20px; text-align: right"><span style="{{j.style}}">{{j.status}}</span></td></tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const st = (k) => 'font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px;' +
+      (k === 'ok' ? 'background:#E3F4EC;color:#0B6B44' : k === 'late' ? 'background:#FBF3DC;color:#7A5000' : 'background:#ECEFF5;color:#4A5368');
+    const j = (name, every, last, k, status) => ({ name, every, last, style: st(k), status });
+    const jobs = [
+      j('Cost snapshot', 'Every 6 hours', 'Today 09:40', 'late', '2 h late'),
+      j('VM state sync', 'Every 5 min', 'Today 17:41', 'ok', 'On time'),
+      j('Inventory sync', 'Every 30 min', 'Today 17:30', 'ok', 'On time'),
+      j('Automation rules', 'Every minute', 'Today 17:45', 'ok', 'On time'),
+      j('Lease reminders and stops', 'Every minute', 'Today 17:45', 'ok', 'On time'),
+      j('Access expiry', 'Daily 01:00', 'Today 01:00', 'ok', 'On time'),
+      j('Budget check', 'Hourly', 'Today 17:00', 'ok', 'On time'),
+      j('Idle auto-stop', 'Every 15 min', '—', 'off', 'Switched off'),
+      j('Waste sweep', 'Daily 06:00', 'Today 06:00', 'ok', 'On time')
+    ];
+    return { jobs };
+  }
+}
+</script>
+</body>
+</html>

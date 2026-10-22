@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Request access</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="user" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="user" active="request" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px; display: flex; flex-direction: column; gap: 18px; box-sizing: border-box">
+      <div>
+        <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Request access</h1>
+        <p style="margin: 6px 0 0; font-size: 15px; color: #5B6478">Pick an environment and say why. Its owners get your request and you hear back here and by email.</p>
+      </div>
+
+      <div role="tablist" aria-label="Request access" style="display: flex; gap: 4px; border-bottom: 1px solid #E1E6EF">
+        <sc-for list="{{tabs}}" as="t" hint-placeholder-count="2">
+          <button type="button" role="tab" aria-selected="{{t.selected}}" onClick="{{t.pick}}" style="{{t.style}}">{{t.label}}</button>
+        </sc-for>
+      </div>
+      <sc-if value="{{isNew}}" hint-placeholder-val="{{ true }}">
+      <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start">
+        <section aria-labelledby="avail-title" style="flex: 1 1 460px; min-width: 0; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid #EEF1F5; flex-wrap: wrap">
+            <h2 id="avail-title" style="margin: 0; font-size: 16px; font-weight: 600">Environments</h2>
+            <label style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; border: 1px solid #D4DAE5; border-radius: 8px">
+              <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="#5B6478" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="5.5"></circle><path d="m13.5 13.5 3.5 3.5"></path></svg>
+              <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search environments</span>
+              <input type="search" placeholder="Search" style="border: 0; outline: 0; font: inherit; font-size: 14px; flex: 1">
+            </label>
+          </div>
+          <sc-for list="{{envs}}" as="e" hint-placeholder-count="5">
+            <button type="button" onClick="{{e.pick}}" aria-pressed="{{e.pressed}}" style="{{e.style}}">
+              <span style="flex: 1; text-align: left">
+                <span style="display: block; font-weight: 600; font-size: 15px">{{e.name}}</span>
+                <span style="display: block; font-size: 13px; color: #5B6478; margin-top: 2px">{{e.desc}}</span>
+              </span>
+              <span style="font-size: 13px; color: #5B6478; white-space: nowrap">{{e.have}}</span>
+            </button>
+          </sc-for>
+        </section>
+
+        <section aria-labelledby="form-title" style="flex: 1 1 380px; max-width: 460px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 18px">
+          <h2 id="form-title" style="margin: 0; font-size: 16px; font-weight: 600">Request access to {{selected}}</h2>
+          <fieldset style="border: 0; padding: 0; margin: 0">
+            <legend style="font-size: 14px; font-weight: 500; padding: 0; margin-bottom: 8px">What you need</legend>
+            <label style="display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid #14245C; background: #F7F8FC; border-radius: 8px; margin-bottom: 8px; font-size: 14px"><input type="radio" name="lvl" checked="checked" style="margin-top: 3px"><span><b style="font-weight: 500">Operator</b><span style="display: block; color: #5B6478; font-size: 13px">Start, stop and lock it</span></span></label>
+            <label style="display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid #D4DAE5; border-radius: 8px; font-size: 14px"><input type="radio" name="lvl" style="margin-top: 3px"><span><b style="font-weight: 500">View only</b><span style="display: block; color: #5B6478; font-size: 13px">See its state, cost and history</span></span></label>
+          </fieldset>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 500">Part of it
+            <select style="height: 40px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 10px; font: inherit; font-weight: 400"><option>The whole environment</option><option>Only the Application group</option><option>Only the Web group</option></select>
+          </label>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 500">For
+            <select style="height: 40px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 10px; font: inherit; font-weight: 400"><option>7 days</option><option selected="selected">30 days</option><option>90 days</option></select>
+          </label>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 500">Why you need it
+            <textarea rows="3" placeholder="For example: regression testing for release 4.2" style="border: 1px solid #D4DAE5; border-radius: 8px; padding: 10px; font: inherit; font-weight: 400; resize: vertical"></textarea>
+          </label>
+          <a href="RequestAccess.dc.html" style="display: flex; align-items: center; justify-content: center; height: 42px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">Send request</a>
+        </section>
+      </div>
+
+      </sc-if>
+      <sc-if value="{{isMine}}" hint-placeholder-val="{{ false }}">
+      <section aria-labelledby="mine-title" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden">
+        <h2 id="mine-title" style="margin: 0; padding: 14px 20px; font-size: 16px; font-weight: 600; border-bottom: 1px solid #EEF1F5">Your requests</h2>
+        <div style="display: flex; align-items: center; gap: 16px; padding: 12px 20px; font-size: 14px; flex-wrap: wrap">
+          <span style="font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 999px; background: #FBF3DC; color: #7A5000">Waiting</span>
+          <span style="flex: 1">Operator on <b style="font-weight: 600">Analytics QA</b>, 30 days · sent <span style="font-family: 'IBM Plex Mono', monospace">2 h</span> ago to Sanjay Rao</span>
+          <a href="RequestAccess.dc.html" style="font-size: 14px; text-decoration: none">Cancel request</a>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px; padding: 12px 20px; font-size: 14px; border-top: 1px solid #EEF1F5; flex-wrap: wrap">
+          <span style="font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 999px; background: #E3F4EC; color: #0B6B44">Approved</span>
+          <span style="flex: 1">Operator on <b style="font-weight: 600">CRM UAT</b>, 7 days · approved by Sanjay Rao on <span style="font-family: 'IBM Plex Mono', monospace">15 Oct</span></span>
+          <a href="Environments.dc.html" style="font-size: 14px; text-decoration: none">Open CRM UAT</a>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px; padding: 12px 20px; font-size: 14px; border-top: 1px solid #EEF1F5; flex-wrap: wrap">
+          <span style="font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 999px; background: #FBEEEB; color: #A8331F">Denied</span>
+          <span style="flex: 1">Operator on <b style="font-weight: 600">Billing Prod Mirror</b> · "Production mirror is limited to the billing team"</span>
+          <a href="RequestAccess.dc.html" style="font-size: 14px; text-decoration: none">Request again</a>
+        </div>
+      </section>
+      </sc-if>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { sel: 'Analytics QA', tab: 'new' }; }
+  renderVals() {
+    const list = [
+      ['Analytics QA', 'Data platform QA · 5 VMs', 'Request waiting'],
+      ['Billing Prod Mirror', 'Read-only copy of production billing · 9 VMs', ''],
+      ['Data Lake Dev', 'Ingestion and Spark jobs · 6 VMs', ''],
+      ['HR Portal Staging', 'EKS · 6 nodes', 'You can view'],
+      ['Mobile API Test', 'Backend for the mobile app tests · 4 VMs', '']
+    ];
+    const envs = list.map(([name, desc, have]) => ({
+      name, desc, have, pressed: String(name === this.state.sel),
+      pick: () => this.setState({ sel: name }),
+      style: 'display:flex;align-items:center;gap:16px;width:100%;border:0;border-top:1px solid #EEF1F5;padding:14px 20px;font:inherit;color:#141B2D;cursor:pointer;' +
+        (name === this.state.sel ? 'background:#ECEFF8;box-shadow:inset 3px 0 0 #14245C' : 'background:#FFFFFF')
+    }));
+    const tab = this.state.tab;
+    const tabs = [['new', 'Request'], ['mine', 'Your requests · 3']].map(([k, label]) => ({
+      label, selected: String(tab === k), pick: () => this.setState({ tab: k }),
+      style: 'border:0;background:none;font:inherit;font-size:14px;padding:10px 14px;margin-bottom:-1px;cursor:pointer;' +
+        (tab === k ? 'color:#14245C;font-weight:600;border-bottom:2px solid #14245C' : 'color:#5B6478;border-bottom:2px solid transparent')
+    }));
+    return { envs, selected: this.state.sel, tabs, isNew: tab === 'new', isMine: tab === 'mine' };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cost — unusual spend</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+.tab{font-size:14px;padding:10px 14px;color:#5B6478;text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab[aria-selected="true"]{color:#14245C;font-weight:600;border-bottom-color:#14245C}
+.card{background:#FFFFFF;border:1px solid #E1E6EF;border-radius:12px}
+.mono{font-family:'IBM Plex Mono',monospace}
+.seg{display:inline-flex;align-items:center;height:28px;padding:0 10px;font-size:12.5px;border:1px solid #D4DAE5;color:#2A3245;text-decoration:none;background:#FFFFFF}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="admin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="admin" active="cost" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 20px 32px 24px; display: flex; flex-direction: column; gap: 14px; box-sizing: border-box">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end"><h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Cost management</h1>
+        <div style="display: flex; gap: 8px; align-items: center"><label style="display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: #5B6478">Period<select style="height: 36px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; color: #141B2D"><option>Last 30 days</option><option>Last 90 days</option></select></label><label style="display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: #5B6478">Environment<select style="height: 36px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; color: #141B2D"><option>All</option></select></label></div></div>
+      <div role="tablist" aria-label="Cost" style="display: flex; gap: 4px; border-bottom: 1px solid #E1E6EF">
+        <a class="tab" role="tab" aria-selected="false" href="CostOverview.dc.html">Overview</a><a class="tab" role="tab" aria-selected="false" href="Rightsizing.dc.html">Rightsizing</a><a class="tab" role="tab" aria-selected="false" href="Commitments.dc.html">Commitments</a><a class="tab" role="tab" aria-selected="false" href="Carbon.dc.html">Carbon</a><a class="tab" role="tab" aria-selected="true" href="Anomalies.dc.html">Unusual spend</a>
+      </div>
+      <p style="margin: 0; font-size: 14px; color: #5B6478">AWS Cost Anomaly Detection, checked every 12 hours. Environment owners are told when the extra spend is $10 or more. Answers are kept with each alert, and can also be sent back to AWS (Cost setup).</p>
+
+      <section class="card" style="overflow: hidden">
+        <table style="width: 100%; border-collapse: collapse; font-size: 13.5px">
+          <thead><tr style="background: #F7F8FB; color: #5B6478; font-size: 12.5px; text-align: left"><th scope="col" style="padding: 9px 16px; font-weight: 500">Environment · when</th><th scope="col" style="padding: 9px 8px; font-weight: 500; text-align: right">Spent</th><th scope="col" style="padding: 9px 8px; font-weight: 500; text-align: right">Usual</th><th scope="col" style="padding: 9px 8px; font-weight: 500">Top cause</th><th scope="col" style="padding: 9px 8px; font-weight: 500">Was this expected?</th><th scope="col" style="padding: 9px 16px"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Ticket</span></th></tr></thead>
+          <tbody><sc-for list="{{rows}}" as="r" hint-placeholder-count="7">
+            <tr style="border-top: 1px solid #EEF1F5"><td style="padding: 10px 16px"><b style="font-weight: 500">{{r.env}}</b><span style="display: block; font-size: 12.5px; color: #5B6478">{{r.when}}</span></td><td class="mono" style="padding: 10px 8px; text-align: right">{{r.spent}}<span style="display: block; font-size: 12px; color: #A8331F">{{r.extra}}</span></td><td class="mono" style="padding: 10px 8px; text-align: right; color: #5B6478">{{r.usual}}</td><td style="padding: 10px 8px; color: #3A4256">{{r.cause}}</td>
+              <td style="padding: 10px 8px"><span role="radiogroup" aria-label="{{r.env}} verdict" style="display: inline-flex"><a href="Anomalies.dc.html" role="radio" aria-checked="{{r.yes}}" class="seg" style="border-radius: 7px 0 0 7px; {{r.yesStyle}}">Unexpected</a><a href="Anomalies.dc.html" role="radio" aria-checked="{{r.plan}}" class="seg" style="border-left: 0; {{r.planStyle}}">Planned</a><a href="Anomalies.dc.html" role="radio" aria-checked="{{r.no}}" class="seg" style="border-left: 0; border-radius: 0 7px 7px 0; {{r.noStyle}}">Not unusual</a></span></td>
+              <td style="padding: 10px 16px; text-align: right; white-space: nowrap"><a href="Anomalies.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none">{{r.ticket}}</a></td></tr>
+          </sc-for></tbody>
+        </table>
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; border-top: 1px solid #EEF1F5; font-size: 13px; color: #5B6478"><span>7 of 7 in the last 30 days</span><a href="CostSetup.dc.html" style="text-decoration: none">AWS monitors and alert settings</a></div>
+      </section>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const sel = 'background:#14245C;color:#FFFFFF;border-color:#14245C';
+    const r = (env, when, spent, usual, cause, verdict, ticket) => ({ env, when, spent: '$' + spent, usual: '$' + usual, extra: '+$' + (spent - usual), cause,
+      yes: verdict === 'YES', plan: verdict === 'PLANNED', no: verdict === 'NO',
+      yesStyle: verdict === 'YES' ? sel : '', planStyle: verdict === 'PLANNED' ? sel : '', noStyle: verdict === 'NO' ? sel : '', ticket });
+    const rows = [
+      r('CRM UAT', '18 Oct · 1 day', 96, 31, 'EC2 data transfer out', '', 'Open a Jira issue'),
+      r('Partner Portal QA', '15–17 Oct · 3 days', 418, 290, 'EKS: app-nodes scaled to 6', 'PLANNED', ''),
+      r('Data Platform Dev', '12 Oct · 1 day', 74, 22, 'S3 requests (PUT)', 'YES', 'OPS-2214'),
+      r('Payments Dev', '9 Oct · 1 day', 58, 41, 'EBS snapshots', 'NO', ''),
+      r('HR Portal Test', '6–7 Oct · 2 days', 66, 30, 'EC2: t3.large running over the weekend', 'YES', 'OPS-2190'),
+      r('Billing Sandbox', '3 Oct · 1 day', 29, 12, 'NAT gateway hours', '', 'Open a Jira issue'),
+      r('CRM UAT', '30 Sep · 1 day', 47, 31, 'CloudWatch logs ingestion', 'NO', '')
+    ];
+    return { rows };
+  }
+}
+</script>
+</body>
+</html>

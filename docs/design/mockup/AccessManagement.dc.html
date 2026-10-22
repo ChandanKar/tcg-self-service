@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Access management</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="envadmin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="envadmin" active="access" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+        <div>
+          <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Access management</h1>
+          <p style="margin: 6px 0 0; font-size: 15px; color: #5B6478">Who can use which environment, at what level, and until when.</p>
+        </div>
+        <a href="GrantAccess.dc.html" style="display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"></path></svg>Grant access</a>
+      </div>
+
+      <div style="display: flex; gap: 28px; flex-wrap: wrap; font-size: 14px; color: #5B6478">
+        <span><b style="font-family: 'IBM Plex Mono', monospace; color: #141B2D; font-weight: 500">29</b> grants</span>
+        <span><b style="font-family: 'IBM Plex Mono', monospace; color: #141B2D; font-weight: 500">6</b> admins</span>
+        <span><b style="font-family: 'IBM Plex Mono', monospace; color: #141B2D; font-weight: 500">18</b> operators</span>
+        <span><b style="font-family: 'IBM Plex Mono', monospace; color: #141B2D; font-weight: 500">5</b> view only</span>
+        <span style="color: #7A5000"><b style="font-family: 'IBM Plex Mono', monospace; font-weight: 500">3</b> end within 7 days</span>
+      </div>
+
+      <div role="tablist" aria-label="Access" style="display: flex; gap: 4px; border-bottom: 1px solid #E1E6EF">
+        <button type="button" role="tab" aria-selected="true" style="border: 0; background: none; font: inherit; font-size: 14px; padding: 10px 14px; margin-bottom: -1px; color: #14245C; font-weight: 600; border-bottom: 2px solid #14245C">Grants</button>
+        <button type="button" role="tab" aria-selected="false" style="border: 0; background: none; font: inherit; font-size: 14px; padding: 10px 14px; margin-bottom: -1px; color: #5B6478; border-bottom: 2px solid transparent">History</button>
+      </div>
+
+      <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center">
+        <label style="flex: 1 1 260px; max-width: 360px; display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; background: #FFFFFF; border: 1px solid #D4DAE5; border-radius: 8px">
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="#5B6478" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="5.5"></circle><path d="m13.5 13.5 3.5 3.5"></path></svg>
+          <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search people</span>
+          <input type="search" placeholder="Name or email" style="border: 0; outline: 0; font: inherit; font-size: 14px; flex: 1">
+        </label>
+        <select aria-label="Environment" style="height: 38px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-size: 14px"><option>All environments</option><option>Analytics QA</option><option>CRM UAT</option></select>
+        <select aria-label="Status" style="height: 38px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 8px; font: inherit; font-size: 14px"><option>Active</option><option>Ending within 7 days</option><option>Ended</option></select>
+      </div>
+
+      <div style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden">
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px">
+          <thead>
+            <tr style="background: #F7F8FB; color: #5B6478; font-size: 12.5px; text-align: left">
+              <th scope="col" style="padding: 12px 20px; font-weight: 500">Person</th>
+              <th scope="col" style="padding: 12px; font-weight: 500">Environment</th>
+              <th scope="col" style="padding: 12px; font-weight: 500">Level</th>
+              <th scope="col" style="padding: 12px; font-weight: 500">Part</th>
+              <th scope="col" style="padding: 12px; font-weight: 500">Granted by</th>
+              <th scope="col" style="padding: 12px; font-weight: 500">Ends</th>
+              <th scope="col" style="padding: 12px 20px"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <sc-for list="{{grants}}" as="g" hint-placeholder-count="7">
+              <tr style="border-top: 1px solid #EEF1F5">
+                <td style="padding: 12px 20px"><div style="font-weight: 500">{{g.name}}</div><div style="font-size: 12.5px; color: #5B6478">{{g.email}}</div></td>
+                <td style="padding: 12px">{{g.env}}</td>
+                <td style="padding: 12px"><span style="{{g.levelStyle}}">{{g.level}}</span></td>
+                <td style="padding: 12px; color: #3A4256">{{g.part}}</td>
+                <td style="padding: 12px; color: #3A4256">{{g.by}}</td>
+                <td style="padding: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; {{g.endStyle}}">{{g.ends}}</td>
+                <td style="padding: 12px 20px; text-align: right; white-space: nowrap"><a href="AccessManagement.dc.html" style="font-size: 13px; text-decoration: none; margin-right: 14px">Change</a><a href="AccessManagement.dc.html" style="font-size: 13px; text-decoration: none; color: #A8331F">Revoke</a></td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-top: 1px solid #EEF1F5; font-size: 13px; color: #5B6478">
+          <span>1–7 of 29</span>
+          <span style="display: flex; gap: 6px"><button type="button" disabled="disabled" style="height: 32px; padding: 0 12px; border: 1px solid #E1E6EF; border-radius: 7px; background: #FFFFFF; color: #9AA4B8; font: inherit; font-size: 13px">Previous</button><button type="button" style="height: 32px; padding: 0 12px; border: 1px solid #D4DAE5; border-radius: 7px; background: #FFFFFF; color: #141B2D; font: inherit; font-size: 13px">Next</button></span>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const chip = (l) => 'font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px;' +
+      (l === 'Admin' ? 'background:#ECEFF8;color:#14245C' : l === 'Operator' ? 'background:#E3F4EC;color:#0B6B44' : 'background:#ECEFF5;color:#4A5368');
+    const soon = 'color:#7A5000';
+    const g = (name, email, env, level, part, by, ends, s) => ({ name, email, env, level, levelStyle: chip(level), part, by, ends, endStyle: s ? soon : 'color:#3A4256' });
+    const grants = [
+      g('Sanjay Rao', 'sanjay.rao@tcgdigital.com', 'Analytics QA', 'Admin', 'Whole', 'Meera Iyer', '16 Jan 2027'),
+      g('Priya Nair', 'priya.nair@tcgdigital.com', 'Analytics QA', 'Operator', 'Application group', 'Sanjay Rao', 'No end'),
+      g('Karthik S', 'karthik.s@tcgdigital.com', 'CRM UAT', 'Operator', 'Whole', 'Sanjay Rao', '20 Oct · 1 day', true),
+      g('Priya Nair', 'priya.nair@tcgdigital.com', 'CRM UAT', 'Operator', 'Whole', 'Sanjay Rao', '22 Oct · 3 days', true),
+      g('Arjun Mehta', 'arjun.mehta@tcgdigital.com', 'CRM UAT', 'View only', 'Whole', 'Meera Iyer', '17 Nov 2026'),
+      g('Neha Gupta', 'neha.gupta@tcgdigital.com', 'Analytics QA', 'Operator', 'Whole', 'Sanjay Rao', '25 Oct · 6 days', true),
+      g('Rahul Verma', 'rahul.verma@tcgdigital.com', 'CRM UAT', 'Admin', 'Whole', 'Meera Iyer', 'No end')
+    ];
+    return { grants };
+  }
+}
+</script>
+</body>
+</html>

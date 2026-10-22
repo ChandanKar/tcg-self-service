@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Power strip</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<span role="img" aria-label="{{label}}" title="{{label}}" style="display: inline-flex; align-items: center; gap: 8px; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; line-height: 1; vertical-align: middle">
+  <sc-if value="{{bar}}" hint-placeholder-val="{{ false }}">
+    <span aria-hidden="true" style="display: inline-block; width: 80px; height: 8px; border-radius: 4px; background: #E6EAF1; overflow: hidden"><span style="{{barFill}}"></span></span>
+  </sc-if>
+  <span style="{{lightsStyle}}">
+    <sc-for list="{{groups}}" as="g" hint-placeholder-count="2">
+      <span style="{{g.style}}">
+        <sc-for list="{{g.pips}}" as="p" hint-placeholder-count="3">
+          <span style="{{p.style}}"></span>
+        </sc-for>
+      </span>
+    </sc-for>
+  </span>
+  <sc-if value="{{showCount}}" hint-placeholder-val="{{ true }}">
+    <span style="font-family: 'IBM Plex Mono', monospace; font-size: {{countSize}}; color: #5B6478; white-space: nowrap"><b style="color: #141B2D; font-weight: 500">{{running}}</b>/{{total}}</span>
+  </sc-if>
+</span>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"states":{"editor":"text","default":"RRR|RS|S"},"large":{"editor":"boolean","default":false},"showCount":{"editor":"boolean","default":true},"$preview":{"width":280,"height":32}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const large = this.props.large ?? false;
+    const states = String(this.props.states ?? 'RRR|RS|S');
+    const w = large ? 10 : 7, h = large ? 20 : 14, r = large ? 3 : 2;
+    const pipStyle = (c) => {
+      const base = `display:inline-block;width:${w}px;height:${h}px;border-radius:${r}px;box-sizing:border-box;`;
+      switch (c) {
+        case 'R': return base + 'background:#12915E;border:1px solid #0D7A4E;box-shadow:0 0 0 2px rgba(18,145,94,0.16)';
+        case 'B': return base + 'background:#D9A21B;border:1px solid #B8860B';
+        case 'E': return base + 'background:#C2412D;border:1px solid #A8331F';
+        case 'U': return base + 'background:repeating-linear-gradient(135deg,#FFFFFF 0 2px,#D4DAE5 2px 3px);border:1px solid #B9C2D2';
+        default: return base + 'background:#FFFFFF;border:1px solid #B9C2D2';
+      }
+    };
+    const parts = states.split('|').filter(Boolean);
+    const all = parts.join('');
+    const running = (all.match(/R/g) || []).length;
+    // Over 24 VMs a compact strip becomes a bar (the large one keeps every light).
+    const bar = !large && all.length > 24;
+    const groups = parts.map((s, i) => ({
+      style: 'display:inline-flex;gap:3px;' + (i > 0 ? 'margin-left:5px;padding-left:8px;border-left:1px solid #D4DAE5' : ''),
+      pips: s.split('').map(c => ({ style: pipStyle(c) }))
+    }));
+    return {
+      groups, running, total: all.length, bar,
+      barFill: `display:block;height:100%;width:${all.length ? Math.round(running / all.length * 100) : 0}%;background:#12915E`,
+      lightsStyle: bar ? 'display:none' : 'display:inline-flex;align-items:center',
+      label: `${running} of ${all.length} VMs running`,
+      showCount: this.props.showCount ?? true,
+      countSize: large ? '15px' : '13px'
+    };
+  }
+}
+</script>
+</body>
+</html>

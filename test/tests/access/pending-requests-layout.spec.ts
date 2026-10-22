@@ -37,6 +37,9 @@ test.describe('Access requests layout', () => {
       await page.goto('/home');
       await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
       await page.evaluate(() => { location.hash = '#/pending-requests'; });
+      // Three cards to a page (U17-T07): this environment's card, whatever else is waiting.
+      await expect(page.locator(`#ar-env-filter option[value="${env.environmentId}"]`)).toHaveCount(1, { timeout: 15_000 });
+      await page.locator('#ar-env-filter').selectOption(env.environmentId);
 
       const card = page.locator('.ar-card', { hasText: `Layout ${stamp}` });
       await expect(card).toBeVisible({ timeout: 15_000 });

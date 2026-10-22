@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Style guide</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #FFFFFF; width: 1440px; height: 1100px; box-sizing: border-box; padding: 56px 64px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px 56px; align-content: start">
+  <section style="grid-column: span 3; display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 1px solid #E1E6EF; padding-bottom: 24px">
+    <div>
+      <h1 style="margin: 0; font-size: 34px; font-weight: 600; letter-spacing: -0.02em">Self-Service style guide</h1>
+      <p style="margin: 8px 0 0; font-size: 16px; color: #5B6478">Colours from the TCG Digital mark. One signature: the power strip.</p>
+    </div>
+    <img src="/_blob/f1f05675d2903e1819509cc3b2273e3c" alt="TCG Digital" style="height: 34px; width: auto">
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 14px">
+    <h2 style="margin: 0; font-size: 14px; font-weight: 600; color: #5B6478">Colour</h2>
+    <sc-for list="{{colors}}" as="c" hint-placeholder-count="8">
+      <div style="display: flex; align-items: center; gap: 14px">
+        <span style="{{c.swatch}}"></span>
+        <span style="flex: 1"><span style="display: block; font-size: 15px; font-weight: 500">{{c.name}}</span><span style="display: block; font-size: 13px; color: #5B6478">{{c.use}}</span></span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #3A4256">{{c.hex}}</span>
+      </div>
+    </sc-for>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 16px">
+    <h2 style="margin: 0; font-size: 14px; font-weight: 600; color: #5B6478">Type · IBM Plex Sans and Mono</h2>
+    <div style="font-size: 30px; font-weight: 600; letter-spacing: -0.02em">Page title 30/600</div>
+    <div style="font-size: 18px; font-weight: 600; letter-spacing: -0.01em">Section 18/600</div>
+    <div style="font-size: 15px">Body 15/400. Say what happens: "Start 2 VMs", not "Submit".</div>
+    <div style="font-size: 13px; color: #5B6478">Caption 13/400 in slate</div>
+    <div style="font-family: 'IBM Plex Mono', monospace; font-size: 14px">i-0a41c9e2b7d3 · ap-south-1 · $186.40 · 20:00</div>
+    <div style="font-size: 13px; color: #5B6478">Mono for ids, regions, sizes, money and times, so they line up and read as data.</div>
+    <h2 style="margin: 16px 0 0; font-size: 14px; font-weight: 600; color: #5B6478">Buttons</h2>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap">
+      <span style="display: inline-flex; align-items: center; height: 38px; padding: 0 16px; border-radius: 8px; background: #14245C; color: #FFFFFF; font-weight: 500; font-size: 14px">Primary</span>
+      <span style="display: inline-flex; align-items: center; height: 38px; padding: 0 16px; border-radius: 8px; background: #12915E; color: #FFFFFF; font-weight: 500; font-size: 14px">Start</span>
+      <span style="display: inline-flex; align-items: center; height: 38px; padding: 0 16px; border-radius: 8px; border: 1px solid #B9C2DA; color: #14245C; font-weight: 500; font-size: 14px">Secondary</span>
+      <span style="display: inline-flex; align-items: center; height: 38px; padding: 0 16px; border-radius: 8px; border: 1px solid #E8B8AE; color: #A8331F; font-weight: 500; font-size: 14px">Stop</span>
+    </div>
+    <div style="font-size: 13px; color: #5B6478">One primary per screen. Green only for Start; red outline only for Stop and remove.</div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 16px">
+    <h2 style="margin: 0; font-size: 14px; font-weight: 600; color: #5B6478">The power strip</h2>
+    <div style="padding: 20px; border-radius: 12px; background: #F7F8FB; display: flex; flex-direction: column; gap: 16px">
+      <dc-import name="PowerStrip" states="RRR|RR|SS" large="{{ true }}" hint-size="200px,24px"></dc-import>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; font-size: 13px">
+        <span style="display: flex; align-items: center; gap: 8px"><dc-import name="PowerStrip" states="R" show-count="{{ false }}" hint-size="10px,16px"></dc-import>Running</span>
+        <span style="display: flex; align-items: center; gap: 8px"><dc-import name="PowerStrip" states="B" show-count="{{ false }}" hint-size="10px,16px"></dc-import>Starting or stopping</span>
+        <span style="display: flex; align-items: center; gap: 8px"><dc-import name="PowerStrip" states="S" show-count="{{ false }}" hint-size="10px,16px"></dc-import>Stopped</span>
+        <span style="display: flex; align-items: center; gap: 8px"><dc-import name="PowerStrip" states="U" show-count="{{ false }}" hint-size="10px,16px"></dc-import>Not read from AWS yet</span>
+        <span style="display: flex; align-items: center; gap: 8px"><dc-import name="PowerStrip" states="E" show-count="{{ false }}" hint-size="10px,16px"></dc-import>Error</span>
+      </div>
+    </div>
+    <div style="font-size: 14px; line-height: 1.6; color: #3A4256">One light per VM. Groups are separated and run in start order, left to right. It replaces "0/6" pills, the donut chart and the four count tiles, and is the only place green appears outside Start buttons.</div>
+    <h2 style="margin: 16px 0 0; font-size: 14px; font-weight: 600; color: #5B6478">Status chips</h2>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap">
+      <span style="font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 999px; background: #E3F4EC; color: #0B6B44">Running</span>
+      <span style="font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 999px; background: #FBF3DC; color: #7A5000">Waiting</span>
+      <span style="font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 999px; background: #FBEEEB; color: #A8331F">Failed</span>
+      <span style="font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 999px; background: #ECEFF5; color: #4A5368">Stopped</span>
+      <span style="font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 999px; background: #ECEFF8; color: #14245C">Admin</span>
+    </div>
+  </section>
+
+  <section style="grid-column: span 3; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; padding-top: 24px; border-top: 1px solid #E1E6EF">
+    <div><h3 style="margin: 0 0 6px; font-size: 15px; font-weight: 600">Words</h3><p style="margin: 0; font-size: 14px; line-height: 1.6; color: #3A4256">Sentence case. Name things the way people do: "Lock environment", not "Acquire lock". No property names or HTTP codes on screen.</p></div>
+    <div><h3 style="margin: 0 0 6px; font-size: 15px; font-weight: 600">Controls</h3><p style="margin: 0; font-size: 14px; line-height: 1.6; color: #3A4256">Every button and switch has a visible or spoken name. Icons go with words. Show only what the person may use.</p></div>
+    <div><h3 style="margin: 0 0 6px; font-size: 15px; font-weight: 600">States</h3><p style="margin: 0; font-size: 14px; line-height: 1.6; color: #3A4256">Empty, off and no-access screens say what's going on and offer the next step. Never a blank page.</p></div>
+    <div><h3 style="margin: 0 0 6px; font-size: 15px; font-weight: 600">Layout</h3><p style="margin: 0; font-size: 14px; line-height: 1.6; color: #3A4256">Title, one summary line, actions on the right, then content. Pages scroll; panels don't. 44 px touch targets on phones.</p></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const c = (name, hex, use, border) => ({ name, hex, use, swatch: `width:44px;height:44px;border-radius:10px;background:${hex};flex-shrink:0;${border ? 'border:1px solid #E1E6EF' : ''}` });
+    const colors = [
+      c('Brand navy', '#14245C', 'Actions, active page, headings'),
+      c('Gear green', '#12915E', 'Running, and Start buttons'),
+      c('Spark gold', '#D9A21B', 'Changing, waiting, needs you'),
+      c('Signal red', '#C2412D', 'Failed, stop, remove'),
+      c('Ink', '#141B2D', 'Text'),
+      c('Slate', '#5B6478', 'Secondary text'),
+      c('Hairline', '#E1E6EF', 'Borders and dividers', true),
+      c('Canvas', '#F3F5F9', 'Page background', true)
+    ];
+    return { colors };
+  }
+}
+</script>
+</body>
+</html>

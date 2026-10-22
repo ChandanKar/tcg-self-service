@@ -168,7 +168,7 @@ const AccessManagement = (function() {
             if (!ContentRouter.isCurrent(token)) return;
             rows = [];
             total = 0;
-            $('#access-table-body').html('<tr><td colspan="7" class="am-empty" role="alert">The grants didn\'t load. <button type="button" class="am-link" id="am-retry">Try again</button></td></tr>');
+            $('#access-table-body').html(`<tr><td colspan="7">${UiStates.failed({ what: 'The grants', xhr: error, onRetry: () => refreshList() })}</td></tr>`);
         } finally {
             $('#access-table-body').attr('aria-busy', 'false');
         }
@@ -286,7 +286,6 @@ const AccessManagement = (function() {
                 currentPage = 0;
                 refreshList();
             })
-            .on('click' + NS, '#am-retry', () => refreshList())
             .on('click' + NS, '#access-table-body [data-action="revoke"]', function() {
                 const access = rows.find(a => a.accessId === $(this).data('access-id'));
                 if (access) AccessChangeDialogs.openRemove(access, refreshAccessData);

@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cost management</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="admin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="admin" active="cost" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+        <div>
+          <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Cost management</h1>
+          <p style="margin: 6px 0 0; font-size: 15px; color: #5B6478">Estimated from run time and AWS list prices; replaced by AWS billing figures where they exist.</p>
+        </div>
+        <div style="display: flex; gap: 8px; position: relative">
+          <button type="button" aria-haspopup="menu" aria-expanded="false" style="display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px; border-radius: 8px; border: 1px solid #D4DAE5; background: #FFFFFF; color: #141B2D; font: inherit; font-weight: 500; font-size: 14px; cursor: pointer">Data actions
+            <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 8 5 5 5-5"></path></svg></button>
+          <button type="button" aria-haspopup="menu" aria-expanded="true" style="display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px; border-radius: 8px; border: 1px solid #14245C; background: #FFFFFF; color: #14245C; font: inherit; font-weight: 500; font-size: 14px; cursor: pointer">Export
+            <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 8 5 5 5-5"></path></svg></button>
+          <div role="menu" aria-label="Export" style="position: absolute; top: 44px; right: 0; width: 260px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 10px; box-shadow: 0 16px 32px rgba(20,36,92,0.16); padding: 6px; z-index: 2">
+            <a role="menuitem" href="CostOverview.dc.html" style="display: block; padding: 9px 12px; border-radius: 7px; text-decoration: none; color: #141B2D; font-size: 14px">This page as PDF</a>
+            <a role="menuitem" href="CostOverview.dc.html" style="display: block; padding: 9px 12px; border-radius: 7px; text-decoration: none; color: #141B2D; font-size: 14px">This page as PNG</a>
+            <a role="menuitem" href="CostOverview.dc.html" style="display: block; padding: 9px 12px; border-radius: 7px; text-decoration: none; color: #141B2D; font-size: 14px">VM cost detail, Excel</a>
+            <a role="menuitem" href="CostOverview.dc.html" style="display: block; padding: 9px 12px; border-radius: 7px; text-decoration: none; color: #141B2D; font-size: 14px">Month for finance, FOCUS CSV…</a>
+          </div>
+        </div>
+      </div>
+
+      <div role="tablist" aria-label="Cost" style="display: flex; gap: 4px; border-bottom: 1px solid #E1E6EF">
+        <button type="button" role="tab" aria-selected="true" style="border: 0; background: none; font: inherit; font-size: 14px; padding: 10px 14px; margin-bottom: -1px; color: #14245C; font-weight: 600; border-bottom: 2px solid #14245C">Overview</button>
+        <a href="Rightsizing.dc.html" role="tab" aria-selected="false" style="font-size: 14px; padding: 10px 14px; color: #5B6478; text-decoration: none; border-bottom: 2px solid transparent">Rightsizing</a>
+        <button type="button" role="tab" aria-selected="false" style="border: 0; background: none; font: inherit; font-size: 14px; padding: 10px 14px; margin-bottom: -1px; color: #5B6478; border-bottom: 2px solid transparent">Commitments</button>
+        <button type="button" role="tab" aria-selected="false" style="border: 0; background: none; font: inherit; font-size: 14px; padding: 10px 14px; margin-bottom: -1px; color: #5B6478; border-bottom: 2px solid transparent">Carbon</button>
+        <a href="CostSetup.dc.html" role="tab" aria-selected="false" style="font-size: 14px; padding: 10px 14px; color: #5B6478; text-decoration: none; border-bottom: 2px solid transparent">Setup</a>
+      </div>
+
+      <section aria-label="This month" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr))">
+        <sc-for list="{{kpis}}" as="k" hint-placeholder-count="5">
+          <div style="padding: 18px 20px; border-right: 1px solid #EEF1F5; display: flex; flex-direction: column; gap: 4px">
+            <span style="font-size: 13px; color: #5B6478">{{k.label}}</span>
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 24px; letter-spacing: -0.01em">{{k.value}}</span>
+            <span style="font-size: 13px; color: #5B6478">{{k.note}}</span>
+          </div>
+        </sc-for>
+      </section>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px">
+        <section aria-labelledby="trend-title" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap">
+            <h2 id="trend-title" style="margin: 0; font-size: 16px; font-weight: 600">Daily spend, 90 days</h2>
+            <div role="group" aria-label="Range" style="display: inline-flex; border: 1px solid #D4DAE5; border-radius: 8px; padding: 2px">
+              <button type="button" aria-pressed="false" style="border: 0; font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 6px; background: transparent; color: #3A4256">14 days</button>
+              <button type="button" aria-pressed="true" style="border: 0; font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 6px; background: #14245C; color: #FFFFFF">90 days</button>
+              <button type="button" aria-pressed="false" style="border: 0; font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 6px; background: transparent; color: #3A4256">18 months</button>
+            </div>
+          </div>
+          <svg viewBox="0 0 460 170" role="img" aria-label="Daily spend over 90 days, weekday peaks near 380 dollars and weekend dips near 120, slowly falling since schedules were added in September" style="width: 100%; height: 140px">
+            <line x1="0" y1="160" x2="460" y2="160" stroke="#E1E6EF"></line>
+            <line x1="0" y1="100" x2="460" y2="100" stroke="#F1F3F7"></line>
+            <line x1="0" y1="40" x2="460" y2="40" stroke="#F1F3F7"></line>
+            <polyline fill="none" stroke="#14245C" stroke-width="2" stroke-linejoin="round" points="{{trend}}"></polyline>
+            <line x1="250" y1="20" x2="250" y2="160" stroke="#D9A21B" stroke-dasharray="3 3"></line>
+            <text x="256" y="30" font-size="11" fill="#7A5000" font-family="IBM Plex Sans, sans-serif">Schedules added</text>
+          </svg>
+        </section>
+        <section aria-labelledby="byenv-title" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px">
+          <h2 id="byenv-title" style="margin: 0 0 4px; font-size: 16px; font-weight: 600">By environment, this month</h2>
+          <sc-for list="{{byEnv}}" as="e" hint-placeholder-count="6">
+            <div style="display: grid; grid-template-columns: 150px minmax(0, 1fr) 70px; align-items: center; gap: 12px; font-size: 13px">
+              <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{e.name}}</span>
+              <span style="height: 10px; background: #F1F3F7; border-radius: 3px; overflow: hidden"><span style="{{e.bar}}"></span></span>
+              <span style="font-family: 'IBM Plex Mono', monospace; text-align: right">{{e.cost}}</span>
+            </div>
+          </sc-for>
+        </section>
+      </div>
+
+      <section aria-labelledby="waste-title" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 14px 20px; border-bottom: 1px solid #EEF1F5; gap: 12px; flex-wrap: wrap">
+          <h2 id="waste-title" style="margin: 0; font-size: 16px; font-weight: 600">Biggest savings to act on</h2>
+          <a href="CostOverview.dc.html" style="font-size: 14px; text-decoration: none">All 23 suggestions, Excel</a>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px">
+          <thead><tr style="color: #5B6478; font-size: 12.5px; text-align: left"><th scope="col" style="padding: 10px 20px; font-weight: 500">What</th><th scope="col" style="padding: 10px 12px; font-weight: 500">Where</th><th scope="col" style="padding: 10px 12px; font-weight: 500">Suggestion</th><th scope="col" style="padding: 10px 20px; font-weight: 500; text-align: right">Saves a month</th></tr></thead>
+          <tbody>
+            <sc-for list="{{savings}}" as="s" hint-placeholder-count="4">
+              <tr style="border-top: 1px solid #EEF1F5"><td style="padding: 11px 20px; font-weight: 500">{{s.what}}</td><td style="padding: 11px 12px; color: #3A4256">{{s.where}}</td><td style="padding: 11px 12px; color: #3A4256">{{s.suggestion}}</td><td style="padding: 11px 20px; text-align: right; font-family: 'IBM Plex Mono', monospace; color: #0B6B44">{{s.saves}}</td></tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const kpis = [
+      { label: 'Month to date', value: '$6,284', note: '64% from AWS billing' },
+      { label: 'Forecast for October', value: '$9,950', note: 'AWS forecasts $9,610' },
+      { label: 'Idle waste', value: '$412', note: 'a month, 9 VMs barely used' },
+      { label: 'Rightsizing', value: '$1,180', note: 'a month, 14 VMs too large' },
+      { label: 'Priced VMs', value: '108/112', note: '4 sizes have no list price' }
+    ];
+    const pts = [];
+    for (let i = 0; i < 90; i++) {
+      const weekend = (i % 7 === 5 || i % 7 === 6);
+      const base = i < 50 ? 380 : 330 - (i - 50) * 0.8;
+      const v = weekend ? 120 + (i % 3) * 6 : base - (i % 4) * 8;
+      pts.push(`${(i / 89 * 460).toFixed(1)},${(160 - v / 400 * 140).toFixed(1)}`);
+    }
+    const envs = [['Data Lake Dev', 1402], ['Billing Prod Mirror', 1118], ['Mobile API Test', 640], ['Search Indexer QA', 512], ['Payments Dev', 186], ['Analytics QA', 122]];
+    const max = envs[0][1];
+    const byEnv = envs.map(([name, c]) => ({ name, cost: '$' + c.toLocaleString('en-US'), bar: `display:block;height:100%;width:${(c / max) * 100}%;background:#14245C;border-radius:3px` }));
+    const savings = [
+      { what: 'spark-worker-03', where: 'Data Lake Dev', suggestion: 'r6i.4xlarge → r6i.2xlarge, CPU peaks at 22%', saves: '$412' },
+      { what: 'Unattached volumes (6)', where: 'ap-south-1', suggestion: 'Delete after a snapshot', saves: '$96' },
+      { what: 'billing-batch-01', where: 'Billing Prod Mirror', suggestion: 'Add a schedule: idle every night', saves: '$188' }
+    ];
+    return { kpis, trend: pts.join(' '), byEnv, savings };
+  }
+}
+</script>
+</body>
+</html>

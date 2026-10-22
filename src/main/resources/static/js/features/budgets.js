@@ -109,9 +109,12 @@ const Budgets = (function() {
 
     // ============= Budgets page =============
 
+    // Three budgets fit 1440 x 900 without a page scrollbar, with the pending actions above (U17-T07).
+    const BUDGETS_PER_PAGE = 3;
+
     function load() {
         pageToken = ContentRouter.token();
-        page = { data: {}, errors: {} };
+        page = { data: {}, errors: {}, listPage: 1, showScope: null };
         $('#content-area').html(`
             <div class="content-view budgets-page" id="budgets-view">
                 ${PageHeader.markup({ title: 'Budgets',
@@ -191,7 +194,17 @@ const Budgets = (function() {
                 <span>${Utils.escapeHtml(monthDay())}</span>
                 ${t.teams ? '<span class="bd-note">Totals add up environment budgets; team budgets cover the same spend.</span>' : ''}
             </div>`;
-        const rows = budgets.map(b => {
+        // After a save, open the page that holds that budget.
+        if (page.showScope) {
+            const at = budgets.findIndex(b => b.scopeId === page.showScope);
+            if (at >= 0) page.listPage = Math.floor(at / BUDGETS_PER_PAGE) + 1;
+            page.showScope = null;
+        }
+        const pages = Math.max(1, Math.ceil(budgets.length / BUDGETS_PER_PAGE));
+        page.listPage = Math.min(Math.max(1, page.listPage || 1), pages);
+        const pager = budgets.length > BUDGETS_PER_PAGE ? Pagination.buildPager({ page: page.listPage, pageSize: BUDGETS_PER_PAGE,
+            totalItems: budgets.length, action: 'budget-page', key: 'budgets' }) : '';
+        const rows = Pagination.slice(budgets, page.listPage, BUDGETS_PER_PAGE).map(b => {
             const chip = chipOf(b);
             return Utils.html`
             <article class="bd-row${Utils.raw(b.enabled ? '' : ' bd-row-off')}" data-budget-id="${b.budgetId}" data-scope-id="${b.scopeId}">
@@ -214,7 +227,7 @@ const Budgets = (function() {
                 </div>` : '')}
             </article>`;
         }).join('');
-        $('#budget-list-panel').html(`${totals}<div class="bd-list" id="budgets-list">${rows}</div>
+        $('#budget-list-panel').html(`${totals}<div class="bd-list" id="budgets-list">${rows}</div>${pager}
             <p class="bd-note">Spend uses AWS billing where available, otherwise the estimate, up to yesterday.</p>`);
     }
 
@@ -423,6 +436,7 @@ const Budgets = (function() {
                 .then(() => {
                     bootstrap.Modal.getInstance(document.getElementById('budgetModal')).hide();
                     Notifications.show(budget ? 'Budget saved.' : 'Budget created.', 'success');
+                    if (page) page.showScope = dto.scopeId;
                     refreshAfterDecision();
                 })
                 .catch(e => { fail(serverMessage(e, 'Could not save the budget.')); $btn.prop('disabled', false); });
@@ -545,6 +559,7 @@ const Budgets = (function() {
         remove,
         liftFreeze,
         retry: key => { delete page.errors[key]; fetchPage([key]); },
+        goToPage: n => { if (!page) return; page.listPage = Number(n) || 1; drawPage(); },
         setForEnvironment: () => envPanel && openForm(null, { scopeType: 'ENVIRONMENT', scopeId: envPanel.env.environmentId }),
         model: { dollars, chipOf, actionText, kindText, totalsOf, monthDay, thresholdProblem }
     };
@@ -559,6 +574,7 @@ if (typeof Actions !== 'undefined') Actions.registerAll({
     'budget-approve': el => Budgets.approve(el.dataset.id),
     'budget-reject': el => Budgets.reject(el.dataset.id),
     'budget-retry': el => Budgets.retry(el.dataset.key),
+    'budget-page': el => { if (!el.disabled) Budgets.goToPage(el.dataset.page); },
     'budget-set-env': () => Budgets.setForEnvironment(),
     'budget-lift-freeze': () => Budgets.liftFreeze()
 });

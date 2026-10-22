@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Home</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="user" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="user" active="home" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+        <div>
+          <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Home</h1>
+          <p style="margin: 4px 0 0; font-size: 15px; color: #5B6478"><span style="font-family: 'IBM Plex Mono', monospace; color: #141B2D">8</span> of <span style="font-family: 'IBM Plex Mono', monospace; color: #141B2D">24</span> VMs running across 4 environments · <span style="font-family: 'IBM Plex Mono', monospace; color: #141B2D">$412.80</span> this month</p>
+        </div>
+        <a href="RequestAccess.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 14px; border-radius: 8px; border: 1px solid #B9C2DA; background: #FFFFFF; color: #14245C; text-decoration: none; font-weight: 500; font-size: 14px">Request access to an environment</a>
+      </div>
+
+      <section aria-label="Needs you" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+        <a href="EnvDetail.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 10px; background: #FBF3DC; color: #5C3D00; text-decoration: none; font-size: 14px">
+          <span style="width: 9px; height: 9px; border-radius: 50%; background: #D9A21B; flex-shrink: 0"></span>
+          <span style="flex: 1"><b style="font-weight: 600">Payments Dev</b> stops at <span style="font-family: 'IBM Plex Mono', monospace">20:00</span>, in 2 h 15 min</span><b style="font-weight: 600">Extend lease</b></a>
+        <a href="MyAccount.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 10px; background: #FBF3DC; color: #5C3D00; text-decoration: none; font-size: 14px">
+          <span style="width: 9px; height: 9px; border-radius: 50%; background: #D9A21B; flex-shrink: 0"></span>
+          <span style="flex: 1">Your access to <b style="font-weight: 600">CRM UAT</b> ends <span style="font-family: 'IBM Plex Mono', monospace">22 Oct</span></span><b style="font-weight: 600">Ask for more time</b></a>
+      </section>
+
+      <section aria-labelledby="envs-title" style="display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; justify-content: space-between; align-items: baseline">
+          <h2 id="envs-title" style="margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.01em">Your environments</h2>
+          <a href="Environments.dc.html" style="font-size: 14px; text-decoration: none">See all as a list</a>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px">
+          <sc-for list="{{envs}}" as="e" hint-placeholder-count="4">
+            <a href="{{e.href}}" style="display: flex; flex-direction: column; gap: 12px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 16px; text-decoration: none; color: #141B2D; box-shadow: 0 1px 2px rgba(20,36,92,0.05); min-width: 0">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px">
+                <div style="min-width: 0"><div style="font-size: 16px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{e.name}}</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #5B6478; margin-top: 2px">{{e.slug}}</div></div>
+                <span style="{{e.chipStyle}}">{{e.chip}}</span>
+              </div>
+              <dc-import name="PowerStrip" states="{{e.states}}" large="{{ true }}" hint-size="220px,24px"></dc-import>
+              <div style="font-size: 13px; color: #3A4256; min-height: 36px; line-height: 1.4">{{e.line}}</div>
+              <div style="display: flex; justify-content: space-between; padding-top: 10px; border-top: 1px solid #EEF1F5; font-size: 13px; color: #5B6478"><span><span style="font-family: 'IBM Plex Mono', monospace; color: #141B2D">{{e.cost}}</span> this month</span><span>{{e.access}}</span></div>
+            </a>
+          </sc-for>
+        </div>
+      </section>
+
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px">
+        <section aria-labelledby="idle-title" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px">
+          <h2 id="idle-title" style="margin: 0; font-size: 16px; font-weight: 600">Running but barely used</h2>
+          <p style="margin: 0 0 6px; font-size: 13px; color: #5B6478">Under 5% CPU for 6 hours. Stopping them saves money.</p>
+          <div style="display: flex; align-items: center; gap: 12px; font-size: 14px; padding: 9px 0; border-top: 1px solid #EEF1F5">
+            <span style="flex: 1"><b style="font-weight: 500">pay-cache</b> <span style="color: #5B6478">· Payments Dev · CPU</span> <span style="font-family: 'IBM Plex Mono', monospace">3.9%</span></span>
+            <span style="font-family: 'IBM Plex Mono', monospace; color: #5B6478; font-size: 13px">$0.07/h</span><a href="VmDetails.dc.html" style="font-weight: 500; text-decoration: none">Review</a></div>
+          <div style="display: flex; align-items: center; gap: 12px; font-size: 14px; padding: 9px 0; border-top: 1px solid #EEF1F5">
+            <span style="flex: 1"><b style="font-weight: 500">report-worker</b> <span style="color: #5B6478">· Analytics QA · CPU</span> <span style="font-family: 'IBM Plex Mono', monospace">0.6%</span></span>
+            <span style="font-family: 'IBM Plex Mono', monospace; color: #5B6478; font-size: 13px">$0.38/h</span><a href="VmDetails.dc.html" style="font-weight: 500; text-decoration: none">Review</a></div>
+        </section>
+        <section aria-labelledby="recent-title" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 2px">
+          <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px"><h2 id="recent-title" style="margin: 0; font-size: 16px; font-weight: 600">Your recent activity</h2><a href="MyActivity.dc.html" style="font-size: 14px; text-decoration: none">All activity</a></div>
+          <sc-for list="{{recent}}" as="r" hint-placeholder-count="4">
+            <div style="display: flex; gap: 12px; font-size: 14px; padding: 7px 0; border-top: 1px solid #EEF1F5"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #5B6478; width: 48px; flex-shrink: 0">{{r.time}}</span><span style="flex: 1">{{r.text}}</span><span style="{{r.resultStyle}}">{{r.result}}</span></div>
+          </sc-for>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const chip = (kind) => 'font-size:12px;font-weight:500;padding:3px 9px;border-radius:999px;white-space:nowrap;' +
+      (kind === 'run' ? 'background:#E3F4EC;color:#0B6B44' : kind === 'busy' ? 'background:#FBF3DC;color:#7A5000' : 'background:#ECEFF5;color:#4A5368');
+    const envs = [
+      { name: 'Payments Dev', slug: 'payments-dev', states: 'RRR|RR|SS', chip: 'Running', chipStyle: chip('run'), line: 'Web group stopped · stops at 20:00', cost: '$186.40', access: 'Operator', href: 'EnvDetail.dc.html' },
+      { name: 'Analytics QA', slug: 'analytics-qa', states: 'RRB|RS', chip: 'Starting', chipStyle: chip('busy'), line: 'Starting 1 VM · locked by you until 14:30', cost: '$121.75', access: 'Operator', href: 'EnvDetail.dc.html' },
+      { name: 'CRM UAT', slug: 'crm-uat', states: 'SS|SSS|S', chip: 'Stopped', chipStyle: chip('stop'), line: 'Stopped since yesterday · starts Mon 08:00', cost: '$64.10', access: 'Operator', href: 'EnvDetail.dc.html' },
+      { name: 'HR Portal Staging', slug: 'hr-portal-stg', states: 'SSSS|SS', chip: 'Stopped', chipStyle: chip('stop'), line: 'Locked by Rahul Verma', cost: '$40.55', access: 'View only', href: 'EnvDetailViewer.dc.html' }
+    ];
+    const ok = 'font-size:13px;color:#0B6B44', bad = 'font-size:13px;color:#A8331F';
+    const recent = [
+      { time: '08:02', text: 'Started Payments Dev (5 VMs)', result: 'Done', resultStyle: ok },
+      { time: '07:58', text: 'Locked Analytics QA until 14:30', result: 'Done', resultStyle: ok },
+      { time: 'Fri', text: 'Stopped CRM UAT (6 VMs)', result: 'Done', resultStyle: ok },
+      { time: 'Fri', text: 'Started report-worker on Analytics QA', result: 'Failed', resultStyle: bad }
+    ];
+    return { envs, recent };
+  }
+}
+</script>
+</body>
+</html>

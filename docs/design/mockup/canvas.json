@@ -1,0 +1,984 @@
+{
+ "v": 3,
+ "createdOnFiles": {
+  "v": 1,
+  "at": "2026-10-19T04:30:00Z"
+ },
+ "title": "VM Self-Service — Redesign Mockup",
+ "launch": {
+  "view": "canvas",
+  "page": "everyone"
+ },
+ "pages": [
+  {
+   "id": "everyone",
+   "name": "Users & viewers"
+  },
+  {
+   "id": "details",
+   "name": "VM & environment details"
+  },
+  {
+   "id": "moreeveryday",
+   "name": "More — everyday"
+  },
+  {
+   "id": "moreadmin",
+   "name": "More — cost & administration"
+  },
+  {
+   "id": "envadmin",
+   "name": "Environment admin"
+  },
+  {
+   "id": "admin",
+   "name": "Administrator"
+  },
+  {
+   "id": "phone",
+   "name": "Phone"
+  },
+  {
+   "id": "parts",
+   "name": "Building blocks"
+  }
+ ],
+ "boards": {
+  "Main.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Sign in",
+   "page": "everyone",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Dashboard.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Home — user",
+   "page": "everyone",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Environments.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "My environments",
+   "page": "everyone",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "EnvDetail.dc.html": {
+   "x": 0,
+   "y": 1100,
+   "w": 1440,
+   "h": 900,
+   "title": "Environment — operator",
+   "page": "everyone",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "EnvDetailViewer.dc.html": {
+   "x": 1520,
+   "y": 1100,
+   "w": 1440,
+   "h": 900,
+   "title": "Environment — view only",
+   "page": "everyone",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "StartConfirm.dc.html": {
+   "x": 3040,
+   "y": 1100,
+   "w": 1440,
+   "h": 900,
+   "title": "Start environment — dialog",
+   "page": "everyone",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "RequestAccess.dc.html": {
+   "x": 0,
+   "y": 2200,
+   "w": 1440,
+   "h": 900,
+   "title": "Request access",
+   "page": "everyone",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Approvals.dc.html": {
+   "x": 1520,
+   "y": 2200,
+   "w": 1440,
+   "h": 900,
+   "title": "Approvals",
+   "page": "everyone",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "MyActivity.dc.html": {
+   "x": 3040,
+   "y": 2200,
+   "w": 1440,
+   "h": 900,
+   "title": "My activity",
+   "page": "everyone",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "MyAccount.dc.html": {
+   "x": 0,
+   "y": 3300,
+   "w": 1440,
+   "h": 900,
+   "title": "My account — panel",
+   "page": "everyone",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Notifications.dc.html": {
+   "x": 1520,
+   "y": 3300,
+   "w": 1440,
+   "h": 900,
+   "title": "Notifications — open",
+   "page": "everyone",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Help.dc.html": {
+   "x": 3040,
+   "y": 3300,
+   "w": 1440,
+   "h": 900,
+   "title": "Help",
+   "page": "everyone",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "NoAccess.dc.html": {
+   "x": 0,
+   "y": 4400,
+   "w": 1440,
+   "h": 900,
+   "title": "No access to a page",
+   "page": "everyone",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "NewEnvironment.dc.html": {
+   "x": 1520,
+   "y": 4400,
+   "w": 1440,
+   "h": 900,
+   "title": "New environment (templates, when on)",
+   "page": "everyone",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "AccessRequests.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Access requests",
+   "page": "envadmin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "AccessManagement.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Access management",
+   "page": "envadmin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "VmRegistry.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "VM registry",
+   "page": "envadmin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "AutomationRules.dc.html": {
+   "x": 0,
+   "y": 1100,
+   "w": 1440,
+   "h": 900,
+   "title": "Automation rules",
+   "page": "envadmin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "RuleEditor.dc.html": {
+   "x": 1520,
+   "y": 1100,
+   "w": 1440,
+   "h": 900,
+   "title": "New schedule — dialog",
+   "page": "envadmin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "ApprovalPolicies.dc.html": {
+   "x": 3040,
+   "y": 1100,
+   "w": 1440,
+   "h": 900,
+   "title": "Approval policies",
+   "page": "envadmin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "AuditLog.dc.html": {
+   "x": 0,
+   "y": 2200,
+   "w": 1440,
+   "h": 900,
+   "title": "Audit log",
+   "page": "envadmin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Budgets.dc.html": {
+   "x": 1520,
+   "y": 2200,
+   "w": 1440,
+   "h": 900,
+   "title": "Budgets",
+   "page": "envadmin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "AdminDashboard.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Home — administrator",
+   "page": "admin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "CostOverview.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Cost management",
+   "page": "admin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Savings.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Savings",
+   "page": "admin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Waste.dc.html": {
+   "x": 0,
+   "y": 1100,
+   "w": 1440,
+   "h": 900,
+   "title": "Waste",
+   "page": "admin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Chargeback.dc.html": {
+   "x": 1520,
+   "y": 1100,
+   "w": 1440,
+   "h": 900,
+   "title": "Chargeback",
+   "page": "admin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "CostSetup.dc.html": {
+   "x": 3040,
+   "y": 1100,
+   "w": 1440,
+   "h": 900,
+   "title": "Cost setup",
+   "page": "admin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Users.dc.html": {
+   "x": 0,
+   "y": 2200,
+   "w": 1440,
+   "h": 900,
+   "title": "Users",
+   "page": "admin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Teams.dc.html": {
+   "x": 1520,
+   "y": 2200,
+   "w": 1440,
+   "h": 900,
+   "title": "Teams",
+   "page": "admin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "AwsAccounts.dc.html": {
+   "x": 3040,
+   "y": 2200,
+   "w": 1440,
+   "h": 900,
+   "title": "AWS accounts",
+   "page": "admin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "ApiAccess.dc.html": {
+   "x": 0,
+   "y": 3300,
+   "w": 1440,
+   "h": 900,
+   "title": "API access",
+   "page": "admin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Settings.dc.html": {
+   "x": 1520,
+   "y": 3300,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings",
+   "page": "admin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "SystemHealth.dc.html": {
+   "x": 3040,
+   "y": 3300,
+   "w": 1440,
+   "h": 900,
+   "title": "System health",
+   "page": "admin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "PhoneHome.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "Phone — home",
+   "page": "phone",
+   "is_interactive": true,
+   "radius": 36
+  },
+  "PhoneEnv.dc.html": {
+   "x": 470,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "Phone — environment",
+   "page": "phone",
+   "is_interactive": true,
+   "radius": 36
+  },
+  "PhoneMenu.dc.html": {
+   "x": 940,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "title": "Phone — menu",
+   "page": "phone",
+   "is_interactive": true,
+   "radius": 36
+  },
+  "StyleGuide.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 1100,
+   "title": "Style guide",
+   "page": "parts"
+  },
+  "TopBar.dc.html": {
+   "x": 0,
+   "y": 1300,
+   "w": 1440,
+   "h": 56,
+   "title": "Top bar",
+   "page": "parts"
+  },
+  "SideNav.dc.html": {
+   "x": 0,
+   "y": 1500,
+   "w": 240,
+   "h": 844,
+   "title": "Side menu",
+   "page": "parts"
+  },
+  "PowerStrip.dc.html": {
+   "x": 320,
+   "y": 1500,
+   "w": 280,
+   "h": 32,
+   "title": "Power strip",
+   "page": "parts"
+  },
+  "GrantAccess.dc.html": {
+   "x": 3040,
+   "y": 2200,
+   "w": 1440,
+   "h": 900,
+   "title": "Grant access — several people, several environments",
+   "page": "envadmin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "AddUsers.dc.html": {
+   "x": 0,
+   "y": 4400,
+   "w": 1440,
+   "h": 900,
+   "title": "Add people — onboarding",
+   "page": "admin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Environments15.dc.html": {
+   "x": 3040,
+   "y": 4400,
+   "w": 1440,
+   "h": 900,
+   "title": "Environments — 15 at once, no page controls",
+   "page": "everyone",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "EnvDetailLarge.dc.html": {
+   "x": 0,
+   "y": 5500,
+   "w": 1440,
+   "h": 900,
+   "title": "Environment with 54 VMs — groups and pages",
+   "page": "everyone",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "VmDetails.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "VM details — panel (tabs: overview, use, storage, idle, history)",
+   "page": "details",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "EnvInsights.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Environment insights — idle, busiest, recommendations",
+   "page": "details",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "IdleStop.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Idle auto-stop — dry run results, snooze, rule",
+   "page": "details",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "OperationProgress.dc.html": {
+   "x": 0,
+   "y": 1100,
+   "w": 1440,
+   "h": 900,
+   "title": "Start in progress — live, step by step",
+   "page": "details",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "OperationHistory.dc.html": {
+   "x": 1520,
+   "y": 1100,
+   "w": 1440,
+   "h": 900,
+   "title": "Operation history — runs and their steps",
+   "page": "details",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "LockLease.dc.html": {
+   "x": 3040,
+   "y": 1100,
+   "w": 1440,
+   "h": 900,
+   "title": "Lock and lease dialogs",
+   "page": "details",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "RegisterVms.dc.html": {
+   "x": 0,
+   "y": 2200,
+   "w": 1440,
+   "h": 900,
+   "title": "Add VMs from AWS — environment admin",
+   "page": "details",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "EnvSettings.dc.html": {
+   "x": 1520,
+   "y": 2200,
+   "w": 1440,
+   "h": 900,
+   "title": "Environment settings — environment admin",
+   "page": "details",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Rightsizing.dc.html": {
+   "x": 3040,
+   "y": 2200,
+   "w": 1440,
+   "h": 900,
+   "title": "Rightsizing — administrator",
+   "page": "details",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "EnvAlerts.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Environment page — every alert it can show",
+   "page": "moreeveryday",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "EksEnv.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "EKS environment — node groups and namespace cost",
+   "page": "moreeveryday",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "SpotSettings.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Environment settings — Spot",
+   "page": "moreeveryday",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "RegistryDialogs.dc.html": {
+   "x": 0,
+   "y": 1100,
+   "w": 1440,
+   "h": 900,
+   "title": "Edit group, move VM, email members",
+   "page": "moreeveryday",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "AccessChange.dc.html": {
+   "x": 1520,
+   "y": 1100,
+   "w": 1440,
+   "h": 900,
+   "title": "Change access, revoke, deny with a reason",
+   "page": "moreeveryday",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "AskPanel.dc.html": {
+   "x": 3040,
+   "y": 1100,
+   "w": 1440,
+   "h": 900,
+   "title": "Ask — assistant (when switched on)",
+   "page": "moreeveryday",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Shortcuts.dc.html": {
+   "x": 0,
+   "y": 2200,
+   "w": 1440,
+   "h": 900,
+   "title": "Keyboard shortcuts",
+   "page": "moreeveryday",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "ChatAction.dc.html": {
+   "x": 1520,
+   "y": 2200,
+   "w": 1440,
+   "h": 900,
+   "title": "Teams one-click action — confirm page",
+   "page": "moreeveryday",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "States.dc.html": {
+   "x": 3040,
+   "y": 2200,
+   "w": 1440,
+   "h": 900,
+   "title": "Empty, error, loading, messages, session ended",
+   "page": "moreeveryday",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Commitments.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Cost — commitments (Savings Plans, RIs)",
+   "page": "moreadmin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Carbon.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Cost — carbon",
+   "page": "moreadmin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Anomalies.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Cost — unusual spend",
+   "page": "moreadmin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "CostDialogs.dc.html": {
+   "x": 0,
+   "y": 1100,
+   "w": 1440,
+   "h": 900,
+   "title": "New budget and month-for-finance dialogs",
+   "page": "moreadmin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "WasteFix.dc.html": {
+   "x": 1520,
+   "y": 1100,
+   "w": 1440,
+   "h": 900,
+   "title": "Waste — fix, approve, roll back",
+   "page": "moreadmin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "ChargebackRules.dc.html": {
+   "x": 3040,
+   "y": 1100,
+   "w": 1440,
+   "h": 900,
+   "title": "Chargeback — shared cost rules and missing tags",
+   "page": "moreadmin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "ApiTabs.dc.html": {
+   "x": 0,
+   "y": 2200,
+   "w": 1440,
+   "h": 900,
+   "title": "API access — service accounts and webhooks",
+   "page": "moreadmin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "UserDialogs.dc.html": {
+   "x": 1520,
+   "y": 2200,
+   "w": 1440,
+   "h": 900,
+   "title": "Users — change role, set password",
+   "page": "moreadmin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "TeamDetail.dc.html": {
+   "x": 3040,
+   "y": 2200,
+   "w": 1440,
+   "h": 900,
+   "title": "Team — members, Entra group, monthly limit",
+   "page": "moreadmin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "TemplatesAdmin.dc.html": {
+   "x": 0,
+   "y": 3300,
+   "w": 1440,
+   "h": 900,
+   "title": "New environment — manage templates and requests",
+   "page": "moreadmin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "AutomationTabs.dc.html": {
+   "x": 1520,
+   "y": 3300,
+   "w": 1440,
+   "h": 900,
+   "title": "Automation — holiday calendars, access-triggered rules",
+   "page": "moreadmin",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "SystemHealthFleet.dc.html": {
+   "x": 1520,
+   "y": 4400,
+   "w": 1440,
+   "h": 900,
+   "title": "System health — fleet use (the charts that used to be on admin Home)",
+   "page": "admin",
+   "expand": "fill",
+   "is_interactive": true
+  }
+ },
+ "order": [
+  "Main.dc.html",
+  "Dashboard.dc.html",
+  "Environments.dc.html",
+  "EnvDetail.dc.html",
+  "EnvDetailViewer.dc.html",
+  "StartConfirm.dc.html",
+  "RequestAccess.dc.html",
+  "Approvals.dc.html",
+  "MyActivity.dc.html",
+  "MyAccount.dc.html",
+  "Notifications.dc.html",
+  "Help.dc.html",
+  "NoAccess.dc.html",
+  "NewEnvironment.dc.html",
+  "Environments15.dc.html",
+  "EnvDetailLarge.dc.html",
+  "AccessRequests.dc.html",
+  "AccessManagement.dc.html",
+  "VmRegistry.dc.html",
+  "AutomationRules.dc.html",
+  "RuleEditor.dc.html",
+  "ApprovalPolicies.dc.html",
+  "AuditLog.dc.html",
+  "Budgets.dc.html",
+  "GrantAccess.dc.html",
+  "AdminDashboard.dc.html",
+  "CostOverview.dc.html",
+  "Savings.dc.html",
+  "Waste.dc.html",
+  "Chargeback.dc.html",
+  "CostSetup.dc.html",
+  "Users.dc.html",
+  "Teams.dc.html",
+  "AwsAccounts.dc.html",
+  "ApiAccess.dc.html",
+  "Settings.dc.html",
+  "SystemHealth.dc.html",
+  "AddUsers.dc.html",
+  "PhoneHome.dc.html",
+  "PhoneEnv.dc.html",
+  "PhoneMenu.dc.html",
+  "StyleGuide.dc.html",
+  "TopBar.dc.html",
+  "SideNav.dc.html",
+  "PowerStrip.dc.html",
+  "VmDetails.dc.html",
+  "EnvInsights.dc.html",
+  "IdleStop.dc.html",
+  "OperationProgress.dc.html",
+  "OperationHistory.dc.html",
+  "LockLease.dc.html",
+  "RegisterVms.dc.html",
+  "EnvSettings.dc.html",
+  "Rightsizing.dc.html",
+  "EnvAlerts.dc.html",
+  "EksEnv.dc.html",
+  "SpotSettings.dc.html",
+  "RegistryDialogs.dc.html",
+  "AccessChange.dc.html",
+  "AskPanel.dc.html",
+  "Shortcuts.dc.html",
+  "ChatAction.dc.html",
+  "States.dc.html",
+  "Commitments.dc.html",
+  "Carbon.dc.html",
+  "Anomalies.dc.html",
+  "CostDialogs.dc.html",
+  "WasteFix.dc.html",
+  "ChargebackRules.dc.html",
+  "ApiTabs.dc.html",
+  "UserDialogs.dc.html",
+  "TeamDetail.dc.html",
+  "TemplatesAdmin.dc.html",
+  "AutomationTabs.dc.html",
+  "SystemHealthFleet.dc.html"
+ ],
+ "notes": {
+  "t-everyone": {
+   "x": 0,
+   "y": -320,
+   "text": "Users & viewers — every screen a signed-in person can reach",
+   "kind": "title1",
+   "maxW": 4480,
+   "page": "everyone"
+  },
+  "s-everyone": {
+   "x": -700,
+   "y": 0,
+   "w": 560,
+   "maxH": 900,
+   "page": "everyone",
+   "fill": "blue",
+   "size": "m",
+   "text": "What changes for end users\n\n• Home leads with your environments as power strips: one light per VM, green = running. Click a card to open it.\n• The environment page reads top to bottom: name, lights by start order, what you can do, then the VMs. Cost and settings come after.\n• View-only people see a note and a way to ask for operator access, never buttons that fail.\n• Start shows what it will cost and when it stops before you confirm.\n• Pages you can't use say so instead of going blank.\n• Sentence case, plain words: 'Lock environment', 'Start order 1 · after Database'.\n\nEvery screen fits one 1440 × 900 window: no horizontal scrollbar, and no vertical one either. Long lists show a page of rows with page controls; extra detail sits in tabs or a side column.\n\nAt scale: 15 environments fit one page (38 px rows). A 54-VM environment shows every light in one strip, then one group at a time with Running / Stopped / Problems filters and 10 VMs per page. Over 24 VMs, a strip inside a list becomes a bar."
+  },
+  "t-envadmin": {
+   "x": 0,
+   "y": -320,
+   "text": "Environment admin — Manage section",
+   "kind": "title1",
+   "maxW": 4480,
+   "page": "envadmin"
+  },
+  "s-envadmin": {
+   "x": -700,
+   "y": 0,
+   "w": 560,
+   "maxH": 900,
+   "page": "envadmin",
+   "fill": "blue",
+   "size": "m",
+   "text": "What changes for environment admins\n\n• Access requests is a clean review queue: who, what, how long, current access, Approve / Deny that never overlap (today they overlap the 'Current access' column).\n• Automation rules shows each schedule as a week strip, so 'Mon–Fri 08:00–20:00' is visible, not read.\n• Every switch has a name (today ~45 are announced as just 'on').\n• Search filters as you type: the extra Search and Refresh buttons go.\n• Help '?' links go to the right topic (My Environments pointed to Locks).\n• Grant access (new screen): several people × several environments or groups in one go, with a preview of what is new, extended, upgraded or skipped. Today: one person, one environment at a time.\n\nEvery screen fits one 1440 × 900 window: no horizontal scrollbar, and no vertical one either. Long lists show a page of rows with page controls; extra detail sits in tabs or a side column."
+  },
+  "t-admin": {
+   "x": 0,
+   "y": -320,
+   "text": "Administrator — Cost and Administration",
+   "kind": "title1",
+   "maxW": 4480,
+   "page": "admin"
+  },
+  "s-admin": {
+   "x": -700,
+   "y": 0,
+   "w": 560,
+   "maxH": 900,
+   "page": "admin",
+   "fill": "blue",
+   "size": "m",
+   "text": "What changes for administrators\n\n• Home is a to-do list first (requests, failed runs, drift, budgets), then the fleet and spend. Today it has nothing to click but Refresh.\n• Cost management: one Actions menu and one Export menu instead of seven header buttons; Cost setup is a tab, not three separate links.\n• Settings group into sections with named switches and the property key as small print.\n• Off features say they are off, in words, with who can switch them on, instead of failing requests in the background.\n• Add people (new screen): several at once from the Microsoft directory, or by hand with email, name, department, team and project code; choose their role and give environment access in the same step. Today: one person at a time from a dialog. Department and project code are new fields on the user record; team uses the existing teams.\n\nEvery screen fits one 1440 × 900 window: no horizontal scrollbar, and no vertical one either. Long lists show a page of rows with page controls; extra detail sits in tabs or a side column."
+  },
+  "t-phone": {
+   "x": 0,
+   "y": -320,
+   "text": "Phone",
+   "kind": "title1",
+   "maxW": 1330,
+   "page": "phone"
+  },
+  "t-parts": {
+   "x": 0,
+   "y": -320,
+   "text": "Building blocks — identity and shared parts",
+   "kind": "title1",
+   "maxW": 1440,
+   "page": "parts"
+  },
+  "s-parts": {
+   "x": -700,
+   "y": 1300,
+   "w": 560,
+   "maxH": 700,
+   "page": "parts",
+   "fill": "blue",
+   "size": "m",
+   "text": "Layout rules from review\n\n• No scrollbars: every desktop screen fits a 1440 × 900 window. Tables wrap text instead of scrolling sideways; long lists paginate; secondary detail goes into tabs or a side column. Only the phone scrolls.\n• The side menu never collapses: every section is always open. Rows are 30 px so the full admin menu (22 items) fits without scrolling. Help is the ? in the top bar.\n• The top bar and side menu stay fixed; only the page content moves if anything ever scrolls.\n• Instance IDs are shown to Administrators only, everywhere. The server leaves them out of every response for anyone else (environment pages, VM details, registry, activity and audit text, error messages), so hiding them doesn't rely on the screen. IP addresses are visible to everyone who can see the environment."
+  },
+  "t-details": {
+   "x": 0,
+   "y": -320,
+   "text": "VM & environment details — what opens from inside the pages",
+   "kind": "title1",
+   "maxW": 4480,
+   "page": "details"
+  },
+  "s-details": {
+   "x": -700,
+   "y": 0,
+   "w": 560,
+   "maxH": 900,
+   "page": "details",
+   "fill": "blue",
+   "size": "m",
+   "text": "Everything that opens from the environment page, VM registry and cost pages.\n\n• VM details: one panel with tabs, not a long scroll. Overview, use (CPU, memory, network, disk over 1 h / 6 h / 24 h / 7 d), storage, idle detection, history. Rightsizing advice sits on the VM. The instance ID row appears for Administrators only (switch 'admin' in the panel's settings).\n• Idle auto-stop: what the dry run would have stopped and saved, snooze for anyone who uses the environment, rule settings for environment admins.\n• Starting shows live progress by start order with each VM's state, and how long it usually takes.\n• Environment settings gathers what are separate panels today (details, groups and start order, leases, idle stop, Teams channels, webhooks, Spot) into one place for environment admins.\n• Adding VMs from AWS shows name, size, zone, state and IP — no instance IDs for environment admins."
+  },
+  "t-moreeveryday": {
+   "x": 0,
+   "y": -320,
+   "text": "More — the rest of what everyday users and environment admins see",
+   "kind": "title1",
+   "maxW": 4480,
+   "page": "moreeveryday"
+  },
+  "t-moreadmin": {
+   "x": 0,
+   "y": -320,
+   "text": "More — the rest of cost and administration",
+   "kind": "title1",
+   "maxW": 4480,
+   "page": "moreadmin"
+  }
+ },
+ "designSystems": []
+}

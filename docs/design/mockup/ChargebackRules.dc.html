@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Chargeback — shared cost rules</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+.card{background:#FFFFFF;border:1px solid #E1E6EF;border-radius:12px}
+.mono{font-family:'IBM Plex Mono',monospace}
+.in{height:34px;border:1px solid #D4DAE5;border-radius:8px;padding:0 10px;font:inherit;box-sizing:border-box}
+.btn{display:inline-flex;align-items:center;height:36px;padding:0 13px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:500}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="admin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="admin" active="chargeback" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 20px 32px 24px; display: flex; flex-direction: column; gap: 14px; box-sizing: border-box">
+      <div>
+        <nav aria-label="Breadcrumb" style="font-size: 13px; color: #5B6478; display: flex; gap: 8px; margin-bottom: 6px"><a href="Chargeback.dc.html" style="color: #5B6478; text-decoration: none">Chargeback</a><span aria-hidden="true">/</span><span aria-current="page" style="color: #141B2D">Shared cost rules</span></nav>
+        <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Shared cost rules</h1>
+        <p style="margin: 4px 0 0; font-size: 15px; color: #5B6478">An environment several teams use can pass its cost on to them instead of to its own team.</p>
+      </div>
+      <div style="display: grid; grid-template-columns: 280px minmax(0, 1fr) 300px; gap: 14px; align-items: start">
+        <nav aria-label="Rules" class="card" style="overflow: hidden">
+          <div style="padding: 10px 14px; font-size: 12.5px; color: #5B6478; font-weight: 500; border-bottom: 1px solid #EEF1F5">One rule per environment</div>
+          <sc-for list="{{rules}}" as="r" hint-placeholder-count="4">
+            <a href="ChargebackRules.dc.html" style="display: block; padding: 10px 14px; border-top: 1px solid #F1F3F7; text-decoration: none; color: #141B2D; {{r.sel}}"><b style="font-weight: 500; font-size: 14px">{{r.env}}</b><span style="display: flex; justify-content: space-between; font-size: 12.5px; color: #5B6478; margin-top: 2px"><span>{{r.method}}</span><span class="mono">{{r.cost}}</span></span></a>
+          </sc-for>
+          <div style="padding: 10px 14px; border-top: 1px solid #EEF1F5"><a href="ChargebackRules.dc.html" style="font-size: 13.5px; font-weight: 500; text-decoration: none">+ New rule</a></div>
+        </nav>
+
+        <section class="card" aria-labelledby="ed-t" style="overflow: hidden">
+          <div style="padding: 14px 18px; border-bottom: 1px solid #EEF1F5; display: flex; justify-content: space-between; align-items: baseline"><h2 id="ed-t" style="margin: 0; font-size: 16px; font-weight: 600">Shared Services</h2><span style="font-size: 12.5px; color: #5B6478">$1,920 last month</span></div>
+          <div style="padding: 14px 18px; display: flex; flex-direction: column; gap: 14px">
+            <fieldset style="border: 0; padding: 0; margin: 0"><legend style="font-size: 13.5px; font-weight: 500; padding: 0; margin-bottom: 8px">Split its cost</legend>
+              <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+                <sc-for list="{{methods}}" as="m" hint-placeholder-count="3"><label style="display: flex; flex-direction: column; gap: 3px; padding: 9px 11px; border-radius: 9px; font-size: 13.5px; {{m.box}}"><span style="display: flex; gap: 8px; align-items: center"><input type="radio" name="m" checked="{{m.checked}}">{{m.name}}</span><span style="font-size: 12px; color: #5B6478">{{m.desc}}</span></label></sc-for>
+              </div></fieldset>
+            <div>
+              <div style="display: grid; grid-template-columns: minmax(0, 1fr) 90px 90px 28px; gap: 10px; font-size: 12.5px; color: #5B6478; font-weight: 500; padding-bottom: 6px"><span>Team</span><span style="text-align: right">Share</span><span style="text-align: right">Last month</span><span></span></div>
+              <sc-for list="{{shares}}" as="s" hint-placeholder-count="4">
+                <div style="display: grid; grid-template-columns: minmax(0, 1fr) 90px 90px 28px; gap: 10px; align-items: center; padding: 5px 0; border-top: 1px solid #F1F3F7; font-size: 14px"><span>{{s.team}}</span><span style="display: flex; align-items: center; gap: 4px; justify-content: flex-end"><input class="in mono" type="text" defaultValue="{{s.pct}}" aria-label="{{s.team}} percent" style="width: 56px; text-align: right">%</span><span class="mono" style="text-align: right">{{s.amt}}</span><a href="ChargebackRules.dc.html" aria-label="Remove {{s.team}}" style="color: #5B6478; text-decoration: none; text-align: center">×</a></div>
+              </sc-for>
+              <div style="display: grid; grid-template-columns: minmax(0, 1fr) 90px 90px 28px; gap: 10px; padding: 8px 0 0; border-top: 1px solid #E1E6EF; font-size: 14px"><a href="ChargebackRules.dc.html" style="font-size: 13.5px; font-weight: 500; text-decoration: none">+ Add team</a><span class="mono" style="text-align: right; color: #0B6B44">100% ✓</span><span class="mono" style="text-align: right">$1,920</span><span></span></div>
+            </div>
+            <label style="display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 500">From<select class="in"><option>November 2026</option><option>October 2026</option></select><span style="font-weight: 400; color: #5B6478; font-size: 12.5px">Finalised months don't change</span></label>
+          </div>
+          <div style="display: flex; justify-content: space-between; gap: 8px; padding: 12px 18px; background: #FAFBFD; border-top: 1px solid #E1E6EF"><a href="ChargebackRules.dc.html" class="btn" style="color: #A8331F">Delete rule</a><a href="Chargeback.dc.html" class="btn" style="background: #14245C; color: #FFFFFF">Save rule</a></div>
+        </section>
+
+        <aside style="display: flex; flex-direction: column; gap: 14px">
+          <div class="card" style="padding: 16px">
+            <h2 style="margin: 0 0 6px; font-size: 15px; font-weight: 600">Cost with no team</h2>
+            <div class="mono" style="font-size: 22px">$310</div>
+            <p style="margin: 4px 0 10px; font-size: 13px; color: #3A4256; line-height: 1.45">Last month, from 2 environments not linked to a team. It shows as "Unassigned" on the statement.</p>
+            <a href="Teams.dc.html" style="font-size: 13.5px; font-weight: 500; text-decoration: none">Link environments to teams</a>
+          </div>
+          <div class="card" style="padding: 16px">
+            <h2 style="margin: 0 0 6px; font-size: 15px; font-weight: 600">Cost tags on VMs</h2>
+            <div style="display: flex; gap: 18px; font-size: 13.5px"><span><b class="mono" style="font-weight: 500; font-size: 18px">47</b> tagged</span><span style="color: #A8331F"><b class="mono" style="font-weight: 500; font-size: 18px">6</b> missing</span></div>
+            <p style="margin: 6px 0 10px; font-size: 13px; color: #3A4256; line-height: 1.45">The platform writes environment and team tags (starting <span class="mono">tcg:</span>) to each VM every night at 02:30, so AWS billing can be split the same way.</p>
+            <a href="ChargebackRules.dc.html" class="btn" style="border: 1px solid #D4DAE5; color: #141B2D; height: 32px; font-size: 13.5px">Tag the 6 now</a>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const on = 'border:1.5px solid #14245C', off = 'border:1px solid #E1E6EF';
+    const rules = [
+      { env: 'Shared Services', method: 'Fixed percentages · 4 teams', cost: '$1,920', sel: 'background:#ECEFF8;box-shadow:inset 3px 0 0 #D9A21B' },
+      { env: 'Integration Hub', method: 'Evenly · 3 teams', cost: '$640', sel: '' },
+      { env: 'Observability', method: 'By own direct cost · 5 teams', cost: '$1,110', sel: '' }
+    ];
+    const methods = [
+      { name: 'Evenly', desc: 'Same amount for each team', checked: false, box: off },
+      { name: 'Fixed percentages', desc: 'You set each share; must total 100%', checked: true, box: on },
+      { name: 'By own cost', desc: 'In line with what each team spends directly', checked: false, box: off }
+    ];
+    const shares = [['Payments', 40, 768], ['CRM', 25, 480], ['Partner Portal', 20, 384], ['Data Platform', 15, 288]].map(([team, pct, amt]) => ({ team, pct: String(pct), amt: '$' + amt }));
+    return { rules, methods, shares };
+  }
+}
+</script>
+</body>
+</html>

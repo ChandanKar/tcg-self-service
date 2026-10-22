@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ask</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column; position: relative">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="user" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="user" active="home" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main aria-hidden="true" style="flex: 999 1 560px; min-width: 0; padding: 20px 32px; display: flex; flex-direction: column; gap: 14px; box-sizing: border-box">
+      <div style="font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Good morning, Ananya</div>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; max-width: 700px"><div style="height: 170px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px"></div><div style="height: 170px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px"></div><div style="height: 170px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px"></div><div style="height: 170px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px"></div></div>
+    </main>
+  </div>
+
+  <aside role="dialog" aria-labelledby="ask-t" style="position: absolute; top: 56px; right: 0; bottom: 0; width: 440px; z-index: 30; background: #FFFFFF; border-left: 1px solid #E1E6EF; box-shadow: -16px 0 40px rgba(20,36,92,0.12); display: flex; flex-direction: column">
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid #EEF1F5">
+      <div><h2 id="ask-t" style="margin: 0; font-size: 17px; font-weight: 600">Ask</h2><div style="font-size: 12.5px; color: #5B6478">About environments and cost you can see. It can't start, stop or change anything.</div></div>
+      <a href="Dashboard.dc.html" aria-label="Close" style="display: inline-flex; width: 32px; height: 32px; align-items: center; justify-content: center; border-radius: 8px; color: #5B6478; text-decoration: none; font-size: 20px">×</a>
+    </div>
+    <div style="flex: 1; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; overflow: hidden">
+      <div style="align-self: flex-end; max-width: 80%; background: #14245C; color: #FFFFFF; padding: 9px 13px; border-radius: 12px 12px 4px 12px; font-size: 14px">Which of my environments cost the most this month?</div>
+      <div style="max-width: 92%; font-size: 14px; line-height: 1.55; color: #141B2D">
+        Payments Dev, at $412 so far in October. Then:
+        <ul style="margin: 6px 0; padding-left: 18px"><li>CRM UAT — $296</li><li>Partner Portal QA — $305 (includes the $46 EKS cluster fee)</li></ul>
+        Payments Dev's two database VMs are 61% of its cost.
+      </div>
+      <div style="align-self: flex-end; max-width: 80%; background: #14245C; color: #FFFFFF; padding: 9px 13px; border-radius: 12px 12px 4px 12px; font-size: 14px">Anything idle I could stop?</div>
+      <div style="max-width: 92%; font-size: 14px; line-height: 1.55; color: #141B2D">
+        Two VMs used under 3% CPU for the last 7 days while running:
+        <ul style="margin: 6px 0; padding-left: 18px"><li>pay-cache in Payments Dev, about $41 a month</li><li>crm-batch-01 in CRM UAT, about $58 a month</li></ul>
+        You can stop them from each environment's page.
+        <div style="display: flex; gap: 8px; margin-top: 8px"><a href="EnvDetail.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none">Open Payments Dev</a><a href="EnvAlerts.dc.html" style="font-size: 13px; font-weight: 500; text-decoration: none">Open CRM UAT</a></div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; color: #5B6478; font-size: 13px"><span style="display: inline-flex; gap: 3px"><span style="width: 6px; height: 6px; border-radius: 50%; background: #9AA4B8"></span><span style="width: 6px; height: 6px; border-radius: 50%; background: #C5CCD9"></span><span style="width: 6px; height: 6px; border-radius: 50%; background: #E1E6EF"></span></span>Looking at cost by service…</div>
+    </div>
+    <div style="padding: 10px 18px 0; display: flex; flex-wrap: wrap; gap: 6px">
+      <sc-for list="{{chips}}" as="c" hint-placeholder-count="4"><a href="AskPanel.dc.html" style="font-size: 12.5px; padding: 5px 10px; border-radius: 999px; border: 1px solid #D4DAE5; color: #2A3245; text-decoration: none">{{c}}</a></sc-for>
+    </div>
+    <form style="display: flex; gap: 8px; padding: 12px 18px 16px"><label style="flex: 1"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Your question</span><input type="text" placeholder="Ask about cost, idle VMs, savings…" style="width: 100%; box-sizing: border-box; height: 40px; border: 1px solid #D4DAE5; border-radius: 9px; padding: 0 12px; font: inherit; font-size: 14px"></label><button type="button" style="height: 40px; padding: 0 16px; border-radius: 9px; border: 0; background: #14245C; color: #FFFFFF; font: inherit; font-weight: 500; font-size: 14px">Ask</button></form>
+    <div style="padding: 0 18px 14px; font-size: 12px; color: #5B6478">Remembers the last 10 messages of this conversation. <a href="AskPanel.dc.html" style="color: #5B6478">Start over</a></div>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { chips: ['Cost trend for 3 months', 'Spend by service', 'Savings I could make', 'VMs that could be smaller'] };
+  }
+}
+</script>
+</body>
+</html>

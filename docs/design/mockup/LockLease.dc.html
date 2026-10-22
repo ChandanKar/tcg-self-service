@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lock and lease dialogs</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column; position: relative">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="user" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="user" active="environments" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main aria-hidden="true" style="flex: 999 1 560px; min-width: 0; padding: 20px 32px; display: flex; flex-direction: column; gap: 14px; box-sizing: border-box">
+      <div style="font-size: 13px; color: #5B6478">Environments / Payments Dev</div>
+      <div style="font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Payments Dev</div>
+      <div style="height: 520px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px"></div>
+    </main>
+  </div>
+
+  <div style="position: absolute; inset: 0; z-index: 30; background: rgba(10,20,48,0.42); display: flex; align-items: flex-start; justify-content: center; gap: 24px; padding: 72px 24px; box-sizing: border-box; flex-wrap: wrap">
+    <div role="dialog" aria-labelledby="lock-title" style="width: 100%; max-width: 460px; background: #FFFFFF; border-radius: 14px; box-shadow: 0 24px 48px rgba(20,36,92,0.25); overflow: hidden">
+      <div style="padding: 20px 22px 6px"><h2 id="lock-title" style="margin: 0; font-size: 19px; font-weight: 600">Lock Payments Dev</h2>
+        <p style="margin: 4px 0 0; font-size: 14px; color: #5B6478">While it's locked, only you can start or stop its VMs. Schedules wait and retry.</p></div>
+      <div style="padding: 14px 22px; display: flex; flex-direction: column; gap: 14px">
+        <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 500">Why (others see this)
+          <input type="text" defaultValue="Data migration rehearsal" style="height: 38px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 10px; font: inherit; font-weight: 400"></label>
+        <fieldset style="border: 0; padding: 0; margin: 0"><legend style="font-size: 14px; font-weight: 500; padding: 0; margin-bottom: 8px">Until</legend>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap"><sc-for list="{{lockFor}}" as="o" hint-placeholder-count="4"><button type="button" aria-pressed="{{o.pressed}}" onClick="{{o.pick}}" style="{{o.style}}">{{o.label}}</button></sc-for></div></fieldset>
+        <p style="margin: 0; font-size: 13px; color: #5B6478">{{lockNote}}</p>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; padding: 14px 22px; background: #FAFBFD; border-top: 1px solid #E1E6EF">
+        <a href="EnvDetail.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 14px; border-radius: 8px; border: 1px solid #D4DAE5; color: #141B2D; text-decoration: none; font-weight: 500; font-size: 14px">Cancel</a>
+        <a href="EnvDetail.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 16px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">Lock environment</a>
+      </div>
+    </div>
+
+    <div role="dialog" aria-labelledby="lease-title" style="width: 100%; max-width: 460px; background: #FFFFFF; border-radius: 14px; box-shadow: 0 24px 48px rgba(20,36,92,0.25); overflow: hidden">
+      <div style="padding: 20px 22px 6px"><h2 id="lease-title" style="margin: 0; font-size: 19px; font-weight: 600">Keep Payments Dev running longer</h2>
+        <p style="margin: 4px 0 0; font-size: 14px; color: #5B6478">It stops at <span style="font-family: 'IBM Plex Mono', monospace; color: #141B2D">20:00</span>, in 2 h 15 min. You're reminded 60, 15 and 5 minutes before.</p></div>
+      <div style="padding: 14px 22px; display: flex; flex-direction: column; gap: 14px">
+        <fieldset style="border: 0; padding: 0; margin: 0"><legend style="font-size: 14px; font-weight: 500; padding: 0; margin-bottom: 8px">Extend by</legend>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap"><sc-for list="{{extend}}" as="o" hint-placeholder-count="5"><button type="button" aria-pressed="{{o.pressed}}" onClick="{{o.pick}}" style="{{o.style}}">{{o.label}}</button></sc-for></div></fieldset>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+          <div style="padding: 10px 12px; border: 1px solid #E1E6EF; border-radius: 9px"><div style="font-size: 12px; color: #5B6478">New stop time</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; margin-top: 2px">{{newStop}}</div></div>
+          <div style="padding: 10px 12px; border: 1px solid #E1E6EF; border-radius: 9px"><div style="font-size: 12px; color: #5B6478">Costs about</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; margin-top: 2px">{{extraCost}}</div></div>
+        </div>
+        <sc-if value="{{needsApproval}}" hint-placeholder-val="{{ false }}">
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 500">Reason for Sanjay Rao
+            <input type="text" placeholder="Over 8 hours needs the owner's OK" style="height: 38px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 10px; font: inherit; font-weight: 400"></label>
+        </sc-if>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; padding: 14px 22px; background: #FAFBFD; border-top: 1px solid #E1E6EF">
+        <a href="EnvDetail.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 14px; border-radius: 8px; border: 1px solid #D4DAE5; color: #141B2D; text-decoration: none; font-weight: 500; font-size: 14px">Cancel</a>
+        <a href="EnvDetail.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 16px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">{{extendCta}}</a>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { lock: '2 hours', ext: 2 }; }
+  renderVals() {
+    const chip = (on) => 'font:inherit;font-size:13px;height:34px;padding:0 12px;border-radius:8px;cursor:pointer;' + (on ? 'background:#14245C;color:#FFFFFF;border:1px solid #14245C;font-weight:500' : 'background:#FFFFFF;color:#141B2D;border:1px solid #D4DAE5');
+    const lockFor = ['1 hour', '2 hours', 'End of day', 'Until I release it'].map(label => ({ label, pressed: String(this.state.lock === label), pick: () => this.setState({ lock: label }), style: chip(this.state.lock === label) }));
+    const ext = this.state.ext;
+    const extend = [0.5, 1, 2, 8, 12].map(h => ({ label: h < 1 ? '30 min' : `${h} h`, pressed: String(ext === h), pick: () => this.setState({ ext: h }), style: chip(ext === h) }));
+    const stopMin = 20 * 60 + ext * 60, hh = Math.floor(stopMin / 60) % 24, mm = stopMin % 60;
+    const needsApproval = ext > 8;
+    return {
+      lockFor, extend,
+      lockNote: this.state.lock === 'Until I release it' ? 'It stays locked until you release it or an admin breaks it.' : 'It unlocks on its own at that time; you are warned 15 and 5 minutes before.',
+      newStop: `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}${stopMin >= 24 * 60 ? ' tomorrow' : ''}`,
+      extraCost: '$' + (ext * 0.53).toFixed(2), needsApproval,
+      extendCta: needsApproval ? 'Ask Sanjay Rao' : `Extend by ${ext < 1 ? '30 min' : ext + ' h'}`
+    };
+  }
+}
+</script>
+</body>
+</html>

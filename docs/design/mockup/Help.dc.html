@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Help</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="user" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="user" active="help" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+        <div>
+          <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Help</h1>
+          <p style="margin: 6px 0 0; font-size: 15px; color: #5B6478">How the platform works, in short articles. Every "?" in the app opens the matching one.</p>
+        </div>
+        <label style="display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; background: #FFFFFF; border: 1px solid #D4DAE5; border-radius: 8px; width: 320px; max-width: 100%">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="#5B6478" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="5.5"></circle><path d="m13.5 13.5 3.5 3.5"></path></svg>
+          <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search help</span>
+          <input type="search" placeholder="Search help" style="border: 0; outline: 0; font: inherit; font-size: 14px; flex: 1">
+        </label>
+      </div>
+      <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start">
+        <nav aria-label="Help topics" style="flex: 1 1 260px; max-width: 320px; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 10px 0">
+          <sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+            <div style="padding: 10px 18px 4px; font-size: 12px; font-weight: 600; color: #5B6478; letter-spacing: 0.02em">{{g.name}}</div>
+            <sc-for list="{{g.topics}}" as="t" hint-placeholder-count="3">
+              <button type="button" onClick="{{t.pick}}" aria-current="{{t.current}}" style="{{t.style}}">{{t.title}}</button>
+            </sc-for>
+          </sc-for>
+        </nav>
+        <article style="flex: 999 1 460px; min-width: 0; background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; padding: 28px 32px; display: flex; flex-direction: column; gap: 14px; max-width: 760px">
+          <h2 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.015em">{{article.title}}</h2>
+          <sc-for list="{{article.paras}}" as="p" hint-placeholder-count="3">
+            <p style="margin: 0; font-size: 15px; line-height: 1.65; color: #2A3245">{{p.text}}</p>
+          </sc-for>
+          <div style="margin-top: 8px; padding: 14px 16px; border-radius: 10px; background: #F7F8FB; font-size: 14px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap">
+            <dc-import name="PowerStrip" states="RRB|RS|SU" hint-size="150px,20px"></dc-import>
+            <span style="color: #3A4256">Green is running, gold is starting or stopping, hollow is stopped, striped means the state hasn't been read from AWS yet.</span>
+          </div>
+        </article>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { topic: 'locks' }; }
+  renderVals() {
+    const articles = {
+      start: ['Getting started and roles', ['You see the environments you have access to. Operator access lets you start, stop and lock them; view access lets you look at their state, cost and history.', 'Environment admins approve access and look after groups, schedules and budgets. Administrators look after users, cost and settings for everyone.']],
+      access: ['Requesting and managing access', ['Open Request access, pick an environment, choose Operator or View only, for how long, and say why. The environment\'s owners get your request.', 'Your access and when it ends are in My account › Access, where you can ask for an extension.']],
+      envs: ['Environments, groups and start order', ['An environment is a set of VMs grouped by what they do, such as Database, Application and Web. Groups start in order: a group waits for the groups it depends on.', 'Stopping goes the other way, so the web tier stops before the database.']],
+      locks: ['Starting, stopping and locks', ['Start or stop a whole environment, one group or one VM from the environment page. Before anything starts you see how long it will run and what it will cost.', 'Lock an environment when you need it to stay as it is: while it is locked, only you can start or stop its VMs. Locks end when you release them, or at the time you chose.', 'If someone else holds the lock, the page says who and since when.']],
+      leases: ['Leases and extensions', ['A lease is the time an environment may run before it stops on its own. You are reminded 60, 15 and 5 minutes before it ends and can extend it; long extensions need the owner\'s approval.']],
+      costs: ['Costs and rightsizing', ['Costs are estimated from how long each VM runs and its AWS list price, and replaced with AWS billing figures where they are available.']],
+      faq: ['FAQ and troubleshooting', ['A VM shows a striped light: its state has not been read from AWS yet. It updates within five minutes.', 'A start failed: the reason from AWS is shown in My activity. Most often AWS had no capacity for that size; try again later.']]
+    };
+    const groups = [
+      ['Using environments', [['start', 'Getting started and roles'], ['envs', 'Environments and start order'], ['locks', 'Starting, stopping and locks'], ['leases', 'Leases and extensions']]],
+      ['Access', [['access', 'Requesting and managing access']]],
+      ['Cost and more', [['costs', 'Costs and rightsizing'], ['faq', 'FAQ and troubleshooting']]]
+    ].map(([name, ts]) => ({
+      name,
+      topics: ts.map(([k, title]) => ({
+        title, current: k === this.state.topic ? 'page' : 'false', pick: () => this.setState({ topic: k }),
+        style: 'display:block;width:100%;text-align:left;border:0;font:inherit;font-size:14px;padding:8px 18px;cursor:pointer;' +
+          (k === this.state.topic ? 'background:#ECEFF8;color:#14245C;font-weight:600;box-shadow:inset 3px 0 0 #D9A21B' : 'background:#FFFFFF;color:#2A3245')
+      }))
+    }));
+    const a = articles[this.state.topic] || articles.locks;
+    return { groups, article: { title: a[0], paras: a[1].map(text => ({ text })) } };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Waste</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="admin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="admin" active="waste" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+        <div>
+          <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Waste</h1>
+          <p style="margin: 6px 0 0; font-size: 15px; color: #5B6478">Things in AWS that cost money and do nothing. Checked daily at <span style="font-family: 'IBM Plex Mono', monospace">06:00</span>; last check today.</p>
+        </div>
+        <div style="display: flex; gap: 8px">
+          <a href="Waste.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 14px; border-radius: 8px; border: 1px solid #D4DAE5; background: #FFFFFF; color: #141B2D; text-decoration: none; font-weight: 500; font-size: 14px">Export, Excel</a>
+          <a href="Waste.dc.html" style="display: inline-flex; align-items: center; height: 38px; padding: 0 14px; border-radius: 8px; border: 1px solid #B9C2DA; background: #FFFFFF; color: #14245C; text-decoration: none; font-weight: 500; font-size: 14px">Check again now</a>
+        </div>
+      </div>
+      <p style="margin: 0; font-size: 15px"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 22px">$318</span> a month across <span style="font-family: 'IBM Plex Mono', monospace">27</span> open findings</p>
+      <div role="group" aria-label="Show" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px">
+        <sc-for list="{{types}}" as="t" hint-placeholder-count="5">
+          <button type="button" aria-pressed="{{t.pressed}}" onClick="{{t.pick}}" style="{{t.style}}">
+            <span style="display: block; font-family: 'IBM Plex Mono', monospace; font-size: 18px">{{t.cost}}</span>
+            <span style="display: block; font-size: 13px; margin-top: 2px">{{t.name}}</span>
+            <span style="display: block; font-size: 12px; color: #5B6478; margin-top: 2px">{{t.count}} open</span>
+          </button>
+        </sc-for>
+      </div>
+      <div style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden">
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px">
+          <thead><tr style="background: #F7F8FB; color: #5B6478; font-size: 12.5px; text-align: left">
+            <th scope="col" style="padding: 12px 20px; font-weight: 500">Resource</th><th scope="col" style="padding: 12px; font-weight: 500">Region</th><th scope="col" style="padding: 12px; font-weight: 500">Environment</th><th scope="col" style="padding: 12px; font-weight: 500">Idle for</th><th scope="col" style="padding: 12px; font-weight: 500; text-align: right">A month</th><th scope="col" style="padding: 12px 20px"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Actions</span></th>
+          </tr></thead>
+          <tbody>
+            <sc-for list="{{rows}}" as="r" hint-placeholder-count="5">
+              <tr style="border-top: 1px solid #EEF1F5">
+                <td style="padding: 11px 20px"><div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px">{{r.id}}</div><div style="font-size: 12.5px; color: #5B6478">{{r.kind}}</div></td>
+                <td style="padding: 11px 12px; font-family: 'IBM Plex Mono', monospace; font-size: 13px">{{r.region}}</td>
+                <td style="padding: 11px 12px; color: #3A4256">{{r.env}}</td>
+                <td style="padding: 11px 12px; color: #3A4256">{{r.age}}</td>
+                <td style="padding: 11px 12px; text-align: right; font-family: 'IBM Plex Mono', monospace">{{r.cost}}</td>
+                <td style="padding: 11px 20px; text-align: right; white-space: nowrap; font-size: 13px"><a href="Waste.dc.html" style="text-decoration: none; margin-right: 14px">{{r.fix}}</a><a href="Waste.dc.html" style="text-decoration: none; color: #5B6478">Dismiss</a></td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin: 0; font-size: 13px; color: #5B6478">Fixes go through an approval and keep a snapshot first, so they can be undone.</p>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { type: 'all' }; }
+  renderVals() {
+    const t = [['all', 'Everything', '$318', 27], ['vol', 'Unattached volumes', '$96', 6], ['ip', 'Unused public IPs', '$43', 12], ['gp2', 'gp2 → gp3', '$41', 11], ['old', 'Stopped over 30 days', '$84', 3], ['snap', 'Old snapshots', '$54', 9]];
+    const types = t.map(([k, name, cost, count]) => ({
+      name, cost, count, pressed: String(this.state.type === k), pick: () => this.setState({ type: k }),
+      style: 'text-align:left;font:inherit;color:#141B2D;padding:12px 14px;border-radius:10px;cursor:pointer;background:#FFFFFF;' +
+        (this.state.type === k ? 'border:1.5px solid #14245C;box-shadow:0 0 0 3px #ECEFF8' : 'border:1px solid #E1E6EF')
+    }));
+    const rows = [
+      { id: 'vol-0a9d3c71e2f4', kind: 'Unattached volume, 500 GiB gp3', region: 'ap-south-1', env: 'Data Lake Dev', age: '41 days', cost: '$40.00', fix: 'Snapshot and delete…' },
+      { id: 'eipalloc-07c2e9', kind: 'Unused public IP', region: 'us-east-1', env: '—', age: '12 days', cost: '$3.65', fix: 'Release…' },
+      { id: 'i-0e5b8a1c3f72', kind: 'Stopped VM, m5.2xlarge', region: 'ap-south-1', env: 'Search Indexer QA', age: '63 days', cost: '$28.80', fix: 'Snapshot and remove…' },
+      { id: 'vol-04f1b7d9e0a3', kind: 'gp2 volume, 200 GiB', region: 'ap-south-1', env: 'Mobile API Test', age: '—', cost: '$4.00', fix: 'Move to gp3…' },
+      { id: 'snap-0c7e2a9f13', kind: 'Snapshot from 2025', region: 'ap-south-1', env: '—', age: '418 days', cost: '$6.20', fix: 'Delete…' }
+    ];
+    return { types, rows };
+  }
+}
+</script>
+</body>
+</html>

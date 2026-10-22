@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>System health — fleet use</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+.tab{font-size:14px;padding:10px 14px;color:#5B6478;text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab[aria-selected="true"]{color:#14245C;font-weight:600;border-bottom-color:#14245C}
+.card{background:#FFFFFF;border:1px solid #E1E6EF;border-radius:12px}
+.mono{font-family:'IBM Plex Mono',monospace}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="admin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="admin" active="health" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 20px 32px 24px; display: flex; flex-direction: column; gap: 14px; box-sizing: border-box">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+        <div>
+          <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">System health</h1>
+          <p style="margin: 6px 0 0; font-size: 15px; color: #5B6478">How hard the fleet is working and what needs a look. Last 24 hours, all environments.</p>
+        </div>
+      </div>
+      <div role="tablist" aria-label="System health" style="display: flex; gap: 4px; border-bottom: 1px solid #E1E6EF">
+        <a class="tab" role="tab" aria-selected="false" href="SystemHealth.dc.html">Now</a><a class="tab" role="tab" aria-selected="true" href="SystemHealthFleet.dc.html">Fleet use</a><a class="tab" role="tab" aria-selected="false" href="SystemHealth.dc.html">Reports</a>
+      </div>
+
+      <section aria-label="Use across the fleet" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px">
+        <sc-for list="{{charts}}" as="c" hint-placeholder-count="3">
+          <div class="card" style="padding: 14px 16px 10px">
+            <div style="display: flex; justify-content: space-between; align-items: baseline"><h2 style="margin: 0; font-size: 14.5px; font-weight: 600">{{c.title}}</h2><span style="font-size: 12.5px; color: #5B6478">now <b class="mono" style="font-weight: 500; color: #141B2D; font-size: 15px">{{c.now}}</b></span></div>
+            <svg viewBox="0 0 300 96" role="img" aria-label="{{c.label}}" style="width: 100%; height: 110px; display: block; margin-top: 6px">
+              <line x1="0" y1="8" x2="300" y2="8" stroke="#EEF1F5"></line><line x1="0" y1="44" x2="300" y2="44" stroke="#EEF1F5"></line><line x1="0" y1="80" x2="300" y2="80" stroke="#E1E6EF"></line>
+              <polygon points="{{c.area}}" fill="{{c.fill}}"></polygon>
+              <polyline points="{{c.points}}" fill="none" stroke="{{c.stroke}}" stroke-width="2" stroke-linejoin="round"></polyline>
+              <circle cx="{{c.endX}}" cy="{{c.endY}}" r="3.5" fill="{{c.stroke}}"></circle>
+              <text x="0" y="94" font-size="10" fill="#5B6478" font-family="IBM Plex Mono, monospace">18:00</text><text x="138" y="94" font-size="10" fill="#5B6478" font-family="IBM Plex Mono, monospace">06:00</text><text x="268" y="94" font-size="10" fill="#5B6478" font-family="IBM Plex Mono, monospace">now</text>
+            </svg>
+            <div style="font-size: 12.5px; color: #5B6478">{{c.note}}</div>
+          </div>
+        </sc-for>
+      </section>
+
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr); gap: 12px; align-items: start">
+        <section class="card" aria-labelledby="fs-t" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; justify-content: space-between; align-items: baseline"><h2 id="fs-t" style="margin: 0; font-size: 14.5px; font-weight: 600">Fleet state</h2><span style="font-size: 12.5px; color: #5B6478">112 VMs</span></div>
+          <div role="img" aria-label="41 running, 66 stopped, 3 starting or stopping, 2 failed" style="display: flex; height: 14px; border-radius: 7px; overflow: hidden; gap: 2px">
+            <sc-for list="{{states}}" as="s" hint-placeholder-count="4"><span style="{{s.bar}}"></span></sc-for>
+          </div>
+          <sc-for list="{{states}}" as="s" hint-placeholder-count="4">
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13.5px"><span style="display: flex; align-items: center; gap: 8px"><span style="{{s.dot}}"></span>{{s.name}}</span><span class="mono">{{s.n}}</span></div>
+          </sc-for>
+        </section>
+
+        <section class="card" aria-labelledby="cv-t" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px">
+          <h2 id="cv-t" style="margin: 0; font-size: 14.5px; font-weight: 600">Metrics coverage</h2>
+          <div style="display: flex; align-items: baseline; gap: 8px"><span class="mono" style="font-size: 30px">94%</span><span style="font-size: 13px; color: #5B6478">of running VMs reported in the last hour</span></div>
+          <div style="height: 8px; border-radius: 4px; background: #EEF1F5; overflow: hidden"><span style="display: block; height: 100%; width: 94%; background: #14245C; border-radius: 4px"></span></div>
+          <div style="font-size: 13px; color: #3A4256; line-height: 1.45">Without CloudWatch data, idle auto-stop and rightsizing can't judge those VMs. Memory needs the CloudWatch agent on the VM.</div>
+        </section>
+
+        <section class="card" aria-labelledby="rk-t" style="overflow: hidden">
+          <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 14px 16px 8px"><h2 id="rk-t" style="margin: 0; font-size: 14.5px; font-weight: 600">Risk and compliance</h2><span style="font-size: 12.5px; color: #5B6478">23 things to look at</span></div>
+          <sc-for list="{{risks}}" as="r" hint-placeholder-count="5">
+            <a href="{{r.href}}" style="display: grid; grid-template-columns: minmax(0, 1fr) 90px 44px; gap: 10px; align-items: center; padding: 8px 16px; border-top: 1px solid #F1F3F7; text-decoration: none; color: #141B2D; font-size: 13.5px">
+              <span><b style="font-weight: 500">{{r.title}}</b><span style="display: block; font-size: 12.5px; color: #5B6478">{{r.desc}}</span></span>
+              <span style="height: 8px; border-radius: 4px; background: #F1F3F7; overflow: hidden"><span style="{{r.bar}}"></span></span>
+              <span class="mono" style="text-align: right">{{r.n}}</span>
+            </a>
+          </sc-for>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const line = (vals, max, stroke, fill, title, now, note, label) => {
+      const pts = vals.map((v, i) => [Math.round(i * 300 / (vals.length - 1)), Math.round(80 - v / max * 72)]);
+      const points = pts.map(p => p.join(',')).join(' ');
+      const last = pts[pts.length - 1];
+      return { title, now, note, label, stroke, fill, points, area: '0,80 ' + points + ' 300,80', endX: last[0], endY: last[1] };
+    };
+    const cpu = [12, 10, 9, 8, 8, 9, 14, 26, 38, 41, 39, 36, 34];
+    const mem = [44, 43, 43, 42, 42, 43, 47, 55, 61, 63, 62, 60, 59];
+    const net = [40, 32, 28, 22, 20, 24, 60, 140, 210, 230, 205, 190, 180];
+    const charts = [
+      line(cpu, 100, '#14245C', 'rgba(20,36,92,0.08)', 'CPU', '34%', 'Average of running VMs. Peak 41% at 10:00.', 'Average CPU over 24 hours, from 12% to 34%, peak 41%'),
+      line(mem, 100, '#2F4A9E', 'rgba(47,74,158,0.08)', 'Memory', '59%', '38 of 41 running VMs send memory data.', 'Average memory over 24 hours, from 44% to 59%'),
+      line(net, 250, '#12915E', 'rgba(18,145,94,0.08)', 'Network', '180 MB/h', 'In and out, all running VMs.', 'Network traffic over 24 hours, from 40 to 180 MB per hour')
+    ];
+    const total = 112;
+    const s = (name, n, color) => ({ name, n, bar: `display:block;height:100%;width:${n / total * 100}%;background:${color}`, dot: `width:10px;height:10px;border-radius:50%;background:${color}` });
+    const states = [s('Running', 41, '#12915E'), s('Stopped', 66, '#9AA4B8'), s('Starting or stopping', 3, '#D9A21B'), s('Failed', 2, '#C2412D')];
+    const r = (title, desc, n, href, color) => ({ title, desc, n, href, bar: `display:block;height:100%;width:${n / 9 * 100}%;background:${color};border-radius:4px` });
+    const risks = [
+      r('Unencrypted disks', 'EBS volumes without encryption', 9, 'Waste.dc.html', '#C2412D'),
+      r('Idle VMs', 'Running under 3% CPU for 7 days', 6, 'EnvInsights.dc.html', '#D9A21B'),
+      r('No metrics', 'Running VMs with no CloudWatch data in an hour', 3, 'SystemHealthFleet.dc.html', '#D9A21B'),
+      r('Changed outside the platform', 'State drift in the last 24 hours', 3, 'VmRegistry.dc.html', '#D9A21B'),
+      r('Not found in AWS', 'Registered VMs AWS no longer returns', 2, 'VmRegistry.dc.html', '#9AA4B8')
+    ];
+    return { charts, states, risks };
+  }
+}
+</script>
+</body>
+</html>

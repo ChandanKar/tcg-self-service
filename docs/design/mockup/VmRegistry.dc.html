@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>VM registry</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="envadmin" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="envadmin" active="registry" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 24px 32px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+        <div>
+          <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">VM registry</h1>
+          <p style="margin: 4px 0 0; font-size: 15px; color: #5B6478">Set up environments: their groups, start order and the AWS VMs in them.</p>
+        </div>
+        <a href="VmRegistry.dc.html" style="display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px; border-radius: 8px; background: #14245C; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"></path></svg>New environment</a>
+      </div>
+      <a href="VmRegistry.dc.html" style="display: flex; gap: 12px; align-items: center; padding: 10px 16px; border-radius: 10px; background: #FBF3DC; color: #5C3D00; text-decoration: none; font-size: 14px">
+        <span style="width: 9px; height: 9px; border-radius: 50%; background: #D9A21B"></span>
+        <span style="flex: 1"><b style="font-weight: 600">3 VMs need a look:</b> 1 changed outside the platform, 2 found in AWS and not in a group.</span><b style="font-weight: 600">Review them</b></a>
+
+      <div style="display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 16px; align-items: start">
+        <section aria-label="Environments" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden">
+          <div style="padding: 10px; border-bottom: 1px solid #EEF1F5; display: flex; gap: 8px">
+            <label style="flex: 1; display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border: 1px solid #D4DAE5; border-radius: 8px">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="#5B6478" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="5.5"></circle><path d="m13.5 13.5 3.5 3.5"></path></svg>
+              <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search environments</span>
+              <input type="search" placeholder="Search" style="border: 0; outline: 0; font: inherit; font-size: 14px; flex: 1; min-width: 0"></label>
+            <select aria-label="Show" style="height: 34px; border: 1px solid #D4DAE5; border-radius: 8px; padding: 0 6px; font: inherit; font-size: 13px"><option>Active</option><option>Deactivated</option></select>
+          </div>
+          <sc-for list="{{envs}}" as="e" hint-placeholder-count="8">
+            <button type="button" aria-current="{{e.current}}" onClick="{{e.pick}}" style="{{e.style}}">
+              <span style="flex: 1; min-width: 0; text-align: left"><span style="display: block; font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{e.name}}</span><span style="display: block; font-size: 12px; color: #5B6478">{{e.meta}}</span></span>
+              <dc-import name="PowerStrip" states="{{e.states}}" show-count="{{ false }}" hint-size="90px,16px"></dc-import>
+            </button>
+          </sc-for>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-top: 1px solid #EEF1F5; font-size: 12.5px; color: #5B6478">
+            <span>1–8 of 21</span>
+            <span style="display: flex; gap: 4px"><button type="button" disabled="disabled" aria-label="Previous page" style="width: 28px; height: 28px; border: 1px solid #E1E6EF; border-radius: 6px; background: #FFFFFF; color: #9AA4B8">‹</button><button type="button" aria-label="Next page" style="width: 28px; height: 28px; border: 1px solid #D4DAE5; border-radius: 6px; background: #FFFFFF; color: #141B2D">›</button></span>
+          </div>
+        </section>
+
+        <section aria-labelledby="sel-title" style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden">
+          <div style="display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-bottom: 1px solid #EEF1F5; flex-wrap: wrap">
+            <div style="flex: 1; min-width: 180px"><h2 id="sel-title" style="margin: 0; font-size: 17px; font-weight: 600">{{sel.name}}</h2><div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #5B6478">{{sel.meta}}</div></div>
+            <a href="EnvSettings.dc.html" style="font-size: 13px; text-decoration: none">Settings</a>
+            <a href="EnvSettings.dc.html" style="font-size: 13px; text-decoration: none">Groups and order</a>
+            <a href="RegisterVms.dc.html" style="display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 7px; border: 1px solid #B9C2DA; color: #14245C; text-decoration: none; font-weight: 500; font-size: 13px">Add VMs from AWS</a>
+            <a href="VmRegistry.dc.html" style="font-size: 13px; text-decoration: none; color: #A8331F">Deactivate</a>
+          </div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px">
+            <thead><tr style="color: #5B6478; font-size: 12.5px; text-align: left; background: #F7F8FB">
+              <th scope="col" style="padding: 9px 18px; font-weight: 500">Group / VM</th><th scope="col" style="padding: 9px 10px; font-weight: 500">Size</th><th scope="col" style="padding: 9px 10px; font-weight: 500">Start order</th><th scope="col" style="padding: 9px 10px; font-weight: 500">Notes</th><th scope="col" style="padding: 9px 18px"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Actions</span></th>
+            </tr></thead>
+            <tbody>
+              <sc-for list="{{rows}}" as="r" hint-placeholder-count="10">
+                <tr style="border-top: 1px solid #EEF1F5; {{r.bg}}">
+                  <td style="padding: 9px 18px 9px {{r.indent}}; {{r.weight}}">{{r.name}}</td>
+                  <td style="padding: 9px 10px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #3A4256">{{r.size}}</td>
+                  <td style="padding: 9px 10px; color: #3A4256">{{r.order}}</td>
+                  <td style="padding: 9px 10px; font-size: 13px; {{r.noteStyle}}">{{r.note}}</td>
+                  <td style="padding: 9px 18px; text-align: right; white-space: nowrap; font-size: 13px"><a href="VmRegistry.dc.html" style="text-decoration: none; margin-right: 12px">Edit</a><sc-if value="{{r.vm}}" hint-placeholder-val="{{ true }}"><a href="VmRegistry.dc.html" style="text-decoration: none; margin-right: 12px">Move</a></sc-if><a href="VmRegistry.dc.html" style="text-decoration: none; color: #A8331F">Remove</a></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { sel: 0 }; }
+  renderVals() {
+    const list = [
+      ['Payments Dev', 'payments-dev · 3 groups · 7 VMs', 'RRR|RR|SS'], ['Analytics QA', 'analytics-qa · 2 groups · 5 VMs', 'RRB|RS'],
+      ['CRM UAT', 'crm-uat · 3 groups · 6 VMs', 'SS|SSS|S'], ['Data Lake Dev', 'data-lake-dev · 1 group · 6 VMs', 'RRRRRR'],
+      ['Billing Prod Mirror', 'billing-mirror · 3 groups · 9 VMs', 'RRR|RRRR|RR'], ['HR Portal Staging', 'hr-portal-stg · EKS · 6 nodes', 'SSSS|SS'],
+      ['Mobile API Test', 'mobile-api-test · 2 groups · 4 VMs', 'RR|RR'], ['Search Indexer QA', 'search-qa · 1 group · 3 VMs', 'SSS']
+    ];
+    const envs = list.map(([name, meta, states], i) => ({
+      name, meta, states, current: i === this.state.sel ? 'true' : 'false', pick: () => this.setState({ sel: i }),
+      style: 'display:flex;align-items:center;gap:10px;width:100%;border:0;border-top:1px solid #EEF1F5;padding:10px 12px;font:inherit;color:#141B2D;cursor:pointer;' +
+        (i === this.state.sel ? 'background:#ECEFF8;box-shadow:inset 3px 0 0 #D9A21B' : 'background:#FFFFFF')
+    }));
+    const grp = (name, order) => ({ name, size: '', order, note: '', noteStyle: '', vm: false, indent: '18px', weight: 'font-weight:600', bg: 'background:#FCFCFE' });
+    const vm = (name, size, note, warn) => ({ name, size, order: '', note, noteStyle: warn ? 'color:#7A5000' : 'color:#5B6478', vm: true, indent: '34px', weight: '', bg: '' });
+    const rows = [
+      grp('Database', '1st'), vm('pay-db-primary', 'r6g.large', ''), vm('pay-db-replica', 'r6g.large', ''), vm('pay-cache', 't4g.medium', 'Size changed in AWS to t4g.large', true),
+      grp('Application', '2nd · after Database'), vm('pay-api-01', 'm6i.large', ''), vm('pay-api-02', 'm6i.large', ''),
+      grp('Web', '3rd · after Application'), vm('web-01', 't3.medium', ''), vm('web-02', 't3.medium', '')
+    ];
+    const s = list[this.state.sel];
+    return { envs, rows, sel: { name: s[0], meta: s[1] } };
+  }
+}
+</script>
+</body>
+</html>

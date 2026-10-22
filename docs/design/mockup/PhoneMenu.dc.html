@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Menu on a phone</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #FFFFFF; width: 390px; height: 844px; display: flex; flex-direction: column; overflow: hidden">
+  <header style="height: 64px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 8px 0 16px; border-bottom: 1px solid #E1E6EF">
+    <span style="width: 38px; height: 38px; border-radius: 50%; background: #14245C; color: #FFFFFF; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center">SR</span>
+    <span style="flex: 1; display: flex; flex-direction: column; line-height: 1.25"><b style="font-size: 15px; font-weight: 600">Sanjay Rao</b><span style="font-size: 12.5px; color: #5B6478">Environment admin</span></span>
+    <a href="PhoneHome.dc.html" aria-label="Close menu" style="width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; color: #5B6478">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5 5l10 10M15 5 5 15"></path></svg></a>
+  </header>
+  <nav aria-label="Main" style="flex: 1; overflow: hidden; padding: 8px 0">
+    <sc-for list="{{sections}}" as="s" hint-placeholder-count="2">
+      <div style="font-size: 12px; font-weight: 600; color: #5B6478; letter-spacing: 0.02em; padding: 14px 20px 6px">{{s.title}}</div>
+      <sc-for list="{{s.items}}" as="i" hint-placeholder-count="4">
+        <a href="{{i.href}}" style="display: flex; align-items: center; justify-content: space-between; min-height: 48px; padding: 0 20px; text-decoration: none; color: #141B2D; font-size: 16px">
+          <span>{{i.label}}</span><span style="{{i.badgeStyle}}">{{i.badge}}</span>
+        </a>
+      </sc-for>
+    </sc-for>
+  </nav>
+  <div style="display: flex; gap: 10px; padding: 14px 16px 22px; border-top: 1px solid #E1E6EF">
+    <a href="Help.dc.html" style="flex: 1; display: flex; align-items: center; justify-content: center; height: 44px; border-radius: 10px; border: 1px solid #D4DAE5; text-decoration: none; color: #141B2D; font-weight: 500">Help</a>
+    <a href="Main.dc.html" style="flex: 1; display: flex; align-items: center; justify-content: center; height: 44px; border-radius: 10px; border: 1px solid #D4DAE5; text-decoration: none; color: #141B2D; font-weight: 500">Sign out</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const b = (n) => n ? 'font-family:IBM Plex Mono,monospace;font-size:12px;font-weight:500;background:#14245C;color:#FFFFFF;border-radius:10px;padding:1px 8px' : 'display:none';
+    const it = (label, href, n) => ({ label, href, badge: n || '', badgeStyle: b(n) });
+    const sections = [
+      { title: 'Workspace', items: [it('Home', 'PhoneHome.dc.html'), it('Environments', 'Environments.dc.html'), it('Request access', 'RequestAccess.dc.html'), it('Approvals', 'Approvals.dc.html', '2'), it('My activity', 'MyActivity.dc.html')] },
+      { title: 'Manage', items: [it('Access requests', 'AccessRequests.dc.html', '3'), it('Access management', 'AccessManagement.dc.html'), it('VM registry', 'VmRegistry.dc.html'), it('Automation rules', 'AutomationRules.dc.html'), it('Budgets', 'Budgets.dc.html')] }
+    ];
+    return { sections };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Environments — 15 at once</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2F4A9E}a:hover{color:#14245C}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #F3F5F9; min-height: 900px; display: flex; flex-direction: column">
+  <div style="position: sticky; top: 0; z-index: 20"><dc-import name="TopBar" role="user" hint-size="100%,56px"></dc-import></div>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <div style="flex: 0 0 240px; position: sticky; top: 56px; align-self: flex-start; z-index: 10"><dc-import name="SideNav" role="user" active="environments" height="844px" hint-size="240px,844px"></dc-import></div>
+    <main style="flex: 999 1 560px; min-width: 0; padding: 22px 32px 22px; display: flex; flex-direction: column; gap: 14px; box-sizing: border-box">
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap">
+        <div style="display: flex; align-items: baseline; gap: 12px">
+          <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Environments</h1>
+          <span style="font-size: 15px; color: #5B6478"><span style="font-family: 'IBM Plex Mono', monospace; color: #141B2D">15</span> environments · <span style="font-family: 'IBM Plex Mono', monospace; color: #141B2D">{{running}}</span> of <span style="font-family: 'IBM Plex Mono', monospace; color: #141B2D">{{total}}</span> VMs running</span>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center">
+          <label style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; background: #FFFFFF; border: 1px solid #D4DAE5; border-radius: 8px; width: 240px">
+            <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="#5B6478" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="5.5"></circle><path d="m13.5 13.5 3.5 3.5"></path></svg>
+            <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search environments</span>
+            <input type="search" placeholder="Search by name" style="border: 0; outline: 0; font: inherit; font-size: 14px; flex: 1; min-width: 0"></label>
+          <div role="group" aria-label="Show" style="display: inline-flex; background: #FFFFFF; border: 1px solid #D4DAE5; border-radius: 8px; padding: 3px; gap: 2px">
+            <sc-for list="{{filters}}" as="f" hint-placeholder-count="3"><button type="button" aria-pressed="{{f.pressed}}" onClick="{{f.pick}}" style="{{f.style}}">{{f.label}}</button></sc-for>
+          </div>
+        </div>
+      </div>
+      <div style="background: #FFFFFF; border: 1px solid #E1E6EF; border-radius: 12px; overflow: hidden">
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px">
+          <thead><tr style="background: #F7F8FB; color: #5B6478; font-size: 12.5px; text-align: left">
+            <th scope="col" style="padding: 9px 18px; font-weight: 500">Environment</th><th scope="col" style="padding: 9px 10px; font-weight: 500">Type</th><th scope="col" style="padding: 9px 10px; font-weight: 500">VMs</th><th scope="col" style="padding: 9px 10px; font-weight: 500">Lock</th><th scope="col" style="padding: 9px 10px; font-weight: 500">Your access</th><th scope="col" style="padding: 9px 10px; font-weight: 500; text-align: right">This month</th><th scope="col" style="padding: 9px 18px"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Open</span></th>
+          </tr></thead>
+          <tbody>
+            <sc-for list="{{rows}}" as="r" hint-placeholder-count="15">
+              <tr style="border-top: 1px solid #EEF1F5; height: 38px">
+                <td style="padding: 5px 18px"><a href="{{r.href}}" style="color: #141B2D; text-decoration: none; font-weight: 600">{{r.name}}</a> <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #5B6478; margin-left: 6px">{{r.slug}}</span></td>
+                <td style="padding: 5px 10px; color: #3A4256; font-size: 13px">{{r.type}}</td>
+                <td style="padding: 5px 10px"><dc-import name="PowerStrip" states="{{r.states}}" hint-size="200px,18px"></dc-import></td>
+                <td style="padding: 5px 10px; color: #3A4256; font-size: 13px">{{r.lock}}</td>
+                <td style="padding: 5px 10px; color: #3A4256; font-size: 13px">{{r.access}}</td>
+                <td style="padding: 5px 10px; text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 13px">{{r.cost}}</td>
+                <td style="padding: 5px 18px; text-align: right"><a href="{{r.href}}" style="font-size: 13px; font-weight: 500; text-decoration: none">Open</a></td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+        <div style="padding: 9px 18px; border-top: 1px solid #EEF1F5; font-size: 13px; color: #5B6478">{{footer}}</div>
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { filter: 'all' }; }
+  renderVals() {
+    const all = [
+      ['Payments Prod Mirror', 'payments-mirror', 'AWS EC2', 'RRRRRRRR|RRRRRRRRRRRRRRSSSS|RRRRRRRRRRRRSSSS|RRRRRRRRRRES', 'Not locked', 'Operator', '$2,410', 'EnvDetailLarge.dc.html'],
+      ['Payments Dev', 'payments-dev', 'AWS EC2', 'RRR|RR|SS', 'Not locked', 'Operator', '$186', 'EnvDetail.dc.html'],
+      ['Analytics QA', 'analytics-qa', 'AWS EC2', 'RRB|RS', 'Locked by you', 'Operator', '$122', 'EnvDetail.dc.html'],
+      ['CRM UAT', 'crm-uat', 'AWS EC2', 'SS|SSS|S', 'Not locked', 'Operator', '$64', 'EnvDetail.dc.html'],
+      ['Data Lake Dev', 'data-lake-dev', 'AWS EC2', 'RRRRRR', 'Not locked', 'View only', '$1,402', 'EnvDetailViewer.dc.html'],
+      ['Billing Prod Mirror', 'billing-mirror', 'AWS EC2', 'RRR|RRRR|RR', 'Not locked', 'View only', '$1,118', 'EnvDetailViewer.dc.html'],
+      ['HR Portal Staging', 'hr-portal-stg', 'AWS EKS', 'SSSS|SS', 'Rahul Verma', 'View only', '$41', 'EnvDetailViewer.dc.html'],
+      ['Mobile API Test', 'mobile-api-test', 'AWS EC2', 'RR|RR', 'Not locked', 'Operator', '$640', 'EnvDetail.dc.html'],
+      ['Search Indexer QA', 'search-qa', 'AWS EC2', 'SSS', 'Not locked', 'Operator', '$512', 'EnvDetail.dc.html'],
+      ['Claims Dev', 'claims-dev', 'AWS EC2', 'RR|RRR|R', 'Karthik S', 'Operator', '$233', 'EnvDetail.dc.html'],
+      ['Claims UAT', 'claims-uat', 'AWS EC2', 'SS|SSS|S', 'Not locked', 'Operator', '$97', 'EnvDetail.dc.html'],
+      ['Partner Portal QA', 'partner-qa', 'AWS EKS', 'RRR|RR', 'Not locked', 'Operator', '$305', 'EnvDetail.dc.html'],
+      ['Reporting Sandbox', 'reporting-sbx', 'AWS EC2', 'SS', 'Not locked', 'Operator', '$18', 'EnvDetail.dc.html'],
+      ['ML Training', 'ml-training', 'AWS EC2', 'B|SS', 'Neha Gupta', 'View only', '$880', 'EnvDetailViewer.dc.html'],
+      ['Identity Test', 'identity-test', 'AWS EC2', 'RR|R', 'Not locked', 'Operator', '$74', 'EnvDetail.dc.html']
+    ].map(([name, slug, type, states, lock, access, cost, href]) => ({ name, slug, type, states, lock, access, cost, href, run: /R/.test(states) }));
+    const f = this.state.filter;
+    const rows = all.filter(r => f === 'all' || (f === 'run' ? r.run : !r.run));
+    const count = (s) => (s.match(/[RSBEU]/g) || []).length;
+    const running = all.reduce((n, r) => n + (r.states.match(/R/g) || []).length, 0);
+    const total = all.reduce((n, r) => n + count(r.states), 0);
+    const filters = [['all', 'All'], ['run', 'Running'], ['stop', 'Stopped']].map(([k, label]) => ({
+      label, pressed: String(f === k), pick: () => this.setState({ filter: k }),
+      style: 'border:0;font:inherit;font-size:13px;padding:5px 11px;border-radius:6px;cursor:pointer;' + (f === k ? 'background:#14245C;color:#FFFFFF;font-weight:500' : 'background:transparent;color:#3A4256')
+    }));
+    return { rows, filters, running, total, footer: `${rows.length} of 15 environments · all on one page; page controls appear only past 15` };
+  }
+}
+</script>
+</body>
+</html>

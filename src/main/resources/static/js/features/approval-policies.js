@@ -89,7 +89,7 @@ const ApprovalPolicies = (function() {
             $('#content-area').html('<div class="alert alert-danger m-3">Access denied. Admin or Env Admin only.</div>');
             return;
         }
-        state = { environments: [], teams: [], policies: null };
+        state = { environments: [], teams: [], policies: null, page: 1, showName: null };
         const off = typeof Capabilities !== 'undefined' && !Capabilities.has('approvals');
         $('#content-area').html(`
             <div class="content-view ap-page" id="approval-policies-view">
@@ -146,8 +146,21 @@ const ApprovalPolicies = (function() {
         });
     }
 
+    // Three policies fit 1440 x 900 without a page scrollbar (U17-T07); after a save, its page opens.
+    const POLICIES_PER_PAGE = 3;
+
     function draw() {
-        $('#policy-list').html(state.policies.length ? state.policies.map(p => Utils.html`
+        const all = state.policies;
+        if (state.showName) {
+            const at = all.findIndex(p => p.name === state.showName);
+            if (at >= 0) state.page = Math.floor(at / POLICIES_PER_PAGE) + 1;
+            state.showName = null;
+        }
+        const pages = Math.max(1, Math.ceil(all.length / POLICIES_PER_PAGE));
+        state.page = Math.min(Math.max(1, state.page || 1), pages);
+        const pager = all.length > POLICIES_PER_PAGE ? Pagination.buildPager({ page: state.page, pageSize: POLICIES_PER_PAGE,
+            totalItems: all.length, action: 'policy-page', key: 'policies' }) : '';
+        $('#policy-list').html(all.length ? Pagination.slice(all, state.page, POLICIES_PER_PAGE).map(p => Utils.html`
             <article class="ap-card${Utils.raw(p.active ? '' : ' ap-card-off')}" data-policy-id="${p.policyId}">
                 <div class="ap-card-head">
                     <h2>${p.name}${Utils.raw(p.active ? '' : ' <span class="ap-chip-off">Off</span>')}</h2>
@@ -159,7 +172,7 @@ const ApprovalPolicies = (function() {
                     <button type="button" class="ap-link" data-action="policy-edit" data-id="${p.policyId}" aria-label="Edit ${p.name}">Edit</button>
                     <button type="button" class="ap-link ap-danger" data-action="policy-delete" data-id="${p.policyId}" aria-label="Delete ${p.name}">Delete</button>
                 </div>
-            </article>`).join('')
+            </article>`).join('') + pager
             : '<div class="ar-empty">No policies yet: starts and extensions run without anyone\'s yes. Add one with New policy.</div>');
     }
 
@@ -324,6 +337,7 @@ const ApprovalPolicies = (function() {
                 .then(() => {
                     bootstrap.Modal.getInstance(document.getElementById('policyModal')).hide();
                     Notifications.success(p ? 'Policy saved.' : 'Policy created.');
+                    state.showName = body.name;
                     if (current()) refresh();
                 })
                 .catch(e => { $('#pol-error').text(serverMessage(e, 'Could not save the policy.')).prop('hidden', false); $btn.prop('disabled', false); });
@@ -355,7 +369,13 @@ const ApprovalPolicies = (function() {
             .catch(e => $('#dry-result').html(Utils.html`<div class="ap-outcome" id="dry-outcome">${serverMessage(e, 'Could not check.')}</div>`));
     }
 
-    return { load, openForm, remove, dryRun, model: { joinWords, whenText, whoText, scopeText, checkLines } };
+    function goToPage(n) {
+        if (!state || !state.policies) return;
+        state.page = Number(n) || 1;
+        draw();
+    }
+
+    return { load, openForm, remove, dryRun, goToPage, model: { joinWords, whenText, whoText, scopeText, checkLines } };
 })();
 
 window.ApprovalPolicies = ApprovalPolicies;
@@ -365,6 +385,7 @@ if (typeof Actions !== 'undefined') {
         'policy-new': () => ApprovalPolicies.openForm(null),
         'policy-edit': el => ApprovalPolicies.openForm(el.dataset.id),
         'policy-delete': el => ApprovalPolicies.remove(el.dataset.id),
-        'policy-dry-run': () => ApprovalPolicies.dryRun()
+        'policy-dry-run': () => ApprovalPolicies.dryRun(),
+        'policy-page': el => { if (!el.disabled) ApprovalPolicies.goToPage(el.dataset.page); }
     });
 }

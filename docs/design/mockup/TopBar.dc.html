@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Top bar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<header style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #141B2D; background: #FFFFFF; border-bottom: 1px solid #E1E6EF; height: 56px; box-sizing: border-box; padding: 0 20px; display: flex; align-items: center; gap: 16px">
+  <a href="{{homeHref}}" aria-label="Home" style="display: flex; align-items: center; gap: 14px; text-decoration: none; color: #141B2D">
+    <img src="/_blob/f1f05675d2903e1819509cc3b2273e3c" alt="TCG Digital" style="height: 24px; width: auto">
+    <span style="width: 1px; height: 22px; background: #E1E6EF"></span>
+    <span style="font-size: 15px; font-weight: 600; letter-spacing: -0.005em">Self-Service</span>
+  </a>
+  <div style="flex: 1"></div>
+  <span title="State last read from AWS" style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #5B6478; padding: 6px 10px; border-radius: 999px; background: #F3F5F9">
+    <span style="width: 7px; height: 7px; border-radius: 50%; background: #12915E"></span>Synced <span style="font-family: 'IBM Plex Mono', monospace">4 min</span> ago
+  </span>
+  <a href="Help.dc.html" aria-label="Help" title="Help" style="width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; color: #5B6478; text-decoration: none">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="7.5"></circle><path d="M8 8a2 2 0 1 1 2.9 1.8c-.6.3-.9.7-.9 1.2M10 14h.01"></path></svg>
+  </a>
+  <a href="Notifications.dc.html" aria-label="Notifications, 2 unread" style="position: relative; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; color: #5B6478; text-decoration: none">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8a5 5 0 0 1 10 0c0 5 2 6 2 6H3s2-1 2-6M8.5 17a1.7 1.7 0 0 0 3 0"></path></svg>
+    <span style="position: absolute; top: 6px; right: 6px; min-width: 16px; height: 16px; border-radius: 8px; background: #C2412D; color: #FFFFFF; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; padding: 0 4px; box-sizing: border-box">2</span>
+  </a>
+  <a href="MyAccount.dc.html" aria-label="{{name}}, account menu" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #141B2D; padding: 4px 8px 4px 4px; border-radius: 10px">
+    <span style="width: 34px; height: 34px; border-radius: 50%; background: #14245C; color: #FFFFFF; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center">{{initials}}</span>
+    <span style="display: flex; flex-direction: column; line-height: 1.2">
+      <span style="font-size: 14px; font-weight: 500">{{name}}</span>
+      <span style="font-size: 12px; color: #5B6478">{{roleLabel}}</span>
+    </span>
+    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="#5B6478" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 8 5 5 5-5"></path></svg>
+  </a>
+</header>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"role":{"editor":"enum","options":["user","viewer","envadmin","admin"],"default":"user"},"$preview":{"width":1440,"height":56}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const role = this.props.role ?? 'user';
+    const people = {
+      user: ['Priya Nair', 'PN', 'User'],
+      viewer: ['Arjun Mehta', 'AM', 'User · view only here'],
+      envadmin: ['Sanjay Rao', 'SR', 'Environment admin'],
+      admin: ['Meera Iyer', 'MI', 'Administrator']
+    };
+    const [name, initials, roleLabel] = people[role] || people.user;
+    return { name, initials, roleLabel, homeHref: role === 'admin' ? 'AdminDashboard.dc.html' : 'Dashboard.dc.html' };
+  }
+}
+</script>
+</body>
+</html>
