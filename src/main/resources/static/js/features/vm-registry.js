@@ -159,7 +159,7 @@ const VmRegistry = (function() {
                         <div class="vr-env-list" id="vr-env-list"><div class="vr-empty">Loading environments…</div></div>
                         <div class="vr-master-pager" id="vm-registry-pagination"></div>
                     </section>
-                    <section class="vr-detail" id="vr-detail" aria-labelledby="vr-sel-title"></section>
+                    <section class="vr-detail" id="vr-detail" aria-label="Selected environment"></section>
                 </div>
             </div>
         `);

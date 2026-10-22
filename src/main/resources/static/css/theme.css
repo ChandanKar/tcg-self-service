@@ -50,6 +50,10 @@ body {
 code, kbd, samp, pre, .mono {
     font-family: var(--font-mono);
 }
+/* Setting names and ids read as ink, not Bootstrap's pink, so they keep 4.5:1 on tinted notes (U17-T06). */
+code {
+    color: var(--ink);
+}
 .mono, .tabular-nums {
     font-variant-numeric: tabular-nums;
 }
@@ -66,6 +70,11 @@ a {
 }
 a:hover {
     color: var(--bs-link-hover-color);
+}
+/* A link inside a sentence is underlined, so it does not rely on colour alone (WCAG 1.4.1, U17-T06). */
+p a:not(.btn), li a:not(.btn), .text-muted a:not(.btn) {
+    text-decoration: underline;
+    text-underline-offset: 2px;
 }
 
 /* ── Buttons ───────────────────────────────────────────────────────────────

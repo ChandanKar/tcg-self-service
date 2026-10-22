@@ -221,6 +221,9 @@ const Approvals = (function() {
         $('#approvals-tabs-wrap').html(Tabs.markup({ id: 'approvals-tabs', label: 'Approvals', active: state.tab, tabs: [
             { key: 'review', label: waiting ? `To review · ${waiting}` : 'To review' },
             { key: 'mine', label: mineWaiting ? `My requests · ${mineWaiting}` : 'My requests' }] }));
+        // Both tabs show their list in the one #approvals-body panel, which names its tab (aria-labelledby);
+        // the tabs' aria-controls would point at panels that do not exist (axe, U17-T06).
+        $('#approvals-tabs [role="tab"]').removeAttr('aria-controls');
         Tabs.bind(document.getElementById('approvals-tabs'), key => { state.tab = key; drawBody(); });
         drawBody();
     }
