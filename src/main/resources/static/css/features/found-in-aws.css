@@ -1,0 +1,149 @@
+/*
+ * Found in AWS (U19-T03): what discovery found in any account and region that no environment holds,
+ * in a side panel: a summary with Look again, region / kind / search filters, ten rows a page with
+ * Add… and Ignore, and the ignored ones to bring back.
+ */
+
+.fia {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.fia-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+}
+
+.fia-summary {
+    flex: 1 1 260px;
+    margin: 0;
+    font-size: var(--fs-body);
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.fia-when,
+.fia-note {
+    margin: 0;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.fia-unreachable {
+    margin: 0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: var(--surface-subtle);
+    font-size: var(--fs-small);
+    color: var(--brand-gold-text);
+}
+
+.fia-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 12px;
+}
+
+.fia-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    font-size: var(--fs-small);
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.fia-search {
+    flex: 1 1 220px;
+}
+
+.fia-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.fia-table th {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+    font-size: var(--fs-small);
+    font-weight: 600;
+    text-align: left;
+    color: var(--text-secondary);
+}
+
+.fia-table td {
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--line-soft);
+    vertical-align: top;
+}
+
+.fia-name {
+    display: block;
+    font-weight: 500;
+}
+
+.fia-tag {
+    display: block;
+    margin-top: 2px;
+    font-size: var(--fs-small);
+    color: var(--text-secondary);
+}
+
+.fia-mono {
+    font-family: var(--font-mono);
+    font-size: 13px;
+}
+
+.fia-actions {
+    white-space: nowrap;
+    text-align: right;
+}
+
+.fia-actions .vr-link + .vr-link {
+    margin-left: 12px;
+}
+
+.fia-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.fia-ignored {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--fs-small);
+}
+
+.fia-ignored li {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.fia-add {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.fia-error {
+    margin: 0;
+    font-size: var(--fs-small);
+    color: var(--brand-red-text);
+}
+
+.fia-error:empty {
+    display: none;
+}

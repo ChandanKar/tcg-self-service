@@ -19,6 +19,7 @@ DELETE FROM vm_resize_event;
 DELETE FROM reservation_coverage_snapshot;
 DELETE FROM aws_cost_forecast;
 DELETE FROM aws_account_region;
+DELETE FROM discovery_ignore;
 DELETE FROM environment_carbon_monthly;
 DELETE FROM carbon_monthly;
 DELETE FROM carbon_ingest_file;

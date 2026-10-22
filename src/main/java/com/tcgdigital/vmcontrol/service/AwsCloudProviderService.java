@@ -737,6 +737,31 @@ public class AwsCloudProviderService implements CloudProviderService {
     }
 
     /**
+     * The live instances that carry a tag key, whatever its value (U19-T03): one call per region finds
+     * every environment's tagged instances at once. Every page is read.
+     *
+     * @throws com.tcgdigital.vmcontrol.exception.DiscoveryFailedException if the EC2 call fails
+     */
+    public java.util.List<Instance> discoverInstancesWithTagKey(CloudTarget target, String tagKey) {
+        try {
+            Ec2Client ec2 = getEc2Client(target);
+            java.util.List<Instance> result = new java.util.ArrayList<>();
+            for (DescribeInstancesResponse page : ec2.describeInstancesPaginator(DescribeInstancesRequest.builder()
+                    .filters(Filter.builder().name("tag-key").values(tagKey).build(),
+                            Filter.builder().name("instance-state-name").values("pending", "running", "stopping", "stopped").build())
+                    .build())) {
+                for (software.amazon.awssdk.services.ec2.model.Reservation r : page.reservations()) {
+                    result.addAll(r.instances());
+                }
+            }
+            return result;
+        } catch (Exception e) {
+            // An empty list would read as "every instance is gone" (H24).
+            throw new com.tcgdigital.vmcontrol.exception.DiscoveryFailedException("EC2 discovery failed in " + target, e);
+        }
+    }
+
+    /**
      * Applies (or overwrites) the given tags on the specified EC2 instances — used for
      * cost-allocation tagging (tcg:managed-by/environment/team), never called during normal
      * start/stop/discovery. Batches at 20 resources per CreateTags call, the actual EC2 API limit.

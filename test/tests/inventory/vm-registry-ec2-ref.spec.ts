@@ -138,3 +138,49 @@ test.describe('Adding VMs from AWS', () => {
       "Couldn't list instances in us-east-1. Check the AWS account in Settings > AWS accounts, then try again.");
   });
 });
+
+test.describe('Found in AWS (U19-T03)', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+  });
+
+  test('what no environment holds, by account and region, filtered, ignored, never by instance id', async ({ page }) => {
+    const ignored: any[] = [];
+    await page.route(/\/api\/v1\/discovery\/found/, route => json(route, {
+      items: [
+        { kind: 'EC2', ref: 'ref-eu', name: 'web-01', accountRef: 'd', accountName: 'Default account', region: 'eu-west-1',
+          zone: 'eu-west-1a', size: 't3.medium', state: 'running' },
+        { kind: 'EC2', ref: 'ref-me', name: null, accountRef: 'b', accountName: 'Payments', region: 'me-central-1',
+          zone: 'me-central-1b', size: 'm5.large', state: 'stopped', taggedEnvironment: 'CRM UAT', taggedEnvironmentId: 'env-crm' },
+        { kind: 'EKS', ref: null, name: 'data-platform', accountRef: 'd', accountName: 'Default account', region: 'eu-west-1' },
+      ],
+      scannedAt: new Date().toISOString(), unreachable: ['us-west-1'], ignored: 0 }));
+    await page.route(/\/api\/v1\/discovery\/ignored$/, route => {
+      if (route.request().method() === 'POST') {
+        ignored.push(route.request().postDataJSON());
+        return route.fulfill({ status: 204 });
+      }
+      return json(route, []);
+    });
+    await signIn(page, 'admin');
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate(() => { location.hash = '#/vm-registry'; });
+
+    await page.getByRole('button', { name: 'Found in AWS' }).click();
+    await expect(page.locator('#fia .fia-summary')).toHaveText('2 instances and 1 cluster need a decision.', { timeout: 15_000 });
+    await expect(page.locator('#fia .fia-unreachable')).toContainText("Couldn't read us-west-1");
+    await expect(page.locator('#fia tbody tr')).toHaveCount(3);
+    await expect(page.locator('#fia')).not.toContainText('i-0');
+    await expect(page.locator('#fia tbody tr').nth(1)).toContainText('(no name tag)');
+    await expect(page.locator('#fia tbody tr').nth(1)).toContainText('Tagged for CRM UAT');
+
+    await page.locator('#fia-region').selectOption('eu-west-1');
+    await expect(page.locator('#fia tbody tr')).toHaveCount(2);
+    await page.locator('#fia-kind').selectOption('EKS');
+    await expect(page.locator('#fia tbody tr')).toHaveCount(1);
+    await page.locator('#fia [data-fia="ignore"]').click();
+    await expect.poll(() => ignored).toEqual([{ kind: 'EKS', accountRef: 'd', region: 'eu-west-1', clusterName: 'data-platform' }]);
+    await expect(page.locator('#fia [data-fia="ignored"]')).toHaveText('Ignored (1)');
+    await expect(page.locator('#fia .ui-state-filtered, #fia .ui-state-empty')).toBeVisible();
+  });
+});

@@ -143,7 +143,8 @@ const VmRegistry = (function() {
             <div class="content-view page page-frame vr-page" id="vm-registry-view">
                 ${PageHeader.markup({ title: 'VM registry',
                     summaryHtml: 'Set up environments: their groups, start order and the AWS VMs in them.',
-                    actionsHtml: `<button type="button" class="btn btn-primary" data-action="vr-create-environment">${PLUS_ICON} New environment</button>`,
+                    actionsHtml: (showInstanceIds() ? '<button type="button" class="btn btn-outline-secondary" data-action="vr-found-in-aws">Found in AWS</button>' : '')
+                        + `<button type="button" class="btn btn-primary" data-action="vr-create-environment">${PLUS_ICON} New environment</button>`,
                     helpPage: 'vm-registry', helpLabel: 'VM registry' })}
                 <div id="vr-banner"></div>
                 <div class="vr-grid page-fill">
@@ -956,6 +957,7 @@ window.VmRegistry = VmRegistry;
 if (typeof Actions !== 'undefined') {
     Actions.registerAll({
         'vr-create-environment': () => VmRegistry.openCreateEnvironmentModal(),
+        'vr-found-in-aws': () => FoundInAws.open(),
         'vr-reload': () => VmRegistry.loadEnvironmentsData(),
         'vr-select-env': el => VmRegistry.selectEnvironment(el.dataset.envId),
         'vr-manage-groups': el => VmRegistry.selectEnvironment(el.dataset.envId),

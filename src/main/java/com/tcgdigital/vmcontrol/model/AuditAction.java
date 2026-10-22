@@ -124,6 +124,9 @@ public enum AuditAction {
     STATE_DRIFT_DETECTED,
     VM_NAME_SYNCED,
     VM_DISCOVERED_UNTRACKED,
+    /** U19-T03: a resource found in AWS was hidden from, or brought back to, "Found in AWS". */
+    DISCOVERY_IGNORED,
+    DISCOVERY_UNIGNORED,
     VM_DEACTIVATED,
     VM_REACTIVATED,
     EKS_NODEGROUP_SYNC_FAILED,

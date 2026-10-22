@@ -308,11 +308,29 @@ public class VmDiscoveryService {
     private int discoverByTag() {
         List<Environment> environments = environmentRepository.findActiveEc2Environments();
         log.info("VM discovery (tag) starting for {} active EC2 environment(s)", environments.size());
+        // U19-T03: one sweep finds every environment's tagged instances in every account and region.
+        var tagged = sweep == null || environments.isEmpty() ? null
+                : sweep.everywhere("EC2 instances by tag", List.of(), "ec2:instance", t -> awsService.discoverInstancesWithTagKey(t, envTagKey));
         int total = 0;
         int failedEnvironments = 0;
         int fallbackEnvironments = 0;
         for (Environment env : environments) {
             try {
+                String ref = CloudTarget.of(env.getAwsAccountRef(), null).accountRef();
+                List<String> swept = tagged == null ? List.of() : tagged.outcomes().stream()
+                        .filter(o -> o.target().accountRef().equals(ref)).map(o -> o.target().region()).distinct().toList();
+                if (!swept.isEmpty()) {
+                    // Wherever the account is enabled; a region that failed is unknown, not empty (H24).
+                    total += discoverEnvironmentVms(env, swept, region -> {
+                        CloudTarget target = CloudTarget.of(env.getAwsAccountRef(), region);
+                        if (!tagged.answered(target)) {
+                            throw new DiscoveryFailedException("EC2 discovery failed in " + target, null);
+                        }
+                        return tagged.found().get(target).stream().filter(i -> i.tags().stream()
+                                .anyMatch(t -> envTagKey.equals(t.key()) && env.getName().equals(t.value()))).toList();
+                    });
+                    continue;
+                }
                 Regions regions = resolveRegions(env);
                 if (regions.fallback()) {
                     fallbackEnvironments++;
@@ -341,6 +359,12 @@ public class VmDiscoveryService {
     }
 
     private int discoverEnvironmentVms(Environment env, List<String> regions) {
+        return discoverEnvironmentVms(env, regions,
+                region -> awsService.discoverTaggedInstances(CloudTarget.of(env.getAwsAccountRef(), region), envTagKey, env.getName()));
+    }
+
+    /** {@code fetch}: the environment's tagged instances in one region; throws DiscoveryFailedException when unknown. */
+    private int discoverEnvironmentVms(Environment env, List<String> regions, java.util.function.Function<String, List<Instance>> fetch) {
         if (regions.isEmpty()) {
             log.warn("Environment {}: no AWS region is known to search; set its region in the environment's settings", env.getName());
             return 0;
@@ -351,7 +375,7 @@ public class VmDiscoveryService {
         DiscoveryFailedException lastFailure = null;
         for (String region : regions) {
             try {
-                List<Instance> found = awsService.discoverTaggedInstances(CloudTarget.of(env.getAwsAccountRef(), region), envTagKey, env.getName());
+                List<Instance> found = fetch.apply(region);
                 log.info("Environment {}: {} tagged instance(s) in region {}", env.getName(), found.size(), region);
                 found.forEach(i -> liveInstances.put(i, region));
             } catch (DiscoveryFailedException e) {

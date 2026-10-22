@@ -119,6 +119,12 @@ const Config = (function() {
         },
 
         // VM Groups
+        // U19-T03: what discovery found in AWS that no environment holds (administrators)
+        discovery: {
+            found: (refresh = false) => `${API_BASE_URL}/discovery/found${refresh ? '?refresh=true' : ''}`,
+            ignored: `${API_BASE_URL}/discovery/ignored`,
+            unignore: (id) => `${API_BASE_URL}/discovery/ignored/${encodeURIComponent(id)}`,
+        },
         groups: {
             list: (envId) => `${API_BASE_URL}/environments/${envId}/groups`,
             get: (envId, groupId) => `${API_BASE_URL}/environments/${envId}/groups/${groupId}`,
