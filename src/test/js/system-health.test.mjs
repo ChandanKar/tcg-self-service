@@ -50,3 +50,24 @@ test('the four figures', () => {
         jobs: { value: '1/2', sub: '1 late', late: 1 } });
     assert.equal(M.tiles({ syncStatus: {}, jobs: [], driftCount: null, stats: null }, NOW).sync.value, 'Not yet');
 });
+
+test('U19-T06/T08 Regions: one row per account and region, failures first, the counts by kind, notes in words', () => {
+    const scans = [
+        { kind: 'EC2 instances (inbox)', accountRef: 'd', accountName: 'Default', region: 'eu-west-1', found: 12, scannedAt: '2026-10-22T08:00:00Z' },
+        { kind: 'EKS clusters (inbox)', accountRef: 'd', accountName: 'Default', region: 'eu-west-1', found: 2, scannedAt: '2026-10-22T08:01:00Z' },
+        { kind: 'EC2 instances by tag', accountRef: 'd', accountName: 'Default', region: 'eu-west-1', found: 3, scannedAt: '2026-10-22T07:00:00Z' },
+        { kind: 'EC2 instances (inbox)', accountRef: 'd', accountName: 'Default', region: 'me-central-1', found: 0, scannedAt: '2026-10-22T08:00:00Z',
+            error: 'UnauthorizedOperation', refused: true },
+        { kind: 'EC2 instances (inbox)', accountRef: 'b', accountName: 'Payments', region: 'ap-south-1', found: 0, scannedAt: '2026-10-22T08:00:00Z' },
+    ];
+    const rows = plain(M.regionRows(scans));
+    assert.deepEqual(rows.map(r => [r.accountName, r.region, !!r.error]), [
+        ['Default', 'me-central-1', true], ['Default', 'eu-west-1', false], ['Payments', 'ap-south-1', false]]);
+    assert.equal(rows[0].refused, true);
+    assert.equal(rows[1].scannedAt, '2026-10-22T08:01:00Z');
+    assert.equal(M.foundText(rows[1].found), '12 instances · 2 clusters');
+    assert.equal(M.foundText(rows[2].found), 'Nothing found');
+    assert.equal(M.noteKind('NOT_IN_REGION'), 'Not offered there');
+    assert.equal(M.noteKind('WRONG_REGION'), 'In another region');
+    assert.equal(M.noteKind('SOMETHING'), 'Failed');
+});

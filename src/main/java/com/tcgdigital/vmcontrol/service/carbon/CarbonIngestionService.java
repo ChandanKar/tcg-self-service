@@ -101,9 +101,31 @@ public class CarbonIngestionService {
         if (!isEnabled()) return Result.off("disabled");
         if (bucket == null || bucket.isBlank()) return Result.off("no bucket configured (carbon.export.bucket)");
         if (!clientFactory.isConfigured()) return Result.off("no AWS credentials");
-        S3Client s3 = clientFactory.s3(accountService.getBillingAccountRef(), region);
-        return ingest(s3);
+        String account = accountService.getBillingAccountRef();
+        S3Client s3 = clientFactory.s3(account, region);
+        try {
+            Result result = ingest(s3);
+            if (regionNotes != null) regionNotes.clear(SERVICE, account, region);
+            return result;
+        } catch (RuntimeException e) {
+            // The bucket in another region, not readable, or S3 not answering: a note, not a failed job (U19-T06).
+            if (regionNotes == null) throw e;
+            var note = regionNotes.record(SERVICE, account, region, e);
+            log.warn("Carbon ingestion: {}", note.message());
+            return Result.off(note.message());
+        }
     }
+
+    private static final String SERVICE = "Carbon export (S3)";
+
+    /** Region-specific problems for System health (U19-T06); absent in plain unit tests. */
+    private com.tcgdigital.vmcontrol.service.aws.RegionalServiceNotes regionNotes;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setRegionNotes(com.tcgdigital.vmcontrol.service.aws.RegionalServiceNotes regionNotes) {
+        this.regionNotes = regionNotes;
+    }
+
 
     Result ingest(S3Client s3) {
         List<CarbonExportReader.ExportFile> files = reader.list(s3, bucket, prefix);

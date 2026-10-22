@@ -143,6 +143,11 @@ public class AwsAccountService {
                 .filter(r -> !exclude.contains(r) && !refused.contains(r)).distinct().toList();
     }
 
+    /** The regions left out (aws.regions.exclude), for System health. */
+    public java.util.Set<String> excludedRegionsView() {
+        return excludedRegions();
+    }
+
     /** aws.regions.exclude: the Settings override, else the configured value. */
     java.util.Set<String> excludedRegions() {
         String value = settings == null ? excludeRegions : settings.getString("aws.regions.exclude", excludeRegions);

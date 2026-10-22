@@ -384,6 +384,8 @@ const Config = (function() {
         // Monitoring
         monitoring: {
             syncStatus: `${API_BASE_URL}/monitoring/sync-status`,
+            // U19-T06/T08: enabled regions per account, the last sweeps per region, region-specific service notes
+            regions: `${API_BASE_URL}/monitoring/regions`,
             triggerSync: `${API_BASE_URL}/monitoring/sync`,
             triggerEksSync: `${API_BASE_URL}/monitoring/sync/eks`,
             triggerEksSyncForEnvironment: (envId) => `${API_BASE_URL}/monitoring/sync/eks/${envId}`,

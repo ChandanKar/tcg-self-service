@@ -165,6 +165,39 @@ test.describe('System Health', () => {
     await expect(page).toHaveURL(/#\/waste$/);
   });
 
+  test('Regions (U19-T06/T08): the regions of each account, the last scan of each region, services a region does not offer', async ({ page }) => {
+    let asked = 0;
+    await page.route(/\/api\/v1\/monitoring\/regions$/, route => {
+      asked++;
+      return route.fulfill({ json: {
+        accounts: [{ accountRef: 'd', accountName: 'Default account', enabled: ['ap-south-1', 'eu-west-1', 'me-central-1'],
+          refused: ['me-central-1'], readAt: new Date(Date.now() - 3600000).toISOString(), limit: [] }],
+        scans: [
+          { kind: 'EC2 instances (inbox)', accountRef: 'd', accountName: 'Default account', region: 'eu-west-1', found: 4,
+            scannedAt: new Date().toISOString(), error: null, refused: false },
+          { kind: 'EC2 instances (inbox)', accountRef: 'd', accountName: 'Default account', region: 'me-central-1', found: 0,
+            scannedAt: new Date().toISOString(), error: 'UnauthorizedOperation', refused: true }],
+        notes: [{ service: 'Compute Optimizer', accountName: 'Default account', region: 'il-central-1', kind: 'NOT_IN_REGION',
+          message: 'Compute Optimizer is not offered in il-central-1; that region is left out for it.', at: new Date().toISOString() }],
+        excluded: ['ap-east-1'] } });
+    });
+    await openHealth(page);
+    expect(asked).toBe(0);
+    await page.getByRole('tab', { name: 'Regions' }).click();
+    await expect(page).toHaveURL(/#\/system-health\?tab=regions$/);
+    const panel = page.locator('#sh-panel-regions');
+    await expect(panel.locator('.sh-region-account')).toContainText('3 enabled regions', { timeout: 10_000 });
+    await expect(panel.locator('.sh-region-account')).toContainText('Refused access: me-central-1');
+    await expect(panel).toContainText('Left out everywhere: ap-east-1');
+    const rows = panel.locator('#sh-region-table tbody tr');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.first()).toContainText('me-central-1');
+    await expect(rows.first()).toContainText('Refused access');
+    await expect(rows.nth(1)).toContainText('4 instances');
+    await expect(panel.locator('.sh-region-notes li')).toContainText('Not offered there');
+    await expect(panel.locator('.sh-region-notes li')).toContainText('Compute Optimizer · il-central-1');
+  });
+
   test('Fleet use with no risk signals says nothing needs a look', async ({ page }) => {
     await page.route(/\/api\/v1\/dashboard\/summary$/, route => route.fulfill({ json: { persona: 'ADMIN', summary: {}, utilizationTrend: [],
       vmStatusCounts: {}, coverage: { metricsPercent: 100 }, riskCompliance: [{ tone: 'success', title: 'EBS encryption', description: 'ok', count: 0 }] } }));

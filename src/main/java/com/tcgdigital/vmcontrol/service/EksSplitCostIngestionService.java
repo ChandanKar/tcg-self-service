@@ -135,15 +135,28 @@ public class EksSplitCostIngestionService {
         IngestResult result;
         try {
             result = run(from, today);
+            if (regionNotes != null) regionNotes.clear(SERVICE, null, effectiveRegion());
         } catch (Exception e) {
             log.error("EKS split cost ingestion failed: {}", e.getMessage());
-            result = IngestResult.of(Status.FAILED, e.getMessage());
+            // Athena or its data in another region, not opted in or refused: named on System health (U19-T06).
+            String message = regionNotes == null ? e.getMessage() : regionNotes.record(SERVICE, null, effectiveRegion(), e).message();
+            result = IngestResult.of(Status.FAILED, message);
         }
         auditService.logAction(null, AuditAction.SCHEDULED_JOB_EXECUTED, "job", JOB_NAME, "EKS split cost ingestion",
                 String.format("%s: %d row(s) written, %d skipped (unknown clusters %s) for %s..%s%s", result.status(),
                         result.rowsWritten(), result.rowsSkipped(), result.unknownClusters(), from, today.minusDays(1),
                         result.message() == null ? "" : " - " + result.message()));
         return result;
+    }
+
+    private static final String SERVICE = "EKS split cost (Athena)";
+
+    /** Region-specific problems for System health (U19-T06); absent in plain unit tests. */
+    private com.tcgdigital.vmcontrol.service.aws.RegionalServiceNotes regionNotes;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setRegionNotes(com.tcgdigital.vmcontrol.service.aws.RegionalServiceNotes regionNotes) {
+        this.regionNotes = regionNotes;
     }
 
     private IngestResult run(LocalDate from, LocalDate toExclusive) {

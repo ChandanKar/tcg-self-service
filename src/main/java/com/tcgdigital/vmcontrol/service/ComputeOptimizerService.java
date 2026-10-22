@@ -176,6 +176,14 @@ public class ComputeOptimizerService {
      * Compute Optimizer's EC2 recommendations is stored with all options, replacing that
      * instance's previous row; instances no longer reported are removed. Returns rows stored.
      */
+    /** Region-specific problems for System health (U19-T06); absent in plain unit tests. */
+    private com.tcgdigital.vmcontrol.service.aws.RegionalServiceNotes regionNotes;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setRegionNotes(com.tcgdigital.vmcontrol.service.aws.RegionalServiceNotes regionNotes) {
+        this.regionNotes = regionNotes;
+    }
+
     public int captureRecommendations() {
         if (!isAvailable()) {
             return 0;
@@ -193,13 +201,18 @@ public class ComputeOptimizerService {
                 List<InstanceRecommendation> recs = fetchAll(target);
                 Integer n = tx.execute(status -> store(target, recs, vmIdByInstance));
                 stored += n == null ? 0 : n;
+                if (regionNotes != null) regionNotes.clear(SERVICE, target.accountRef(), target.region());
             } catch (OptInRequiredException e) {
                 log.warn("Compute Optimizer is not enrolled for {} — enable it in the AWS console to get its "
                         + "rightsizing recommendations; the local rules still apply.", target);
+                note(target, e);
             } catch (ComputeOptimizerException e) {
-                log.error("Compute Optimizer capture failed for {}: {}", target, e.getMessage());
+                // Not offered, not opted in or refused in this region: a note on System health, not a failed job (U19-T06).
+                log.warn("Compute Optimizer capture failed for {}: {}", target, e.getMessage());
+                note(target, e);
             } catch (Exception e) {
-                log.error("Unexpected error capturing Compute Optimizer recommendations for {}: {}", target, e.getMessage());
+                log.warn("Compute Optimizer capture failed for {}: {}", target, e.getMessage());
+                note(target, e);
             }
         }
         Timestamp cutoff = Timestamp.from(clock.instant().minus(Duration.ofDays(retentionDays)));
@@ -207,6 +220,12 @@ public class ComputeOptimizerService {
         log.info("Compute Optimizer capture: {} recommendation(s) stored across {} account/region target(s)",
                 stored, targets.size());
         return stored;
+    }
+
+    private static final String SERVICE = "Compute Optimizer";
+
+    private void note(CloudTarget target, Exception e) {
+        if (regionNotes != null) regionNotes.record(SERVICE, target.accountRef(), target.region(), e);
     }
 
     /** Every page of one target's recommendations (E08-T04). */

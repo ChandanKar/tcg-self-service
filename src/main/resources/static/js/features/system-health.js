@@ -192,12 +192,13 @@ const SystemHealth = (function () {
     /** Router loader (also used after a sync, which reloads through the router). */
     function load() {
         const q = ContentRouter.query ? ContentRouter.query() : {};
-        s = { token: ContentRouter.token(), tab: ['reports', 'fleet'].includes(q.tab) ? q.tab : 'now', jobs: null, view: 'problems',
-            page: 1, reportsLoaded: false, fleetLoaded: false, eks: false };
+        s = { token: ContentRouter.token(), tab: ['reports', 'fleet', 'regions'].includes(q.tab) ? q.tab : 'now', jobs: null, view: 'problems',
+            page: 1, reportsLoaded: false, fleetLoaded: false, regionsLoaded: false, eks: false };
         renderShell();
         loadNow();
         if (s.tab === 'reports') loadReports();
         if (s.tab === 'fleet') loadFleet();
+        if (s.tab === 'regions') loadRegions();
     }
 
     function current() {
@@ -207,11 +208,12 @@ const SystemHealth = (function () {
     /** The line under the title follows the tab (SystemHealth / SystemHealthFleet boards, U17-T10). */
     const SUMMARY = {
         now: "Whether the platform's background work is running on time.",
-        fleet: 'How hard the fleet is working and what needs a look. Last 24 hours, all environments.'
+        fleet: 'How hard the fleet is working and what needs a look. Last 24 hours, all environments.',
+        regions: 'Which AWS regions each account has enabled, what the last scans found there, and services a region does not offer.'
     };
 
     function renderShell() {
-        const tabs = [['now', 'Now'], ['fleet', 'Fleet use'], ['reports', 'Reports']];
+        const tabs = [['now', 'Now'], ['fleet', 'Fleet use'], ['regions', 'Regions'], ['reports', 'Reports']];
         $('#content-area').html(`
         <div class="content-view sh-page" id="system-health-view">
             ${PageHeader.markup({ title: 'System health',
@@ -232,6 +234,9 @@ const SystemHealth = (function () {
                 </section>
             </section>
             <section class="sh-panel" id="sh-panel-fleet" role="tabpanel" aria-labelledby="sh-tab-fleet"${s.tab === 'fleet' ? '' : ' hidden'}></section>
+            <section class="sh-panel" id="sh-panel-regions" role="tabpanel" aria-labelledby="sh-tab-regions"${s.tab === 'regions' ? '' : ' hidden'}>
+                <p class="sh-note">Loading the regions&hellip;</p>
+            </section>
             <section class="sh-panel" id="sh-panel-reports" role="tabpanel" aria-labelledby="sh-tab-reports"${s.tab === 'reports' ? '' : ' hidden'}>
                 <p class="sh-note">Loading the reports&hellip;</p>
             </section>
@@ -239,14 +244,19 @@ const SystemHealth = (function () {
         $('#system-health-view').off('.sh')
             .on('click.sh', '[data-sh-tab]', function() { switchTab(this.dataset.shTab); })
             .on('click.sh', '[data-sh-view]', function() { s.view = this.dataset.shView; s.page = 1; drawJobs(); })
-            .on('click.sh', '[data-action="sh-page"]', function() { s.page = Number(this.dataset.page) || 1; drawJobs(); });
+            .on('click.sh', '[data-action="sh-page"]', function() { s.page = Number(this.dataset.page) || 1; drawJobs(); })
+            .on('click.sh', '[data-action="sh-region-page"]', function() {
+                if (this.disabled) return;
+                s.regionPage = Number(this.dataset.page) || 1;
+                drawRegions();
+            });
     }
 
     function switchTab(tab) {
         if (!s || tab === s.tab) return;
         s.tab = tab;
         $('.sh-tab').each(function() { this.setAttribute('aria-selected', String(this.dataset.shTab === tab)); });
-        ['now', 'fleet', 'reports'].forEach(key => $(`#sh-panel-${key}`).prop('hidden', tab !== key));
+        ['now', 'fleet', 'regions', 'reports'].forEach(key => $(`#sh-panel-${key}`).prop('hidden', tab !== key));
         $('#system-health-view .page-summary').first().text(SUMMARY[tab] || SUMMARY.now);
         $('#sh-now-actions').prop('hidden', tab !== 'now');
         try {
@@ -254,6 +264,119 @@ const SystemHealth = (function () {
         } catch (e) { /* the address keeps the old tab */ }
         if (tab === 'reports') loadReports();
         if (tab === 'fleet') loadFleet();
+        if (tab === 'regions') loadRegions();
+    }
+
+    // ------------------------------------------------------------------ Regions (U19-T06, U19-T08)
+
+    /** The scans grouped by account and region: failures first, then by account and region. */
+    function regionRows(scans) {
+        const byKey = {};
+        (scans || []).forEach(sc => {
+            const key = `${sc.accountRef}|${sc.region}`;
+            const row = byKey[key] || (byKey[key] = { accountName: sc.accountName, region: sc.region, found: {}, error: null,
+                refused: false, scannedAt: null });
+            row.found[sc.kind] = sc.found;
+            if (sc.error && !row.error) { row.error = sc.error; row.refused = !!sc.refused; }
+            if (!row.scannedAt || String(sc.scannedAt) > String(row.scannedAt)) row.scannedAt = sc.scannedAt;
+        });
+        return Object.values(byKey).sort((a, b) => (a.error ? 0 : 1) - (b.error ? 0 : 1)
+            || String(a.accountName).localeCompare(String(b.accountName)) || String(a.region).localeCompare(String(b.region)));
+    }
+
+    /** "12 instances · 2 clusters", or "Nothing found": the largest count any scan of that kind saw. */
+    function foundText(found) {
+        let ec2 = 0;
+        let eks = 0;
+        Object.entries(found || {}).forEach(([kind, n]) => {
+            if (kind.startsWith('EC2')) ec2 = Math.max(ec2, Number(n) || 0);
+            if (kind.startsWith('EKS')) eks = Math.max(eks, Number(n) || 0);
+        });
+        const parts = [];
+        if (ec2) parts.push(plural(ec2, 'instance', 'instances'));
+        if (eks) parts.push(plural(eks, 'cluster', 'clusters'));
+        return parts.length ? parts.join(' · ') : 'Nothing found';
+    }
+
+    /** A note's kind in words. */
+    function noteKind(kind) {
+        return { NOT_IN_REGION: 'Not offered there', NOT_OPTED_IN: 'Not turned on', ACCESS_DENIED: 'Access refused',
+            WRONG_REGION: 'In another region', OTHER: 'Failed' }[kind] || 'Failed';
+    }
+
+    async function loadRegions() {
+        if (s.regionsLoaded) return;
+        s.regionsLoaded = true;
+        const token = s.token;
+        let data;
+        try {
+            data = await ApiClient.get(Config.API.monitoring.regions, { suppressGlobalError: true });
+        } catch (xhr) {
+            if (!ContentRouter.isCurrent(token)) return;
+            s.regionsLoaded = false;
+            $('#sh-panel-regions').html(UiStates.failed({ what: 'The regions', xhr, onRetry: () => loadRegions() }));
+            return;
+        }
+        if (!ContentRouter.isCurrent(token)) return;
+        s.regions = data || {};
+        s.regionPage = 1;
+        drawRegions();
+    }
+
+    function accountHtml(a, now) {
+        const enabled = a.enabled && a.enabled.length
+            ? `${plural(a.enabled.length, 'enabled region', 'enabled regions')}${a.readAt ? `, read ${lastRun(a.readAt, now)}` : ''}`
+            : 'Enabled regions not read yet';
+        return Utils.html`<li class="sh-region-account"><b>${a.accountName}</b><span title="${(a.enabled || []).join(', ')}">${enabled}</span>`
+            + (a.limit && a.limit.length ? Utils.html`<span>Limited to ${a.limit.join(', ')}</span>` : '')
+            + (a.refused && a.refused.length ? Utils.html`<span class="sh-late-text">Refused access: ${a.refused.join(', ')}</span>` : '')
+            + '</li>';
+    }
+
+    function scanRowHtml(r, now) {
+        const status = r.error
+            ? Utils.html`<span class="sh-pill sh-pill-${r.refused ? 'off' : 'late'}">${r.refused ? 'Refused access' : 'Not read'}</span> <span class="sh-region-why">${r.error}</span>`
+            : '<span class="sh-pill sh-pill-ok">Read</span>';
+        return Utils.html`<tr><td class="sh-mono">${r.region}</td><td>${r.accountName || ''}</td><td>${foundText(r.found)}</td>
+            <td class="sh-mono">${lastRun(r.scannedAt, now)}</td><td>` + status + '</td></tr>';
+    }
+
+    function noteHtml(n) {
+        return Utils.html`<li><span class="sh-pill sh-pill-late">${noteKind(n.kind)}</span>
+            <span><b>${n.service}</b>${n.region ? ` · ${n.region}` : ''}${n.accountName ? ` · ${n.accountName}` : ''}: ${n.message}</span></li>`;
+    }
+
+    function drawRegions() {
+        const d = s.regions || {};
+        const accounts = d.accounts || [];
+        const rows = regionRows(d.scans);
+        const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+        s.regionPage = Math.min(Math.max(1, s.regionPage || 1), pages);
+        const now = new Date();
+        const accountsHtml = accounts.length ? accounts.map(a => accountHtml(a, now)).join('') : '<li class="sh-note">No active AWS account.</li>';
+        const excluded = (d.excluded || []).length ? Utils.html`<p class="sh-note">Left out everywhere: ${d.excluded.join(', ')} (Settings › AWS).</p>` : '';
+        const scansHtml = rows.length ? `<div class="sh-table-scroll"><table class="sh-jobs-table" id="sh-region-table">
+                <thead><tr><th scope="col">Region</th><th scope="col">Account</th><th scope="col">Found</th><th scope="col">Last scan</th><th scope="col">Status</th></tr></thead>
+                <tbody>${Pagination.slice(rows, s.regionPage, PAGE_SIZE).map(r => scanRowHtml(r, now)).join('')}</tbody></table></div>
+                ${rows.length > PAGE_SIZE ? `<div class="sh-foot">${Pagination.buildPager({ page: s.regionPage, pageSize: PAGE_SIZE,
+                    totalItems: rows.length, action: 'sh-region-page', key: 'regions' })}</div>` : ''}`
+            : UiStates.empty({ title: 'No scan has run yet', text: 'Discovery, EKS sync and Found in AWS scan every enabled region when they run.' });
+        const notes = d.notes || [];
+        const notesHtml = notes.length ? `<ul class="sh-region-notes">${notes.map(noteHtml).join('')}</ul>`
+            : '<p class="sh-note">Every service answered in every region it was asked in.</p>';
+        $('#sh-panel-regions').html(`
+            <section class="sh-card" aria-labelledby="sh-region-accounts-title">
+                <div class="sh-card-head"><h2 id="sh-region-accounts-title">Accounts</h2></div>
+                <ul class="sh-region-accounts">${accountsHtml}</ul>${excluded}
+            </section>
+            <section class="sh-card" aria-labelledby="sh-region-scans-title">
+                <div class="sh-card-head"><h2 id="sh-region-scans-title">Last scans by region</h2></div>
+                ${scansHtml}
+            </section>
+            <section class="sh-card" aria-labelledby="sh-region-notes-title">
+                <div class="sh-card-head"><h2 id="sh-region-notes-title">Services by region</h2></div>
+                ${notesHtml}
+            </section>`);
     }
 
     /** The Fleet use tab: asked for the first time it is opened. */
@@ -619,7 +742,7 @@ const SystemHealth = (function () {
 
     // ─── shared ──────────────────────────────────────────────────────────────
 
-    return { load, triggerSync, triggerEksSync, model: { span, lastRun, status, ordered, tiles } };
+    return { load, triggerSync, triggerEksSync, model: { span, lastRun, status, ordered, tiles, regionRows, foundText, noteKind } };
 })();
 
 if (typeof window !== 'undefined') window.SystemHealth = SystemHealth;

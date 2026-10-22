@@ -65,6 +65,22 @@ public class ServiceCatalogEngine implements ProvisioningEngine {
         return clients.apply(template.getAwsAccountRef(), template.getRegion());
     }
 
+    private static final String SERVICE = "Service Catalog";
+
+    /** Region-specific problems for System health (U19-T06); absent in plain unit tests. */
+    private com.tcgdigital.vmcontrol.service.aws.RegionalServiceNotes regionNotes;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setRegionNotes(com.tcgdigital.vmcontrol.service.aws.RegionalServiceNotes regionNotes) {
+        this.regionNotes = regionNotes;
+    }
+
+    /** A failure in the template's region, named on System health (U19-T06), then passed on. */
+    private RuntimeException noted(EnvironmentTemplate template, RuntimeException e) {
+        if (regionNotes != null) regionNotes.record(SERVICE, template.getAwsAccountRef(), template.getRegion(), e);
+        return e;
+    }
+
     private JsonNode read(String json, String what) {
         try {
             return json == null || json.isBlank() ? objectMapper.createObjectNode() : objectMapper.readTree(json);
@@ -102,7 +118,12 @@ public class ServiceCatalogEngine implements ProvisioningEngine {
         if (ref.hasNonNull("launchPathId") && !ref.get("launchPathId").asText().isBlank()) {
             builder.pathId(ref.get("launchPathId").asText());
         }
-        RecordDetail record = client(template).provisionProduct(builder.build()).recordDetail();
+        RecordDetail record;
+        try {
+            record = client(template).provisionProduct(builder.build()).recordDetail();
+        } catch (RuntimeException e) {
+            throw noted(template, e);
+        }
         return record.recordId();
     }
 
