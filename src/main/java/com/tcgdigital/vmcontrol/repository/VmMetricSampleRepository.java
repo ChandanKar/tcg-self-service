@@ -19,9 +19,16 @@ public interface VmMetricSampleRepository extends JpaRepository<VmMetricSample, 
     List<VmMetricSample> findByVmVmIdOrderBySampleTimeDesc(String vmId, Pageable pageable);
     Optional<VmMetricSample> findTopByVmVmIdOrderBySampleTimeDesc(String vmId);
 
-    /** The latest sample of each VM, in one query (environment insights, M36). Ties may return two. */
-    @Query("SELECT s FROM VmMetricSample s WHERE s.vm.vmId IN :vmIds AND s.sampleTime = " +
-           "(SELECT MAX(s2.sampleTime) FROM VmMetricSample s2 WHERE s2.vm.vmId = s.vm.vmId)")
+    /**
+     * The latest sample of each VM, in one query (environment insights, M36; the metrics sync's
+     * window). Ties may return two. A join to each VM's MAX(sample_time), which the
+     * (vm_id, sample_time, period_seconds) index answers directly: the earlier correlated subquery
+     * ran once per sample row and took ~105 s on a table of a few months (a connection held past
+     * Hikari's 60 s leak threshold on every metrics run).
+     */
+    @Query(value = "SELECT s.* FROM vm_metric_sample s JOIN (SELECT vm_id, MAX(sample_time) AS latest " +
+           "FROM vm_metric_sample WHERE vm_id IN (:vmIds) GROUP BY vm_id) m " +
+           "ON s.vm_id = m.vm_id AND s.sample_time = m.latest", nativeQuery = true)
     List<VmMetricSample> findLatestByVmIds(@Param("vmIds") List<String> vmIds);
 
     @Query("SELECT s FROM VmMetricSample s WHERE s.sampleTime < :cutoff ORDER BY s.sampleTime ASC")
