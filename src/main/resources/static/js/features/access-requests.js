@@ -21,6 +21,10 @@ const AccessRequests = (function() {
     let envFilter = '';
     // Three cards fit 1440 x 900 without a page scrollbar (U17-T07); the rest are a page away.
     const CARDS_PER_PAGE = 3;
+    /** Cards a page on the page frame: as many as fit, at most CARDS_PER_PAGE (U18-T03). */
+    let fitSize = null;
+    let search = '';
+    const cardsPerPage = () => fitSize || CARDS_PER_PAGE;
     let cardPage = 1;
 
     // ------------------------------------------------------------------ model
@@ -163,15 +167,17 @@ const AccessRequests = (function() {
     }
 
     function pageHtml() {
-        const filter = `<label class="ar-env-filter" for="ar-env-filter">Environment
+        const filter = `<label class="ar-search"><span class="visually-hidden">Search requests</span>
+                <input type="search" class="form-control" id="ar-search" placeholder="Person or environment" autocomplete="off"></label>
+            <label class="ar-env-filter" for="ar-env-filter">Environment
                 <select class="form-select" id="ar-env-filter"></select></label>`;
         return `
-            <div class="content-view ar-review-page" id="access-requests-view">
+            <div class="content-view page page-frame ar-review-page" id="access-requests-view">
                 ${PageHeader.markup({ title: 'Access requests',
                     summaryHtml: 'People asking to use environments you look after. Oldest first.',
                     actionsHtml: filter, helpPage: 'pending-requests', helpLabel: 'Access requests' })}
                 <p class="ar-approvals" id="ar-approvals" hidden></p>
-                <div class="ar-list" id="ar-list"></div>
+                <div class="ar-list list-panel page-fill" id="ar-list"></div>
             </div>`;
     }
 
@@ -200,14 +206,38 @@ const AccessRequests = (function() {
             `<option value="${Utils.escapeHtml(o.value)}"${o.value === envFilter ? ' selected' : ''}>${Utils.escapeHtml(o.label)}</option>`
         ).join('')).prop('disabled', pendingList.length === 0);
 
-        const shown = pendingList.filter(r => !envFilter || r.environmentId === envFilter);
-        const pages = Math.max(1, Math.ceil(shown.length / CARDS_PER_PAGE));
+        const q = search.trim().toLowerCase();
+        const shown = pendingList.filter(r => (!envFilter || r.environmentId === envFilter)
+            && (!q || [nameOf(r), r.requesterEmail, r.environmentName, r.environmentDisplayName, r.businessJustification]
+                .some(v => String(v || '').toLowerCase().includes(q))));
+        const pages = Math.max(1, Math.ceil(shown.length / cardsPerPage()));
         cardPage = Math.min(Math.max(1, cardPage), pages);
+        // On the page frame (U18-T03): the cards scroll inside, the pager stays below them.
         $('#ar-list').html(shown.length
-            ? Pagination.slice(shown, cardPage, CARDS_PER_PAGE).map(r => cardHtml(r)).join('')
-                + (shown.length > CARDS_PER_PAGE ? Pagination.buildPager({ page: cardPage, pageSize: CARDS_PER_PAGE,
-                    totalItems: shown.length, action: 'ar-page', key: 'requests' }) : '')
-            : UiStates.empty({ title: 'No one is waiting.', text: 'New requests to use the environments you look after show here.' }));
+            ? `<div class="ar-cards list-panel-body" tabindex="0" role="region" aria-label="Access requests, scrolls">${
+                Pagination.slice(shown, cardPage, cardsPerPage()).map(r => cardHtml(r)).join('')}</div>`
+                + `<div class="list-panel-foot ar-list-foot">${shown.length > cardsPerPage() ? Pagination.buildPager({ page: cardPage, pageSize: cardsPerPage(),
+                    totalItems: shown.length, action: 'ar-page', key: 'requests' }) : ''}</div>`
+            : q && pendingList.length
+                ? UiStates.filtered({ title: `No requests match "${search.trim()}".`, text: 'Check the spelling, or clear the search.' })
+                : UiStates.empty({ title: 'No one is waiting.', text: 'New requests to use the environments you look after show here.' }));
+        attachFit();
+    }
+
+    /** Cards a page follow the window: measured when the list first shows and when a resize settles. */
+    function attachFit() {
+        const panel = document.getElementById('ar-list');
+        if (!panel || !panel.querySelector('.list-panel-body') || typeof ListPanel === 'undefined') return;
+        const handle = ListPanel.attach(panel, { rowSelector: '.ar-card', rowHeight: 200, min: 1, max: CARDS_PER_PAGE, onFit: applyFit });
+        if (fitSize === null) applyFit(handle.fitCount());
+    }
+
+    function applyFit(count) {
+        if (!count || count === cardsPerPage()) return;
+        const first = (cardPage - 1) * cardsPerPage();
+        fitSize = count;
+        cardPage = ListPanel.pageKeepingFirst(first, count);
+        render();
     }
 
     function cardHtml(req, now) {
@@ -270,6 +300,11 @@ const AccessRequests = (function() {
 
     function bindPendingRequestsEvents() {
         $(document).off(NS)
+            .on('input' + NS, '#ar-search', function() {
+                search = this.value;
+                cardPage = 1;
+                render();
+            })
             .on('change' + NS, '#ar-env-filter', function() {
                 envFilter = $(this).val() || '';
                 cardPage = 1;

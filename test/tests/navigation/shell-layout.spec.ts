@@ -143,8 +143,6 @@ const SIZES: [number, number][] = [[1440, 900], [1536, 730], [1366, 657]];
  * skipped until their task lands. U18-T06 empties this list.
  */
 const LAPTOP_KNOWN: Record<string, string> = {
-  '#/pending-requests': 'U18-T03', '#/access-management': 'U18-T03', '#/user-management': 'U18-T03',
-  '#/vm-registry': 'U18-T03', '#/audit-logs-all': 'U18-T03',
   '#/cost-management': 'U18-T04', '#/cost-setup': 'U18-T04', '#/savings': 'U18-T04', '#/system-health': 'U18-T04',
   '#/automation-rules/new': 'U18-T05', '#/access-management/grant': 'U18-T05', '#/user-management/add': 'U18-T05',
   '#/settings': 'U18-T05',

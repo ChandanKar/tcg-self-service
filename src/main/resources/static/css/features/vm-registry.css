@@ -60,6 +60,32 @@
     align-items: start;
 }
 
+/* On the page frame (U18-T03): both panes take the height left; the environment list and the selected
+   environment's groups and VMs scroll inside, their tools and pagers fixed. */
+@media (min-width: 1280px) and (min-height: 600px) {
+    .vr-page.page-frame .vr-grid {
+        grid-template-rows: minmax(0, 1fr);
+        align-items: stretch;
+    }
+
+    .vr-page.page-frame .vr-master {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .vr-page.page-frame .vr-env-list {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+    }
+
+    .vr-page.page-frame .vr-detail {
+        max-height: none;
+        min-height: 0;
+    }
+}
+
 .vr-master,
 .vr-detail {
     background: #fff;

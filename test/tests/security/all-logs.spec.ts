@@ -98,6 +98,8 @@ test.describe('Global audit page', () => {
   });
 
   test('rows read as sentences with who did it, the AWS reason as a note, and 10 a page', async ({ page }) => {
+    // Rows a page follow the window (U18-T03): at 1440 x 900 all ten fit.
+    await page.setViewportSize({ width: 1440, height: 900 });
     const at = new Date().toISOString();
     const rows = [
       { logId: 'a', action: 'ACCESS_GRANTED', userDisplayName: 'Sanjay Rao', environmentName: 'Analytics QA', success: true, createdAt: at,

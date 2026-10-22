@@ -10,6 +10,9 @@ const UserManagement = (function() {
     'use strict';
 
     const PAGE_SIZE = 10;
+    /** People a page on the page frame: as many rows as fit, at most PAGE_SIZE (U18-T03). */
+    let fitSize = null;
+    const pageSize = () => fitSize || PAGE_SIZE;
     const ROLE_FILTERS = [['', 'All roles'], ['ADMIN', 'Administrator'], ['ENV_ADMIN', 'Environment admin'], ['USER', 'User']];
     const STATUS_FILTERS = [['active', 'Active'], ['inactive', 'Deactivated']];
 
@@ -120,7 +123,7 @@ const UserManagement = (function() {
                 allUsers = users || [];
                 // Keep the search and filters the admin has set (e.g. after Reactivate).
                 filteredUsers = filterUsers();
-                const pages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
+                const pages = Math.max(1, Math.ceil(filteredUsers.length / pageSize()));
                 currentPage = keepPage === false ? 1 : Math.min(currentPage, pages);
                 render();
             })
@@ -135,6 +138,22 @@ const UserManagement = (function() {
         renderCounts();
         renderTable();
         bindEvents();
+        attachFit();
+    }
+
+    /** Rows a page follow the window: measured once the page shows and when a resize settles (U18-T03). */
+    function attachFit() {
+        const panel = document.getElementById('um-panel');
+        if (!panel || typeof ListPanel === 'undefined') return;
+        const apply = count => {
+            if (!count || count === pageSize()) return;
+            const first = (currentPage - 1) * pageSize();
+            fitSize = count;
+            currentPage = ListPanel.pageKeepingFirst(first, count);
+            renderTable();
+        };
+        const handle = ListPanel.attach(panel, { rowSelector: '#users-table-body tr', rowHeight: 56, min: 4, max: PAGE_SIZE, onFit: apply });
+        apply(handle.fitCount());
     }
 
     function buildViewHtml() {
@@ -142,7 +161,7 @@ const UserManagement = (function() {
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"></path></svg>
                 Add people</a>`;
         return `
-            <div class="content-view um-page" id="user-management-view">
+            <div class="content-view page page-frame um-page" id="user-management-view">
                 ${PageHeader.markup({ title: 'Users', summaryHtml: 'Everyone who can sign in, and their role across the platform.',
                     actionsHtml: add, helpPage: typeof HelpLink !== 'undefined' ? 'user-management' : null, helpLabel: 'Users' })}
                 <div class="um-counts" id="um-counts" aria-live="polite"></div>
@@ -157,8 +176,8 @@ const UserManagement = (function() {
                     <select class="form-select" id="filter-status" aria-label="Status">${STATUS_FILTERS.map(([v, l]) =>
                         `<option value="${v}"${currentStatusFilter === v ? ' selected' : ''}>${l}</option>`).join('')}</select>
                 </div>
-                <div class="um-card">
-                    <div class="um-table-wrap">
+                <div class="um-card list-panel page-fill" id="um-panel">
+                    <div class="um-table-wrap list-panel-body" tabindex="0" role="region" aria-label="People, scrolls">
                         <table class="um-table" id="users-table">
                             <thead><tr>
                                 <th scope="col">Person</th><th scope="col">Role</th><th scope="col">Signs in with</th>
@@ -167,7 +186,7 @@ const UserManagement = (function() {
                             <tbody id="users-table-body"></tbody>
                         </table>
                     </div>
-                    <div id="user-pagination"></div>
+                    <div id="user-pagination" class="list-panel-foot"></div>
                 </div>
             </div>`;
     }
@@ -181,10 +200,10 @@ const UserManagement = (function() {
     }
 
     function renderTable() {
-        const pageUsers = Pagination.slice(filteredUsers, currentPage, PAGE_SIZE);
+        const pageUsers = Pagination.slice(filteredUsers, currentPage, pageSize());
         $('#users-table-body').html(pageUsers.length ? pageUsers.map(buildUserRow).join('')
             : `<tr><td colspan="5" class="um-empty">${allUsers.length ? 'Nobody matches these filters.' : 'No people yet. Add people to get started.'}</td></tr>`);
-        $('#user-pagination').html(filteredUsers.length > PAGE_SIZE ? Pagination.buildPager({ page: currentPage, pageSize: PAGE_SIZE,
+        $('#user-pagination').html(filteredUsers.length > pageSize() ? Pagination.buildPager({ page: currentPage, pageSize: pageSize(),
             totalItems: filteredUsers.length, action: 'um-page', key: 'users' }) : '');
         syncAddress();
     }

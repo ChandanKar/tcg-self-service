@@ -11,6 +11,10 @@ const AccessManagement = (function() {
     'use strict';
 
     const PAGE_SIZE = 10;
+    /** Grants a page on the page frame: as many rows as fit, at most PAGE_SIZE (U18-T03). */
+    let fitSize = null;
+    let fitMeasure = null; // measures once the first rows of a visit are drawn
+    const pageSize = () => fitSize || PAGE_SIZE;
     const NS = '.accessMgmt';
 
     // State
@@ -100,7 +104,7 @@ const AccessManagement = (function() {
         const envOptions = ['<option value="">All environments</option>'].concat(environments.map(env =>
             Utils.html`<option value="${env.environmentId}" ${env.environmentId === selectedEnvironmentId ? 'selected' : ''}>${env.displayName || env.name}</option>`)).join('');
         $('#content-area').html(`
-            <div class="content-view am-page" id="access-management-view">
+            <div class="content-view page page-frame am-page" id="access-management-view">
                 ${PageHeader.markup({ title: 'Access management',
                     summaryHtml: 'Who can use which environment, at what level, and until when.',
                     actionsHtml: waiting + grantBtn, helpPage: 'access-management', helpLabel: 'Access management' })}
@@ -121,18 +125,35 @@ const AccessManagement = (function() {
                         <option value="ENDING" ${currentStatus === 'ENDING' ? 'selected' : ''}>Ending within 7 days</option>
                     </select>
                 </div>
-                <div class="am-card" id="am-panel" role="tabpanel" aria-labelledby="access-tab-${tab}">
-                    <div class="am-table-wrap">
+                <div class="am-card list-panel page-fill" id="am-panel" role="tabpanel" aria-labelledby="access-tab-${tab}">
+                    <div class="am-table-wrap list-panel-body" tabindex="0" role="region" aria-label="Grants, scrolls">
                         <table class="am-table" id="access-table">
                             <thead id="access-table-head"></thead>
                             <tbody id="access-table-body"></tbody>
                         </table>
                     </div>
-                    <div class="pagination-bar-wrap" id="access-pagination"></div>
+                    <div class="pagination-bar-wrap list-panel-foot" id="access-pagination"></div>
                 </div>
             </div>
         `);
         bindEvents();
+        attachFit();
+    }
+
+    /** Rows a page follow the window: measured once the page shows and when a resize settles (U18-T03). */
+    function attachFit() {
+        const panel = document.getElementById('am-panel');
+        if (!panel || typeof ListPanel === 'undefined') return;
+        const apply = count => {
+            if (!count || count === pageSize()) return;
+            const first = currentPage * pageSize();
+            fitSize = count;
+            currentPage = ListPanel.pageKeepingFirst(first, count) - 1;
+            refreshList();
+        };
+        const handle = ListPanel.attach(panel, { rowSelector: '#access-table-body tr', rowHeight: 52, min: 4, max: PAGE_SIZE, onFit: apply });
+        // The rows arrive after this: drawTable measures once they are there.
+        fitMeasure = () => apply(handle.fitCount());
     }
 
     function drawStats() {
@@ -148,7 +169,7 @@ const AccessManagement = (function() {
     /** Fetch the current page and the counts from the server, then draw them. */
     async function refreshList() {
         const token = pageToken;
-        const params = { page: currentPage, size: PAGE_SIZE, status: tab === 'history' ? 'ENDED' : currentStatus };
+        const params = { page: currentPage, size: pageSize(), status: tab === 'history' ? 'ENDED' : currentStatus };
         if (selectedEnvironmentId) params.environmentId = selectedEnvironmentId;
         if (currentSearch.trim()) params.search = currentSearch.trim();
         const summaryParams = selectedEnvironmentId ? { environmentId: selectedEnvironmentId } : null;
@@ -191,10 +212,15 @@ const AccessManagement = (function() {
             $('#access-table-body').html(rows.map(history ? historyRow : grantRow).join(''));
         }
         Pagination.renderNumbered('#access-pagination', {
-            page: currentPage, totalItems: total, pageSize: PAGE_SIZE, itemLabel: 'grants', zeroIndexed: true,
+            page: currentPage, totalItems: total, pageSize: pageSize(), itemLabel: 'grants', zeroIndexed: true,
             bindAncestor: '#content-area',
             onPageChange: (p) => { currentPage = p; refreshList(); }
         });
+        if (fitMeasure && rows.length) {
+            const measure = fitMeasure;
+            fitMeasure = null;
+            measure();
+        }
     }
 
     function personCell(row) {

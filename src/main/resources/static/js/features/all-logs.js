@@ -12,6 +12,11 @@ const AllLogs = (function() {
     'use strict';
 
     const PAGE_SIZE = 10;
+    /** Entries a page on the page frame: as many as fit, at most PAGE_SIZE (U18-T03); measured once a visit. */
+    let fitSize = null;
+    let fitPanel = null;
+    let fitChecked = false;
+    const pageSize = () => fitSize || PAGE_SIZE;
     const EXPORT_PAGE_SIZE = 500;
     const EXPORT_MAX_ROWS = 10000;
     const RANGE_HOURS = { '24h': 24, '7d': 24 * 7, '30d': 24 * 30 };
@@ -200,7 +205,8 @@ const AllLogs = (function() {
             categories.map(c => Utils.html`<option value="${c.category}"${Utils.raw(filters.category === c.category ? ' selected' : '')}>${c.label}</option>`).join('')}</select>`;
         const result = `<select class="form-select form-select-sm" id="result-filter" aria-label="Result">
                 <option value="">Any result</option><option value="false"${filters.resultStatus === 'false' ? ' selected' : ''}>Failed only</option></select>`;
-        return `<div class="activity-page audit-page all-logs-container" id="audit-log-view">
+        fitChecked = false;
+        return `<div class="activity-page page page-frame audit-page all-logs-container" id="audit-log-view">
             ${PageHeader.markup({ title: 'Audit log', summaryHtml: 'Everything anyone did in the environments you look after.',
                 actionsHtml: exportBtn, helpPage: typeof HelpLink !== 'undefined' ? 'audit-logs-all' : null, helpLabel: 'Audit logs' })}
             <div class="audit-stats" id="all-logs-stats" aria-live="polite"></div>
@@ -213,7 +219,7 @@ const AllLogs = (function() {
                     <button type="button" class="btn btn-primary btn-sm" id="apply-custom-range-btn">Show</button>
                 </div>
             </div>
-            <div class="activity-card" id="audit-results" aria-live="polite"></div>
+            <div class="activity-card list-panel page-fill" id="audit-results" aria-live="polite"></div>
         </div>`;
     }
 
@@ -244,12 +250,31 @@ const AllLogs = (function() {
             : `<tr class="audit-empty-row"><td colspan="5">${filtered
                 ? UiStates.filtered({ title: 'Nothing matches these filters', text: 'Nothing of this kind in this period.', clearLabel: 'Show everything', clearId: 'clear-filters-btn' })
                 : UiStates.empty({ title: 'Nothing in this period', text: 'What people do in the environments you look after shows up here.' })}</td></tr>`;
-        return `<div class="activity-table-wrap"><table class="activity-table audit-table" id="audit-table">
+        return `<div class="activity-table-wrap list-panel-body" tabindex="0" role="region" aria-label="Audit entries, scrolls"><table class="activity-table audit-table" id="audit-table">
                 <thead><tr><th scope="col" class="audit-when">When</th><th scope="col">Who</th><th scope="col">What</th>
                     <th scope="col">Environment</th><th scope="col" class="activity-result">Result</th></tr></thead>
                 <tbody>${body}</tbody></table></div>
-            <div id="all-logs-pagination">${total > 0 ? Pagination.buildPager({ page: (data.number || 0) + 1, pageSize: PAGE_SIZE,
+            <div id="all-logs-pagination" class="list-panel-foot">${total > 0 ? Pagination.buildPager({ page: (data.number || 0) + 1, pageSize: pageSize(),
                 totalItems: total, action: 'audit-page', key: 'audit' }) : ''}</div>`;
+    }
+
+    /** Rows a page follow the window (U18-T03): measured once a visit and when a resize settles. */
+    function attachFit() {
+        const panel = document.getElementById('audit-results');
+        if (!panel || !panel.querySelector('.list-panel-body') || typeof ListPanel === 'undefined') return;
+        if (fitPanel) fitPanel.destroy();
+        const apply = count => {
+            if (!count || count === pageSize()) return;
+            const first = filters.page * pageSize();
+            fitSize = count;
+            filters.page = ListPanel.pageKeepingFirst(first, count) - 1;
+            reload(true);
+        };
+        fitPanel = ListPanel.attach(panel, { rowSelector: 'tbody tr:not(.activity-day)', rowHeight: 41, min: 4, max: PAGE_SIZE, onFit: apply });
+        if (!fitChecked) {
+            fitChecked = true;
+            apply(fitPanel.fitCount());
+        }
     }
 
     /** Reloads the rows (and the counts unless only the page changed). */
@@ -257,11 +282,12 @@ const AllLogs = (function() {
         const t = token;
         $('#audit-results').attr('aria-busy', 'true');
         try {
-            const [data, s] = await Promise.all([fetchLogs(filters.page, PAGE_SIZE), pageOnly ? Promise.resolve(stats) : fetchStats()]);
+            const [data, s] = await Promise.all([fetchLogs(filters.page, pageSize()), pageOnly ? Promise.resolve(stats) : fetchStats()]);
             if (!ContentRouter.isCurrent(t)) return;
             stats = s || emptyStats();
             $('#all-logs-stats').html(statsMarkup());
             $('#audit-results').html(resultsMarkup(data)).attr('aria-busy', 'false');
+            attachFit();
         } catch (error) {
             if (!ContentRouter.isCurrent(t)) return;
             $('#audit-results').html(UiStates.failed({ what: 'The audit log', xhr: error, retryAction: 'all-logs-retry' }))

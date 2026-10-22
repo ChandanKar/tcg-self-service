@@ -140,13 +140,13 @@ const VmRegistry = (function() {
 
     function renderVmRegistry() {
         $('#content-area').html(`
-            <div class="content-view vr-page" id="vm-registry-view">
+            <div class="content-view page page-frame vr-page" id="vm-registry-view">
                 ${PageHeader.markup({ title: 'VM registry',
                     summaryHtml: 'Set up environments: their groups, start order and the AWS VMs in them.',
                     actionsHtml: `<button type="button" class="btn btn-primary" data-action="vr-create-environment">${PLUS_ICON} New environment</button>`,
                     helpPage: 'vm-registry', helpLabel: 'VM registry' })}
                 <div id="vr-banner"></div>
-                <div class="vr-grid">
+                <div class="vr-grid page-fill">
                     <section class="vr-master" aria-label="Environments">
                         <div class="vr-master-tools">
                             <label class="vr-search">${SEARCH_ICON}<span class="visually-hidden">Search environments</span>
@@ -156,13 +156,16 @@ const VmRegistry = (function() {
                                 <option value="inactive">Deactivated</option>
                             </select>
                         </div>
-                        <div class="vr-env-list" id="vr-env-list"><div class="vr-empty">Loading environments…</div></div>
+                        <div class="vr-env-list" id="vr-env-list" data-scroll-label="Environments"><div class="vr-empty">Loading environments…</div></div>
                         <div class="vr-master-pager" id="vm-registry-pagination"></div>
                     </section>
                     <section class="vr-detail" id="vr-detail" aria-label="Selected environment"></section>
                 </div>
             </div>
         `);
+        // The environment list scrolls inside its pane on the page frame (U18-T03).
+        const list = document.getElementById('vr-env-list');
+        if (list && typeof Modals !== 'undefined' && Modals.watchScroll) Modals.watchScroll(list, list, 'Environments');
     }
 
     // =========================================================================
