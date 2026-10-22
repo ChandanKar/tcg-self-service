@@ -64,11 +64,20 @@ const Leases = (function() {
                         if (token !== renderToken) return;
                         current = { env, lease: lease || null, policy: policy || null, requests: requests || [] };
                         $section.html(buildFact(current));
+                        $('#env-meta-lease').html(metaHtml(current));
                         endingAlert(current);
                         startTimers(envId);
                         openExtendFromRoute();
                     });
             });
+    }
+
+    /** " · Lease ends 20:00 · Extend" in a large environment's meta line (EnvDetailLarge.dc.html). */
+    function metaHtml({ lease }) {
+        if (!lease || !lease.endsAt) return '';
+        const extend = lease.permissions && lease.permissions.canExtend
+            ? ' <button type="button" class="btn btn-link env-meta-action" data-action="lease-extend">Extend</button>' : '';
+        return ` · Lease ends <span class="mono">${when(new Date(lease.endsAt).getTime())}</span>${extend}`;
     }
 
     /** "14:30", or "Mon 14:30" when not today. */

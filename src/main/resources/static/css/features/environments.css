@@ -490,10 +490,49 @@
     grid-template-columns: minmax(0, 1fr);
 }
 
+/* A large environment has no About column (EnvDetailLarge.dc.html): lease and lock are in the meta
+   line, the other facts open in Insights. */
 .env-body-wide .env-aside {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    align-items: start;
+    display: none;
+}
+
+.env-meta-action {
+    padding: 0 0 0 4px;
+    border: 0;
+    font-size: inherit;
+    vertical-align: baseline;
+}
+
+/* The page fills the screen (U07-T09): the alerts stack on top and the body takes the height left,
+   its VM list and About column scrolling inside when the alerts leave too little (EnvAlerts.dc.html). */
+@media (min-width: 769px) {
+    #content-area > #env-detail-view:not(.phone-env) {
+        flex: 1 1 0;
+        min-height: 0;
+    }
+
+    .env-detail-page:not(.phone-env) .env-body {
+        flex: 1 1 0;
+        min-height: 0;
+        grid-template-rows: minmax(0, 1fr);
+    }
+
+    .env-detail-page:not(.phone-env) .env-main,
+    .env-detail-page:not(.phone-env) .env-aside {
+        max-height: 100%;
+        overflow-y: auto;
+    }
+}
+
+/* The About facts of a large environment, at the top of Insights */
+.ins-about {
+    margin-bottom: 16px;
+}
+
+.ins-about-title {
+    margin: 0 0 8px;
+    font-size: var(--fs-card-title);
+    font-weight: 600;
 }
 
 #env-vms-body {

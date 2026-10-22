@@ -19,7 +19,7 @@ async function api(playwright: any, userId: string): Promise<APIRequestContext> 
   });
 }
 
-async function environmentWithUserAt(playwright: any, level: 'VIEWER' | 'USER'): Promise<string> {
+async function environmentWithUserAt(playwright: any, level: 'VIEWER' | 'USER' | 'ADMIN'): Promise<string> {
   const admin = await api(playwright, devIds.admin);
   const stamp = Date.now();
   const env = await (await admin.post('/api/v1/environments', {
@@ -434,5 +434,189 @@ test.describe('Environment insights', () => {
     await expect(panel.getByRole('button', { name: 'Stop' })).toHaveCount(0);
     await expect(panel.getByRole('link', { name: 'Edit schedule' })).toHaveCount(0);
     await expect(panel.locator('.ins-todo').nth(1).getByRole('button', { name: 'Details' })).toBeVisible();
+  });
+});
+
+/**
+ * U07-T09: the environment page in all its shapes (7 VMs, 54 VMs, EKS, a viewer) fits 1440 x 900 with
+ * every alert and fact showing; each role gets its own controls; and the page asks nothing of a
+ * switched-off feature and has no failing background request.
+ */
+test.describe('Environment page per role and size at 1440 x 900', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.user || !devIds.admin || !canSignIn('user'), 'Needs TEST_DEV_USER_ID and TEST_DEV_ADMIN_ID (dev mode)');
+  });
+
+  const now = Date.now();
+  const iso = (min: number) => new Date(now + min * 60000).toISOString();
+  const vm = (id: string, name: string, status: string, o: any = {}) => ({ vmId: id, name, provider: 'AWS', region: 'ap-south-1',
+    status, sequencePosition: 1, privateIp: '10.20.1.11', instanceType: 'm6i.large', lastStateSyncAt: iso(-120), ...o });
+  const seven = [
+    { group: { groupId: 'g-db', name: 'db', displayName: 'Database', sequencePosition: 1 }, vms: [
+      vm('v1', 'pay-db-primary', 'RUNNING', { stateDriftDetected: true }), vm('v2', 'pay-db-replica', 'RUNNING'), vm('v3', 'pay-cache', 'RUNNING')] },
+    { group: { groupId: 'g-app', name: 'app', displayName: 'Application', sequencePosition: 2 }, vms: [
+      vm('v4', 'pay-api-01', 'RUNNING'), vm('v5', 'pay-api-02', 'ERROR')] },
+    { group: { groupId: 'g-web', name: 'web', displayName: 'Web', sequencePosition: 3 }, vms: [
+      vm('v6', 'web-01', 'STOPPED'), vm('v7', 'web-02', 'STOPPED')] },
+  ];
+  const large = [['g-db', 'Database', 8], ['g-api', 'Application', 18], ['g-web', 'Web', 16], ['g-batch', 'Batch', 12]]
+    .map(([id, name, n], gi) => ({ group: { groupId: id, name: String(name).toLowerCase(), displayName: name, sequencePosition: gi + 1 },
+      vms: Array.from({ length: Number(n) }, (_, i) => vm(`${id}-${i}`, `${id}-${i + 1}`, i % 4 === 3 ? 'STOPPED' : 'RUNNING',
+        { sequencePosition: i + 1, stateDriftDetected: id === 'g-db' && i === 0 })) }));
+  const eks = ['system-nodes', 'app-nodes', 'batch-nodes'].map((name, i) => ({
+    group: { groupId: `g-${name}`, name, displayName: name, sequencePosition: i + 1 },
+    vms: [{ vmId: `v-${name}`, name, provider: 'AWS_EKS', region: 'ap-south-1', status: 'RUNNING', sequencePosition: 1,
+      stateDriftDetected: i === 0, lastStateSyncAt: iso(-120),
+      eksNodeGroup: { instanceType: 'm6i.large', desiredWhenRunning: 3, currentNodes: 3, capacityType: 'ON_DEMAND' } }] }));
+
+  /** Every alert (budget freeze, someone else's lock, lease ending, drift, stale sync) and every fact. */
+  async function everything(page: any, groups: any[], opts: { eks?: boolean } = {}) {
+    await withFeatures(page, { idleStop: true });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.route(/\/api\/v1\/environments\/[^/]+\/budget$/, (route: any) => route.fulfill({ json: {
+      budgetId: 'b', monthlyAmount: 300, month: '2026-10', spendToDate: 320, percentUsed: 107, startFrozenUntil: iso(24 * 60) } }));
+    await page.route(/\/api\/v1\/environments\/[^/]+\/lock$/, (route: any) => route.fulfill({ json: {
+      isLocked: true, lockedByUserId: 'rahul', lockedByDisplayName: 'Rahul Verma', lockedAt: iso(-90), lockReason: 'Load test prep',
+      expiresAt: iso(120), canAcquire: false, canRelease: false, canExtend: false, canBreak: false, lockExpiryEnabled: true } }));
+    await page.route(/\/api\/v1\/environments\/[^/]+\/lease$/, (route: any) => route.fulfill({ json: {
+      startedAt: iso(-60), endsAt: iso(12), permissions: { canExtend: true }, participants: [] } }));
+    await page.route(/\/api\/v1\/environments\/[^/]+\/lease-policy$/, (route: any) => route.fulfill({ json: {
+      enabled: true, effectiveDefaultMinutes: 120, effectiveMaxMinutes: 480, platformMaxMinutes: 720, canEdit: false } }));
+    await page.route(/\/api\/v1\/environments\/[^/]+\/idle-stop\/status$/, (route: any) => route.fulfill({ json: {
+      featureEnabled: true, canOperate: true, canAdminister: false, production: false, minDryRunDays: 14, recentEvents: [],
+      rules: [{ ruleId: 'r1', scopeType: 'ENVIRONMENT', enabled: true, mode: 'DRY_RUN', idleMinutes: 60, dryRunStartedAt: iso(-8 * 24 * 60) }] } }));
+    await page.route(/\/api\/v1\/environments\/[^/]+\/vms(\?.*)?$/, (route: any) => route.fulfill({ json: groups }));
+    if (opts.eks) {
+      await page.route(/\/api\/v1\/environments\/[^/?]+$/, async (route: any) => {
+        const real = await route.fetch();
+        await route.fulfill({ response: real, json: { ...(await real.json()), serviceType: 'EKS', eksClusterName: 'partner-qa-eks' } });
+      });
+    }
+  }
+
+  async function openAs(page: any, envId: string, userId?: string) {
+    if (userId) {
+      await page.context().setExtraHTTPHeaders({ 'X-User-Id': userId });
+      await page.goto('/home');
+    } else {
+      await signIn(page, 'user');
+    }
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate((id: string) => { location.hash = '#/environments/' + id; }, envId);
+    await expect(page.locator('#env-detail-view')).toBeVisible({ timeout: 15_000 });
+  }
+
+  /** No page scrollbar and no scrolling main area: what overflows, if anything. */
+  async function overflow(page: any): Promise<string[]> {
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(400);
+    return page.evaluate(() => {
+      const out: string[] = [];
+      const d = document.scrollingElement!;
+      const main = document.getElementById('mainContent')!;
+      if (d.scrollHeight > window.innerHeight + 1) out.push(`page is ${d.scrollHeight}px tall`);
+      if (d.scrollWidth > window.innerWidth + 1) out.push(`page is ${d.scrollWidth}px wide`);
+      if (main.scrollHeight > main.clientHeight + 1) out.push(`main area is ${main.scrollHeight}px of ${main.clientHeight}px`);
+      if (main.scrollWidth > main.clientWidth + 1) out.push(`main area is ${main.scrollWidth}px wide`);
+      return out;
+    });
+  }
+
+  async function allShowing(page: any) {
+    await expect(page.locator('#env-alerts .env-alert')).toHaveCount(5, { timeout: 15_000 });
+    const about = page.locator('#env-aside');
+    await expect(about.locator('#env-fact-lock')).not.toBeEmpty();
+    await expect(about.locator('#env-fact-idle')).toContainText('Dry run');
+    await expect(about.locator('#env-cost-card')).not.toBeEmpty();
+  }
+
+  test('7 VMs with every alert and fact fits; an operator gets Start and Stop, not Settings or Access', async ({ page, playwright }) => {
+    const envId = await environmentWithUserAt(playwright, 'USER');
+    await everything(page, seven);
+    await openAs(page, envId);
+    await allShowing(page);
+    await expect(page.locator('#env-vms .env-vm-row')).toHaveCount(7);
+    expect(await overflow(page)).toEqual([]);
+    await expect(page.locator('#btn-env-action')).toBeVisible();
+    await expect(page.locator('#btn-env-settings')).toHaveCount(0);
+    await expect(page.locator('#btn-env-manage-access')).toHaveCount(0);
+  });
+
+  test('54 VMs with every alert fits; lease and lock in the meta line, the other facts in Insights (EnvDetailLarge board)', async ({ page, playwright }) => {
+    const envId = await environmentWithUserAt(playwright, 'USER');
+    await everything(page, large);
+    await openAs(page, envId);
+    await allShowing(page);
+    await expect(page.getByRole('region', { name: 'All 54 VMs in start order' })).toBeVisible();
+    expect(await overflow(page)).toEqual([]);
+
+    // No About column: the meta line reads "… · Lease ends 11:44 Extend · Locked by Rahul Verma".
+    await expect(page.locator('#env-aside')).toBeHidden();
+    const meta = page.locator('.env-meta');
+    await expect(meta).toContainText(/Lease ends \d{2}:\d{2}/);
+    await expect(meta.getByRole('button', { name: 'Extend' })).toBeVisible();
+    await expect(meta).toContainText('Locked by Rahul Verma');
+
+    // Insights carries the About facts, with their actions, and gives them back on close.
+    await page.locator('#btn-env-insights').click();
+    const about = page.getByRole('region', { name: 'About this environment' });
+    await expect(about).toContainText('Dry run');
+    await expect(about.getByRole('button', { name: 'Pause or review' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(about).toHaveCount(0);
+    await expect(page.locator('#env-aside #env-fact-idle')).toContainText('Dry run');
+  });
+
+  test('an EKS environment with every alert and fact fits', async ({ page, playwright }) => {
+    const envId = await environmentWithUserAt(playwright, 'USER');
+    await everything(page, eks, { eks: true });
+    await openAs(page, envId);
+    await expect(page.locator('.env-eks-row')).toHaveCount(3, { timeout: 15_000 });
+    await allShowing(page);
+    expect(await overflow(page)).toEqual([]);
+  });
+
+  test('a viewer with every alert and fact fits, with no start, stop or lock', async ({ page, playwright }) => {
+    const envId = await environmentWithUserAt(playwright, 'VIEWER');
+    await everything(page, seven);
+    await openAs(page, envId);
+    await allShowing(page);
+    await expect(page.locator('.env-viewonly-note')).toBeVisible();
+    expect(await overflow(page)).toEqual([]);
+    await expect(page.locator('#btn-env-action, #btn-env-action-stop, [data-action="group-action"], [data-lock-action="acquire"]')).toHaveCount(0);
+    await expect(page.locator('#btn-env-settings, #btn-env-manage-access')).toHaveCount(0);
+  });
+
+  test('an environment admin sees Settings and Access, and it still fits', async ({ page, playwright }) => {
+    const envId = await environmentWithUserAt(playwright, 'USER');
+    const admin = await api(playwright, devIds.admin);
+    const promoted = await admin.patch('/api/v1/users/dev-user-001/roles', { data: { admin: false, envAdmin: true } });
+    expect(promoted.ok(), await promoted.text()).toBeTruthy();
+    await admin.dispose();
+    await everything(page, seven);
+    await openAs(page, envId, 'dev-user-001');
+    await allShowing(page);
+    await expect(page.locator('#btn-env-settings')).toBeVisible();
+    await expect(page.locator('#btn-env-manage-access')).toBeVisible();
+    expect(await overflow(page)).toEqual([]);
+  });
+
+  test('nothing is asked of a switched-off feature and no background request fails', async ({ page, playwright }) => {
+    const envId = await environmentWithUserAt(playwright, 'USER');
+    const offAsked: string[] = [];
+    const failed: string[] = [];
+    page.on('request', (req: any) => {
+      if (/\/(idle-stop|spot-summary|spot|chat-channels|webhooks|carbon|quota)(\/|\?|$)/.test(new URL(req.url()).pathname)) offAsked.push(req.url());
+    });
+    page.on('response', (res: any) => {
+      if (res.url().includes('/api/') && res.status() >= 400) failed.push(`${res.status()} ${res.url()}`);
+    });
+    await withFeatures(page, { idleStop: false, spot: false, chat: false, webhooks: false, carbon: false, quotas: false });
+    await openAs(page, envId);
+    await expect(page.locator('#env-detail-view .env-body')).toBeVisible({ timeout: 15_000 });
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
+    expect(offAsked).toEqual([]);
+    expect(failed).toEqual([]);
   });
 });

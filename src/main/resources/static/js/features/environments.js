@@ -619,7 +619,7 @@ const Environments = (function() {
      * "payments-dev · AWS EC2 · ap-south-1 · Payments team" under the name (EnvDetail.dc.html);
      * "AWS EKS · cluster partner-qa-eks · ap-south-1" for EKS (EksEnv.dc.html).
      */
-    function detailMetaHtml(env) {
+    function detailMetaHtml(env, large) {
         let envMeta = {};
         try { envMeta = JSON.parse(env.metadata || '{}') || {}; } catch (e) { /* no metadata */ }
         const type = `${(envMeta.defaultCloudProvider || 'AWS').toUpperCase()} ${(env.serviceType || 'EC2').toUpperCase()}`;
@@ -632,7 +632,21 @@ const Environments = (function() {
                 ? Utils.html` <span title="${regions.join(', ')}">+${regions.length - 1}</span>` : ''));
         }
         if (env.teamName) parts.push(Utils.escapeHtml(env.teamName));
-        return `<p class="env-meta">${parts.join(' · ')}</p>`;
+        if (!large) return `<p class="env-meta">${parts.join(' · ')}</p>`;
+        // A large environment has no About column (EnvDetailLarge.dc.html): the lease and the lock are
+        // part of this line ("Lease ends 20:00 · Not locked"), the lease filled in by Leases.render.
+        return `<p class="env-meta">${parts.join(' · ')}<span id="env-meta-lease"></span> · ${metaLockHtml(env)}</p>`;
+    }
+
+    /** "Not locked · Lock" or "Locked by Rahul Verma" for the meta line of a large environment. */
+    function metaLockHtml(env) {
+        const lock = env.lockStatus;
+        if (!lock) return '';
+        if (lock.isLocked) return Utils.html`Locked by ${lock.lockedByDisplayName || 'someone'}`;
+        const acquire = lock.canAcquire
+            ? Utils.html` <button type="button" class="btn btn-link env-meta-action" data-lock-action="acquire" data-env-id="${env.environmentId}"
+                data-expiry-enabled="${lock.lockExpiryEnabled ? 'true' : 'false'}">Lock</button>` : '';
+        return 'Not locked' + acquire;
     }
 
     /**
@@ -716,7 +730,7 @@ const Environments = (function() {
                 ${PageHeader.markup({
                     title: envName,
                     breadcrumb: [{ label: 'Environments', href: '#/my-environments' }, { label: envName }],
-                    summaryHtml: detailMetaHtml(env),
+                    summaryHtml: detailMetaHtml(env, large),
                     actionsClass: 'env-detail-actions',
                     actionsHtml: `
                         <button type="button" class="btn btn-ghost" id="btn-env-insights" aria-label="Environment insights"

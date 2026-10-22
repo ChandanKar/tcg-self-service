@@ -117,12 +117,35 @@ const EnvInsights = (function() {
         state = { env, window: WINDOWS.some(w => w[0] === window) ? window : '24h', data: undefined, anomalies: undefined,
             token: Date.now() + Math.random() };
         Slideout.open(`${env.displayName || env.name} insights`, '<div class="env-insights"></div>', { variant: 'env-insights', width: 820 });
+        borrowAbout();
         render();
         load();
         const token = state.token;
         ApiClient.get(Config.API.costAnomalies.forEnvironment(env.environmentId, 90), { suppressGlobalError: true })
             .done(list => { if (state && state.token === token) { state.anomalies = list || []; render(); } })
             .fail(() => { if (state && state.token === token) { state.anomalies = null; render(); } });
+    }
+
+    /**
+     * A large environment has no About column (EnvDetailLarge.dc.html): its facts (lock, lease, schedule,
+     * idle auto-stop, cost and budget) show at the top of Insights, the same elements with their actions,
+     * and go back to the page when the panel closes.
+     */
+    function borrowAbout() {
+        const about = document.querySelector('.env-body-wide #env-aside .env-about');
+        if (!about) return;
+        const holder = document.createElement('section');
+        holder.className = 'ins-about';
+        holder.setAttribute('aria-label', 'About this environment');
+        holder.innerHTML = '<h3 class="ins-about-title">About this environment</h3>';
+        holder.appendChild(about);
+        const content = document.querySelector('#dynamicSlideoutPanel .slideout-panel-content');
+        if (content) content.insertBefore(holder, content.firstChild);
+        $(document).one('slideout:closed', () => {
+            const aside = document.getElementById('env-aside');
+            if (aside && about.isConnected) aside.appendChild(about);
+            holder.remove();
+        });
     }
 
     function load() {
