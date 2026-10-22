@@ -5,6 +5,11 @@ board on a canvas page (Users & viewers, VM & environment details, More — ever
 administration, Environment admin, Administrator, Phone, Building blocks) with its title and size.
 The boards are 1440 × 900 unless `canvas.json` says otherwise (phones are 390 × 844).
 
+Since U18 the app also fits smaller laptop windows: no page scrolls down to 1366 × 657 (and at 1536 × 730).
+On shorter windows lists show fewer rows a page and long panels scroll inside, so a screen can hold less
+than its board; below about 1280 × 600 (tablets, 200% zoom) and on phones the page scrolls as before.
+`navigation/shell-layout.spec.ts` checks every route at the three sizes.
+
 These files are the target for the UX work (UX Tracker U01–U17). Do not edit them here; a change of
 design is made in the mockup and copied in again.
 
