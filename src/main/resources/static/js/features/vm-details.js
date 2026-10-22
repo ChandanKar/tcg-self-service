@@ -118,7 +118,9 @@ const VmDetails = (function() {
         const cpus = num(inv.vcpuCount);
         const memoryText = memory === null ? null : `${Math.round(memory / 1024 * 10) / 10} GiB`;
         const vcpuMemory = cpus === null && !memoryText ? '—' : `${cpus === null ? '—' : cpus} / ${memoryText || '—'}`;
-        const zone = inv.availabilityZone || vm.region || '—';
+        // The zone ID (euw1-az3) is the same in every account; the name is this account's label (U19-T07).
+        const zone = inv.availabilityZone ? inv.availabilityZone + (inv.availabilityZoneId ? ` (${inv.availabilityZoneId})` : '')
+            : (vm.region || '—');
         return [
             { label: 'Size', value: inv.instanceType || vm.instanceType || '—', mono: true },
             { label: 'vCPU / memory', value: vcpuMemory, mono: true },

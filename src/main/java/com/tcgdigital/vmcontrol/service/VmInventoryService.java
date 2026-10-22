@@ -144,6 +144,7 @@ public class VmInventoryService {
         snapshot.setPrivateIp(data.getPrivateIp());
         snapshot.setPublicIp(data.getPublicIp());
         snapshot.setAvailabilityZone(data.getAvailabilityZone());
+        snapshot.setAvailabilityZoneId(data.getAvailabilityZoneId());
         snapshot.setLaunchTime(data.getLaunchTime());
         snapshot.setTotalStorageGib(data.getTotalStorageGib());
         snapshot.setEngine(data.getEngine());

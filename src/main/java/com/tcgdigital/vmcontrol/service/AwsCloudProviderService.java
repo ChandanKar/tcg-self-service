@@ -174,7 +174,9 @@ public class AwsCloudProviderService implements CloudProviderService {
      */
     static String plainFailure(String action, String errorCode, String awsMessage) {
         String sentence = switch (errorCode == null ? "" : errorCode) {
-            case "InsufficientInstanceCapacity" -> "AWS has no capacity for this VM's size in its zone right now. Try again later.";
+            // U19-T07: what to try, not only what happened.
+            case "InsufficientInstanceCapacity", "InsufficientCapacity" -> "AWS has no capacity for this VM's size in its zone right now. "
+                    + "Try again in a few minutes, or change the VM to another size (Resize safely), which AWS may have room for.";
             case "InstanceLimitExceeded" -> "The AWS account has reached its limit of running instances.";
             case "VcpuLimitExceeded" -> "The AWS account has reached its vCPU limit for this kind of VM.";
             case "UnauthorizedOperation" -> "The platform is not allowed to " + action

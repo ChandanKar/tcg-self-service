@@ -47,6 +47,10 @@ public class VmInventorySnapshot {
     @Column(name = "availability_zone", length = 64)
     private String availabilityZone;
 
+    /** The zone's ID (euw1-az3), the same in every account, unlike its name (U19-T07). */
+    @Column(name = "availability_zone_id", length = 32)
+    private String availabilityZoneId;
+
     /** On demand or Spot (E31-T01). */
     @Enumerated(EnumType.STRING)
     @Column(name = "purchase_option", nullable = false, length = 20)
@@ -111,6 +115,8 @@ public class VmInventorySnapshot {
     public PurchaseOption getPurchaseOption() { return purchaseOption; }
     public void setPurchaseOption(PurchaseOption purchaseOption) { this.purchaseOption = purchaseOption == null ? PurchaseOption.ON_DEMAND : purchaseOption; }
     public void setAvailabilityZone(String availabilityZone) { this.availabilityZone = availabilityZone; }
+    public String getAvailabilityZoneId() { return availabilityZoneId; }
+    public void setAvailabilityZoneId(String availabilityZoneId) { this.availabilityZoneId = availabilityZoneId; }
     public Timestamp getLaunchTime() { return launchTime; }
     public void setLaunchTime(Timestamp launchTime) { this.launchTime = launchTime; }
     public Integer getTotalStorageGib() { return totalStorageGib; }

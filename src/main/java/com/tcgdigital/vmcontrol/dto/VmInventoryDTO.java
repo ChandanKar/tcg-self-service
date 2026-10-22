@@ -19,6 +19,8 @@ public class VmInventoryDTO {
     private String privateIp;
     private String publicIp;
     private String availabilityZone;
+    /** The zone's ID, the same in every account (U19-T07). */
+    private String availabilityZoneId;
     private Timestamp launchTime;
     private Integer totalStorageGib;
     private String engine;
@@ -38,6 +40,7 @@ public class VmInventoryDTO {
             dto.setPrivateIp(snapshot.getPrivateIp());
             dto.setPublicIp(snapshot.getPublicIp());
             dto.setAvailabilityZone(snapshot.getAvailabilityZone());
+            dto.setAvailabilityZoneId(snapshot.getAvailabilityZoneId());
             dto.setLaunchTime(snapshot.getLaunchTime());
             dto.setTotalStorageGib(snapshot.getTotalStorageGib());
             dto.setEngine(snapshot.getEngine());
@@ -109,6 +112,8 @@ public class VmInventoryDTO {
     public void setPublicIp(String publicIp) { this.publicIp = publicIp; }
     public String getAvailabilityZone() { return availabilityZone; }
     public void setAvailabilityZone(String availabilityZone) { this.availabilityZone = availabilityZone; }
+    public String getAvailabilityZoneId() { return availabilityZoneId; }
+    public void setAvailabilityZoneId(String availabilityZoneId) { this.availabilityZoneId = availabilityZoneId; }
     public Timestamp getLaunchTime() { return launchTime; }
     public void setLaunchTime(Timestamp launchTime) { this.launchTime = launchTime; }
     public Integer getTotalStorageGib() { return totalStorageGib; }

@@ -26,6 +26,7 @@ public interface CloudInventoryProviderService {
         private String privateIp;
         private String publicIp;
         private String availabilityZone;
+        private String availabilityZoneId;
         private Timestamp launchTime;
         private List<VmVolumeData> volumes = List.of();
         /** Database engine and Multi-AZ (AWS_RDS, E33-T03). */
@@ -60,6 +61,8 @@ public interface CloudInventoryProviderService {
         public void setPublicIp(String publicIp) { this.publicIp = publicIp; }
         public String getAvailabilityZone() { return availabilityZone; }
         public void setAvailabilityZone(String availabilityZone) { this.availabilityZone = availabilityZone; }
+        public String getAvailabilityZoneId() { return availabilityZoneId; }
+        public void setAvailabilityZoneId(String availabilityZoneId) { this.availabilityZoneId = availabilityZoneId; }
         public Timestamp getLaunchTime() { return launchTime; }
         public void setLaunchTime(Timestamp launchTime) { this.launchTime = launchTime; }
         public List<VmVolumeData> getVolumes() { return volumes; }

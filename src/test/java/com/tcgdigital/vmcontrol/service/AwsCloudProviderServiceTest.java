@@ -622,8 +622,8 @@ class AwsCloudProviderServiceTest {
 
     @Test
     void failuresAreExplainedInPlainWordsWithAwsTextAfter() {
-        assertEquals("AWS has no capacity for this VM's size in its zone right now. Try again later. - AWS said: "
-                        + "Insufficient capacity.",
+        assertEquals("AWS has no capacity for this VM's size in its zone right now. Try again in a few minutes, or change "
+                        + "the VM to another size (Resize safely), which AWS may have room for. - AWS said: Insufficient capacity.",
                 AwsCloudProviderService.plainFailure("start", "InsufficientInstanceCapacity", "Insufficient capacity."));
         assertEquals("AWS no longer has this VM.",
                 AwsCloudProviderService.plainFailure("stop", "InvalidInstanceID.NotFound", ""));

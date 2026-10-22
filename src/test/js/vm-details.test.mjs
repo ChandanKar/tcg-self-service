@@ -44,6 +44,9 @@ test('stats and Overview, in the board order; disk use is not collected', () => 
         ['Public IP', 'None'], ['Purchase', 'On-demand'], ['Purpose', 'Payments API'], ['Launched', '14 Sep 2026'],
         ['State read from AWS', '4 min ago'], ['Cost this month', '—']]);
     assert.equal(M.purchaseText('SPOT'), 'Spot');
+    // U19-T07: the zone ID next to the account's zone name.
+    assert.equal(plain(M.overview(vmRow, { ...inventory, availabilityZoneId: 'aps1-az3' }, now))
+        .find(f => f.label === 'Region / zone').value, 'ap-south-1b (aps1-az3)');
 });
 
 test('advice: cost this month, purchase from the advice, and the rightsizing note', () => {

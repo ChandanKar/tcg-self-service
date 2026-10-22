@@ -81,6 +81,8 @@ public class AwsWasteScanService {
                 Map<String, Object> facts = new LinkedHashMap<>();
                 facts.put("stateTransitionReason", i.stateTransitionReason());
                 facts.put("instanceType", i.instanceTypeAsString());
+                // U19-T07: the zone the finding is in (an account's own label; the region is the finding's).
+                facts.put("zone", i.placement() == null ? null : i.placement().availabilityZone());
                 facts.put("volumeIds", i.blockDeviceMappings() == null ? List.of() : i.blockDeviceMappings().stream()
                         .filter(m -> m.ebs() != null).map(m -> m.ebs().volumeId()).toList());
                 facts.put("publicIp", i.publicIpAddress());
@@ -160,6 +162,7 @@ public class AwsWasteScanService {
             for (Volume v : page.volumes()) {
                 Map<String, Object> facts = new LinkedHashMap<>();
                 facts.put("state", v.stateAsString());
+                facts.put("zone", v.availabilityZone());
                 facts.put("attachedTo", v.attachments() == null ? List.of()
                         : v.attachments().stream().map(a -> a.instanceId()).toList());
                 out.add(new ScannedResource(v.volumeId(), tags(v.tags()).get("Name"), v.volumeTypeAsString(),

@@ -28,6 +28,31 @@ public class AwsCloudInventoryProviderService implements CloudInventoryProviderS
         return CloudProvider.AWS;
     }
 
+    /** Zone name -> zone ID per account and region (U19-T07); zones do not change, so read once a day. */
+    private final Map<String, Map<String, String>> zoneIdCache = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<String, java.time.Instant> zoneIdReadAt = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** The account's zone IDs in the target region; empty when they cannot be read (the names still show). */
+    Map<String, String> zoneIds(Ec2Client ec2, CloudTarget target) {
+        String key = target.key();
+        java.time.Instant at = zoneIdReadAt.get(key);
+        if (at != null && at.plus(java.time.Duration.ofDays(1)).isAfter(java.time.Instant.now())) {
+            return zoneIdCache.getOrDefault(key, Map.of());
+        }
+        Map<String, String> ids = new HashMap<>();
+        try {
+            ec2.describeAvailabilityZones(software.amazon.awssdk.services.ec2.model.DescribeAvailabilityZonesRequest.builder().build())
+                    .availabilityZones().forEach(z -> {
+                        if (z.zoneName() != null && z.zoneId() != null) ids.put(z.zoneName(), z.zoneId());
+                    });
+        } catch (Exception e) {
+            log.debug("Zone IDs not read in {}: {}", target, e.getMessage());
+        }
+        zoneIdCache.put(key, ids);
+        zoneIdReadAt.put(key, java.time.Instant.now());
+        return ids;
+    }
+
     @Override
     public boolean isAvailable() {
         return awsClientFactory.isConfigured();
@@ -50,6 +75,7 @@ public class AwsCloudInventoryProviderService implements CloudInventoryProviderS
                     .collect(Collectors.toSet());
             Map<String, Volume> volumes = describeVolumes(ec2, new ArrayList<>(volumeIds));
             Map<String, InstanceTypeInfo> typeInfo = describeInstanceTypes(ec2, instances);
+            Map<String, String> zoneIds = zoneIds(ec2, target);
 
             for (Instance instance : instances) {
                 VmInventoryData data = new VmInventoryData();
@@ -62,6 +88,7 @@ public class AwsCloudInventoryProviderService implements CloudInventoryProviderS
                 data.setPrivateIp(instance.privateIpAddress());
                 data.setPublicIp(instance.publicIpAddress());
                 data.setAvailabilityZone(instance.placement() != null ? instance.placement().availabilityZone() : null);
+                data.setAvailabilityZoneId(data.getAvailabilityZone() == null ? null : zoneIds.get(data.getAvailabilityZone()));
                 data.setLaunchTime(instance.launchTime() != null ? Timestamp.from(instance.launchTime()) : null);
 
                 InstanceTypeInfo info = typeInfo.get(instance.instanceTypeAsString());
