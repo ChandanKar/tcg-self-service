@@ -35,12 +35,20 @@ const RegisterVmsPage = (function() {
             .concat([{ value: NEW_GROUP, label: 'New group…' }]);
     }
 
-    /** The account's own regions when it has some, else every known region. */
+    /**
+     * The regions to pick from (U19-T08): the account's own list when it has one, else the regions it has
+     * enabled in AWS (as last read), else every commercial region; each with its place name.
+     */
     function regionsFor(accountRef, accounts, allRegions) {
         const account = (accounts || []).find(a => a.ref === accountRef);
-        return account && account.regions && account.regions.length
-            ? account.regions.map(value => ({ value, label: value }))
-            : (allRegions || []).map(r => ({ value: r.value, label: `${r.value} (${r.label.replace(/^.*\((.*)\)$/, '$1')})` }));
+        const label = value => {
+            const known = (allRegions || []).find(r => r.value === value);
+            return known ? `${value} (${known.label.replace(/^.*\((.*)\)$/, '$1')})` : value;
+        };
+        const codes = account && account.regions && account.regions.length ? account.regions
+            : account && account.enabledRegions && account.enabledRegions.length ? account.enabledRegions
+                : (allRegions || []).map(r => r.value);
+        return codes.map(value => ({ value, label: label(value) }));
     }
 
     function canAdd(c) {

@@ -95,7 +95,10 @@ const Config = (function() {
             page: (page = 0, size = 10, search = '', opts = {}) =>
                 `${API_BASE_URL}/environments/page?page=${page}&size=${size}${search ? '&search=' + encodeURIComponent(search) : ''}`
                 + (opts.includeGroups ? '&includeGroups=true' : '')
-                + (opts.state ? '&state=' + encodeURIComponent(opts.state) : ''),
+                + (opts.state ? '&state=' + encodeURIComponent(opts.state) : '')
+                + (opts.region ? '&region=' + encodeURIComponent(opts.region) : ''),
+            // U19-T08: the regions that hold a VM, for the list's region filter
+            regionsInUse: `${API_BASE_URL}/environments/regions`,
             available: `${API_BASE_URL}/environments/available`,
             get: (id) => `${API_BASE_URL}/environments/${id}`,
             // 24h (default) or 7d: the window of averages and busiest VMs (U08-T08)
@@ -641,16 +644,56 @@ const Config = (function() {
     };
 
     // AWS Region presets
+    // Every AWS commercial region (U19-T08; GovCloud and China are out of scope), in AWS's console order.
     const AWS_REGIONS = [
-        { value: 'ap-south-1', label: 'Asia Pacific (Mumbai)' },
         { value: 'us-east-1', label: 'US East (N. Virginia)' },
         { value: 'us-east-2', label: 'US East (Ohio)' },
+        { value: 'us-west-1', label: 'US West (N. California)' },
         { value: 'us-west-2', label: 'US West (Oregon)' },
-        { value: 'eu-west-1', label: 'Europe (Ireland)' },
-        { value: 'eu-central-1', label: 'Europe (Frankfurt)' },
+        { value: 'af-south-1', label: 'Africa (Cape Town)' },
+        { value: 'ap-east-1', label: 'Asia Pacific (Hong Kong)' },
+        { value: 'ap-east-2', label: 'Asia Pacific (Taipei)' },
+        { value: 'ap-south-1', label: 'Asia Pacific (Mumbai)' },
+        { value: 'ap-south-2', label: 'Asia Pacific (Hyderabad)' },
         { value: 'ap-southeast-1', label: 'Asia Pacific (Singapore)' },
-        { value: 'ap-northeast-1', label: 'Asia Pacific (Tokyo)' }
+        { value: 'ap-southeast-2', label: 'Asia Pacific (Sydney)' },
+        { value: 'ap-southeast-3', label: 'Asia Pacific (Jakarta)' },
+        { value: 'ap-southeast-4', label: 'Asia Pacific (Melbourne)' },
+        { value: 'ap-southeast-5', label: 'Asia Pacific (Malaysia)' },
+        { value: 'ap-southeast-6', label: 'Asia Pacific (New Zealand)' },
+        { value: 'ap-southeast-7', label: 'Asia Pacific (Thailand)' },
+        { value: 'ap-northeast-1', label: 'Asia Pacific (Tokyo)' },
+        { value: 'ap-northeast-2', label: 'Asia Pacific (Seoul)' },
+        { value: 'ap-northeast-3', label: 'Asia Pacific (Osaka)' },
+        { value: 'ca-central-1', label: 'Canada (Central)' },
+        { value: 'ca-west-1', label: 'Canada West (Calgary)' },
+        { value: 'eu-central-1', label: 'Europe (Frankfurt)' },
+        { value: 'eu-central-2', label: 'Europe (Zurich)' },
+        { value: 'eu-west-1', label: 'Europe (Ireland)' },
+        { value: 'eu-west-2', label: 'Europe (London)' },
+        { value: 'eu-west-3', label: 'Europe (Paris)' },
+        { value: 'eu-south-1', label: 'Europe (Milan)' },
+        { value: 'eu-south-2', label: 'Europe (Spain)' },
+        { value: 'eu-north-1', label: 'Europe (Stockholm)' },
+        { value: 'il-central-1', label: 'Israel (Tel Aviv)' },
+        { value: 'me-south-1', label: 'Middle East (Bahrain)' },
+        { value: 'me-central-1', label: 'Middle East (UAE)' },
+        { value: 'mx-central-1', label: 'Mexico (Central)' },
+        { value: 'sa-east-1', label: 'South America (São Paulo)' }
     ];
+
+    /** 'eu-west-1' -> 'Europe (Ireland)'; an unknown code is returned as it is. */
+    function regionName(code) {
+        const r = AWS_REGIONS.find(x => x.value === code);
+        return r ? r.label : (code || '');
+    }
+
+    /** 'eu-west-1 · Ireland': the code with the place, for pickers and filters. */
+    function regionLabel(code) {
+        const name = regionName(code);
+        const place = name && name !== code ? name.replace(/^.*\((.*)\)$/, '$1') : '';
+        return place ? `${code} · ${place}` : (code || '');
+    }
 
     // IANA timezones for Automation Rules schedule forms — curated, not exhaustive
     const IANA_TIMEZONES = [
@@ -683,6 +726,8 @@ const Config = (function() {
         CLOUD_ICONS,
         ACCESS_LEVELS,
         AWS_REGIONS,
+        regionName,
+        regionLabel,
         IANA_TIMEZONES
     };
 })();

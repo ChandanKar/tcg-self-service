@@ -97,6 +97,7 @@
 /* ── Environment list ── */
 .vr-master-tools {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     padding: 10px;
     border-bottom: 1px solid var(--line-soft);
@@ -730,4 +731,17 @@
     margin: 6px 0 0;
     font-size: var(--fs-small);
     color: var(--text-secondary);
+}
+
+/* The region filter, on its own line under the search (U19-T08). */
+.vr-region-filter {
+    flex: 1 0 100%;
+}
+
+.vr-region-filter:empty {
+    display: none;
+}
+
+.vr-master-tools .vr-region-filter .form-select {
+    width: 100%;
 }

@@ -194,12 +194,14 @@ public class EnvironmentController {
             @Parameter(description = "Add groupStates: VM state counts per group, in start order (U05-T03)")
             @RequestParam(required = false, defaultValue = "false") boolean includeGroups,
             @Parameter(description = "RUNNING: environments with a running VM; STOPPED: those without one (U06-T04)")
-            @RequestParam(required = false) String state) {
+            @RequestParam(required = false) String state,
+            @Parameter(description = "Only environments with a VM in this AWS region (U19-T08)")
+            @RequestParam(required = false) String region) {
 
         Pageable pageable = com.tcgdigital.vmcontrol.controller.support.Paging.of(page, size,
                 com.tcgdigital.vmcontrol.controller.support.Paging.DEFAULT_MAX_SIZE); // 400 on page < 0, size clamped
         Boolean running = runningFilter(state);
-        Page<Environment> environments = pageOfEnvironments(includeInactive, search, running, pageable);
+        Page<Environment> environments = pageOfEnvironments(includeInactive, search, running, region, pageable);
 
         List<String> environmentIds = environments.getContent().stream()
                 .map(Environment::getEnvironmentId)
@@ -218,7 +220,7 @@ public class EnvironmentController {
         // The header line counts the whole filtered set, not this page (U06-T04).
         List<Environment> all = environments.getTotalPages() <= 1
                 ? environments.getContent()
-                : pageOfEnvironments(includeInactive, search, running, Pageable.unpaged()).getContent();
+                : pageOfEnvironments(includeInactive, search, running, region, Pageable.unpaged()).getContent();
         long[] totals = fleetTotals(all);
         return ResponseEntity.ok()
                 .header("X-Total-Vms", String.valueOf(totals[0]))
@@ -227,12 +229,23 @@ public class EnvironmentController {
     }
 
     private Page<Environment> pageOfEnvironments(boolean includeInactive, String search, Boolean running,
-                                                 Pageable pageable) {
+                                                 String region, Pageable pageable) {
+        if (region != null && !region.isBlank() && !com.tcgdigital.vmcontrol.service.aws.AwsRegions.isRegionCode(region)) {
+            throw new com.tcgdigital.vmcontrol.exception.ValidationException("region must be an AWS region code, such as eu-west-1");
+        }
         return securityService.isEnvAdmin()
                 ? (includeInactive
-                        ? environmentService.getAllEnvironments(search, running, pageable)
-                        : environmentService.getAllActiveEnvironments(search, running, pageable))
-                : environmentService.getEnvironmentsForCurrentUser(search, running, pageable);
+                        ? environmentService.getAllEnvironments(search, running, region, pageable)
+                        : environmentService.getAllActiveEnvironments(search, running, region, pageable))
+                : environmentService.getEnvironmentsForCurrentUser(search, running, region, pageable);
+    }
+
+    @GetMapping("/regions")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Regions with VMs (U19-T08)",
+            description = "The AWS regions that hold at least one active VM, for the list's region filter. Region codes only.")
+    public ResponseEntity<List<String>> regionsInUse() {
+        return ResponseEntity.ok(environmentService.regionsInUse());
     }
 
     /** state=RUNNING → true, STOPPED → false, absent → null (all); anything else is a 400. */

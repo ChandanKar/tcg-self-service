@@ -155,7 +155,12 @@ public class EnvironmentService {
 
     /** As above, filtered to environments running something (true), nothing (false) or all (null). */
     public Page<Environment> getAllActiveEnvironments(String search, Boolean running, Pageable pageable) {
-        return environmentRepository.searchActive(blankToNull(search), running, pageable);
+        return getAllActiveEnvironments(search, running, null, pageable);
+    }
+
+    /** As above, also filtered to environments with a VM in {@code region} (U19-T08); null for all. */
+    public Page<Environment> getAllActiveEnvironments(String search, Boolean running, String region, Pageable pageable) {
+        return environmentRepository.searchActive(blankToNull(search), running, blankToNull(region), pageable);
     }
 
     /**
@@ -167,7 +172,11 @@ public class EnvironmentService {
     }
 
     public Page<Environment> getAllEnvironments(String search, Boolean running, Pageable pageable) {
-        return environmentRepository.searchAll(blankToNull(search), running, pageable);
+        return getAllEnvironments(search, running, null, pageable);
+    }
+
+    public Page<Environment> getAllEnvironments(String search, Boolean running, String region, Pageable pageable) {
+        return environmentRepository.searchAll(blankToNull(search), running, blankToNull(region), pageable);
     }
 
     /**
@@ -183,11 +192,22 @@ public class EnvironmentService {
      * whether an environment runs something.
      */
     public Page<Environment> getEnvironmentsForCurrentUser(String search, Boolean running, Pageable pageable) {
+        return getEnvironmentsForCurrentUser(search, running, null, pageable);
+    }
+
+    /** As above, also filtered to environments with a VM in {@code region} (U19-T08). */
+    public Page<Environment> getEnvironmentsForCurrentUser(String search, Boolean running, String region, Pageable pageable) {
         String userId = userService.getCurrentUserId();
         Timestamp now = new Timestamp(System.currentTimeMillis());
         // DISTINCT environments — a user with an ENVIRONMENT grant plus GROUP grants in the
         // same environment must still see it once, not once per grant.
-        return accessRepository.findDistinctActiveEnvironmentsForUser(userId, blankToNull(search), now, running, pageable);
+        return accessRepository.findDistinctActiveEnvironmentsForUser(userId, blankToNull(search), now, running,
+                blankToNull(region), pageable);
+    }
+
+    /** The AWS regions that hold an active VM, for the list's region filter (U19-T08). */
+    public List<String> regionsInUse() {
+        return vmRepository.findDistinctActiveRegions();
     }
 
     private String blankToNull(String value) {

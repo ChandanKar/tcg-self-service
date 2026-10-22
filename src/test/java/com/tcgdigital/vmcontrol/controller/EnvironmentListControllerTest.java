@@ -101,6 +101,34 @@ class EnvironmentListControllerTest extends SecuredWebTestBase {
                 .andExpect(jsonPath("$[?(@.groupId == '" + web.getGroupId() + "')].vmCount").value(hasItem(2)));
     }
 
+    @Test
+    void theRegionFilterKeepsEnvironmentsWithAVmThereForAdminsAndUsers() throws Exception {
+        // U19-T08: env has a VM in me-central-1; another environment only in ap-south-1.
+        VmGroup app = newGroup(env, "app");
+        com.tcgdigital.vmcontrol.model.Vm far = newVm(app, "far-1", VmStatus.RUNNING);
+        far.setRegion("me-central-1");
+        vmRepository.saveAndFlush(far);
+        Environment other = newEnvironment("pay-uat");
+        other.setDisplayName("Payments UAT " + tag);
+        other = environmentRepository.saveAndFlush(other);
+        newVm(newGroup(other, "app"), "near-1", VmStatus.RUNNING);
+        grantEnv(operator, other.getEnvironmentId(), AccessLevel.USER);
+
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).param("region", "me-central-1").with(asAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].environmentId").value(env.getEnvironmentId()));
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).param("region", "me-central-1").with(asUser()))
+                .andExpect(jsonPath("$.content", hasSize(1)));
+        mockMvc.perform(get("/api/v1/environments/page").param("search", tag).with(asAdmin()))
+                .andExpect(jsonPath("$.content", hasSize(2)));
+        expectError(mockMvc.perform(get("/api/v1/environments/page").param("region", "mumbai").with(asAdmin())), 400);
+        mockMvc.perform(get("/api/v1/environments/regions").with(asUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").value(hasItem("me-central-1")))
+                .andExpect(jsonPath("$").value(hasItem("ap-south-1")));
+    }
+
     // ---------------------------------------------------------------- U05-T03: groupStates
 
     private void vms(VmGroup group, VmStatus status, int count) {

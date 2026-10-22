@@ -125,13 +125,33 @@ const VmRegistry = (function() {
     }
 
     /** The environments matching the search (name, display name or description). */
-    function matching(environments, search) {
+    function matching(environments, search, region) {
         const term = (search || '').trim().toLowerCase();
-        if (!term) return environments || [];
-        return (environments || []).filter(env =>
-            (env.name || '').toLowerCase().includes(term)
-            || (env.displayName || '').toLowerCase().includes(term)
-            || (env.description || '').toLowerCase().includes(term));
+        return (environments || []).filter(env => (!region || (env.regions || []).includes(region) || env.region === region)
+            && (!term || (env.name || '').toLowerCase().includes(term)
+                || (env.displayName || '').toLowerCase().includes(term)
+                || (env.description || '').toLowerCase().includes(term)));
+    }
+
+    /** The regions the listed environments are in (U19-T08), sorted. */
+    function regionsOf(environments) {
+        const set = new Set();
+        (environments || []).forEach(env => {
+            (env.regions || []).forEach(r => set.add(r));
+            if (env.region) set.add(env.region);
+        });
+        return Array.from(set).sort();
+    }
+
+    /** The registry's region filter: shown once the environments span more than one region. */
+    function drawRegionFilter() {
+        const state = window.VmRegistryState;
+        const regions = regionsOf(state.environments);
+        if (state.region && !regions.includes(state.region)) state.region = '';
+        const label = code => (typeof Config.regionLabel === 'function' ? Config.regionLabel(code) : code);
+        $('#vr-region-filter').html(regions.length < 2 ? '' : Utils.html`<select class="form-select" id="filterRegion" aria-label="Region"
+                data-action-change="vr-region"><option value="">Every region</option>${Utils.raw(regions.map(r =>
+                    Utils.html`<option value="${r}"${Utils.raw(r === state.region ? ' selected' : '')}>${label(r)}</option>`).join(''))}</select>`);
     }
 
     // =========================================================================
@@ -156,6 +176,7 @@ const VmRegistry = (function() {
                                 <option value="active">Active</option>
                                 <option value="inactive">Deactivated</option>
                             </select>
+                            <span class="vr-region-filter" id="vr-region-filter"></span>
                         </div>
                         <div class="vr-env-list" id="vr-env-list" data-scroll-label="Environments"><div class="vr-empty">Loading environments…</div></div>
                         <div class="vr-master-pager" id="vm-registry-pagination"></div>
@@ -183,6 +204,7 @@ const VmRegistry = (function() {
             state.environments = (environments || []).filter(env =>
                 show === 'inactive' ? env.isActive === false : env.isActive !== false);
             state.show = show;
+            drawRegionFilter();
             applyFilter();
         } catch (error) {
             if (!isActive()) return;
@@ -197,7 +219,7 @@ const VmRegistry = (function() {
      */
     function applyFilter() {
         const state = window.VmRegistryState;
-        state.filtered = matching(state.environments, state.search);
+        state.filtered = matching(state.environments, state.search, state.region);
         let index = state.filtered.findIndex(env => env.environmentId === state.selectedId);
         if (index < 0) {
             const pages = Math.max(1, Math.ceil(state.filtered.length / ENV_PAGE_SIZE));
@@ -263,7 +285,7 @@ const VmRegistry = (function() {
         const state = window.VmRegistryState;
         state.search = searchTerm || '';
         state.currentPage = 1;
-        state.filtered = matching(state.environments, state.search);
+        state.filtered = matching(state.environments, state.search, state.region);
         renderEnvironmentsList();
         if (state.filtered.length && !state.filtered.some(env => env.environmentId === state.selectedId)) {
             selectEnvironment(state.filtered[0].environmentId);
@@ -922,6 +944,11 @@ const VmRegistry = (function() {
         renderEnvironmentsList,
         buildEnvironmentRow,
         filterEnvironments,
+        filterRegion(region) {
+            const state = window.VmRegistryState;
+            state.region = region || '';
+            filterEnvironments(state.search);
+        },
         changeEnvironmentPage,
         selectEnvironment,
         reviewThem,
@@ -986,5 +1013,6 @@ if (typeof Actions !== 'undefined') {
         'vr-search': el => VmRegistry._searchRegistry(el.value)
     }, 'input');
     Actions.register('vr-reload', () => VmRegistry.loadEnvironmentsData(), 'change');
+    Actions.register('vr-region', el => VmRegistry.filterRegion(el.value), 'change');
 
 }

@@ -45,6 +45,28 @@ test.describe('Environments list', () => {
     test.skip(!devIds.user || !canSignIn('user'), 'Needs TEST_DEV_USER_ID (dev mode)');
   });
 
+  test('U19-T08: a region filter once the VMs span regions, by name, sent as region=', async ({ page }) => {
+    const seen = await fakeList(page, url => ({ body: pageBody(url.searchParams.get('region') === 'me-central-1' ? [ENVS[0]] : ENVS) }));
+    await page.route(/\/api\/v1\/environments\/regions$/, route => route.fulfill({ json: ['ap-south-1', 'me-central-1'] }));
+    await openList(page);
+
+    const select = page.locator('#env-region-select');
+    await expect(select).toBeVisible();
+    await expect(select.locator('option')).toHaveText(['Every region', 'ap-south-1 · Mumbai', 'me-central-1 · UAE']);
+    await select.selectOption('me-central-1');
+    await expect.poll(() => seen.at(-1)?.searchParams.get('region')).toBe('me-central-1');
+    await expect(page.locator('#env-list-body tr')).toHaveCount(1);
+    expect(seen.at(-1)?.searchParams.get('page')).toBe('0');
+  });
+
+  test('no region filter while every VM is in one region', async ({ page }) => {
+    await fakeList(page, () => ({ body: pageBody(ENVS) }));
+    await page.route(/\/api\/v1\/environments\/regions$/, route => route.fulfill({ json: ['ap-south-1'] }));
+    await openList(page);
+    await expect(page.locator('#env-list-body tr')).toHaveCount(2);
+    await expect(page.locator('#env-region-select')).toHaveCount(0);
+  });
+
   test('rows: name and slug, type, region, power strip, lock, access, cost and Open; no per-row lock request', async ({ page }) => {
     await fakeList(page, () => ({ body: pageBody(ENVS), vms: 3, running: 1 }));
     const lockRequests: string[] = [];

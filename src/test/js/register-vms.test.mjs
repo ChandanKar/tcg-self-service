@@ -27,6 +27,10 @@ test('regions: the account its own, else every known one', () => {
     assert.deepEqual(plain(M.regionsFor('b', accounts, all).map(r => r.value)), ['eu-west-1', 'us-east-1']);
     assert.deepEqual(plain(M.regionsFor('a', accounts, all)), [{ value: 'ap-south-1', label: 'ap-south-1 (Mumbai)' },
         { value: 'us-east-1', label: 'us-east-1 (N. Virginia)' }]);
+    // U19-T08: an account without its own list offers the regions it has enabled, by name.
+    const read = [{ ref: 'c', enabledRegions: ['me-central-1', 'eu-west-1'] }];
+    assert.deepEqual(plain(M.regionsFor('c', read, [{ value: 'eu-west-1', label: 'Europe (Ireland)' }])),
+        [{ value: 'me-central-1', label: 'me-central-1' }, { value: 'eu-west-1', label: 'eu-west-1 (Ireland)' }]);
 });
 
 test('rows: taken ones cannot be added; ended ones only when asked; search by name or IP', () => {

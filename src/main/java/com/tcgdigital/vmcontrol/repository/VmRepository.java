@@ -256,6 +256,10 @@ public interface VmRepository extends JpaRepository<Vm, String> {
         long getRunning();
     }
 
+    /** The regions that hold an active VM (U19-T08: the environment list's region filter). */
+    @Query("SELECT DISTINCT v.region FROM Vm v WHERE v.isActive = true AND v.region IS NOT NULL AND v.region <> '' ORDER BY v.region")
+    List<String> findDistinctActiveRegions();
+
     interface EnvironmentRegion {
         String getEnvironmentId();
         String getRegion();

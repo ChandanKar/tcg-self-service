@@ -42,8 +42,18 @@ public class AwsAccountController {
     public List<java.util.Map<String, Object>> options() {
         return awsAccountService.listActive().stream()
                 .map(a -> java.util.Map.<String, Object>of("ref", a.getAwsAccountRef(), "name", a.getDisplayName(),
-                        "regions", a.getRegionList(), "isDefault", a.isDefault()))
+                        "regions", a.getRegionList(), "isDefault", a.isDefault(),
+                        // U19-T08: the regions it has enabled, as last read (empty until read)
+                        "enabledRegions", regionService == null ? java.util.List.of() : regionService.view(a.getAwsAccountRef()).stream()
+                                .filter(v -> v.optInStatus() != null).map(com.tcgdigital.vmcontrol.service.aws.AwsRegionService.RegionView::region).toList()))
                 .toList();
+    }
+
+    private com.tcgdigital.vmcontrol.service.aws.AwsRegionService regionService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setRegionService(com.tcgdigital.vmcontrol.service.aws.AwsRegionService regionService) {
+        this.regionService = regionService;
     }
 
     @PostMapping

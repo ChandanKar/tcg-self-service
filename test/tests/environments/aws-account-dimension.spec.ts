@@ -90,7 +90,7 @@ test.describe('AWS account in forms', () => {
     expect(await page.locator('#rv-region option').count()).toBeGreaterThan(2);
     await page.locator('#rv-account').selectOption('acct-b');
     // U19-T02: "Every enabled region" first; the account's first region stays the one picked.
-    await expect(page.locator('#rv-region option')).toHaveText(['Every enabled region', 'eu-west-1', 'us-east-1']);
+    await expect(page.locator('#rv-region option')).toHaveText(['Every enabled region', 'eu-west-1 (Ireland)', 'us-east-1 (N. Virginia)']);
     await expect(page.locator('#rv-region')).toHaveValue('eu-west-1');
     await expect.poll(() => queries.at(-1)).toContain('accountRef=acct-b');
     expect(queries.at(-1)).toContain('region=eu-west-1');

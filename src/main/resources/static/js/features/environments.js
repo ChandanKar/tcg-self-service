@@ -21,6 +21,7 @@ const Environments = (function() {
     let envSearchTerm = null;
     let envTotalElements = 0;
     let envStateFilter = 'all';            // all | running | stopped (U06-T05)
+    let envRegionFilter = '';              // '' (every region) or a region code (U19-T08)
     let envTotals = null;                  // {vms, running} of the filtered set
     let operationRefreshTimer = null;
     let operationStatusHandler = null;
@@ -122,6 +123,7 @@ const Environments = (function() {
             envCurrentPage = 0;
             envSearchTerm = null;
             envStateFilter = 'all';
+            envRegionFilter = '';
             const pageResult = await fetchEnvironmentsPage(envCurrentPage, envSearchTerm, envStateFilter);
             if (!ContentRouter.isCurrent(t)) return;
             environmentsList = pageResult.content;
@@ -130,6 +132,7 @@ const Environments = (function() {
             const html = buildListHtml(environmentsList, envTotalElements);
             $('#content-area').html(html);
             bindListEvents();
+            loadRegionFilter(t);
         } catch (error) {
             if (!ContentRouter.isCurrent(t)) return;
             console.error('Failed to load environments:', error);
@@ -269,7 +272,7 @@ const Environments = (function() {
     function fetchEnvironmentsPage(page, search, state) {
         return new Promise((resolve, reject) => {
             ApiClient.get(Config.API.environments.page(page, envPageSize, search || '',
-                { includeGroups: true, state: state && state !== 'all' ? state.toUpperCase() : '' }))
+                { includeGroups: true, state: state && state !== 'all' ? state.toUpperCase() : '', region: envRegionFilter }))
                 .done(function(data, _status, xhr) {
                     const normalized = normalizeEnvPage(data);
                     const header = name => {
@@ -426,7 +429,39 @@ const Environments = (function() {
                 <input type="search" id="env-list-search" placeholder="Search by name" autocomplete="off"
                        data-action-input="env-search">
             </label>
-            <span id="env-list-filter">${FilterGroup.markup({ label: 'Show', options: STATE_FILTERS, active: envStateFilter, action: 'env-list-filter' })}</span>`;
+            <span id="env-list-filter">${FilterGroup.markup({ label: 'Show', options: STATE_FILTERS, active: envStateFilter, action: 'env-list-filter' })}</span>
+            <span id="env-list-region"></span>`;
+    }
+
+    /** The region filter (U19-T08): shown once the VMs are in more than one region; names from Config. */
+    function regionFilterHtml(regions, active) {
+        if (!regions || regions.length < 2) return '';
+        const label = code => (typeof Config.regionLabel === 'function' ? Config.regionLabel(code) : code);
+        return Utils.html`<label class="env-list-region"><span class="visually-hidden">Region</span>
+            <select class="form-select form-select-sm" id="env-region-select" data-action-change="env-list-region">
+                <option value="">Every region</option>${Utils.raw(regions.map(r => Utils.html`<option value="${r}"${Utils.raw(r === active ? ' selected' : '')}>${label(r)}</option>`).join(''))}
+            </select></label>`;
+    }
+
+    async function loadRegionFilter(token) {
+        try {
+            const regions = await ApiClient.get(Config.API.environments.regionsInUse, { suppressGlobalError: true });
+            if (token && !ContentRouter.isCurrent(token)) return;
+            envRegions = Array.isArray(regions) ? regions : [];
+            $('#env-list-region').html(regionFilterHtml(envRegions, envRegionFilter));
+        } catch (e) {
+            $('#env-list-region').empty(); // the list works without the filter
+        }
+    }
+
+    let envRegions = [];
+
+    /** The region select (Actions): page 0 with the new region. */
+    function setRegionFilter(region) {
+        const next = region || '';
+        if (next === envRegionFilter) return;
+        envRegionFilter = next;
+        refreshEnvList(0);
     }
 
     /**
@@ -435,7 +470,7 @@ const Environments = (function() {
      * pager only past 15.
      */
     function buildListHtml(environments, totalElements) {
-        if ((!environments || environments.length === 0) && !envSearchTerm && envStateFilter === 'all') {
+        if ((!environments || environments.length === 0) && !envSearchTerm && envStateFilter === 'all' && !envRegionFilter) {
             return `
                 <div id="environments-list-view" class="page env-list-page">
                 ${listHeader(null)}
@@ -596,6 +631,7 @@ const Environments = (function() {
             $('#env-list-body').html(environmentsList.length ? buildEnvRows(environmentsList) : emptyFilterRow());
             $('#env-list-summary').html(countsHtml(envTotalElements, envTotals));
             $('#env-list-filter').html(FilterGroup.markup({ label: 'Show', options: STATE_FILTERS, active: envStateFilter, action: 'env-list-filter' }));
+            if (!$('#env-region-select').length) $('#env-list-region').html(regionFilterHtml(envRegions, envRegionFilter));
             renderEnvPagination(envTotalElements, envCurrentPage);
             if (envListPanel) envListPanel.refresh();
         } catch (error) {
@@ -1318,17 +1354,20 @@ const Environments = (function() {
         loadList,
         loadDetail,
         setStateFilter,
+        setRegionFilter,
         goToEnvPage,
         /** VM details from the drift alert (U07-T07), on its History tab. */
         openVm: vmId => currentEnvironment && openVmDetails(currentEnvironment.environmentId, vmId, 'history'),
         _search: function(val) {
             filterAndRenderEnvList((val || '').toLowerCase().trim());
-        }
+        },
+        model: { regionFilterHtml }
     };
 })();
 
 Actions.register('env-search', el => Environments._search(el.value), 'input');
 // The list's All / Running / Stopped switch and its pager past 15 (U06-T05).
 Actions.register('env-list-filter', el => Environments.setStateFilter(el.getAttribute('data-filter')));
+Actions.register('env-list-region', el => Environments.setRegionFilter(el.value), 'change');
 Actions.register('env-list-page', el => Environments.goToEnvPage(el.getAttribute('data-page')));
 Actions.register('env-alert-vm', el => Environments.openVm(el.getAttribute('data-vm-id')));

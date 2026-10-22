@@ -1974,3 +1974,9 @@
 .phone-env-more .btn-link {
     text-decoration: none;
 }
+
+/* The region filter beside Show (U19-T08). */
+.env-list-region .form-select {
+    width: auto;
+    min-width: 11rem;
+}
