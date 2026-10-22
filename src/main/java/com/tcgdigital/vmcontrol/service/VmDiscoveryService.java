@@ -317,12 +317,20 @@ public class VmDiscoveryService {
         for (Environment env : environments) {
             try {
                 String ref = CloudTarget.of(env.getAwsAccountRef(), null).accountRef();
-                List<String> swept = tagged == null ? List.of() : tagged.outcomes().stream()
-                        .filter(o -> o.target().accountRef().equals(ref)).map(o -> o.target().region()).distinct().toList();
+                java.util.Set<String> swept = tagged == null ? java.util.Set.of() : tagged.outcomes().stream()
+                        .filter(o -> o.target().accountRef().equals(ref)).map(o -> o.target().region())
+                        .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
                 if (!swept.isEmpty()) {
-                    // Wherever the account is enabled; a region that failed is unknown, not empty (H24).
-                    total += discoverEnvironmentVms(env, swept, region -> {
+                    // Wherever the account is enabled, plus the environment's own regions when the sweep did not
+                    // cover them (asked directly, an excluded region never); a failed region is unknown, not empty (H24).
+                    java.util.Set<String> exclude = awsAccountService == null ? java.util.Set.of() : awsAccountService.excludedRegionsView();
+                    java.util.LinkedHashSet<String> regions = new java.util.LinkedHashSet<>(swept);
+                    resolveRegions(env).regions().stream().filter(r -> !exclude.contains(r)).forEach(regions::add);
+                    total += discoverEnvironmentVms(env, List.copyOf(regions), region -> {
                         CloudTarget target = CloudTarget.of(env.getAwsAccountRef(), region);
+                        if (!swept.contains(region)) {
+                            return awsService.discoverTaggedInstances(target, envTagKey, env.getName());
+                        }
                         if (!tagged.answered(target)) {
                             throw new DiscoveryFailedException("EC2 discovery failed in " + target, null);
                         }

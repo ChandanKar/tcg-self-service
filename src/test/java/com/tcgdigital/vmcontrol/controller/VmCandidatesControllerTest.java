@@ -21,6 +21,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -127,6 +128,8 @@ class VmCandidatesControllerTest extends SecuredWebTestBase {
     void everyEnabledRegionListsTheAccountsInstancesWithTheSameStatuses() throws Exception {
         // U19-T02: region ALL sweeps every enabled region of the account (here: aws.region, as no AWS answers);
         // the listing runs in the sweep's threads, the statuses are built in the request (its user and session).
+        List<Ec2InstanceInfo> listed = ec2Service.listInstances(null, REGION);
+        when(ec2Service.listInstances(any(), anyString())).thenReturn(listed); // whatever region the test profile scans
         String body = mockMvc.perform(get("/api/v1/environments/" + env.getEnvironmentId() + "/vms/candidates")
                         .param("region", "ALL").param("source", "EC2").with(asEnvAdmin()))
                 .andExpect(status().isOk())

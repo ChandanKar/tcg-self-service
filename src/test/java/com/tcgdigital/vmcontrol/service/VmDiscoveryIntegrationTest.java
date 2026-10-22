@@ -124,6 +124,27 @@ class VmDiscoveryIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void aVmTaggedForTheEnvironmentInAnotherRegionJoinsIt() {
+        // U19-T03: the sweep covers the scan regions (the test profile's aws.region, us-east-1); the
+        // environment's own region (ap-south-1) is still asked directly.
+        Environment env = discoveryEnvironment("Far tagged");
+        discoveryGroup(env);
+        String id = "i-0" + Long.toHexString(System.nanoTime());
+        awsReturnsNothingByDefault();
+        when(awsCloudProviderService.discoverInstancesWithTagKey(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq("tcg:environment")))
+                .thenReturn(List.of(Instance.builder().instanceId(id).tags(Tag.builder().key("tcg:environment").value(env.getName()).build(),
+                        Tag.builder().key("Name").value("far-web").build()).build()));
+
+        discoveryService.discoverAndRegisterVms();
+
+        Vm registered = vmRepository.findByProviderAndProviderVmId(com.tcgdigital.vmcontrol.model.CloudProvider.AWS, id).orElseThrow();
+        assertThat(registered.getRegion()).isNotEqualTo("ap-south-1");
+        assertThat(registered.getGroup().getEnvironment().getEnvironmentId()).isEqualTo(env.getEnvironmentId());
+        org.mockito.Mockito.verify(awsCloudProviderService).discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"),
+                "tcg:environment", env.getName());
+    }
+
+    @Test
     void aFailedAwsCallFlagsNothing() {
         Environment env = discoveryEnvironment("Throttled");
         Vm present = newVm(discoveryGroup(env), "present", VmStatus.RUNNING);
