@@ -24,7 +24,7 @@ class GlobalExceptionHandlerRefTest {
         assertThat(response.getStatusCode().value()).isEqualTo(500);
         String ref = (String) response.getBody().get("ref");
         assertThat(ref).matches("[0-9a-f]{8}");
-        assertThat(response.getBody().get("message")).isEqualTo("An unexpected error occurred. Please try again or contact support.");
+        assertThat(response.getBody().get("message")).isEqualTo("Something failed on the server. Try again; if it keeps happening, give your administrator the ref.");
         assertThat(output.getAll()).contains("[ref " + ref + "]").contains("boom");
     }
 

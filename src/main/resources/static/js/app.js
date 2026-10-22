@@ -55,7 +55,7 @@ const App = (function() {
 
         } catch (error) {
             console.error('Failed to initialize application:', error);
-            showErrorState('Failed to load application. Please refresh the page.');
+            showErrorState('The app didn\'t load. Reload the page to try again.');
         }
     }
 

@@ -56,7 +56,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static ResponseEntity<Map<String, Object>> serverError(String what, Exception ex) {
         String ref = newRef();
         log.error("{} [ref {}]: ", what, ref, ex);
-        Map<String, Object> body = body("Internal Server Error", "An unexpected error occurred. Please try again or contact support.");
+        Map<String, Object> body = body("Internal Server Error", "Something failed on the server. Try again; if it keeps happening, give your administrator the ref.");
         body.put("ref", ref);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
@@ -200,7 +200,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                                                                   WebRequest request) {
         log.warn("Malformed request body: {}", ex.getMessage());
         return ResponseEntity.badRequest()
-                .body(body("Bad Request", "Invalid request format. Please check your input and try again."));
+                .body(body("Bad Request", "The server couldn't read the request. Check what you entered and try again."));
     }
 
     /**

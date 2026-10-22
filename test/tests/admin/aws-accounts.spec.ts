@@ -41,7 +41,8 @@ test.describe('AWS accounts page', () => {
     await expect(rows.first()).toContainText('Default');
     await expect(rows.first()).toContainText('1234 5678 9012');
     await expect(rows.first()).toContainText('Platform credentials');
-    await expect(rows.first().locator('.aa-check')).toContainText(/^OK · today \d\d:\d\d$/);
+    // The last check was an hour ago: "yesterday" when the test runs between midnight and 01:00.
+    await expect(rows.first().locator('.aa-check')).toContainText(/^OK · (today|yesterday) \d\d:\d\d$/);
     await expect(rows.first().locator('.aa-dot-ok')).toHaveCount(1);
     await expect(rows.nth(1)).toContainText('<script>x</script>');
     await expect(rows.nth(1)).toContainText('Assumes VmControlAccess role');

@@ -458,7 +458,7 @@ const AccessRequests = (function() {
                 <thead>
                     <tr>
                         <th>User</th>
-                        <th>Access Level</th>
+                        <th>Access level</th>
                         <th>Granted</th>
                         <th>Expires</th>
                         <th>Actions</th>
@@ -486,8 +486,8 @@ const AccessRequests = (function() {
      */
     function revokeAccess(envId, userId) {
         Modals.confirm(
-            'Revoke Access',
-            'Are you sure you want to revoke this user\'s access?',
+            'Revoke access',
+            'Revoke this person\'s access to the environment? They can ask again later.',
             function() {
                 ApiClient.delete(Config.API.access.revokeAccess(envId, userId))
                     .done(function() {
@@ -517,7 +517,7 @@ const AccessRequests = (function() {
                                placeholder="user@company.com">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Access Level</label>
+                        <label class="form-label">Access level</label>
                         <select class="form-select" id="grantAccessLevel">
                             <option value="VIEWER">Viewer</option>
                             <option value="USER" selected>User</option>

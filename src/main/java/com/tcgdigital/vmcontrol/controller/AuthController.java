@@ -120,7 +120,7 @@ public class AuthController {
         } catch (Exception e) {
             log.error("Unexpected error during login", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new LoginResponse(false, "Login failed. Please try again later."));
+                    .body(new LoginResponse(false, "Sign-in didn't work because of a server problem. Try again in a moment."));
         }
     }
 

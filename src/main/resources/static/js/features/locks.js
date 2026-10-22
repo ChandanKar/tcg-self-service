@@ -93,8 +93,8 @@ const Locks = (function() {
      */
     function release(envId, onSuccess) {
         Modals.confirm(
-            'Release Lock',
-            'Are you sure you want to release the lock on this environment?<br><br>' +
+            'Release the lock',
+            'Release your lock on this environment?<br><br>' +
             '<small class="text-muted">Other users will be able to lock and modify this environment.</small>',
             function() {
                 ApiClient.post(Config.API.locks.release(envId))
@@ -156,7 +156,7 @@ const Locks = (function() {
 
         Modals.show({
             id: 'breakLockModal',
-            title: 'Break Lock',
+            title: 'Break the lock',
             body: `
                 <div class="alert alert-warning">
                     <i class="fas fa-exclamation-triangle"></i>
@@ -173,7 +173,7 @@ const Locks = (function() {
             `,
             buttons: [
                 { text: 'Cancel', class: 'btn-secondary', dismiss: true },
-                { text: 'Break Lock', class: 'btn-danger', id: 'confirmBreakLock' }
+                { text: 'Break the lock', class: 'btn-danger', id: 'confirmBreakLock' }
             ],
             onShow: function() {
                 $('#confirmBreakLock').off('click').on('click', function() {
@@ -189,11 +189,11 @@ const Locks = (function() {
                     ApiClient.post(Config.API.locks.break(envId), { reason })
                         .done(function() {
                             Modals.hide('breakLockModal');
-                            Notifications.success('Lock broken successfully');
+                            Notifications.success('Lock broken. The holder has been told.');
                             if (onSuccess) onSuccess();
                         })
                         .fail(function(xhr) {
-                            $('#confirmBreakLock').prop('disabled', false).html('Break Lock');
+                            $('#confirmBreakLock').prop('disabled', false).html('Break the lock');
                             const msg = xhr.responseJSON?.message || 'Failed to break lock';
                             Notifications.error(msg);
                         });

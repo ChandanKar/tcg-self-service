@@ -747,8 +747,7 @@ public class NotificationService {
     public void notifyOperationCompleted(String userId, String environmentId, String environmentName, String operationType) {
         create(userId, NotificationType.OPERATION_COMPLETED,
                operationType + " completed: " + environmentName,
-               "The " + operationType.toLowerCase() + " operation on environment \"" +
-                       environmentName + "\" finished successfully.",
+               "The " + operationType.toLowerCase() + " of \"" + environmentName + "\" finished.",
                "ENVIRONMENT", environmentId);
     }
 
@@ -784,7 +783,7 @@ public class NotificationService {
         String verb = operationVerb(operationType);
         String result = failedTargets > 0
                 ? "finished with " + failedTargets + " failure(s) out of " + totalTargets + " target(s)"
-                : "completed successfully for " + totalTargets + " target(s)";
+                : "finished for " + (totalTargets == 1 ? "1 target" : totalTargets + " targets");
         broadcastToEnvironment(environmentId, actorUserId,
                 NotificationType.OPERATION_COMPLETED,
                 "Your " + verb + " completed: " + environmentName,

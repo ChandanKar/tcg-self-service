@@ -719,13 +719,13 @@ public class AuditService {
     public void logVmStarted(String userId, String vmId, String vmName, String environmentId) {
         logEnvironmentAction(auditUserId(userId), AuditAction.VM_START_COMPLETED, environmentId, null,
                 "vm", vmId, vmName,
-                "VM started successfully by user: " + resolveUsername(userId));
+                "VM started by user: " + resolveUsername(userId));
     }
 
     public void logVmStopped(String userId, String vmId, String vmName, String environmentId) {
         logEnvironmentAction(auditUserId(userId), AuditAction.VM_STOP_COMPLETED, environmentId, null,
                 "vm", vmId, vmName,
-                "VM stopped successfully by user: " + resolveUsername(userId));
+                "VM stopped by user: " + resolveUsername(userId));
     }
 
     public void logVmStartFailed(String userId, String vmId, String vmName, String environmentId, String error) {

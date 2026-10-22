@@ -517,7 +517,7 @@ public class UserService {
         User currentUser = getCurrentUser();
         if (currentUser == null) {
             throw new UnauthorizedException(
-                    "No authenticated user found. Please log in and try again.");
+                    "You're not signed in. Sign in and try again.");
         }
         return currentUser.getUserId();
     }

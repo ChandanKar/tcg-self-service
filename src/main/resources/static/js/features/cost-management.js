@@ -327,7 +327,7 @@ const CostManagement = (function() {
         }).catch(error => {
             if (!isActive()) return;
             console.error(`Failed to load ${tableKey} page:`, error);
-            Notifications.error('Failed to load page. Please try again.');
+            Notifications.error('This page didn\'t load. Try again.');
         });
     }
 
@@ -576,7 +576,7 @@ const CostManagement = (function() {
         return Utils.html`
             <section class="cost-table-card" aria-labelledby="cost-workloads-title">
                 <div class="dashboard-panel-head d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <h2 id="cost-workloads-title">EKS Workloads</h2>
+                    <h2 id="cost-workloads-title">EKS workloads</h2>
                     <select class="form-select form-select-sm w-auto" id="cost-eks-env" data-action-change="cost-eks-env"
                             aria-label="EKS environment">${Utils.raw(options)}</select>
                 </div>
@@ -1426,7 +1426,7 @@ const CostManagement = (function() {
 
     function buildIdleWasteTable() {
         return buildTableCard({
-            title: 'Idle & Waste, Ranked by Cost Impact',
+            title: 'Idle and waste, by cost',
             subtitle: `${state.idle.totalElements} idle VM(s)`,
             tableId: 'cost-idle-table',
             bodyId: 'cost-idle-table-body',
@@ -1985,7 +1985,7 @@ const CostManagement = (function() {
         }).catch(error => {
             exporting = false;
             console.error('Failed to prepare PDF export:', error);
-            Notifications.error('Failed to prepare export. Please try again.');
+            Notifications.error('The export didn\'t build. Try again.');
         });
     }
 
@@ -2057,7 +2057,7 @@ const CostManagement = (function() {
         }).catch(error => {
             exporting = false;
             console.error('Failed to prepare PNG export:', error);
-            Notifications.error('Failed to prepare export. Please try again.');
+            Notifications.error('The export didn\'t build. Try again.');
         });
     }
 

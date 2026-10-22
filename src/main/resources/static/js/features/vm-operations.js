@@ -133,19 +133,19 @@ const VmOperations = (function() {
                     // User-friendly error messages — stack traces stay in server logs only
                     let userMessage;
                     if (xhr.status === 409) {
-                        userMessage = xhr.responseJSON?.message || 'Another operation is already in progress. Please wait for it to complete.';
+                        userMessage = xhr.responseJSON?.message || 'Another start or stop is still running here. Try again when it ends.';
                     } else if (xhr.status === 400) {
-                        userMessage = xhr.responseJSON?.message || 'Invalid operation request. Please check your selection and try again.';
+                        userMessage = xhr.responseJSON?.message || 'The server turned this down. Check what you picked and try again.';
                     } else if (xhr.status === 403) {
                         userMessage = xhr.responseJSON?.message || 'You do not have permission to perform this operation. You may need to acquire a lock first.';
                     } else if (xhr.status === 404) {
-                        userMessage = 'Environment or VMs not found. The data may have changed — please refresh and try again.';
+                        userMessage = 'The environment or a VM is no longer there. Reload the page and try again.';
                     } else if (xhr.status >= 500) {
-                        userMessage = 'A server error occurred while starting the operation. Please try again later.';
+                        userMessage = 'Something failed on the server before anything started. Try again in a moment.';
                     } else if (xhr.status === 0) {
-                        userMessage = 'Unable to connect to the server. Please check your network connection.';
+                        userMessage = 'The server didn\'t answer. Check your connection and try again.';
                     } else {
-                        userMessage = 'Failed to start operation. Please try again.';
+                        userMessage = 'Nothing started. Try again.';
                     }
                     console.error('Operation failed:', xhr.status, xhr.responseJSON || xhr.statusText);
                     // Nothing was created, so no poll to stop: just show the reason.
@@ -480,7 +480,7 @@ const VmOperations = (function() {
                 operation.state = 'timeout';
                 refreshBanner();
                 showInModal('timeout');
-                const timeoutMsg = 'Operation exceeded 30-minute timeout. Please contact support if the operation is still running.';
+                const timeoutMsg = 'Still not finished after 30 minutes. Check the environment\'s history, and tell your administrator if it is still running.';
                 Notifications.error(timeoutMsg);
                 reject(new Error(timeoutMsg));
                 return;
@@ -503,7 +503,7 @@ const VmOperations = (function() {
                         if (operation) {
                             operation.state = 'completed';
                         }
-                        Notifications.success('Operation completed successfully! All VMs have been processed.');
+                        Notifications.success('Done. Every VM finished.');
                         resolve(execution);
                     } else if (execution.status === 'PARTIAL_SUCCESS') {
                         stopThis();
@@ -557,7 +557,7 @@ const VmOperations = (function() {
                     }
                     refreshBanner();
                     console.error('Failed to poll operation status:', xhr.status, xhr.statusText);
-                    showInModal('error', 'Lost connection to the server while tracking the operation. The operation may still be running — please refresh to check.');
+                    showInModal('error', 'Lost touch with the server while following this. It may still be running: reload the page to check.');
                     reject(new Error('Failed to get operation status'));
                 });
         };

@@ -9,17 +9,17 @@ const ApiClient = (function() {
     // Contextual error messages by status code and error type (TASK-030)
     const ERROR_MESSAGES = {
         400: {
-            default: 'Invalid request. Please check your input.',
-            validation_failed: 'Some fields have invalid values. Please correct them.',
-            invalid_json: 'Invalid data format. Please try again.'
+            default: 'The request was turned down. Check what you entered and try again.',
+            validation_failed: 'Some fields need a different value. Check the ones marked and try again.',
+            invalid_json: 'The server couldn\'t read what was sent. Try again.'
         },
         401: {
-            default: 'Your session has expired. Please log in again.',
-            invalid_token: 'Authentication failed. Please log in again.',
-            token_expired: 'Your session has expired. Please log in again.'
+            default: 'You\'ve been signed out. Sign in again to carry on.',
+            invalid_token: 'You\'ve been signed out. Sign in again to carry on.',
+            token_expired: 'You\'ve been signed out. Sign in again to carry on.'
         },
         403: {
-            default: 'You don\'t have permission to perform this action.',
+            default: 'You can\'t do this here. Ask the environment admin for access.',
             lock_required: 'You must acquire a lock before performing this operation.',
             not_lock_owner: 'This environment is locked by another user.',
             access_denied: 'Access denied. You don\'t have permission to access this resource.',
@@ -33,28 +33,28 @@ const ApiClient = (function() {
             group_not_found: 'VM group not found.'
         },
         409: {
-            default: 'A conflict occurred. Please refresh and try again.',
+            default: 'Someone changed this at the same time. Reload the page and try again.',
             lock_held: 'This environment is already locked by another user.',
-            operation_in_progress: 'An operation is already in progress. Please wait.',
+            operation_in_progress: 'Another start or stop is still running here. Try again when it ends.',
             duplicate_name: 'An item with this name already exists.',
-            concurrent_modification: 'This resource was modified by another user. Please refresh.'
+            concurrent_modification: 'Someone else changed this. Reload the page to see their change.'
         },
         422: {
             default: 'The request could not be processed.',
             invalid_state: 'Cannot perform this operation in the current state.',
-            vm_not_responding: 'The VM is not responding. Please try again later.'
+            vm_not_responding: 'The VM isn\'t answering. Try again in a few minutes.'
         },
         500: {
-            default: 'An unexpected error occurred. Please try again later.',
-            internal_error: 'Internal server error. Please contact support if this persists.'
+            default: 'Something failed on the server. Try again in a moment.',
+            internal_error: 'Something failed on the server. If it keeps happening, tell your administrator.'
         },
         502: {
-            default: 'The server is temporarily unavailable. Please try again.',
-            bad_gateway: 'Unable to reach cloud provider. Please try again.'
+            default: 'The server didn\'t answer. Try again in a moment.',
+            bad_gateway: 'AWS didn\'t answer. Try again in a moment.'
         },
         503: {
-            default: 'The service is temporarily unavailable. Please try again in a few minutes.',
-            maintenance: 'The system is undergoing maintenance. Please try again later.'
+            default: 'The service is busy. Try again in a few minutes.',
+            maintenance: 'The platform is being updated. Try again in a few minutes.'
         }
     };
 
@@ -150,7 +150,7 @@ const ApiClient = (function() {
         // Use contextual message if no specific message from server
         if (!xhr.responseJSON?.message) {
             if (xhr.status === 0) {
-                message = 'Unable to connect to server. Please check your connection.';
+                message = 'The server didn\'t answer. Check your connection and try again.';
             } else {
                 message = getErrorMessage(xhr.status, errorCode);
             }

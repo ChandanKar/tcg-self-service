@@ -725,7 +725,7 @@ const VmRegistry = (function() {
             Notifications.error('Cannot delete group with VMs');
             return;
         }
-        Modals.confirm('Delete Group', `Delete "${group.displayName}"? This cannot be undone.`, async function() {
+        Modals.confirm('Delete the group', `Delete "${group.displayName}"? This cannot be undone.`, async function() {
             try {
                 Loading.show('Deleting...');
                 await ApiClient.delete(`/api/v1/environments/${window.VmRegistryState.currentEnvironment.environmentId}/groups/${groupId}`);
@@ -868,7 +868,7 @@ const VmRegistry = (function() {
             const msg = error?.responseJSON?.message;
             if (!msg) {
                 if (error?.status === 400) {
-                    Notifications.error('Validation failed. Please check your input.');
+                    Notifications.error('Some fields need a different value. Check the ones marked and try again.');
                 }
             }
             Loading.hide();

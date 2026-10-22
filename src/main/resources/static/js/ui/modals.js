@@ -284,7 +284,7 @@ const Modals = (function() {
     function showCreateEnvironment(onSuccess) {
         show({
             id: 'createEnvModal',
-            title: 'Create New Environment',
+            title: 'New environment',
             size: 'lg',
             body: `
                 <form id="createEnvForm" autocomplete="off">
@@ -316,7 +316,7 @@ const Modals = (function() {
                                 <div class="form-text">Lowercase letters, numbers, and hyphens only</div>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Display Name</label>
+                                <label class="form-label">Display name</label>
                                 <input type="text" class="form-control" id="cem-displayName" placeholder="My Environment">
                             </div>
                         </div>
@@ -327,7 +327,7 @@ const Modals = (function() {
                         </div>
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Default Cloud Provider</label>
+                                <label class="form-label">Default cloud provider</label>
                                 <select class="form-select" id="cem-cloudProvider">
                                     <option value="AWS">AWS</option>
                                     <option value="AZURE">Azure</option>
@@ -336,7 +336,7 @@ const Modals = (function() {
                                 </select>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label" for="cem-team">Owner Team</label>
+                                <label class="form-label" for="cem-team">Owner team</label>
                                 <select class="form-select" id="cem-team"><option value="">Unassigned</option></select>
                             </div>
                         </div>
@@ -346,7 +346,7 @@ const Modals = (function() {
                     <div id="cem-eks-section" style="display:none;">
                         <input type="hidden" id="cem-eks-region" value="">
                         <div class="mb-3">
-                            <label class="form-label">Select EKS Cluster from AWS</label>
+                            <label class="form-label">EKS cluster in AWS</label>
                             <div id="cem-eks-picker" class="border rounded p-3 bg-light"
                                  style="min-height:80px; max-height:200px; overflow-y:auto;">
                                 <div class="text-center text-muted py-2 small" id="cem-eks-picker-idle">
@@ -372,14 +372,14 @@ const Modals = (function() {
                                 </div>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Display Name</label>
+                                <label class="form-label">Display name</label>
                                 <input type="text" class="form-control" id="cem-eks-displayName"
                                        placeholder="Auto-filled from cluster name">
                             </div>
                         </div>
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label class="form-label" for="cem-eks-team">Owner Team</label>
+                                <label class="form-label" for="cem-eks-team">Owner team</label>
                                 <select class="form-select" id="cem-eks-team"><option value="">Unassigned</option></select>
                             </div>
                             <div class="col-md-6 mb-3">
@@ -523,7 +523,7 @@ const Modals = (function() {
 
                     if (!envName) {
                         showModalError('createEnvModal', isEks
-                            ? 'Please select a cluster or enter a cluster name.'
+                            ? 'Pick a cluster or enter its name.'
                             : 'Environment Name is required.');
                         return;
                     }
@@ -554,7 +554,7 @@ const Modals = (function() {
                     ApiClient.post(Config.API.environments.create, data, { suppressGlobalError: true })
                         .done(function(env) {
                             hide('createEnvModal');
-                            Notifications.success(`Environment "${env.name}" created successfully`);
+                            Notifications.success(`Environment "${env.name}" created.`);
                             if (onSuccess) onSuccess(env);
                         })
                         .fail(function(xhr) {
@@ -584,12 +584,12 @@ const Modals = (function() {
                 <form id="editEnvForm">
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Environment Name</label>
+                            <label class="form-label">Environment name</label>
                             <input type="text" class="form-control" value="${Utils.escapeHtml(env.name)}" disabled>
                             <div class="form-text">Name cannot be changed</div>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Display Name</label>
+                            <label class="form-label">Display name</label>
                             <input type="text" class="form-control" id="editEnvDisplayName"
                                    value="${Utils.escapeHtml(env.displayName || '')}">
                         </div>
@@ -600,12 +600,12 @@ const Modals = (function() {
                     </div>
                     <div class="row">
                         <div class="col-md-4 mb-3">
-                            <label class="form-label" for="editEnvTeam">Owner Team</label>
+                            <label class="form-label" for="editEnvTeam">Owner team</label>
                             <select class="form-select" id="editEnvTeam"><option value="">Unassigned</option></select>
                             ${!env.teamId && meta.ownerTeam ? `<div class="form-text" id="editEnvLegacyTeam">Previously typed: ${Utils.escapeHtml(meta.ownerTeam)}</div>` : ''}
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label">Default Cloud Provider</label>
+                            <label class="form-label">Default cloud provider</label>
                             <select class="form-select" id="editEnvCloudProvider">
                                 <option value="AWS" ${meta.defaultCloudProvider === 'AWS' ? 'selected' : ''}>AWS</option>
                                 <option value="AZURE" ${meta.defaultCloudProvider === 'AZURE' ? 'selected' : ''}>Azure</option>
@@ -618,7 +618,7 @@ const Modals = (function() {
                             <select class="form-select" id="editEnvAccount"></select>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label">Service Type</label>
+                            <label class="form-label">Service type</label>
                             <select class="form-select" id="editEnvServiceType">
                                 <option value="EC2" ${(!env.serviceType || env.serviceType === 'EC2') ? 'selected' : ''}>EC2 — Virtual Machines</option>
                                 <option value="EKS" ${env.serviceType === 'EKS' ? 'selected' : ''}>EKS — Kubernetes</option>
@@ -661,7 +661,7 @@ const Modals = (function() {
                     ApiClient.put(Config.API.environments.update(env.environmentId), data, { suppressGlobalError: true })
                         .done(function(updated) {
                             hide('editEnvModal');
-                            Notifications.success('Environment updated successfully');
+                            Notifications.success('Environment saved.');
                             if (onSuccess) onSuccess(updated);
                         })
                         .fail(function(xhr) {
@@ -680,7 +680,7 @@ const Modals = (function() {
      */
     function parseValidationError(xhr) {
         const json = xhr.responseJSON;
-        if (!json) return 'An unexpected error occurred. Please try again.';
+        if (!json) return 'Something failed on the server. Try again in a moment.';
 
         // Spring MethodArgumentNotValidException → {errors: [{field, message}]}
         if (json.errors && Array.isArray(json.errors) && json.errors.length > 0) {
@@ -700,7 +700,7 @@ const Modals = (function() {
             return Utils.escapeHtml(json.message);
         }
 
-        return 'Failed to save. Please check your input and try again.';
+        return 'Nothing was saved. Check the fields marked and try again.';
     }
 
     /**
@@ -736,7 +736,7 @@ const Modals = (function() {
 
 /**
  * Destructive Confirm Modal (TASK-004)
- * Type-to-confirm modal for destructive actions like Stop All, Delete, Break Lock
+ * Type-to-confirm modal for destructive actions like Stop All, Delete, Break the lock
  */
 const DestructiveConfirm = (function() {
     'use strict';
@@ -823,11 +823,11 @@ const DestructiveConfirm = (function() {
     }
 
     /**
-     * Convenience method for Stop All VMs
+     * Convenience method for Stop all VMs
      */
     function confirmStopAll(environmentName, vmCount, onConfirm) {
         show({
-            title: 'Stop All VMs',
+            title: 'Stop all VMs',
             message: `This will stop all VMs in "${environmentName}".`,
             impact: [
                 `${vmCount} VM(s) will be stopped`,
@@ -835,17 +835,17 @@ const DestructiveConfirm = (function() {
                 'This action cannot be undone automatically'
             ],
             confirmText: environmentName,
-            actionText: 'Stop All VMs',
+            actionText: 'Stop all VMs',
             onConfirm
         });
     }
 
     /**
-     * Convenience method for Break Lock
+     * Convenience method for Break the lock
      */
     function confirmBreakLock(environmentName, lockHolder, onConfirm) {
         show({
-            title: 'Break Lock',
+            title: 'Break the lock',
             message: `This will forcibly break the lock on "${environmentName}".`,
             impact: [
                 `Lock held by ${lockHolder} will be released`,
@@ -853,7 +853,7 @@ const DestructiveConfirm = (function() {
                 'The lock holder will be notified'
             ],
             confirmText: environmentName,
-            actionText: 'Break Lock',
+            actionText: 'Break the lock',
             onConfirm
         });
     }
@@ -877,11 +877,11 @@ const DestructiveConfirm = (function() {
     }
 
     /**
-     * Convenience method for Delete Automation Rule (TASK-034)
+     * Convenience method for Delete the automation rule (TASK-034)
      */
     function confirmDeleteAutomationRule(ruleName, onConfirm) {
         show({
-            title: 'Delete Automation Rule',
+            title: 'Delete the automation rule',
             message: `This will permanently delete the automation rule "${ruleName}".`,
             impact: [
                 'The rule will stop running immediately',

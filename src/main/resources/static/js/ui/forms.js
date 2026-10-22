@@ -77,7 +77,7 @@ const FormValidator = (function() {
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             if (!emailRegex.test(value)) {
                 isValid = false;
-                message = 'Please enter a valid email address';
+                message = 'Enter an email address, like name@company.com';
             }
         }
 
@@ -86,7 +86,7 @@ const FormValidator = (function() {
             const num = parseFloat(value);
             if (isNaN(num)) {
                 isValid = false;
-                message = 'Please enter a valid number';
+                message = 'Enter a number';
             } else {
                 if (field.min !== '' && num < parseFloat(field.min)) {
                     isValid = false;
@@ -238,7 +238,7 @@ const FormValidator = (function() {
             if (isNaN(num) || num < 1) {
                 return {
                     valid: false,
-                    message: 'Please enter a positive number'
+                    message: 'Enter a number above 0'
                 };
             }
             return { valid: true };
