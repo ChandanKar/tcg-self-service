@@ -157,6 +157,7 @@ public class EnvironmentDTO {
         dto.setCreatedAt(environment.getCreatedAt());
         dto.setUpdatedAt(environment.getUpdatedAt());
         dto.setMetadata(environment.getMetadata());
+        dto.region = com.tcgdigital.vmcontrol.service.EnvironmentRegionResolver.metadataRegion(environment.getMetadata()).orElse(null);
         dto.setServiceType(environment.getServiceType());
         dto.setEksClusterName(environment.getEksClusterName());
         dto.setProduction(Boolean.TRUE.equals(environment.getIsProduction()));
@@ -188,7 +189,30 @@ public class EnvironmentDTO {
         dto.setVmCount(vmCount);
         dto.setRunningVmCount(runningVmCount);
         dto.setRegions(regions);
+        // U19-T04: the region AWS calls use, and whether nothing says what it is.
+        if (dto.region == null && regions != null && regions.size() == 1) {
+            dto.region = regions.get(0);
+        }
+        // Only an EKS environment needs its own region (its cluster's); EC2 ones are searched in their account's regions.
+        dto.regionMissing = "EKS".equalsIgnoreCase(environment.getServiceType())
+                && dto.region == null && (regions == null || regions.isEmpty());
         return dto;
+    }
+
+    /**
+     * The environment's AWS region (U19-T04): its metadata region, else the one region its VMs share;
+     * null when unknown or mixed. regionMissing: an EKS environment where neither the metadata nor any
+     * node group says (null when the VMs were not looked at).
+     */
+    private String region;
+    private Boolean regionMissing;
+
+    public String getRegion() {
+        return region;
+    }
+
+    public Boolean getRegionMissing() {
+        return regionMissing;
     }
 
     // Getters and Setters

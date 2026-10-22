@@ -73,3 +73,12 @@ test('health: healthy, a late job named (red when a day late or never ran), or a
     assert.equal(M.health({ ...NONE, lateJobs: { count: 2, worst: { label: 'Weekly report', lateBySeconds: null } } }, NOW).tone, 'bad');
     assert.equal(M.health({ ...NONE, health: { ...NONE.health, lastStateSyncAt: hoursAgo(2) } }, NOW).lead, 'State sync is behind.');
 });
+
+test('U19-T04: clusters without a region: a gold tile naming them, linking to the first one\'s settings', () => {
+    const att = { ...NONE, regionsUnknown: { count: 2, environmentNames: ['Payments EKS', 'Data EKS'], firstEnvironmentId: 'env 1' } };
+    assert.deepEqual(plain(M.tiles(att, NOW)).map(t => [t.count, t.title, t.detail, t.href, t.tone]), [
+        [2, 'Clusters without a region', 'Payments EKS, Data EKS', '#/environments/env%201/settings/details', 'gold']]);
+    assert.equal(M.tiles({ ...NONE, regionsUnknown: { count: 1, environmentNames: ['A'], firstEnvironmentId: 'a' } }, NOW)[0].title,
+        'Cluster without a region');
+    assert.deepEqual(plain(M.tiles({ ...NONE, regionsUnknown: { count: 0, environmentNames: [], firstEnvironmentId: null } }, NOW)), []);
+});

@@ -103,7 +103,27 @@ public class AttentionSummaryService {
                 lateJobs(jobs),
                 health(jobs, dayAgo, now),
                 monthPlan(budgets),
+                regionsUnknown(),
                 Timestamp.from(now));
+    }
+
+    /** Optional so plain unit tests can build the service without it; then nothing is reported. */
+    private EnvironmentRegionResolver regionResolver;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setRegionResolver(EnvironmentRegionResolver regionResolver) {
+        this.regionResolver = regionResolver;
+    }
+
+    private AttentionSummaryDTO.RegionsUnknown regionsUnknown() {
+        if (regionResolver == null) {
+            return new AttentionSummaryDTO.RegionsUnknown(0, List.of(), null);
+        }
+        List<Environment> missing = regionResolver.withoutRegion(environments.findActiveEksEnvironments());
+        List<String> names = missing.stream().limit(3)
+                .map(e -> e.getDisplayName() != null && !e.getDisplayName().isBlank() ? e.getDisplayName() : e.getName()).toList();
+        return new AttentionSummaryDTO.RegionsUnknown(missing.size(), names,
+                missing.isEmpty() ? null : missing.get(0).getEnvironmentId());
     }
 
     private AttentionSummaryDTO.Waiting accessRequestsWaiting() {

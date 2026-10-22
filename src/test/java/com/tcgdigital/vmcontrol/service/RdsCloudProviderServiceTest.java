@@ -43,7 +43,6 @@ class RdsCloudProviderServiceTest {
         lenient().when(factory.rds(anyString(), eq(REGION))).thenReturn(rds);
         service = new RdsCloudProviderService(factory, Runnable::run);
         ReflectionTestUtils.setField(service, "enabled", true);
-        ReflectionTestUtils.setField(service, "defaultRegion", REGION);
         ReflectionTestUtils.setField(service, "pollIntervalMs", 0L);
         ReflectionTestUtils.setField(service, "operationTimeoutMs", 300L);
     }

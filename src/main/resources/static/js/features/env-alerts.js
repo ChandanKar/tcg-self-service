@@ -2,7 +2,8 @@
  * VM Self-Service Platform - Environment alerts (U07-T07, EnvAlerts.dc.html)
  * Every alert an environment page can show, in one stack under the header, most urgent first:
  * red (a frozen budget, someone else's lock), navy (my request waiting for approval), gold (the
- * lease ends within an hour, yesterday's spend spike, VMs changed outside the platform), grey (VM
+ * lease ends within an hour, yesterday's spend spike, VMs changed outside the platform, an EKS
+ * cluster whose AWS region is not known, U19-T04), grey (VM
  * states may be out of date). Each source sets or clears its own alert when its data arrives
  * (EnvAlerts.set(kind, alert | null)) and the stack re-renders; nothing shows, and nothing takes
  * space, when there is nothing to report. The rules are pure functions (EnvAlerts.model), tested in
@@ -14,8 +15,9 @@ const EnvAlerts = (function() {
     'use strict';
 
     const TONES = ['red', 'navy', 'gold', 'grey'];
-    const KINDS = ['budget', 'lock', 'approval', 'lease', 'cost', 'drift', 'sync'];
-    const KIND_LABEL = { budget: 'Budget', lock: 'Lock', approval: 'Approval', lease: 'Lease', cost: 'Cost', drift: 'Drift', sync: 'Sync' };
+    const KINDS = ['budget', 'lock', 'approval', 'lease', 'cost', 'drift', 'region', 'sync'];
+    const KIND_LABEL = { budget: 'Budget', lock: 'Lock', approval: 'Approval', lease: 'Lease', cost: 'Cost', drift: 'Drift',
+        region: 'Region', sync: 'Sync' };
     /** VM states are read every 5 min; three missed reads (15 min) is out of date. */
     const STALE_AFTER_MIN = 15;
 
@@ -75,6 +77,20 @@ const EnvAlerts = (function() {
         };
     }
 
+    /**
+     * The region alert, or null (U19-T04): gold, when nothing says which AWS region the environment's
+     * cluster is in; whoever can change its settings gets the way to set it.
+     */
+    function regionAlert(env, canAdminister) {
+        if (!env || env.regionMissing !== true) return null;
+        return {
+            kind: 'region', tone: 'gold', title: "This cluster's AWS region isn't known.",
+            detail: "It isn't synced with AWS, and its node groups can't be started or stopped, until the region is set.",
+            action: canAdminister && env.environmentId
+                ? { label: 'Set the region', href: `#/environments/${encodeURIComponent(env.environmentId)}/settings/details` } : null,
+        };
+    }
+
     // ---------------------------------------------------------------- the stack
 
     let alerts = {};
@@ -118,7 +134,7 @@ const EnvAlerts = (function() {
         return rank(Object.values(alerts));
     }
 
-    return { reset, set, current, model: { rank, ago, staleSync, syncAlert, driftAlert } };
+    return { reset, set, current, model: { rank, ago, staleSync, syncAlert, driftAlert, regionAlert } };
 })();
 
 if (typeof window !== 'undefined') window.EnvAlerts = EnvAlerts;

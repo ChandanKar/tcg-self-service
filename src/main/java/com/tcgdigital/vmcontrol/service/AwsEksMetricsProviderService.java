@@ -42,9 +42,6 @@ public class AwsEksMetricsProviderService implements CloudMetricsProviderService
     /** The client for an account and region (the factory's cached one); replaced in tests. */
     java.util.function.BiFunction<String, String, CloudWatchClient> clientFactory;
 
-    @Value("${aws.region:ap-south-1}")
-    private String defaultRegion = "ap-south-1";
-
     @Value("${eks.metrics.enabled:false}")
     private boolean enabled;
 
@@ -259,6 +256,6 @@ public class AwsEksMetricsProviderService implements CloudMetricsProviderService
     }
 
     private String effectiveRegion(String region) {
-        return region != null && !region.isBlank() ? region : defaultRegion;
+        return com.tcgdigital.vmcontrol.service.aws.AwsRegions.require(region, "EKS metrics");
     }
 }

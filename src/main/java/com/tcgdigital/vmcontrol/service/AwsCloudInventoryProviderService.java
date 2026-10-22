@@ -4,7 +4,6 @@ import com.tcgdigital.vmcontrol.service.aws.AwsClientFactory;
 import com.tcgdigital.vmcontrol.model.CloudProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.services.ec2.Ec2Client;
 import software.amazon.awssdk.services.ec2.model.*;
@@ -17,9 +16,6 @@ import java.util.stream.Collectors;
 public class AwsCloudInventoryProviderService implements CloudInventoryProviderService {
 
     private static final Logger log = LoggerFactory.getLogger(AwsCloudInventoryProviderService.class);
-
-    @Value("${aws.region:ap-south-1}")
-    private String defaultRegion;
 
     private final AwsClientFactory awsClientFactory;
 
@@ -151,7 +147,7 @@ public class AwsCloudInventoryProviderService implements CloudInventoryProviderS
     }
 
     private Ec2Client getEc2Client(CloudTarget target) {
-        String effectiveRegion = target.region() != null && !target.region().isBlank() ? target.region() : defaultRegion;
+        String effectiveRegion = com.tcgdigital.vmcontrol.service.aws.AwsRegions.require(target.region(), target);
         return awsClientFactory.ec2(target.accountRef(), effectiveRegion);
     }
 }

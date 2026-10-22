@@ -58,14 +58,28 @@ class AwsClientFactoryTest {
     }
 
     @Test
-    void clientsAreCachedPerRegionAndFallBackToTheDefaultRegion() {
+    void stsUsesTheHomeRegionsRegionalEndpointWhoseTokensWorkInOptInRegions() {
+        AwsClientFactory f = factory("AKIA-test", "secret", false);
+        // The client every AssumeRole goes through: a concrete region (a regional endpoint), never aws-global.
+        assertThat(f.sts(null).serviceClientConfiguration().region()).isEqualTo(Region.AP_SOUTH_1);
+        assertThat(f.sts(null).serviceClientConfiguration().region()).isNotEqualTo(Region.AWS_GLOBAL);
+        assertThat(f.sts("me-central-1").serviceClientConfiguration().region()).isEqualTo(Region.ME_CENTRAL_1);
+    }
+
+    @Test
+    void clientsAreCachedPerRegionAndRegionalOnesNeverFallBackToTheDefaultRegion() {
         AwsClientFactory f = factory("AKIA-test", "secret", false);
         Ec2Client eu = f.ec2("eu-west-1");
         assertThat(f.ec2("eu-west-1")).isSameAs(eu);
         assertThat(f.ec2("us-east-1")).isNotSameAs(eu);
-        assertThat(f.ec2(null)).isSameAs(f.ec2("ap-south-1"));
-        assertThat(f.ec2(" ")).isSameAs(f.ec2("ap-south-1"));
-        assertThat(f.ec2(null).serviceClientConfiguration().region()).isEqualTo(Region.AP_SOUTH_1);
+        // U19-T04: a regional call without a region is refused, not sent to aws.region.
+        assertThatThrownBy(() -> f.ec2(null)).isInstanceOf(com.tcgdigital.vmcontrol.exception.RegionUnknownException.class)
+                .hasMessageContaining("No AWS region is known for this EC2 call");
+        assertThatThrownBy(() -> f.ec2(" ")).isInstanceOf(com.tcgdigital.vmcontrol.exception.RegionUnknownException.class);
+        assertThatThrownBy(() -> f.eks(null, null)).isInstanceOf(com.tcgdigital.vmcontrol.exception.RegionUnknownException.class);
+        assertThatThrownBy(() -> f.rds(null, "")).isInstanceOf(com.tcgdigital.vmcontrol.exception.RegionUnknownException.class);
+        assertThatThrownBy(() -> f.cloudWatch(null)).isInstanceOf(com.tcgdigital.vmcontrol.exception.RegionUnknownException.class);
+        assertThat(f.ec2("me-central-1").serviceClientConfiguration().region()).isEqualTo(Region.ME_CENTRAL_1);
         assertThat(f.costExplorer().serviceClientConfiguration().region()).isEqualTo(Region.US_EAST_1);
         assertThat(f.costExplorer()).isSameAs(f.costExplorer());
     }

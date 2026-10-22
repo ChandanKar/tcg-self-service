@@ -307,7 +307,7 @@ public class VmDiscoveryService {
             }
         }
         log.info("VM discovery (tag) complete — {} new VM(s) registered, {} environment(s) failed, " +
-                 "{} environment(s) without a metadata region used a fallback region", total, failedEnvironments,
+                 "{} environment(s) without a metadata region were searched in their VMs' or account's regions", total, failedEnvironments,
                 fallbackEnvironments);
         return total;
     }
@@ -321,6 +321,10 @@ public class VmDiscoveryService {
     }
 
     private int discoverEnvironmentVms(Environment env, List<String> regions) {
+        if (regions.isEmpty()) {
+            log.warn("Environment {}: no AWS region is known to search; set its region in the environment's settings", env.getName());
+            return 0;
+        }
         // instance -> the region it was found in; a failed region is unknown, not empty (H24).
         Map<Instance, String> liveInstances = new LinkedHashMap<>();
         int failedRegions = 0;
@@ -507,8 +511,9 @@ public class VmDiscoveryService {
     record Regions(List<String> regions, boolean fallback) {}
 
     /**
-     * Metadata region if set; else the distinct regions of the environment's active VMs; else
-     * the default region. Legacy environments have no metadata region and were never scanned.
+     * Metadata region if set; else the distinct regions of the environment's active VMs; else every
+     * region the environment's account has enabled (U19-T04: searched, never guessed as aws.region).
+     * Legacy environments have no metadata region and were never scanned.
      */
     Regions resolveRegions(Environment env) {
         String metadataRegion = resolveRegion(env);
@@ -520,7 +525,10 @@ public class VmDiscoveryService {
         if (!vmRegions.isEmpty()) {
             return new Regions(vmRegions, true);
         }
-        return new Regions(List.of(defaultRegion), true);
+        String ref = CloudTarget.of(env.getAwsAccountRef(), null).accountRef();
+        List<String> everywhere = awsAccountService == null ? List.of() : awsAccountService.scanTargets(List.of()).stream()
+                .filter(t -> t.accountRef().equals(ref)).map(CloudTarget::region).distinct().toList();
+        return new Regions(everywhere, true);
     }
 
     private String resolveRegion(Environment env) {

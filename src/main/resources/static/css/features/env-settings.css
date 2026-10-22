@@ -104,6 +104,15 @@
     font-weight: 400;
 }
 
+.es-field .es-mono {
+    font-family: var(--font-mono);
+}
+
+.es-field-help {
+    font-weight: 400;
+    color: var(--text-secondary);
+}
+
 .es-switch {
     display: flex;
     align-items: flex-start;

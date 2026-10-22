@@ -47,7 +47,6 @@ class EksCloudProviderServiceTest {
     @SuppressWarnings("unchecked")
     void setUp() {
         service = new EksCloudProviderService(vmRepository, objectMapper, Runnable::run, eksFactory());
-        ReflectionTestUtils.setField(service, "defaultRegion", REGION);
         ReflectionTestUtils.setField(service, "defaultMinSize", 1);
         ReflectionTestUtils.setField(service, "pollIntervalMs", 0L);
         ReflectionTestUtils.setField(service, "operationTimeoutMs", 500L);
@@ -500,7 +499,6 @@ class EksCloudProviderServiceTest {
                 r -> new Thread(r, "eks-op-test"));
         try {
             EksCloudProviderService onPool = new EksCloudProviderService(vmRepository, objectMapper, eksPool, eksFactory());
-            ReflectionTestUtils.setField(onPool, "defaultRegion", REGION);
             ReflectionTestUtils.setField(onPool, "defaultMinSize", 1);
             ReflectionTestUtils.setField(onPool, "pollIntervalMs", 0L);
             ReflectionTestUtils.setField(onPool, "operationTimeoutMs", 500L);

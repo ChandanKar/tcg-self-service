@@ -46,7 +46,6 @@ class RdsCloudMetricsProviderServiceTest {
         lenient().when(rdsService.isEnabled()).thenReturn(true);
         lenient().when(factory.cloudWatch(anyString(), eq(REGION))).thenReturn(cloudWatch);
         service = new RdsCloudMetricsProviderService(factory, rdsService);
-        ReflectionTestUtils.setField(service, "defaultRegion", REGION);
     }
 
     /** Answers every query with one datapoint at T0 whose value is chosen by the metric name. */

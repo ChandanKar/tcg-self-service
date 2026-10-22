@@ -649,6 +649,32 @@ class EksSyncServiceTest {
 
     // ---- helpers ----
 
+    @Test
+    void aClusterWithNoKnownRegionIsNotLookedUpInTheDefaultRegion() {
+        // U19-T04: no metadata region and no node group VMs: skipped and reported, never sent to aws.region.
+        Environment env = buildEnvironment();
+        env.setMetadata("{\"owner\":\"payments\"}");
+
+        assertEquals(0, service.syncEksEnvironment(env));
+
+        org.mockito.Mockito.verifyNoInteractions(eksService);
+    }
+
+    @Test
+    void aClusterWithoutAStoredRegionUsesItsNodeGroupsRegion() throws Exception {
+        Environment env = buildEnvironment();
+        env.setMetadata(null);
+        EnvironmentRegionResolver resolver = org.mockito.Mockito.mock(EnvironmentRegionResolver.class);
+        org.mockito.Mockito.when(resolver.regionOf(env)).thenReturn(java.util.Optional.of("eu-west-1"));
+        service.setRegionResolver(resolver);
+        org.mockito.Mockito.when(eksService.listNodegroups(org.mockito.ArgumentMatchers.eq(CLUSTER), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of());
+
+        service.syncEksEnvironment(env);
+
+        org.mockito.Mockito.verify(eksService).listNodegroups(CLUSTER, CloudTarget.of(env.getAwsAccountRef(), "eu-west-1"));
+    }
+
     private Environment buildEnvironment() {
         Environment env = new Environment();
         env.setEnvironmentId(ENV_ID);

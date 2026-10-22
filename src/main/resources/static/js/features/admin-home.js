@@ -68,6 +68,12 @@ const AdminHome = (function() {
         const jobs = att.lateJobs || {};
         const late = Number(jobs.count) || 0;
         add('jobs', late, late === 1 ? 'Late scheduled job' : 'Late scheduled jobs', jobText(jobs.worst), '#/system-health', 'gold');
+        // U19-T04: EKS environments nobody gave a region are not synced; the link opens the first one's settings.
+        const regions = att.regionsUnknown || {};
+        const unknown = Number(regions.count) || 0;
+        add('regions', unknown, unknown === 1 ? 'Cluster without a region' : 'Clusters without a region',
+            (regions.environmentNames || []).join(', '),
+            regions.firstEnvironmentId ? `#/environments/${encodeURIComponent(regions.firstEnvironmentId)}/settings/details` : '#/my-environments', 'gold');
         return out;
     }
 

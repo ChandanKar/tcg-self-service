@@ -1041,6 +1041,7 @@ const Environments = (function() {
             const vms = getEnvironmentVms(env);
             EnvAlerts.set('drift', EnvAlerts.model.driftAlert(vms), envId);
             EnvAlerts.set('sync', EnvAlerts.model.syncAlert(vms, Auth.isAdmin && Auth.isAdmin()), envId);
+            EnvAlerts.set('region', EnvAlerts.model.regionAlert(env, env.viewerCanAdminister === true), envId);
         }
 
         // Cost card (E18): loads after the page, never blocks it.

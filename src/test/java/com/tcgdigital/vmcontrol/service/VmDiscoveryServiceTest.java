@@ -284,17 +284,37 @@ class VmDiscoveryServiceTest {
     }
 
     @Test
-    void aLegacyEnvironmentWithoutVmsIsScannedInTheDefaultRegionWithoutCreatingAGroup() {
+    void aLegacyEnvironmentWithoutVmsIsSearchedInEveryRegionOfItsAccountWithoutCreatingAGroup() {
+        // U19-T04: no metadata region and no VMs: searched where its account is enabled, never in aws.region.
+        com.tcgdigital.vmcontrol.service.aws.AwsAccountService accounts = org.mockito.Mockito.mock(com.tcgdigital.vmcontrol.service.aws.AwsAccountService.class);
+        when(accounts.scanTargets(List.of())).thenReturn(List.of(com.tcgdigital.vmcontrol.service.CloudTarget.of("eu-west-1"),
+                com.tcgdigital.vmcontrol.service.CloudTarget.of("me-central-1"), com.tcgdigital.vmcontrol.service.CloudTarget.of("acct-b", "us-east-1")));
+        service.setAwsAccountService(accounts);
         ReflectionTestUtils.setField(service, "defaultRegion", "us-east-1");
         env.setMetadata(null);
         when(vmRepository.findDistinctRegionsGroupedByEnvironment(List.of("env-1"))).thenReturn(List.of());
         when(vmGroupRepository.findByEnvironmentEnvironmentIdAndName("env-1", "discovered")).thenReturn(Optional.empty());
-        when(awsService.discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("us-east-1"), "tcg:environment", "app")).thenReturn(List.of());
+        when(awsService.discoverTaggedInstances(any(com.tcgdigital.vmcontrol.service.CloudTarget.class), eq("tcg:environment"), eq("app"))).thenReturn(List.of());
 
         service.discoverAndRegisterVms();
 
-        verify(awsService).discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("us-east-1"), "tcg:environment", "app");
+        verify(awsService).discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("eu-west-1"), "tcg:environment", "app");
+        verify(awsService).discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("me-central-1"), "tcg:environment", "app");
+        // Another account's regions are not this environment's, and aws.region is never guessed.
+        verify(awsService, never()).discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("us-east-1"), "tcg:environment", "app");
+        verify(awsService, never()).discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("acct-b", "us-east-1"), "tcg:environment", "app");
         verify(vmGroupRepository, never()).save(any());
+    }
+
+    @Test
+    void withNoRegionToSearchTheEnvironmentIsSkippedNotScannedInTheDefaultRegion() {
+        ReflectionTestUtils.setField(service, "defaultRegion", "us-east-1");
+        env.setMetadata(null);
+        when(vmRepository.findDistinctRegionsGroupedByEnvironment(List.of("env-1"))).thenReturn(List.of());
+
+        assertThat(service.discoverAndRegisterVms()).isZero();
+
+        verify(awsService, never()).discoverTaggedInstances(any(com.tcgdigital.vmcontrol.service.CloudTarget.class), anyString(), anyString());
     }
 
     @Test

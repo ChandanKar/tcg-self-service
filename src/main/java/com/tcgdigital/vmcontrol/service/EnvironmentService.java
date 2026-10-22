@@ -275,6 +275,7 @@ public class EnvironmentService {
         environment.setDisplayName(dto.getDisplayName());
         environment.setDescription(dto.getDescription());
         environment.setMetadata(dto.getMetadata());
+        checkRegion(dto.getMetadata());
         environment.setServiceType(serviceType);
         environment.setIsActive(true);
         if (dto.getTeamId() != null && !dto.getTeamId().isBlank()) {
@@ -339,6 +340,7 @@ public class EnvironmentService {
             // A patch over the stored metadata: keys the form does not know (an EKS region) stay (M4).
             environment.setMetadata(com.tcgdigital.vmcontrol.service.support.JsonMetadataMerger.merge(
                     environment.getMetadata(), dto.getMetadata()));
+            checkRegion(environment.getMetadata());
         }
         if (dto.getServiceType() != null && !dto.getServiceType().equalsIgnoreCase(environment.getServiceType())) {
             if (!groupRepository.findByEnvironmentEnvironmentIdOrderBySequencePositionAsc(environmentId).isEmpty()) {
@@ -522,6 +524,22 @@ public class EnvironmentService {
 
         private static EnvironmentCounts mergeRegions(EnvironmentCounts existing, EnvironmentCounts regionsUpdate) {
             return new EnvironmentCounts(existing.groupCount(), existing.vmCount(), existing.runningVmCount(), regionsUpdate.regions());
+        }
+    }
+
+    /** A region set in the metadata must be an AWS region code (U19-T04). */
+    private static void checkRegion(String metadata) {
+        if (metadata == null || metadata.isBlank()) {
+            return;
+        }
+        try {
+            com.fasterxml.jackson.databind.JsonNode region = new com.fasterxml.jackson.databind.ObjectMapper().readTree(metadata).get("region");
+            if (region != null && !region.isNull()
+                    && !(region.isTextual() && com.tcgdigital.vmcontrol.service.aws.AwsRegions.isRegionCode(region.asText()))) {
+                throw new ValidationException("'" + region.asText() + "' is not an AWS region code, such as eu-west-1");
+            }
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            // Not JSON: the metadata is stored as given, as before; it carries no region.
         }
     }
 }

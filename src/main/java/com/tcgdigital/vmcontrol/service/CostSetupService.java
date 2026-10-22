@@ -98,7 +98,7 @@ public class CostSetupService {
                             @Value("${notification.weekly-reports.enabled:true}") boolean weeklyReports,
                             @Value("${cost.aws-forecast.enabled:true}") boolean awsForecast,
                             @Value("${carbon.enabled:false}") boolean carbon,
-                            @Value("${aws.region:us-east-1}") String defaultRegion) {
+                            @Value("${aws.region:ap-south-1}") String defaultRegion) {
         this(jobLockRepository, vmRepository, clientProvider, computeOptimizerService, awsCloudProviderService,
                 tagActivationService, stsClient, iamClient,
                 Map.of("snapshot", snapshot, "actuals", actuals, "tagging", tagging, "optimizer", optimizer,

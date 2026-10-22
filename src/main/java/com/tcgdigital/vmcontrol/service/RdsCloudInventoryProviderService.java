@@ -4,7 +4,6 @@ import com.tcgdigital.vmcontrol.model.CloudProvider;
 import com.tcgdigital.vmcontrol.service.aws.AwsClientFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.services.rds.RdsClient;
 import software.amazon.awssdk.services.rds.model.DBCluster;
@@ -34,9 +33,6 @@ public class RdsCloudInventoryProviderService implements CloudInventoryProviderS
 
     private static final Logger log = LoggerFactory.getLogger(RdsCloudInventoryProviderService.class);
     private static final int CHUNK = 100;
-
-    @Value("${aws.region:ap-south-1}")
-    private String defaultRegion;
 
     private final AwsClientFactory awsClientFactory;
     private final RdsCloudProviderService rdsService;
@@ -162,7 +158,7 @@ public class RdsCloudInventoryProviderService implements CloudInventoryProviderS
     }
 
     private RdsClient client(CloudTarget target) {
-        String region = target.region() != null && !target.region().isBlank() ? target.region() : defaultRegion;
+        String region = com.tcgdigital.vmcontrol.service.aws.AwsRegions.require(target.region(), target);
         return awsClientFactory.rds(target.accountRef(), region);
     }
 }

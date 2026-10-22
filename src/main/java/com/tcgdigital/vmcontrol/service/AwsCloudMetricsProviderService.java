@@ -4,7 +4,6 @@ import com.tcgdigital.vmcontrol.service.aws.AwsClientFactory;
 import com.tcgdigital.vmcontrol.model.CloudProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.services.cloudwatch.CloudWatchClient;
 import software.amazon.awssdk.services.cloudwatch.model.*;
@@ -28,9 +27,6 @@ public class AwsCloudMetricsProviderService implements CloudMetricsProviderServi
      * stays null, same graceful-degradation behavior as every other missing-data case here.
      */
     private static final String CWAGENT_NAMESPACE = "CWAgent";
-
-    @Value("${aws.region:ap-south-1}")
-    private String defaultRegion;
 
     private final AwsClientFactory awsClientFactory;
 
@@ -155,7 +151,7 @@ public class AwsCloudMetricsProviderService implements CloudMetricsProviderServi
     }
 
     private CloudWatchClient getCloudWatchClient(CloudTarget target) {
-        String effectiveRegion = target.region() != null && !target.region().isBlank() ? target.region() : defaultRegion;
+        String effectiveRegion = com.tcgdigital.vmcontrol.service.aws.AwsRegions.require(target.region(), target);
         return awsClientFactory.cloudWatch(target.accountRef(), effectiveRegion);
     }
 

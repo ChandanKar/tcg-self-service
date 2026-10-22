@@ -84,8 +84,25 @@ const EnvSettings = (function() {
             description: env.description || '',
             teamId: env.teamId || '',
             awsAccountRef: env.awsAccountRef || '',
+            region: storedRegion(env),
             production: !!env.production
         };
+    }
+
+    /** The region stored on the environment (its metadata), '' when none (U19-T04). */
+    function storedRegion(env) {
+        try {
+            const meta = JSON.parse(env.metadata || '{}') || {};
+            return typeof meta.region === 'string' ? meta.region.trim() : '';
+        } catch (e) {
+            return '';
+        }
+    }
+
+    /** A region code's problem in words, or null: blank is fine (the VMs' region is used). */
+    function regionProblem(value) {
+        const v = String(value || '').trim();
+        return !v || /^[a-z]{2}(-[a-z]+)+-[0-9]{1,2}$/.test(v) ? null : `${v} is not an AWS region code. Use a code such as eu-west-1.`;
     }
 
     /** The PUT body with only what changed (UpdateEnvironmentDTO), or null; production goes separately. */
@@ -95,6 +112,8 @@ const EnvSettings = (function() {
         if (now.description.trim() !== loaded.description) body.description = now.description.trim();
         if (now.teamId !== loaded.teamId) body.teamId = now.teamId; // '' clears the team
         if (now.awsAccountRef && now.awsAccountRef !== loaded.awsAccountRef) body.awsAccountRef = now.awsAccountRef;
+        // A metadata patch: other keys stay; null removes the stored region (U19-T04).
+        if (now.region.trim() !== loaded.region) body.metadata = JSON.stringify({ region: now.region.trim() || null });
         return Object.keys(body).length ? body : null;
     }
 
@@ -328,6 +347,9 @@ const EnvSettings = (function() {
                     Utils.html`<option value="${t.teamId}"${Utils.raw(t.teamId === d.teamId ? ' selected' : '')}>${t.label}</option>`).join(''))}</select></label>
                 <label class="es-field"${Utils.raw(multi ? '' : ' hidden')}>AWS account<select class="form-select" id="es-account">${Utils.raw(multi
                     ? AwsAccountOptions.optionsHtml(s.accounts, d.awsAccountRef) : '')}</select></label>
+                <label class="es-field">AWS region<input type="text" class="form-control es-mono" id="es-region" value="${d.region}"
+                    placeholder="${env.region || 'eu-west-1'}" spellcheck="false" autocomplete="off" aria-describedby="es-region-help">
+                    <span class="es-field-help" id="es-region-help">${regionHelp(env, d.region)}</span></label>
                 <label class="es-switch es-wide">
                     <input type="checkbox" id="es-production"${Utils.raw(d.production ? ' checked' : '')}${Utils.raw(admin ? '' : ' disabled')}>
                     <span><b>Production</b><span>Never stopped by idle auto-stop, and marked as production wherever it is listed.${admin ? '' : ' Only an administrator can change this.'}</span></span>
@@ -344,6 +366,14 @@ const EnvSettings = (function() {
                 <button type="button" class="btn btn-outline-secondary" id="es-discard">Discard</button>
                 <button type="button" class="btn btn-primary" id="es-save-btn">Save changes</button>
             </div>`;
+    }
+
+    /** What the region field means for this environment (U19-T04). */
+    function regionHelp(env, stored) {
+        if (stored) return 'AWS calls for this environment go to this region.';
+        if (env.region) return `Not set: its VMs are in ${env.region}, so that is used.`;
+        if (env.regionMissing) return "Not known: the cluster isn't synced until you set its region.";
+        return 'Not set: its VMs are found in every region the AWS account has enabled.';
     }
 
     function notificationsHtml() {
@@ -378,6 +408,7 @@ const EnvSettings = (function() {
             description: $('#es-description').val() || '',
             teamId: $('#es-team').val() || '',
             awsAccountRef: $('#es-account').closest('label').prop('hidden') ? s.loaded.awsAccountRef : ($('#es-account').val() || ''),
+            region: $('#es-region').length ? String($('#es-region').val() || '') : s.loaded.region,
             production: $('#es-production').prop('checked') === true
         };
     }
@@ -425,6 +456,13 @@ const EnvSettings = (function() {
             $('#es-save-note').text('The display name needs at least 2 characters.');
             return;
         }
+        const badRegion = regionProblem(now.region);
+        if (badRegion) {
+            $('#es-save-note').text(badRegion);
+            $('#es-region').attr('aria-invalid', 'true').trigger('focus');
+            return;
+        }
+        $('#es-region').removeAttr('aria-invalid');
         const body = changes(s.loaded, now);
         const productionChanged = now.production !== s.loaded.production;
         const id = s.env.environmentId;
@@ -489,7 +527,8 @@ const EnvSettings = (function() {
             .on('click' + NS, '#es-deactivate', () => deactivate());
     }
 
-    return { load, model: { sectionKey, teamLabel, detailsOf, changes, isDirty, SECTIONS, ordinal, startOrder, waitsText, moved, scheduleText } };
+    return { load, model: { sectionKey, teamLabel, detailsOf, changes, isDirty, SECTIONS, ordinal, startOrder, waitsText, moved, scheduleText,
+        storedRegion, regionProblem, regionHelp } };
 })();
 
 if (typeof window !== 'undefined') window.EnvSettings = EnvSettings;

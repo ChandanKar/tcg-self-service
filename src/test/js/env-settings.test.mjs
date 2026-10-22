@@ -37,6 +37,22 @@ test('Save changes sends only what changed; production is separate', () => {
     assert.equal(M.isDirty(loaded, { ...same, production: true }), true);
 });
 
+test('U19-T04: the AWS region: read from the metadata, sent as a metadata patch, checked as a region code', () => {
+    const loaded = M.detailsOf({ displayName: 'Payments EKS', metadata: '{"region":"eu-west-1","owner":"x"}', production: false });
+    assert.equal(loaded.region, 'eu-west-1');
+    assert.equal(M.detailsOf({ displayName: 'x', metadata: 'not json' }).region, '');
+    const same = plain(loaded);
+    assert.equal(M.changes(loaded, same), null);
+    assert.deepEqual(plain(M.changes(loaded, { ...same, region: ' me-central-1 ' })), { metadata: '{"region":"me-central-1"}' });
+    assert.deepEqual(plain(M.changes(loaded, { ...same, region: '' })), { metadata: '{"region":null}' });
+    assert.equal(M.regionProblem(''), null);
+    assert.equal(M.regionProblem('ap-southeast-5'), null);
+    assert.equal(M.regionProblem('Mumbai'), 'Mumbai is not an AWS region code. Use a code such as eu-west-1.');
+    assert.equal(M.regionHelp({ region: 'ap-south-1' }, ''), 'Not set: its VMs are in ap-south-1, so that is used.');
+    assert.equal(M.regionHelp({ regionMissing: true }, ''), "Not known: the cluster isn't synced until you set its region.");
+    assert.equal(M.regionHelp({}, 'eu-west-1'), 'AWS calls for this environment go to this region.');
+});
+
 test('U11-T07: groups in start order, what each waits for, moving one', () => {
     const groups = [{ groupId: 'w', displayName: 'Web', sequencePosition: 3, dependsOnGroupIds: ['a'] },
         { groupId: 'd', displayName: 'Database', sequencePosition: 1 },

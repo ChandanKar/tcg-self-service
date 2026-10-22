@@ -39,7 +39,6 @@ class AwsCloudProviderServiceTest {
         org.mockito.Mockito.lenient().when(factory.isConfigured()).thenReturn(true);
         org.mockito.Mockito.lenient().when(factory.ec2(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq(REGION))).thenReturn(mockEc2Client);
         service = new AwsCloudProviderService(factory);
-        ReflectionTestUtils.setField(service, "defaultRegion", REGION);
         // Disable sleep delays in polling loops
         ReflectionTestUtils.setField(service, "statusCheckTimeoutMs", 50);
         ReflectionTestUtils.setField(service, "statusCheckPollIntervalMs", 1);

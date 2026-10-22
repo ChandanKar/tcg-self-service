@@ -4,7 +4,6 @@ import com.tcgdigital.vmcontrol.model.CloudProvider;
 import com.tcgdigital.vmcontrol.service.aws.AwsClientFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.services.cloudwatch.CloudWatchClient;
 import software.amazon.awssdk.services.cloudwatch.model.Dimension;
@@ -40,9 +39,6 @@ public class RdsCloudMetricsProviderService implements CloudMetricsProviderServi
     private static final Logger log = LoggerFactory.getLogger(RdsCloudMetricsProviderService.class);
     static final String NAMESPACE = "AWS/RDS";
     private static final int CHUNK = 80;
-
-    @Value("${aws.region:ap-south-1}")
-    private String defaultRegion;
 
     private final AwsClientFactory awsClientFactory;
     private final RdsCloudProviderService rdsService;
@@ -159,7 +155,7 @@ public class RdsCloudMetricsProviderService implements CloudMetricsProviderServi
     }
 
     private CloudWatchClient client(CloudTarget target) {
-        String region = target.region() != null && !target.region().isBlank() ? target.region() : defaultRegion;
+        String region = com.tcgdigital.vmcontrol.service.aws.AwsRegions.require(target.region(), target);
         return awsClientFactory.cloudWatch(target.accountRef(), region);
     }
 

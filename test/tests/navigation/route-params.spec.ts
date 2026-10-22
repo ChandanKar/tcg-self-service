@@ -202,6 +202,53 @@ test.describe('Environment settings', () => {
     await expect(page).toHaveURL(new RegExp(`#/environments/${env.environmentId}/settings/deactivate$`));
   });
 
+  test('U19-T04: the AWS region is set in Details as a metadata patch; a bad code is refused before sending', async ({ page, playwright }) => {
+    const env = await seedEnv(playwright);
+    const puts: any[] = [];
+    page.on('request', r => { if (r.method() === 'PUT' && r.url().endsWith(`/environments/${env.environmentId}`)) puts.push(r.postDataJSON()); });
+    await open(page, `#/environments/${env.environmentId}/settings/details`);
+
+    const field = page.getByLabel('AWS region');
+    await expect(field).toHaveValue('', { timeout: 15_000 });
+    await expect(page.locator('#es-region-help')).toHaveText('Not set: its VMs are found in every region the AWS account has enabled.');
+    await field.fill('Mumbai');
+    await page.locator('#es-save-btn').click();
+    await expect(page.locator('#es-save-note')).toHaveText('Mumbai is not an AWS region code. Use a code such as eu-west-1.');
+    await expect(field).toHaveAttribute('aria-invalid', 'true');
+    expect(puts).toEqual([]);
+
+    await field.fill('eu-west-1');
+    await page.locator('#es-save-btn').click();
+    await expect(page.getByText('Settings saved')).toBeVisible();
+    expect(puts).toEqual([{ metadata: '{"region":"eu-west-1"}' }]);
+    await expect(page.locator('#es-region-help')).toHaveText('AWS calls for this environment go to this region.');
+
+    const admin = await api(playwright, devIds.admin);
+    const saved = await (await admin.get(`/api/v1/environments/${env.environmentId}`)).json();
+    expect(saved.region).toBe('eu-west-1');
+    // The server checks the code too.
+    const bad = await admin.put(`/api/v1/environments/${env.environmentId}`, { data: { metadata: '{"region":"mumbai"}' } });
+    expect(bad.status()).toBe(400);
+    await admin.dispose();
+  });
+
+  test('U19-T04: an environment whose region is not known says so, with Set the region for its admins', async ({ page, playwright }) => {
+    const env = await seedEnv(playwright);
+    // A cluster nothing gives a region: the page is told regionMissing.
+    await page.route(new RegExp(`/api/v1/environments/${env.environmentId}$`), async route => {
+      if (route.request().method() !== 'GET') return route.continue();
+      const response = await route.fetch();
+      const body = await response.json();
+      return route.fulfill({ response, json: { ...body, serviceType: 'EKS', regionMissing: true } });
+    });
+    await open(page, `#/environments/${env.environmentId}`);
+
+    const alert = page.locator('.env-alert[data-kind="region"]');
+    await expect(alert).toContainText("This cluster's AWS region isn't known.", { timeout: 15_000 });
+    await expect(alert.getByRole('link', { name: 'Set the region' }))
+      .toHaveAttribute('href', `#/environments/${env.environmentId}/settings/details`);
+  });
+
   test('Deactivate only after the short name is typed, then back to the registry', async ({ page, playwright }) => {
     const env = await seedEnv(playwright);
     await open(page, `#/environments/${env.environmentId}/settings/deactivate`);

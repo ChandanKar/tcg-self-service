@@ -19,6 +19,8 @@ public record AttentionSummaryDTO(
         Health health,
         /** The month's plan for the spend chart; null when no budget is enabled (the chart then has no plan line). */
         MonthPlan monthPlan,
+        /** Active EKS environments with no known AWS region (U19-T04): they are not synced until it is set. */
+        RegionsUnknown regionsUnknown,
         Timestamp generatedAt) {
 
     /** Requests waiting for a decision: how many, and since when the oldest has waited. */
@@ -44,4 +46,7 @@ public record AttentionSummaryDTO(
 
     /** Enabled team budgets plus enabled environment budgets outside those teams (nothing counted twice). */
     public record MonthPlan(BigDecimal amount, long budgetCount) { }
+
+    /** How many, up to 3 names, and the first one's id (its settings are where the region is set). */
+    public record RegionsUnknown(long count, List<String> environmentNames, String firstEnvironmentId) { }
 }

@@ -27,7 +27,6 @@ public class AwsCloudProviderService implements CloudProviderService {
 
     private static final Logger log = LoggerFactory.getLogger(AwsCloudProviderService.class);
 
-
     // Overridable via ReflectionTestUtils in tests.
     // EC2 status checks (system + instance + attached-EBS) routinely take 2-5+ min after an
     // instance reaches RUNNING; a too-short window here reports a perfectly healthy VM as a
@@ -53,9 +52,6 @@ public class AwsCloudProviderService implements CloudProviderService {
 
     @Value("${aws.stop.poll-interval-ms:10000}")
     private int stopPollIntervalMs;
-
-    @Value("${aws.region:us-east-1}")
-    private String defaultRegion;
 
     private final AwsClientFactory awsClientFactory;
 
@@ -963,9 +959,9 @@ public class AwsCloudProviderService implements CloudProviderService {
         return getEc2Client(CloudTarget.of(region));
     }
 
-    /** The target account's cached client in the target region (the default region when blank). */
+    /** The target account's cached client in the target region (U19-T04: refused when blank, never aws.region). */
     private Ec2Client getEc2Client(CloudTarget target) {
-        String region = target.region() != null && !target.region().isEmpty() ? target.region() : defaultRegion;
+        String region = com.tcgdigital.vmcontrol.service.aws.AwsRegions.require(target.region(), target);
         return awsClientFactory.ec2(target.accountRef(), region);
     }
 

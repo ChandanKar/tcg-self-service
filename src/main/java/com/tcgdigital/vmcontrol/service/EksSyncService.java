@@ -260,6 +260,11 @@ public class EksSyncService {
     public int syncEksEnvironment(Environment environment) {
         String clusterName = environment.getEffectiveClusterName(); // exact case for AWS calls (M3)
         String region = resolveRegion(environment);
+        if (region == null) {
+            log.warn("EKS environment '{}' (cluster '{}') has no known AWS region; it is not synced until the region "
+                    + "is set in the environment's settings", environment.getName(), clusterName);
+            return 0;
+        }
 
         log.info("Syncing EKS cluster '{}' in region '{}'", clusterName, region);
 
@@ -642,18 +647,22 @@ public class EksSyncService {
                 || environmentRepository.existsByName(NameNormalizer.slug(clusterName));
     }
 
+    private EnvironmentRegionResolver regionResolver;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setRegionResolver(EnvironmentRegionResolver regionResolver) {
+        this.regionResolver = regionResolver;
+    }
+
+    /**
+     * The cluster's region (U19-T04): the environment's metadata region, else the one region its node
+     * groups share; null when unknown. Never aws.region: a cluster looked up in the wrong region only
+     * fails as "not found".
+     */
     private String resolveRegion(Environment environment) {
-        if (environment.getMetadata() != null && !environment.getMetadata().isBlank()) {
-            try {
-                Map<?, ?> meta = objectMapper.readValue(environment.getMetadata(), Map.class);
-                Object region = meta.get("region");
-                if (region instanceof String r && !r.isBlank()) {
-                    return r;
-                }
-            } catch (Exception e) {
-                log.warn("Failed to parse region from metadata for environment {}: {}", environment.getName(), e.getMessage());
-            }
+        if (regionResolver != null) {
+            return regionResolver.regionOf(environment).orElse(null);
         }
-        return defaultRegion;
+        return EnvironmentRegionResolver.metadataRegion(environment.getMetadata()).orElse(null);
     }
 }

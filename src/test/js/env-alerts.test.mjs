@@ -55,3 +55,17 @@ test('ago in minutes, hours and days', () => {
     assert.equal(M.ago(now - 120 * 60000, now), '2 hours ago');
     assert.equal(M.ago(now - 72 * 3600000, now), '3 days ago');
 });
+
+test('U19-T04: a cluster with no known region: gold, with Set the region for whoever can change its settings', () => {
+    const M = load();
+    assert.equal(M.regionAlert({ environmentId: 'e1', regionMissing: false }, true), null);
+    assert.equal(M.regionAlert({ environmentId: 'e1' }, true), null);
+    const admin = M.regionAlert({ environmentId: 'e 1', regionMissing: true }, true);
+    assert.equal(admin.tone, 'gold');
+    assert.equal(admin.title, "This cluster's AWS region isn't known.");
+    assert.equal(admin.action.href, '#/environments/e%201/settings/details');
+    assert.equal(M.regionAlert({ environmentId: 'e1', regionMissing: true }, false).action, null);
+    // It sits with the other gold alerts: after drift, before the grey sync one.
+    const order = M.rank([{ kind: 'sync', tone: 'grey' }, { kind: 'region', tone: 'gold' }, { kind: 'drift', tone: 'gold' }]).map(a => a.kind);
+    assert.deepEqual([...order], ['drift', 'region', 'sync']);
+});

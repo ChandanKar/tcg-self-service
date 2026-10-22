@@ -44,7 +44,6 @@ class RdsCloudInventoryProviderServiceTest {
         lenient().when(pricing.getSpec("r6g.large"))
                 .thenReturn(Optional.of(new PricingReferenceService.InstanceSpec("r6g.large", 2, 16384, "arm64", 6)));
         service = new RdsCloudInventoryProviderService(factory, rdsService, pricing);
-        ReflectionTestUtils.setField(service, "defaultRegion", REGION);
     }
 
     private static boolean filters(DescribeDbInstancesRequest r, String value) {

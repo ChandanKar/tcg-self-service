@@ -35,9 +35,6 @@ public class EksCloudProviderService implements CloudProviderService {
 
     private static final Logger log = LoggerFactory.getLogger(EksCloudProviderService.class);
 
-    @Value("${aws.region:ap-south-1}")
-    private String defaultRegion;
-
     @Value("${eks.nodegroup.default-min-size:1}")
     private int defaultMinSize;
 
@@ -497,7 +494,7 @@ public class EksCloudProviderService implements CloudProviderService {
         List<String> issues = ng.health() == null || ng.health().issues() == null ? List.of()
                 : ng.health().issues().stream().map(Issue::codeAsString).filter(java.util.Objects::nonNull).toList();
         int desired = ng.scalingConfig() == null || ng.scalingConfig().desiredSize() == null ? 0 : ng.scalingConfig().desiredSize();
-        String region = target.region() != null && !target.region().isEmpty() ? target.region() : defaultRegion;
+        String region = com.tcgdigital.vmcontrol.service.aws.AwsRegions.require(target.region(), target);
         software.amazon.awssdk.services.ec2.Ec2Client ec2 = awsClientFactory.ec2(target.accountRef(), region);
         int running = 0;
         String token = null;
@@ -638,9 +635,9 @@ public class EksCloudProviderService implements CloudProviderService {
         return getEksClient(CloudTarget.of(region));
     }
 
-    /** The target account's cached EKS client in the target region (the default region when blank). */
+    /** The target account's cached EKS client in the target region (U19-T04: refused when blank, never aws.region). */
     private EksClient getEksClient(CloudTarget target) {
-        String region = target.region() != null && !target.region().isEmpty() ? target.region() : defaultRegion;
+        String region = com.tcgdigital.vmcontrol.service.aws.AwsRegions.require(target.region(), target);
         return awsClientFactory.eks(target.accountRef(), region);
     }
 }

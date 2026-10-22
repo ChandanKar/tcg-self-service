@@ -56,9 +56,6 @@ public class RdsCloudProviderService implements CloudProviderService {
     @Value("${rds.enabled:false}")
     private boolean enabled;
 
-    @Value("${aws.region:ap-south-1}")
-    private String defaultRegion;
-
     @Value("${rds.poll-interval-ms:20000}")
     private long pollIntervalMs;
 
@@ -488,7 +485,7 @@ public class RdsCloudProviderService implements CloudProviderService {
 
     /** The target account's cached RDS client in the target region (the default region when blank). */
     RdsClient client(CloudTarget target) {
-        String region = target.region() != null && !target.region().isBlank() ? target.region() : defaultRegion;
+        String region = com.tcgdigital.vmcontrol.service.aws.AwsRegions.require(target.region(), target);
         return awsClientFactory.rds(target.accountRef(), region);
     }
 

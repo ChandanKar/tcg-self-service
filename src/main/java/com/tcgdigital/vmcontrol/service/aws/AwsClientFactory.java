@@ -124,7 +124,7 @@ public class AwsClientFactory {
 
     /** An account's EC2 client in a region (E28-T04); a null ref is the default account. */
     public Ec2Client ec2(String accountRef, String region) {
-        Region r = region(region);
+        Region r = regional(region, "EC2");
         return cached("ec2", accountRef, r, () -> Ec2Client.builder().region(r).credentialsProvider(credentials(accountRef))
                 .overrideConfiguration(DEFAULT_OVERRIDES).build());
     }
@@ -134,7 +134,7 @@ public class AwsClientFactory {
     }
 
     public CloudWatchClient cloudWatch(String accountRef, String region) {
-        Region r = region(region);
+        Region r = regional(region, "CloudWatch");
         return cached("cloudwatch", accountRef, r, () -> CloudWatchClient.builder().region(r).credentialsProvider(credentials(accountRef))
                 .overrideConfiguration(DEFAULT_OVERRIDES).build());
     }
@@ -144,13 +144,13 @@ public class AwsClientFactory {
     }
 
     public EksClient eks(String accountRef, String region) {
-        Region r = region(region);
+        Region r = regional(region, "EKS");
         return cached("eks", accountRef, r, () -> EksClient.builder().region(r).credentialsProvider(credentials(accountRef))
                 .overrideConfiguration(DEFAULT_OVERRIDES).build());
     }
 
     public RdsClient rds(String accountRef, String region) {
-        Region r = region(region);
+        Region r = regional(region, "RDS");
         return cached("rds", accountRef, r, () -> RdsClient.builder().region(r).credentialsProvider(credentials(accountRef))
                 .overrideConfiguration(DEFAULT_OVERRIDES).build());
     }
@@ -285,6 +285,20 @@ public class AwsClientFactory {
         return (T) clients.computeIfAbsent(service + "|" + refKey(accountRef) + "|" + region.id(), k -> builder.get());
     }
 
+    /**
+     * A regional resource client's region (U19-T04): the one given, never aws.region in its place. A
+     * VM, node group or cluster lives in one region; a call sent to the wrong one only fails as "not
+     * found". Home-region services (STS, IAM, Organizations, Athena) still use region() below.
+     */
+    private Region regional(String region, String service) {
+        return Region.of(AwsRegions.require(region, "this " + service + " call"));
+    }
+
+    /**
+     * The given region, else aws.region: for services used from the home region. STS there is a
+     * regional endpoint, whose session tokens are valid in every region, opt-in regions included
+     * (the global endpoint's are not, unless the account changes its token version).
+     */
     private Region region(String region) {
         return Region.of(notBlank(region) ? region : defaultRegion);
     }
