@@ -214,7 +214,7 @@
     font-weight: 500;
 }
 
-.ta-offer .form-switch {
+.ta-offer .form-check {
     display: flex;
     min-height: 0;
     padding-left: 0;
@@ -322,6 +322,18 @@ fieldset.ta-field legend {
     display: none;
 }
 
+/* The editor fits the screen (1440 x 900): its fields scroll inside the card, Save stays in view. */
+.ta-editor {
+    max-height: calc(100vh - var(--topnav-height) - 196px);
+    overflow-y: auto;
+}
+
+.ta-editor .ta-editor-foot {
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+}
+
 .ta-editor-foot {
     display: flex;
     justify-content: flex-end;
@@ -374,5 +386,11 @@ fieldset.ta-field legend {
     .ta-fields,
     .ta-ref {
         grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* A phone page scrolls as a whole. */
+    .ta-editor {
+        max-height: none;
+        overflow-y: visible;
     }
 }

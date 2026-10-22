@@ -96,7 +96,7 @@ const ChatChannels = (function() {
                     <input type="url" class="form-control" id="chat-url" autocomplete="off" spellcheck="false"
                         placeholder="${ch ? 'Leave empty to keep the current webhook' : 'https://…logic.azure.com/workflows/…'}" ${ch ? '' : 'required'}>
                     <div class="form-text">From a Teams Workflows "post to a channel when a webhook request is received" flow. Stored encrypted; it is not shown again.</div></div>
-                ${Utils.raw(ch ? Utils.html`<div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" id="chat-active" ${ch.active ? 'checked' : ''}>
+                ${Utils.raw(ch ? Utils.html`<div class="form-check mb-3"><input class="form-check-input" type="checkbox" id="chat-active" ${ch.active ? 'checked' : ''}>
                     <label class="form-check-label" for="chat-active">Send messages to this channel</label></div>` : '')}
                 <fieldset><legend class="form-label fs-6">Events</legend>
                     <div class="chat-event-grid">${Utils.raw(boxes)}</div></fieldset>`,

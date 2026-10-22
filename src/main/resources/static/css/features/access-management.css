@@ -483,8 +483,14 @@ button.am-stat {
     color: var(--slate);
 }
 
+/* The rule under the fields, as on the AccessChange board; highlighted on your own grant. */
 .acd-self {
-    margin: 8px 0 0;
+    margin: 4px 0 0;
+    font-size: 12.5px;
+    color: var(--slate);
+}
+
+.acd-self-mine {
     padding: 8px 12px;
     border-radius: 8px;
     background: var(--brand-gold-tint);
@@ -781,6 +787,12 @@ button.am-stat {
 .ga-env-row b {
     display: block;
     font-weight: 600;
+}
+
+.ga-env-strip {
+    margin-left: auto;
+    flex-shrink: 0;
+    align-self: center;
 }
 
 .ga-env-part {

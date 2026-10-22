@@ -16,12 +16,14 @@
     z-index: 1090;
 }
 
+/* Full height, over the top bar, as on the side-panel boards (U17-T10); a docked panel (Ask) starts
+   below the top bar. */
 .slideout-panel {
     position: fixed;
-    top: var(--topnav-height);
+    top: 0;
     right: -480px;
     width: 480px;
-    height: calc(100vh - var(--topnav-height));
+    height: 100vh;
     background: #fff;
     border-left: 1px solid var(--line);
     box-shadow: -12px 0 32px rgba(20, 36, 92, 0.12);
@@ -81,6 +83,11 @@
     right: 0;
 }
 
+.slideout-panel[data-docked] {
+    top: var(--topnav-height);
+    height: calc(100vh - var(--topnav-height));
+}
+
 .slideout-panel-header {
     padding: 16px 20px;
     border-bottom: 1px solid var(--line);
@@ -131,7 +138,7 @@
 /* Overlay */
 .slideout-overlay {
     position: fixed;
-    top: var(--topnav-height);
+    top: 0;
     left: 0;
     right: 0;
     bottom: 0;

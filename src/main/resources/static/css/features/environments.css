@@ -908,6 +908,39 @@
     margin: 0;
 }
 
+.idle-cols {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* With the rule: how it is going on the left, the rule on the right, one rule between them. */
+#idleStopDialog .modal-xl {
+    max-width: 1060px;
+}
+
+@media (min-width: 768px) {
+    .idle-dialog.has-rule .idle-cols {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 0;
+        border-top: 1px solid var(--line);
+    }
+
+    .idle-dialog.has-rule .idle-going,
+    .idle-dialog.has-rule .idle-rule {
+        border: 0;
+        border-radius: 0;
+        padding: 16px 24px 0 0;
+    }
+
+    .idle-dialog.has-rule .idle-rule {
+        border-left: 1px solid var(--line);
+        padding-left: 24px;
+        padding-right: 0;
+    }
+}
+
 .idle-going,
 .idle-rule {
     display: flex;
@@ -1787,13 +1820,29 @@
     padding: 0 0 8px 94px;
 }
 
+/* Each group its own card (PhoneEnv board). */
 .phone-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
     padding: 0;
-    overflow: hidden;
+    border: 0;
+    border-radius: 0;
+    background: none;
 }
 
-.phone-group + .phone-group {
-    border-top: 1px solid var(--line-soft);
+.phone-group {
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #fff;
+}
+
+/* The details as compact rows: label, value, action; no hints, no second History, no schedule row. */
+.phone-env-details .env-fact-note,
+.phone-env-details [data-lock-action="history"],
+.phone-env-details #env-fact-schedule {
+    display: none;
 }
 
 .phone-group-row {

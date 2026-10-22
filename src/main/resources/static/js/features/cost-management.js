@@ -178,7 +178,8 @@ const CostManagement = (function() {
             content: (pageData && pageData.content) || [],
             totalPages: meta.totalPages || 0,
             totalElements: meta.totalElements || 0,
-            page: meta.number || 0
+            page: meta.number || 0,
+            size: meta.size || 0
         };
     }
 
@@ -279,6 +280,7 @@ const CostManagement = (function() {
             return;
         }
         $(`#cost-tabs-panel-${tab.key}`).html('<p class="cost-note">Loading&hellip;</p>');
+        syncHeader(tab);
         const token = pageToken;
         fetchKeys(tabKeys(tab)).then(() => {
             if (!ContentRouter.isCurrent(token) || !isActive()) return;
@@ -308,6 +310,26 @@ const CostManagement = (function() {
         tab.panels.forEach(name => {
             if (!panelFailed(name) && PANELS[name].after) PANELS[name].after();
         });
+        syncHeader(tab);
+    }
+
+    /** Tabs whose board keeps the line under the title (Overview, Rightsizing; Setup draws its own header). */
+    const SUMMARY_TABS = ['overview', 'rightsizing'];
+
+    /**
+     * The header follows the tab, as on the cost boards (U17-T10): Data actions and Export on Overview
+     * only; Unusual spend's period and environment and Carbon's month and export move up beside the
+     * title; the summary line only where the board has one.
+     */
+    function syncHeader(tab) {
+        $('#cost-toolbar').prop('hidden', tab.key !== 'overview');
+        $('#cost-management-view .page-summary').first().prop('hidden', !SUMMARY_TABS.includes(tab.key));
+        // A redrawn panel brings new controls; another tab's controls go.
+        const $own = $(`#cost-tabs-panel-${tab.key} .carbon-controls`).first();
+        const $slot = $('#cost-tab-actions');
+        if ($own.length) $slot.empty().append($own);
+        else if ($slot.attr('data-tab') !== tab.key) $slot.empty();
+        $slot.attr('data-tab', tab.key);
     }
 
     const TABLE_CONFIG = {
@@ -372,6 +394,7 @@ const CostManagement = (function() {
         tab.panels.forEach(name => {
             if (!panelFailed(name) && PANELS[name].after) PANELS[name].after();
         });
+        syncHeader(tab);
         if (typeof Tabs !== 'undefined') Tabs.bind(document.getElementById('cost-tabs'), key => openTab(key));
     }
 
@@ -409,7 +432,8 @@ const CostManagement = (function() {
             <div class="content-view cost-management-view" id="cost-management-view">
                 ${PageHeader.markup({ title: 'Cost management',
                     summaryHtml: 'Estimated from run time and AWS list prices; replaced by AWS billing figures where they exist.',
-                    actionsHtml: `<div class="cost-toolbar no-print">${dataMenu}${exportMenu}</div>`,
+                    actionsHtml: `<div class="cost-toolbar no-print" id="cost-toolbar">${dataMenu}${exportMenu}</div>
+                        <div class="cost-tab-actions no-print" id="cost-tab-actions"></div>`,
                     helpPage: typeof HelpLink !== 'undefined' ? 'cost-management' : null, helpLabel: 'Cost management' })}
                 <div class="cost-tabs-row no-print">
                     ${Tabs.markup({ id: 'cost-tabs', label: 'Cost', active, tabs: tabs.map(t => ({ key: t.key, label: t.label })) })}
@@ -671,6 +695,7 @@ const CostManagement = (function() {
             panel.charts().forEach(([id, option]) => chart(id, option));
         }
         if (!panelFailed(name) && panel.after) panel.after();
+        syncHeader(tabOf(state.tab));
     }
 
     /** Retry only the failed requests behind one panel. */
@@ -805,7 +830,7 @@ const CostManagement = (function() {
         const tiles = [
             ['Month to date', mtd.days ? money0(mtd.value) : '—',
                 (mtd.days ? (mtd.billedShare ? `${mtd.billedShare}% from AWS billing. ` : 'Estimated. ') : 'No figures for this month yet. ') + last30, 'mtd'],
-            ['Forecast', end.platform !== null ? money0(end.platform) : '—',
+            [`Forecast for ${new Date().toLocaleString('en-GB', { month: 'long' })}`, end.platform !== null ? money0(end.platform) : '—',
                 end.aws !== null ? `AWS forecasts ${money0(end.aws)}` : (end.platform !== null ? 'From the last 7 days' : 'Needs a few days of history'), 'forecast'],
             ['Idle waste', money0(summary.idleWasteMonthlyCost), `a month, ${summary.idleVmCount || 0} VM${summary.idleVmCount === 1 ? '' : 's'} barely used`, 'idle'],
             ['Rightsizing', money0(summary.rightsizingPotentialSavings),
@@ -879,8 +904,8 @@ const CostManagement = (function() {
     function buildTrendChart() {
         return `
             <section class="dashboard-chart-panel dashboard-wide">
-                <div class="dashboard-panel-head d-flex justify-content-between align-items-start flex-wrap gap-2">
-                    <div>
+                <div class="dashboard-panel-head cost-trend-head">
+                    <div class="cost-trend-title">
                         <h2>${state.forecastRange === 'long' ? 'Monthly spend, 18 months ahead' : `Daily spend, ${state.forecastRange === '14' ? '14' : '90'} days`}</h2>
                         <small id="cost-trend-subtitle">${trendSubtitle()}</small>
                     </div>
@@ -1405,6 +1430,7 @@ const CostManagement = (function() {
             page,
             totalPages: pageState.totalPages || 0,
             totalItems: pageState.totalElements || 0,
+            pageSize: pageState.size || 0,
             itemLabel: 'rows',
             action: 'cost-change-page',
             key: tableKey

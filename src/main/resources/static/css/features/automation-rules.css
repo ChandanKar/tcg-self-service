@@ -548,53 +548,12 @@
     color: var(--brand-red-text);
 }
 
-/* The on/off switch */
-.ar-switch {
-    position: relative;
-    display: inline-flex;
+/* On or off: a checkbox, as on the AutomationRules board (U17-T10) */
+.ar-check {
+    width: 18px;
+    height: 18px;
     margin: 0;
     cursor: pointer;
-}
-
-.ar-switch input {
-    position: absolute;
-    opacity: 0;
-    width: 34px;
-    height: 20px;
-    margin: 0;
-    cursor: pointer;
-}
-
-.ar-switch span {
-    width: 34px;
-    height: 20px;
-    border-radius: 999px;
-    background: var(--line-strong);
-    transition: background 0.15s;
-}
-
-.ar-switch span::after {
-    content: "";
-    display: block;
-    width: 16px;
-    height: 16px;
-    margin: 2px;
-    border-radius: 50%;
-    background: #fff;
-    transition: transform 0.15s;
-}
-
-.ar-switch input:checked + span {
-    background: var(--brand-navy);
-}
-
-.ar-switch input:checked + span::after {
-    transform: translateX(14px);
-}
-
-.ar-switch input:focus-visible + span {
-    outline: 2px solid var(--brand-navy);
-    outline-offset: 2px;
 }
 
 .ar-empty {

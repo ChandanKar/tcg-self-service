@@ -69,12 +69,19 @@ const AccessChangeDialogs = (function() {
         return (xhr && xhr.responseJSON && xhr.responseJSON.message) || fallback;
     }
 
+    /** What each level adds, in the words of the AccessChange board (U17-T10). */
+    const LEVEL_TEXT = {
+        VIEWER: 'Sees the environment, its VMs, IPs and cost',
+        USER: 'Also starts and stops VMs, takes locks',
+        ADMIN: 'Also gives access, edits VMs, schedules and budgets'
+    };
+
     function openChange(grant, onDone, options = {}) {
         const mine = !!options.mine;
         const levels = AccessLevels.LEVELS.map(level => Utils.html`
             <label class="acd-level">
                 <input type="radio" name="acd-level" value="${level}" ${level === grant.accessLevel ? 'checked' : ''} ${mine ? 'disabled' : ''}>
-                <span><b>${AccessLevels.label(level)}</b><span class="acd-level-desc">${AccessLevels.description(level)}</span></span>
+                <span><b>${AccessLevels.label(level)}</b><span class="acd-level-desc">${LEVEL_TEXT[level] || AccessLevels.description(level)}</span></span>
             </label>`).join('');
         const ends = endsOptions(grant).map(o => Utils.html`<option value="${o.value}">${o.label}</option>`).join('');
         Modals.show({
@@ -88,7 +95,7 @@ const AccessChangeDialogs = (function() {
                     <select class="form-select" id="acd-ends" ${mine ? 'disabled' : ''}>${Utils.raw(ends)}</select>
                     <label class="acd-field" for="acd-note">Note <span class="acd-hint">optional, kept in the audit log</span></label>
                     <input type="text" class="form-control" id="acd-note" maxlength="500" value="${grant.notes || ''}" ${mine ? 'disabled' : ''}>
-                    ${Utils.raw(mine ? '<p class="acd-self" role="note">You can\'t change your own access; another admin has to.</p>' : '')}
+                    <p class="acd-self${mine ? ' acd-self-mine' : ''}" role="note">You can't change your own access; another admin has to.</p>
                     <div class="acd-error" id="acd-error" role="alert"></div>
                 </form>`,
             buttons: [

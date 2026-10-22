@@ -66,9 +66,9 @@ const Slideout = (function() {
             close();
         });
 
-        // Keep Tab / Shift+Tab inside the open panel.
+        // Keep Tab / Shift+Tab inside the open panel (a docked panel is not modal).
         $(document).on('keydown', '.slideout-panel.show', function(e) {
-            if (e.key !== 'Tab') return;
+            if (e.key !== 'Tab' || $('#slideoutOverlay').hasClass('show') === false) return;
             const items = focusables(this);
             if (!items.length) return;
             const first = items[0];
@@ -109,14 +109,16 @@ const Slideout = (function() {
         // Close any open panels first
         $('.slideout-panel').not(panel).removeClass('show').each(function() { setClosed(this, true); });
 
-        // Open the requested panel as a modal dialog
+        // Open the requested panel as a modal dialog over the whole page, or docked beside it
+        // On a phone every panel is a full-screen sheet, so a docked one is modal there too.
+        const docked = panel.hasAttribute('data-docked') && !window.matchMedia('(max-width: 768px)').matches;
         $(panel).addClass('show');
         setClosed(panel, false);
-        $('#slideoutOverlay').addClass('show');
-        setPageInert(true);
+        $('#slideoutOverlay').toggleClass('show', !docked);
+        setPageInert(!docked);
 
         // Prevent body scroll
-        $('body').css('overflow', 'hidden');
+        $('body').css('overflow', docked ? '' : 'hidden');
 
         // Move focus into the dialog unless it is already there
         requestAnimationFrame(() => {
@@ -136,6 +138,9 @@ const Slideout = (function() {
      * @param {number} [options.width] - panel width in px (the new screens use 440-640); default 720
      * @param {string} [options.footer] - HTML of an action row that stays at the bottom while the body scrolls
      * @param {boolean} [options.html] - render the title as HTML
+     * @param {boolean} [options.docked] - below the top bar, without a backdrop, the page still usable
+     *        beside it (Ask, AskPanel.dc.html); otherwise a modal dialog over the whole page, top bar
+     *        included (MyAccount, VmDetails, EnvInsights, OperationHistory boards)
      */
     function openDynamic(title, html, options = {}) {
         const panelId = 'dynamicSlideoutPanel';
@@ -161,6 +166,7 @@ const Slideout = (function() {
         }
 
         $panel.attr('data-variant', options.variant || null);
+        $panel.attr('data-docked', options.docked ? '' : null).attr('aria-modal', options.docked ? 'false' : 'true');
         if (options.width) $panel[0].style.setProperty('--slideout-width', `min(${Number(options.width)}px, 100vw)`);
         else $panel[0].style.removeProperty('--slideout-width');
         const $footer = $panel.find('.slideout-panel-footer');

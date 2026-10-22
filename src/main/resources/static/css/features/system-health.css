@@ -18,6 +18,11 @@
     flex-shrink: 0;
 }
 
+/* Now's sync buttons sit in the header's action row as if they were its own children. */
+.sh-now-actions {
+    display: contents;
+}
+
 .sh-tabs {
     display: flex;
     flex-wrap: wrap;

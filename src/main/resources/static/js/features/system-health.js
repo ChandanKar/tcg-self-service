@@ -204,14 +204,22 @@ const SystemHealth = (function () {
         return s && ContentRouter.isCurrent(s.token);
     }
 
+    /** The line under the title follows the tab (SystemHealth / SystemHealthFleet boards, U17-T10). */
+    const SUMMARY = {
+        now: "Whether the platform's background work is running on time.",
+        fleet: 'How hard the fleet is working and what needs a look. Last 24 hours, all environments.'
+    };
+
     function renderShell() {
         const tabs = [['now', 'Now'], ['fleet', 'Fleet use'], ['reports', 'Reports']];
         $('#content-area').html(`
         <div class="content-view sh-page" id="system-health-view">
             ${PageHeader.markup({ title: 'System health',
-                summaryHtml: "Whether the platform's background work is running on time.",
-                actionsHtml: `<button type="button" class="btn btn-secondary" id="trigger-eks-sync-btn" data-action="sh-trigger-eks-sync" hidden>Sync EKS now</button>
-                    <button type="button" class="btn btn-primary" id="trigger-sync-btn" data-action="sh-trigger-sync">Sync VM state now</button>`,
+                summaryHtml: SUMMARY[s.tab] || SUMMARY.now,
+                // The syncs belong to Now; the boards show no actions on Fleet use.
+                actionsHtml: `<span id="sh-now-actions" class="sh-now-actions"${s.tab === 'now' ? '' : ' hidden'}>
+                    <button type="button" class="btn btn-secondary" id="trigger-eks-sync-btn" data-action="sh-trigger-eks-sync" hidden>Sync EKS now</button>
+                    <button type="button" class="btn btn-primary" id="trigger-sync-btn" data-action="sh-trigger-sync">Sync VM state now</button></span>`,
                 helpPage: typeof HelpLink !== 'undefined' ? 'system-health' : null, helpLabel: 'System health' })}
             <div class="sh-tabs" role="tablist" aria-label="System health">${tabs.map(([key, label]) => `<button type="button" role="tab"
                 class="sh-tab" id="sh-tab-${key}" data-sh-tab="${key}" aria-controls="sh-panel-${key}" aria-selected="${key === s.tab}">${label}</button>`).join('')}</div>
@@ -239,6 +247,8 @@ const SystemHealth = (function () {
         s.tab = tab;
         $('.sh-tab').each(function() { this.setAttribute('aria-selected', String(this.dataset.shTab === tab)); });
         ['now', 'fleet', 'reports'].forEach(key => $(`#sh-panel-${key}`).prop('hidden', tab !== key));
+        $('#system-health-view .page-summary').first().text(SUMMARY[tab] || SUMMARY.now);
+        $('#sh-now-actions').prop('hidden', tab !== 'now');
         try {
             history.replaceState(null, '', tab === 'now' ? '#/system-health' : `#/system-health?tab=${tab}`);
         } catch (e) { /* the address keeps the old tab */ }

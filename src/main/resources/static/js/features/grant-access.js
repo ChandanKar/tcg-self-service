@@ -97,7 +97,7 @@ const GrantAccessPage = (function() {
             note: '', emailPeople: false, plan: null, problem: '', environments: [], teams: [], query: '', sending: false };
         Loading.showPage('Loading…');
         const [envs, teams] = await Promise.all([
-            call('GET', Config.API.environments.list).catch(() => []),
+            call('GET', Config.API.environments.listWithGroups).catch(() => []),
             call('GET', Config.API.teams.list()).catch(() => [])
         ]);
         if (!ContentRouter.isCurrent(token)) return;
@@ -190,6 +190,12 @@ const GrantAccessPage = (function() {
         return e.displayName || e.name;
     }
 
+    /** The environment's power strip, as in the GrantAccess board's Environments list (U17-T10). */
+    function stripHtml(e) {
+        if (typeof PowerStrip === 'undefined' || !Array.isArray(e.groupStates) || !e.groupStates.length) return '';
+        return `<span class="ga-env-strip">${PowerStrip.render(PowerStrip.fromGroupStates(e.groupStates))}</span>`;
+    }
+
     function drawEnvironments() {
         const q = state.query.trim().toLowerCase();
         const list = state.environments.filter(e => !q || envName(e).toLowerCase().includes(q) || state.targets.has(e.environmentId));
@@ -216,7 +222,8 @@ const GrantAccessPage = (function() {
             const part = !target ? '' : target.whole ? 'Whole environment' : target.groupIds.size ? 'Only some groups' : 'Choose groups';
             return Utils.html`<div class="ga-env${target ? ' is-on' : ''}">
                 <label class="ga-env-row"><input type="checkbox" data-ga-env-pick="${e.environmentId}" ${target ? 'checked' : ''}>
-                    <span><b>${envName(e)}</b>${Utils.raw(part ? Utils.html`<span class="ga-env-part">${part}</span>` : '')}</span></label>
+                    <span><b>${envName(e)}</b>${Utils.raw(part ? Utils.html`<span class="ga-env-part">${part}</span>` : '')}</span>
+                    ${Utils.raw(stripHtml(e))}</label>
                 ${Utils.raw(detail)}
             </div>`;
         }).join('') : Utils.html`<p class="ga-hint">No environment matches "${state.query.trim()}".</p>`);

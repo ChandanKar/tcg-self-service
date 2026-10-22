@@ -174,10 +174,12 @@ const IdleStop = (function() {
     function openDialog() {
         if (!current) return;
         const name = current.env.displayName || current.env.name;
+        const withRule = current.status.canAdminister && !current.status.production;
         Modals.show({
             id: DIALOG,
             title: name ? `Idle auto-stop · ${name}` : 'Idle auto-stop',
-            size: 'lg',
+            // Two columns with the rule beside how it is going, as on the IdleStop board (U17-T10).
+            size: withRule ? 'xl' : 'lg',
             body: '<div class="idle-dialog"></div>',
             buttons: []
         });
@@ -200,8 +202,10 @@ const IdleStop = (function() {
             pause = `<div class="idle-pause" role="group" aria-label="Pause idle auto-stop"><span>Working late? Pause it for</span>${[2, 4, 8].map(h =>
                 `<button type="button" class="btn btn-sm btn-outline-secondary" data-action="idle-snooze" data-hours="${h}">${h} hours</button>`).join('')}</div>`;
         }
-        $root.html(Utils.html`
+        const withRule = status.canAdminister && !status.production;
+        $root.toggleClass('has-rule', withRule).html(Utils.html`
             <p class="dialog-lead">Stops the environment when all its VMs have been idle for a while, in reverse start order.</p>
+            <div class="idle-cols">
             <section class="idle-going" aria-label="How it is going">
                 <div class="idle-head"><b>${head.title}</b><span>${head.sub}</span></div>
                 ${Utils.raw(summary(status, rule) ? Utils.html`<p class="idle-summary">${summary(status, rule)}</p>` : '')}
@@ -213,7 +217,8 @@ const IdleStop = (function() {
                 ${Utils.raw(pause)}
                 <p class="idle-note">Anyone who can start this environment can pause it. Production environments are never stopped.</p>
             </section>
-            ${Utils.raw(status.canAdminister && !status.production ? ruleForm(status, rule) : '')}`);
+            ${Utils.raw(withRule ? ruleForm(status, rule) : '')}
+            </div>`);
     }
 
     function ruleForm(status, rule) {
@@ -228,9 +233,9 @@ const IdleStop = (function() {
         return Utils.html`
             <form class="idle-rule" aria-labelledby="idle-rule-title" novalidate>
                 <div class="idle-rule-head"><h3 id="idle-rule-title">Rule <span class="idle-note-inline">· environment admins</span></h3>
-                    <div class="form-check form-switch m-0">
-                        <input class="form-check-input" type="checkbox" role="switch" id="idleEnabled" ${!rule || rule.enabled ? 'checked' : ''}>
-                        <label class="form-check-label" for="idleEnabled">Idle auto-stop on</label>
+                    <div class="form-check form-check-reverse m-0">
+                        <input class="form-check-input" type="checkbox" id="idleEnabled" ${!rule || rule.enabled ? 'checked' : ''}>
+                        <label class="form-check-label" for="idleEnabled">On</label>
                     </div></div>
                 <label class="idle-field">Applies to
                     <select class="form-select" id="idleScope" ${rule ? 'disabled' : ''}>

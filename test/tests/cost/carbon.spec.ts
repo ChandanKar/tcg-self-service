@@ -115,11 +115,11 @@ test.describe('Carbon footprint panel', () => {
     await expect(rows.first().locator('td').last()).toHaveText('10.0'); // kg per $100
     await expect(rows.last()).toHaveClass(/carbon-unallocated/);
     await expect(rows.last().locator('td').first()).toHaveText('Not matched to an environment');
-    await expect(panel.locator('#cost-carbon-export')).toHaveText('Excel');
-    await expect(panel.locator('#cost-carbon-export')).toHaveAttribute('href', /\/cost-management\/carbon\/export\?month=2026-09$/);
+    await expect(page.locator('#cost-tab-actions #cost-carbon-export')).toHaveText('Excel');
+    await expect(page.locator('#cost-tab-actions #cost-carbon-export')).toHaveAttribute('href', /\/cost-management\/carbon\/export\?month=2026-09$/);
 
     // Acceptance: choosing another month reloads the table and totals for it.
-    await panel.locator('#cost-carbon-month').selectOption('2026-08');
+    await page.locator('#cost-tab-actions #cost-carbon-month').selectOption('2026-08');
     await expect(page.locator('#cost-carbon-summary [data-kpi="mbm"]')).toContainText('125 kg CO₂e');
     await expect(page.locator('#cost-carbon-table tbody tr').first()).toContainText('60');
     await expect(page.locator('#cost-carbon-export')).toHaveAttribute('href', /month=2026-08$/);

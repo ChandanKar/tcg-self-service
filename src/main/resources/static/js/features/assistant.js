@@ -198,7 +198,7 @@ const AssistantPanel = (function() {
                 <div id="assistant-error" class="assistant-error" role="alert"></div>
                 <p class="assistant-foot">Remembers the last 10 messages of this conversation.
                     <button type="button" class="assistant-start-over" id="assistant-clear">Start over</button></p>
-            </div>`, { variant: 'ask', width: 440 });
+            </div>`, { variant: 'ask', width: 440, docked: true });
         const $header = $('#dynamicSlideoutPanel .slideout-panel-header');
         $header.find('.ask-head-extra').remove();
         $header.find('#dynamicSlideoutTitle').after(`<div class="ask-head-sub ask-head-extra">About environments and cost you can see.

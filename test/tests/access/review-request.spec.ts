@@ -366,7 +366,7 @@ test.describe('Request access (requester)', () => {
     await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
     await page.evaluate(() => { location.hash = '#/request-access'; });
     await expect(page.locator('#ra-env-list .ra-env')).toHaveCount(10, { timeout: 15_000 });
-    await expect(page.locator('#ra-env-pager')).toContainText('Showing 1–10');
+    await expect(page.locator('#ra-env-pager')).toContainText('1–10 of');
     expect(await page.evaluate(() => {
       const el = document.getElementById('mainContent') || document.documentElement;
       return el.scrollHeight <= el.clientHeight + 1 && document.documentElement.scrollHeight <= window.innerHeight + 1;

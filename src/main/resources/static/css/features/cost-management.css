@@ -5,10 +5,32 @@
  * pieces unique to this page (breakdown grid, table cards, pagination, export/print) live here.
  */
 
-.cost-toolbar {
+.cost-toolbar,
+.cost-tab-actions {
     display: flex;
+    align-items: center;
     gap: var(--space-sm, 0.5rem);
     flex-wrap: wrap;
+}
+
+.cost-tab-actions:empty {
+    display: none;
+}
+
+/* The chart card: the title and its note on the left, the range switch top right (CostOverview board). */
+.cost-trend-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.cost-trend-title {
+    min-width: 0;
+}
+
+.cost-trend-head .btn-group {
+    flex-shrink: 0;
 }
 
 /* Tabs with Setup at the end (U15-T01) */

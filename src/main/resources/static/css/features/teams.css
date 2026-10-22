@@ -99,6 +99,11 @@
     color: var(--text-secondary);
 }
 
+/* A link inside the sentence is underlined, not told apart by colour alone (axe link-in-text-block). */
+.tm-env-none .tm-link {
+    text-decoration: underline;
+}
+
 .tm-quota {
     display: flex;
     flex-direction: column;

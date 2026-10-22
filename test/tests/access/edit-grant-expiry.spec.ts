@@ -382,7 +382,7 @@ test.describe('Access management list', () => {
     await expect(page.locator('#filter-status')).toBeHidden();
 
     await page.getByRole('tab', { name: 'Grants' }).click();
-    await page.locator('#access-pagination').getByRole('button', { name: /^(2|Page 2|Go to page 2)$/ }).first().click();
+    await page.locator('#access-pagination').getByRole('button', { name: 'Next' }).click();
     await expect.poll(() => calls.lists.at(-1)?.get('page')).toBe('1');
 
     await page.locator('#access-search').fill('priya');

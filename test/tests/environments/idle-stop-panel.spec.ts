@@ -115,7 +115,7 @@ test.describe('Idle auto-stop panel', () => {
     await expect(dialog.locator('[data-action="idle-snooze"]')).toHaveCount(0);
     await dialog.getByRole('button', { name: 'Resume now' }).click();
     await expect(dialog.locator('[data-action="idle-snooze"]')).toHaveCount(3);
-    await expect(dialog.getByRole('switch')).toHaveCount(0);    // an operator: no rule form
+    await expect(dialog.getByRole('checkbox')).toHaveCount(0);  // an operator: no rule form
   });
 
   test('a viewer sees the panel without snooze or settings buttons', async ({ page }) => {
@@ -144,7 +144,7 @@ test.describe('Idle auto-stop panel', () => {
 
     await page.getByRole('button', { name: 'Pause or review' }).click();
     const dialog = page.locator('#idleStopDialog');
-    await expect(dialog.getByRole('switch', { name: 'Idle auto-stop on' })).toBeChecked();
+    await expect(dialog.getByRole('checkbox', { name: 'On', exact: true })).toBeChecked();
     await expect(dialog.getByLabel('Applies to')).toBeDisabled();
     await expect(dialog.getByRole('radio', { name: /Stop idle VMs/ })).toBeDisabled();
     await expect(dialog.locator('#idle-enforce-note')).toHaveText(/^Available after 14 days of dry run, on \d+ \w{3}$/);

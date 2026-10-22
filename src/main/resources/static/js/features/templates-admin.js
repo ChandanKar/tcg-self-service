@@ -247,11 +247,11 @@ const TemplatesAdmin = (function() {
         const schema = (t && t.parameterSchema) || [];
         $('#ta-editor').html(`<form id="tpl-editor" novalidate>
             <div class="ta-editor-head"><h2 id="ta-editor-title">${Utils.escapeHtml(t ? t.name : 'New template')}</h2>
-                <label class="ta-offer"><span class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" role="switch" id="tpl-e-active"
+                <label class="ta-offer"><span class="form-check m-0"><input class="form-check-input" type="checkbox" id="tpl-e-active"
                     ${!t || t.active ? 'checked' : ''}></span> Offered to people</label></div>
             <div class="ta-fields">
                 <label class="ta-field ta-wide" for="tpl-e-name">Name *<input class="form-control form-control-sm" id="tpl-e-name" maxlength="120" value="${Utils.escapeHtml(t ? t.name : '')}"></label>
-                <label class="ta-field ta-wide" for="tpl-e-desc">Description<textarea class="form-control form-control-sm" id="tpl-e-desc" rows="2">${Utils.escapeHtml(t && t.description ? t.description : '')}</textarea></label>
+                <label class="ta-field ta-wide" for="tpl-e-desc">Description<textarea class="form-control form-control-sm" id="tpl-e-desc" rows="1">${Utils.escapeHtml(t && t.description ? t.description : '')}</textarea></label>
                 <label class="ta-field" for="tpl-e-engine">Built with<select class="form-select form-select-sm" id="tpl-e-engine" data-action-change="tpl-engine">
                     <option value="SERVICE_CATALOG" ${engine === 'SERVICE_CATALOG' ? 'selected' : ''}>AWS Service Catalog</option>
                     <option value="TERRAFORM" ${engine === 'TERRAFORM' ? 'selected' : ''}>Terraform (HCP Terraform / TFE)</option></select></label>

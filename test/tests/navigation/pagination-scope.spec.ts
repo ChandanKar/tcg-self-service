@@ -17,7 +17,7 @@ async function goTo(page: Page, route: string) {
   await page.waitForTimeout(600); // let the route's own render finish before adding test pagers
 }
 
-/** Renders a 3-page pager into a fresh container inside #content-area and counts its page changes. */
+/** Renders a 3-page pager on page 2 into a fresh container inside #content-area and counts its page changes. */
 async function addPager(page: Page, id: string, bindAncestor?: string) {
   await page.evaluate(({ id, bindAncestor }) => {
     const w = window as any;
@@ -27,7 +27,7 @@ async function addPager(page: Page, id: string, bindAncestor?: string) {
     el.id = id;
     document.getElementById('content-area')!.appendChild(el);
     Pagination.renderNumbered('#' + id, {
-      page: 1, totalItems: 30, pageSize: 10, itemLabel: 'rows',
+      page: 2, totalItems: 30, pageSize: 10, itemLabel: 'rows',
       ...(bindAncestor ? { bindAncestor } : {}),
       onPageChange: (p: number) => w.__pager[id].push(p),
     });
@@ -49,9 +49,9 @@ test.describe('Pagination click scope', () => {
 
     await goTo(page, 'request-access');
     await addPager(page, 'pg-new');                    // like User Management (binds to itself)
-    await page.locator('#pg-new').getByRole('button', { name: 'Page 2', exact: true }).click();
+    await page.locator('#pg-new').getByRole('button', { name: 'Next', exact: true }).click();
 
-    expect(await calls(page)).toEqual({ 'pg-old': [], 'pg-new': [2] });
+    expect(await calls(page)).toEqual({ 'pg-old': [], 'pg-new': [3] });
   });
 
   test('two pagers bound to the same ancestor only answer their own buttons', async ({ page }) => {
@@ -59,10 +59,10 @@ test.describe('Pagination click scope', () => {
     await addPager(page, 'pg-a', '#content-area');
     await addPager(page, 'pg-b', '#content-area');
 
-    await page.locator('#pg-b').getByRole('button', { name: 'Page 2', exact: true }).click();
-    await page.locator('#pg-a').getByRole('button', { name: 'Page 3', exact: true }).click();
+    await page.locator('#pg-b').getByRole('button', { name: 'Previous', exact: true }).click();
+    await page.locator('#pg-a').getByRole('button', { name: 'Next', exact: true }).click();
 
-    expect(await calls(page)).toEqual({ 'pg-a': [3], 'pg-b': [2] });
+    expect(await calls(page)).toEqual({ 'pg-a': [3], 'pg-b': [1] });
   });
 
   test('re-rendering the same pager does not stack handlers', async ({ page }) => {
@@ -75,21 +75,20 @@ test.describe('Pagination click scope', () => {
         onPageChange: (p: number) => w.__pager['pg-r'].push(p),
       });
     });
-    await page.locator('#pg-r').getByRole('button', { name: 'Page 2', exact: true }).click();
+    await page.locator('#pg-r').getByRole('button', { name: 'Next', exact: true }).click();
 
     expect((await calls(page))['pg-r']).toEqual([2]);
   });
 
-  test('pager buttons are labelled for screen readers', async ({ page }) => {
+  test('the pager reads "11–20 of 30" with Previous and Next, as on the boards (U17-T10)', async ({ page }) => {
     await goTo(page, 'activity-logs');
     await addPager(page, 'pg-aria');
 
     const pager = page.locator('#pg-aria');
-    await expect(pager.getByRole('button', { name: 'First page' })).toBeVisible();
-    await expect(pager.getByRole('button', { name: 'Previous page' })).toBeVisible();
-    await expect(pager.getByRole('button', { name: 'Next page' })).toBeVisible();
-    await expect(pager.getByRole('button', { name: 'Last page' })).toBeVisible();
-    await expect(pager.locator('button[aria-current="page"]')).toHaveText('1');
+    await expect(pager).toContainText('11–20 of 30');
+    await expect(pager.getByRole('button', { name: 'Previous', exact: true })).toBeEnabled();
+    await expect(pager.getByRole('button', { name: 'Next', exact: true })).toBeEnabled();
+    await expect(pager.getByRole('button')).toHaveCount(2);
     await expect(pager.locator('button:not([type="button"])')).toHaveCount(0);
   });
 });

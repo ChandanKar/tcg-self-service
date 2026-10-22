@@ -191,7 +191,7 @@ test.describe('Automation rules page', () => {
     await expect(rows.nth(6).locator('.week-bar')).toHaveCount(0);
     await expect(card.locator('.week-strip')).toHaveAttribute('aria-label', /^Mon–Fri 08:00–20:00 · Asia\/Kolkata/);
     await expect(card.locator('.ar-next-run')).toHaveText(/^Stop (today|tomorrow) \d\d:\d\d$/);
-    await expect(card.getByRole('switch', { name: 'Turn Office hours on' })).toBeChecked();
+    await expect(card.getByRole('checkbox', { name: 'Turn Office hours on' })).toBeChecked();
     await context.close();
   });
 
@@ -323,7 +323,7 @@ test.describe('Schedule editor', () => {
     await open(page, fake);
     await page.getByRole('tab', { name: 'When access is granted' }).click();
     const card = page.locator('.ar-rule', { hasText: 'On lock' });
-    await expect(card.locator('.ar-rule-summary')).toHaveText('Starts auto-e2e when someone takes the lock, in their name');
+    await expect(card.locator('.ar-rule-summary')).toHaveText('Starts Auto E2E when someone takes the lock, in their name');
 
     await card.locator('.ar-edit-btn').click();
     const panel = page.locator('#ag-panel');

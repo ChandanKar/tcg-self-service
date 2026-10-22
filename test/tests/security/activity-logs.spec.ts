@@ -128,7 +128,7 @@ test.describe('My activity', () => {
     });
     expect(fits).toBe(true);
 
-    await page.locator('#al-pagination').getByRole('button', { name: /^(2|Page 2|Go to page 2)$/ }).first().click();
+    await page.locator('#al-pagination').getByRole('button', { name: 'Next' }).click();
     await expect.poll(() => seen.at(-1)?.get('page')).toBe('1');
     await expect(page.locator('.activity-row')).toHaveCount(10);
   });

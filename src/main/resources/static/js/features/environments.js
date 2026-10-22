@@ -67,6 +67,7 @@ const Environments = (function() {
         $('#content-area').off('.envList .envDetail');
         $(document).off('click.vmMetricWindow');
         disposeAllBootstrapTooltips();
+        document.body.classList.remove('phone-drilldown');
         currentEnvironment = null;
     }
 
@@ -704,7 +705,7 @@ const Environments = (function() {
             <div class="env-viewonly-note" role="note">
                 <i class="fas fa-eye" aria-hidden="true"></i>
                 <span>You can see this environment but not start or stop it.${ends ? Utils.html` Your view access ends on ${ends}.` : ''}</span>
-                <a class="env-viewonly-ask" href="#/request-access?environmentId=${encodeURIComponent(env.environmentId)}">Ask for operator access</a>
+                <a class="btn btn-primary btn-sm env-viewonly-ask" href="#/request-access?environmentId=${encodeURIComponent(env.environmentId)}">Ask for operator access</a>
             </div>`;
 
         const settings = typeof EnvSettingsPanel !== 'undefined' && EnvSettingsPanel.isAvailable(env)
@@ -1051,6 +1052,9 @@ const Environments = (function() {
             if (actionType === 'start') startEnvironment(envId, envName);
             else stopEnvironment(envId, envName);
         });
+
+        // On a phone the page's own back header replaces the top bar (PhoneEnv board, U17-T10).
+        document.body.classList.toggle('phone-drilldown', $('#phone-back').length > 0);
 
         // Phone back (U16-T03): the previous page when it was in this app, else Environments.
         $('#phone-back').off('click').on('click', function(e) {

@@ -289,7 +289,7 @@ const Leases = (function() {
             .map(m => `<option value="${m}" ${m === (selected || fallback) ? 'selected' : ''}>${minutesLabel(m)}</option>`).join('');
         return `
             <label class="lease-policy-switch">
-                <input type="checkbox" role="switch" id="lease-policy-enabled" ${policy.enabled ? 'checked' : ''}>
+                <input type="checkbox" id="lease-policy-enabled" ${policy.enabled ? 'checked' : ''}>
                 <span><b>Stop when the lease ends</b><span>Every start gets an end time. People are reminded before it ends, and can extend.</span></span>
             </label>
             <div class="lease-policy-lengths">

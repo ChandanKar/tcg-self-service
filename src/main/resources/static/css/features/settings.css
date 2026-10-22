@@ -180,15 +180,16 @@
     color: var(--brand-navy);
 }
 
-.st-side .form-switch {
+.st-side .form-check {
     display: flex;
     min-height: 0;
     padding-left: 0;
 }
 
-.st-side .form-switch .st-switch {
-    width: 2.4em;
-    height: 1.3em;
+/* On or off: a checkbox, as on the Settings board (U17-T10) */
+.st-side .form-check .st-check {
+    width: 18px;
+    height: 18px;
     margin: 0;
     cursor: pointer;
 }

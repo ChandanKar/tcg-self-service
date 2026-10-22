@@ -68,7 +68,7 @@ test.describe('Settings page', () => {
     await expect(nav.locator('[data-st-section="notif"] .st-count')).toHaveText('3');
     await expect(nav.locator('[data-st-section="access"] .st-count')).toHaveText('2');
     await expect(page.locator('#st-title')).toHaveText('Notifications');
-    await expect(page.getByRole('switch', { name: 'Email notifications' })).not.toBeChecked();
+    await expect(page.getByRole('checkbox', { name: 'Email notifications' })).not.toBeChecked();
     await expect(row(page, 'notification.email.enabled').locator('.st-state')).toHaveText('Off by default');
     await expect(row(page, 'notification.email.enabled')).toContainText('notification.email.enabled');
     await expect(row(page, 'notification.email.access-granted.enabled').locator('.st-state')).toHaveText('Set by Test Admin');
@@ -80,27 +80,27 @@ test.describe('Settings page', () => {
     const ro = row(page, 'entraid.enabled');
     await expect(ro.locator('.st-state')).toHaveText('Set in .env');
     await expect(ro.locator('input')).toHaveCount(0);
-    await expect(page.getByRole('switch', { name: 'Username and password sign-in' })).toBeChecked();
+    await expect(page.getByRole('checkbox', { name: 'Username and password sign-in' })).toBeChecked();
   });
 
   test('changes wait in the bar; Discard puts them back; Save changes sends them together', async ({ page }) => {
     const calls = await open(page);
     // Acceptance: two email switches turned on: nothing saved until Save changes; the bar says 2.
-    await page.getByRole('switch', { name: 'Email notifications' }).check();
-    await page.getByRole('switch', { name: 'Lock broken' }).check();
+    await page.getByRole('checkbox', { name: 'Email notifications' }).check();
+    await page.getByRole('checkbox', { name: 'Lock broken' }).check();
     await expect(page.locator('#st-bar-text')).toHaveText('2 changes not saved');
     await expect(row(page, 'notification.email.enabled').locator('.st-state')).toHaveText('Changed');
     expect(calls.filter(c => c.batch || c.PUT)).toEqual([]);
 
     // Acceptance: Discard returns both to their stored values.
     await page.locator('#st-discard').click();
-    await expect(page.getByRole('switch', { name: 'Email notifications' })).not.toBeChecked();
-    await expect(page.getByRole('switch', { name: 'Lock broken' })).not.toBeChecked();
+    await expect(page.getByRole('checkbox', { name: 'Email notifications' })).not.toBeChecked();
+    await expect(page.getByRole('checkbox', { name: 'Lock broken' })).not.toBeChecked();
     await expect(page.locator('#st-bar')).toBeHidden();
 
-    await page.getByRole('switch', { name: 'Email notifications' }).check();
-    await page.getByRole('switch', { name: 'Lock broken' }).check();
-    await page.getByRole('switch', { name: 'Lock broken' }).uncheck(); // back to its stored value: not a change
+    await page.getByRole('checkbox', { name: 'Email notifications' }).check();
+    await page.getByRole('checkbox', { name: 'Lock broken' }).check();
+    await page.getByRole('checkbox', { name: 'Lock broken' }).uncheck(); // back to its stored value: not a change
     await expect(page.locator('#st-bar-text')).toHaveText('1 change not saved');
     await page.locator('#st-nav [data-st-section="auto"]').click();
     await page.getByLabel('Idle CPU %').fill('8');
@@ -128,7 +128,7 @@ test.describe('Settings page', () => {
 
   test('switches that act on AWS are confirmed before the save; Reset returns a setting to its default', async ({ page }) => {
     const calls = await open(page, '#/settings?section=cost');
-    await page.getByRole('switch', { name: 'Cost-allocation tagging' }).check();
+    await page.getByRole('checkbox', { name: 'Cost-allocation tagging' }).check();
     await page.locator('#st-save').click();
     await expect(page.locator('.modal.show')).toContainText('writes cost-allocation tags');
     await page.locator('.modal.show .btn-secondary, .modal.show [data-bs-dismiss="modal"]').first().click();

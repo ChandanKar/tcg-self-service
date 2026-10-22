@@ -1,9 +1,7 @@
 /*
  * Shared Pagination Component
- * Rendered by js/ui/pagination.js. Single definition for the pagination bar and its buttons —
- * previously reimplemented independently (with drifting bar heights of 28/34/40px and button
- * classes .vm-reg-page / .page-btn / .all-logs-page / .al-page / .env-page / .env-list-page-btn,
- * plus a completely separate Bootstrap-native widget on Audit Logs) across eight screens.
+ * Rendered by js/ui/pagination.js: the bar around the "1–7 of 29" range and the Previous / Next
+ * buttons (.pager-range, .pager-btn in layout/content.css).
  */
 
 .pagination-bar-wrap {
@@ -12,94 +10,21 @@
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 0.6rem;
+    gap: 12px;
     min-height: 34px;
-    padding: 0.5rem 0.75rem;
-    border-top: 1px solid var(--border-color);
-    background: var(--table-header-bg);
+    padding: 8px 16px;
+    border-top: 1px solid var(--line-soft);
+    font-size: 13px;
+    color: var(--slate);
 }
 
 .pagination-info {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
+    font-size: 13px;
+    color: var(--slate);
 }
 
-.pagination-controls {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-}
-
-.pg-btn {
-    min-width: 28px;
-    height: 28px;
-    padding: 0 0.45rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.3rem;
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--text-primary);
-    background: #fff;
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease;
-}
-
-.pg-btn:hover:not(:disabled) {
-    background: var(--background-light);
-    border-color: var(--line-strong);
-}
-
-.pg-btn.active {
-    background: var(--primary-color);
-    border-color: var(--primary-color);
-    color: #fff;
-}
-
-.pg-btn:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-}
-
-.pg-btn:focus-visible {
-    outline: 2px solid var(--primary-color);
-    outline-offset: 1px;
-}
-
-.pg-btn-wide {
-    min-width: 84px;
-}
-
-/* The page as "2 / 5" in place of the page numbers, on a phone only (U16-T05). */
-.pg-compact {
-    display: none;
-}
-
-/* Phones: first, previous, "2 / 5", next and last, each 44 px, on one line. */
+/* Phones: Previous and Next 44 px high. */
 @media (max-width: 767.98px) {
-    .pagination-controls {
-        flex-wrap: nowrap;
-        justify-content: center;
-        align-items: center;
-        width: 100%;
-    }
-
-    .pagination-controls .pg-num {
-        display: none;
-    }
-
-    .pg-compact {
-        display: inline-block;
-        min-width: 56px;
-        text-align: center;
-        font-variant-numeric: tabular-nums;
-        color: var(--text-secondary);
-    }
-
-    .pg-btn,
     .pager-btn {
         min-width: 44px;
         min-height: 44px;

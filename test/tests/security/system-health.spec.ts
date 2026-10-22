@@ -67,7 +67,10 @@ test.describe('System Health', () => {
       expect(Math.round((Date.parse(p.get('to')!) - Date.parse(p.get('from')!)) / 3600000)).toBe(24);
     }
     await expect(page).toHaveURL(/#\/system-health\?tab=reports$/);
+    // The syncs belong to Now (U17-T10: the boards show no actions on the other tabs).
+    await expect(page.locator('#trigger-sync-btn')).toBeHidden();
 
+    await page.getByRole('tab', { name: 'Now' }).click();
     await page.locator('#trigger-sync-btn').click();
     await expect(page.getByText('Failed to trigger sync')).toBeVisible();
   });

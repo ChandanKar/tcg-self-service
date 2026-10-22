@@ -77,16 +77,16 @@
     box-shadow: inset 3px 0 0 var(--brand-gold);
 }
 
-.sidebar-menu-link i {
+/* Outline icons, as on the SideNav board (U17-T10). */
+.sidebar-menu-link .sidebar-icon {
     width: 18px;
+    height: 18px;
     flex-shrink: 0;
-    font-size: 14px;
-    text-align: center;
     color: var(--slate);
 }
 
-.sidebar-menu-link:hover i,
-.sidebar-menu-link.active i {
+.sidebar-menu-link:hover .sidebar-icon,
+.sidebar-menu-link.active .sidebar-icon {
     color: inherit;
 }
 

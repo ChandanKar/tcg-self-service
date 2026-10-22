@@ -216,9 +216,15 @@ const AutomationRules = (function() {
         return parts.join(' · ');
     }
 
+    /** The environment's display name ("Payments Dev", as on the AutomationRules board), else its short name. */
+    function envName(item) {
+        const env = environments.find(e => e.environmentId === item.environmentId);
+        return (env && (env.displayName || env.name)) || item.environmentName || '';
+    }
+
     function scopeLabel(rule) {
-        if (rule.scopeType === 'ENVIRONMENT') return rule.environmentName || '';
-        return `${rule.environmentName || ''} · ${rule.scopeName || ''} (${String(rule.scopeType || '').toLowerCase()})`;
+        if (rule.scopeType === 'ENVIRONMENT') return envName(rule);
+        return `${envName(rule)} · ${rule.scopeName || ''} (${String(rule.scopeType || '').toLowerCase()})`;
     }
 
     /**
@@ -227,7 +233,7 @@ const AutomationRules = (function() {
      * only start: the lease or a schedule stops it.
      */
     function accessLine(rule) {
-        const env = rule.environmentName || 'the environment';
+        const env = envName(rule) || 'the environment';
         const target = rule.scopeType === 'ENVIRONMENT' ? env : `${rule.scopeName || 'a group'} in ${env}`;
         return rule.accessGrantMode === 'LOCK_ACQUIRE'
             ? `Starts ${target} when someone takes the lock, in their name`
@@ -347,8 +353,8 @@ const AutomationRules = (function() {
     }
 
     function switchHtml(rule) {
-        return Utils.html`<label class="ar-switch"><input type="checkbox" role="switch" class="ar-toggle-enabled" data-rule-id="${rule.ruleId}"
-            aria-label="Turn ${rule.name} on"${Utils.raw(rule.enabled ? ' checked' : '')}><span aria-hidden="true"></span></label>`;
+        return Utils.html`<input type="checkbox" class="form-check-input ar-check ar-toggle-enabled" data-rule-id="${rule.ruleId}"
+            aria-label="Turn ${rule.name} on"${Utils.raw(rule.enabled ? ' checked' : '')}>`;
     }
 
     function rowActions(rule, withSkip) {
@@ -483,7 +489,7 @@ const AutomationRules = (function() {
                     return Utils.html`<tr>
                         <td class="ar-runs-when">${clockText(row.createdAt)}</td>
                         <td>${Utils.raw(runRuleHtml(row))}</td>
-                        <td>${row.environmentName || ''}</td>
+                        <td>${envName(row)}</td>
                         <td><span class="ar-result ar-result-${result.toLowerCase()}">${result}</span></td>
                         <td class="ar-runs-detail">${runDetail(row)}</td>
                     </tr>`;

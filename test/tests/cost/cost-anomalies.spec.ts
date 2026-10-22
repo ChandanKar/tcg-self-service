@@ -87,7 +87,7 @@ test.describe('Cost anomalies', () => {
     await expect(first.locator('td').nth(1)).toHaveText('$160+$140'); // spent, and the extra under it
     await expect(first.locator('.anomaly-usual')).toHaveText('$20');
     await expect(panel.locator('.anomaly-foot')).toContainText('3 of 3 in the last 30 days');
-    await panel.locator('#cost-anomaly-env').selectOption('env-b');
+    await page.locator('#cost-tab-actions #cost-anomaly-env').selectOption('env-b');
     await expect(page.locator('[data-cost-panel="anomalies"] tbody tr')).toHaveCount(1);
     await expect(page.locator('[data-cost-panel="anomalies"]')).toContainText('+$55');
     await expect(page.locator('[data-cost-panel="anomalies"] .anomaly-foot')).toContainText('1 of 3 in the last 30 days');

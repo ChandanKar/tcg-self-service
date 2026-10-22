@@ -194,7 +194,7 @@ const Settings = (function() {
         if (!x.editable) {
             control = Utils.html`<code class="st-value">${x.value || '(not set)'}</code>`;
         } else if (x.type === 'BOOLEAN') {
-            control = Utils.html`<span class="form-check form-switch m-0"><input class="form-check-input st-switch" type="checkbox" role="switch" id="${id}"
+            control = Utils.html`<span class="form-check m-0"><input class="form-check-input st-check" type="checkbox" id="${id}"
                 data-st-key="${x.key}" aria-describedby="${id}-desc"${Utils.raw(value === 'true' ? ' checked' : '')}></span>`;
         } else {
             control = Utils.html`<input class="form-control form-control-sm st-number" type="number" id="${id}" data-st-key="${x.key}" value="${value}"
