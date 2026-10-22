@@ -128,7 +128,7 @@ class VmDiscoveryIntegrationTest extends AbstractIntegrationTest {
         // U19-T03: the sweep covers the scan regions (the test profile's aws.region, us-east-1); the
         // environment's own region (ap-south-1) is still asked directly.
         Environment env = discoveryEnvironment("Far tagged");
-        discoveryGroup(env);
+        VmGroup group = discoveryGroup(env);
         String id = "i-0" + Long.toHexString(System.nanoTime());
         awsReturnsNothingByDefault();
         when(awsCloudProviderService.discoverInstancesWithTagKey(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq("tcg:environment")))
@@ -139,7 +139,7 @@ class VmDiscoveryIntegrationTest extends AbstractIntegrationTest {
 
         Vm registered = vmRepository.findByProviderAndProviderVmId(com.tcgdigital.vmcontrol.model.CloudProvider.AWS, id).orElseThrow();
         assertThat(registered.getRegion()).isNotEqualTo("ap-south-1");
-        assertThat(registered.getGroup().getEnvironment().getEnvironmentId()).isEqualTo(env.getEnvironmentId());
+        assertThat(registered.getGroup().getGroupId()).isEqualTo(group.getGroupId()); // the environment's discovery group
         org.mockito.Mockito.verify(awsCloudProviderService).discoverTaggedInstances(com.tcgdigital.vmcontrol.service.CloudTarget.of("ap-south-1"),
                 "tcg:environment", env.getName());
     }
