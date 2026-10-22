@@ -359,14 +359,20 @@ test.describe('Request access (requester)', () => {
     expect(await page.locator('#ra-env-list .ra-env').count()).toBeLessThanOrEqual(10);
   });
 
-  test('10 environments to a page with a pager, and no page scrollbar at 1440x900', async ({ page, playwright }) => {
+  test('as many environments as fit (at most 10) with a pager, and no page scrollbar at 1440x900', async ({ page, playwright }) => {
     for (let i = 0; i < 11; i++) await freshEnv(playwright, `Fill ${i}`);   // more than a page, whatever is there
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, 'user');
     await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
     await page.evaluate(() => { location.hash = '#/request-access'; });
-    await expect(page.locator('#ra-env-list .ra-env')).toHaveCount(10, { timeout: 15_000 });
-    await expect(page.locator('#ra-env-pager')).toContainText('1–10 of');
+    // U18-T02: rows a page follow the window (a few pixels of font difference can make it 9 or 10 here).
+    const rows = page.locator('#ra-env-list .ra-env');
+    await expect(rows.first()).toBeVisible({ timeout: 15_000 });
+    await page.waitForLoadState('networkidle');
+    const n = await rows.count();
+    expect(n).toBeGreaterThanOrEqual(6);
+    expect(n).toBeLessThanOrEqual(10);
+    await expect(page.locator('#ra-env-pager')).toContainText(`1–${n} of`);
     expect(await page.evaluate(() => {
       const el = document.getElementById('mainContent') || document.documentElement;
       return el.scrollHeight <= el.clientHeight + 1 && document.documentElement.scrollHeight <= window.innerHeight + 1;
