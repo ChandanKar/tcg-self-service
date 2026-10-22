@@ -15,8 +15,12 @@ declare const ContentRouter: any;
 async function openNewRule(page: Page, environmentId: string, name: string) {
   await signIn(page, 'admin');
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+  // The first page first: a hash change before it renders can load the editor twice, and the second
+  // render empties what the test typed.
+  await expect(page.locator('#content-area h1').first()).toBeVisible({ timeout: 15_000 });
   await page.evaluate(() => { location.hash = '#/automation-rules/new'; });
   await expect(page.locator('#rule-editor-view #ar-form')).toBeVisible({ timeout: 10_000 });
+  await page.waitForLoadState('networkidle');
   await page.locator('#ar-environment').selectOption(environmentId);
   await page.locator('#ar-name').fill(name);
 }

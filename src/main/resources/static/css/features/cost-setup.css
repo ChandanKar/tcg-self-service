@@ -24,8 +24,9 @@
 .cost-setup-features {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-    margin-bottom: 14px;
+    /* Tight enough that Setup fits 1440 x 900 with every feature listed (U17-T07). */
+    gap: 10px;
+    margin-bottom: 12px;
 }
 
 .cost-setup-feature {
@@ -33,7 +34,7 @@
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: start;
     gap: 12px;
-    padding: 14px 16px;
+    padding: 12px 16px;
     background: #fff;
     border: 1px solid var(--line);
     border-radius: 10px;
