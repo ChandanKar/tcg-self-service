@@ -75,7 +75,7 @@ Two mutually exclusive security configs, toggled by `entraid.enabled`:
 ## Database & Migrations
 
 - **MySQL 8 only** (no H2), configured via `.env`.
-- **Flyway** runs `migrate` on startup with `validate-on-migrate=true` and **no automatic repair**: an edited, already-applied migration stops startup. Migrations live in `src/main/resources/db/migration/` (V1–V41, plus the Java migration `V24__secure_legacy_passwords` in `src/main/java/db/migration`). Never edit an existing migration; add the next free version. Manual repair procedure: `docs/runbook-flyway.md`.
+- **Flyway** runs `migrate` on startup with `validate-on-migrate=true` and **no automatic repair**: an edited, already-applied migration stops startup. Migrations live in `src/main/resources/db/migration/` (V1–V95, plus the Java migration `V24__secure_legacy_passwords` in `src/main/java/db/migration`). Never edit an existing migration; add the next free version. Manual repair procedure: `docs/runbook-flyway.md`.
 - Integration tests (`AbstractIntegrationTest`) use MySQL: a local schema from `TEST_DB_URL` in `.env` (its name must end in `_test`; the tests wipe it) or, when unset, a Testcontainers MySQL (Docker required). `src/test/resources/db/reset-test-data.sql` reseeds before each test. Tests run with `ddl-auto=validate`, so entity/schema drift fails the build.
 - `SecuredWebTestBase` runs the real Entra security chain so `@PreAuthorize` rules can be tested per role.
 
@@ -114,6 +114,15 @@ Set in `application.properties` (each reads an env var of the same name in upper
 ## Frontend
 
 Vanilla JS module/IIFE singletons — no build framework. Source files are in `src/main/resources/static/js/` and `static/css/`, listed in order in `static/index.html`. Gradle's `buildFrontend` concatenates them (order taken from index.html) into `build/generated/frontend/static/dist/`, and `processResources` packages `dist/app.js`, `dist/app.css` and a patched `index.html` that loads only the bundles — so `bootRun`, `bootJar` and tests all serve the bundle. New scripts only need adding to index.html. Bump the `?v=` asset stamp in index.html on UI changes (the bundle reuses it). `build-frontend.ps1` is just a wrapper around those Gradle tasks. API base URL and feature flags live in `static/js/config.js`. Playwright e2e specs live in `test/`.
+
+The screens follow the approved mockup in `docs/design/mockup/` (75 boards; `test/ux-review/compare-mockup.mjs` renders each board next to its app screen). Shared pieces to reuse rather than rebuild:
+
+- `js/ui/states.js` (`UiStates`): empty, filtered-empty, delayed loading outlines, couldn't-load (with the server's `ref`), a whole failed page, and partly done. Pages never hand-roll their own error or Retry markup.
+- `js/ui/notifications.js`: toasts bottom right, 6 s, errors stay until closed, one optional action.
+- `js/ui/session-ended.js` and `RealTime`: a 401 opens "You've been signed out"; failing polls show "Reconnecting…".
+- `js/ui/power-strip.js` (one light per VM, grouped by start order), `page-header.js`, `tabs.js`, `menu.js`, `pagination.js` (`buildPager`/`slice`), `table-cards.js` (wide tables become labelled cards on phones).
+
+Rules the tests hold: no page scrollbar at 1440×900 for any persona (lists page instead; `navigation/shell-layout.spec.ts`), nothing wider than a 390 px phone and 44 px targets (`mobile/phone-layout.spec.ts`), no serious or critical axe finding (`a11y/contrast.spec.ts` with `test/fixtures/axe.ts`), copy rules and no unused CSS (`src/test/js/copy-lint.test.mjs`, `unused-css.test.mjs`).
 
 ## Internal Docs
 

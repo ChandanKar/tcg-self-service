@@ -46,16 +46,16 @@ sent.
 ## First day checklist
 
 1. Grant the IAM policies for the features you use (see the link above).
-2. Optional: start with the `cost` profile to tag resources, or run **Reconcile Tags Now** on the
-   Cost Management page.
-3. Wait up to 24 hours for tag activation, then run **Ingest Actual Costs** once.
-4. Run **Backfill 30 Days** once so the trend chart has history. After the E08 upgrade, run it
-   once anyway: older snapshot rows held partial-day compute.
-5. Check the **Cost Setup** page (admin), which tests each permission and feature flag.
+2. Optional: start with the `cost` profile to tag resources, or choose **Data actions › Write cost tags
+   now** on the Cost management page.
+3. Wait up to 24 hours for tag activation, then choose **Data actions › Fetch AWS billing now** once.
+4. Choose **Data actions › Fill in the last 30 days** once so the trend chart has history. After the E08
+   upgrade, run it once anyway: older snapshot rows held partial-day compute.
+5. Check **Cost management › Setup** (administrators), which tests each permission and feature switch.
 
 ## FOCUS export (E35)
 
-**Cost Management → Export FOCUS CSV** downloads one month as a FOCUS 1.2 CSV.
+**Cost management › Export › Month for finance, FOCUS CSV…** downloads one month as a FOCUS 1.2 CSV.
 `GET /api/v1/cost-management/export/focus?month=yyyy-MM&basis=estimated|actual`, admins only;
 the month cannot be in the future, and the current month stops at yesterday.
 

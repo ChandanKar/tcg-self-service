@@ -23,7 +23,7 @@ test.describe('Help', () => {
     await expect(page.locator('#help-topic-title')).toHaveText('Starting, stopping and locks', { timeout: 15_000 });
     await expect(page.locator('.help-topic-link.active')).toHaveText('Starting, stopping and locks');
 
-    await page.locator('#help-search').fill('lock');
+    await page.locator('#help-search').fill('break');
     const links = page.locator('.help-topic-link');
     await expect(links).not.toHaveCount(0);
     for (const text of await links.allTextContents()) {

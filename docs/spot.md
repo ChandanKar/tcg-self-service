@@ -53,7 +53,7 @@ Read-only: `ec2:DescribeSpotPriceHistory`, `ec2:GetSpotPlacementScores`, `ec2:De
 
 ## Rollout
 
-1. Turn on `spot.pricing.enabled` and `spot.enabled`; check prices are captured (System Health
+1. Turn on `spot.pricing.enabled` and `spot.enabled`; check prices are captured (System health
    lists the job) and opportunities appear for an environment that allows Spot.
 2. Pick one non-production EKS environment. Turn on `spot.eks.conversion.enabled` and convert one
    node group; check its workload runs on the twin and the original is at 0.

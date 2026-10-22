@@ -71,54 +71,58 @@ npm run report        # open the last HTML report
 
 ```
 test/
-├── playwright.config.ts     # baseURL, projects, reporters
+├── playwright.config.ts
 ├── fixtures/
-│   └── auth.ts              # creds from env, loginAs()/logout() helpers
-└── tests/
-    ├── smoke/                # no login needed — is the app even up?
-    │   ├── health.spec.ts
-    │   └── login.spec.ts
-    ├── auth/
-    │   └── session.spec.ts   # unauthenticated access is blocked; logout clears session
-    ├── dashboard/
-    │   └── dashboard.spec.ts
-    ├── navigation/
-    │   ├── navigation.spec.ts        # sidebar items every authenticated user sees
-    │   └── navigation.admin.spec.ts  # admin-only sidebar items
-    └── security/
-        └── known-findings.spec.ts    # `test.fixme` regression guards tied to
-                                       # specific cited findings in the repo's
-                                       # 2026-09-14 production-readiness audit —
-                                       # NOT currently passing, intentionally
-                                       # skipped until the underlying issues
-                                       # are fixed. See that file's header.
+│   ├── auth.ts          # signIn() with the dev X-User-Id header or the password form; devIds
+│   ├── seed.ts          # seedEnvironment(): a fresh environment per spec, never shared data
+│   ├── mock-api.ts      # faked API answers for pages that need specific data
+│   ├── capabilities.ts  # withFeatures(): force feature switches on or off for a spec
+│   └── axe.ts           # seriousViolations(): axe with the WCAG 2.2 AA rules, exceptions with reasons
+├── ux-review/           # compare-mockup.mjs (mockup next to the app), seed-and-shoot.mjs, seed.mjs
+└── tests/               # 100 specs
+    ├── a11y/            # axe on every screen and panel (contrast.spec), names and targets, focus, tokens
+    ├── access/          # request access, approvals of access, My account
+    ├── admin/           # settings, AWS accounts
+    ├── auth/            # unauthenticated access is blocked; logout clears the session
+    ├── automation/      # schedules, windows, overrides, holiday calendars, suggestions
+    ├── cost/            # cost management tabs, savings, waste, budgets, chargeback, setup
+    ├── dashboard/       # Home for each role
+    ├── environments/    # the environment page, VM table, leases, locks, teams, chat actions
+    ├── inventory/       # VM registry, adding VMs, discovery review
+    ├── mobile/          # phone layout: shell, Home, environment, every route per persona
+    ├── navigation/      # shell, menu, router, help, states, load failures, fit to 1440 x 900
+    ├── operations/      # start and stop progress, history, approvals of starts
+    ├── security/        # activity and audit logs, system health, known findings
+    └── smoke/           # no login: is the app up, the login page
 ```
 
-## 6. What this does and doesn't cover
+Specs added since 2026-10 live under `tests/`, which is gitignored for new files: add a test to an
+existing spec in the right folder (and stage it with `git add -u test/tests`).
 
-**Covers:** login page rendering and validation, authenticated navigation
-across the main sidebar views (user and admin), basic session/route
-protection, app reachability (`/actuator/health`, Swagger).
+## 6. Checks that hold the redesign in place
 
-**Doesn't cover (left for the next iteration):**
-- VM start/stop/operation flows — these mutate real or mocked cloud state and
-  need a deliberate test-environment strategy (a disposable AWS sandbox
-  account or a stubbed `CloudProviderService`) before they're safe to
-  automate; not attempted here.
-- Environment locking, access-grant workflows, automation rules, cost
-  management detail views — straightforward to add following the same
-  `loginAs()` + `data-content`/`data-view` pattern once specific fixture data
-  (known environment/group/VM IDs) is available in a test database.
-- The real Microsoft Entra ID OAuth2 flow (see §3).
-- Anything requiring the audit's flagged fixes to actually be testable
-  end-to-end (e.g. cross-environment authorization) — see `tests/security/`.
+- **Fits the screen**: `navigation/shell-layout.spec.ts` checks every route for each persona
+  (admin-001, dev-user-001, user-001, user-002) at 1440 x 900: neither the page nor the main area
+  scrolls; long lists page instead. `mobile/phone-layout.spec.ts` checks every route at 390 x 844:
+  nothing wider than the screen, wide tables as labelled cards, 44 px targets.
+- **Accessibility**: `a11y/contrast.spec.ts` runs axe (WCAG 2.2 AA) on every route for each persona,
+  the side panels, the notifications, the shortcuts dialog and the start confirm; serious and critical
+  findings fail it.
+- **States**: `navigation/status-widgets.spec.ts` fails every read with a 500 and expects each page
+  to show "X didn't load" with Try again, never a blank area; `navigation/background-polls.spec.ts`
+  covers "Reconnecting…" and the signed-out dialog.
+- **The mockup**: with the smoke app running,
+  `node ux-review/compare-mockup.mjs --runtime <dc-runtime.js>` writes a side-by-side report of every
+  board (`docs/design/mockup`) and its app screen to `test-results/mockup-compare/report.html`
+  (see `docs/design/mockup/README.md` for the runtime).
+
+Not covered on purpose: real starts and stops against AWS (only the VMs on the allowlist may be used,
+by hand), EKS (no cluster to test against), and the Microsoft Entra ID sign-in itself (see §3).
 
 ## 7. Extending
 
 Add new specs following the existing pattern: import `loginAs`/`creds` from
 `../../fixtures/auth`, `test.skip()` when required creds/fixture IDs are
-missing, and prefer the existing `id`/`data-view`/`data-content`/`data-table`
-attributes already used throughout `home.html` over brittle CSS selectors —
-see `.ai/engineering/ui-consistency.md` in the repo root for the frontend's
-own component conventions if you're asserting on visual state (badges,
-buttons, modals).
+missing, and prefer ids, roles and accessible names (`getByRole('button', { name: … })`) over
+CSS classes. Wait for the first page (`#content-area h1`) before changing the hash: an early hash
+change can load a page twice.

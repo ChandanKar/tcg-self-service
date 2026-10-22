@@ -25,7 +25,7 @@ Use the vmcontrol server for questions about environments, teams and schedules. 
 
 ### 1. Create a token
 
-In the platform, open **My Account → API tokens → Create token**. Give it a name such as "Claude Code on my laptop", choose only the **assistant:read** scope and a short expiry (30 or 90 days). Copy the token when it is shown; it is not shown again.
+In the platform, open **My account** (your avatar, top right) **› API tokens › New token**. Give it a name such as "Claude Code on my laptop", choose only the **assistant:read** scope and a short expiry (30 or 90 days). Copy the token when it is shown; it is not shown again.
 
 A token with `assistant:read` can only call `/mcp`. Other scopes, `admin` included, do not open `/mcp`, so the assistant token cannot reach the rest of the API.
 
@@ -109,9 +109,9 @@ Every tool is read-only and returns at most 50 rows. Amounts are in USD with two
 
 - **Scope.** Every tool answers as the token's owner. Admins see every active environment; everyone else sees the environments they hold access to. Asking for another environment returns "not found", which does not reveal whether it exists. Results carry no other users' emails or IP addresses.
 - **Read-only.** No tool starts, stops or changes anything. Tool annotations say so (`readOnlyHint`), and the endpoint has no write methods.
-- **Tokens only.** `/mcp` refuses session cookies (401), so a web page cannot use a signed-in browser to call it. Tokens are hashed at rest, expire, and can be revoked from My Account. Admins see and revoke every token under **API access**. Rotate a token when a laptop is replaced and when it expires.
+- **Tokens only.** `/mcp` refuses session cookies (401), so a web page cannot use a signed-in browser to call it. Tokens are hashed at rest, expire, and can be revoked from My account › API tokens. Admins see and revoke every token under **API access**. Rotate a token when a laptop is replaced and when it expires.
 - **Limits.** Each user gets 60 tool calls a minute (`assistant.mcp.rate-limit-per-minute`). Each call has 10 seconds (`assistant.mcp.tool-timeout-ms`). Output over 50,000 characters is cut and marked truncated (`assistant.mcp.max-output-chars`). API tokens also have their own per-token request limit.
-- **Audit.** Every call is written to the audit log as `ASSISTANT_TOOL_CALLED`, with the user, token prefix, tool, arguments (long text shortened to 200 characters), rows returned and time taken. Refused calls (bad arguments, rate limit, timeout) are logged as failed. Filter the Audit Logs page by that action.
+- **Audit.** Every call is written to the audit log as `ASSISTANT_TOOL_CALLED`, with the user, token prefix, tool, arguments (long text shortened to 200 characters), rows returned and time taken. Refused calls (bad arguments, rate limit, timeout) are logged as failed. Filter the Audit log page by that action.
 - **Data leaves the platform.** Tool results go into the AI client's context and so to its model provider. Use only AI clients your organisation has approved for this data. Cost and environment names may be commercially sensitive.
 
 ## In-app Ask panel

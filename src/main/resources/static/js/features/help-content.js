@@ -26,18 +26,18 @@ const HelpContent = (function() {
                 {
                     heading: 'Roles',
                     paragraphs: [
-                        'Viewer: sees environments, their VMs and schedules.',
-                        'User: everything a viewer can do, plus start and stop VMs in environments they have access to.',
-                        'Environment admin: manages access, schedules and settings for the environments they administer.',
-                        'Admin: everything, across all environments, including costs, settings and AWS accounts.'
+                        'Everyone signs in as a User, an Environment admin or an Administrator.',
+                        'On each environment you have one level: View only (see its VMs, IP addresses, cost and history), Operator (also start and stop VMs and take locks) or Admin (also give access and edit VMs, schedules and budgets).',
+                        'Environment admins look after the environments they administer: access requests, schedules, the VM registry and budgets (Manage in the side menu).',
+                        'Administrators do everything, across all environments, including cost, settings and AWS accounts (Cost and Administration).'
                     ]
                 },
                 {
                     heading: 'Your first steps',
                     steps: [
-                        'Open Environments to see the environments you can use.',
-                        'If one you need is missing, open Request Access and ask for it.',
-                        'Open My Account (user menu) to see your access, cost, notification choices and profile; My activity lists what you did.'
+                        'Open Environments in the side menu to see the environments you can use.',
+                        'If one you need is missing, open Request access and ask for it.',
+                        'Your avatar (top right) opens My account: your access, cost, notification choices and profile. My activity lists what you did.'
                     ]
                 }
             ]
@@ -52,22 +52,22 @@ const HelpContent = (function() {
                 {
                     heading: 'Asking for access',
                     steps: [
-                        'Open Request Access and choose the environment, or a single group inside it.',
-                        'Pick the level you need (View only, Start and stop, Manage access) and how long you need it.',
-                        'Explain why. The environment\'s admins are told and decide.'
+                        'Open Request access and pick the environment on the Request tab: the whole environment or one group in it.',
+                        'Pick Operator or View only, and for how long: 7, 30 or 90 days.',
+                        'Say why. The environment\'s admins get the request and decide; the answer shows under Your requests and in the bell.'
                     ]
                 },
                 {
                     heading: 'When access ends',
                     paragraphs: [
-                        'You are warned before your access expires. Ask for an extension from My Account > Access while it is still active.',
-                        'Ended access is listed in My Account, where you can ask for it again with the same scope.'
+                        'You are warned before your access ends. Ask for more time from My account › Access while it is still active.',
+                        'Your requests on Request access lists what you asked for and the answers; Request again asks for the same part and level.'
                     ]
                 },
                 {
                     heading: 'For approvers',
                     paragraphs: [
-                        'Pending requests appear under Pending Requests and in the bell. Approving can shorten the duration or grant without an end date.'
+                        'Waiting requests are on Access requests (Manage), oldest first, and in the bell. Approve for another length or with no end, or Deny… with a reason the person sees.'
                     ]
                 }
             ]
@@ -106,15 +106,15 @@ const HelpContent = (function() {
                 {
                     heading: 'Starting and stopping',
                     steps: [
-                        'Open the environment and choose Start, Stop or Restart for the environment, a group or a single VM.',
-                        'Follow the progress in the operation panel; each step shows its own status.',
-                        'A failed step stops the operation and tells you why; the rest of the environment is left as it was.'
+                        'Open the environment and choose Start or Stop for the whole environment, a group or one VM. The confirm shows what will run and what it costs.',
+                        'Follow it group by group in the progress dialog; Hide keeps it running and the banner at the top follows it.',
+                        'If a VM fails, the result names it and why, with Retry for that VM and See steps. History on the environment page lists every run.'
                     ]
                 },
                 {
                     heading: 'Locks',
                     paragraphs: [
-                        'Lock an environment while you work on it: only you can start or stop it until you release the lock or it expires.',
+                        'Lock an environment while you work on it (Lock on the environment page): only you can start or stop it until you release the lock or it ends.',
                         'An admin can break a lock; the holder is told who broke it and why.'
                     ]
                 }
@@ -131,7 +131,7 @@ const HelpContent = (function() {
                     heading: 'What is recorded',
                     paragraphs: [
                         'Every start, stop, access change, lock and setting change is recorded with who did it and when.',
-                        'My activity lists what you did, as sentences by day, and exports it to CSV; All Logs (environment admins and admins) shows everything with filters and export.'
+                        'My activity lists what you did, as sentences by day, and exports it to CSV; the Audit log (Manage, for environment admins and admins) shows everyone\'s, with filters and export.'
                     ]
                 }
             ]
@@ -147,7 +147,8 @@ const HelpContent = (function() {
                     heading: 'Where costs come from',
                     paragraphs: [
                         'Estimates come from how long each VM ran and a price list; actual costs, when ingested, come from AWS Cost Explorer and replace the estimate for that day.',
-                        'Your environments\' month to date is in My Account > Cost and on each environment page.'
+                        'Your environments\' month to date is in My account › Cost and on each environment page.',
+                        'Administrators see the whole fleet in Cost management (Overview, Rightsizing, Commitments, Carbon, Unusual spend and Setup); Waste lists what costs money and does nothing.'
                     ]
                 },
                 {
@@ -168,8 +169,8 @@ const HelpContent = (function() {
                 {
                     heading: 'Choosing what reaches you',
                     steps: [
-                        'Open My Account > Notifications, or Notification settings at the bottom of the bell.',
-                        'Turn each event on or off for the bell and for email, then Save.'
+                        'Open My account › Notifications, or Notification settings at the bottom of the bell.',
+                        'Tick each event for In app and Email, then Save.'
                     ]
                 },
                 {
@@ -190,9 +191,9 @@ const HelpContent = (function() {
                 {
                     heading: 'Schedules',
                     steps: [
-                        'Open Automation Rules and create a rule for an environment or group.',
-                        'Add the windows when it should run; outside them it is stopped.',
-                        'Use holiday calendars and one-off overrides for exceptions.'
+                        'Open Automation rules and choose New schedule, for an environment or one group in it.',
+                        'Pick the days and the start and stop times (Advanced: different times per day); outside them it is stopped. This week shows the result.',
+                        'Use holiday calendars and one-off overrides, such as Skip the next stop, for exceptions.'
                     ]
                 },
                 {
@@ -214,14 +215,14 @@ const HelpContent = (function() {
                 {
                     heading: 'What a lease is',
                     paragraphs: [
-                        'In an environment with leases, a start runs it for a set time. The banner on the environment shows when it will stop and who is keeping it running.',
-                        'The default length and the longest allowed lease are set per environment; the banner shows both before you start.'
+                        'In an environment with leases, a start runs it for a set time. The Lease line on the environment page shows when it stops and who keeps it running.',
+                        'The default length and the longest allowed lease are set per environment; the start confirm shows both before you start.'
                     ]
                 },
                 {
                     heading: 'Keeping it running longer',
                     steps: [
-                        'Click Extend on the lease banner and choose how much longer.',
+                        'Choose Extend on the Lease line and how much longer.',
                         'Up to the environment\'s maximum the extension applies at once; beyond it, or when a policy requires it, an environment admin is asked to approve.',
                         'You are warned before the lease ends, in the bell and by email if you chose email.'
                     ]
@@ -367,15 +368,15 @@ const HelpContent = (function() {
                 {
                     heading: 'Adding VMs',
                     steps: [
-                        'Open the environment and pick Groups.',
-                        'Choose Add VM on a group and fetch the instances of the region.',
-                        'Pick an instance by its name and save. Instance IDs are shown to administrators only.'
+                        'Open VM registry (Manage) and pick the environment.',
+                        'Choose Add VMs from AWS, or Add VMs on a group.',
+                        'Tick the instances by name and add them to a group. Instance IDs are shown to administrators only.'
                     ]
                 },
                 {
-                    heading: 'Needs attention',
+                    heading: 'Needs review',
                     paragraphs: [
-                        'VMs found by discovery, changed outside the platform or no longer found in AWS are listed under Needs attention until someone marks them as reviewed or moves them.'
+                        'VMs found by discovery, changed outside the platform or no longer found in AWS are listed under Needs review (the registry\'s banner says Review them) until someone marks them as reviewed or moves them.'
                     ]
                 }
             ]
@@ -427,7 +428,7 @@ const HelpContent = (function() {
                 {
                     heading: 'Team quotas',
                     paragraphs: [
-                        'A team can have a monthly limit on running hours or dollars. Going over can warn you, need an approval, or be refused, as the quota says. Your teams\' usage is in My Account > Cost.'
+                        'A team can have a monthly limit on running hours or dollars. Going over can warn you, need an approval, or be refused, as the quota says. Your teams\' usage is in My account › Cost.'
                     ]
                 },
                 {
@@ -450,9 +451,8 @@ const HelpContent = (function() {
                 {
                     heading: 'What you can change here',
                     paragraphs: [
-                        'Feature switches and thresholds take effect within 30 seconds on every server, without a restart. Changes are recorded in the audit log.',
-                        'Settings marked Restart required are shown so you see the whole picture; change them in the server configuration and restart.',
-                        'Reset to default returns a setting to the value in the server configuration.'
+                        'Feature switches and thresholds take effect within 30 seconds on every server, without a restart. Save changes applies them; each change is recorded in the audit log.',
+                        'Rows marked Set in .env are read at start-up: they are shown so you see the whole picture; change them in the server configuration and restart.'
                     ]
                 }
             ]
@@ -498,19 +498,19 @@ const HelpContent = (function() {
                 {
                     heading: 'I get "access denied"',
                     paragraphs: [
-                        'Your access may have ended or not cover that environment or group. Check My Account > Access and request what you need.'
+                        'Your access may have ended or not cover that environment or group. Check My account › Access and ask for what you need on Request access.'
                     ]
                 },
                 {
                     heading: 'An operation looks stuck',
                     paragraphs: [
-                        'Large VMs can take several minutes to pass their checks. If nothing moves for a long time, cancel it from the operation panel and try again; state sync corrects the status within minutes.'
+                        'Large VMs can take several minutes to pass their checks. If nothing moves for a long time, choose Cancel the rest in the progress dialog and try again; state sync corrects the status within minutes.'
                     ]
                 },
                 {
                     heading: 'A VM is missing',
                     paragraphs: [
-                        'It may be in another group, inactive, or not registered yet. Environment admins can find it in the VM registry under Needs attention.'
+                        'It may be in another group, inactive, or not added yet. Environment admins can find it in the VM registry under Needs review.'
                     ]
                 }
             ]
