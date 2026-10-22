@@ -125,12 +125,28 @@ public class VmDiscoveryService {
                 namePrefix.isBlank() ? "(all)" : namePrefix, targets.size());
 
         int total = 0;
-        // Every account (E28-T06): a broken account is logged and the others still scanned.
-        for (CloudTarget target : targets) {
-            total += discoverByNamePattern(target);
+        if (sweep != null) {
+            // Every account and region at once (U19-T02); a failed region registers nothing (H24).
+            var result = sweep.run("EC2 instances by name", targets, t -> awsService.discoverInstancesByNamePrefix(t, namePrefix));
+            for (var entry : result.found().entrySet()) {
+                total += registerByNamePattern(entry.getKey(), entry.getValue());
+            }
+        } else {
+            // Every account (E28-T06): a broken account is logged and the others still scanned.
+            for (CloudTarget target : targets) {
+                total += discoverByNamePattern(target);
+            }
         }
         log.info("VM discovery (name-pattern) complete — {} new VM(s) registered", total);
         return total;
+    }
+
+    /** The discovery engine (U19-T02); absent in plain unit tests, then the targets are scanned one by one. */
+    private com.tcgdigital.vmcontrol.service.discovery.AwsResourceSweep sweep;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setSweep(com.tcgdigital.vmcontrol.service.discovery.AwsResourceSweep sweep) {
+        this.sweep = sweep;
     }
 
     private int discoverByNamePattern(CloudTarget target) {
@@ -145,6 +161,10 @@ public class VmDiscoveryService {
             }
             return 0;
         }
+        return registerByNamePattern(target, allInstances);
+    }
+
+    private int registerByNamePattern(CloudTarget target, List<Instance> allInstances) {
         if (allInstances.isEmpty()) {
             log.info("No instances found matching prefix '{}' in {}", namePrefix, target);
             return 0;

@@ -31,6 +31,7 @@ Run this (or the AWS Console's "Policy simulator" under IAM) before flipping any
 | EC2 start/stop/discovery | `ec2:StopInstances` | ✅ Granted | Real VM stops succeeded live during regression testing |
 | EC2 start/stop/discovery | `ec2:DescribeInstanceStatus` | ✅ Granted | Used successfully as part of the start/stop readiness-polling flow |
 | **Every region** (U19-T01) | `ec2:DescribeRegions` | ❓ Unverified | Read-only, once a day per account: the regions the account has enabled, opt-in regions included. Denied: scans keep to `AWS_REGION` and the configured region lists |
+| Every region (U19-T02, optional) | `resource-explorer-2:ListIndexes`, `resource-explorer-2:Search` | ❓ Unverified | Read-only: when the account has a Resource Explorer aggregator index and a default view, discovery only sweeps the regions that hold EC2 instances or EKS clusters. Denied or not set up: every enabled region is swept |
 | EKS sync/start/stop | `eks:DescribeNodegroup` | ✅ Granted | Used successfully throughout EKS sync testing and the sequence-collision fix work |
 | EKS sync/start/stop | `eks:ListNodegroups` | ✅ Granted | Used successfully during EKS sync |
 | EKS sync/start/stop | `eks:ListClusters` | ✅ Granted | Used successfully during EKS cluster auto-discovery |

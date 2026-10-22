@@ -114,19 +114,37 @@ public class EksSyncService {
     public List<EksClusterInfoDTO> getUnregisteredEksClusters() {
         List<EksClusterInfoDTO> result = new ArrayList<>();
         Map<String, String> names = accountNames();
-        // Every account and region (E28-T06); one account's failure does not hide the others.
+        // Every account and region (E28-T06, U19-T02); one account's failure does not hide the others.
+        listClustersEverywhere().forEach((target, clusters) -> clusters.stream()
+                .filter(name -> !isRegistered(name))
+                .forEach(name -> result.add(new EksClusterInfoDTO(name, target.region(), target.accountRef(),
+                        names.getOrDefault(target.accountRef(), target.accountRef())))));
+        return result;
+    }
+
+    /** The discovery engine (U19-T02); absent in plain unit tests, then the targets are listed one by one. */
+    private com.tcgdigital.vmcontrol.service.discovery.AwsResourceSweep sweep;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setSweep(com.tcgdigital.vmcontrol.service.discovery.AwsResourceSweep sweep) {
+        this.sweep = sweep;
+    }
+
+    /** The cluster names of every target that answered; a failed target is left out (and logged), never "no clusters". */
+    private Map<CloudTarget, List<String>> listClustersEverywhere() {
+        if (sweep != null) {
+            return sweep.everywhere("EKS clusters", resolveSyncRegions(), "eks:cluster", eksService::listClusters).found();
+        }
+        Map<CloudTarget, List<String>> found = new java.util.LinkedHashMap<>();
         for (CloudTarget target : scanTargets(resolveSyncRegions())) {
             try {
-                eksService.listClusters(target).stream()
-                        .filter(name -> !isRegistered(name))
-                        .forEach(name -> result.add(new EksClusterInfoDTO(name, target.region(), target.accountRef(),
-                                names.getOrDefault(target.accountRef(), target.accountRef()))));
+                found.put(target, eksService.listClusters(target));
             } catch (Exception e) {
                 log.error("Failed to list EKS clusters in {}: {}", target, e.getMessage());
                 reportScanFailure(target, e);
             }
         }
-        return result;
+        return found;
     }
 
     /**
@@ -183,21 +201,11 @@ public class EksSyncService {
      * Not {@code @Transactional}: listClusters is an AWS call, and each save commits on its own.
      */
     public void autoDiscoverClusters() {
-        for (CloudTarget target : scanTargets(resolveSyncRegions())) {
-            autoDiscoverClustersInRegion(target);
-        }
+        listClustersEverywhere().forEach(this::autoDiscoverClustersInRegion);
     }
 
-    private void autoDiscoverClustersInRegion(CloudTarget target) {
+    private void autoDiscoverClustersInRegion(CloudTarget target, List<String> clusterNames) {
         String region = target.region();
-        List<String> clusterNames;
-        try {
-            clusterNames = eksService.listClusters(target);
-        } catch (Exception e) {
-            log.error("Failed to list EKS clusters in region {} during auto-discovery: {}", region, e.getMessage());
-            reportScanFailure(target, e);
-            return;
-        }
 
         if (clusterNames.isEmpty()) {
             log.info("No EKS clusters found in region {} during auto-discovery", region);

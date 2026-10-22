@@ -78,23 +78,55 @@ public class VmCandidateService {
 
     // ------------------------------------------------------------------ candidates
 
-    /** The instances (or RDS databases) of the account and region, each with its status for the environment. */
+    /** "Every enabled region of the account" for listCandidates (U19-T02). */
+    public static final String ALL_REGIONS = "ALL";
+
+    private com.tcgdigital.vmcontrol.service.aws.AwsAccountService awsAccountService;
+    private com.tcgdigital.vmcontrol.service.discovery.AwsResourceSweep sweep;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setSweep(com.tcgdigital.vmcontrol.service.aws.AwsAccountService awsAccountService,
+                  com.tcgdigital.vmcontrol.service.discovery.AwsResourceSweep sweep) {
+        this.awsAccountService = awsAccountService;
+        this.sweep = sweep;
+    }
+
+    /**
+     * The instances (or RDS databases) of the account and region, each with its status for the
+     * environment. Region ALL (U19-T02): every region the account has enabled, swept in parallel; the
+     * regions that failed are left out, and when every one failed the listing fails.
+     */
     @Transactional(readOnly = true)
     public List<VmCandidateDTO> listCandidates(String environmentId, Source source, String region, String accountRef,
                                                String userId) {
+        if (ALL_REGIONS.equalsIgnoreCase(region)) {
+            return listEverywhere(environmentId, source, accountRef, userId);
+        }
         Environment environment = environment(environmentId);
         if (source == Source.RDS) {
-            if (!rdsService.isEnabled()) {
-                throw new ResourceNotFoundException("RDS support is not enabled");
-            }
-            List<RdsDatabaseInfoDTO> databases = rdsService.listDatabases(CloudTarget.of(accountRef, region));
-            Map<String, Vm> known = registered(CloudProvider.AWS_RDS,
-                    databases.stream().map(RdsDatabaseInfoDTO::providerVmId).toList());
-            return databases.stream().map(db -> candidate(environment, CloudProvider.AWS_RDS, accountRef, region, userId,
-                    db.providerVmId(), db.identifier(), db.instanceClass(), null, null, db.status(),
-                    known.get(db.providerVmId()), db.stoppable() ? null : db.notStoppableReason())).toList();
+            requireRds();
+            return rdsCandidates(environment, accountRef, region, userId, rdsService.listDatabases(CloudTarget.of(accountRef, region)));
         }
-        List<Ec2InstanceInfo> instances = ec2Service.listInstances(accountRef, region);
+        return ec2Candidates(environment, accountRef, region, userId, ec2Service.listInstances(accountRef, region));
+    }
+
+    private void requireRds() {
+        if (!rdsService.isEnabled()) {
+            throw new ResourceNotFoundException("RDS support is not enabled");
+        }
+    }
+
+    private List<VmCandidateDTO> rdsCandidates(Environment environment, String accountRef, String region, String userId,
+                                               List<RdsDatabaseInfoDTO> databases) {
+        Map<String, Vm> known = registered(CloudProvider.AWS_RDS,
+                databases.stream().map(RdsDatabaseInfoDTO::providerVmId).toList());
+        return databases.stream().map(db -> candidate(environment, CloudProvider.AWS_RDS, accountRef, region, userId,
+                db.providerVmId(), db.identifier(), db.instanceClass(), null, null, db.status(),
+                known.get(db.providerVmId()), db.stoppable() ? null : db.notStoppableReason())).toList();
+    }
+
+    private List<VmCandidateDTO> ec2Candidates(Environment environment, String accountRef, String region, String userId,
+                                               List<Ec2InstanceInfo> instances) {
         Map<String, Vm> known = registered(CloudProvider.AWS, instances.stream().map(Ec2InstanceInfo::instanceId).toList());
         return instances.stream().map(i -> {
             String name = i.tags() == null ? null : i.tags().get("Name");
@@ -102,6 +134,34 @@ public class VmCandidateService {
                     name == null || name.isBlank() ? null : name, i.instanceType(), i.availabilityZone(),
                     i.privateIpAddress(), i.state(), known.get(i.instanceId()), null);
         }).toList();
+    }
+
+    private List<VmCandidateDTO> listEverywhere(String environmentId, Source source, String accountRef, String userId) {
+        if (sweep == null || awsAccountService == null) {
+            throw new com.tcgdigital.vmcontrol.exception.ValidationException("Pick a region: listing every region is not available");
+        }
+        Environment environment = environment(environmentId);
+        String ref = CloudTarget.of(accountRef, null).accountRef();
+        List<CloudTarget> targets = awsAccountService.scanTargets(List.of()).stream().filter(t -> t.accountRef().equals(ref)).toList();
+        // Only the AWS listing runs in the sweep's threads; the candidates are built here, in this
+        // request's transaction and security context.
+        List<VmCandidateDTO> out = new java.util.ArrayList<>();
+        boolean anyAnswered;
+        if (source == Source.RDS) {
+            requireRds();
+            var result = sweep.run("RDS databases", targets, t -> rdsService.listDatabases(CloudTarget.of(accountRef, t.region())));
+            result.found().forEach((t, databases) -> out.addAll(rdsCandidates(environment, accountRef, t.region(), userId, databases)));
+            anyAnswered = !result.found().isEmpty();
+        } else {
+            var result = sweep.run("EC2 instances", targets, t -> ec2Service.listInstances(accountRef, t.region()));
+            result.found().forEach((t, instances) -> out.addAll(ec2Candidates(environment, accountRef, t.region(), userId, instances)));
+            anyAnswered = !result.found().isEmpty();
+        }
+        if (!targets.isEmpty() && !anyAnswered) {
+            throw new com.tcgdigital.vmcontrol.exception.IntegrationException(org.springframework.http.HttpStatus.BAD_GATEWAY,
+                    "AWS_UNAVAILABLE", "None of the account's regions could be listed");
+        }
+        return out;
     }
 
     private Map<String, Vm> registered(CloudProvider provider, List<String> ids) {

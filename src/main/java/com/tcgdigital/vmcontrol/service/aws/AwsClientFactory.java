@@ -155,6 +155,16 @@ public class AwsClientFactory {
                 .overrideConfiguration(DEFAULT_OVERRIDES).build());
     }
 
+    /**
+     * AWS Resource Explorer (U19-T02): ListIndexes from the home region (it lists every region's
+     * index), Search in the region of the account's aggregator index.
+     */
+    public software.amazon.awssdk.services.resourceexplorer2.ResourceExplorer2Client resourceExplorer(String accountRef, String region) {
+        Region r = region(region);
+        return cached("resource-explorer-2", accountRef, r, () -> software.amazon.awssdk.services.resourceexplorer2.ResourceExplorer2Client.builder()
+                .region(r).credentialsProvider(credentials(accountRef)).overrideConfiguration(DEFAULT_OVERRIDES).build());
+    }
+
     /** S3, for reading Data Exports such as the carbon emissions export (E37-T01). */
     public S3Client s3(String accountRef, String region) {
         Region r = region(region);

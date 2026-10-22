@@ -89,8 +89,14 @@ test.describe('AWS account in forms', () => {
     await expect(page.locator('#rv-account option')).toHaveText(['Default account', 'Payments'], { timeout: 15_000 });
     expect(await page.locator('#rv-region option').count()).toBeGreaterThan(2);
     await page.locator('#rv-account').selectOption('acct-b');
-    await expect(page.locator('#rv-region option')).toHaveText(['eu-west-1', 'us-east-1']);
+    // U19-T02: "Every enabled region" first; the account's first region stays the one picked.
+    await expect(page.locator('#rv-region option')).toHaveText(['Every enabled region', 'eu-west-1', 'us-east-1']);
+    await expect(page.locator('#rv-region')).toHaveValue('eu-west-1');
     await expect.poll(() => queries.at(-1)).toContain('accountRef=acct-b');
     expect(queries.at(-1)).toContain('region=eu-west-1');
+    // Every enabled region: one listing of the whole account.
+    await page.locator('#rv-region').selectOption('ALL');
+    await expect.poll(() => queries.at(-1)).toContain('region=ALL');
+    await expect(page.locator('#rv-table-wrap')).toHaveText('No instances in any enabled region.');
   });
 });

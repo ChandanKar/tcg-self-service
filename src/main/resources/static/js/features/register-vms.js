@@ -160,9 +160,17 @@ const RegisterVmsPage = (function() {
         bind();
     }
 
+    const ALL_REGIONS = 'ALL';
+
+    /** "eu-west-1", or "every enabled region" for ALL. */
+    function whereText(region) {
+        return region === ALL_REGIONS ? 'every enabled region' : region;
+    }
+
     function fillRegions(accountRef) {
-        const regions = regionsFor(accountRef, s.accounts, Config.AWS_REGIONS);
-        const wanted = (s.env.regions || []).find(r => regions.some(x => x.value === r)) || regions[0]?.value;
+        // U19-T02: "every enabled region" lists the account's instances wherever they are.
+        const regions = [{ value: ALL_REGIONS, label: 'Every enabled region' }].concat(regionsFor(accountRef, s.accounts, Config.AWS_REGIONS));
+        const wanted = (s.env.regions || []).find(r => regions.some(x => x.value === r)) || regions[1]?.value || ALL_REGIONS;
         $('#rv-region').html(regions.map(r => Utils.html`<option value="${r.value}"${Utils.raw(r.value === wanted ? ' selected' : '')}>${r.label}</option>`).join(''));
     }
 
@@ -178,7 +186,7 @@ const RegisterVmsPage = (function() {
         s.loading = true;
         s.picked.clear();
         s.page = 1;
-        $('#rv-table-wrap').html(`<div class="vr-empty">Looking for ${kind === 'RDS' ? 'databases' : 'instances'} in ${Utils.escapeHtml(region)}…</div>`);
+        $('#rv-table-wrap').html(`<div class="vr-empty">Looking for ${kind === 'RDS' ? 'databases' : 'instances'} in ${Utils.escapeHtml(whereText(region))}…</div>`);
         $('#rv-below').empty();
         updateFoot();
         try {
@@ -192,7 +200,7 @@ const RegisterVmsPage = (function() {
             if (!ContentRouter.isCurrent(token)) return;
             s.loading = false;
             s.candidates = [];
-            $('#rv-table-wrap').html(Utils.html`<div class="vr-empty rv-fail">Couldn't list ${kind === 'RDS' ? 'databases' : 'instances'} in ${region}.
+            $('#rv-table-wrap').html(Utils.html`<div class="vr-empty rv-fail">Couldn't list ${kind === 'RDS' ? 'databases' : 'instances'} in ${whereText(region)}.
                 Check the AWS account in Settings &gt; AWS accounts, then try again.
                 <button type="button" class="vr-link" id="rv-retry">Try again</button></div>`);
         }
@@ -205,7 +213,7 @@ const RegisterVmsPage = (function() {
         const items = Pagination.slice(rows, s.page, PAGE_SIZE);
         const what = s.kind === 'RDS' ? 'databases' : 'instances';
         if (!s.candidates.length) {
-            $('#rv-table-wrap').html(`<div class="vr-empty">No ${what} in this region.</div>`);
+            $('#rv-table-wrap').html(`<div class="vr-empty">No ${what} in ${$('#rv-region').val() === ALL_REGIONS ? 'any enabled region' : 'this region'}.</div>`);
         } else if (!rows.length) {
             $('#rv-table-wrap').html(Utils.html`<div class="vr-empty">No ${what} match "${s.search}".</div>`);
         } else {

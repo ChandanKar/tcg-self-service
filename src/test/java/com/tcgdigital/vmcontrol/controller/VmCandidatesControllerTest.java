@@ -124,6 +124,24 @@ class VmCandidatesControllerTest extends SecuredWebTestBase {
     }
 
     @Test
+    void everyEnabledRegionListsTheAccountsInstancesWithTheSameStatuses() throws Exception {
+        // U19-T02: region ALL sweeps every enabled region of the account (here: aws.region, as no AWS answers);
+        // the listing runs in the sweep's threads, the statuses are built in the request (its user and session).
+        String body = mockMvc.perform(get("/api/v1/environments/" + env.getEnvironmentId() + "/vms/candidates")
+                        .param("region", "ALL").param("source", "EC2").with(asEnvAdmin()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode list = json.readTree(body);
+
+        assertThat(list).hasSize(7);
+        assertThat(byName(list, "here").get("status").asText()).isEqualTo("IN_ENVIRONMENT");
+        assertThat(byName(list, "found").get("status").asText()).isEqualTo("DISCOVERED_UNGROUPED");
+        assertThat(byName(list, "web-03").get("zone").asText()).isEqualTo("ap-south-1a");
+        list.forEach(c -> assertThat(c.get("ref").asText()).isNotBlank());
+        assertThat(list.toString()).doesNotContain("i-0");
+    }
+
+    @Test
     void anEnvironmentAdminGetsNoInstanceIds() throws Exception {
         JsonNode list = candidates(asEnvAdmin(), "EC2");
 
