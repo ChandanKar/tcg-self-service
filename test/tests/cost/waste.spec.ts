@@ -36,7 +36,7 @@ test.describe('Waste page', () => {
     await expect(sweep).toBeDisabled();
     await expect(sweep).toHaveAttribute('title', 'Waste sweeps are turned off: set waste.sweep.enabled');
     await expect(page.locator('.waste-card .waste-card-name')).toHaveText(['Everything', 'Unattached volumes', 'Unused public IPs',
-      'gp2 → gp3', 'Stopped over 30 days', 'Old snapshots']);
+      'gp2 → gp3', 'Stopped over 30 days', 'Old snapshots', 'Idle VMs']); // Idle VMs moved here in U18-T04
     await expect(page.locator('#waste-intro')).toContainText('Things in AWS that cost money and do nothing. Checked daily at 04:00 UTC;');
   });
 
@@ -198,6 +198,28 @@ test.describe('Waste page', () => {
     await dialog.getByRole('button', { name: 'Propose fix' }).click();
     await expect.poll(() => sent).toEqual({ type: 'DELETE_VOLUME', reason: 'Left over from the 3.9 load test' });
     await expect(page.locator('.modal.show')).toHaveCount(0);
+  });
+
+  test('Idle VMs: a card with the idle cost a month, the list by idle cost with Excel (moved from Cost management, U18-T04)', async ({ page }) => {
+    await page.route(/\/api\/v1\/cost-management\/summary$/, r => r.fulfill({ json: { idleVmCount: 2, idleWasteMonthlyCost: 412.6 } }));
+    await page.route(/\/api\/v1\/cost-management\/idle-waste\?/, r => r.fulfill({ json: { content: [
+      { vmId: 'v-1', vmName: 'report-worker', environmentName: 'Analytics QA', groupName: 'Batch', monthlyCost: 300, costKnown: true,
+        latestCpuUtilization: 1.2, idleSince: new Date(Date.now() - 3 * 86_400_000).toISOString(), monthlyIdleCost: 280 },
+      { vmId: 'v-2', vmName: 'old-api', environmentName: 'CRM UAT', groupName: 'App', monthlyCost: 150, costKnown: true,
+        latestCpuUtilization: 0.4, idleSince: new Date(Date.now() - 86_400_000).toISOString(), monthlyIdleCost: 132.6 }],
+      page: { size: 10, number: 0, totalElements: 2, totalPages: 1 } } }));
+    await open(page);
+    const card = page.locator('[data-action="waste-type"][data-type="IDLE_VMS"]');
+    await expect(card).toContainText('$413', { timeout: 15_000 });
+    await expect(card).toContainText('Idle VMs');
+    await expect(card).toContainText('2 barely used');
+    await card.click();
+    await expect(card).toHaveAttribute('aria-pressed', 'true');
+    const rows = page.locator('#cost-idle-table-body tr');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.first()).toContainText('report-worker');
+    await expect(page.getByRole('link', { name: 'Excel' })).toHaveAttribute('href', /\/cost-management\/idle-waste\/export$/);
+    await expect(page.locator('#waste-show-dismissed')).toHaveCount(0);
   });
 
   test('non-admins are refused', async ({ page }) => {

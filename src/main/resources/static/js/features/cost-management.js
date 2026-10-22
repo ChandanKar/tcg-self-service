@@ -30,7 +30,8 @@ const CostManagement = (function() {
 
     /** The tabs, their panels in page order, and the feature a tab needs (U15-T01). */
     const TABS = [
-        { key: 'overview', label: 'Overview', panels: ['kpi', 'trend', 'breakdown', 'savings', 'workloads', 'idle'] },
+        // Idle VMs moved to Waste (U18-T04, the owner's decision): Overview matches the CostOverview board.
+        { key: 'overview', label: 'Overview', panels: ['kpi', 'trend', 'breakdown', 'savings', 'workloads'] },
         { key: 'rightsizing', label: 'Rightsizing', panels: ['rightsizing', 'spot'] },
         { key: 'commitments', label: 'Commitments', panels: ['commitments'], feature: 'costReservations' },
         { key: 'carbon', label: 'Carbon', panels: ['carbon'], feature: 'carbon' },
@@ -395,7 +396,17 @@ const CostManagement = (function() {
             if (!panelFailed(name) && PANELS[name].after) PANELS[name].after();
         });
         syncHeader(tab);
+        watchReport();
         if (typeof Tabs !== 'undefined') Tabs.bind(document.getElementById('cost-tabs'), key => openTab(key));
+    }
+
+    /**
+     * On the page frame (U18-T04) the header and tabs stay and the tab's content scrolls inside when the
+     * window is short: a named region, with a shadow while more is hidden.
+     */
+    function watchReport() {
+        const report = document.querySelector('#content-area .cost-report[data-scroll-label]');
+        if (report && typeof Modals !== 'undefined' && Modals.watchScroll) Modals.watchScroll(report, report, report.dataset.scrollLabel);
     }
 
     function capable(feature) {
@@ -413,7 +424,7 @@ const CostManagement = (function() {
                 summaryHtml: 'Estimated from run time and AWS list prices; replaced by AWS billing figures where they exist.',
                 helpPage: typeof HelpLink !== 'undefined' ? 'cost-management' : null, helpLabel: 'Cost management' })}
             <div class="cost-tabs-row no-print">${Tabs.markup({ id: 'cost-tabs', label: 'Cost', active, tabs })}</div>
-            ${Tabs.panel({ id: 'cost-tabs', key: active, active }, bodyHtml)}`;
+            <div class="cost-report page-fill" data-scroll-label="Cost management">${Tabs.panel({ id: 'cost-tabs', key: active, active }, bodyHtml)}</div>`;
     }
 
     function buildPageHtml() {
@@ -429,7 +440,7 @@ const CostManagement = (function() {
             { id: 'cost-export-detail', text: 'VM cost detail, Excel', href: Config.API.costManagement.vmDetailExport(), download: `vm-cost-detail-${todayStamp()}.xlsx` },
             { text: 'Month for finance, FOCUS CSV…', action: 'cost-focus-export' }] });
         return `
-            <div class="content-view cost-management-view" id="cost-management-view">
+            <div class="content-view page page-frame cost-management-view" id="cost-management-view">
                 ${PageHeader.markup({ title: 'Cost management',
                     summaryHtml: 'Estimated from run time and AWS list prices; replaced by AWS billing figures where they exist.',
                     actionsHtml: `<div class="cost-toolbar no-print" id="cost-toolbar">${dataMenu}${exportMenu}</div>
@@ -439,7 +450,7 @@ const CostManagement = (function() {
                     ${Tabs.markup({ id: 'cost-tabs', label: 'Cost', active, tabs: tabs.map(t => ({ key: t.key, label: t.label })) })}
                     <a class="cost-setup-link" href="#/cost-setup">Setup</a>
                 </div>
-                <div class="cost-report" id="cost-report">
+                <div class="cost-report page-fill" id="cost-report" data-scroll-label="Cost management">
                     ${tabs.map(t => Tabs.panel({ id: 'cost-tabs', key: t.key, active }, t.key === active ? tabHtml(t) : '')).join('')}
                 </div>
             </div>
@@ -2099,6 +2110,8 @@ const CostManagement = (function() {
         setBreakdownBy,
         setAnomalyDays,
         navHtml,
+        watchReport,
+        idleRowsHtml: rows => buildIdleRows(rows || []),
         model: { monthToDate, monthEnd, topBars, teamsThisMonth, topSavings, commitmentFigures, recommendationDetail, termText, carbonBars }
     };
 })();

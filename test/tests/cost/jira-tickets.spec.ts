@@ -34,6 +34,13 @@ async function openCostPage(page: Page, jiraEnabled: boolean) {
   await signIn(page, 'admin');
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
   await page.evaluate(() => { location.hash = '#/cost-management'; });
+  await expect(page.getByRole('tab', { name: 'Rightsizing' })).toBeVisible({ timeout: 15_000 });
+}
+
+/** U18-T04: idle VMs live on Waste, under the Idle VMs card. */
+async function openIdleVms(page: Page) {
+  await page.evaluate(() => { location.hash = '#/waste'; });
+  await page.locator('[data-action="waste-type"][data-type="IDLE_VMS"]').click({ timeout: 15_000 });
   await expect(page.locator('#cost-idle-table-body')).toContainText('batch-worker', { timeout: 15_000 });
 }
 
@@ -50,6 +57,7 @@ test.describe('Jira ticket buttons', () => {
         sourceType: 'IDLE', sourceId: 'vm-idle-1', issueKey: 'OPS-12', url: 'https://acme.atlassian.net/browse/OPS-12', created: true }) });
     });
     await openCostPage(page, true);
+    await openIdleVms(page);
 
     const button = page.locator('#cost-idle-table-body [data-action="jira-create"]');
     await expect(button).toHaveText('Create Jira ticket');
@@ -57,7 +65,8 @@ test.describe('Jira ticket buttons', () => {
     await expect(page.locator('#cost-idle-table-body .jira-link')).toHaveText('OPS-12');
     expect(sent).toEqual({ sourceType: 'IDLE', sourceId: 'vm-idle-1' });
 
-    await page.getByRole('tab', { name: 'Rightsizing' }).click(); // U15-T01: its own tab
+    await page.evaluate(() => { location.hash = '#/cost-management'; });
+    await page.getByRole('tab', { name: 'Rightsizing' }).click({ timeout: 15_000 }); // U15-T01: its own tab
     const existing = page.locator('#cost-rightsizing-table-body .jira-link');
     await expect(existing).toHaveText('OPS-3');
     await expect(existing).toHaveAttribute('href', 'https://acme.atlassian.net/browse/OPS-3');

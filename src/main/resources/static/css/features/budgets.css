@@ -122,6 +122,20 @@
     gap: 12px;
 }
 
+/* On the page frame (U18-T04): the totals, pager and note stay; the budgets scroll inside when needed.
+   No panel frame around them: each budget is its own card. */
+.bd-panel.list-panel {
+    background: none;
+    border: 0;
+    border-radius: 0;
+    gap: 12px;
+}
+
+.bd-foot {
+    background: none;
+    border-top: 0;
+}
+
 .bd-row {
     display: flex;
     flex-direction: column;

@@ -143,7 +143,6 @@ const SIZES: [number, number][] = [[1440, 900], [1536, 730], [1366, 657]];
  * skipped until their task lands. U18-T06 empties this list.
  */
 const LAPTOP_KNOWN: Record<string, string> = {
-  '#/cost-management': 'U18-T04', '#/cost-setup': 'U18-T04', '#/savings': 'U18-T04', '#/system-health': 'U18-T04',
   '#/automation-rules/new': 'U18-T05', '#/access-management/grant': 'U18-T05', '#/user-management/add': 'U18-T05',
   '#/settings': 'U18-T05',
 };
@@ -172,8 +171,6 @@ test.describe('Fits the window without a page scrollbar', () => {
         const scrolls: string[] = [];
         for (const hash of hashes) {
           if (!mockup && LAPTOP_KNOWN[hash]) continue;
-          // Known, waiting on U18-T04: Overview still holds the idle-VM table, which moves to Waste.
-          if (hash === '#/cost-management') continue;
           await page.evaluate(() => { location.hash = '#/help'; });
           await expect(page.locator('#help-search')).toBeVisible();
           await page.evaluate(h => { location.hash = h; }, hash);

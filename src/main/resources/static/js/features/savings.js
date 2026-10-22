@@ -135,7 +135,7 @@ const Savings = (function() {
         const dataMenu = typeof Menu !== 'undefined' ? Menu.markup({ id: 'savings-data-menu', label: 'Data actions', items: [
             { text: 'Rebuild the last 30 days', action: 'savings-backfill' }] }) : '';
         $('#content-area').html(`
-            <div class="content-view savings-page">
+            <div class="content-view page page-frame savings-page">
                 ${PageHeader.markup({ title: 'Savings',
                     summaryHtml: 'What stopping and resizing saved, after the storage and IP costs that keep running.',
                     actionsHtml: Utils.html`<div class="savings-toolbar">
@@ -144,6 +144,7 @@ const Savings = (function() {
                         <button type="button" class="btn btn-outline-secondary" data-action="savings-export">Export month, Excel</button>
                         ${Utils.raw(dataMenu)}</div>`,
                     helpPage: typeof HelpLink !== 'undefined' ? 'savings' : null, helpLabel: 'Savings' })}
+                <div class="savings-body page-fill" data-scroll-label="Savings">
                 ${panel('summary', () => tiles(s), 'the summary')}
                 ${s && s.fullyCoveredEntries > 0 ? `<p class="cost-note savings-note" role="status">Some scheduled hours show no
                     compute saving because Savings Plans or Reserved Instances already pay for them.</p>` : ''}
@@ -152,7 +153,10 @@ const Savings = (function() {
                     ${panel('trend', () => efficiency(state.data.trend), 'the efficiency trend')}
                 </div>
                 ${panel('byEnvironment', () => byEnvironment(state.data.byEnvironment), 'savings by environment')}
+                </div>
             </div>`);
+        const body = document.querySelector('#content-area .savings-body');
+        if (body && typeof Modals !== 'undefined' && Modals.watchScroll) Modals.watchScroll(body, body, 'Savings');
     }
 
     function panel(key, build, label) {

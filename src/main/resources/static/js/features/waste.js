@@ -10,6 +10,9 @@ const Waste = (function() {
     const QUIET = { suppressGlobalError: true };
     const PAGE_SIZE = 10;
     /** The board's names for each type, in its order. */
+    /** The idle VMs card (U18-T04: moved here from Cost management's Overview). */
+    const IDLE = 'IDLE_VMS';
+
     const TYPES = {
         UNATTACHED_VOLUME: { label: 'Unattached volumes' },
         UNASSOCIATED_IP: { label: 'Unused public IPs' },
@@ -88,9 +91,9 @@ const Waste = (function() {
             $('#content-area').html('<div class="alert alert-danger m-3">Access denied. Admin only.</div>');
             return;
         }
-        state = { filters: { type: '', status: 'OPEN' }, page: 0, summary: null, findings: null, errors: {} };
+        state = { filters: { type: '', status: 'OPEN' }, page: 0, summary: null, findings: null, errors: {}, idleTotals: null, idle: null };
         $('#content-area').html(`
-            <div class="content-view waste-page" id="waste-view">
+            <div class="content-view page page-frame waste-page" id="waste-view">
                 ${PageHeader.markup({ title: 'Waste',
                     summaryHtml: '<span id="waste-intro">Things in AWS that cost money and do nothing.</span>',
                     actionsHtml: `<div class="waste-toolbar">
@@ -99,7 +102,7 @@ const Waste = (function() {
                     helpPage: typeof HelpLink !== 'undefined' ? 'waste' : null, helpLabel: 'Waste' })}
                 <div id="waste-summary"></div>
                 <div id="waste-filters"></div>
-                <div id="waste-table"></div>
+                <div id="waste-table" class="page-fill waste-table-area" data-scroll-label="Waste"></div>
                 <div id="waste-actions"></div>
             </div>`);
         refresh();
@@ -107,10 +110,18 @@ const Waste = (function() {
 
     function refresh() {
         const token = pageToken;
-        Promise.allSettled([call('GET', Config.API.waste.summary), call('GET', findingsUrl()),
-            call('GET', Config.API.waste.actionsConfig), call('GET', Config.API.waste.actions)]).then(([summary, findings, config, actions]) => {
+        const idle = state.filters.type === IDLE;
+        Promise.allSettled([call('GET', Config.API.waste.summary), idle ? Promise.resolve(null) : call('GET', findingsUrl()),
+            call('GET', Config.API.waste.actionsConfig), call('GET', Config.API.waste.actions),
+            call('GET', Config.API.costManagement.summary),
+            idle ? call('GET', Config.API.costManagement.idleWaste(state.page, PAGE_SIZE)) : Promise.resolve(null)]).then(([summary, findings, config, actions, costs, idlePage]) => {
             if (!ContentRouter.isCurrent(token)) return;
             state.errors = {};
+            state.idleTotals = costs.status === 'fulfilled' && costs.value
+                ? { count: costs.value.idleVmCount || 0, monthly: costs.value.idleWasteMonthlyCost || 0 } : null;
+            if (idle) {
+                if (idlePage.status === 'fulfilled') state.idle = idlePage.value; else state.errors.idle = idlePage.reason || true;
+            }
             state.actionsEnabled = config.status === 'fulfilled' && config.value && config.value.enabled;
             state.actions = actions.status === 'fulfilled' ? (actions.value || []) : [];
             if (summary.status === 'fulfilled') state.summary = summary.value; else state.errors.summary = summary.reason || true;
@@ -166,13 +177,17 @@ const Waste = (function() {
                 data-type="${type}" aria-pressed="${state.filters.type === type ? 'true' : 'false'}">
                 <span class="cost-mono waste-card-cost">${money0(monthly)}</span><span class="waste-card-name">${label}</span>
                 <span class="cost-note">${String(count)} open</span></button>`;
+        const idle = state.idleTotals;
         const cards = [card('', 'Everything', s.monthlyTotal, s.openCount)].concat(Object.entries(TYPES).map(([type, meta]) => {
             const t = byType[type] || { count: 0, monthly: 0 };
             return card(type, meta.label, t.monthly, t.count);
-        })).join('');
+        })).concat(idle ? [Utils.html`<button type="button" class="waste-card waste-card-idle" data-action="waste-type"
+                data-type="${IDLE}" aria-pressed="${state.filters.type === IDLE ? 'true' : 'false'}">
+                <span class="cost-mono waste-card-cost">${money0(idle.monthly)}</span><span class="waste-card-name">Idle VMs</span>
+                <span class="cost-note">${String(idle.count)} barely used</span></button>`] : []).join('');
         $('#waste-filters').html(`<div class="waste-cards" role="group" aria-label="Show">${cards}</div>
-            <label class="waste-dismissed"><input type="checkbox" class="form-check-input" id="waste-show-dismissed"
-                ${state.filters.status === 'DISMISSED' ? 'checked' : ''}> Show dismissed</label>`);
+            ${state.filters.type === IDLE ? '' : `<label class="waste-dismissed"><input type="checkbox" class="form-check-input" id="waste-show-dismissed"
+                ${state.filters.status === 'DISMISSED' ? 'checked' : ''}> Show dismissed</label>`}`);
         $('#waste-show-dismissed').on('change', function() {
             state.filters.status = this.checked ? 'DISMISSED' : 'OPEN';
             state.page = 0;
@@ -180,7 +195,33 @@ const Waste = (function() {
         });
     }
 
+    /** Idle VMs (U18-T04): running VMs that barely work, by idle cost, with the EKS and Jira cells of Cost management. */
+    function drawIdle() {
+        if (state.errors.idle) {
+            $('#waste-table').html(error('the idle VMs', state.errors.idle));
+            return;
+        }
+        const page = state.idle;
+        if (!page) return;
+        const meta = page.page || { number: page.number || 0, totalElements: page.totalElements || 0 };
+        const rows = typeof CostManagement !== 'undefined' && CostManagement.idleRowsHtml
+            ? CostManagement.idleRowsHtml(page.content || []) : '';
+        const pager = meta.totalElements > PAGE_SIZE ? Pagination.buildPager({ page: meta.number + 1, totalItems: meta.totalElements,
+            pageSize: PAGE_SIZE, action: 'waste-page' }) : '';
+        $('#waste-table').html(`<section class="cost-card rs-table-card waste-table-card">
+            <div class="cost-card-head waste-idle-head"><h2>Idle VMs, by idle cost</h2>
+                <a href="${Utils.escapeHtml(Config.API.costManagement.idleWasteExport())}" download="idle-vms.xlsx">Excel</a></div>
+            <div class="cost-scroll"><table class="cost-table waste-table" id="cost-idle-table">
+                <thead><tr><th scope="col">VM</th><th scope="col">Group</th><th scope="col" class="cost-num">A month</th>
+                    <th scope="col" class="cost-num">Latest CPU</th><th scope="col">Idle since</th><th scope="col" class="cost-num">Idle, a month</th></tr></thead>
+                <tbody id="cost-idle-table-body">${rows}</tbody></table></div>${pager}</section>`);
+    }
+
     function drawTable() {
+        if (state.filters.type === IDLE) {
+            drawIdle();
+            return;
+        }
         if (state.errors.findings) {
             $('#waste-table').html(error('the findings', state.errors.findings));
             return;
@@ -223,6 +264,8 @@ const Waste = (function() {
 
     /** How fixes work, and the fixes waiting for approval (Waste › Fixes); hidden while fixes are off. */
     function drawFooter() {
+        const area = document.getElementById('waste-table');
+        if (area && typeof Modals !== 'undefined' && Modals.watchScroll) Modals.watchScroll(area, area, 'Waste');
         if (!state.actionsEnabled) {
             $('#waste-actions').html('');
             return;

@@ -51,7 +51,7 @@ test.describe('Cost Management resilience', () => {
     // Every other panel rendered.
     await expect(page.locator('[data-cost-panel="kpi"] .cost-kpi')).toHaveCount(5);
     await expect(page.locator('[data-cost-panel="breakdown"] #cost-by')).toBeVisible();
-    await expect(page.locator('#cost-idle-table')).toBeVisible();
+    await expect(page.locator('#cost-idle-table')).toHaveCount(0); // U18-T04: idle VMs are on Waste now
     await expect(page.locator('.cost-panel-error')).toHaveCount(1);
     // The panel explains the failure; no global "unexpected error" toast on top.
     expect(await page.evaluate(() => (window as any).__errorToasts)).toEqual([]);

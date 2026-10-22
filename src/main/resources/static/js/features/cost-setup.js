@@ -77,6 +77,7 @@ const CostSetup = (function() {
         const token = ContentRouter.token();
         reconPage = 1;
         $('#content-area').html(shell('<p class="cost-note">Loading&hellip;</p>'));
+        if (typeof CostManagement !== 'undefined' && CostManagement.watchReport) CostManagement.watchReport();
         bindTabs();
         Promise.all([
             fetchJson(Config.API.costManagement.setupStatus),
@@ -99,7 +100,7 @@ const CostSetup = (function() {
         const nav = typeof CostManagement !== 'undefined' && CostManagement.navHtml
             ? CostManagement.navHtml('setup', '<div id="cost-setup-body">' + bodyHtml + '</div>')
             : '<div id="cost-setup-body">' + bodyHtml + '</div>';
-        return `<div class="content-view cost-management-view cost-setup-view">${nav}</div>`;
+        return `<div class="content-view page page-frame cost-management-view cost-setup-view">${nav}</div>`;
     }
 
     function bindTabs() {

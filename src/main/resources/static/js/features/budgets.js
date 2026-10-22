@@ -111,12 +111,16 @@ const Budgets = (function() {
 
     // Three budgets fit 1440 x 900 without a page scrollbar, with the pending actions above (U17-T07).
     const BUDGETS_PER_PAGE = 3;
+    /** Budgets a page on the page frame: as many as fit, at most BUDGETS_PER_PAGE (U18-T04). */
+    let fitSize = null;
+    const perPage = () => fitSize || BUDGETS_PER_PAGE;
 
     function load() {
         pageToken = ContentRouter.token();
         page = { data: {}, errors: {}, listPage: 1, showScope: null };
+        fitSize = null;
         $('#content-area').html(`
-            <div class="content-view budgets-page" id="budgets-view">
+            <div class="content-view page page-frame budgets-page" id="budgets-view">
                 ${PageHeader.markup({ title: 'Budgets',
                     summaryHtml: 'Monthly limits for environments and teams, with alerts at 50, 75, 90 and 100%.',
                     actionsHtml: `<button type="button" class="btn btn-primary" data-action="budget-new" id="budget-new-btn" hidden>
@@ -124,7 +128,7 @@ const Budgets = (function() {
                         New budget</button>`,
                     helpPage: typeof HelpLink !== 'undefined' ? 'budgets' : null, helpLabel: 'Budgets' })}
                 <div id="budget-actions-panel"></div>
-                <div id="budget-list-panel"><div class="ar-empty" role="status">Loading budgets…</div></div>
+                <div id="budget-list-panel" class="list-panel page-fill bd-panel"><div class="ar-empty" role="status">Loading budgets…</div></div>
             </div>`);
         fetchPage();
     }
@@ -197,14 +201,14 @@ const Budgets = (function() {
         // After a save, open the page that holds that budget.
         if (page.showScope) {
             const at = budgets.findIndex(b => b.scopeId === page.showScope);
-            if (at >= 0) page.listPage = Math.floor(at / BUDGETS_PER_PAGE) + 1;
+            if (at >= 0) page.listPage = Math.floor(at / perPage()) + 1;
             page.showScope = null;
         }
-        const pages = Math.max(1, Math.ceil(budgets.length / BUDGETS_PER_PAGE));
+        const pages = Math.max(1, Math.ceil(budgets.length / perPage()));
         page.listPage = Math.min(Math.max(1, page.listPage || 1), pages);
-        const pager = budgets.length > BUDGETS_PER_PAGE ? Pagination.buildPager({ page: page.listPage, pageSize: BUDGETS_PER_PAGE,
+        const pager = budgets.length > perPage() ? Pagination.buildPager({ page: page.listPage, pageSize: perPage(),
             totalItems: budgets.length, action: 'budget-page', key: 'budgets' }) : '';
-        const rows = Pagination.slice(budgets, page.listPage, BUDGETS_PER_PAGE).map(b => {
+        const rows = Pagination.slice(budgets, page.listPage, perPage()).map(b => {
             const chip = chipOf(b);
             return Utils.html`
             <article class="bd-row${Utils.raw(b.enabled ? '' : ' bd-row-off')}" data-budget-id="${b.budgetId}" data-scope-id="${b.scopeId}">
@@ -227,8 +231,25 @@ const Budgets = (function() {
                 </div>` : '')}
             </article>`;
         }).join('');
-        $('#budget-list-panel').html(`${totals}<div class="bd-list" id="budgets-list">${rows}</div>${pager}
-            <p class="bd-note">Spend uses AWS billing where available, otherwise the estimate, up to yesterday.</p>`);
+        $('#budget-list-panel').html(`${totals}<div class="bd-list list-panel-body" id="budgets-list" tabindex="0" role="region" aria-label="Budgets, scrolls">${rows}</div>
+            <div class="list-panel-foot bd-foot">${pager}
+            <p class="bd-note">Spend uses AWS billing where available, otherwise the estimate, up to yesterday.</p></div>`);
+        attachFit();
+    }
+
+    /** Budgets a page follow the window: measured when the list first shows and when a resize settles (U18-T04). */
+    function attachFit() {
+        const panel = document.getElementById('budget-list-panel');
+        if (!panel || !panel.querySelector('.bd-row') || typeof ListPanel === 'undefined') return;
+        const apply = count => {
+            if (!count || count === perPage()) return;
+            const first = (page.listPage - 1) * perPage();
+            fitSize = count;
+            page.listPage = ListPanel.pageKeepingFirst(first, count);
+            drawPage();
+        };
+        const handle = ListPanel.attach(panel, { rowSelector: '.bd-row', rowHeight: 150, min: 1, max: BUDGETS_PER_PAGE, onFit: apply });
+        if (fitSize === null) apply(handle.fitCount());
     }
 
     function canEdit(b) {

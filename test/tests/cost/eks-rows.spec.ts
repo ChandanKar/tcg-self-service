@@ -22,10 +22,12 @@ test('EKS rows show their node count and no Apply button', async ({ page }) => {
       findingLevel: null, direction: 'SCALE_DOWN', vmStatus: 'STOPPED', priceApproximate: false, nodeCount: 3 }]) }));
   await signIn(page, 'admin');
   await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
-  await page.evaluate(() => { location.hash = '#/cost-management'; });
-
+  // U18-T04: idle VMs live on Waste, under the Idle VMs card.
+  await page.evaluate(() => { location.hash = '#/waste'; });
+  await page.locator('[data-action="waste-type"][data-type="IDLE_VMS"]').click({ timeout: 15_000 });
   await expect(page.locator('#cost-idle-table-body .eks-nodes')).toHaveText('EKS · 3 nodes', { timeout: 15_000 });
-  await page.getByRole('tab', { name: 'Rightsizing' }).click(); // U15-T01: its own tab
+  await page.evaluate(() => { location.hash = '#/cost-management'; });
+  await page.getByRole('tab', { name: 'Rightsizing' }).click({ timeout: 15_000 }); // U15-T01: its own tab
   const rightsizing = page.locator('#cost-rightsizing-table-body');
   await expect(rightsizing.locator('.eks-nodes')).toHaveText('EKS · 3 nodes');
   await expect(rightsizing).toContainText('Change the node group in EKS');
