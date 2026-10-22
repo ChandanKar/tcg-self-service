@@ -68,9 +68,19 @@ const Dashboard = (function() {
         lastRenderPhone = isPhone();
         disposeTooltips();
         $('#content-area').html(buildDashboardHtml(data));
+        watchHomeScroll();
         bindEvents();
         if (isAdmin(data)) AdminHome.fill(data); else if (!lastRenderPhone) loadRecentActivity();
         initTooltips();
+    }
+
+    /**
+     * On the page frame (U18-T02) a card's list scrolls inside the card when the window is short: it is
+     * then named and reachable by keyboard, with a shadow on the edge while more is hidden.
+     */
+    function watchHomeScroll() {
+        if (typeof Modals === 'undefined' || !Modals.watchScroll) return;
+        document.querySelectorAll('#dashboard-view [data-scroll-label]').forEach(el => Modals.watchScroll(el, el, el.dataset.scrollLabel));
     }
 
     // Crossing the phone width redraws Home in the other form (U16-T02), from the data it already has.
@@ -186,7 +196,7 @@ const Dashboard = (function() {
                 + Utils.html` · <span class="mono">${money(data.summary && data.summary.monthToDateCost)}</span> this month`
             : 'Nothing to show yet.';
         return `
-            <div class="content-view page home-page" id="dashboard-view">
+            <div class="content-view page page-frame home-page" id="dashboard-view">
                 ${PageHeader.markup({
                     title: 'Home',
                     summaryHtml: summary,
@@ -207,7 +217,7 @@ const Dashboard = (function() {
     function buildHomeLower(idleVms) {
         const rows = HomeModel.idleRows(idleVms, 2);
         const idle = rows.length ? `
-            <section class="home-panel home-idle" aria-labelledby="home-idle-title">
+            <section class="home-panel home-idle" aria-labelledby="home-idle-title" data-scroll-label="Running but barely used">
                 <h2 id="home-idle-title">Running but barely used</h2>
                 <p class="home-panel-sub">CPU, network and disk have been nearly idle. Stopping them saves money.</p>
                 ${rows.map(vm => {
@@ -225,9 +235,9 @@ const Dashboard = (function() {
                 }).join('')}
             </section>` : '';
         return `
-            <div class="home-lower${idle ? '' : ' home-lower-single'}">
+            <div class="home-lower page-fill${idle ? '' : ' home-lower-single'}">
                 ${idle}
-                <section class="home-panel home-recent" aria-labelledby="home-recent-title">
+                <section class="home-panel home-recent" aria-labelledby="home-recent-title" data-scroll-label="Your recent activity">
                     <div class="home-panel-head">
                         <h2 id="home-recent-title">Your recent activity</h2>
                         <button type="button" class="btn btn-link home-panel-link" data-action="home-all-activity">All activity</button>

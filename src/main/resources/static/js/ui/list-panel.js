@@ -74,7 +74,8 @@ const ListPanel = (function() {
     function fitCount(panel, opts = {}) {
         if (!framed() || (panel && panel.isConnected === false)) return null;
         const body = panel.querySelector('.list-panel-body');
-        if (!body) return null;
+        // Not laid out (a hidden tab): no measurement, the page keeps its size.
+        if (!body || !body.clientHeight) return null;
         const rows = opts.rowSelector ? Array.from(body.querySelectorAll(opts.rowSelector)) : [];
         const rowsHeight = rows.reduce((sum, r) => sum + r.getBoundingClientRect().height, 0);
         const rowHeight = rows.length ? rowsHeight / rows.length : (opts.rowHeight || 44);
@@ -102,8 +103,8 @@ const ListPanel = (function() {
         const settle = () => {
             clearTimeout(timer);
             timer = setTimeout(() => {
-                // A list re-rendered in place leaves its old panel behind: it stops watching, silently.
-                if (!panel.isConnected) {
+                // A list re-rendered in place leaves its old panel or body behind: it stops watching, silently.
+                if (!panel.isConnected || !body.isConnected) {
                     handle.destroy();
                     return;
                 }

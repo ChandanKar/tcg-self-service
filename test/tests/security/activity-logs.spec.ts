@@ -50,6 +50,8 @@ test.describe('My activity', () => {
   test('sends instants, the period and the action group, 10 a page and never more than 500', async ({ page }) => {
     const requests: Request[] = [];
     page.on('request', req => { if (req.url().includes('/api/v1/audit/logs/my')) requests.push(req); });
+    // Rows a page follow the window (U18-T02): at 1440 x 900 all ten fit, so the first load is the only one.
+    await page.setViewportSize({ width: 1440, height: 900 });
     await open(page);
     await expect(page.locator('#al-results')).toHaveAttribute('aria-busy', 'false');
 

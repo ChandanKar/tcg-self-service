@@ -123,6 +123,37 @@
     gap: 16px;
 }
 
+/* On the page frame (U18-T02) the pair takes the height left: the fleet list scrolls inside its card
+   and the spend chart grows or shrinks, never below 80 px. */
+@media (min-width: 1280px) and (min-height: 600px) {
+    .admin-home.page-frame .ah-pair {
+        grid-template-rows: minmax(0, 1fr);
+    }
+
+    .admin-home.page-frame .ah-fleet,
+    .admin-home.page-frame .ah-spend {
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .admin-home.page-frame .ah-fleet-list {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+    }
+
+    .admin-home.page-frame #ah-spend-body {
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
+    .admin-home.page-frame .ah-spend-chart {
+        flex: 1 1 auto;
+        height: auto;
+        min-height: 80px;
+    }
+}
+
 .ah-fleet,
 .ah-spend {
     display: flex;

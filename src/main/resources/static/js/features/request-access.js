@@ -123,7 +123,7 @@ const RequestAccess = (function() {
             envs: [], requests: [], viewEnvIds: new Set(), waitingEnvIds: new Set(),
             selected: q.env || q.environmentId || null,
             preset: { group: q.group || null, groupName: q.groupName || null, level: q.level || null, name: q.name || null },
-            query: '', page: 0, minePage: 0, maxDays: 90, groups: {}, sending: false, errors: {},
+            query: '', page: 0, minePage: 0, maxDays: 90, groups: {}, sending: false, errors: {}, fit: null,
             // On a phone: whether the form shows instead of the list (an environment in the address opens it).
             showForm: !!(q.env || q.environmentId)
         };
@@ -173,7 +173,34 @@ const RequestAccess = (function() {
         if (!s.selected || !s.envs.some(e => e.environmentId === s.selected)) s.selected = s.envs.length ? s.envs[0].environmentId : null;
         // Show the page of the selected environment.
         const index = s.envs.findIndex(e => e.environmentId === s.selected);
-        s.page = index > 0 ? Math.floor(index / PAGE_SIZE) : 0;
+        s.page = index > 0 ? Math.floor(index / pageSize()) : 0;
+    }
+
+    /** Environments a page: as many rows as fit the list on the page frame, at most PAGE_SIZE (U18-T02). */
+    function pageSize() {
+        return (s && s.fit) || PAGE_SIZE;
+    }
+
+    /** After the list mounts and whenever a resize settles: a new count re-renders the page keeping the first row. */
+    function attachListFit() {
+        const card = document.getElementById('ra-list-panel');
+        if (!card || typeof ListPanel === 'undefined') return;
+        const apply = count => {
+            if (!count || count === pageSize()) return;
+            // Keep the chosen environment in view, else the first row of the page.
+            const chosen = filtered().findIndex(e => e.environmentId === s.selected);
+            const first = chosen >= 0 ? chosen : s.page * pageSize();
+            s.fit = count;
+            s.page = ListPanel.pageKeepingFirst(first, count) - 1;
+            $('#ra-env-list').html(listHtml());
+            renderPagers();
+        };
+        const panel = ListPanel.attach(card, { rowSelector: '.ra-env', rowHeight: 52, min: 4, max: PAGE_SIZE, onFit: apply });
+        apply(panel.fitCount());
+        const form = document.getElementById('ra-form-card');
+        if (form && typeof Modals !== 'undefined' && Modals.watchScroll) Modals.watchScroll(form, form, 'Request form');
+        const mine = document.getElementById('ra-mine-list');
+        if (mine && typeof Modals !== 'undefined' && Modals.watchScroll) Modals.watchScroll(mine, mine, 'Your requests');
     }
 
     function filtered() {
@@ -186,7 +213,7 @@ const RequestAccess = (function() {
         const tabs = Tabs.markup({ id: 'ra-tabs', label: 'Request access', active: s.tab, tabs: [
             { key: 'new', label: 'Request' }, { key: 'mine', label: `Your requests · ${s.requests.length}` }] });
         $('#content-area').html(`
-            <div class="ra-page">
+            <div class="ra-page page page-frame">
                 <div class="content-header">
                     <h1>Request access ${help}</h1>
                     <p class="text-muted">Pick an environment and say why. Its owners get your request and you hear back here and by email.</p>
@@ -195,21 +222,22 @@ const RequestAccess = (function() {
                 ${Tabs.panel({ id: 'ra-tabs', key: 'new', active: s.tab }, newHtml())}
                 ${Tabs.panel({ id: 'ra-tabs', key: 'mine', active: s.tab }, mineHtml())}
             </div>`);
-        Tabs.bind(document.getElementById('ra-tabs'), key => { s.tab = key; renderPagers(); });
+        Tabs.bind(document.getElementById('ra-tabs'), key => { s.tab = key; renderPagers(); attachListFit(); });
         renderPagers();
+        attachListFit();
         loadGroups();
     }
 
     function newHtml() {
         return `<div class="ra-split${s.showForm ? ' ra-show-form' : ''}" id="ra-split">
-                <section class="ra-card ra-list-card" aria-labelledby="ra-avail-title">
-                    <div class="ra-card-head">
+                <section class="ra-card ra-list-card list-panel" id="ra-list-panel" aria-labelledby="ra-avail-title">
+                    <div class="ra-card-head list-panel-head">
                         <h2 id="ra-avail-title">Environments</h2>
                         <label class="ra-search"><span class="visually-hidden">Search environments</span>
                             <input type="search" id="ra-search" placeholder="Search" value="${Utils.escapeHtml(s.query)}" autocomplete="off"></label>
                     </div>
-                    <div id="ra-env-list">${listHtml()}</div>
-                    <div class="pagination-bar-wrap" id="ra-env-pager"></div>
+                    <div id="ra-env-list" class="list-panel-body" tabindex="0" role="region" aria-label="Environments, scrolls">${listHtml()}</div>
+                    <div class="pagination-bar-wrap list-panel-foot" id="ra-env-pager"></div>
                 </section>
                 <section class="ra-card ra-form-card" aria-labelledby="ra-form-title" id="ra-form-card">${formHtml()}</section>
             </div>`;
@@ -217,14 +245,14 @@ const RequestAccess = (function() {
 
     function listHtml() {
         const list = filtered();
-        const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+        const pages = Math.max(1, Math.ceil(list.length / pageSize()));
         if (s.page >= pages) s.page = pages - 1;
         if (!s.envs.length) return UiStates.empty({ title: 'You can use every environment.', text: 'There is nothing left to ask for.' });
         if (!list.length) {
             return UiStates.filtered({ title: `No environments match "${s.query}".`, text: 'Check the spelling, or clear the search to see them all.',
                 clearLabel: 'Clear search', clearData: { 'ra-clear': '1' } });
         }
-        return list.slice(s.page * PAGE_SIZE, (s.page + 1) * PAGE_SIZE).map(env => {
+        return list.slice(s.page * pageSize(), (s.page + 1) * pageSize()).map(env => {
             const tag = envTag(env, s.waitingEnvIds, s.viewEnvIds);
             return Utils.html`<button type="button" class="ra-env" data-ra-env="${env.environmentId}" aria-pressed="${String(env.environmentId === s.selected)}">
                 <span class="ra-env-text"><span class="ra-env-name">${envName(env)}</span>
@@ -329,7 +357,7 @@ const RequestAccess = (function() {
         if ($('#ra-env-pager').length) {
             const list = filtered();
             Pagination.renderNumbered('#ra-env-pager', {
-                page: s.page, totalItems: list.length, pageSize: PAGE_SIZE, itemLabel: 'environments', zeroIndexed: true,
+                page: s.page, totalItems: list.length, pageSize: pageSize(), itemLabel: 'environments', zeroIndexed: true,
                 bindAncestor: '#content-area',
                 onPageChange: page => { s.page = page; $('#ra-env-list').html(listHtml()); renderPagers(); }
             });

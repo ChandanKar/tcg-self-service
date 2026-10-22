@@ -80,6 +80,50 @@
     flex: 1 1 460px;
 }
 
+/* On the page frame (U18-T02): the two cards share the height left, side by side at the same height;
+   the environments scroll inside their card with the search and pager fixed, the form scrolls inside
+   with Send request always in view, and Your requests scrolls inside its card. */
+@media (min-width: 1280px) and (min-height: 600px) {
+    .ra-page.page-frame > [role="tabpanel"]:not([hidden]) {
+        flex: 1 1 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .ra-page.page-frame .ra-split {
+        flex: 1 1 0;
+        min-height: 0;
+        flex-wrap: nowrap;
+        align-items: stretch;
+    }
+
+    .ra-page.page-frame .ra-form-card {
+        min-height: 0;
+        overflow-y: auto;
+    }
+
+    .ra-page.page-frame .ra-form-card .ra-send {
+        position: sticky;
+        bottom: 0;
+        z-index: 1;
+        box-shadow: 0 -12px 12px -4px #fff;
+    }
+
+    .ra-page.page-frame [role="tabpanel"] > .ra-card {
+        flex: 1 1 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .ra-page.page-frame #ra-mine-list {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+    }
+}
+
 .ra-card-head {
     display: flex;
     flex-wrap: wrap;

@@ -112,6 +112,35 @@
     margin-bottom: 0;
 }
 
+/* Home on the page frame (U18-T02): the page holds to the window; the lower cards take the height left
+   and their lists scroll inside, with a shadow on the edge while more is hidden. */
+@media (min-width: 1280px) and (min-height: 600px) {
+    #dashboard-view.content-view.home-page.page-frame {
+        height: 100%;
+    }
+
+    .home-page.page-frame .home-lower {
+        grid-template-rows: minmax(0, 1fr);
+    }
+
+    .home-page.page-frame .home-panel {
+        min-height: 0;
+        overflow-y: auto;
+    }
+}
+
+#dashboard-view [data-scroll-label].has-more-below {
+    box-shadow: inset 0 -10px 8px -8px rgba(20, 36, 92, 0.2);
+}
+
+#dashboard-view [data-scroll-label].has-more-above {
+    box-shadow: inset 0 10px 8px -8px rgba(20, 36, 92, 0.2);
+}
+
+#dashboard-view [data-scroll-label].has-more-above.has-more-below {
+    box-shadow: inset 0 10px 8px -8px rgba(20, 36, 92, 0.2), inset 0 -10px 8px -8px rgba(20, 36, 92, 0.2);
+}
+
 /* "Needs you": quiet gold tiles, each one action */
 .needs-you {
     display: grid;

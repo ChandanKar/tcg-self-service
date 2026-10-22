@@ -190,18 +190,18 @@ const AdminHome = (function() {
     function html(data) {
         const s = data.summary || {};
         const rows = fleet(data.environments);
-        const fleetRows = rows.length ? rows.map(c => Utils.html`<a class="ah-fleet-row" href="#/environments/${encodeURIComponent(c.environmentId)}">
+        const fleetRows = rows.length ? `<div class="ah-fleet-list" data-scroll-label="Fleet right now">${rows.map(c => Utils.html`<a class="ah-fleet-row" href="#/environments/${encodeURIComponent(c.environmentId)}">
                 <span class="ah-fleet-name">${c.displayName || c.name}</span>`
-            + PowerStrip.render(PowerStrip.fromGroupStates(c.groupStates || []), {}) + '</a>').join('')
+            + PowerStrip.render(PowerStrip.fromGroupStates(c.groupStates || []), {}) + '</a>').join('')}</div>`
             : '<p class="ah-note">No environments yet. <a href="#/my-environments">Environments</a> is where you add one.</p>';
         return `
-            <div class="content-view page home-page admin-home" id="dashboard-view">
+            <div class="content-view page page-frame home-page admin-home" id="dashboard-view">
                 ${PageHeader.markup({ title: 'Home', summaryHtml: `<span id="ah-summary">${summaryHtml(data, cachedSpend(data))}</span>` })}
                 <section class="ah-card ah-attention" aria-labelledby="ah-att-title">
                     <h2 id="ah-att-title">Needs attention</h2>
                     <div id="ah-tiles" aria-live="polite"><p class="ah-note ah-pad">Loading&hellip;</p></div>
                 </section>
-                <div class="ah-pair">
+                <div class="ah-pair page-fill">
                     <section class="ah-card ah-fleet" aria-labelledby="ah-fleet-title">
                         <div class="ah-card-head"><h2 id="ah-fleet-title">Fleet right now</h2>
                             <a href="#/my-environments">${Utils.escapeHtml(`All ${plural(Number(s.environments) || 0, 'environment')}`)}</a></div>

@@ -10,6 +10,11 @@ const ActivityLogs = (function() {
     'use strict';
 
     const PAGE_SIZE = 10;
+    /** Actions a page on the page frame: as many as fit, at most PAGE_SIZE (U18-T02); null until measured. */
+    let fitSize = null;
+    let fitPanel = null;
+    let fitChecked = false; // measured once a visit (and on resize): day headings vary by page
+    const pageSize = () => fitSize || PAGE_SIZE;
     const EXPORT_PAGE_SIZE = 500;
     const EXPORT_MAX_ROWS = 10000;
     const PERIODS = [['24h', '24 hours'], ['7d', '7 days'], ['30d', '30 days'], ['dates', 'Dates…']];
@@ -148,7 +153,7 @@ const ActivityLogs = (function() {
                 <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"
                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v10M5.5 8.5 10 13l4.5-4.5M4 17h12"></path></svg>
                 Export CSV</button>`;
-        return `<div class="activity-page">
+        return `<div class="activity-page page page-frame">
             ${PageHeader.markup({ title: 'My activity', summaryHtml: 'What you started, stopped, locked and requested.',
                 actionsHtml: exportBtn, helpPage: 'activity-logs', helpLabel: 'Activity logs' })}
             <div class="activity-filters">
@@ -169,7 +174,7 @@ const ActivityLogs = (function() {
                     <button type="button" class="btn btn-primary btn-sm" id="al-apply-custom-range-btn">Show</button>
                 </div>
             </div>
-            <div class="activity-card" id="al-results" aria-live="polite"></div>
+            <div class="activity-card list-panel page-fill" id="al-results" aria-live="polite"></div>
         </div>`;
     }
 
@@ -213,11 +218,11 @@ const ActivityLogs = (function() {
         const body = rowsWithDays(logs).map(r => r.day !== undefined
             ? Utils.html`<tr class="activity-day"><th colspan="4" scope="rowgroup">${r.day}</th></tr>`
             : rowMarkup(r.log)).join('');
-        return `<div class="activity-table-wrap"><table class="activity-table">
+        return `<div class="activity-table-wrap list-panel-body" tabindex="0" role="region" aria-label="Your actions, scrolls"><table class="activity-table">
                 <thead><tr><th scope="col" class="activity-time">Time</th><th scope="col">What</th>
                     <th scope="col">Environment</th><th scope="col" class="activity-result">Result</th></tr></thead>
                 <tbody>${body}</tbody></table></div>
-            <div class="activity-foot">
+            <div class="activity-foot list-panel-foot">
                 <span class="activity-count" id="al-count">${Utils.escapeHtml(countLine(total, state.period, state.customStart, state.customEnd))}</span>
                 <div class="pagination-bar-wrap" id="al-pagination"></div>
             </div>`;
@@ -230,18 +235,42 @@ const ActivityLogs = (function() {
         return [env ? `Environment ${env.name}` : '', state.category && cat ? cat[1] : ''].filter(Boolean).join(' · ');
     }
 
+    /**
+     * Rows a page follow the window (U18-T02): measured once the first page shows and again when a resize
+     * settles (day headings on the page count as space taken); a new count reloads the page that keeps the
+     * first action in view.
+     */
+    function attachFit() {
+        const panel = document.getElementById('al-results');
+        if (!panel || !panel.querySelector('.list-panel-body') || typeof ListPanel === 'undefined') return;
+        if (fitPanel) fitPanel.destroy();
+        const apply = count => {
+            if (!count || count === pageSize()) return;
+            const first = state.page * pageSize();
+            fitSize = count;
+            state.page = ListPanel.pageKeepingFirst(first, count) - 1;
+            drawResults(ContentRouter.token());
+        };
+        fitPanel = ListPanel.attach(panel, { rowSelector: 'tbody tr:not(.activity-day)', rowHeight: 41, min: 4, max: PAGE_SIZE, onFit: apply });
+        if (!fitChecked) {
+            fitChecked = true;
+            apply(fitPanel.fitCount());
+        }
+    }
+
     function errorMarkup(xhr) {
         return UiStates.failed({ what: 'Your activity', xhr, retryAction: 'activity-retry' });
     }
 
     function drawResults(t) {
         $('#al-results').attr('aria-busy', 'true');
-        return fetchLogs(state.page, PAGE_SIZE).then(data => {
+        return fetchLogs(state.page, pageSize()).then(data => {
             if (!ContentRouter.isCurrent(t)) return;
             $('#al-results').html(resultsMarkup(data)).attr('aria-busy', 'false');
-            if ((data.totalElements || 0) > PAGE_SIZE) {
+            attachFit();
+            if ((data.totalElements || 0) > pageSize()) {
                 Pagination.renderNumbered('#al-pagination', {
-                    page: data.number || 0, totalItems: data.totalElements, pageSize: PAGE_SIZE,
+                    page: data.number || 0, totalItems: data.totalElements, pageSize: pageSize(),
                     itemLabel: 'actions', zeroIndexed: true, bindAncestor: '#content-area',
                     onPageChange: p => { state.page = p; drawResults(ContentRouter.token()); }
                 });
@@ -306,6 +335,7 @@ const ActivityLogs = (function() {
         Loading.showPage('Loading your activity…');
         environments = await fetchEnvironments();
         if (!ContentRouter.isCurrent(t)) return;
+        fitChecked = false;
         $('#content-area').html(pageMarkup());
         bind();
         await drawResults(t);

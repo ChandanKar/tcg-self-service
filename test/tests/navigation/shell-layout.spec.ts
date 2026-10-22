@@ -143,8 +143,6 @@ const SIZES: [number, number][] = [[1440, 900], [1536, 730], [1366, 657]];
  * skipped until their task lands. U18-T06 empties this list.
  */
 const LAPTOP_KNOWN: Record<string, string> = {
-  '#/dashboard': 'U18-T02', '#/my-environments': 'U18-T02', '#/environment-detail': 'U18-T02',
-  '#/request-access': 'U18-T02', '#/activity-logs': 'U18-T02',
   '#/pending-requests': 'U18-T03', '#/access-management': 'U18-T03', '#/user-management': 'U18-T03',
   '#/vm-registry': 'U18-T03', '#/audit-logs-all': 'U18-T03',
   '#/cost-management': 'U18-T04', '#/cost-setup': 'U18-T04', '#/savings': 'U18-T04', '#/system-health': 'U18-T04',
@@ -280,3 +278,59 @@ test.describe('Page frame and list panel', () => {
     expect(await page.evaluate(() => (window as any).__lp.fitCount())).toBeNull();
   });
 });
+
+/** U18-T02: Home, Environments, Request access and My activity on the page frame. */
+test.describe('Everyday pages on the page frame', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+  });
+
+  async function openAs(page: Page, width: number, height: number, hash: string, ready: string, role: 'admin' | 'user' = 'admin') {
+    await page.setViewportSize({ width, height });
+    await signIn(page, role);
+    await page.waitForFunction(() => typeof ContentRouter !== 'undefined');
+    await page.evaluate(h => { location.hash = h; }, hash);
+    await expect(page.locator(ready).first()).toBeVisible({ timeout: 15_000 });
+    await page.waitForLoadState('networkidle');
+  }
+
+  test('Environments: rows a page follow the window, up to 15, with the pager always in view', async ({ page, playwright }) => {
+    await ensureVolume(playwright, devIds.admin);
+    await openAs(page, 1366, 657, '#/my-environments', '#env-list-body tr');
+    const rows = page.locator('#env-list-body tr');
+    await expect.poll(async () => rows.count()).toBeLessThan(15);
+    const small = await rows.count();
+    await expect(page.locator('#env-list-pagination .pager-range')).toBeInViewport();
+    await expect(page.locator('#env-list-pagination .pager-range')).toHaveText(new RegExp(`^1–${small} of [0-9]+$`));
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect.poll(async () => rows.count(), { timeout: 10_000 }).toBeGreaterThan(small);
+    expect(await rows.count()).toBeLessThanOrEqual(15);
+  });
+
+  test('Request access: the environments and the form side by side at the same height; search filters the list', async ({ page, playwright }) => {
+    await ensureVolume(playwright, devIds.admin);
+    // A user: the seeded environments are the ones to ask for (an administrator can use every one).
+    await openAs(page, 1366, 657, '#/request-access', '#ra-env-list .ra-env', 'user');
+    const list = await page.locator('#ra-list-panel').boundingBox();
+    const form = await page.locator('#ra-form-card').boundingBox();
+    expect(Math.abs(list!.height - form!.height)).toBeLessThanOrEqual(1);
+    expect(Math.abs(list!.y - form!.y)).toBeLessThanOrEqual(1);
+    await expect(page.locator('#ra-env-pager')).toBeInViewport();
+    await expect(page.locator('#ra-send')).toBeInViewport();
+    await page.locator('#ra-search').fill('fit-volume-0');
+    await expect(page.locator('#ra-env-list .ra-env').first()).toBeVisible();
+    await expect(page.locator('#ra-env-list .ra-env').first()).toContainText(/\d/);
+  });
+
+  test('Home and My activity hold to a 1366 x 657 window', async ({ page }) => {
+    await openAs(page, 1366, 657, '#/dashboard', '#dashboard-view');
+    const fits = () => page.evaluate(() => { const m = document.getElementById('mainContent')!; return m.scrollHeight <= m.clientHeight + 1; });
+    expect(await fits()).toBe(true);
+    await page.evaluate(() => { location.hash = '#/activity-logs'; });
+    await expect(page.locator('#al-results')).toBeVisible({ timeout: 15_000 });
+    await page.waitForLoadState('networkidle');
+    expect(await fits()).toBe(true);
+  });
+});
+

@@ -14,6 +14,9 @@ const Environments = (function() {
     // 15 rows fit 1440x900 with the header and the filter (Environments15.dc.html); the pager
     // appears only past 15 (U06-T05).
     const ENV_PAGE_SIZE = 15;
+    /** Rows a page: as many 38 px rows as fit the window, at most the board's 15 (U18-T02). */
+    let envPageSize = ENV_PAGE_SIZE;
+    let envListPanel = null;
     let envCurrentPage = 0;
     let envSearchTerm = null;
     let envTotalElements = 0;
@@ -58,6 +61,7 @@ const Environments = (function() {
     /** Runs when the user leaves the Environments list or detail (ContentRouter.onLeave). */
     function teardown() {
         pageToken = null;
+        envListPanel = null; // ListPanel stops itself on leave
         if (operationStatusHandler) {
             window.removeEventListener('vm-operation-status', operationStatusHandler);
             operationStatusHandler = null;
@@ -264,7 +268,7 @@ const Environments = (function() {
      */
     function fetchEnvironmentsPage(page, search, state) {
         return new Promise((resolve, reject) => {
-            ApiClient.get(Config.API.environments.page(page, ENV_PAGE_SIZE, search || '',
+            ApiClient.get(Config.API.environments.page(page, envPageSize, search || '',
                 { includeGroups: true, state: state && state !== 'all' ? state.toUpperCase() : '' }))
                 .done(function(data, _status, xhr) {
                     const normalized = normalizeEnvPage(data);
@@ -447,11 +451,13 @@ const Environments = (function() {
             `;
         }
 
+        // On the page frame (U18-T02): the header stays, the table scrolls inside its panel, the pager stays.
         return `
-            <div id="environments-list-view" class="page env-list-page">
+            <div id="environments-list-view" class="page page-frame env-list-page">
             ${listHeader(totalElements, envTotals, listToolbarHtml())}
-            <div class="panel env-list-card">
-                <div class="env-list-table-wrapper table-cards-wrap">
+            <div class="page-fill">
+            <section class="list-panel env-list-card" id="env-list-panel" aria-label="Environments">
+                <div class="list-panel-body env-list-table-wrapper table-cards-wrap" tabindex="0" role="region" aria-label="Environments, scrolls">
                     <table class="table mb-0 table-cards env-list-table">
                         <thead>
                             <tr>
@@ -471,10 +477,33 @@ const Environments = (function() {
                         </tbody>
                     </table>
                 </div>
-                <div id="env-list-pagination" class="panel-foot env-list-foot"></div>
+                <div id="env-list-pagination" class="list-panel-foot env-list-foot"></div>
+            </section>
             </div>
             </div>
         `;
+    }
+
+    /**
+     * Rows a page follow the window (U18-T02): after the list mounts and whenever a resize settles,
+     * the panel says how many rows fit; a new count reloads the page that keeps the first row in view.
+     */
+    function attachListFit() {
+        const panel = document.getElementById('env-list-panel');
+        if (!panel || typeof ListPanel === 'undefined') return;
+        if (envListPanel) envListPanel.destroy();
+        envListPanel = ListPanel.attach(panel, {
+            rowSelector: '#env-list-body tr:not(.env-list-empty)', rowHeight: 38, min: 5, max: ENV_PAGE_SIZE,
+            onFit: applyListFit
+        });
+        applyListFit(envListPanel.fitCount());
+    }
+
+    function applyListFit(count) {
+        if (!count || count === envPageSize) return;
+        const first = envCurrentPage * envPageSize;
+        envPageSize = count;
+        refreshEnvList(ListPanel.pageKeepingFirst(first, count) - 1);
     }
 
     function emptyFilterRow() {
@@ -545,12 +574,12 @@ const Environments = (function() {
     function renderEnvPagination(totalItems, page) {
         const $foot = $('#env-list-pagination');
         if (!$foot.length) return;
-        if (totalItems <= ENV_PAGE_SIZE) {
+        if (totalItems <= envPageSize) {
             $foot.html(`<div class="pager"><span class="pager-range">${totalItems} environment${totalItems === 1 ? '' : 's'}</span></div>`);
             return;
         }
         $foot.html(Pagination.buildPager({
-            totalItems, page: page + 1, pageSize: ENV_PAGE_SIZE, action: 'env-list-page', key: 'environments',
+            totalItems, page: page + 1, pageSize: envPageSize, action: 'env-list-page', key: 'environments',
         }));
     }
 
@@ -568,6 +597,7 @@ const Environments = (function() {
             $('#env-list-summary').html(countsHtml(envTotalElements, envTotals));
             $('#env-list-filter').html(FilterGroup.markup({ label: 'Show', options: STATE_FILTERS, active: envStateFilter, action: 'env-list-filter' }));
             renderEnvPagination(envTotalElements, envCurrentPage);
+            if (envListPanel) envListPanel.refresh();
         } catch (error) {
             console.error('Failed to load environments page:', error);
             $('#env-list-body').html(`<tr><td colspan="9">${UiStates.failed({ what: 'This page of environments', xhr: error,
@@ -993,6 +1023,7 @@ const Environments = (function() {
 
         // Initial pagination render
         renderEnvPagination(envTotalElements, envCurrentPage);
+        attachListFit();
     }
 
     /**

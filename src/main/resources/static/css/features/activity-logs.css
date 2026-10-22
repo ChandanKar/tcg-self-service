@@ -100,6 +100,22 @@
     overflow-x: auto;
 }
 
+/* On the page frame (U18-T02) the results take the height left; the table scrolls inside, the count and
+   pager stay at the bottom. */
+@media (min-width: 1280px) and (min-height: 600px) {
+    .activity-page.page-frame #al-results {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .activity-page.page-frame .activity-table-wrap {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+    }
+}
+
 .activity-table {
     width: 100%;
     border-collapse: collapse;
@@ -203,6 +219,13 @@ td.activity-time {
 
 .activity-foot .pagination-bar-wrap:empty {
     display: none;
+}
+
+/* The pager sits in the foot's own row: no second border or padding. */
+.activity-foot .pagination-bar-wrap {
+    min-height: 0;
+    padding: 0;
+    border-top: 0;
 }
 
 @media (max-width: 767.98px) {
