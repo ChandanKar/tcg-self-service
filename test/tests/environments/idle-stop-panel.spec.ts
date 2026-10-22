@@ -149,6 +149,9 @@ test.describe('Idle auto-stop panel', () => {
     await expect(dialog.getByRole('radio', { name: /Stop idle VMs/ })).toBeDisabled();
     await expect(dialog.locator('#idle-enforce-note')).toHaveText(/^Available after 14 days of dry run, on \d+ \w{3}$/);
     await dialog.getByLabel('Idle for (min)').fill('90');
+    // U18-T07: the rule's actions sit in the dialog's button strip, always in view.
+    await expect(dialog.locator('.modal-footer #idleSaveRule')).toBeVisible();
+    await expect(dialog.locator('.modal-footer #idleDeleteRule')).toBeVisible();
     await page.locator('#idleSaveRule').dblclick();
 
     await expect(dialog).toBeHidden();

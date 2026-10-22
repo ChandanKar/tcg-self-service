@@ -1129,11 +1129,6 @@
     color: var(--slate);
 }
 
-.idle-rule-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-}
 
 @media (max-width: 575.98px) {
     .idle-fields {

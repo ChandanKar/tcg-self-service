@@ -88,6 +88,50 @@ const Modals = (function() {
         initFocusTraps();
     }
 
+    // ---- the content between the fixed title and buttons (U18-T07) ----
+
+    /**
+     * While a scroll area has more above or below, mark its host (has-more-above / has-more-below) so the
+     * title bar or button strip casts a shadow over the edge; when it scrolls at all it is reachable by
+     * keyboard and named for screen readers. Used by every dialog and by the side panels.
+     */
+    function watchScroll(scroller, host, label) {
+        if (!scroller || !host || scroller.dataset.scrollWatched) return;
+        scroller.dataset.scrollWatched = '1';
+        const update = () => {
+            const over = scroller.scrollHeight - scroller.clientHeight > 1;
+            host.classList.toggle('has-more-above', over && scroller.scrollTop > 1);
+            host.classList.toggle('has-more-below', over && scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop > 1);
+            if (over) {
+                scroller.setAttribute('tabindex', '0');
+                scroller.setAttribute('role', 'region');
+                scroller.setAttribute('aria-label', `${label || 'Content'}, scrolls`);
+            } else if (scroller.getAttribute('role') === 'region') {
+                scroller.removeAttribute('tabindex');
+                scroller.removeAttribute('role');
+                scroller.removeAttribute('aria-label');
+            }
+        };
+        scroller.addEventListener('scroll', update, { passive: true });
+        if (typeof ResizeObserver !== 'undefined') {
+            const observer = new ResizeObserver(update);
+            observer.observe(scroller);
+            if (scroller.firstElementChild) observer.observe(scroller.firstElementChild);
+        }
+        if (typeof MutationObserver !== 'undefined') {
+            new MutationObserver(update).observe(scroller, { childList: true, subtree: true });
+        }
+        update();
+    }
+
+    if (typeof document !== 'undefined') {
+        document.addEventListener('shown.bs.modal', function(e) {
+            const modal = e.target;
+            const title = modal.querySelector('.modal-title');
+            watchScroll(modal.querySelector('.modal-body'), modal.querySelector('.modal-content'), title ? title.textContent.trim() : 'Dialog');
+        });
+    }
+
     /**
      * Show a modal dialog
      * @param {object} options - Modal options
@@ -120,15 +164,17 @@ const Modals = (function() {
             const dismissAttr = btn.dismiss ? 'data-bs-dismiss="modal"' : '';
             const idAttr = btn.id ? `id="${btn.id}"` : '';
             const disabledAttr = btn.disabled ? 'disabled' : '';
+            const actionAttr = btn.action ? `data-action="${Utils.escapeHtml(btn.action)}"` : '';
+            const hiddenAttr = btn.hidden ? 'hidden' : '';
             const text = btn.html ? btn.text : Utils.escapeHtml(btn.text);
-            return `<button type="button" class="btn ${btn.class || 'btn-secondary'}" ${dismissAttr} ${idAttr} ${disabledAttr}>${text}</button>`;
+            return `<button type="button" class="btn ${btn.class || 'btn-secondary'}" ${dismissAttr} ${idAttr} ${actionAttr} ${hiddenAttr} ${disabledAttr}>${text}</button>`;
         }).join('');
 
         // Build modal HTML
         const sizeClass = size ? `modal-${size}` : '';
         const modalHtml = `
             <div class="modal fade" id="${id}" tabindex="-1" aria-labelledby="${id}Label" aria-hidden="true">
-                <div class="modal-dialog ${sizeClass}">
+                <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered modal-fullscreen-md-down ${sizeClass}">
                     <div class="modal-content">
                         <div class="modal-header">
                             <h5 class="modal-title" id="${id}Label">${html ? title : Utils.escapeHtml(title)}</h5>
@@ -729,7 +775,8 @@ const Modals = (function() {
         confirm,
         prompt,
         showCreateEnvironment,
-        showEditEnvironment
+        showEditEnvironment,
+        watchScroll
     };
 })();
 
@@ -841,7 +888,5 @@ const DestructiveConfirm = (function() {
 
     return {
         show,
-        confirmDeleteAutomationRule
-    };
+        confirmDeleteAutomationRule };
 })();
-

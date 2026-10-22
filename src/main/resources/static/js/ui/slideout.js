@@ -175,6 +175,9 @@ const Slideout = (function() {
         const $title = $panel.find('.slideout-panel-header h3');
         if (options.html === true) $title.html(title); else $title.text(title);
         $panel.find('.slideout-panel-content').html(html);
+        if (typeof Modals !== 'undefined' && Modals.watchScroll) {
+            Modals.watchScroll($panel.find('.slideout-panel-content')[0], $panel[0], 'Panel');
+        }
         open(panelId);
         $(document).trigger('slideout:opened', [$panel[0]]);
     }

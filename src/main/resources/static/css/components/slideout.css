@@ -53,16 +53,32 @@
     min-width: 0;
 }
 
+/* The header and any action strip stay; the content between scrolls (U18-T07). */
 .dynamic-slideout-panel .slideout-panel-content {
     flex: 1;
     min-height: 0;
-    overflow: hidden;
+    overflow-y: auto;
     padding: 14px 20px 16px;
 }
 
-/* A panel with actions (options.footer): the body scrolls inside, the actions stay at the bottom. */
-.dynamic-slideout-panel.has-footer .slideout-panel-content {
-    overflow-y: auto;
+.dynamic-slideout-panel .slideout-panel-header,
+.dynamic-slideout-panel .slideout-panel-footer {
+    position: relative;
+    z-index: 1;
+    background: #fff;
+}
+
+.dynamic-slideout-panel.has-more-above > .slideout-panel-header {
+    box-shadow: 0 6px 8px -6px rgba(20, 36, 92, 0.22);
+}
+
+.dynamic-slideout-panel.has-more-below > .slideout-panel-footer:not([hidden]) {
+    box-shadow: 0 -6px 8px -6px rgba(20, 36, 92, 0.22);
+}
+
+.slideout-panel-content[role="region"]:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: -2px;
 }
 
 .slideout-panel-footer {

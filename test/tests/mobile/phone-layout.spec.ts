@@ -36,6 +36,11 @@ async function overflowing(page: Page) {
     .map(el => `${el.tagName.toLowerCase()}#${el.id}.${String(el.className).split(' ').join('.')} â†’ ${Math.round(el.getBoundingClientRect().right)}`), WIDTH);
 }
 
+/** The side panel slides in (0.3 s); measure it once it has stopped. */
+async function settled(page: Page) {
+  await expect.poll(async () => Math.round((await page.locator('#dynamicSlideoutPanel').boundingBox())?.x ?? -1), { timeout: 5_000 }).toBe(0);
+}
+
 async function expectNoSideScroll(page: Page) {
   const offenders = await overflowing(page);
   expect(await scrollWidth(page), offenders.join('\n')).toBeLessThanOrEqual(WIDTH);
@@ -78,6 +83,7 @@ test.describe('Phone layout (user)', () => {
     await page.locator('.user-profile-trigger').click();
     const panel = page.locator('.my-account').first();
     await expect(panel).toBeVisible({ timeout: 10_000 });
+    await settled(page);
     const box = await panel.boundingBox();
     expect(box).not.toBeNull();
     expect(box!.x).toBeGreaterThanOrEqual(0);
@@ -105,6 +111,7 @@ test.describe('Phone layout (user)', () => {
     await avatar.click();
     const panel = page.locator('#dynamicSlideoutPanel');
     await expect(page.locator('.my-account').first()).toBeVisible({ timeout: 10_000 });
+    await settled(page);
     const box = await panel.boundingBox();
     expect(box).toEqual({ x: 0, y: 0, width: WIDTH, height: 844 });
     await panel.locator('.slideout-panel-header .close-btn').click();
@@ -158,6 +165,7 @@ test.describe('Phone layout (user)', () => {
     await page.evaluate(() => AssistantPanel.open());
     const ask = page.locator('#assistant-question');
     await expect(ask).toBeVisible();
+    await settled(page);
     expect(await page.locator('#dynamicSlideoutPanel').boundingBox()).toEqual({ x: 0, y: 0, width: WIDTH, height: 844 });
     const input = await ask.boundingBox();
     expect(input!.height).toBeGreaterThanOrEqual(44);

@@ -175,13 +175,19 @@ const IdleStop = (function() {
         if (!current) return;
         const name = current.env.displayName || current.env.name;
         const withRule = current.status.canAdminister && !current.status.production;
+        const rule = envRule(current.status);
         Modals.show({
             id: DIALOG,
             title: name ? `Idle auto-stop · ${name}` : 'Idle auto-stop',
             // Two columns with the rule beside how it is going, as on the IdleStop board (U17-T10).
             size: withRule ? 'xl' : 'lg',
             body: '<div class="idle-dialog"></div>',
-            buttons: []
+            // The rule's actions sit in the button strip, always in view (U18-T07).
+            buttons: withRule ? [
+                { text: 'Delete rule', class: 'btn-outline-danger me-auto', id: 'idleDeleteRule', action: 'idle-delete-rule', hidden: !rule },
+                { text: 'Close', class: 'btn-outline-secondary', dismiss: true },
+                { text: 'Save rule', class: 'btn-primary', id: 'idleSaveRule', action: 'idle-save-rule' }
+            ] : [{ text: 'Close', class: 'btn-outline-secondary', dismiss: true }]
         });
         renderDialog();
     }
@@ -203,6 +209,7 @@ const IdleStop = (function() {
                 `<button type="button" class="btn btn-sm btn-outline-secondary" data-action="idle-snooze" data-hours="${h}">${h} hours</button>`).join('')}</div>`;
         }
         const withRule = status.canAdminister && !status.production;
+        $('#idleDeleteRule').prop('hidden', !rule);
         $root.toggleClass('has-rule', withRule).html(Utils.html`
             <p class="dialog-lead">Stops the environment when all its VMs have been idle for a while, in reverse start order.</p>
             <div class="idle-cols">
@@ -254,10 +261,6 @@ const IdleStop = (function() {
                     <label class="idle-mode-option"><input type="radio" name="idleMode" value="ENFORCE" ${mode === 'ENFORCE' ? 'checked' : ''} ${allowed ? '' : 'disabled'}>
                         <span><b>Stop idle VMs</b><span id="idle-enforce-note">${enforceNote}</span></span></label>
                 </fieldset>
-                <div class="idle-rule-actions">
-                    ${Utils.raw(rule ? '<button type="button" class="btn btn-outline-danger me-auto" data-action="idle-delete-rule">Delete rule</button>' : '')}
-                    <button type="button" class="btn btn-primary" id="idleSaveRule" data-action="idle-save-rule">Save rule</button>
-                </div>
             </form>`;
     }
 

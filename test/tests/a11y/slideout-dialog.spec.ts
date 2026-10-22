@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { signIn, canSignIn, devIds } from '../../fixtures/auth';
+import { seriousViolations } from '../../fixtures/axe';
 
 /**
  * E13-T03: slide-out panels are modal dialogs — focus moves in and stays in, Escape while typing
@@ -122,3 +123,87 @@ test.describe('Slide-out dialogs', () => {
     }
   });
 });
+
+/**
+ * U18-T07: every dialog and side panel fits the window. The title bar and the button strip stay in
+ * view, only the content between them scrolls (named, keyboard reachable, with a shadow on the edge
+ * while more is hidden), and the page behind never scrolls. On a phone a dialog is a full-screen sheet.
+ */
+declare const Modals: any;
+declare const Slideout: any;
+
+const LONG = Array.from({ length: 60 }, (_, i) => `<p>Line ${i + 1} of a long explanation.</p>`).join('');
+
+async function openApp(page: any, width: number, height: number) {
+  await page.setViewportSize({ width, height });
+  await signIn(page, 'admin');
+  await page.waitForFunction(() => typeof ContentRouter !== 'undefined' && typeof Modals !== 'undefined');
+  await page.evaluate(() => { location.hash = '#/help'; });
+  await expect(page.locator('#help-search')).toBeVisible({ timeout: 15_000 });
+}
+
+test.describe('Dialogs and side panels fit the window', () => {
+  test.beforeEach(() => {
+    test.skip(!devIds.admin || !canSignIn('admin'), 'Needs TEST_DEV_ADMIN_ID (dev mode)');
+  });
+
+  test('1366 x 657: a long dialog keeps its title and buttons in view; only the content scrolls', async ({ page }) => {
+    await openApp(page, 1366, 657);
+    await page.evaluate((body: string) => Modals.show({ id: 'longDialog', title: 'A long dialog', body,
+      buttons: [{ text: 'Cancel', class: 'btn-outline-secondary', dismiss: true }, { text: 'Save', class: 'btn-primary', id: 'longSave' }] }), LONG);
+    const dialog = page.locator('#longDialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator('.modal-header')).toBeInViewport({ ratio: 1 });
+    await expect(dialog.locator('.modal-footer')).toBeInViewport({ ratio: 1 });
+    const state = await page.evaluate(() => {
+      const modal = document.getElementById('longDialog')!;
+      const body = modal.querySelector('.modal-body') as HTMLElement;
+      return { modalScrolls: modal.scrollHeight > modal.clientHeight + 1, bodyScrolls: body.scrollHeight > body.clientHeight + 1,
+        pageScrolls: document.scrollingElement!.scrollHeight > window.innerHeight + 1 };
+    });
+    expect(state).toEqual({ modalScrolls: false, bodyScrolls: true, pageScrolls: false });
+    await expect(dialog.getByRole('region', { name: 'A long dialog, scrolls' })).toHaveAttribute('tabindex', '0');
+    await expect(dialog.locator('.modal-content')).toHaveClass(/has-more-below/);
+    await dialog.locator('.modal-body').evaluate((b: HTMLElement) => { b.scrollTop = b.scrollHeight; });
+    await expect(dialog.locator('.modal-content')).toHaveClass(/has-more-above/);
+    await expect(dialog.locator('.modal-content')).not.toHaveClass(/has-more-below/);
+    expect(await seriousViolations(page, '#longDialog')).toEqual([]);
+  });
+
+  test('a short dialog does not pretend to scroll', async ({ page }) => {
+    await openApp(page, 1366, 657);
+    await page.evaluate(() => Modals.show({ id: 'shortDialog', title: 'Short', body: '<p>One line.</p>' }));
+    await expect(page.locator('#shortDialog')).toBeVisible();
+    await expect(page.locator('#shortDialog .modal-body')).not.toHaveAttribute('role', 'region');
+    await expect(page.locator('#shortDialog .modal-content')).not.toHaveClass(/has-more-(above|below)/);
+  });
+
+  test('390 x 844: a dialog is a full-screen sheet with its title and buttons in view', async ({ page }) => {
+    await openApp(page, 390, 844);
+    await page.evaluate((body: string) => Modals.show({ id: 'phoneDialog', title: 'On a phone', body }), LONG);
+    const dialog = page.locator('#phoneDialog');
+    await expect(dialog).toBeVisible();
+    const box = await dialog.locator('.modal-dialog').boundingBox();
+    expect(Math.round(box!.width)).toBeGreaterThanOrEqual(389);
+    await expect(dialog.locator('.modal-header')).toBeInViewport({ ratio: 1 });
+    await expect(dialog.locator('.modal-footer')).toBeInViewport({ ratio: 1 });
+  });
+
+  test('1366 x 657: a side panel keeps its header and action strip in view; only the content scrolls', async ({ page }) => {
+    await openApp(page, 1366, 657);
+    await page.evaluate((body: string) => Slideout.open('A long panel', body, { footer: '<button type="button" class="btn btn-primary">Save</button>' }), LONG);
+    const panel = page.locator('#dynamicSlideoutPanel');
+    await expect(panel).toBeVisible();
+    await expect(panel.locator('.slideout-panel-header')).toBeInViewport({ ratio: 1 });
+    await expect(panel.locator('.slideout-panel-footer')).toBeInViewport({ ratio: 1 });
+    const state = await page.evaluate(() => {
+      const p = document.getElementById('dynamicSlideoutPanel')!;
+      const c = p.querySelector('.slideout-panel-content') as HTMLElement;
+      return { panelScrolls: p.scrollHeight > p.clientHeight + 1, contentScrolls: c.scrollHeight > c.clientHeight + 1 };
+    });
+    expect(state).toEqual({ panelScrolls: false, contentScrolls: true });
+    await expect(panel.getByRole('region', { name: 'Panel, scrolls' })).toHaveAttribute('tabindex', '0');
+    await expect(panel).toHaveClass(/has-more-below/);
+  });
+});
+

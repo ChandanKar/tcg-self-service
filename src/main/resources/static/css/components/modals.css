@@ -14,6 +14,29 @@
 }
 
 /* Required field indicator */
+/* U18-T07: the title bar and button strip stay; the content between scrolls, with a shadow on the
+   title or buttons while more is hidden above or below. */
+.modal-dialog-scrollable .modal-header,
+.modal-dialog-scrollable .modal-footer {
+    position: relative;
+    z-index: 1;
+    flex-shrink: 0;
+    background: #fff;
+}
+
+.modal-content.has-more-above > .modal-header {
+    box-shadow: 0 6px 8px -6px rgba(20, 36, 92, 0.22);
+}
+
+.modal-content.has-more-below > .modal-footer {
+    box-shadow: 0 -6px 8px -6px rgba(20, 36, 92, 0.22);
+}
+
+.modal-body[role="region"]:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: -2px;
+}
+
 .modal-body .text-danger {
     font-weight: normal;
 }

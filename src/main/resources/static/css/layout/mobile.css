@@ -289,8 +289,8 @@ button.mobile-nav-item.active {
         padding: 0.375rem 0.5rem;
     }
 
-    /* Modal adjustments */
-    .modal-dialog {
+    /* Modal adjustments: dialogs are full-screen sheets (modal-fullscreen-md-down, U18-T07) */
+    .modal-dialog:not(.modal-fullscreen-md-down) {
         margin: 0.5rem;
     }
 }
