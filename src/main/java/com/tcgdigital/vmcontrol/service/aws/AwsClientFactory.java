@@ -165,6 +165,16 @@ public class AwsClientFactory {
                 .region(r).credentialsProvider(credentials(accountRef)).overrideConfiguration(DEFAULT_OVERRIDES).build());
     }
 
+    /**
+     * The AWS Price List API (U19-T05). It answers from us-east-1 for every region's prices
+     * (pricing:GetProducts takes the region as a filter), with the default account's credentials.
+     */
+    public software.amazon.awssdk.services.pricing.PricingClient pricing() {
+        Region r = Region.US_EAST_1;
+        return cached("pricing", AwsAccount.DEFAULT_REF, r, () -> software.amazon.awssdk.services.pricing.PricingClient.builder()
+                .region(r).credentialsProvider(credentials(AwsAccount.DEFAULT_REF)).overrideConfiguration(DEFAULT_OVERRIDES).build());
+    }
+
     /** S3, for reading Data Exports such as the carbon emissions export (E37-T01). */
     public S3Client s3(String accountRef, String region) {
         Region r = region(region);

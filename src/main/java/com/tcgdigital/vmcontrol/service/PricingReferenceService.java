@@ -123,8 +123,17 @@ public class PricingReferenceService {
         }
     }
 
+    /** Live prices from the AWS Price List (U19-T05); absent in plain unit tests. */
+    private com.tcgdigital.vmcontrol.service.pricing.AwsPriceListService priceList;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setPriceList(com.tcgdigital.vmcontrol.service.pricing.AwsPriceListService priceList) {
+        this.priceList = priceList;
+    }
+
     /**
-     * Fallback tiers: exact provider:instanceType:region, then provider:instanceType (any region),
+     * Tiers: the AWS Price List's rate for that region (U19-T05, EC2 and EKS node types), then the
+     * bundled exact provider:instanceType:region, then provider:instanceType (any region, approximate),
      * then unresolvable.
      */
     public PriceLookupResult lookupHourlyRate(String provider, String instanceType, String region) {
@@ -136,6 +145,13 @@ public class PricingReferenceService {
             // PostgreSQL Single-AZ rate, flagged approximate (E33-T05).
             PriceLookupResult rds = lookupRdsHourlyRate("postgres", instanceType, region, false);
             return rds.priceKnown() ? new PriceLookupResult(true, rds.hourlyRate(), true) : rds;
+        }
+        if (priceList != null && (com.tcgdigital.vmcontrol.model.CloudProvider.AWS.name().equals(provider)
+                || com.tcgdigital.vmcontrol.model.CloudProvider.AWS_EKS.name().equals(provider))) {
+            java.util.Optional<BigDecimal> live = priceList.ec2Hourly(region, instanceType);
+            if (live.isPresent()) {
+                return new PriceLookupResult(true, live.get(), false);
+            }
         }
         BigDecimal rate = ratesByTypeAndRegion.get(typeAndRegionKey(provider, instanceType, region));
         if (rate != null) {

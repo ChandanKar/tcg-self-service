@@ -20,6 +20,7 @@ DELETE FROM reservation_coverage_snapshot;
 DELETE FROM aws_cost_forecast;
 DELETE FROM aws_account_region;
 DELETE FROM discovery_ignore;
+DELETE FROM price_cache;
 DELETE FROM environment_carbon_monthly;
 DELETE FROM carbon_monthly;
 DELETE FROM carbon_ingest_file;
