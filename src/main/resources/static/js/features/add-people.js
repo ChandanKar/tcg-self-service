@@ -145,7 +145,7 @@ const AddPeople = (function() {
                 <ul class="adp-results" id="adp-results" role="listbox" aria-label="People in the directory" hidden></ul>
             </label>` : '';
         $('#content-area').html(`
-            <div class="content-view adp-page" id="add-people-view">
+            <div class="content-view page page-frame adp-page" id="add-people-view">
                 ${PageHeader.markup({ title: 'Add people', breadcrumb: [{ label: 'Users', href: '#/user-management' }, { label: 'Add people' }],
                     summaryHtml: 'Add colleagues before their first sign-in, and give them access in the same step.' })}
                 <div class="adp-grid">
@@ -190,6 +190,7 @@ const AddPeople = (function() {
                     </div>
                 </div>
             </div>`);
+        watchColumns();
     }
 
     // ---- 1 · Who
@@ -484,6 +485,16 @@ const AddPeople = (function() {
             this.setAttribute('tabindex', on ? '0' : '-1');
         });
         changed();
+    }
+
+    /** On the page frame (U18-T05) the people table and the right column scroll inside; Add people stays in view. */
+    function watchColumns() {
+        if (typeof Modals === 'undefined' || !Modals.watchScroll) return;
+        const who = document.querySelector('#add-people-view .adp-who');
+        const wrap = who && who.querySelector('.adp-table-wrap');
+        if (wrap) Modals.watchScroll(wrap, who, 'People');
+        const side = document.querySelector('#add-people-view .adp-side');
+        if (side) Modals.watchScroll(side, side, 'Role and access');
     }
 
     return { load, model: { parseAddresses, summaryText, requestOf, roleLabel } };

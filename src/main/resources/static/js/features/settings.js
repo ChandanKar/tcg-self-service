@@ -10,6 +10,8 @@ const Settings = (function() {
     'use strict';
 
     const ROWS_PER_PAGE = 6;
+    /** Rows a page on the page frame: as many as fit, at most ROWS_PER_PAGE (U18-T05). */
+    const perPage = () => (s && s.fit) || ROWS_PER_PAGE;
 
     const QUIET = { suppressGlobalError: true };
     /** The sections, their short address names and the sentence under each title. */
@@ -111,9 +113,9 @@ const Settings = (function() {
         }
         const q = ContentRouter.query ? ContentRouter.query() : {};
         s = { token: ContentRouter.token(), settings: [], section: SECTIONS.some(([k]) => k === q.section) ? q.section : 'notif',
-            pending: {}, errors: {}, saving: false, rowPage: 1 };
+            pending: {}, errors: {}, saving: false, rowPage: 1, fit: null, fitHeight: null };
         $('#content-area').html(`
-            <div class="content-view settings-page" id="settings-view">
+            <div class="content-view page page-frame settings-page" id="settings-view">
                 ${PageHeader.markup({ title: 'Settings',
                     summaryHtml: 'Platform switches. Changes apply within 30 seconds; no restart needed.',
                     helpPage: typeof HelpLink !== 'undefined' ? 'settings' : null, helpLabel: 'Settings' })}
@@ -171,18 +173,51 @@ const Settings = (function() {
         }).join(''));
         const [, title, intro] = SECTIONS.find(([key]) => key === s.section);
         const rows = inSection(s.section);
-        // Six rows fit 1440 x 900 without a page scrollbar (U17-T07); changes on other pages are kept.
-        const pages = Math.max(1, Math.ceil(rows.length / ROWS_PER_PAGE));
+        // Rows a page fit the window, at most six (U17-T07, U18-T05); changes on other pages are kept.
+        const size = perPage();
+        const pages = Math.max(1, Math.ceil(rows.length / size));
         s.rowPage = Math.min(Math.max(1, s.rowPage || 1), pages);
-        const pager = rows.length > ROWS_PER_PAGE ? Pagination.buildPager({ page: s.rowPage, pageSize: ROWS_PER_PAGE,
+        const pager = rows.length > size ? Pagination.buildPager({ page: s.rowPage, pageSize: size,
             totalItems: rows.length, action: 'st-page', key: s.section }) : '';
         $('#st-panel').html(`<div class="st-head"><h2 id="st-title" tabindex="-1">${Utils.escapeHtml(title)}</h2><p>${Utils.escapeHtml(intro)}</p></div>
-            ${rows.length ? Pagination.slice(rows, s.rowPage, ROWS_PER_PAGE).map(rowHtml).join('') + pager : '<p class="st-note st-pad">Nothing to set here.</p>'}
+            <div class="st-rows list-panel-body">${rows.length ? Pagination.slice(rows, s.rowPage, size).map(rowHtml).join('') : '<p class="st-note st-pad">Nothing to set here.</p>'}</div>
+            <div class="st-foot">${pager}
             <div class="st-bar" id="st-bar" role="region" aria-label="Changes not saved" hidden>
                 <span class="st-bar-text" id="st-bar-text"></span>
                 <button type="button" class="st-link" id="st-discard">Discard</button>
-                <button type="button" class="btn btn-primary btn-sm" id="st-save">Save changes</button></div>`);
+                <button type="button" class="btn btn-primary btn-sm" id="st-save">Save changes</button></div></div>`);
         drawBar();
+        attachFit();
+    }
+
+    /**
+     * Rows a page follow the window (U18-T05): measured once a visit and again when the window's height
+     * changes. Rows differ in height, and the changes bar comes and goes, so the count is not re-measured
+     * on every redraw; it keeps room for the bar, so showing it never moves the rows being edited.
+     */
+    function attachFit() {
+        const panel = document.getElementById('st-panel');
+        if (!panel || !panel.querySelector('.st-row') || typeof ListPanel === 'undefined') return;
+        const opts = { rowSelector: '.st-row', rowHeight: 96, min: 1, max: ROWS_PER_PAGE, reserve: barRoom() };
+        const apply = count => {
+            const height = window.innerHeight;
+            if (!count || (s.fit !== null && height === s.fitHeight)) return;
+            s.fitHeight = height;
+            if (count === perPage()) { s.fit = count; return; }
+            const first = (s.rowPage - 1) * perPage();
+            s.fit = count;
+            s.rowPage = ListPanel.pageKeepingFirst(first, count);
+            draw();
+        };
+        const handle = ListPanel.attach(panel, Object.assign({}, opts, { onFit: apply }));
+        if (typeof Modals !== 'undefined' && Modals.watchScroll) Modals.watchScroll(panel.querySelector('.st-rows'), panel, 'Settings');
+        if (s.fit === null) apply(handle.fitCount());
+    }
+
+    /** Height kept free for the changes bar while it is hidden. */
+    function barRoom() {
+        const bar = document.getElementById('st-bar');
+        return bar && bar.hidden ? 56 : 0;
     }
 
     function rowHtml(x) {

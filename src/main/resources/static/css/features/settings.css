@@ -263,3 +263,43 @@
         flex-basis: 100%;
     }
 }
+
+/* On the page frame (U18-T05): the sections and the panel take the height left. The panel's heading,
+   pager and changes bar stay; the rows scroll inside when they do not fit, and rows a page follow the
+   window. */
+@media (min-width: 1280px) and (min-height: 600px) {
+    .settings-page.page-frame > .st-layout {
+        flex: 1 1 0;
+        min-height: 0;
+        grid-template-rows: minmax(0, 1fr);
+    }
+
+    .settings-page.page-frame .st-nav {
+        max-height: 100%;
+        overflow-y: auto;
+    }
+
+    /* The panel takes the whole height, so the rows a page are counted against the room there is. */
+    .settings-page.page-frame .st-panel {
+        align-self: stretch;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .settings-page.page-frame .st-rows {
+        flex: 1 1 auto;
+    }
+
+    .settings-page.page-frame .st-head,
+    .settings-page.page-frame .st-foot {
+        flex: none;
+    }
+
+    .settings-page.page-frame .st-bar {
+        position: static;
+    }
+}
+
+.st-panel.has-more-below > .st-foot {
+    box-shadow: 0 -6px 8px -6px rgba(20, 36, 92, 0.22);
+}

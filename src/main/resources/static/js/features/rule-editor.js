@@ -253,7 +253,7 @@ const RuleEditor = (function() {
         const holiday = holidayValue(rule);
         const noEnvs = !rule && !s.environments.length;
         $('#content-area').html(`
-            <div class="content-view re-page" id="rule-editor-view">
+            <div class="content-view page page-frame re-page" id="rule-editor-view">
                 ${PageHeader.markup({ title, breadcrumb: [{ label: 'Automation rules', href: LIST_HASH }, { label: rule ? rule.name : 'New schedule' }],
                     summaryHtml: 'Start and stop an environment at the same times each week.',
                     helpPage: typeof HelpLink !== 'undefined' ? 'automation-rules' : null, helpLabel: 'Automation rules' })}
@@ -308,6 +308,7 @@ const RuleEditor = (function() {
                 </form>`}
             </div>`);
         if (noEnvs) return;
+        watchForm();
         renderTimes();
         bind();
         loadGroups();
@@ -643,6 +644,13 @@ const RuleEditor = (function() {
     }
 
     // ---- events
+
+    /** On the page frame (U18-T05) the fields scroll inside the card and the footer with Save stays in view. */
+    function watchForm() {
+        const form = document.getElementById('ar-form');
+        const body = form && form.querySelector('.re-body');
+        if (body && typeof Modals !== 'undefined' && Modals.watchScroll) Modals.watchScroll(body, form, 'Schedule');
+    }
 
     function bind() {
         const NS = '.ruleEditor';

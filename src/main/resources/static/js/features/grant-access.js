@@ -121,7 +121,7 @@ const GrantAccessPage = (function() {
         const durations = DURATIONS.map(([v, t]) => Utils.html`<option value="${v}" ${state.duration === v ? 'selected' : ''}>${t}</option>`).join('');
         const teams = ['<option value="">Choose a team</option>'].concat(state.teams.map(t => Utils.html`<option value="${t.teamId}">${t.displayName || t.name} (${t.memberCount} ${t.memberCount === 1 ? 'person' : 'people'})</option>`)).join('');
         $('#content-area').html(`
-            <div class="content-view ga-page" id="grant-access-view">
+            <div class="content-view page page-frame ga-page" id="grant-access-view">
                 ${PageHeader.markup({ title: 'Grant access', breadcrumb: [{ label: 'Access management', href: '#/access-management' }, { label: 'Grant access' }],
                     summaryHtml: 'Give one or more people access to one or more environments in one go.' })}
                 <div class="ga-grid">
@@ -179,6 +179,18 @@ const GrantAccessPage = (function() {
             </div>`);
         drawChips();
         drawPreview();
+        watchColumns();
+    }
+
+    /** On the page frame (U18-T05) each column scrolls inside; the preview's Grant button stays in view. */
+    function watchColumns() {
+        if (typeof Modals === 'undefined' || !Modals.watchScroll) return;
+        const col = document.querySelector('#grant-access-view .ga-col');
+        if (col) Modals.watchScroll(col, col, 'People, access and note');
+        const envs = document.querySelector('#grant-access-view .ga-envs');
+        if (envs) Modals.watchScroll(document.getElementById('ga-env-list'), envs, 'Environments');
+        const preview = document.querySelector('#grant-access-view .ga-preview');
+        if (preview) Modals.watchScroll(document.getElementById('ga-rows'), preview, 'What will happen');
     }
 
     function drawChips() {

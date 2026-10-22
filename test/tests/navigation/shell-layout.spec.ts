@@ -140,12 +140,9 @@ const SIZES: [number, number][] = [[1440, 900], [1536, 730], [1366, 657]];
 /**
  * Pages measured to scroll on laptop windows before U18 (2026-10-22 sweep), each with the U18 task
  * that moves it onto the page frame. Checked strictly at 1440 x 900; at the smaller sizes they are
- * skipped until their task lands. U18-T06 empties this list.
+ * skipped until their task lands. Empty since U18-T05: every page fits.
  */
-const LAPTOP_KNOWN: Record<string, string> = {
-  '#/automation-rules/new': 'U18-T05', '#/access-management/grant': 'U18-T05', '#/user-management/add': 'U18-T05',
-  '#/settings': 'U18-T05',
-};
+const LAPTOP_KNOWN: Record<string, string> = {};
 
 test.describe('Fits the window without a page scrollbar', () => {
   test.describe.configure({ timeout: 300_000 });
@@ -327,5 +324,48 @@ test.describe('Everyday pages on the page frame', () => {
     await page.waitForLoadState('networkidle');
     expect(await fits()).toBe(true);
   });
-});
 
+  test('Forms keep their buttons in view at 1366 x 657 and only their content scrolls (U18-T05)', async ({ page }) => {
+    const fits = () => page.evaluate(() => { const m = document.getElementById('mainContent')!; return m.scrollHeight <= m.clientHeight + 1; });
+    const forms: [string, string, string][] = [
+      ['#/automation-rules/new', '#ar-form', '#ar-save-btn'],
+      ['#/access-management/grant', '#ga-env-list', '#ga-grant'],
+      ['#/user-management/add', '#adp-people', '#adp-submit'],
+    ];
+    await openAs(page, 1366, 657, '#/help', '#help-search');
+    for (const [hash, ready, button] of forms) {
+      await page.evaluate(h => { location.hash = h; }, hash);
+      await expect(page.locator(ready)).toBeVisible({ timeout: 15_000 });
+      await page.waitForLoadState('networkidle');
+      expect(await fits(), `${hash} fits the window`).toBe(true);
+      await expect(page.locator(button), `${hash}: ${button} in view`).toBeInViewport();
+    }
+  });
+
+  test('Settings: rows a page fit the window and the changes bar never moves them', async ({ page }) => {
+    await openAs(page, 1366, 657, '#/settings', '#st-panel .st-row');
+    const fits = () => page.evaluate(() => { const m = document.getElementById('mainContent')!; return m.scrollHeight <= m.clientHeight + 1; });
+    expect(await fits()).toBe(true);
+    const rows = page.locator('#st-panel .st-row');
+    const count = await rows.count();
+    expect(count).toBeGreaterThan(0);
+    expect(count).toBeLessThanOrEqual(6);
+    const control = page.locator('#st-panel select[data-st-key], #st-panel input[type=checkbox][data-st-key]').first();
+    test.skip(!(await control.count()), 'No editable setting in this section');
+    if (await control.evaluate(el => el.tagName === 'SELECT')) {
+      await control.evaluate((el: HTMLSelectElement) => {
+        el.selectedIndex = (el.selectedIndex + 1) % el.options.length;
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    } else {
+      await control.click();
+    }
+    await expect(page.locator('#st-bar')).toBeVisible();
+    await expect(page.locator('#st-save')).toBeInViewport();
+    await page.waitForTimeout(400);
+    expect(await rows.count()).toBe(count);
+    expect(await fits()).toBe(true);
+    await page.locator('#st-discard').click();
+    await expect(page.locator('#st-bar')).toBeHidden();
+  });
+});

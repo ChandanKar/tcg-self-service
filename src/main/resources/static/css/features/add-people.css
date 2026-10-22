@@ -448,3 +448,58 @@
         display: flex;
     }
 }
+
+/* Add people on the page frame (U18-T05): both columns take the height left. The people table scrolls
+   inside its card, with sticky headings; the right column scrolls inside, with Cancel and Add people
+   pinned at its foot. */
+@media (min-width: 1280px) and (min-height: 600px) {
+    .adp-page.page-frame > .adp-grid {
+        flex: 1 1 0;
+        min-height: 0;
+        grid-template-rows: minmax(0, 1fr);
+        align-items: stretch;
+    }
+
+    .adp-page.page-frame .adp-who {
+        min-height: 0;
+        overflow-y: auto;
+    }
+
+    .adp-page.page-frame .adp-table-wrap {
+        flex: 1 1 auto;
+        min-height: 96px;
+        max-height: none;
+    }
+
+    .adp-page.page-frame .adp-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #fff;
+    }
+
+    .adp-page.page-frame .adp-side {
+        min-height: 0;
+        overflow-y: auto;
+    }
+
+    .adp-page.page-frame .adp-side > .adp-card {
+        flex: none;
+    }
+
+    .adp-page.page-frame .adp-confirm {
+        position: sticky;
+        bottom: 0;
+        z-index: 2;
+    }
+}
+
+.adp-side.has-more-below > .adp-confirm {
+    box-shadow: 0 -6px 8px -6px rgba(20, 36, 92, 0.22);
+}
+
+.adp-side:focus-visible,
+.adp-table-wrap:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: -2px;
+}

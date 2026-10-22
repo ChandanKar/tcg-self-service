@@ -283,3 +283,33 @@
 .re-hint-row .re-hint {
     margin: 0;
 }
+
+/* On the page frame (U18-T05): the card is never taller than the window; its fields scroll inside and
+   the footer (Suggest, Cancel, Save schedule) stays in view, with a shadow while fields are hidden below. */
+@media (min-width: 1280px) and (min-height: 600px) {
+    .re-page.page-frame > .re-card {
+        flex: 0 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .re-page.page-frame .re-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+    }
+
+    .re-page.page-frame .re-foot {
+        flex: none;
+    }
+}
+
+.re-card.has-more-below > .re-foot {
+    box-shadow: 0 -6px 8px -6px rgba(20, 36, 92, 0.22);
+}
+
+.re-body:focus-visible {
+    outline: 2px solid var(--brand-navy);
+    outline-offset: -2px;
+}
